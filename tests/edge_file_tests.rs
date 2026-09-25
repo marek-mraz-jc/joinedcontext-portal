@@ -7,10 +7,11 @@ use serde_json::{json, Value};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
+use jc_core::kinds::OrganizationLimits;
 use joinedcontext_portal::apps::kube::KubeClient;
 use joinedcontext_portal::reconciler::app_clients::ClientSecret;
 use joinedcontext_portal::reconciler::edge_file::{
-    compose, EdgeApp, EdgeFile, EdgeOutcome, Upstream, COMPOSED_BY,
+    compose, EdgeApp, EdgeFile, EdgeOutcome, EdgeRates, Upstream, COMPOSED_BY,
 };
 
 const NS: &str = "apisix";
@@ -85,13 +86,18 @@ fn seeded(file: &str, annotations: Value) -> Value {
 }
 
 async fn api(secret: Option<Value>) -> MockServer {
+    api_on(BASE, secret).await
+}
+
+/// The API server with this base in helm's ConfigMap.
+async fn api_on(base: &str, secret: Option<Value>) -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path(BASE_PATH))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "apiVersion": "v1", "kind": "ConfigMap",
             "metadata": { "name": "apisix-standalone-base", "namespace": NS },
-            "data": { "apisix.yaml": BASE },
+            "data": { "apisix.yaml": base },
         })))
         .mount(&server)
         .await;
@@ -134,7 +140,7 @@ async fn the_seeded_secret_is_replaced_with_the_composed_file_and_marked() {
         .mount(&server)
         .await;
 
-    let (outcome, skipped) = edge(&server).converge(&apps()).await;
+    let (outcome, skipped) = edge(&server).converge(&apps(), None).await;
     assert_eq!(outcome, EdgeOutcome::Written { apps: 1 });
     assert!(skipped.is_empty(), "{skipped:?}");
 
@@ -158,7 +164,12 @@ async fn the_seeded_secret_is_replaced_with_the_composed_file_and_marked() {
         .decode(body["data"]["apisix.yaml"].as_str().expect("the file"))
         .expect("base64");
     let file = String::from_utf8(file).expect("utf-8");
-    assert_eq!(file, compose(BASE, &apps()).expect("composes").file);
+    assert_eq!(
+        file,
+        compose(BASE, &apps(), &EdgeRates::default())
+            .expect("composes")
+            .file
+    );
     assert!(file.contains("app-air-quality") && file.contains(CLIENT_SECRET));
     assert!(file.ends_with("#END\n"));
 }
@@ -166,7 +177,9 @@ async fn the_seeded_secret_is_replaced_with_the_composed_file_and_marked() {
 /// An unchanged file is no write, so an unchanged run is no reload.
 #[tokio::test]
 async fn an_unchanged_file_is_not_written_again() {
-    let file = compose(BASE, &apps()).expect("composes").file;
+    let file = compose(BASE, &apps(), &EdgeRates::default())
+        .expect("composes")
+        .file;
     let server = api(Some(seeded(&file, json!({ COMPOSED_BY: "portal" })))).await;
     Mock::given(method("PUT"))
         .respond_with(ResponseTemplate::new(200))
@@ -174,7 +187,7 @@ async fn an_unchanged_file_is_not_written_again() {
         .mount(&server)
         .await;
 
-    let (outcome, _) = edge(&server).converge(&apps()).await;
+    let (outcome, _) = edge(&server).converge(&apps(), None).await;
     assert_eq!(outcome, EdgeOutcome::Unchanged { apps: 1 });
 }
 
@@ -193,7 +206,7 @@ async fn a_missing_secret_is_reported_and_not_created() {
         .mount(&server)
         .await;
 
-    let (outcome, _) = edge(&server).converge(&apps()).await;
+    let (outcome, _) = edge(&server).converge(&apps(), None).await;
     let EdgeOutcome::Failed(reason) = outcome else {
         panic!("a missing Secret was not reported: {outcome:?}");
     };
@@ -214,10 +227,71 @@ async fn a_refused_write_is_reported_without_the_file() {
         .mount(&server)
         .await;
 
-    let (outcome, _) = edge(&server).converge(&apps()).await;
+    let (outcome, _) = edge(&server).converge(&apps(), None).await;
     let EdgeOutcome::Failed(reason) = outcome else {
         panic!("a refused write was not reported: {outcome:?}");
     };
     assert!(reason.contains("409"), "{reason}");
     assert!(!reason.contains(CLIENT_SECRET), "{reason}");
+}
+
+/// T-2892, ADR-N-035: the Organization lowers the web rate; the next run writes the file with
+/// the lowered count on the labelled chain, and the served file changes without a helm release.
+#[tokio::test]
+async fn a_lowered_organization_rate_is_written_on_the_next_run() {
+    let base = BASE.replace(
+        "  - id: apps-surface\n    plugins:\n",
+        "  - id: apps-surface\n    labels:\n      jc-rate-class: web\n    plugins:\n      \
+         limit-count:\n        count: 300\n        time_window: 60\n        key: remote_addr\n",
+    );
+    assert_ne!(base, BASE, "the base carries the label");
+    let served = compose(&base, &apps(), &EdgeRates::of(None, &Default::default()))
+        .expect("composes")
+        .file;
+    let server = api_on(
+        &base,
+        Some(seeded(&served, json!({ COMPOSED_BY: "portal" }))),
+    )
+    .await;
+    Mock::given(method("PUT"))
+        .and(path(SECRET_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let limits: OrganizationLimits =
+        serde_json::from_value(json!({ "edge": { "requestsPerMinute": { "web": 60 } } }))
+            .expect("limits");
+
+    let (outcome, _) = edge(&server).converge(&apps(), Some(&limits)).await;
+    assert_eq!(outcome, EdgeOutcome::Written { apps: 1 });
+
+    let requests = server.received_requests().await.expect("recorded");
+    let put = requests
+        .iter()
+        .find(|r| r.method.as_str() == "PUT")
+        .expect("a PUT");
+    let file = base64::engine::general_purpose::STANDARD
+        .decode(
+            put_body(put)["data"]["apisix.yaml"]
+                .as_str()
+                .expect("the file"),
+        )
+        .expect("base64");
+    let file: Value = serde_yaml_ng::from_slice(&file).expect("YAML");
+    let surface = file["plugin_configs"]
+        .as_array()
+        .expect("plugin_configs")
+        .iter()
+        .find(|pc| pc["id"] == "apps-surface")
+        .expect("the surface");
+    assert_eq!(surface["plugins"]["limit-count"]["count"], 60);
+    // The App's own chain copies the surface, so it counts the lowered rate too.
+    let own = file["plugin_configs"]
+        .as_array()
+        .expect("plugin_configs")
+        .iter()
+        .find(|pc| pc["id"] == "app-air-quality")
+        .expect("the App's chain");
+    assert_eq!(own["plugins"]["limit-count"]["count"], 60);
 }

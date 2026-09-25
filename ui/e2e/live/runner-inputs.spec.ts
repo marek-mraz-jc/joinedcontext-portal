@@ -71,15 +71,17 @@ const INDICATOR_ROW = JSON.stringify([
   },
 ]);
 
+// A KeyPerformanceIndicator carries PF-54's attributes and no other (Development/10 section 4
+// closes the object): the upstream URL and the synthetic note live in calculationFormula.
 const INDICATOR_MAPPING = [
   'let domain = env("JC_ORG_DOMAIN")',
   "root = {",
   '  "id": "urn:ngsi-ld:KeyPerformanceIndicator:%v:helsinki-kpi:%v".format($domain, this.id),',
   '  "type": "KeyPerformanceIndicator",',
   '  "name": { "type": "Property", "value": this.name },',
-  '  "calculationFormula": { "type": "Property", "value": this.formula },',
+  '  "calculationFormula": { "type": "Property", "value": "%v, from %v".format(this.formula, this.source) },',
   '  "currentValue": { "type": "Property", "value": this.value, "unitCode": this.unit, "observedAt": this.observed_at },',
-  '  "source": { "type": "Property", "value": this.source }',
+  '  "updatedAt": { "type": "Property", "value": this.observed_at }',
   "}",
 ].join("\n");
 
@@ -95,8 +97,9 @@ const COUNTER_MAPPING = [
   '  "id": "urn:ngsi-ld:KeyPerformanceIndicator:%v:helsinki-kpi:%v".format($domain, this.id),',
   '  "type": "KeyPerformanceIndicator",',
   '  "name": { "type": "Property", "value": "Demo counter %v".format(this.id.split("-").index(-1)) },',
-  '  "description": { "type": "Property", "value": this.note },',
-  '  "currentValue": { "type": "Property", "value": this.count, "observedAt": $at }',
+  '  "calculationFormula": { "type": "Property", "value": "messages published by the demo feed: %v".format(this.note) },',
+  '  "currentValue": { "type": "Property", "value": this.count, "observedAt": $at },',
+  '  "updatedAt": { "type": "Property", "value": $at }',
   "}",
 ].join("\n");
 

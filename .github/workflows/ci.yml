@@ -156,4 +156,4 @@ jobs:
       # A static app with no build step (AP-83) has no package.json for the loop above: its pure
       # functions are checked with node's own runner, and its page by ui/e2e (T-2597).
       - name: the plain-HTML apps' own tests
-        run: node --test apps/*/test/*.test.mjs
+        run: node --test sdk/examples/*/test/*.test.mjs

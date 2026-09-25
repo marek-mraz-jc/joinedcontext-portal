@@ -8,6 +8,7 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import { Chart } from "../src/Chart";
+import { basemapOf } from "../src/StationMap";
 import { BAND_COLOUR, bandOf, historyOf, LIMITS, stationFeatures, type StationCollection } from "../src/quality";
 import type { Station } from "../src/api";
 import { Map as FakeMap } from "./maplibre";
@@ -79,6 +80,28 @@ describe("what a reading means", () => {
     expect(collection.features.map((feature) => feature.properties.id)).toEqual([KALLIO, KUMPULA]);
     expect(collection.features[0].properties.colour).toBe(BAND_COLOUR.fair);
     expect(collection.features[1].properties.colour).toBe(BAND_COLOUR.good);
+  });
+});
+
+describe("the basemap", () => {
+  it("is the project's style from the page's #jc-config, and nothing when the page has none or it is broken", () => {
+    const page = (text: string | null) => {
+      const doc = document.implementation.createHTMLDocument("app");
+      if (text !== null) {
+        const script = doc.createElement("script");
+        script.id = "jc-config";
+        script.type = "application/json";
+        script.textContent = text;
+        doc.body.append(script);
+      }
+      return doc;
+    };
+    expect(basemapOf(page('{"basemap":"https://portal.example/api/v1/projects/helsinki/basemap/style.json"}'))).toBe(
+      "https://portal.example/api/v1/projects/helsinki/basemap/style.json",
+    );
+    expect(basemapOf(page(null))).toBeUndefined();
+    expect(basemapOf(page("{not json"))).toBeUndefined();
+    expect(basemapOf(page('{"basemap":42}'))).toBeUndefined();
   });
 });
 

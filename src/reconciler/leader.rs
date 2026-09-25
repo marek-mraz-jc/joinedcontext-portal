@@ -180,7 +180,17 @@ impl Leadership {
         self.stop_heartbeat();
         let mut held = self.held.lock().await;
         self.leader.store(false, Ordering::Relaxed);
-        if let Some(connection) = held.take() {
+        if let Some(mut connection) = held.take() {
+            // Unlock first: the server frees a closed session's locks only when its backend has
+            // exited, which on a busy server is after `resign` returned (T-2977). The close
+            // still keeps the session and its lease out of the pool.
+            if let Err(err) = sqlx::query("SELECT pg_advisory_unlock($1)")
+                .bind(self.key)
+                .execute(&mut *connection)
+                .await
+            {
+                tracing::warn!(error = %err, "could not release the reconciler lock explicitly");
+            }
             close(connection).await;
         }
     }
@@ -287,6 +297,36 @@ mod tests {
             "resigning frees the lock at once"
         );
         other.resign().await;
+    }
+
+    /// Resigning frees the lock before it returns: another replica asking right after it wins,
+    /// every time, not only once the closed session's backend has gone (T-2977).
+    #[tokio::test]
+    async fn the_lock_is_free_the_moment_resign_returns() {
+        let Some(url) = database_url() else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let pool = crate::db::connect(&url).await.expect("connect and migrate");
+        let key = private_key(4);
+        let (one, other) = (
+            Leadership::with_lease(pool.clone(), key, SHORT),
+            Leadership::with_lease(pool.clone(), key, SHORT),
+        );
+        for round in 0..50 {
+            let (leader, next) = if round % 2 == 0 {
+                (&one, &other)
+            } else {
+                (&other, &one)
+            };
+            assert!(leader.acquire().await.expect("election"), "round {round}");
+            leader.resign().await;
+            assert!(
+                next.acquire().await.expect("election after resignation"),
+                "round {round}: the lock was still held after resign returned"
+            );
+            next.resign().await;
+        }
     }
 
     /// The lease never leaks into the pool: after a resignation the pool's sessions carry the

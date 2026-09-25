@@ -882,3 +882,70 @@ async fn the_person_operations_refuse_whom_the_routes_refuse() {
         .await
         .is_empty());
 }
+
+/// The `lifespan` the Portal asked the realm's execute-actions e-mail for, in seconds.
+async fn invitation_lifespan(state: &AppState, kc: &MockServer) -> Option<String> {
+    let body = json!({ "email": "new@example.org", "firstName": "Nora", "lastName": "Nová" });
+    let created = send(state, person("pia"), "POST", PEOPLE, Some(body)).await;
+    assert_eq!(created.status, StatusCode::CREATED, "{}", created.text);
+    let asked = received(kc, "PUT", "/new-id/execute-actions-email").await;
+    asked[0]
+        .url
+        .query_pairs()
+        .find(|(name, _)| name == "lifespan")
+        .map(|(_, value)| value.into_owned())
+}
+
+fn organization_with_invitation_hours(state: &AppState, hours: u32) {
+    state.mirror.upsert(envelope(
+        "Organization",
+        "hel",
+        ORG_NAMESPACE,
+        json!({
+            "domain": "hel.fi", "locales": ["en"], "defaultLocale": "en",
+            "limits": { "people": { "invitationHours": hours } },
+        }),
+    ));
+}
+
+/// ADR-N-035, T-2892: an organization that sets nothing gets the catalog's 12 hours, which is
+/// the realm's own admin action-token lifespan, so nothing changes for it.
+#[tokio::test]
+async fn an_invitation_link_lives_twelve_hours_when_the_organization_sets_nothing() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+    assert_eq!(
+        invitation_lifespan(&state, &kc).await.as_deref(),
+        Some("43200")
+    );
+}
+
+/// ADR-N-035, T-2892: `spec.limits.people.invitationHours` reaches the realm's e-mail.
+#[tokio::test]
+async fn an_invitation_link_lives_the_organizations_invitation_hours() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+    organization_with_invitation_hours(&state, 48);
+    assert_eq!(
+        invitation_lifespan(&state, &kc).await.as_deref(),
+        Some("172800")
+    );
+}
+
+/// ADR-N-035 §2: a bound the operator lowered after the change was approved still holds.
+#[tokio::test]
+async fn an_invitation_link_never_outlives_the_operators_bound() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let mut state = state_with(&kc, &gitea);
+    let mut config = (*state.config).clone();
+    config.organization_bounds = serde_json::from_value(json!({
+        "spec.limits.people.invitationHours": { "max": 24 },
+    }))
+    .expect("bounds");
+    state.config = Arc::new(config);
+    organization_with_invitation_hours(&state, 48);
+    assert_eq!(
+        invitation_lifespan(&state, &kc).await.as_deref(),
+        Some("86400")
+    );
+}

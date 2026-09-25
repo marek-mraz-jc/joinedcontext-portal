@@ -70,6 +70,9 @@ describe("template", () => {
     expect(screen.getByRole("heading", { name: "Station" })).toBeInTheDocument();
     expect(await screen.findByText("Entities per type")).toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    // The summary's numbers reach a screen reader through the chart's table (T-2974).
+    const summary = within(screen.getByRole("figure", { name: "Entities per type" })).getByRole("table");
+    expect(within(summary).getByRole("row", { name: "Note 1" })).toBeInTheDocument();
   });
 
   it("AP-138: the overview maps located data and charts every type that has something to chart", async () => {
@@ -78,8 +81,10 @@ describe("template", () => {
     const station = (await screen.findByRole("heading", { name: "Station" })).closest("article") as HTMLElement;
     expect(station).not.toBeNull();
     await waitFor(() => expect(within(station).getByTestId("jc-map")).toBeInTheDocument());
-    expect(within(station).getByRole("img", { name: "bikes: 4 to 7" })).toBeInTheDocument();
-    expect(station.querySelector(".jc-chart-canvas")).not.toBeNull();
+    // The canvas is there at once; the legend and the chart wait for the rows they are drawn
+    // from, so they are awaited too (T-2973: a loaded CI runner read the legend too early).
+    expect(await within(station).findByRole("img", { name: "bikes: 4 to 7" })).toBeInTheDocument();
+    await waitFor(() => expect(station.querySelector(".jc-chart-canvas")).not.toBeNull());
     // A type without a location gets no map.
     const note = screen.getByRole("heading", { name: "Note" }).closest("article") as HTMLElement;
     expect(within(note).queryByTestId("jc-map")).not.toBeInTheDocument();

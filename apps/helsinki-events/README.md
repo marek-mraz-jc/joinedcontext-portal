@@ -1,33 +1,49 @@
 # Helsinki events
 
-Upcoming events of the City of Helsinki's Linked Events register, with search, a date filter, a detail view and a map of where they are. It is the plain-HTML sample application (T-2597): `spec.build: {}`, so this folder is the bundle as it is, with no build step and no package manager (AP-83).
+Upcoming events in Helsinki and Espoo from the Linked Events registers. One page, Events:
 
-| File | What it is |
-|---|---|
-| `app.yaml` | The App manifest: `static`, `build: {}`, public, one data need on `Event` in `helsinki` |
-| `index.html` | The page: landmarks, the filter form, the list, the map and the detail |
-| `app.js` | Pure functions (endpoint choice, query, entity → view, filter, map projection) and the DOM wiring below them |
-| `style.css` | Light and dark colours, a one-column layout below 48 rem, the filters one label and field per row below 60 rem, the map at most 20 rem high |
-| `test/app.test.mjs` | `node --test` of the pure functions on `test/events.json` |
+- a search by name, place or words, and a From and To date;
+- a chart of the events per day for the next 30 days, and a chart of the events per register;
+  clicking a bar shows only that day or that register;
+- every event with a location on the map, coloured by its register, with a legend;
+- the list, soonest first: date, time, place, register, a Cancelled mark, the source link and
+  the description.
 
-## Where the data comes from
+The Event entities carry no category. The one grouping they do carry is the register that
+publishes them, which the prefix of the local id names (`helsinki-agf…` is the City of Helsinki,
+`espoo_le-…` the City of Espoo, `kulke-…` the culture centres). The map colours and the second
+chart group by that register.
 
-The Portal static host writes a `#jc-config` element into `index.html` when it serves the page. The page takes from its `endpoints` the one named `helsinki-events`, else one serving `Event`, else the primary `slug`, and reads `GET /api/endpoint/{slug}/ngsi-ld/v1/entities?type=Event&limit=100&q=endDate>={start of the day}` on its own origin with `Accept: application/ld+json`. It reads nothing else and talks to no other host: the map is an SVG drawn from the entities' `location`, with no tile server.
+It is a `static` application on the joinedcontext App SDK: React, read-only, one data need on the
+Context Space `helsinki` (`Event`). The Portal serves it under `/apps/helsinki-events/` and fills
+`#jc-config` with the application's own endpoint; the bundle talks to that endpoint and to nothing
+else. The query asks only for events that have not ended (`endDate>=` the start of today).
 
-The attributes it shows are the ones the Event entities carry on dev: `name` and `description` (language maps, shown in the reader's language, else English, Finnish or Swedish), `startDate`, `endDate`, `eventStatus`, `address`, `location` and `source`. A `source` that is not an `https:` link is not shown as a link.
+The plain-HTML version this application replaces is the SDK's teaching example of a static App
+with no build step: `sdk/examples/plain-html-events` in the portal repository.
 
-## Run it locally
-
-Tests:
+## Run the tests
 
 ```sh
-node --test test/*.test.mjs
+pnpm install
+pnpm test          # vitest, against the SDK's stub transport and six sampled events
+pnpm build         # the bundle the build lane publishes
+pnpm e2e           # the built bundle in Chromium, answered by the same stub (needs `pnpm build`)
 ```
 
-The browser flow runs with the Portal UI's Playwright suite (`ui/e2e/app_helsinki_events.spec.ts`). It serves this folder with a `#jc-config`, the static host's Content Security Policy and a stubbed endpoint, and holds the list and a chosen event to four widths (375, 768, 1440 and 2560 px: no sideways scroll, no overlap, axe clean).
+## Run it locally against dev
 
-`python3 -m http.server 8000` in this folder serves the page, but without the `#jc-config` the platform writes, it says it has no endpoint to read. Your browser also refuses to read dev's endpoint from `localhost`, because `connect-src` and CORS both stay on one origin. To see it with data, run the Playwright flow, or open it on dev once T-2599 has seeded it.
+`pnpm dev` serves the application on `http://localhost:5173/`. Fill the `#jc-config` element in
+`index.html` with the endpoint of the application on dev before you start:
 
-## How it reaches dev
+```json
+{ "slug": "<the endpoint slug the App page shows>", "orgDomain": "hel.fi", "space": "helsinki", "transport": "origin", "appName": "helsinki-events" }
+```
 
-The repository of record is `joinedcontext/helsinki_helsinki-events` on the dev forge (AP-75). T-2599 pushes this folder there unchanged and proposes `app.yaml`; the build lane uploads the tree with its `integrity.json` (AP-80, AP-83), and the static host serves it under `/apps/helsinki-events/`.
+Keep that edit out of the commit: the Portal writes the element when it serves the application.
+
+## Where it is built
+
+This tree is the repository `helsinki_helsinki-events` on the installation's forge. Publishing a
+commit there is what the build lane builds: `pnpm install --offline`, `pnpm test`, `pnpm build`,
+and the bundle is served by its digest.

@@ -709,3 +709,51 @@ async fn a_realm_that_fails_on_the_roles_keeps_the_login_and_says_so() {
     assert_eq!(run.secrets.get("alerts").map(|s| s.expose()), Some("kept"));
     assert!(wrote(&keycloak).await.is_empty());
 }
+
+#[tokio::test]
+async fn a_realm_that_fails_on_the_roles_still_gets_the_audiences() {
+    // T-2965: the audiences are what the login's token reaches. A role the realm refuses kept the
+    // login on the edge while its token named no endpoint, so every read the App made was a 401.
+    let keycloak = realm().await;
+    client_in_place(&keycloak).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients/uuid-a/roles")))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&keycloak)
+        .await;
+    answer(
+        &keycloak,
+        "/clients/uuid-a/protocol-mappers/models",
+        json!([mapper("m-app", "app-alerts")]),
+    )
+    .await;
+    writes_succeed(&keycloak).await;
+    let endpoint = ResourceEnvelope {
+        api_version: API_VERSION.to_owned(),
+        kind: "Endpoint".to_owned(),
+        metadata: ObjectMeta::new("air", "helsinki"),
+        spec: json!({ "slug": "ep-air-1234", "contextSpaceRef": { "name": "air" } }),
+        status: None,
+    };
+    let mirror = mirror_with(vec![
+        alerts(json!({ "dataNeeds": [{
+            "contextSpaceRef": { "kind": "ContextSpace", "name": "air" },
+            "types": ["AirQualityObserved"],
+            "operations": ["queryEntity"],
+        }] })),
+        endpoint,
+    ]);
+
+    let run = sync(&keycloak).converge(&mirror).await;
+
+    let error = run.outcomes[0].error.as_deref().unwrap_or_default();
+    assert!(error.starts_with("roles of app-alerts"), "{error}");
+    assert!(error.contains("503"), "{error}");
+    assert_eq!(run.secrets.get("alerts").map(|s| s.expose()), Some("kept"));
+    let created = body_of(&keycloak, "POST", "/clients/uuid-a/protocol-mappers/models").await;
+    assert_eq!(created.len(), 1, "{created:?}");
+    assert_eq!(
+        created[0]["config"]["included.custom.audience"],
+        "ep-air-1234"
+    );
+}

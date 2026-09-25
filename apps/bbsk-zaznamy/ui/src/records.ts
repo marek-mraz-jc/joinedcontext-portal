@@ -86,9 +86,8 @@ export function gridConfig(slug: string, labels: Record<string, string>): Resolv
   const columns: GridColumn[] = COLUMNS.map((attr) => ({
     attr,
     label: labels[attr] ?? attr,
-    // The unit travels on the Property, because one cube serves several indicators with
-    // different units: a number without it is another number.
-    ...(attr === "value" ? { show: { unit: true } } : {}),
+    // No unit column: the code on the Property is UN/CEFACT's (`C62`, "one"), and the number is
+    // drawn with the publisher's own unit text beside it instead (`cells.tsx`, T-2966).
     ...(attr === NOTE ? { editable: true } : {}),
   }));
   return {

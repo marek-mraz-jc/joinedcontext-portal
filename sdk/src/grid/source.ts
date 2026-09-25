@@ -207,6 +207,10 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
         method: "GET",
         path: `${base}/temporal/entities/${encodeURIComponent(id)}?${historyQuery(attr, window)}`,
       });
+      // An Endpoint answers 404 both for an entity with no instances and for one its grants do not
+      // reach, and both are "nothing recorded here" (EP-07, T-2972); a space's 404 still says it
+      // grants nothing, as its query does.
+      if (status === 404 && !hidden) return [];
       if (!ok(status)) refuse(status, body, "the history was refused");
       return historyOf(body, attr);
     },

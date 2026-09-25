@@ -363,7 +363,11 @@ impl AppState {
             // With a database the replicas elect one reconciler; without one there is nothing
             // to elect with, and a Portal that runs alone reconciles alone (T-0191, CC-03).
             if let Some(pool) = state.db.as_ref() {
-                syncer = syncer.with_leadership(Arc::new(Leadership::reconciler(pool.clone())));
+                syncer = syncer
+                    .with_leadership(Arc::new(Leadership::reconciler(pool.clone())))
+                    .with_pipeline_status(Arc::new(crate::pipeline_status::Store::new(
+                        pool.clone(),
+                    )));
                 // PF-41: the challenge lives in the database, so the check runs only with one.
                 let host = state.config.public_base_url.host_str().map(str::to_owned);
                 match (crate::domain_verification::NetLookup::new(), host) {
@@ -407,9 +411,12 @@ impl AppState {
                                 ),
                             }
                             syncer = syncer.with_edge_file(
-                                Arc::new(crate::reconciler::edge_file::EdgeFile::new(
-                                    edge_kube, namespace,
-                                )),
+                                Arc::new(
+                                    crate::reconciler::edge_file::EdgeFile::new(
+                                        edge_kube, namespace,
+                                    )
+                                    .with_bounds(state.config.organization_bounds.clone()),
+                                ),
                                 settings.clone(),
                             );
                         }

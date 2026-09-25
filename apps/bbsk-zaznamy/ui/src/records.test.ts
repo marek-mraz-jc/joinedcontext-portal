@@ -105,7 +105,9 @@ describe("the grid this application is", () => {
 
   it("shows the columns a person recognises a record by, with the unit on the number", () => {
     expect(config.columns.map((column) => column.attr)).toEqual([...COLUMNS]);
-    expect(config.columns.find((column) => column.attr === "value")?.show).toEqual({ unit: true });
+    // The unit is drawn beside the number from the publisher's text (cells.tsx), not as a
+    // column of UN/CEFACT codes (T-2966).
+    expect(config.columns.find((column) => column.attr === "value")?.show).toBeUndefined();
     for (const column of config.columns) {
       expect(column.label, column.attr).toBe(LOCALES.sk.column[column.attr]);
     }
