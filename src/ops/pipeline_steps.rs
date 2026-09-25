@@ -282,7 +282,7 @@ fn target(
         OpError::Conflict(json!({
             "error": "no_model",
             "space": space,
-            "message": format!(
+            "detail": format!(
                 "space '{space}' names no data model, so nothing checks what lands in it; name \
                  its model in spec.dataModelRef (DM-61)"
             ),

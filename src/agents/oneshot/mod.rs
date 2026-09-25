@@ -236,6 +236,14 @@ fn drafted(tool: &str, input: Option<Value>) -> data_query::QueryCall {
 
 /// What one run needs to be driven; everything is copied out of the run and the settings so the
 /// task owns what it reads.
+/// `text` without the run's ticket, the secret half of its bearer.
+fn redact(bearer: &str, text: &str) -> String {
+    match bearer.split_once('.') {
+        Some((_, ticket)) if !ticket.is_empty() => text.replace(ticket, "[redacted]"),
+        _ => text.to_owned(),
+    }
+}
+
 struct Driver {
     state: AppState,
     http: reqwest::Client,
@@ -547,10 +555,7 @@ impl Driver {
     /// `text` without the run's ticket: an upstream that echoes the request back must not put
     /// the bearer into an event or in front of the model (CC-06).
     fn redacted(&self, text: &str) -> String {
-        match self.bearer.split_once('.') {
-            Some((_, ticket)) if !ticket.is_empty() => text.replace(ticket, "[redacted]"),
-            _ => text.to_owned(),
-        }
+        redact(&self.bearer, text)
     }
 
     async fn thought(&self, text: &str) -> Result<(), String> {
@@ -637,6 +642,8 @@ enum Fix<'a> {
     Preview(&'a [String]),
     /// The first version is on screen; the rest of the application follows (SDK-13).
     Complete,
+    /// The version builds and its tests, run in the sandbox, fail (SDK-38).
+    Tests(&'a [String]),
 }
 
 /// A generated version in the frame: its `v`, the sequence number of its `preview` event, so

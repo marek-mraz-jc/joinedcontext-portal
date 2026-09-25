@@ -16,10 +16,15 @@ import { expectAxeClean, expectOneH1, LOCALES, OTHER_BRAND, renderRoute } from "
 describe("the login page", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    // A signed-in case opens a project page, which remembers the project; each case starts clean.
+    window.localStorage.clear();
+    window.sessionStorage.clear();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // The keyboard case stands in for `location`; the cases after it need the real one.
+    vi.unstubAllGlobals();
   });
 
   it("opens_under_one_h1_with_one_primary_action_and_no_axe_violation", async () => {
@@ -50,6 +55,20 @@ describe("the login page", () => {
     expect(redirectTarget("?redirect_to=//evil.example/steal")).toBe("/");
     expect(redirectTarget("?redirect_to=javascript:alert(1)")).toBe("/");
     expect(redirectTarget("")).toBe("/");
+  });
+
+  it("sends_a_person_who_is_already_signed_in_on_to_where_they_were_going", async () => {
+    // Behind the edge, Keycloak sends a person back to the address they opened, /login included
+    // (T-2729): a Sign in button offered to somebody signed in is a step that does nothing.
+    await renderRoute({ path: "/login?redirect_to=%2Fprojects%2Fhelsinki%2Fspaces" });
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/spaces"));
+    expect(screen.queryByRole("button", { name: en.auth.signIn })).toBeNull();
+  });
+
+  it("never_follows_an_address_off_this_origin_for_a_signed_in_person", async () => {
+    await renderRoute({ path: "/login?redirect_to=%2F%2Fevil.example%2Fsteal" });
+    await waitFor(() => expect(window.location.pathname).not.toBe("/login"));
+    expect(window.location.href).not.toContain("evil.example");
   });
 
   it("keeps_no_identity_and_no_token_in_the_browser", async () => {

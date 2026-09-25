@@ -23,7 +23,7 @@ import { addressesIn, routeOf, routerPaths, routesOpenedBy, verdict } from "./ga
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** What was missing when the gate was written; the lists may shrink, never grow. */
-const ALLOWED_ON_2026_09_20 = { mocked: 9, live: 6 };
+const ALLOWED_ON_2026_09_20 = { mocked: 1, live: 0 };
 
 function specs(directory: string): Record<string, string> {
   return Object.fromEntries(

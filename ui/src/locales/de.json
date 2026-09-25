@@ -1068,6 +1068,70 @@
       },
       "newest": "Neueste",
       "older": "Ältere Zeilen"
+    },
+    "workbench": {
+      "failed": "Der Schritt konnte nicht laufen; versuchen Sie es erneut.",
+      "running": "Läuft auf der Stichprobe…",
+      "advanced": "Erweiterter Editor",
+      "advancedHint": "Der Ablauf, mehrere Quellen, Prozessorschritte und eine KPI, auf demselben Entwurf.",
+      "source": {
+        "title": "Quelle",
+        "hint": "Wählen Sie, woher die Datensätze kommen, oder geben Sie eine Datei davon an.",
+        "pick": "Woher die Datensätze kommen",
+        "none": "Datenquelle oder Endpunkt wählen",
+        "type": "Zu lesender Entitätstyp",
+        "pickType": "Typ wählen",
+        "file": "Stichprobendatei wählen",
+        "fileTaken": "Stichprobe: {name}",
+        "fileDrop": "CSV- oder JSON-Datei hierher ziehen oder wählen"
+      },
+      "sample": {
+        "title": "Stichprobe",
+        "hint": "Die ersten Datensätze, die die Quelle liefert, so wie die Pipeline sie liest.",
+        "waiting": "Wählen Sie eine Quelle oder geben Sie eine Datei an, um ihre Datensätze zu sehen.",
+        "empty": "Die Quelle hat keine Datensätze geliefert.",
+        "count": "{count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}",
+        "countFirst": "Die ersten {count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}; die Quelle hat mehr",
+        "caption": "Datensätze der Stichprobe"
+      },
+      "mapping": {
+        "title": "Abbildung",
+        "hint": "Schreiben Sie in Bloblang, wie aus einem Datensatz eine Entität wird; jeder Slot sagt, was er nimmt.",
+        "slotsOf": "Was {type} nimmt",
+        "slots": "Was das Modell nimmt",
+        "noModel": "Der Zielraum nennt kein Datenmodell, daher ist kein Slot bekannt.",
+        "pickTarget": "Wählen Sie in Schritt 6 den Zielendpunkt, um zu sehen, was sein Modell nimmt.",
+        "required": "erforderlich",
+        "many": "mehrere Werte",
+        "values": "{count, plural, =0 {Werte: {values}} other {Werte: {values} und # weitere}}",
+        "example": "Beispiel: {example}"
+      },
+      "output": {
+        "title": "Abgebildete Ausgabe",
+        "hint": "Jeder Datensatz, wie er geschrieben würde, mit jedem Problem an seinem Feld.",
+        "waiting": "Schreiben Sie eine Abbildung und geben Sie eine Stichprobe an, um das Ergebnis zu sehen.",
+        "line": "Zeile {line}",
+        "count": "{count, plural, =0 {Die Abbildung hat keinen Datensatz erzeugt.} one {Die Abbildung hat # Datensatz erzeugt.} other {Die Abbildung hat # Datensätze erzeugt.}}",
+        "caption": "Abgebildete Datensätze",
+        "record": "Datensatz",
+        "written": "Wie geschrieben",
+        "problems": "Probleme"
+      },
+      "validation": {
+        "title": "Validierung",
+        "hint": "Nur Datensätze, die das Modell des Raums annimmt, werden geschrieben; der Rest kommt auf die Liste der abgelehnten.",
+        "waiting": "Die Urteile folgen, sobald die Abbildung Datensätze erzeugt.",
+        "valid": "gültig",
+        "allValid": "{count, plural, one {# Datensatz ist} other {Alle # Datensätze sind}} gültig gegen {model} {version}.",
+        "someRejected": "{count, plural, one {# Datensatz verletzt} other {# Datensätze verletzen}} {model} {version} und würden nicht geschrieben; {valid} gültig."
+      },
+      "target": {
+        "title": "Ziel und Speichern",
+        "hint": "Nennen Sie den Endpunkt, über den die Datensätze geschrieben werden; Speichern schlägt eine Änderung vor.",
+        "lands": "Die Datensätze landen im Raum {space}, geprüft gegen das Modell {model}.",
+        "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
+        "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist."
+      }
     }
   },
   "dashboards": {
@@ -1876,6 +1940,15 @@
       "failed": "Build failed",
       "notBuilt": "No build is served yet"
     },
+    "openPage": {
+      "details": "App-Details",
+      "newWindow": "In neuem Fenster öffnen",
+      "served": "Läuft auf Commit {commit}",
+      "frameTitle": "{title}, die Anwendung",
+      "notOpen": "Hier gibt es noch nichts zu öffnen. Die App-Details sagen, wie es weitergeht.",
+      "signInHint": "Fragt die App nach einer Anmeldung und bleibt leer?",
+      "signInAgain": "Erneut anmelden"
+    },
     "retire": {
       "title": "Retire {name}",
       "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
@@ -2298,7 +2371,12 @@
       "previewLink": "Vorschau öffnen",
       "chose": "Ihre Wahl: {choice}",
       "file": "Sie haben {name} übergeben",
-      "url": "Die Daten liegen unter {url}"
+      "url": "Die Daten liegen unter {url}",
+      "testsRunning": "Version {version} wird getestet …",
+      "testsPassed": "Version {version}: alle {passed} Tests bestehen.",
+      "testsFailed": "Version {version}: {failed} Tests schlagen fehl. {names}",
+      "testsError": "Die Tests von Version {version} konnten nicht laufen: {reason}",
+      "testsSkipped": "Version {version} wurde hier nicht getestet: {reason}"
     },
     "preview": {
       "title": "Vorschau",
@@ -2528,6 +2606,10 @@
         "again": "Erneut lesen",
         "explore": "Im Explorer öffnen"
       }
+    },
+    "testsHold": {
+      "running": "Veröffentlichen wartet, bis die Tests von Version {version} gelaufen sind.",
+      "failed": "Version {version} wird nicht veröffentlicht, solange {failed} ihrer Tests fehlschlagen: {names}. Bitten Sie den Assistenten, sie zu beheben."
     }
   },
   "assistant": {
@@ -2711,7 +2793,7 @@
     "continue": "Fortsetzen",
     "continueMessage": "Setze dieses Gespräch fort.",
     "continues": "setzt eine frühere Unterhaltung fort",
-    "empty": "Noch nichts. Fragen Sie den Assistenten oder beginnen Sie unten eine Arbeit.",
+    "empty": "Noch nichts. Öffnen Sie den Assistenten, wählen Sie einen Weg oder stellen Sie eine Frage; seine Gespräche und seine Arbeit erscheinen hier.",
     "started": "Gestartet",
     "actions": "Aktionen",
     "access": {

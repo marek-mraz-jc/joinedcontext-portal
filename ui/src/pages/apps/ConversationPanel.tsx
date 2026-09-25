@@ -209,6 +209,28 @@ export function line(
       });
     case "preview":
       return t("agentRun.line.preview", { url: text("previewUrl") });
+    case "tests": {
+      const version = String(payload.version ?? "");
+      switch (payload.outcome) {
+        case "running":
+          return t("agentRun.line.testsRunning", { version });
+        case "passed":
+          return t("agentRun.line.testsPassed", { version, passed: String(payload.passed ?? 0) });
+        case "failed":
+          return t("agentRun.line.testsFailed", {
+            version,
+            failed: String(payload.failed ?? 0),
+            names: (Array.isArray(payload.failures) ? payload.failures : [])
+              .map((failure: unknown) => (failure as { name?: unknown } | null)?.name)
+              .filter((name): name is string => typeof name === "string")
+              .join("; "),
+          });
+        case "error":
+          return t("agentRun.line.testsError", { version, reason: text("reason") });
+        default:
+          return t("agentRun.line.testsSkipped", { version, reason: text("reason") });
+      }
+    }
     case "usage":
       return t("agentRun.line.usage", { tokens: String(payload.tokensThisStep ?? "") });
     case "answer": {

@@ -42,40 +42,31 @@ spec:
       quotas,
     ]
   groups:
+    # The workbench above the form owns the source, the mapping and the target (PL-58, ADR-N-034):
+    # the form keeps the name and how it runs in the open and folds the rest, with safe defaults.
     - title:
-        en: Basics and timing
-        sk: Základné údaje a časovanie
-        cs: Základní údaje a časování
-        de: Basisdaten und Zeitplanung
+        en: Basics
+        sk: Základné údaje
+        cs: Základní údaje
+        de: Basisdaten
       description:
-        en: Pipeline identifier, execution mode and run schedule.
-        sk: Identifikátor pipeline, spôsob vykonávania a rozvrh behov.
-        cs: Identifikátor pipeline, způsob provádění a rozvrh běhů.
-        de: Pipeline-Kennung, Ausführungsmodus und Zeitplan.
-      fields: [name, title, class, schedule, period]
+        en: The pipeline's identifier, one line saying what it does, and how it runs.
+        sk: Identifikátor pipeline, jedna veta o tom, čo robí, a ako beží.
+        cs: Identifikátor pipeline, jedna věta o tom, co dělá, a jak běží.
+        de: Die Kennung der Pipeline, ein Satz dazu, was sie tut, und wie sie läuft.
+      fields: [name, title, class, targetEndpoint]
     - title:
-        en: Data flow
-        sk: Tok údajov
-        cs: Tok dat
-        de: Datenfluss
+        en: More options
+        sk: Ďalšie možnosti
+        cs: Další možnosti
+        de: Weitere Optionen
       description:
-        en: Input source, transformation logic, destination endpoint and output mode.
-        sk: Vstupný zdroj, logika transformácie, cieľové rozhranie a režim výstupu.
-        cs: Vstupní zdroj, logika transformace, cílové rozhraní a režim výstupu.
-        de: Eingangsquelle, Transformationslogik, Ziel-Endpunkt und Ausgabemodus.
-      fields: [source, compute, targetEndpoint, output]
-    - title:
-        en: Quotas and execution
-        sk: Kvóty a vykonávanie
-        cs: Kvóty a provádění
-        de: Kontingente und Ausführung
-      description:
-        en: Feedback loop permissions, runner credentials and resource allocations.
-        sk: Povolenia spätnej väzby, prihlasovacie údaje runnera a alokácie zdrojov.
-        cs: Povolení zpětné vazby, přihlašovací údaje runneru a alokace zdrojů.
-        de: Feedback-Berechtigungen, Runner-Zugangsdaten und Ressourcenzuteilungen.
+        en: Schedule, the kind of step, output, feedback, secrets and quotas; the defaults are safe.
+        sk: Plán, druh kroku, výstup, spätná väzba, tajomstvá a kvóty; predvolené hodnoty sú bezpečné.
+        cs: Plán, druh kroku, výstup, zpětná vazba, tajemství a kvóty; výchozí hodnoty jsou bezpečné.
+        de: Zeitplan, Art des Schritts, Ausgabe, Rückmeldung, Geheimnisse und Kontingente; die Vorgaben sind sicher.
       folded: true
-      fields: [allowFeedback, secretRefs, quotas]
+      fields: [schedule, period, source, compute, output, allowFeedback, secretRefs, quotas]
   fields:
     name:
       placeholder: citybikes-gbfs

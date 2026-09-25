@@ -190,8 +190,9 @@ describe("apps catalog", () => {
 
     const card = await cardOf("Noise");
     const open = within(card).getByRole("link", { name: en.apps.openAction });
-    expect(open).toHaveAttribute("href", "/apps/hluk/");
-    expect(open).toHaveAttribute("target", "_blank");
+    // Inside the Portal, under its header (AP-122); that page offers a window of its own.
+    expect(open).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk/open");
+    expect(open).not.toHaveAttribute("target");
     expect(within(card).getByRole("button", { name: more("Noise") })).toBeInTheDocument();
     expect([...within(card).queryAllByRole("button"), ...within(card).queryAllByRole("link")]).toHaveLength(2);
   });
@@ -370,8 +371,8 @@ describe("apps catalog", () => {
       });
     expect(await openOn("Alerts")).toBeNull();
     expect(await openOn("Claims")).toBeNull();
-    expect(await openOn("Indicators")).toHaveAttribute("href", "/apps/ukazovatele/");
-    expect(await openOn("Bikes")).toHaveAttribute("href", "/apps/bikes/");
+    expect(await openOn("Indicators")).toHaveAttribute("href", "/projects/banskabystrica/apps/ukazovatele/open");
+    expect(await openOn("Bikes")).toHaveAttribute("href", "/projects/banskabystrica/apps/bikes/open");
   });
 
   // AP-86, AP-87: a published card says whether its newest run is building, failed or served,

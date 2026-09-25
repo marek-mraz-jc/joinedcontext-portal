@@ -1,11 +1,12 @@
 // node --test builder/lane.test.mjs (vite from sdk/node_modules for the bundle test)
 import { strict as assert } from "node:assert";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import * as lane from "./lane.mjs";
 import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
@@ -548,4 +549,176 @@ test("a missing seed, or one that fails to copy, leaves an empty target and neve
     assert.deepEqual(readdirSync(to), []);
   }
   chmodSync(join(from, "z-unreadable.rlib"), 0o644);
+});
+
+/** A seed and a cache folder side by side, the seed holding one compiled dependency. */
+function cacheFixture() {
+  const dir = mkdtempSync(join(tmpdir(), "lane-cache-"));
+  const seedDir = join(dir, "seed");
+  mkdirSync(join(seedDir, "release", "deps"), { recursive: true });
+  writeFileSync(join(seedDir, "release", "deps", "libserde-1.rlib"), "from the image");
+  const cache = join(dir, "cache");
+  mkdirSync(cache);
+  return { dir, seedDir, cache };
+}
+
+test("a second build of the same lock starts from the App's cache, times kept (AP-131, T-2794)", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const first = join(dir, "first", "target");
+  assert.match(lane.restore(cache, "k1", seedDir, first), /no complete entry; the precompiled dependencies .* are the start/);
+  // The first build compiled the App's own crate and a dependency the seed does not hold.
+  mkdirSync(join(first, "release", "deps"), { recursive: true });
+  const own = join(first, "release", "deps", "libapp-1.rlib");
+  writeFileSync(own, "the app's own");
+  const built = new Date("2026-09-20T00:00:00Z");
+  utimesSync(own, built, built);
+  assert.match(lane.save(first, cache, "k1"), /is the App's build cache/);
+
+  const second = join(dir, "second", "target");
+  assert.match(lane.restore(cache, "k1", seedDir, second), /the App's build cache is the start/);
+  const again = join(second, "release", "deps", "libapp-1.rlib");
+  assert.equal(readFileSync(again, "utf8"), "the app's own");
+  assert.equal(statSync(again).mtime.getTime(), built.getTime(), "cargo reads it as compiled");
+
+  // A copy: what the second build writes changes the cache only when it is saved.
+  writeFileSync(again, "edited");
+  assert.equal(readFileSync(join(cache, "target", "release", "deps", "libapp-1.rlib"), "utf8"), "the app's own");
+});
+
+test("another lock or toolchain, a torn entry or no cache at all start from the seed", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const built = join(dir, "built");
+  mkdirSync(built);
+  writeFileSync(join(built, "stale.rlib"), "for the old lock");
+  lane.save(built, cache, "old-lock");
+
+  const to = join(dir, "target");
+  assert.match(lane.restore(cache, "new-lock", seedDir, to), /for another Cargo\.lock or toolchain; the precompiled/);
+  assert.equal(existsSync(join(to, "stale.rlib")), false);
+  assert.equal(existsSync(join(to, "release", "deps", "libserde-1.rlib")), true);
+
+  // A save cut short leaves its entry and no marker: it is never trusted.
+  rmSync(join(cache, "target.key"));
+  assert.match(lane.restore(cache, "old-lock", seedDir, to), /no complete entry/);
+  assert.equal(existsSync(join(to, "stale.rlib")), false);
+
+  // A marker that cannot be read counts as none.
+  mkdirSync(join(cache, "target.key"));
+  assert.match(lane.restore(cache, "old-lock", seedDir, to), /no complete entry/);
+
+  const nothing = join(dir, "no-cache");
+  assert.match(lane.restore(nothing, "k", seedDir, to), /no build cache is mounted/);
+  assert.match(lane.save(built, nothing, "k"), /nothing kept/);
+  assert.equal(existsSync(nothing), false, "the lane never creates a cache the pod did not mount");
+});
+
+test("a save that fails leaves no entry, and the build it follows still succeeds", () => {
+  const { dir, cache } = cacheFixture();
+  const said = lane.save(join(dir, "no-such-target"), cache, "k");
+  assert.match(said, /was not kept .*: the next build starts from the seed/);
+  assert.deepEqual(readdirSync(cache), []);
+});
+
+test("the lane's command line runs restore and save", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const to = join(dir, "target");
+  const run = (...args) => spawnSync(process.execPath, [new URL("./lane.mjs", import.meta.url).pathname, ...args], { encoding: "utf8" });
+  const restored = run("restore", cache, "k", seedDir, to);
+  assert.equal(restored.status, 0, restored.stderr);
+  assert.match(restored.stdout, /no complete entry/);
+  const saved = run("save", to, cache, "k");
+  assert.equal(saved.status, 0, saved.stderr);
+  assert.equal(readFileSync(join(cache, "target.key"), "utf8").trim(), "k");
+});
+
+// SDK-38: the run's sandbox writes only plain relative paths of the version, never over the links
+// it makes itself, and refuses the whole project before writing any of it.
+test("a project path that is absolute, climbs out, hides or names node_modules is refused before anything is written", () => {
+  for (const path of ["/etc/passwd", "../outside.ts", "src/../../x.ts", "node_modules/vitest/index.js", ".gitea/workflows/build.yml", "src/.hidden.ts", "src//a.ts", ""]) {
+    const dir = mkdtempSync(join(tmpdir(), "jc-project-"));
+    assert.throws(() => lane.writeProject({ "src/ok.ts": "export {}", [path]: "x" }, dir), /is not a path a project may hold/, path);
+    assert.deepEqual(readdirSync(dir), [], `${path}: nothing written`);
+  }
+  const dir = mkdtempSync(join(tmpdir(), "jc-project-"));
+  assert.throws(() => lane.writeProject({ "src/a.ts": 7 }, dir), /is not text/);
+  assert.throws(() => lane.writeProject(["src/a.ts"], dir), /not an object/);
+  lane.writeProject({ "src/pages/Map.test.tsx": "a", "package.json": "{}" }, dir);
+  assert.equal(readFileSync(join(dir, "src/pages/Map.test.tsx"), "utf8"), "a");
+});
+
+test("the summary counts the tests, names each failure by file and full name, and a file that did not load", () => {
+  const app = "/tmp/app";
+  const report = {
+    testResults: [
+      {
+        name: "/tmp/app/src/pages/AlertDesk.test.tsx",
+        status: "failed",
+        assertionResults: [
+          { status: "passed", fullName: "AlertDesk lists the alerts" },
+          { status: "failed", fullName: "AlertDesk opens an alert", failureMessages: ["\u001b[31mTestingLibraryElementError: Unable to find role button\u001b[39m"] },
+        ],
+      },
+      { name: "/tmp/app/functions/summary.test.ts", status: "failed", message: "SyntaxError: Unexpected token", assertionResults: [] },
+      { name: "/tmp/app/src/App.test.tsx", status: "passed", assertionResults: [{ status: "passed", fullName: "App renders" }, { status: "skipped", fullName: "later" }] },
+    ],
+  };
+  assert.deepEqual(lane.testSummary(report, app), {
+    outcome: "failed",
+    passed: 2,
+    failed: 2,
+    failures: [
+      { file: "src/pages/AlertDesk.test.tsx", name: "AlertDesk opens an alert", message: "TestingLibraryElementError: Unable to find role button" },
+      { file: "functions/summary.test.ts", name: "(the file did not load)", message: "SyntaxError: Unexpected token" },
+    ],
+  });
+  assert.deepEqual(lane.testSummary({ testResults: [] }, app), { outcome: "passed", passed: 0, failed: 0, failures: [] });
+  assert.deepEqual(lane.testSummary(null, app), { outcome: "passed", passed: 0, failed: 0, failures: [] });
+});
+
+test("the summary keeps twenty failures and cuts each message", () => {
+  const many = Array.from({ length: 30 }, (_, i) => ({ status: "failed", fullName: `t${i}`, failureMessages: ["x".repeat(5000)] }));
+  const summary = lane.testSummary({ testResults: [{ name: "/a/b.test.ts", status: "failed", assertionResults: many }] }, "/a");
+  assert.equal(summary.failed, 30);
+  assert.equal(summary.failures.length, 20);
+  assert.equal(summary.failures[0].message.length, 2001);
+});
+
+// SDK-38 end to end on the real vitest: a passing and a failing test, a timeout and a project
+// that is not one, each one answer the Portal can read.
+const store = join(import.meta.dirname, "node_modules");
+const project = (files) => {
+  const dir = mkdtempSync(join(tmpdir(), "jc-sandbox-"));
+  const input = join(dir, "project.json.gz");
+  writeFileSync(input, gzipSync(JSON.stringify(files)));
+  return { input, work: join(dir, "app") };
+};
+
+test("the sandbox runs the version's tests and reports the one that fails", { skip: !existsSync(join(store, ".bin", "vitest")) && "vitest is not linked" }, () => {
+  const { input, work } = project({
+    "src/sum.test.ts": 'import { expect, test } from "vitest";\ntest("adds", () => expect(1 + 1).toBe(2));\ntest("subtracts", () => expect(2 - 1).toBe(3));\n',
+  });
+  const result = lane.testProject(input, work, { store });
+  assert.equal(result.outcome, "failed", JSON.stringify(result));
+  assert.equal(result.passed, 1);
+  assert.equal(result.failed, 1);
+  assert.equal(result.failures[0].file, "src/sum.test.ts");
+  assert.equal(result.failures[0].name, "subtracts");
+  assert.match(result.failures[0].message, /expected 1 to be 3/);
+});
+
+test("the sandbox says when the tests pass, and when they could not run", { skip: !existsSync(join(store, ".bin", "vitest")) && "vitest is not linked" }, () => {
+  const ok = project({ "src/sum.test.ts": 'import { expect, test } from "vitest";\ntest("adds", () => expect(1 + 1).toBe(2));\n' });
+  assert.equal(lane.testProject(ok.input, ok.work, { store }).outcome, "passed");
+
+  const slow = project({ "src/sum.test.ts": 'import { test } from "vitest";\ntest("never", () => new Promise(() => {}), 60_000);\n' });
+  const late = lane.testProject(slow.input, slow.work, { store, timeoutMs: 3_000 });
+  assert.equal(late.outcome, "error");
+  assert.match(late.reason, /did not finish within 3 s/);
+
+  const bad = project({ "../escape.ts": "x" });
+  assert.match(lane.testProject(bad.input, bad.work, { store }).reason, /is not a path a project may hold/);
+
+  const dir = mkdtempSync(join(tmpdir(), "jc-sandbox-"));
+  writeFileSync(join(dir, "project.json.gz"), "not gzip");
+  assert.match(lane.testProject(join(dir, "project.json.gz"), join(dir, "app"), { store }).reason, /could not be read/);
 });
