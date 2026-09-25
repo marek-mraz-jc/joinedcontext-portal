@@ -183,6 +183,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the Catalogue
+         * @description Every public dataset of the installation's open-data catalogues, searched and faceted (EP-81). Public: it lists only what an anonymous caller of the catalogue sees.
+         */
+        get: operations["get_catalogue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalogue/datasets/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Catalogue Dataset
+         * @description One public dataset: its description, resources, and the Endpoint and model behind it when it is this installation's (EP-82).
+         */
+        get: operations["get_dataset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalogue/datasets/{name}/sample": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sample a Catalogue Dataset
+         * @description Up to ten entities of the dataset's first model class, read anonymously through its Endpoint (EP-82, EP-66).
+         */
+        get: operations["get_sample"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/endpoints": {
         parameters: {
             query?: never;
@@ -2391,6 +2451,62 @@ export interface components {
             stale?: boolean;
             subjects?: components["schemas"]["CatalogueSubject"][];
         };
+        /** @description One class of the model, described as its LinkML describes it. */
+        CatalogueClass: {
+            description?: string | null;
+            name: string;
+        };
+        /** @description Where questions about the dataset go: a role address (EP-80). */
+        CatalogueContact: {
+            email?: string | null;
+            name?: string | null;
+        };
+        /** @description The data model behind a dataset. */
+        CatalogueDataModel: {
+            classes: components["schemas"]["CatalogueClass"][];
+            /** @description The model's documentation, the dataset's Markdown schema resource. */
+            docsUrl?: string | null;
+            name: string;
+        };
+        /** @description A dataset as the list shows it. */
+        CatalogueDataset: {
+            formats: string[];
+            licence?: null | components["schemas"]["CatalogueLicence"];
+            modified?: string | null;
+            name: string;
+            notes?: string | null;
+            publisher?: null | components["schemas"]["CataloguePublisher"];
+            /** @description EU data-theme codes (`ECON`, `ENVI`, …); the UI names them in the reader's language. */
+            themes: string[];
+            title: string;
+        };
+        /** @description One dataset, as its page shows it. */
+        CatalogueDatasetDetail: {
+            /** @description The dataset on the catalogue's own site. */
+            catalogueUrl: string;
+            contact?: null | components["schemas"]["CatalogueContact"];
+            endpoint?: null | components["schemas"]["CatalogueEndpoint"];
+            /** @description The EU frequency the record names (`dct:accrualPeriodicity`). */
+            frequency?: string | null;
+            keywords: string[];
+            licence?: null | components["schemas"]["CatalogueLicence"];
+            model?: null | components["schemas"]["CatalogueDataModel"];
+            modified?: string | null;
+            name: string;
+            notes?: string | null;
+            publisher?: null | components["schemas"]["CataloguePublisher"];
+            resources: components["schemas"]["CatalogueResource"][];
+            spatial: string[];
+            temporal?: null | components["schemas"]["CatalogueTemporal"];
+            themes: components["schemas"]["CatalogueTheme"][];
+            title: string;
+        };
+        /** @description The Endpoint a dataset describes, on this installation's own host. */
+        CatalogueEndpoint: {
+            /** @description The representations it serves, which decide the "Use this data" snippets. */
+            representations: string[];
+            url: string;
+        };
         /** @description One Smart Data Models catalogue entry as the pickers list it (DM-12, DM-63). */
         CatalogueEntry: {
             description?: string | null;
@@ -2399,6 +2515,27 @@ export interface components {
             name: string;
             /** @description `dataModel.Environment`. */
             subject: string;
+        };
+        /** @description One value of a facet. */
+        CatalogueFacetValue: {
+            count: number;
+            label: string;
+            value: string;
+        };
+        /** @description Every facet of the list. */
+        CatalogueFacets: {
+            format: components["schemas"]["CatalogueFacetValue"][];
+            licence: components["schemas"]["CatalogueFacetValue"][];
+            publisher: components["schemas"]["CatalogueFacetValue"][];
+            spatial: components["schemas"]["CatalogueFacetValue"][];
+            theme: components["schemas"]["CatalogueFacetValue"][];
+            year: components["schemas"]["CatalogueFacetValue"][];
+        };
+        /** @description A licence as the catalogue's register names it. */
+        CatalogueLicence: {
+            id: string;
+            title: string;
+            url?: string | null;
         };
         /** @description One model of the Smart Data Models catalogue index, as the wizard lists and searches it. */
         CatalogueModel: {
@@ -2410,11 +2547,56 @@ export interface components {
             /** @description The model name, `AirQualityObserved`. */
             name: string;
         };
+        /** @description One page of the catalogue. */
+        CataloguePage: {
+            /** @description The datasets of this page. */
+            datasets: components["schemas"]["CatalogueDataset"][];
+            /** @description Counts per facet value, each over the datasets every other filter keeps. */
+            facets: components["schemas"]["CatalogueFacets"];
+            /** @description The page shown, from 1. */
+            page: number;
+            /** @description Datasets per page. */
+            pageSize: number;
+            /** @description Datasets matching the search and every filter. */
+            total: number;
+            /** @description Catalogues that did not answer; the others still did. */
+            unavailable: string[];
+        };
+        /** @description The CKAN organization a dataset belongs to: one per project (Architecture/21 §1). */
+        CataloguePublisher: {
+            name: string;
+            title: string;
+        };
+        /** @description One resource of a dataset (EP-64). */
+        CatalogueResource: {
+            description?: string | null;
+            format: string;
+            name: string;
+            /** @description The DataStore preview, on a resource with an active sheet (EP-65). */
+            previewUrl?: string | null;
+            url: string;
+        };
+        /** @description Up to ten entities of a dataset, read through its Endpoint (EP-82). */
+        CatalogueSample: {
+            columns: string[];
+            rows: string[][];
+            type: string;
+        };
         /** @description One subject of the catalogue: `dataModel.Environment` and the models under it. */
         CatalogueSubject: {
             models?: components["schemas"]["CatalogueModel"][];
             name: string;
             title?: string | null;
+        };
+        /** @description The period a dataset covers; either end may be open. */
+        CatalogueTemporal: {
+            end?: string | null;
+            start?: string | null;
+        };
+        /** @description An EU data theme: its code and its English name (the UI names it in the reader's language). */
+        CatalogueTheme: {
+            code: string;
+            label: string;
         };
         /** @description The `Change` resource describing a proposed configuration update. */
         Change: {
@@ -4359,6 +4541,125 @@ export interface operations {
             };
             /** @description No such asset is configured */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_catalogue: {
+        parameters: {
+            query?: {
+                /** @description Full-text search, passed to CKAN */
+                q?: string;
+                /** @description CKAN organization names */
+                publisher?: string[];
+                /** @description EU data-theme codes */
+                theme?: string[];
+                /** @description Resource formats */
+                format?: string[];
+                /** @description CKAN licence ids */
+                licence?: string[];
+                /** @description NUTS codes or location IRIs */
+                spatial?: string[];
+                /** @description Calendar years covered */
+                year?: string[];
+                /** @description Page, from 1 */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of datasets and the facets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CataloguePage"];
+                };
+            };
+            /** @description No catalogue answered */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_dataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The dataset's name in the catalogue */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dataset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueDatasetDetail"];
+                };
+            };
+            /** @description No public dataset has this name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_sample: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The dataset's name in the catalogue */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sample */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueSample"];
+                };
+            };
+            /** @description No public dataset of an Endpoint here that serves NGSI-LD */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The Endpoint did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

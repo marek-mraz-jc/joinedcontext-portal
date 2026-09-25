@@ -6,6 +6,7 @@ pub mod assistant;
 pub mod basemap;
 pub mod blueprints;
 pub mod branding;
+pub mod catalogue;
 pub mod changes;
 pub mod ckan;
 pub mod datamodels;
@@ -56,6 +57,7 @@ pub fn router() -> Router<AppState> {
         .merge(pipeline_test::router())
         .merge(blueprints::router())
         .merge(branding::router())
+        .merge(catalogue::router())
         .merge(changes::router())
         .merge(ckan::router())
         .merge(datamodels::router())
