@@ -30,6 +30,7 @@ import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { People } from "./People";
+import { KindList } from "../../routes/ResourceListPage";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
 export const ORGANIZATION_TABS = [
@@ -39,6 +40,7 @@ export const ORGANIZATION_TABS = [
   "roles",
   "groups",
   "service-accounts",
+  "blueprints",
   "projects",
 ] as const;
 
@@ -255,6 +257,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "roles" ? <Roles project={ORG_NAMESPACE} scope="organization" /> : null}
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
+        {tab === "blueprints" ? <KindList project={ORG_NAMESPACE} plural="blueprints" embedded /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
       </div>
     </div>

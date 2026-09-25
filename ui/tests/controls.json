@@ -1205,6 +1205,7 @@
         "Button": 1
       },
       "tests": [
+        "blueprint_form.test.tsx",
         "dataagreement_form.test.tsx",
         "datamodel_form.test.tsx",
         "mapping_form.test.tsx",

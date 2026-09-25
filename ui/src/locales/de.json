@@ -58,7 +58,9 @@
     "subscriptions": "Abonnements",
     "organization": "Organisation",
     "settings": "Projekteinstellungen",
-    "profile": "Ihr Konto"
+    "profile": "Ihr Konto",
+    "dataagreements": "Datenvereinbarungen",
+    "blueprints": "Vorlagen"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -3446,7 +3448,8 @@
       "roles": "Rollen",
       "groups": "Gruppen",
       "service-accounts": "Dienstkonten",
-      "projects": "Projekte"
+      "projects": "Projekte",
+      "blueprints": "Vorlagen"
     },
     "settings": {
       "title": "Einstellungen",
@@ -3862,6 +3865,11 @@
       "accepted": "Angenommen",
       "finalized": "Abgeschlossen",
       "terminated": "Beendet"
+    },
+    "riskClass": {
+      "green": "Grün: ohne Prüfung angewendet",
+      "yellow": "Gelb: eine freigebende Person",
+      "red": "Rot: Freigabe und Bestätigung"
     }
   },
   "picker": {
@@ -3920,6 +3928,20 @@
       "scopeQ": "Bereichsfilter",
       "geoQ": "Gebietsfilter",
       "temporalQ": "Zeitfilter"
+    }
+  },
+  "blueprints": {
+    "field": {
+      "name": "Name",
+      "version": "Version",
+      "category": "Kategorie",
+      "riskClass": "Risikoklasse",
+      "allowedRoles": "Rollen, die sie ausführen dürfen",
+      "role": "Rolle",
+      "parameterSchema": "Parameterschema (JSON)",
+      "templates": "Manifestvorlagen",
+      "templateName": "Name der Vorlage",
+      "template": "Vorlage"
     }
   }
 }

@@ -7,7 +7,7 @@ metadata:
   name: dataagreement
 spec:
   for: DataAgreement
-  guide: User-Guide/03-data-models
+  guide: User-Guide/05-endpoints-and-sharing
   about:
     en: >-
       A data agreement records one contract with another participant of the data space: who

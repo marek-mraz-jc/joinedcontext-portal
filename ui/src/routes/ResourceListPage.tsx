@@ -25,6 +25,8 @@ import type { MappingForm } from "../schemas/mapping";
 import { dataModelSchema, fromDataModelManifest, toDataModelManifest } from "../schemas/datamodel";
 import type { DataModelForm } from "../schemas/datamodel";
 import { dataAgreementSchema, fromDataAgreementManifest, toDataAgreementManifest } from "../schemas/dataagreement";
+import { blueprintSchema, blueprintUiSchema, fromBlueprintManifest, toBlueprintManifest } from "../schemas/blueprint";
+import type { BlueprintForm } from "../schemas/blueprint";
 import type { DataAgreementForm } from "../schemas/dataagreement";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
@@ -93,6 +95,12 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
     fromManifest: (manifest) => fromDataAgreementManifest(manifest) as Record<string, unknown>,
     toManifest: (form, stored) => toDataAgreementManifest(project, form as DataAgreementForm, stored),
   }),
+  blueprints: (t) => ({
+    schema: blueprintSchema(t),
+    uiSchema: blueprintUiSchema,
+    fromManifest: (manifest) => fromBlueprintManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toBlueprintManifest(form as BlueprintForm, stored),
+  }),
 };
 
 /**
@@ -102,6 +110,7 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
  */
 const CREATE_KINDS: Record<string, string> = {
   dataagreements: "DataAgreement",
+  blueprints: "Blueprint",
 };
 
 /** `/api/v1/projects/{project}/{plural}`: a kind's own page, or its resources in a table (MF-11…MF-15). */
@@ -119,15 +128,22 @@ export function ResourceListPage({
   if (View) {
     return <View project={project} edit={edit} />;
   }
-  return <GenericListPage project={project} plural={plural} />;
+  return <KindList project={project} plural={plural} />;
 }
 
-function GenericListPage({
+/**
+ * The resources of one kind in a table, with the kind's form to create and edit them where it has
+ * one. A page of its own for a project's kinds; `embedded` in a tab of another page, such as the
+ * Organization's, where the page already carries the heading of level one.
+ */
+export function KindList({
   project,
   plural,
+  embedded = false,
 }: {
   project: string;
   plural: string;
+  embedded?: boolean;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
@@ -198,7 +214,17 @@ function GenericListPage({
     ) : undefined;
   return (
     <div className="flex flex-col gap-section">
-      <PageHeader title={title} description={t("resourceList.lead", { kind: title })} actions={newButton} />
+      {embedded ? (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-title font-semibold text-fg">{title}</h2>
+            <p className="text-body text-fg-muted">{t("resourceList.lead", { kind: title })}</p>
+          </div>
+          {newButton}
+        </div>
+      ) : (
+        <PageHeader title={title} description={t("resourceList.lead", { kind: title })} actions={newButton} />
+      )}
       {change ? <ChangeNotice change={change} project={project} /> : null}
       <ResourceList
       query={list}

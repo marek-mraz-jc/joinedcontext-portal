@@ -58,7 +58,9 @@
     "subscriptions": "Odběry",
     "organization": "Organizace",
     "settings": "Nastavení projektu",
-    "profile": "Váš účet"
+    "profile": "Váš účet",
+    "dataagreements": "Datové dohody",
+    "blueprints": "Šablony"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -3446,7 +3448,8 @@
       "roles": "Role",
       "groups": "Skupiny",
       "service-accounts": "Servisní účty",
-      "projects": "Projekty"
+      "projects": "Projekty",
+      "blueprints": "Šablony"
     },
     "settings": {
       "title": "Nastavení",
@@ -3862,6 +3865,11 @@
       "accepted": "Přijatá",
       "finalized": "Finalizovaná",
       "terminated": "Ukončená"
+    },
+    "riskClass": {
+      "green": "Zelená: použije se bez posouzení",
+      "yellow": "Žlutá: jeden schvalovatel",
+      "red": "Červená: schvalovatel a potvrzení"
     }
   },
   "picker": {
@@ -3920,6 +3928,20 @@
       "scopeQ": "Filtr rozsahu",
       "geoQ": "Filtr oblasti",
       "temporalQ": "Časový filtr"
+    }
+  },
+  "blueprints": {
+    "field": {
+      "name": "Název",
+      "version": "Verze",
+      "category": "Kategorie",
+      "riskClass": "Třída rizika",
+      "allowedRoles": "Role, které ji smějí spustit",
+      "role": "Role",
+      "parameterSchema": "Schéma parametrů (JSON)",
+      "templates": "Šablony manifestů",
+      "templateName": "Název šablony",
+      "template": "Šablona"
     }
   }
 }

@@ -58,7 +58,9 @@
     "subscriptions": "Subscriptions",
     "organization": "Organization",
     "settings": "Project settings",
-    "profile": "Your account"
+    "profile": "Your account",
+    "dataagreements": "Data agreements",
+    "blueprints": "Blueprints"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -3446,7 +3448,8 @@
       "roles": "Roles",
       "groups": "Groups",
       "service-accounts": "Service accounts",
-      "projects": "Projects"
+      "projects": "Projects",
+      "blueprints": "Blueprints"
     },
     "settings": {
       "title": "Settings",
@@ -3862,6 +3865,11 @@
       "accepted": "Accepted",
       "finalized": "Finalized",
       "terminated": "Terminated"
+    },
+    "riskClass": {
+      "green": "Green: applied without review",
+      "yellow": "Yellow: one approver",
+      "red": "Red: approver and confirmation"
     }
   },
   "picker": {
@@ -3920,6 +3928,20 @@
       "scopeQ": "Scope filter",
       "geoQ": "Area filter",
       "temporalQ": "Time filter"
+    }
+  },
+  "blueprints": {
+    "field": {
+      "name": "Name",
+      "version": "Version",
+      "category": "Category",
+      "riskClass": "Risk class",
+      "allowedRoles": "Roles that may run it",
+      "role": "Role",
+      "parameterSchema": "Parameter schema (JSON)",
+      "templates": "Templates",
+      "templateName": "Template name",
+      "template": "Template"
     }
   }
 }
