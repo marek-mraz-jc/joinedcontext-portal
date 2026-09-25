@@ -20,9 +20,12 @@ import {
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
+import { localId, textOf } from "../apps/QueryResultCard";
 import {
   Badge,
+  Button,
   Field,
+  Icon,
   PageFailed,
   PageHeader,
   PageLoading,
@@ -41,6 +44,18 @@ const RESULTS_COUNT_HEADER = "NGSILD-Results-Count";
 const SAMPLE_LIMIT = 3;
 
 /** The space a manifest belongs to: `spec.contextSpaceRef` first, the space label second. */
+/**
+ * The DataModels of a space: the one its optional `dataModelRef` names first, then every model
+ * whose required `contextSpaceRef` names the space (T-2450). The list and the space's own page
+ * both read it, so the list no longer says "—" where the page says "helsinki" (T-2760).
+ */
+export function modelsOfSpace(space: Manifest, models: Manifest[]): Manifest[] {
+  const pointer = refName(space.spec.dataModelRef);
+  const primary = models.find((m) => m.metadata.name === pointer);
+  const owned = models.filter((m) => m !== primary && spaceOf(m) === space.metadata.name);
+  return [...(primary ? [primary] : []), ...owned];
+}
+
 export function spaceOf(manifest: Manifest): string | undefined {
   return (
     (refName(manifest.spec.contextSpaceRef) || undefined) ??
@@ -134,20 +149,47 @@ async function fetchTypeInside(slug: string, type: string): Promise<TypeInside> 
   return { count, samples };
 }
 
-/** One entity in keyValues form as a single line: its id, then a few attributes. */
-function summarize(entity: KeyValues): string {
+/**
+ * One entity in keyValues form as a single line of values a person reads (T-2760): a place as
+ * its position, a name in the reader's language. It printed `location={"coordinates":…}`.
+ */
+export function summarize(entity: KeyValues, language?: string): string {
   const attributes = Object.entries(entity)
     .filter(([key]) => key !== "id" && key !== "type" && key !== "@context")
     .slice(0, 4)
     .map(([key, value]) => {
-      const text = typeof value === "string" ? value : JSON.stringify(value);
-      return `${key}=${text.length > 40 ? `${text.slice(0, 39)}…` : text}`;
+      const text = textOf(value, language);
+      return `${key}: ${text.length > 40 ? `${text.slice(0, 39)}…` : text}`;
     });
-  return attributes.join("  ");
+  return attributes.join(" · ");
+}
+
+/** The entity's own name, its full id a click away (T-2760): the URN is five segments wide. */
+function EntityId({ id }: { id: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-fg" title={id}>
+        {localId(id)}
+      </span>
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-label={t("spaces.inside.copyId", { id })}
+        title={copied ? t("endpoints.copied") : t("spaces.inside.copyId", { id })}
+        onClick={() => {
+          void navigator.clipboard?.writeText(id).then(() => setCopied(true));
+        }}
+      >
+        <Icon name={copied ? "check" : "copy"} className="size-3.5" />
+      </Button>
+    </span>
+  );
 }
 
 function TypeRow({ slug, type }: { slug?: string; type: string }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const inside = useQuery({
     queryKey: ["gateway", slug ?? "", "inside", type],
     enabled: slug !== undefined,
@@ -181,10 +223,10 @@ function TypeRow({ slug, type }: { slug?: string; type: string }): JSX.Element {
         {inside.isSuccess && inside.data.samples.length > 0 ? (
           <ul className="space-y-1">
             {inside.data.samples.map((entity) => (
-              <li key={entity.id} className="font-mono text-caption">
-                <span className="text-fg">{entity.id}</span>
-                {summarize(entity) ? (
-                  <span className="ml-2 text-fg-subtle">{summarize(entity)}</span>
+              <li key={entity.id} className="text-caption">
+                <EntityId id={entity.id} />
+                {summarize(entity, i18n.language) ? (
+                  <span className="ml-2 text-fg-subtle">{summarize(entity, i18n.language)}</span>
                 ) : null}
               </li>
             ))}
@@ -461,11 +503,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   // the pointer alone left this table empty for every space on dev, Helsinki's included, while
   // the space held hundreds of entities (T-2450). The pointer still decides which model is
   // first, and so which type the grid below opens on.
-  const dataModelRef = refName(manifest.spec.dataModelRef);
-  const allModels = asManifests(models.data?.items ?? []);
-  const owned = allModels.filter((m) => spaceOf(m) === name);
-  const primary = allModels.find((m) => m.metadata.name === dataModelRef);
-  const named = [...(primary ? [primary] : []), ...owned.filter((m) => m !== primary)];
+  const named = modelsOfSpace(manifest, asManifests(models.data?.items ?? []));
   const model = named[0];
   const types = [...new Set(named.flatMap(entityTypesOf))];
   const spaceEndpoints = asManifests(endpoints.data?.items ?? []).filter(

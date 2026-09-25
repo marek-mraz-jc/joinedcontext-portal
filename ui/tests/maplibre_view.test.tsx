@@ -17,6 +17,7 @@ const calls = vi.hoisted(() => ({
   errorHandlers: [] as (() => void)[],
   styles: [] as unknown[],
   throwOnConstruct: false,
+  workerUrls: [] as string[],
 }));
 
 vi.mock("maplibre-gl", () => {
@@ -77,6 +78,9 @@ vi.mock("maplibre-gl", () => {
     }
   }
   return {
+    setWorkerUrl: (url: string) => {
+      calls.workerUrls.push(url);
+    },
     Map: FakeMap,
     NavigationControl: class {},
     Popup: FakePopup,
@@ -192,6 +196,15 @@ describe("map dashboard", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  // T-2760: MapLibre looked for its worker beside its own module, /assets/maplibre-gl-worker.mjs,
+  // which the build never emitted; the view hands it the worker Vite bundled instead.
+  it("hands MapLibre the address of the bundled worker before any map is made", async () => {
+    await import("../src/components/dashboards/MapLibreView");
+    expect(calls.workerUrls).toHaveLength(1);
+    expect(calls.workerUrls[0]).not.toMatch(/maplibre-gl-worker\.mjs$/);
+    expect(calls.workerUrls[0]).toMatch(/\.(js|mjs|ts)(\?.*)?$/);
   });
 
   it("mounts a map container labelled with the dashboard title", async () => {

@@ -63,6 +63,8 @@ function formatTitle(run: RunRecord, endpointTitles: Map<string, string>): strin
   return run.prompt.length > 80 ? `${run.prompt.slice(0, 80)}…` : run.prompt;
 }
 
+const RUNS_PER_PAGE = 20;
+
 /**
  * The central assistant page listing conversations and autonomous work runs (UI-54, AG-71).
  *
@@ -78,6 +80,9 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
 
   const [kindFilter, setKindFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  // One page of runs at a time (T-2760): every conversation ever held, listed at once, made the
+  // page ten thousand pixels tall and pushed "New work" out of reach.
+  const [shown, setShown] = useState(RUNS_PER_PAGE);
   const [mineFilter, setMineFilter] = useState<boolean>(false);
 
   const [newWorkKind, setNewWorkKind] = useState<string>("application");
@@ -321,6 +326,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
       ) : filteredRuns.length === 0 ? (
         <EmptyState icon="chat" title={t("assistantPage.empty")} />
       ) : (
+        <>
         <Table caption={t("assistantPage.title")}>
           <TableHead>
             <TableHeaderCell>{t("assistantPage.newWork.name")}</TableHeaderCell>
@@ -334,7 +340,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
             <TableHeaderCell align="right">{t("assistantPage.actions")}</TableHeaderCell>
           </TableHead>
           <TableBody>
-            {filteredRuns.map((run) => {
+            {filteredRuns.slice(0, shown).map((run) => {
               const ended = TERMINAL_STATES.includes(run.status);
               const isEndedConversation = run.kind === "conversation" && ended;
               const title = formatTitle(run, endpointTitles);
@@ -440,6 +446,14 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
             })}
           </TableBody>
         </Table>
+        {filteredRuns.length > shown ? (
+          <div className="mt-3 flex justify-center">
+            <Button onClick={() => setShown((count) => count + RUNS_PER_PAGE)}>
+              {t("assistantPage.showMore", { count: Math.min(RUNS_PER_PAGE, filteredRuns.length - shown), left: filteredRuns.length - shown })}
+            </Button>
+          </div>
+        ) : null}
+        </>
       )}
 
       <Card className="space-y-4 p-5" aria-labelledby="new-work-heading">

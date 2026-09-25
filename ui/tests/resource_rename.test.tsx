@@ -49,7 +49,7 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
   };
-  return { Map: FakeMap, NavigationControl: class {}, Popup, default: { Map: FakeMap, NavigationControl: class {}, Popup } };
+  return { Map: FakeMap, setWorkerUrl: () => undefined, NavigationControl: class {}, Popup, default: { Map: FakeMap, NavigationControl: class {}, Popup } };
 });
 
 const { App } = await import("../src/App");

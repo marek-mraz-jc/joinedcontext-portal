@@ -47,6 +47,39 @@ export function kindLabel(
   return event.severity === "error" && !namesFailure ? t("activity.failed", { what }) : what;
 }
 
+/** One row of the feed: an event, and how often the same thing happened again (T-2760). */
+export interface ActivityRow {
+  event: ActivityEvent;
+  /** How many identical events the row stands for, itself included. */
+  count: number;
+  /** When the oldest of them happened. */
+  since: string;
+}
+
+/**
+ * Identical events as one row (T-2760): a CKAN publisher failing every minute filled the feed
+ * with sixty rows an hour of the same sentence, and pushed everything else off it. Identical is
+ * the same kind, source, severity, sentence and object; the row keeps the newest time and says
+ * how many there were since the oldest. The events arrive newest first.
+ */
+export function groupRepeats(events: ActivityEvent[]): ActivityRow[] {
+  const rows: ActivityRow[] = [];
+  const byKey = new Map<string, ActivityRow>();
+  for (const event of events) {
+    const key = JSON.stringify([event.kind, event.source, event.severity, event.summary, objectOf(event) ?? ""]);
+    const seen = byKey.get(key);
+    if (seen) {
+      seen.count += 1;
+      seen.since = event.time;
+    } else {
+      const row = { event, count: 1, since: event.time };
+      byKey.set(key, row);
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
 const SEVERITY_TONE: Record<string, BadgeTone> = {
   info: "neutral",
   warning: "warning",
@@ -257,7 +290,7 @@ export function ActivityFeed({
         <Table caption={t("activity.title")}>
           {head}
           <TableBody>
-            {items.map((event) => {
+            {groupRepeats(items).map(({ event, count, since }) => {
               const object = objectOf(event);
               return (
                 <TableRow key={`${event.time}-${event.kind}-${event.summary}`}>
@@ -274,6 +307,11 @@ export function ActivityFeed({
                   </TableCell>
                   <TableCell primary>
                     {event.summary}
+                    {count > 1 ? (
+                      <div className="mt-0.5 text-caption text-fg-muted" data-testid="activity-repeats">
+                        {t("activity.repeated", { count, since: time.format(new Date(since)) })}
+                      </div>
+                    ) : null}
                     {object ? (
                       <div className="mt-0.5">
                         <a

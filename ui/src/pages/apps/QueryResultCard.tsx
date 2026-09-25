@@ -104,7 +104,7 @@ function geometryText(value: Record<string, unknown>): string | null {
   return w === e && s === n ? `${kind} [${w}, ${s}]` : `${kind} [${w}, ${s} … ${e}, ${n}]`;
 }
 
-export function textOf(value: unknown): string {
+export function textOf(value: unknown, language?: string): string {
   const plain = unwrap(value);
   const geometry = isRecord(plain) ? geometryText(plain) : null;
   if (geometry !== null) {
@@ -119,7 +119,22 @@ export function textOf(value: unknown): string {
   if (typeof plain === "number" || typeof plain === "boolean") {
     return String(plain);
   }
-  return JSON.stringify(plain);
+  // A LanguageProperty in keyValues is `{ languageMap: { en: …, fi: … } }`; a person reads the
+  // one in their language, not the map (T-2760).
+  if (isRecord(plain) && isRecord(plain.languageMap)) {
+    const map = plain.languageMap;
+    const chosen = (language !== undefined ? map[language] : undefined) ?? map.en ?? Object.values(map)[0];
+    return textOf(chosen, language);
+  }
+  if (Array.isArray(plain)) {
+    return plain.map((item) => textOf(item, language)).join(", ");
+  }
+  if (isRecord(plain)) {
+    return Object.entries(plain)
+      .map(([key, inner]) => `${key}: ${textOf(inner, language)}`)
+      .join("; ");
+  }
+  return String(plain);
 }
 
 /** The last segment of an NGSI-LD URN, which is what a person reads as the entity's name. */

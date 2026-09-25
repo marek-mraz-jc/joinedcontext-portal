@@ -341,7 +341,8 @@
       "policies": "Policies",
       "noPolicies": "Dieser Raum hat noch keine Policy.",
       "assignee": "Empfänger",
-      "operations": "Operationen"
+      "operations": "Operationen",
+      "copyId": "Die ID {id} kopieren"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -2343,14 +2344,16 @@
       "blockHint": "operations, kinds mit read oder propose, endpoints mit read oder write. Leer entfernt den Block. Die Änderung prüft eine freigebende Person.",
       "propose": "Änderung vorschlagen",
       "cancel": "Abbrechen",
-      "yamlError": "Kein gültiges YAML: {message}"
+      "yamlError": "Kein gültiges YAML: {message}",
+      "showOperations": "Seine {count} Operationen zeigen"
     },
     "states": {
       "failed": "Fehlgeschlagen",
       "cancelled": "Gestoppt",
       "expired": "Beendet"
     },
-    "timings": "Zeiten"
+    "timings": "Zeiten",
+    "showMore": "{count} weitere zeigen (noch {left})"
   },
   "activity": {
     "title": "Activity",
@@ -2431,7 +2434,8 @@
       "ckan": "Katalog",
       "portal": "Portal"
     },
-    "failed": "{what} fehlgeschlagen"
+    "failed": "{what} fehlgeschlagen",
+    "repeated": "{count, plural, one {# Mal} other {# Mal}} seit {since}"
   },
   "import": {
     "title": "Konfiguration importieren",
@@ -2619,7 +2623,10 @@
       "conflicts": "{count, plural, one {# Datei wurde auch im Projekt geändert} other {# Dateien wurden auch im Projekt geändert}}. Lösen Sie das, bevor Sie die Kopie zurückbringen.",
       "resolveConflicts": "Auf der Seite zum Zurückbringen lösen",
       "showDiff": "Felder",
-      "empty": "Die Kopie ändert noch nichts."
+      "empty": "Die Kopie ändert noch nichts.",
+      "titleOf": "Was die Kopie {name} ändert",
+      "emptyHint": "Öffnen Sie die Kopie aus der Liste der Kopien und ändern Sie darin eine Ressource; was sie ändert, erscheint hier.",
+      "back": "Zurück zu den Kopien"
     },
     "bringBack": {
       "title": "Die Kopie zurückbringen",

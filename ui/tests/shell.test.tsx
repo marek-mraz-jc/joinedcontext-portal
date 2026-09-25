@@ -145,6 +145,12 @@ describe("portal shell", () => {
     expect(within(crumbs()).queryByText("Context Spaces")).not.toBeInTheDocument();
   });
 
+  // T-2760: the floating assistant button covered a table's last column with nothing to scroll.
+  it("leaves room under the page for the floating assistant button", () => {
+    const page = screen.getByRole("main").firstElementChild as HTMLElement;
+    expect(page.className).toMatch(/(^|\s)pb-24(\s|$)/);
+  });
+
   it("offers the active project in a switcher and the identity in a user menu", () => {
     expect(screen.getByRole("button", { name: "Projects" })).toHaveTextContent("helsinki");
     expect(
@@ -268,5 +274,46 @@ describe("the Approvals badge", () => {
     const link = await screen.findByRole("link", { name: /Approvals/ });
     await new Promise((r) => setTimeout(r, 50));
     expect(link).not.toHaveTextContent(/wait/);
+  });
+});
+
+// T-2760: a copy's own pages had no trail; they sit under Copies, the copy named last.
+describe("the trail of a copy's page", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reads project › Copies › the copy, and Copies leads back", async () => {
+    await i18n.changeLanguage("en");
+    window.history.pushState({}, "", "/projects/helsinki/workspaces/air-v2/compare");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const body = url.includes("/auth/me")
+          ? IDENTITY
+          : url.endsWith("/api/v1/projects")
+            ? PROJECTS
+            : url.endsWith("/compare")
+              ? { files: [], conflicts: [] }
+              : EMPTY_LIST;
+        return Promise.resolve(
+          new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+        );
+      }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    const crumbs = await screen.findByRole("navigation", { name: "Breadcrumb" });
+    await waitFor(() => expect(within(crumbs).getByText("air-v2")).toHaveAttribute("aria-current", "page"));
+    expect(within(crumbs).getByRole("link", { name: "Copies" })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/workspaces",
+    );
   });
 });

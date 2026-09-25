@@ -143,6 +143,20 @@ function renderSpaces(
     if (path.endsWith("/spaces/ovzdusie")) {
       return json(SPACES.items[0]);
     }
+    if (path.endsWith("/datamodels")) {
+      return json({
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "List",
+        items: [
+          {
+            apiVersion: "joinedcontext.com/v1alpha1",
+            kind: "DataModel",
+            metadata: { name: "ovzdusie-extra", namespace: "banskabystrica" },
+            spec: { contextSpaceRef: { kind: "ContextSpace", name: "ovzdusie" } },
+          },
+        ],
+      });
+    }
     if (path.endsWith("/spaces")) {
       return options.listFails
         ? json({ status: 503, title: "Service Unavailable", detail: options.listFails }, 503)
@@ -185,7 +199,8 @@ describe("context spaces view", () => {
 
     const row = (await screen.findByText("ovzdusie")).closest("tr") as HTMLElement;
     expect(within(row).getByText("Air quality")).toBeInTheDocument();
-    expect(within(row).getByText("AirQualityObserved")).toBeInTheDocument();
+    // The pointer first, then every model that names the space, as its own page lists them (T-2760).
+    expect(await within(row).findByText("AirQualityObserved, ovzdusie-extra")).toBeInTheDocument();
     expect(within(row).getByText(en.phase.live)).toBeInTheDocument();
 
     const sandbox = (await screen.findByText(/sandbox, 7 days/)).closest("tr") as HTMLElement;

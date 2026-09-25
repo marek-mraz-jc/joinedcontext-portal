@@ -17,6 +17,7 @@ import { ProjectQuota, useProjectUsage } from "../components/ProjectQuota";
 import type { ResourceTarget } from "../components/DeleteResourceDialog";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { contextSpaceSchema } from "../schemas/kinds";
+import { modelsOfSpace } from "../pages/spaces/SpaceInside";
 import {
   Alert,
   Badge,
@@ -182,6 +183,16 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       ),
   });
 
+  const models = useQuery({
+    queryKey: queryKeys.list(project, "datamodels"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "datamodels" } },
+        }),
+      ),
+  });
+
   const create = useMutation({
     mutationFn: async (form: SpaceForm) => {
       setFormError(null);
@@ -302,7 +313,15 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
             ttlDays?: number;
             urnSegment?: string;
           };
-          const model = refName(spec.dataModelRef);
+          // The pointer names a model even while the list is on its way or cannot be read; the
+          // models that name the space follow it, as on the space's own page (T-2760).
+          const pointer = refName(spec.dataModelRef);
+          const model = [
+            ...new Set([
+              ...(pointer ? [pointer] : []),
+              ...modelsOfSpace(space, asManifests(models.data?.items ?? [])).map((m) => m.metadata.name),
+            ]),
+          ].join(", ");
           const title = localized(space.metadata.title, locale, space.metadata.name);
           const target = {
             project,

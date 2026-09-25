@@ -65,7 +65,7 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
   };
-  return { Map: FakeMap, NavigationControl: class {}, Popup, default: { Map: FakeMap, NavigationControl: class {}, Popup } };
+  return { Map: FakeMap, setWorkerUrl: () => undefined, NavigationControl: class {}, Popup, default: { Map: FakeMap, NavigationControl: class {}, Popup } };
 });
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };

@@ -15,6 +15,7 @@ vi.mock("maplibre-gl", () => ({
   Map: class {},
   NavigationControl: class {},
   Popup: class {},
+  setWorkerUrl: () => undefined,
 }));
 
 const { blankStyle, extentOf, mapStyleFor } = await import("../src/components/dashboards/MapLibreView");

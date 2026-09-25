@@ -256,6 +256,23 @@ describe("Assistant page", () => {
     expect(within(table).getByText(i18n.t("assistantPage.continues"))).toBeInTheDocument();
   });
 
+  // T-2760: every run ever made, listed at once, made the page ten thousand pixels tall.
+  it("lists twenty runs at a time and offers the rest", async () => {
+    const many = Array.from({ length: 25 }, (_, index) => ({
+      ...CONV_RUN,
+      id: `run-${index}`,
+      prompt: `Question number ${index}`,
+    }));
+    renderAssistantPage(many);
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Question number 0");
+    expect(within(table).getAllByRole("row")).toHaveLength(21);
+    const more = screen.getByRole("button", { name: "Show 5 more (5 left)" });
+    await userEvent.click(more);
+    expect(within(table).getAllByRole("row")).toHaveLength(26);
+    expect(screen.queryByRole("button", { name: /Show \d+ more/ })).toBeNull();
+  });
+
   it("puts kind= in the request when filtering by kind", async () => {
     renderAssistantPage();
     await screen.findByRole("heading", { level: 1, name: i18n.t("assistantPage.title") });

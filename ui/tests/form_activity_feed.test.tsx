@@ -180,6 +180,24 @@ describe("what happened, in words (T-2756)", () => {
     expect(within(refusal).getByTestId("activity-kind")).not.toHaveTextContent("failed");
   });
 
+  // T-2760: a publisher failing every minute wrote sixty identical rows an hour.
+  it("shows identical events as one row that says how often and since when", async () => {
+    const failing = (minute: number) =>
+      event({
+        time: `2026-09-16T16:${String(minute).padStart(2, "0")}:00Z`,
+        kind: "catalogue.published",
+        source: "ckan",
+        severity: "error",
+        summary: "The catalogue refused the dataset.",
+      });
+    renderFeed([failing(59), failing(58), event({ time: "2026-09-16T16:30:00Z" }), failing(0)]);
+    const listed = await rows();
+    expect(listed).toHaveLength(2);
+    const repeats = within(listed[0]).getByTestId("activity-repeats");
+    expect(repeats).toHaveTextContent(/^3 times since /);
+    expect(within(listed[1]).queryByTestId("activity-repeats")).toBeNull();
+  });
+
   it("offers the filters in words, and a kind it does not know as the platform wrote it", async () => {
     renderFeed([event({ kind: "brand.new", severity: "info" })]);
     const [row] = await rows();

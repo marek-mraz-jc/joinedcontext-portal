@@ -697,7 +697,7 @@
     },
     "src/pages/assistant/AssistantPage.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 4,
         "Checkbox": 1
       },
       "tests": [
@@ -907,6 +907,16 @@
       },
       "tests": [
         "space_complete.test.tsx"
+      ]
+    },
+    "src/pages/spaces/SpaceInside.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "endpoint_admits_person.test.ts",
+        "part_space_inside.test.tsx",
+        "space_inside.test.tsx"
       ]
     },
     "src/pages/sync/SyncSourcesPage.tsx": {

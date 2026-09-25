@@ -25,6 +25,7 @@ import {
 
 const PROJECT = "helsinki";
 const COPY = "air-v2";
+const TITLE = `What the copy ${COPY} changes`;
 
 function file(name: string, operation: "Create" | "Update" | "Delete") {
   return {
@@ -78,12 +79,12 @@ describe("what the copy changes", () => {
   it("has one H1 and names the page and the project in the tab", async () => {
     const { container } = renderCompare();
     expect(
-      await screen.findByRole("heading", { level: 1, name: en.workspaces.compare.title }),
+      await screen.findByRole("heading", { level: 1, name: TITLE }),
     ).toBeInTheDocument();
     expectHeadingOutline(container);
     await waitFor(() => {
       expect(document.title).toBe(
-        `${en.workspaces.compare.title} · ${PROJECT} · Helsinki Region Context`,
+        `${TITLE} · ${PROJECT} · Helsinki Region Context`,
       );
     });
   });
@@ -93,7 +94,7 @@ describe("what the copy changes", () => {
   it("keeps the heading while the comparison is read and counts nothing yet", async () => {
     renderCompare({ pending: true });
     expect(
-      await screen.findByRole("heading", { level: 1, name: en.workspaces.compare.title }),
+      await screen.findByRole("heading", { level: 1, name: TITLE }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(en.app.loading);
     expect(screen.queryByText(/added/)).not.toBeInTheDocument();
@@ -107,8 +108,15 @@ describe("what the copy changes", () => {
   it("says the copy changes nothing when it changes nothing", async () => {
     const { container } = renderCompare({ files: 0 });
     expect(await screen.findByText(en.workspaces.compare.empty)).toBeInTheDocument();
+    // T-2760: what to do next, and the way there.
+    expect(screen.getByText(en.workspaces.compare.emptyHint)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.workspaces.compare.back })).toHaveAttribute(
+      "href",
+      `/projects/${PROJECT}/workspaces`,
+    );
     await expectNoAxeViolations(container);
   });
+
 
   // A comparison that failed is not "the copy changes nothing".
   it("shows the reason the comparison failed, with a retry", async () => {
@@ -119,7 +127,7 @@ describe("what the copy changes", () => {
     expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
     expect(screen.queryByText(en.workspaces.compare.empty)).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 1, name: en.workspaces.compare.title }),
+      screen.getByRole("heading", { level: 1, name: TITLE }),
     ).toBeInTheDocument();
   });
 
@@ -158,12 +166,13 @@ describe("what the copy changes", () => {
 
   it.each([0, 1, 60])("draws %i changed files without changing how the page reads", async (files) => {
     const { container } = renderCompare({ files });
-    await screen.findByRole("heading", { level: 1, name: en.workspaces.compare.title });
+    await screen.findByRole("heading", { level: 1, name: TITLE });
     if (files === 0) {
       expect(await screen.findByText(en.workspaces.compare.empty)).toBeInTheDocument();
     } else {
       await waitFor(() => {
-        expect(container.querySelectorAll("li").length).toBe(files);
+        // The files, not the breadcrumb's steps.
+        expect([...container.querySelectorAll("li")].filter((item) => !item.closest("nav")).length).toBe(files);
       });
     }
     expectHeadingOutline(container);
@@ -190,7 +199,7 @@ describe("what the copy changes", () => {
       cleanup();
       renderCompare({ files: 0 });
       expect(
-        await screen.findByRole("heading", { level: 1, name: i18n.t("workspaces.compare.title") }),
+        await screen.findByRole("heading", { level: 1, name: i18n.t("workspaces.compare.titleOf", { name: COPY }) }),
         `the title is missing in ${locale}`,
       ).toBeInTheDocument();
       expect(await screen.findByText(i18n.t("workspaces.compare.empty"))).toBeInTheDocument();

@@ -107,6 +107,16 @@ describe("Agent access on the Assistant page (UI-56)", () => {
     expect(screen.getByText("registry.npmjs.org")).toBeInTheDocument();
   });
 
+  // T-2760: every profile's operations open at once made the Assistant page 10,276 px tall.
+  it("folds each profile's operations under a line that counts them", async () => {
+    renderPage();
+    const table = await screen.findByRole("table", { name: i18n.t("assistantPage.access.caption", { name: "app-builder" }) });
+    const folded = table.closest("details") as HTMLDetailsElement;
+    expect(folded).not.toBeNull();
+    expect(folded.open).toBe(false);
+    expect(within(folded).getByText(i18n.t("assistantPage.access.showOperations", { count: 3 }))).toBeInTheDocument();
+  });
+
   it("proposes an edited access block as a change on the profile, without its status", async () => {
     renderPage();
     const user = userEvent.setup();

@@ -97,7 +97,13 @@ const POLICIES = list([
 ]);
 
 const SAMPLES = [
-  { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1", type: "AirQualityObserved", pm10: 12 },
+  {
+    id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1",
+    type: "AirQualityObserved",
+    pm10: 12,
+    name: { languageMap: { sk: "Námestie SNP", en: "SNP Square" } },
+    location: { type: "Point", coordinates: [19.14606, 48.73562] },
+  },
   { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:2", type: "AirQualityObserved", pm10: 9 },
 ];
 
@@ -247,8 +253,16 @@ describe("space inside view", () => {
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(await within(row).findByText("42")).toBeInTheDocument();
-    expect(within(row).getByText(SAMPLES[0].id)).toBeInTheDocument();
-    expect(within(row).getByText(SAMPLES[1].id)).toBeInTheDocument();
+    // T-2760: the entity's own name with the URN in its title and a copy button, and values a
+    // person reads — not `location={"coordinates":…}` or `name={"languageMap":…}`.
+    const first = within(row).getByTitle(SAMPLES[0].id);
+    expect(first).toHaveTextContent(/^1$/);
+    expect(within(row).getByTitle(SAMPLES[1].id)).toHaveTextContent(/^2$/);
+    expect(
+      within(row).getByRole("button", { name: en.spaces.inside.copyId.replace("{id}", SAMPLES[0].id) }),
+    ).toBeInTheDocument();
+    expect(within(row).getByText("pm10: 12 · name: SNP Square · location: Point [19.1461, 48.7356]")).toBeInTheDocument();
+    expect(row.textContent).not.toMatch(/languageMap|coordinates|\{/);
 
     const gatewayCalls = fetchMock.mock.calls
       .map((call) => urlOf(call[0]))

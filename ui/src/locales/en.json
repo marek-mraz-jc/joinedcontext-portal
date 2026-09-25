@@ -341,7 +341,8 @@
       "policies": "Policies",
       "noPolicies": "This space has no policy yet.",
       "assignee": "Assignee",
-      "operations": "Operations"
+      "operations": "Operations",
+      "copyId": "Copy the id {id}"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -2343,14 +2344,16 @@
       "blockHint": "operations, kinds with read or propose, endpoints with read or write. Empty removes the block. The edit is a change an approver reviews.",
       "propose": "Propose change",
       "cancel": "Cancel",
-      "yamlError": "Not valid YAML: {message}"
+      "yamlError": "Not valid YAML: {message}",
+      "showOperations": "Show its {count} operations"
     },
     "states": {
       "failed": "Failed",
       "cancelled": "Stopped",
       "expired": "Ended"
     },
-    "timings": "Timings"
+    "timings": "Timings",
+    "showMore": "Show {count} more ({left} left)"
   },
   "activity": {
     "title": "Activity",
@@ -2431,7 +2434,8 @@
       "ckan": "Catalogue",
       "portal": "Portal"
     },
-    "failed": "{what} failed"
+    "failed": "{what} failed",
+    "repeated": "{count, plural, other {# times}} since {since}"
   },
   "import": {
     "title": "Import configuration",
@@ -2619,7 +2623,10 @@
       "conflicts": "{count, plural, one {# file also changed in the project} other {# files also changed in the project}}. Resolve them before bringing the copy back.",
       "resolveConflicts": "Resolve on the bring back page",
       "showDiff": "Fields",
-      "empty": "The copy changes nothing yet."
+      "empty": "The copy changes nothing yet.",
+      "titleOf": "What the copy {name} changes",
+      "emptyHint": "Open the copy from the list of copies and change a resource in it; what it changes shows here.",
+      "back": "Back to the copies"
     },
     "bringBack": {
       "title": "Bring the copy back",

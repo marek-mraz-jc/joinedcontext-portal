@@ -341,7 +341,8 @@
       "policies": "Politiky",
       "noPolicies": "Priestor zatiaľ nemá politiku.",
       "assignee": "Príjemca",
-      "operations": "Operácie"
+      "operations": "Operácie",
+      "copyId": "Skopírovať identifikátor {id}"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -2343,14 +2344,16 @@
       "blockHint": "operations, kinds s read alebo propose, endpoints s read alebo write. Prázdny blok odstráni. Úprava je zmena, ktorú posúdi schvaľovateľ.",
       "propose": "Navrhnúť zmenu",
       "cancel": "Zrušiť",
-      "yamlError": "Neplatný YAML: {message}"
+      "yamlError": "Neplatný YAML: {message}",
+      "showOperations": "Zobraziť jeho operácie ({count})"
     },
     "states": {
       "failed": "Zlyhalo",
       "cancelled": "Zastavené",
       "expired": "Skončené"
     },
-    "timings": "Časy"
+    "timings": "Časy",
+    "showMore": "Zobraziť ďalších {count} (zostáva {left})"
   },
   "activity": {
     "title": "Activity",
@@ -2431,7 +2434,8 @@
       "ckan": "Katalóg",
       "portal": "Portál"
     },
-    "failed": "{what} zlyhalo"
+    "failed": "{what} zlyhalo",
+    "repeated": "{count, plural, one {# raz} few {# razy} other {# ráz}} od {since}"
   },
   "import": {
     "title": "Import konfigurácie",
@@ -2619,7 +2623,10 @@
       "conflicts": "{count, plural, one {# súbor sa zmenil aj v projekte} few {# súbory sa zmenili aj v projekte} many {# súboru sa zmenilo aj v projekte} other {# súborov sa zmenilo aj v projekte}}. Vyriešte ich pred vrátením kópie.",
       "resolveConflicts": "Vyriešiť na stránke vrátenia",
       "showDiff": "Polia",
-      "empty": "Kópia zatiaľ nič nemení."
+      "empty": "Kópia zatiaľ nič nemení.",
+      "titleOf": "Čo mení kópia {name}",
+      "emptyHint": "Otvorte kópiu zo zoznamu kópií a zmeňte v nej niektorý prostriedok; čo mení, sa ukáže tu.",
+      "back": "Späť na kópie"
     },
     "bringBack": {
       "title": "Vrátiť kópiu",

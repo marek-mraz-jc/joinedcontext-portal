@@ -65,6 +65,7 @@ vi.mock("maplibre-gl", () => {
     }
   };
   return {
+    setWorkerUrl: () => undefined,
     Map: FakeMap,
     NavigationControl,
     Popup,

@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { api, unwrap } from "../../api/client";
 import { PlanDiffViewer } from "../../components/diff/PlanDiffViewer";
 import type { FieldChange } from "../../components/diff/PlanDiffViewer";
-import { Alert, Badge, EmptyState, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Alert, Badge, buttonClass, EmptyState, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 import type { components } from "../../api/schema";
 
 type Comparison = components["schemas"]["Comparison"];
@@ -139,9 +139,11 @@ export function ComparePage({
   // The summary counts nothing until there is something to count: "0 added, 0 changed,
   // 0 removed" under a heading is an answer, and while the comparison is on its way it is the
   // wrong one.
+  // Which copy it compares (T-2760): the page said "What the copy changes" of no copy in
+  // particular. The Shell's trail above it reads project › Copies › the copy, the way back.
   const header = (
     <PageHeader
-      title={t("workspaces.compare.title")}
+      title={t("workspaces.compare.titleOf", { name })}
       description={
         comparison ? t("workspaces.compare.summary", { added, changed, removed }) : undefined
       }
@@ -186,7 +188,19 @@ export function ComparePage({
         </Alert>
       ) : null}
       {files.length === 0 ? (
-        <EmptyState title={t("workspaces.compare.empty")} />
+        <EmptyState
+          title={t("workspaces.compare.empty")}
+          description={t("workspaces.compare.emptyHint")}
+          action={
+            <Link
+              to="/projects/$project/workspaces"
+              params={{ project }}
+              className={buttonClass("secondary", "md")}
+            >
+              {t("workspaces.compare.back")}
+            </Link>
+          }
+        />
       ) : (
         <FileList files={files} />
       )}

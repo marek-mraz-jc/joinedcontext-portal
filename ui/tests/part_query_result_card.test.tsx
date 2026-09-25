@@ -16,6 +16,7 @@ import {
   MAX_ATTRIBUTES,
   MAX_ROWS,
   QueryResultCard,
+  textOf,
   viewOf,
 } from "../src/pages/apps/QueryResultCard";
 import { expectNoAxeViolations, inEveryLocale, renderPart } from "./page_contract";
@@ -167,6 +168,25 @@ describe("the card of a query answer", () => {
 
 // T-2460: "what alerts are there?" drew ten rows each carrying a road's MultiLineString, hundreds
 // of coordinates, and the table's width went with them.
+describe("a value as words (T-2760)", () => {
+  it("reads a language map in the reader's language, then English, then any", () => {
+    const name = { languageMap: { fi: "Kauppatori", en: "Market Square" } };
+    expect(textOf(name, "fi")).toBe("Kauppatori");
+    expect(textOf(name, "de")).toBe("Market Square");
+    expect(textOf({ languageMap: { sv: "Salutorget" } }, "de")).toBe("Salutorget");
+  });
+
+  it("reads a list and a structured value without braces or quotes", () => {
+    expect(textOf(["a", 2, true])).toBe("a, 2, true");
+    expect(textOf({ streetAddress: "Pohjoisesplanadi 11", addressLocality: "Helsinki" })).toBe(
+      "streetAddress: Pohjoisesplanadi 11; addressLocality: Helsinki",
+    );
+    expect(textOf({ value: { languageMap: { en: "x" } } }, "en")).toBe("x");
+    expect(textOf({})).toBe("");
+    expect(textOf([])).toBe("");
+  });
+});
+
 describe("a wide value in the card (T-2460)", () => {
   const line = Array.from({ length: 400 }, (_, i) => [24.9 + i * 0.001, 60.1 + i * 0.0005]);
   const alert = (index: number, extra: Record<string, unknown> = {}) =>

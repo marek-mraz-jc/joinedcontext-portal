@@ -168,6 +168,12 @@ function ProfileCard({ project, profile }: { project: string; profile: ProfileAc
         {profile.egressHosts.length > 0 ? profile.egressHosts.join(", ") : t("assistantPage.access.noEgress")}
       </p>
 
+      {/* Folded (T-2760): every profile's every operation, open at once, made the page ten
+          thousand pixels tall; the count above says what a person needs first. */}
+      <details className="group">
+        <summary className="focus-ring cursor-pointer rounded-sm text-caption font-medium text-primary-soft-fg">
+          {t("assistantPage.access.showOperations", { count: profile.operations.length })}
+        </summary>
       <Table caption={t("assistantPage.access.caption", { name: profile.name })}>
         <TableHead>
           <TableHeaderCell>{t("assistantPage.access.operation")}</TableHeaderCell>
@@ -186,6 +192,7 @@ function ProfileCard({ project, profile }: { project: string; profile: ProfileAc
           ))}
         </TableBody>
       </Table>
+      </details>
 
       {change ? <ChangeNotice change={change} project={ORG_NAMESPACE} /> : null}
 

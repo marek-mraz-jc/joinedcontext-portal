@@ -340,6 +340,17 @@ export function Shell({
   // Approvals has its own routes, so the generic `$plural` match never fires for it.
   const approvalDetail = matchRoute({ to: "/projects/$project/approvals/$id" });
   const onApprovals = Boolean(approvalDetail || matchRoute({ to: "/projects/$project/approvals" }));
+  // A copy's own pages (compare, bring back, try it) had no trail at all (T-2760): they sit under
+  // Copies.
+  const copyDetail =
+    matchRoute({ to: "/projects/$project/workspaces/$name/compare" }) ||
+    matchRoute({ to: "/projects/$project/workspaces/$name/bring-back" }) ||
+    matchRoute({ to: "/projects/$project/workspaces/$name/try-it" });
+  const detail = approvalDetail
+    ? { to: "/projects/$project/approvals" as const, name: approvalDetail.id }
+    : copyDetail
+      ? { to: "/projects/$project/workspaces" as const, name: copyDetail.name }
+      : null;
   const onAssistant = Boolean(
     matchRoute({ to: "/projects/$project/assistant", params: { project } }),
   );
@@ -359,6 +370,8 @@ export function Shell({
   const activeSection = NAV_SECTIONS.find((section) =>
     section.plural === "approvals"
       ? onApprovals
+      : section.plural === "workspaces" && copyDetail
+        ? true
       : section.plural === "assistant"
         ? onAssistant
         : section.plural === "settings"
@@ -568,7 +581,10 @@ export function Shell({
           <ProfileBlock />
         </nav>
         <main id="main" className="min-w-0 flex-1">
-          <div className="mx-auto flex max-w-content flex-col gap-section px-4 py-5 sm:px-gutter sm:py-6">
+          {/* `pb-24` keeps room under the page for the assistant's floating button (56 px at
+              16 px from the corner): it sat on the last column of a table at 1440 with nothing
+              below it to scroll to (T-2760). */}
+          <div className="mx-auto flex max-w-content flex-col gap-section px-4 pb-24 pt-5 sm:px-gutter sm:pt-6">
             <nav aria-label={t("nav.breadcrumb")} className="text-caption text-fg-muted">
               <ol className="flex flex-wrap items-center gap-1">
                 <li>
@@ -583,10 +599,10 @@ export function Shell({
                 {activeSection ? (
                   <li className="flex items-center gap-1">
                     <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                    {approvalDetail ? (
+                    {detail ? (
                       <>
                         <Link
-                          to="/projects/$project/approvals"
+                          to={detail.to}
                           params={{ project }}
                           className="focus-ring rounded-sm hover:text-fg hover:underline"
                         >
@@ -594,7 +610,7 @@ export function Shell({
                         </Link>
                         <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
                         <span aria-current="page" className="font-mono font-medium text-fg">
-                          {approvalDetail.id}
+                          {detail.name}
                         </span>
                       </>
                     ) : (

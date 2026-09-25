@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
-import { Map as MapLibreMap, NavigationControl, Popup } from "maplibre-gl";
+import { Map as MapLibreMap, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
 import type { MapGeoJSONFeature, StyleSpecification } from "maplibre-gl";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useTranslation } from "react-i18next";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { basemapColour, outlineColour, plainColour, RAMP } from "./mapColours";
+
+// MapLibre finds its worker beside its own module (`./maplibre-gl-worker.mjs`), which after
+// bundling is /assets/, where nothing of that name is emitted: every dashboard asked for it and
+// got a 404 (T-2760). Vite bundles the worker with the chunk it imports and names its address.
+setWorkerUrl(workerUrl);
 
 /** One Layer manifest, resolved against the Endpoint it reads from. */
 export interface MapLayer {
