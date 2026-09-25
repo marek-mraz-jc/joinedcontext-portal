@@ -2251,7 +2251,7 @@
       "lead": "Wählen Sie, was Sie tun möchten, oder fragen Sie in eigenen Worten.",
       "composer": "Den Assistenten fragen",
       "send": "Senden",
-      "failed": "Die Unterhaltung hat nicht begonnen. Prüfen Sie die Nachricht und versuchen Sie es erneut."
+      "failed": "Die Unterhaltung hat nicht begonnen:"
     },
     "data": {
       "title": "Daten",

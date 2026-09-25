@@ -152,6 +152,19 @@ describe("the composer (UI-04, UI-44, UI-48)", () => {
     expect(box).toHaveValue("Which stations were empty yesterday?");
   });
 
+  // On dev the project's daily run quota refused the start and the box said "Check the message
+  // and try again": no message would have started it. The reason is said, and only the reason.
+  it("a_start_refused_by_the_quota_says_why_and_blames_no_message", async () => {
+    const quota = "quota: agentRunsPerDay 51 of 50 in project helsinki; raise the quota on the project or the organization first";
+    renderDock(() => json({ title: "Forbidden", status: 403, detail: quota }, 403, "application/problem+json"));
+    const person = await openDock();
+    await person.type(screen.getByLabelText(en.assistant.empty.composer), "Which stations are empty?");
+    await person.click(within(dock()).getByRole("button", { name: en.assistant.empty.send }));
+    const alert = await within(dock()).findByRole("alert");
+    expect(alert).toHaveTextContent(`${en.assistant.empty.failed} ${quota}`);
+    expect(alert.textContent).not.toMatch(/check the message/i);
+  });
+
   // UI-48: a start in flight shows it, and a second Enter sends nothing more.
   it("a_start_in_flight_is_busy_and_sends_once", async () => {
     let answer: (response: Response) => void = () => {};

@@ -2251,7 +2251,7 @@
       "lead": "Vyberte, co chcete udělat, nebo se zeptejte vlastními slovy.",
       "composer": "Zeptejte se asistenta",
       "send": "Odeslat",
-      "failed": "Konverzace nezačala. Zkontrolujte zprávu a zkuste to znovu."
+      "failed": "Konverzace nezačala:"
     },
     "data": {
       "title": "Data",
