@@ -1033,6 +1033,19 @@ async fn propose_engine(
         crate::groups::check(state, identity, kind_info.kind, &envelope.metadata)?;
     }
 
+    // 4i. A pipeline that removes stale entities removes only its own, by a grant its author
+    //     wrote (PL-64): refused while another pipeline writes the space, a type is not the
+    //     model's, or no Policy grants the delete.
+    if operation != Operation::Delete {
+        crate::pipeline_expiry::check(
+            state,
+            project,
+            kind_info.kind,
+            &envelope.metadata.name,
+            &envelope.spec,
+        )?;
+    }
+
     // Every resource this manifest names has to be there, so a person meets a missing name in the
     // form they typed it into and not in the reconciler's log (MF-13, T-2233).
     // A resource an open change creates resolves once that change is approved (MF-48): the check

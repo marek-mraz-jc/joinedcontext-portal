@@ -1216,6 +1216,25 @@ impl Syncer {
                 .collect();
             let now = std::time::Instant::now();
             for (ns, name, outcome) in outcomes {
+                // A sweep that did not deploy is said on its pipeline, beside the pipeline's own
+                // outcome; the pipeline keeps writing (PL-64). The sweeps come last, so the
+                // pipeline's own outcome has already set its conditions.
+                if let Some(pipeline) = name.strip_suffix(".expiry") {
+                    if let (StreamOutcome::Error(err), Some(mut envelope)) =
+                        (outcome, fresh_mirror.get(&ns, "Pipeline", pipeline))
+                    {
+                        if let Some(status) = envelope.status.as_mut() {
+                            status.conditions.push(make_condition(
+                                "ExpirySweep",
+                                "False",
+                                "RunnerRefused",
+                                &err,
+                            ));
+                        }
+                        fresh_mirror.upsert(envelope);
+                    }
+                    continue;
+                }
                 let Some(mut envelope) = fresh_mirror.get(&ns, "Pipeline", &name) else {
                     continue;
                 };

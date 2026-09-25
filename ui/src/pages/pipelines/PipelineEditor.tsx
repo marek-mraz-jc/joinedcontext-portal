@@ -45,6 +45,8 @@ export interface PipelineForm {
   targetEndpoint?: string;
   output?: { type?: string; mode?: string };
   allowFeedback?: boolean;
+  /** Stale-entity expiry: off unless both are given (PL-64). */
+  expiry?: { after?: string; types?: string[] };
   secretRefs?: { name?: string; key?: string; envVar?: string }[];
   quotas?: { maxMemoryMb?: number; cpuMillicores?: number };
 }
@@ -117,6 +119,7 @@ const OWNED_SPEC = [
   "targetEndpoint",
   "output",
   "allowFeedback",
+  "expiry",
   "secretRefs",
   "quotas",
   "sources",
@@ -223,6 +226,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     moreSources,
     compute,
     allowFeedback,
+    expiry,
     secretRefs,
     quotas,
     processors,
@@ -239,6 +243,8 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     targetEndpoint: rest.targetEndpoint,
     output: rest.output,
     allowFeedback: allowFeedback ? true : undefined,
+    // An emptied expiry is gone, not an empty object the manifest refuses: off means absent.
+    expiry: expiry?.after || expiry?.types?.length ? expiry : undefined,
     secretRefs,
     quotas,
   }) as Record<string, unknown>;
@@ -257,6 +263,20 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
       : spec,
   };
   return { ...overlay(base, next, OWNED_SPEC), apiVersion: next.apiVersion };
+}
+
+/**
+ * The expiry window in words of the person's language, `14d` as "14 days" (PL-65); a window
+ * that does not parse is shown as written.
+ */
+export function expiryWindow(after: string, locale: string): string {
+  const match = /^([1-9][0-9]*)([hd])$/.exec(after);
+  if (!match) return after;
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit: match[2] === "d" ? "day" : "hour",
+    unitDisplay: "long",
+  }).format(Number(match[1]));
 }
 
 /** The form one manifest fills, so editing starts from what is in Git rather than from blank. */

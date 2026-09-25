@@ -524,6 +524,49 @@ impl StreamDeployer {
             }
         }
 
+        // The sweeps of the pipelines that remove stale entities (PL-64), after every pipeline's
+        // own stream, so a sweep's outcome lands on its pipeline after the pipeline's own.
+        for ns in mirror.namespaces() {
+            let mut running: Option<Option<HashMap<String, bool>>> = None;
+            let page = mirror.list(&ns, "Pipeline", &crate::store::ListOptions::default());
+            for envelope in page.items {
+                let name = envelope.metadata.name;
+                let Ok(spec) = serde_json::from_value::<PipelineSpec>(envelope.spec) else {
+                    continue;
+                };
+                let Some(expiry) = spec.expiry.as_ref() else {
+                    continue;
+                };
+                if !spec.enabled || refused.contains_key(&(ns.clone(), name.clone())) {
+                    continue;
+                }
+                let sweep = crate::pipeline_expiry::sweep_name(&name);
+                let slug = spec.outputs().first().and_then(|output| {
+                    mirror
+                        .get(&ns, "Endpoint", output.target_endpoint.local_id())
+                        .and_then(|ep| {
+                            ep.spec
+                                .get("slug")
+                                .and_then(Value::as_str)
+                                .map(str::to_owned)
+                        })
+                });
+                let outcome = match slug {
+                    Some(slug) => {
+                        let stream = crate::pipeline_expiry::render_sweep(&ns, &slug, expiry);
+                        self.apply(&ns, &sweep, stream, &mut running, &mut current_live)
+                            .await
+                    }
+                    None => StreamOutcome::Error(
+                        "the target endpoint is not in the mirror or has no slug, so nothing \
+                         is swept"
+                            .to_owned(),
+                    ),
+                };
+                outcomes.push((ns.clone(), sweep, outcome));
+            }
+        }
+
         // Retire streams that were deployed previously but are no longer active or eligible.
         let to_retire: Vec<(String, String)> = {
             let deployed = self.deployed.lock().unwrap_or_else(|p| p.into_inner());
@@ -1582,7 +1625,7 @@ fn truncate_body(s: &str, max_len: usize) -> String {
 /// The `ServiceAccount` every project's streams run as. Derived, not configured: a Pipeline
 /// names no account, and the seeds declare `pipelines` in each project that has one.
 /// ponytail: one account per project; a `spec.serviceAccountRef` on Pipeline is the upgrade.
-const PIPELINE_ACCOUNT: &str = "pipelines";
+pub(crate) const PIPELINE_ACCOUNT: &str = "pipelines";
 
 /// The runner environment variable that holds one project's pipeline client secret:
 /// `banskabystrica` becomes `JC_CLIENT_SECRET_BANSKABYSTRICA`. A project name is a DNS-1123
@@ -1608,7 +1651,7 @@ fn client_secret_var(project: &str) -> String {
 /// (T-2384). The client id is `jc_core`'s derived `{project}-{account}` and is an `azp`, not a
 /// secret, so it is written into the stream; the secret is never written, the stream names the
 /// environment variable the deployment resolves from that client's Secret.
-fn pipeline_oauth2(project: &str) -> serde_json::Value {
+pub(crate) fn pipeline_oauth2(project: &str) -> serde_json::Value {
     serde_json::json!({
         "enabled": true,
         "client_key": jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT),
@@ -2417,6 +2460,70 @@ output:
             assert!(!rendered.to_string().contains("sync_response"), "{output}");
             assert!(!rendered.to_string().contains("/answer"), "{output}");
         }
+    }
+
+    /// PL-64: a pipeline with expiry gets its sweep beside its own stream; a pipeline without it,
+    /// or disabled, gets none, and a sweep whose expiry was removed is retired.
+    #[tokio::test]
+    async fn an_expiring_pipeline_runs_its_sweep_and_loses_it_with_the_expiry() {
+        let server = wiremock::MockServer::start().await;
+        for path in ["/streams/citybikes-free", "/streams/citybikes-free.expiry"] {
+            wiremock::Mock::given(wiremock::matchers::method("PUT"))
+                .and(wiremock::matchers::path(path))
+                .respond_with(wiremock::ResponseTemplate::new(200))
+                .mount(&server)
+                .await;
+        }
+        wiremock::Mock::given(wiremock::matchers::method("DELETE"))
+            .and(wiremock::matchers::path("/streams/citybikes-free.expiry"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let deployer = StreamDeployer::new(server.uri());
+        let mirror = helsinki_test_mirror();
+        let mut pipeline = mirror
+            .get("helsinki", "Pipeline", "citybikes-free")
+            .expect("pipeline");
+        let plain = pipeline.clone();
+        pipeline.spec["expiry"] = serde_json::json!({ "after": "14d", "types": ["Vehicle"] });
+        mirror.upsert(pipeline.clone());
+
+        let outcomes = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        let names: Vec<&str> = outcomes.iter().map(|(_, name, _)| name.as_str()).collect();
+        assert_eq!(names, ["citybikes-free", "citybikes-free.expiry"]);
+        assert!(outcomes.iter().all(|(_, _, o)| *o == StreamOutcome::Live));
+        let sent = server.received_requests().await.expect("recorded");
+        let sweep = sent
+            .iter()
+            .find(|r| r.url.path() == "/streams/citybikes-free.expiry")
+            .expect("the sweep was sent");
+        let body: Value = serde_json::from_slice(&sweep.body).expect("json");
+        assert!(body
+            .to_string()
+            .contains("/api/endpoint/abc123456789012345678901234/"));
+
+        // Disabled: neither the stream nor its sweep.
+        let mut disabled = pipeline.clone();
+        disabled.spec["enabled"] = serde_json::json!(false);
+        mirror.upsert(disabled);
+        let outcomes = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        assert!(outcomes
+            .iter()
+            .all(|(_, name, _)| !name.ends_with(".expiry")));
+
+        // Expiry removed: the sweep is retired (the DELETE expectation above).
+        mirror.upsert(plain);
+        let outcomes = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        assert!(outcomes
+            .iter()
+            .all(|(_, name, _)| !name.ends_with(".expiry")));
     }
 
     #[tokio::test]

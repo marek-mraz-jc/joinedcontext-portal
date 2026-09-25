@@ -41,7 +41,7 @@ const PIPELINES = {
       apiVersion: "joinedcontext.com/v1alpha1",
       kind: "Pipeline",
       metadata: { name: "parking-daily", namespace: "banskabystrica" },
-      spec: { class: "auto", period: "1h", enabled: false },
+      spec: { class: "auto", period: "1h", enabled: false, expiry: { after: "14d", types: ["Vehicle"] } },
       status: { phase: "Live" },
     },
     {
@@ -170,6 +170,15 @@ describe("pipelines view", () => {
       .toBeInTheDocument();
     expect(within(await rowOf("parking-daily")).getByText(en.pipelines.class.scheduled))
       .toBeInTheDocument();
+  });
+
+  /// PL-65: a pipeline that removes stale entities says so in its row; one that does not, nothing.
+  it("says which pipelines remove the entities their source stopped sending", async () => {
+    renderPipelines();
+
+    const sentence = en.pipelines.expiryRemoves.replace("{window}", "14 days");
+    expect(within(await rowOf("parking-daily")).getByText(sentence)).toBeInTheDocument();
+    expect(within(await rowOf("aq-mqtt-ingest")).queryByText(/are removed/)).toBeNull();
   });
 
   it("shows the live counters of a resident stream", async () => {
