@@ -163,7 +163,7 @@ pub async fn check_and_publish(
              forge, and it names no spec.source.git (AP-100, AP-104)"
         )));
     }
-    let repo = gitea.for_repository(repository::name(project, name));
+    let repo = gitea.for_application(repository::name(project, name));
     let at = format!("{}/{}", repo.owner, repo.repo);
     let forge = |err: GitError| {
         ApiError::Unavailable(format!(
@@ -250,7 +250,7 @@ pub async fn check_and_publish(
                 .iter()
                 .map(|(digest, bytes)| (digest.as_str(), bytes.as_slice()))
                 .collect();
-            let stored = gitea
+            let stored = repo
                 .push_image(&package, commit, &blobs, OCI_MANIFEST, &image.manifest)
                 .await
                 .map_err(forge)?;
@@ -266,7 +266,7 @@ pub async fn check_and_publish(
     };
     let version = version(commit, digest);
     for (file, bytes) in files {
-        publish_once(gitea, &package, &version, file, bytes)
+        publish_once(&repo, &package, &version, file, bytes)
             .await
             .map_err(conflict)?;
     }

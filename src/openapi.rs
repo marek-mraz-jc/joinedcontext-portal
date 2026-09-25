@@ -40,7 +40,7 @@ use crate::api::projects::{
     DuplicateProject, OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary, Usage,
 };
 use crate::api::resources::{ListMeta, ResourceList};
-use crate::api::service_accounts::{KeyInfo, KeyList, MintedKey};
+use crate::api::service_accounts::{ClaimAction, ClaimLink, KeyClaim, KeyInfo, KeyList, MintedKey};
 use crate::auth::oidc::{LogoutTarget, Me};
 use crate::auth::{Front, Identity};
 use crate::branding::Validation;
@@ -134,6 +134,8 @@ use crate::tools::model_tools::{
         crate::api::service_accounts::list_keys,
         crate::api::service_accounts::create_key,
         crate::api::service_accounts::rotate_key,
+        crate::api::service_accounts::get_key_claim,
+        crate::api::service_accounts::use_key_claim,
         crate::api::service_accounts::revoke_key,
         crate::api::preferences::get_preferences,
         crate::api::preferences::put_preferences,
@@ -347,6 +349,9 @@ use crate::tools::model_tools::{
         KeyInfo,
         KeyList,
         MintedKey,
+        KeyClaim,
+        ClaimLink,
+        ClaimAction,
         Revision,
         RevisionList,
         FlowRequest,

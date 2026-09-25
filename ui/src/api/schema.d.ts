@@ -397,13 +397,13 @@ export interface paths {
         };
         /**
          * List People
-         * @description Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.
+         * @description Searches the organization's people, a page at a time.
          */
         get: operations["list_people"];
         put?: never;
         /**
          * Create Person
-         * @description Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person.
+         * @description Creates a person and sends the sign-up e-mail.
          */
         post: operations["create_person"];
         delete?: never;
@@ -421,7 +421,7 @@ export interface paths {
         };
         /**
          * Get Person
-         * @description One person with their groups, platform roles and application roles. Needs `read` on Person.
+         * @description One person with their groups and roles.
          */
         get: operations["get_person"];
         put?: never;
@@ -435,7 +435,7 @@ export interface paths {
         head?: never;
         /**
          * Edit Person
-         * @description Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.
+         * @description Edits a person's name, e-mail or language.
          */
         patch: operations["edit_person"];
         trace?: never;
@@ -451,7 +451,7 @@ export interface paths {
         put?: never;
         /**
          * Disable Person
-         * @description Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.
+         * @description Disables a person and ends their sessions; never the caller or the last Organization Administrator.
          */
         post: operations["disable_person"];
         delete?: never;
@@ -471,7 +471,7 @@ export interface paths {
         put?: never;
         /**
          * Enable Person
-         * @description Enables a disabled person. Needs `disable` on Person.
+         * @description Enables a disabled person.
          */
         post: operations["enable_person"];
         delete?: never;
@@ -531,7 +531,7 @@ export interface paths {
         put?: never;
         /**
          * Sign Person Out
-         * @description Ends every session of the person. Needs `disable` on Person and every right the person holds.
+         * @description Ends every session of a person.
          */
         post: operations["sign_out_person"];
         delete?: never;
@@ -1688,9 +1688,33 @@ export interface paths {
         put?: never;
         /**
          * Mint A Service Account Key
-         * @description Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.
+         * @description Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else. Over MCP nothing is minted: the answer is a one-time claim link the person who asked opens in the Portal to mint the key and see it, so the token never reaches the client (PF-104).
          */
         post: operations["create_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read A Service Account Key Claim
+         * @description What a key asked for over MCP will be, shown to the person who asked for it before it is minted.
+         */
+        get: operations["get_key_claim"];
+        put?: never;
+        /**
+         * Use A Service Account Key Claim
+         * @description Mints the key, or makes the rotation, a claim describes; the token is in this answer and nowhere else, and the claim is spent.
+         */
+        post: operations["use_key_claim"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1728,7 +1752,7 @@ export interface paths {
         put?: never;
         /**
          * Rotate A Service Account Key
-         * @description Replaces one key with a successor; the old one stops working when its overlap ends.
+         * @description Replaces one key with a successor; the old one stops working when its overlap ends. Over MCP nothing is rotated yet: the answer is a one-time claim link the person who asked opens in the Portal to make the rotation and see the successor, so the token never reaches the client (PF-104).
          */
         post: operations["rotate_key"];
         delete?: never;
@@ -2856,6 +2880,18 @@ export interface components {
             publications: components["schemas"]["PublicationStatus"][];
         };
         /**
+         * @description What a key claim will do once its person confirms it (PF-104).
+         * @enum {string}
+         */
+        ClaimAction: "mint" | "rotate";
+        /** @description Where the person opens a claim, and until when. */
+        ClaimLink: {
+            expiresAt: string;
+            id: string;
+            /** @description The Portal page that shows the claim to the person who asked for it. */
+            url: string;
+        };
+        /**
          * @description The five colours a page is built from. Each is validated as a hex triplet or sextet before
          *     it is served, because the UI writes it into a CSS custom property and a value that is not a
          *     colour is a way into the page (OPS-46).
@@ -3364,6 +3400,25 @@ export interface components {
             organizationDefault?: string | null;
             /** @description Base URL of the catalogue. */
             url: string;
+        };
+        /**
+         * @description A key asked for over MCP, waiting for its person in the Portal (PF-104). It carries no token
+         *     and no id of a key that does not exist yet: nothing is minted until the person confirms it.
+         */
+        KeyClaim: {
+            account: string;
+            action: components["schemas"]["ClaimAction"];
+            claim: components["schemas"]["ClaimLink"];
+            credential: string;
+            /** @description The expiry the minted key will carry, when it has one. */
+            keyExpiresAt?: string | null;
+            /** @description The key a rotation replaces. */
+            keyId?: string | null;
+            /**
+             * Format: int64
+             * @description How long the replaced key keeps working beside its successor.
+             */
+            overlapHours?: number | null;
         };
         /**
          * @description One key as everyone else ever sees it: what an operator decides on, and nothing that opens
@@ -9848,6 +9903,141 @@ export interface operations {
             };
             /** @description No such account, or none the caller may manage */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No key database configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_key_claim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description ServiceAccount name */
+                name: string;
+                /** @description The claim the MCP answer named */
+                claimId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What confirming the claim will do; no token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyClaim"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such claim for this person: another person's, expired, used or never made */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No key database configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    use_key_claim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description ServiceAccount name */
+                name: string;
+                /** @description The claim the MCP answer named */
+                claimId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The minted key; the claim is spent */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MintedKey"];
+                };
+            };
+            /** @description The credential is no longer declared, or its expiry has passed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such claim for this person, or the key it rotates is gone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The key the claim rotates was revoked in the meantime */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

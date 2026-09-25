@@ -227,6 +227,20 @@ fn moved_on_main(
         || a.description != b.description
 }
 
+/// The refusal of a create whose file is already there (T-2855): what holds the path, and what to
+/// do instead, so nobody's manifest is replaced by a change that reads as a create.
+fn path_taken(kind: &str, held: &str, name: &str, path: &str) -> ApiError {
+    let holder = if held.is_empty() {
+        "a manifest".to_owned()
+    } else {
+        format!("{kind} '{held}'")
+    };
+    ApiError::Conflict(format!(
+        "{holder} is already filed at {path}; creating {kind} '{name}' would replace it. \
+         Change {holder} instead, or remove it first"
+    ))
+}
+
 pub(crate) async fn create_or_reuse_branch(
     gitea: &crate::git::GiteaClient,
     branch: &str,
@@ -1050,6 +1064,33 @@ async fn propose_engine(
     let current = state
         .mirror
         .get(project, kind_info.kind, &envelope.metadata.name);
+    // 5'. A kind filed once per scope keeps one file whatever its name (DS-07): a create under a
+    //     new name would replace the one there and read as a create (T-2855).
+    // Filed once when two names in two spaces render one path, whichever template the namespace
+    // picks: a ContextSpace is filed by its `{space}`, which is its own name.
+    let filed_once =
+        kind_info.repo_path(project, "s1", "a") == kind_info.repo_path(project, "s2", "b");
+    if operation == Operation::Create && filed_once {
+        if let Some(held) = state
+            .mirror
+            .list(
+                project,
+                kind_info.kind,
+                &crate::store::ListOptions::default(),
+            )
+            .items
+            .into_iter()
+            .find(|held| held.metadata.name != envelope.metadata.name)
+        {
+            let path = kind_info.repo_path(project, "", &held.metadata.name);
+            return Err(path_taken(
+                kind_info.kind,
+                &held.metadata.name,
+                &envelope.metadata.name,
+                &path,
+            ));
+        }
+    }
     let mut plan = plan::diff(current.as_ref(), Some(&envelope));
 
     // The same folder as the manifest, so a path is checked against where it will be written.
@@ -1136,6 +1177,22 @@ async fn propose_engine(
     //     moved to: the build lane's status write once undid the bootstrap's new pin (T-2674).
     if workspace.is_none() {
         let on_main = gitea.get_file(&manifest_path, &default_branch).await?;
+        // A create of a kind filed once writes a file that is not there yet: one at its path on
+        // main is the resource the mirror has not read, and writing over it would be a
+        // replacement the approver reads as a create (T-2855).
+        if operation == Operation::Create && filed_once {
+            if let Some(file) = &on_main {
+                let held = serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content)
+                    .map(|held| held.metadata.name)
+                    .unwrap_or_default();
+                return Err(path_taken(
+                    kind_info.kind,
+                    &held,
+                    &envelope.metadata.name,
+                    &manifest_path,
+                ));
+            }
+        }
         if moved_on_main(current.as_ref(), on_main.as_ref()) {
             return Err(ApiError::Conflict(format!(
                 "{} '{}' changed on {default_branch} after the Portal last read it; read it \

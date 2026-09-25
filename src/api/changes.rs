@@ -1412,7 +1412,8 @@ pub async fn approve_change_for(
 /// later" until it has; an approval that follows the proposal within seconds (the demo's, a
 /// script's, the build lane's) waits it out instead of failing. The forge refuses to merge a
 /// commit other than `head_sha`, and a branch that no longer merges into the base; both come back
-/// 409 and both mean the same thing to whoever approved (T-1683, CC-80).
+/// 409 and both mean the same thing to whoever approved (T-1683, CC-80). A branch another merge
+/// overtook is brought up to date first (PF-104, `bring_up_to_date`).
 async fn merge_when_ready(
     gitea: &GiteaClient,
     pr_number: u64,
@@ -1420,27 +1421,78 @@ async fn merge_when_ready(
     head_sha: &str,
     id: &str,
 ) -> Result<(), ApiError> {
+    let mut head = head_sha.to_owned();
     let mut attempt = 0;
     loop {
         match gitea
-            .merge(pr_number, MergeStyle::Squash, message, Some(head_sha))
+            .merge(pr_number, MergeStyle::Squash, message, Some(&head))
             .await
         {
+            Err(err) if behind_base(&err) && attempt < 15 => {
+                attempt += 1;
+                head = bring_up_to_date(gitea, pr_number, head_sha, id).await?;
+            }
             Err(GitError::Api { status: 405, .. }) if attempt < 15 => {
                 attempt += 1;
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
-            Err(GitError::Conflict(_)) => {
-                return Err(ApiError::Conflict(format!(
-                    "change proposal '{id}' is not what it was when it was reviewed: its branch \
-                     has moved past the commit this approval read, or it no longer merges into \
-                     the base branch. Open the change again, read what it says now, and approve \
-                     that (PF-57)."
-                )))
-            }
+            Err(GitError::Conflict(_)) => return Err(moved_on(id)),
             other => return other.map_err(ApiError::from),
         }
     }
+}
+
+fn moved_on(id: &str) -> ApiError {
+    ApiError::Conflict(format!(
+        "change proposal '{id}' is not what it was when it was reviewed: its branch has moved \
+         past the commit this approval read, or it no longer merges into the base branch. Open \
+         the change again, read what it says now, and approve that (PF-57)."
+    ))
+}
+
+/// The forge's refusal of a branch that is behind its base (PF-104): a 405 like "not checked
+/// yet", told apart only by its message.
+fn behind_base(err: &GitError) -> bool {
+    matches!(err, GitError::Api { status: 405, message } if message.contains("behind the base branch"))
+}
+
+/// Merges `main` into a Change's branch that fell behind it, and answers the branch's new head
+/// (PF-104). The approval read the files at `approved`; it still covers the updated head only
+/// when every file the Change touches reads the same there, so a file `main` changed meanwhile
+/// sends the Change back to its reviewer, naming the file.
+async fn bring_up_to_date(
+    gitea: &GiteaClient,
+    pr_number: u64,
+    approved: &str,
+    id: &str,
+) -> Result<String, ApiError> {
+    match gitea.update_pull_request(pr_number).await {
+        Err(GitError::Conflict(_)) => return Err(moved_on(id)),
+        other => other?,
+    }
+    let pr = gitea.pull_request(pr_number).await?;
+    // The branch, not the pull request: the forge refreshes the pull's head in the background.
+    let head = gitea.branch_head(&pr.head_branch).await?;
+    let before: std::collections::HashMap<String, String> =
+        gitea.list_tree_blobs(approved).await?.into_iter().collect();
+    let after: std::collections::HashMap<String, String> =
+        gitea.list_tree_blobs(&head).await?.into_iter().collect();
+    let changed: Vec<String> = gitea
+        .pull_request_files(pr_number)
+        .await?
+        .into_iter()
+        .filter(|file| before.get(&file.path) != after.get(&file.path))
+        .map(|file| file.path)
+        .collect();
+    if !changed.is_empty() {
+        return Err(ApiError::Conflict(format!(
+            "change proposal '{id}' fell behind main, and main has changed {} since it was \
+             reviewed. Open the change again, read what it says now, and approve that (PF-57, \
+             PF-104).",
+            changed.join(", ")
+        )));
+    }
+    Ok(head)
 }
 
 /// The mirror catches up with `main` now rather than at the next poll, so what an approval merged
