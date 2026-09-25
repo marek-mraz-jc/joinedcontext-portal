@@ -985,6 +985,23 @@ async fn propose_engine(
         crate::references::check(&state.mirror, project, kind_info.kind, &envelope.spec)?;
     }
 
+    // 4h. Every role of an App comes with its default group, in the same Change (AP-118,
+    //     ADR-N-031): the group of a new role and its access entry are written, the group of a
+    //     role taken away, or of a retired App, is removed. A project in its own repository
+    //     (layout 2) cannot carry an organization file in its Change, so its Apps keep their
+    //     access as written. A build write leaves the App as it is on main (AP-73).
+    let default_groups = if kind_info.kind == "App"
+        && operation != Operation::Delete
+        && !build_write
+        && state.mirror.repository_of(project).is_none()
+    {
+        let planned = crate::apps::default_groups::plan(state, identity, project, &mut envelope)?;
+        crate::apps::default_groups::release(&mut envelope, &planned.removed);
+        planned
+    } else {
+        crate::apps::default_groups::DefaultGroups::default()
+    };
+
     // 4d. A new space comes with its one model, in the same Change (DM-61, DM-62, ADR-N-033),
     //     whoever creates it: the form, the API, the assistant or MCP.
     let space_model = if kind_info.kind == "ContextSpace" && operation == Operation::Create {
@@ -1022,11 +1039,12 @@ async fn propose_engine(
     //     gateway reads endpoints and policies from the repository alone, so a grant nobody
     //     commits is a grant it never enforces. The reviewer reads each one in the plan.
     // A build write leaves the App as it is on main (AP-73), so it carries no grant either.
-    let grants = if kind_info.kind == "App" && operation != Operation::Delete && !build_write {
+    let mut grants = if kind_info.kind == "App" && operation != Operation::Delete && !build_write {
         app_grants(state, project, &envelope)?
     } else {
         AppGrants::default()
     };
+    group_files(&default_groups, project, &mut grants)?;
     plan.fields.extend(grants.review.iter().cloned());
 
     // 6. Risk-classified approval lane
@@ -1385,6 +1403,47 @@ fn app_grants(
         });
     }
     Ok(out)
+}
+
+/// The default groups an App's Change writes and removes (AP-118), as files and review lines
+/// beside its grants; a group removed with members in it is said in the plan.
+fn group_files(
+    groups: &crate::apps::default_groups::DefaultGroups,
+    project: &str,
+    grants: &mut AppGrants,
+) -> Result<(), ApiError> {
+    let info = resource::by_kind("Group")
+        .ok_or_else(|| ApiError::Internal("no catalogue entry for Group".into()))?;
+    for group in &groups.written {
+        let yaml = serde_yaml_ng::to_string(group)
+            .map_err(|e| ApiError::Internal(format!("serialize Group: {e}")))?;
+        grants
+            .uploads
+            .push((resolve_repo_path(group, info, project)?, yaml));
+        grants.review.push(plan::FieldChange {
+            path: format!("groups.{}", group.metadata.name),
+            from: None,
+            to: Some(Value::from("an empty default group, ready to assign")),
+        });
+    }
+    for group in &groups.removed {
+        grants
+            .removed
+            .push(resolve_repo_path(group, info, project)?);
+        grants.review.push(plan::FieldChange {
+            path: format!("groups.{}", group.metadata.name),
+            from: Some(Value::from("Group")),
+            to: None,
+        });
+    }
+    for (index, warning) in groups.warnings.iter().enumerate() {
+        grants.review.push(plan::FieldChange {
+            path: format!("warnings.groups.{index}"),
+            from: None,
+            to: Some(Value::from(warning.clone())),
+        });
+    }
+    Ok(())
 }
 
 /// The Endpoint and Policies the reconciler generated for App `app` of `project` (T-2632).

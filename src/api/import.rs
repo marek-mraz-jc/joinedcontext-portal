@@ -1322,13 +1322,7 @@ pub async fn import_bundle(
     }
 
     let (report, files) = plan_import(
-        &incoming,
-        state,
-        &project,
-        &target,
-        &domain,
-        options.conflict_policy,
-        &options.space_mapping,
+        &incoming, state, identity, &project, &target, &domain, &options,
     )?;
     // PF-57 on the import door (T-1460): the dry run is the bundle's check, over the bundle as
     // sent and the options it is imported with, so another manifest, policy or domain is stale;
@@ -1551,12 +1545,13 @@ fn verify(incoming: &[Incoming]) -> Result<Vec<Verified>, ApiError> {
 fn plan_import(
     incoming: &[Incoming],
     state: &AppState,
+    identity: &crate::auth::session::Identity,
     project: &str,
     target: &str,
     domain: &str,
-    policy: ConflictPolicy,
-    space_mapping: &[SpaceMapping],
+    options: &ImportOptions,
 ) -> Result<(ImportReport, Vec<(String, String)>), ApiError> {
+    let (policy, space_mapping) = (options.conflict_policy, options.space_mapping.as_slice());
     let mut manifests: Vec<ResourceEnvelope> = Vec::new();
     let mut natives: Vec<(String, String)> = Vec::new();
     let mut source: Option<String> = None;
@@ -1766,6 +1761,29 @@ fn plan_import(
         return Err(ApiError::BadRequest(missing.join("; ")));
     }
 
+    // Every App role comes with its default group (AP-118), as at the propose door, and like
+    // that door's grants the groups ride without raising the lane: an empty group grants only
+    // its App role. An import only adds files, so the group of a role the bundle takes away
+    // stays until the App is next proposed, which removes it. A project in its own repository
+    // (layout 2) cannot carry an organization file in its Change.
+    let mut default_groups: Vec<ResourceEnvelope> = Vec::new();
+    if state.mirror.repository_of(project).is_none() {
+        let bundled: std::collections::BTreeSet<String> = keep
+            .iter()
+            .filter(|envelope| envelope.kind == "Group")
+            .map(|envelope| envelope.metadata.name.clone())
+            .collect();
+        for envelope in keep.iter_mut().filter(|envelope| envelope.kind == "App") {
+            let planned = crate::apps::default_groups::plan(state, identity, project, envelope)?;
+            default_groups.extend(
+                planned
+                    .written
+                    .into_iter()
+                    .filter(|group| !bundled.contains(&group.metadata.name)),
+            );
+        }
+    }
+
     let mut files: Vec<(String, String)> = Vec::new();
     for envelope in &keep {
         let info = resource::by_kind(&envelope.kind)
@@ -1807,6 +1825,21 @@ fn plan_import(
         annotate(&mut committed, report.source.as_deref());
         let content = serde_yaml_ng::to_string(&committed)
             .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
+        files.push((path, content));
+    }
+    let group = resource::by_kind("Group")
+        .ok_or_else(|| ApiError::Internal("no catalogue entry for Group".into()))?;
+    for envelope in default_groups {
+        let path = resource::repository_path(
+            group,
+            crate::permissions::ORG_NAMESPACE,
+            None,
+            &envelope.metadata.name,
+        )
+        .map_err(ApiError::BadRequest)?;
+        let content = serde_yaml_ng::to_string(&envelope)
+            .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
+        report.created.push(envelope.metadata.name);
         files.push((path, content));
     }
     // A native file keeps the path it had in the archive, rewritten into this project.
