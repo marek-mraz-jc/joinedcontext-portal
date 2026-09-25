@@ -1,9 +1,11 @@
-//! A person's roles in one application, and the page that refuses them (ADR-N-027, AP-92,
+//! A person's roles in one application, and the page that refuses them (ADR-N-030, AP-92,
 //! AP-93, AP-95).
 //!
-//! Roles are computed on every request from the identity the Portal verified on the edge's
-//! `X-Access-Token` against `spec.access` of the published manifest. Nothing else is believed: no
-//! token claim of the app's own, no cookie, no query, nothing in the bundle (AP-92).
+//! Each App logs people in with its own Keycloak client, `app-{name}`, whose tokens carry the
+//! person's roles in `resource_access.app-{name}.roles`; the reconciler writes those roles and
+//! their mappings from the manifest (AP-113). A person is believed only on such a token, verified
+//! here: issued for `app-{name}` and obtained by it (`azp`). Nothing else counts: no other
+//! client's roles, no realm role, no cookie, no query, nothing in the bundle (AP-92).
 
 use std::collections::BTreeMap;
 
@@ -11,26 +13,97 @@ use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use jc_core::kinds::{AppSpec, AppVisibility};
 
-use crate::auth::session::Identity;
+use crate::auth::session::{Identity, EDGE_TOKEN_HEADER};
+use crate::error::ApiError;
+use crate::state::AppState;
 
 /// The locales the refusal page speaks, the Portal's own (UI-12); the first is the fallback.
 const LOCALES: [&str; 4] = ["en", "sk", "cs", "de"];
 
-/// The roles `identity` holds in the app: the one resolution the App's backend is told too
-/// (AP-92, AP-109), so the page, a function and the backend never disagree about a person.
-pub fn roles_of(spec: &AppSpec, identity: &Identity) -> Vec<String> {
-    crate::permissions::app_roles(identity, spec)
+/// A person as one App knows them: who they are, and the App's roles they hold in the order
+/// `spec.roles` declares them. A role the manifest no longer declares is not one.
+#[derive(Debug, Clone)]
+pub struct AppPerson {
+    pub identity: Identity,
+    pub roles: Vec<String>,
 }
 
-/// `#jc-config.user` and a function's `request.user`: `{id, name, email, roles}` for a person,
-/// `null` for an anonymous visitor, never a token (AP-95, SDK-35, SDK-37).
-pub fn app_user(spec: &AppSpec, identity: Option<&Identity>) -> serde_json::Value {
-    identity.map_or(serde_json::Value::Null, |identity| {
+/// The token a request presents: `Authorization: Bearer` (an App's backend asking about its
+/// caller, AP-109) or, where the edge is trusted, the edge's `X-Access-Token`.
+pub fn presented<'a>(state: &AppState, headers: &'a HeaderMap) -> Option<&'a str> {
+    let bearer = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "));
+    let edge = || {
+        state
+            .config
+            .trust_edge_token
+            .then(|| headers.get(&EDGE_TOKEN_HEADER))
+            .flatten()
+            .and_then(|value| value.to_str().ok())
+    };
+    bearer
+        .or_else(edge)
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+}
+
+/// The caller of App `app`, verified on a token of its own client (AP-92). `401` without one, or
+/// with one that is expired, signed out, for another client or obtained by one.
+pub async fn verified(
+    state: &AppState,
+    headers: &HeaderMap,
+    app: &str,
+) -> Result<(Identity, Vec<String>), ApiError> {
+    let token = presented(state, headers).ok_or(ApiError::Unauthorized)?;
+    let verifier = state.bearer.as_ref().ok_or(ApiError::Unauthorized)?;
+    let client = crate::reconciler::app_clients::client_id(app);
+    let (session, roles) = verifier.verify_app_token(token, &client).await?;
+    if state.is_revoked(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+    Ok((session.identity, roles))
+}
+
+impl AppPerson {
+    /// The verified caller with the roles the token holds that `spec` declares.
+    pub fn of(spec: &AppSpec, (identity, held): (Identity, Vec<String>)) -> Self {
+        let roles = spec
+            .roles
+            .iter()
+            .filter(|role| held.contains(&role.name))
+            .map(|role| role.name.clone())
+            .collect();
+        Self { identity, roles }
+    }
+}
+
+/// The caller of the published App `app` if a valid token of its client says who they are;
+/// `None` for an anonymous visitor and for a token that is not the App's.
+pub async fn person(
+    state: &AppState,
+    headers: &HeaderMap,
+    spec: &AppSpec,
+    app: &str,
+) -> Option<AppPerson> {
+    verified(state, headers, app)
+        .await
+        .ok()
+        .map(|verified| AppPerson::of(spec, verified))
+}
+
+/// `#jc-config.user`, a function's `request.user` and `GET …/apps/{name}/me`:
+/// `{id, name, email, roles}` for a person, `null` for an anonymous visitor, never a token
+/// (AP-95, AP-109, SDK-35, SDK-37).
+pub fn app_user(person: Option<&AppPerson>) -> serde_json::Value {
+    person.map_or(serde_json::Value::Null, |person| {
+        let identity = &person.identity;
         serde_json::json!({
             "id": identity.subject,
             "name": identity.name.clone().unwrap_or_else(|| identity.username.clone()),
             "email": identity.email,
-            "roles": roles_of(spec, identity),
+            "roles": person.roles,
         })
     })
 }
@@ -38,13 +111,11 @@ pub fn app_user(spec: &AppSpec, identity: Option<&Identity>) -> serde_json::Valu
 /// Whether the person may open the app at all. `visibility: roles` needs a signed-in person
 /// holding one of its roles (AP-93); the other visibilities keep their meaning, beyond "is there
 /// a session" the endpoint's authorization decides (AP-18).
-pub fn may_open(spec: &AppSpec, identity: Option<&Identity>) -> bool {
+pub fn may_open(spec: &AppSpec, person: Option<&AppPerson>) -> bool {
     match spec.visibility {
         AppVisibility::Public => true,
-        AppVisibility::Roles => {
-            identity.is_some_and(|identity| !roles_of(spec, identity).is_empty())
-        }
-        _ => identity.is_some(),
+        AppVisibility::Roles => person.is_some_and(|person| !person.roles.is_empty()),
+        _ => person.is_some(),
     }
 }
 
@@ -168,44 +239,45 @@ mod tests {
         .expect("an app with roles")
     }
 
-    fn person(username: &str, groups: &[&str]) -> Identity {
-        Identity {
-            subject: "5f0c".into(),
-            username: username.into(),
-            email: Some(username.into()),
-            name: None,
-            roles: vec!["platform-admin".into()],
-            groups: groups.iter().map(|g| (*g).to_owned()).collect(),
-        }
+    fn person(roles: &[&str]) -> AppPerson {
+        AppPerson::of(
+            &spec(),
+            (
+                Identity {
+                    subject: "5f0c".into(),
+                    username: "x@hel.fi".into(),
+                    email: Some("x@hel.fi".into()),
+                    name: None,
+                    roles: vec!["platform-admin".into()],
+                    groups: vec!["helsinki-operations".into()],
+                },
+                roles.iter().map(|role| (*role).to_owned()).collect(),
+            ),
+        )
     }
 
-    /// AP-92: a user subject matches the e-mail whatever its case, a group by its name, in the
-    /// order the roles are declared, and nothing that only looks alike.
+    /// AP-92: the token's roles count in the order `spec.roles` declares them, and a role the
+    /// manifest does not declare, a realm role or a group counts for nothing.
     #[test]
-    fn a_person_holds_the_roles_their_e_mail_and_groups_match() {
-        let spec = spec();
-        let both = person("jana.kovacova@hel.fi", &["helsinki-operations"]);
-        assert_eq!(roles_of(&spec, &both), ["viewer", "steward"]);
-        assert_eq!(
-            roles_of(&spec, &person("x@hel.fi", &["helsinki-operations"])),
-            ["viewer"]
+    fn a_person_holds_the_declared_roles_their_token_carries() {
+        assert_eq!(person(&["steward", "viewer"]).roles, ["viewer", "steward"]);
+        assert_eq!(person(&["viewer", "retired-role"]).roles, ["viewer"]);
+        assert!(
+            person(&[]).roles.is_empty(),
+            "no group or realm role counts"
         );
-        assert!(roles_of(&spec, &person("x@hel.fi", &["helsinki-operations-2"])).is_empty());
-        assert!(roles_of(&spec, &person("jana.kovacova@hel.fi.evil", &[])).is_empty());
     }
 
     /// AP-95, SDK-35: the application learns its own roles, never the platform's, and no token.
     #[test]
     fn the_served_user_carries_the_app_roles_and_null_for_nobody() {
-        let spec = spec();
-        let user = app_user(&spec, Some(&person("x@hel.fi", &["helsinki-operations"])));
+        let user = app_user(Some(&person(&["viewer"])));
         assert_eq!(
             user,
             serde_json::json!({ "id": "5f0c", "name": "x@hel.fi", "email": "x@hel.fi", "roles": ["viewer"] })
         );
-        let none = app_user(&spec, Some(&person("y@hel.fi", &[])));
-        assert_eq!(none["roles"], serde_json::json!([]));
-        assert_eq!(app_user(&spec, None), serde_json::Value::Null);
+        assert_eq!(app_user(Some(&person(&[])))["roles"], serde_json::json!([]));
+        assert_eq!(app_user(None), serde_json::Value::Null);
     }
 
     /// AP-93: `roles` needs a role, `public` nobody, every other visibility a session.
@@ -213,14 +285,11 @@ mod tests {
     fn who_may_open_follows_the_visibility() {
         let mut spec = spec();
         assert!(!may_open(&spec, None));
-        assert!(!may_open(&spec, Some(&person("y@hel.fi", &[]))));
-        assert!(may_open(
-            &spec,
-            Some(&person("y@hel.fi", &["helsinki-operations"]))
-        ));
+        assert!(!may_open(&spec, Some(&person(&[]))));
+        assert!(may_open(&spec, Some(&person(&["viewer"]))));
         spec.visibility = AppVisibility::Organization;
         assert!(!may_open(&spec, None));
-        assert!(may_open(&spec, Some(&person("y@hel.fi", &[]))));
+        assert!(may_open(&spec, Some(&person(&[]))));
         spec.visibility = AppVisibility::Public;
         assert!(may_open(&spec, None));
     }

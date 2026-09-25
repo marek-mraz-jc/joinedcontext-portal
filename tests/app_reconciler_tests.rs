@@ -697,6 +697,42 @@ fn a_fullstack_pod_pulls_with_the_secret_and_runs_the_binary_as_a_numeric_user()
     );
 }
 
+/// AP-95, AP-126 (T-2724): a pod App's backend is handed the `#jc-config` the static host would
+/// write, without `user` and without a token, so the App SDK in its `ui/` reads its endpoint as a
+/// `ui` App does: its slug, the organisation's domain, its one space and the types it reads.
+#[test]
+fn a_pod_app_is_handed_the_sdk_configuration_of_its_one_endpoint() {
+    let slug = generate_slug();
+    let rendered =
+        render(&app(json!({})), Some(APP_IMAGE), &slug, &settings()).expect("the app renders");
+    let endpoint = rendered.endpoint.metadata.name.clone();
+    let deployment = rendered.workload.expect("a pod").deployment;
+    let value = env(container(&deployment, "app"), "JC_APP_CONFIG")["value"].clone();
+    let config: Value =
+        serde_json::from_str(value.as_str().expect("a string")).expect("JC_APP_CONFIG is JSON");
+    assert_eq!(
+        config,
+        json!({
+            "slug": slug.as_str(),
+            "orgDomain": "banskabystrica.sk",
+            "space": "ovzdusie",
+            "transport": "origin",
+            "appName": "air-quality-today",
+            "endpointName": endpoint,
+            "endpoints": [{
+                "name": endpoint,
+                "slug": slug.as_str(),
+                "space": "ovzdusie",
+                "types": ["AirQualityObserved", "District"],
+            }],
+        })
+    );
+    assert!(
+        config.get("user").is_none(),
+        "the person is the backend's to add, per request"
+    );
+}
+
 /// AP-96: the app's grants are held on its own endpoint alone. A need without roles goes to the
 /// endpoint's caller role, a need with roles to one Policy per role, each exactly the need, and
 /// the endpoint carries the roles with their subjects so the gateway can hand them out (AP-97).
