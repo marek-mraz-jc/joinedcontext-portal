@@ -183,9 +183,47 @@ interface Listed {
   /** The row's link text. */
   record: string;
   opens: string;
+  /** More reads the page makes, by API path. */
+  more?: Record<string, unknown>;
+  /** What the opened edit form shows, where the list hosts its forms at an address of its own. */
+  shows?: string;
 }
 
 const LISTS: Listed[] = [
+  {
+    list: "project roles",
+    path: "/projects/helsinki/settings/roles",
+    api: "/api/v1/projects/helsinki/roles",
+    body: list([manifest("Role", "editors", { rules: [{ kinds: ["Pipeline"], verbs: ["read"] }] })]),
+    record: "editors",
+    opens: "/projects/helsinki/settings/roles/editors/edit",
+    shows: "Edit editors",
+  },
+  {
+    list: "organization roles",
+    path: "/organization/roles",
+    api: "/api/v1/projects/org/roles",
+    body: list([manifest("Role", "auditors", { rules: [{ kinds: ["Pipeline"], verbs: ["read"] }] })]),
+    record: "auditors",
+    opens: "/organization/roles/auditors/edit",
+    shows: "Edit auditors",
+  },
+  {
+    list: "project members",
+    path: "/projects/helsinki/settings/members",
+    api: "/api/v1/projects/org/rolebindings",
+    body: list([
+      manifest("RoleBinding", "jana-editors", {
+        subjects: [{ user: "jana@hel.fi" }],
+        role: "editors",
+        scope: { project: "helsinki" },
+      }),
+    ]),
+    more: { "/api/v1/projects/helsinki/spaces": list([]) },
+    record: "jana@hel.fi",
+    opens: "/projects/helsinki/settings/members/jana-editors/edit",
+    shows: "Edit jana@hel.fi: editors",
+  },
   {
     list: "pipelines",
     path: "/projects/helsinki/pipelines",
@@ -307,7 +345,12 @@ describe("every list opens its record on a click on the row", () => {
     it(`${one.list}: a plain cell opens the record, the row's own button does not`, async () => {
       await renderRoute({
         path: `${one.path}?lang=en`,
-        answer: (path, request) => (request.method === "GET" && path === one.api ? jsonResponse(one.body) : undefined),
+        answer: (path, request) => {
+          if (request.method !== "GET") return undefined;
+          if (path === one.api) return jsonResponse(one.body);
+          if (one.more && path in one.more) return jsonResponse(one.more[path]);
+          return undefined;
+        },
       });
       const link = await waitFor(() => {
         const found = document.querySelector<HTMLAnchorElement>("a[data-row-link]");
@@ -332,8 +375,56 @@ describe("every list opens its record on a click on the row", () => {
       await waitFor(() => {
         expect(window.location.pathname).toBe(one.opens);
       });
+      if (one.shows) {
+        expect((await screen.findAllByText(one.shows)).length).toBeGreaterThan(0);
+        expect(screen.queryByText(/This form cannot be opened/)).toBeNull();
+      }
     });
   }
+
+  it("service accounts: the Edit button goes to the form's address and opens it", async () => {
+    const account = manifest("ServiceAccount", "ingest-bot", {
+      owner: { user: "jana@hel.fi" },
+      purpose: "Feeds the air space",
+      roles: [{ role: "editors", scope: { project: "helsinki" } }],
+    });
+    await renderRoute({
+      path: "/projects/helsinki/settings/service-accounts?lang=en",
+      answer: (path, request) => {
+        if (request.method !== "GET") return undefined;
+        if (path === "/api/v1/projects/helsinki/serviceaccounts") return jsonResponse(list([account]));
+        return undefined;
+      },
+    });
+    const link = await screen.findByRole("link", { name: "ingest-bot" });
+    expect(link).toHaveAttribute("href", "/projects/helsinki/settings/service-accounts/ingest-bot/edit");
+    await userEvent.click(within(link.closest("li") as HTMLElement).getByRole("button", { name: "Edit ingest-bot" }));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/helsinki/settings/service-accounts/ingest-bot/edit");
+    });
+    expect((await screen.findAllByText("Edit ingest-bot")).length).toBeGreaterThan(0);
+  });
+
+  it("service accounts: a plain click on the card goes to the form's address", async () => {
+    const account = manifest("ServiceAccount", "ingest-bot", {
+      owner: { user: "jana@hel.fi" },
+      purpose: "Feeds the air space",
+      roles: [],
+    });
+    await renderRoute({
+      path: "/projects/helsinki/settings/service-accounts?lang=en",
+      answer: (path, request) => {
+        if (request.method !== "GET") return undefined;
+        if (path === "/api/v1/projects/helsinki/serviceaccounts") return jsonResponse(list([account]));
+        return undefined;
+      },
+    });
+    await userEvent.click(await screen.findByText("Feeds the air space"));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/helsinki/settings/service-accounts/ingest-bot/edit");
+    });
+    expect((await screen.findAllByText("Edit ingest-bot")).length).toBeGreaterThan(0);
+  });
 });
 
 const READER = { project: "helsinki", bootstrap: false, grants: [{ rule: { kinds: ["*"], verbs: ["read"] } }] };

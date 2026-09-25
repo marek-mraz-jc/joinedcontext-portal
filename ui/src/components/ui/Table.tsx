@@ -109,9 +109,10 @@ const OWN_CLICK =
  * its own click is left alone: a button, a menu, a checkbox, another link, the dialogs and menus
  * a row renders through portals (their events bubble through React but not through the DOM),
  * and a click that ends a text selection. Ctrl, Cmd, Shift and the middle button reach the link
- * as they would on the link itself: a new tab.
+ * as they would on the link itself: a new tab. A `Card` holding a record's link follows the same
+ * rule.
  */
-function openRowLink(event: MouseEvent<HTMLTableRowElement>): void {
+export function openRowLink(event: MouseEvent<HTMLElement>): void {
   const row = event.currentTarget;
   const target = event.target;
   if (!(target instanceof Element) || !row.contains(target)) {
@@ -141,7 +142,8 @@ function openRowLink(event: MouseEvent<HTMLTableRowElement>): void {
       shiftKey: event.shiftKey,
       altKey: event.altKey,
     }),
-  );
+  );  // Handled: a card around the row does not open its own link as well.
+  event.preventDefault();
 }
 
 export function TableRow({

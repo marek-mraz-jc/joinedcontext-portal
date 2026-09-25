@@ -15,7 +15,7 @@ import { SchemaForm } from "./forms/SchemaForm";
 import type { JsonSchema, UiSchema } from "./forms/types";
 import type { ResourceTarget } from "./DeleteResourceDialog";
 import { Alert, Button, PageFailed, PageLoading } from "./ui";
-import { FormFrame, useFormRoute } from "./forms/FormRoute";
+import { FormFrame, useEditForm, useFormRoute } from "./forms/FormRoute";
 
 const MonacoSourceView = lazy(() => import("../pages/models/MonacoSourceView"));
 
@@ -285,6 +285,7 @@ export function EditResourceAction({
   open: openedByRow,
   onOpenChange,
   trigger = true,
+  addressed = false,
 }: {
   target: ResourceTarget;
   /** The kind's own form, when its page has one to give (T-2278). */
@@ -297,17 +298,28 @@ export function EditResourceAction({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: boolean;
+  /**
+   * The page hosts its forms at an address (`…/{name}/edit`) and this row is the one the address
+   * names: the address opens the dialog, and the Edit button goes to it (T-2875). Left off where a
+   * name could be another row's, e.g. a shared reference on the endpoints page.
+   */
+  addressed?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
+  const routed = useEditForm(target.name);
+  const byAddress = addressed && routed !== null ? routed : null;
   const mayPropose = usePermissions(target.home ?? target.project).can(target.kind, "propose");
   const [request] = useState(() => takeEditRequest(target.name));
   const [ownOpen, setOwnOpen] = useState(request !== null);
   // The row may open this, and so may the URL (`?edit=`/`?delete=`) or the assistant's hand-off: both
   // are honoured, and closing clears both, so a page opened on one resource still opens its dialog
   // when the row owns the trigger (T-2287).
-  const open = ownOpen || (openedByRow ?? false);
+  const open = ownOpen || (byAddress?.[0] ?? false) || (openedByRow ?? false);
   const setOpen = (next: boolean) => {
-    setOwnOpen(next);
+    setOwnOpen(next && byAddress === null);
+    if (byAddress && next !== byAddress[0]) {
+      byAddress[1](next);
+    }
     onOpenChange?.(next);
   };
   return (
