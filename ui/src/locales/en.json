@@ -1137,7 +1137,11 @@
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
-        "example": "Example: {example}"
+        "example": "Example: {example}",
+        "measuredIn": "Measured in {symbol} ({code}); the gateway writes this unitCode when a record leaves it out.",
+        "sourceUnit": "Source in another unit?",
+        "sourceUnitOf": "Source unit of {slot}",
+        "addConversion": "Add to mapping"
       },
       "output": {
         "title": "Mapped output",

@@ -1137,7 +1137,11 @@
         "required": "erforderlich",
         "many": "mehrere Werte",
         "values": "{count, plural, =0 {Werte: {values}} other {Werte: {values} und # weitere}}",
-        "example": "Beispiel: {example}"
+        "example": "Beispiel: {example}",
+        "measuredIn": "Gemessen in {symbol} ({code}); fehlt der unitCode in einem Datensatz, ergänzt ihn das Gateway.",
+        "sourceUnit": "Quelle in einer anderen Einheit?",
+        "sourceUnitOf": "Quelleinheit von {slot}",
+        "addConversion": "Zum Mapping hinzufügen"
       },
       "output": {
         "title": "Abgebildete Ausgabe",

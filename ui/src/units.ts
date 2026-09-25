@@ -121,3 +121,35 @@ function sortByKind(found: { unit: Unit; score: number }[]): Unit[] {
     })
     .map(({ unit }) => unit);
 }
+
+/**
+ * Whether a value in one unit can be written in the other (DM-06): both carry a factor, share
+ * QUDT's dimension and at least one quantity kind. A percent and a minute of arc are both
+ * dimensionless and still not one thing.
+ */
+export function convertible(from: Unit, to: Unit): boolean {
+  if (from.code === to.code) return true;
+  return (
+    from.factor !== null &&
+    to.factor !== null &&
+    from.dimension !== null &&
+    from.dimension === to.dimension &&
+    from.quantityKinds.some((kind) => to.quantityKinds.includes(kind))
+  );
+}
+
+/** Twelve significant digits: what a factor is written with, without a float's last-digit noise. */
+function tidy(value: number): number {
+  return Number(value.toPrecision(12));
+}
+
+/**
+ * The linear conversion from one unit to another, `to = from × factor + offset`, or undefined
+ * when they do not convert (DM-06, T-2811). Read from the code list's QUDT factors, never typed.
+ */
+export function conversion(from: Unit, to: Unit): { factor: number; offset: number } | undefined {
+  if (!convertible(from, to)) return undefined;
+  if (from.code === to.code || from.factor === null || to.factor === null) return { factor: 1, offset: 0 };
+  const factor = from.factor / to.factor;
+  return { factor: tidy(factor), offset: tidy(from.offset * factor - to.offset) };
+}

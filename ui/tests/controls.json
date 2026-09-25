@@ -1053,6 +1053,14 @@
         "pipeline_workbench.test.tsx"
       ]
     },
+    "src/pages/pipelines/SlotUnit.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "slot_unit.test.tsx"
+      ]
+    },
     "src/pages/spaces/SpaceComplete.tsx": {
       "controls": {
         "Button": 3
