@@ -7,7 +7,7 @@
  * action here, never the landing page: blank, from a file, or from Smart Data Models, each of
  * which opens the editor (`?new=…`), which asks for the space first.
  */
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -264,7 +264,21 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                     <TableCell>
                       <span className="font-medium">{row.classes.length}</span>
                       {row.classes.length > 0 ? (
-                        <span className="block text-caption text-fg-muted">{row.classes.join(", ")}</span>
+                        <span className="block text-caption text-fg-muted">
+                          {row.classes.map((klass, index) => (
+                            <Fragment key={klass}>
+                              {index === 0 ? null : ", "}
+                              <Link
+                                to="/projects/$project/models/$name"
+                                params={{ project, name: row.model.metadata.name }}
+                                search={{ class: klass }}
+                                className="focus-ring underline-offset-2 hover:underline"
+                              >
+                                {klass}
+                              </Link>
+                            </Fragment>
+                          ))}
+                        </span>
                       ) : null}
                     </TableCell>
                     <TableCell>{row.changed ? date.format(new Date(row.changed)) : "—"}</TableCell>

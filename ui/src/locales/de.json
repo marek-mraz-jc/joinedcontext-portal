@@ -950,7 +950,8 @@
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
-    "noCredential": "Keine"
+    "noCredential": "Keine",
+    "writesType": "Schreibt"
   },
   "dashboards": {
     "lead": "Karten, gezeichnet aus den Endpunkten dieses Projekts.",
@@ -2039,7 +2040,8 @@
     "export": "Diese Seite exportieren",
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
-    "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:"
+    "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
+    "typeInModel": "Dieser Typ in seinem Datenmodell:"
   },
   "agentRun": {
     "title": "Anwendungslauf",
@@ -2355,7 +2357,8 @@
       "meaning": "Bedeutung",
       "document": "Das {format}-Dokument",
       "model": "{types}, aus dem Datenmodell {name} {semver}",
-      "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen"
+      "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen",
+      "fromModel": "aus dem Datenmodell"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",

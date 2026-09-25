@@ -642,6 +642,7 @@
       },
       "tests": [
         "catalog_cards.test.tsx",
+        "model_links.test.tsx",
         "part_run_cards.test.tsx"
       ]
     },
@@ -662,7 +663,8 @@
         "Button": 2
       },
       "tests": [
-        "endpoint_proposal_card.test.tsx"
+        "endpoint_proposal_card.test.tsx",
+        "model_links.test.tsx"
       ]
     },
     "src/pages/apps/EntityWriteCard.tsx": {

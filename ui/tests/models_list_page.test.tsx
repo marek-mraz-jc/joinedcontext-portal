@@ -108,7 +108,7 @@ describe("the list of data models", () => {
     await renderRoute({ path: "/projects/helsinki/models", answer });
     const table = await screen.findByRole("table", { name: en.models.page.listCaption });
     await userEvent.type(screen.getByLabelText(en.models.page.search), "bikehire");
-    expect(within(table).getAllByRole("link").map((link) => link.textContent)).toEqual(["bikes", "mobility"]);
+    expect(within(table).getAllByRole("link").map((link) => link.textContent)).toEqual(["bikes", "mobility", "BikeHireDockingStation"]);
     await userEvent.clear(screen.getByLabelText(en.models.page.search));
     await userEvent.selectOptions(screen.getByLabelText(en.models.field.space), "culture");
     expect(within(table).getAllByRole("link").map((link) => link.textContent)).toEqual(["events", "culture"]);

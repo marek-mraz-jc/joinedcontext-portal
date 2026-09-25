@@ -30,6 +30,7 @@ import { bindingOf } from "../../components/endpoints/policyBinding";
 import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CopyUrlButton } from "../../routes/EndpointsPage";
+import { TypeLink } from "../models/ModelLinks";
 import {
   Alert,
   Badge,
@@ -341,7 +342,9 @@ export function EndpointPage({
               <ul className="flex flex-wrap gap-1">
                 {classesOf(projection).map((klass) => (
                   <li key={klass}>
-                    <Badge mono>{klass}</Badge>
+                    <Badge mono>
+                      <TypeLink project={project} type={klass} space={space} />
+                    </Badge>
                   </li>
                 ))}
               </ul>

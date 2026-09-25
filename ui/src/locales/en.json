@@ -950,7 +950,8 @@
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
-    "noCredential": "None"
+    "noCredential": "None",
+    "writesType": "Writes"
   },
   "dashboards": {
     "lead": "Maps drawn from the endpoints of this project.",
@@ -2039,7 +2040,8 @@
     "export": "Export this page",
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
-    "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:"
+    "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
+    "typeInModel": "This type in its data model:"
   },
   "agentRun": {
     "title": "Application run",
@@ -2355,7 +2357,8 @@
       "meaning": "What it means",
       "document": "The {format} document",
       "model": "{types}, from the data model {name} {semver}",
-      "formats": "Served as {formats}; {recommended} is read first"
+      "formats": "Served as {formats}; {recommended} is read first",
+      "fromModel": "from the data model"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",

@@ -557,7 +557,7 @@ export function ConversationPanel({
                   {kpiPipeline !== null ? <KpiPipelineCard project={project} pipeline={kpiPipeline} /> : null}
                   {tested !== null ? <ChangeTestCard test={tested} /> : null}
                   {write !== null ? <EntityWriteCard write={write} live={live} /> : null}
-                  {queried !== null ? <QueryResultCard result={queried} /> : null}
+                  {queried !== null ? <QueryResultCard result={queried} project={project} /> : null}
                   <ActionStep event={event} live={live} onSend={onSend} count={count} />
                 </li>
               );

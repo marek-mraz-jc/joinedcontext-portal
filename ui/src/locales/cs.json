@@ -950,7 +950,8 @@
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
-    "noCredential": "Žádné"
+    "noCredential": "Žádné",
+    "writesType": "Zapisuje"
   },
   "dashboards": {
     "lead": "Mapy nakreslené z endpointů tohoto projektu.",
@@ -2039,7 +2040,8 @@
     "export": "Exportovat tuto stránku",
     "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše.",
     "noSpace": "Vyberte kontextový prostor ke čtení",
-    "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:"
+    "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:",
+    "typeInModel": "Tento typ v jeho datovém modelu:"
   },
   "agentRun": {
     "title": "Běh aplikace",
@@ -2355,7 +2357,8 @@
       "meaning": "Co znamená",
       "document": "Dokument {format}",
       "model": "{types}, z datového modelu {name} {semver}",
-      "formats": "Poskytováno jako {formats}; nejprve se čte {recommended}"
+      "formats": "Poskytováno jako {formats}; nejprve se čte {recommended}",
+      "fromModel": "z datového modelu"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Toto vyplnil asistent. Zkontroluj to před návrhem.",
