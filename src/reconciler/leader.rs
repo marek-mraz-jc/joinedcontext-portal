@@ -299,8 +299,6 @@ mod tests {
         other.resign().await;
     }
 
-    /// The lease never leaks into the pool: after a resignation the pool's sessions carry the
-    /// server's default idle_session_timeout.
     /// Resigning frees the lock before it returns: another replica asking right after it wins,
     /// every time, not only once the closed session's backend has gone (T-2977).
     #[tokio::test]
@@ -331,6 +329,8 @@ mod tests {
         }
     }
 
+    /// The lease never leaks into the pool: after a resignation the pool's sessions carry the
+    /// server's default idle_session_timeout.
     #[tokio::test]
     async fn a_resigned_lock_session_is_not_pooled_with_its_lease() {
         let Some(url) = database_url() else {
