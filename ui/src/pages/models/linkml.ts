@@ -86,6 +86,12 @@ export interface LinkmlSlot {
   maximum_value?: number;
   /** The profiles this slot belongs to, as LinkML `subsets`: which of them a projection takes. */
   subsets?: string[];
+  /** The other end of a relationship, as LinkML `inverse` (DM-64). */
+  inverse?: string;
+  /** Whether the target is written inside the entity; a relationship never is (DM-64). */
+  inlined?: boolean;
+  /** The delete rule a relationship's source end carries, as written (DM-66). */
+  on_delete?: string;
 }
 
 export interface LinkmlClass {
@@ -149,6 +155,8 @@ export interface Diagnostic {
   message: string;
   /** What the message is about, so the structured view can point at the same thing. */
   path?: string;
+  /** The relationship rule it breaks, the identifier the server and Model Tools use (DM-68). */
+  rule?: RelationshipRule;
 }
 
 export const EMPTY_MODEL: LinkmlModel = {
@@ -234,6 +242,9 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     minimum_value: typeof raw.minimum_value === "number" ? raw.minimum_value : undefined,
     subsets: names(raw.subsets),
     maximum_value: typeof raw.maximum_value === "number" ? raw.maximum_value : undefined,
+    inverse: text(raw.inverse),
+    inlined: typeof raw.inlined === "boolean" ? raw.inlined : undefined,
+    on_delete: text(annotated.on_delete),
   };
 }
 
@@ -356,7 +367,11 @@ export function reservedNamespace(
  * `locales` are the organisation's configured languages; a title missing one of them is a
  * warning here and a block at publish time (DM-15).
  */
-export function diagnose(source: string, locales: string[] = []): Diagnostic[] {
+export function diagnose(
+  source: string,
+  locales: string[] = [],
+  imported: Record<string, LinkmlModel> = {},
+): Diagnostic[] {
   const document = parseDocument(source);
   if (document.errors.length > 0) {
     return document.errors.map((error) => ({
@@ -491,6 +506,26 @@ export function diagnose(source: string, locales: string[] = []): Diagnostic[] {
     }
   }
 
+  // Relationships are strict (DM-68): every broken rule is an error that blocks Save, and the
+  // server refuses the same list through Model Tools, so this is the early copy, not the gate.
+  const { problems, unverified } = relationshipsOf(model, imported);
+  for (const problem of problems) {
+    found.push({
+      ...at(problem.path.split(".")),
+      severity: "error",
+      message: problem.message,
+      path: problem.path,
+      rule: problem.rule,
+    });
+  }
+  for (const [path, range] of unverified) {
+    found.push({
+      ...at(path.split(".")),
+      severity: "warning",
+      message: `${path.split(".").pop()} points at '${range}', which is no class of this model; the imports it may come from are not loaded here, so saving checks it`,
+      path,
+    });
+  }
   return found;
 }
 
@@ -852,9 +887,23 @@ export interface GraphNode {
 export interface GraphEdge {
   from: string;
   to: string;
-  kind: "is_a" | "mixin" | "range" | "enum";
-  /** The slot whose range draws the line, for a `range` or an `enum` edge. */
+  kind: "is_a" | "mixin" | "range" | "enum" | "relationship";
+  /** The slot whose range draws the line, for a `range` or an `enum` edge; a relationship's source slot. */
   label?: string;
+  /** A relationship's other end: the slot on `to` pointing back (DM-64). */
+  inverse?: string;
+  cardinality?: Cardinality;
+  /** How many `from` entities one `to` entity is joined to, and the other way round (DM-65). */
+  fromMultiplicity?: Multiplicity;
+  toMultiplicity?: Multiplicity;
+}
+
+export type Multiplicity = "1" | "0..1" | "1..*" | "*";
+
+/** How many entities of the other class one end holds: its `multivalued` and `required` flags. */
+export function multiplicity(end: RelationshipEnd): Multiplicity {
+  if (end.required) return end.multivalued ? "1..*" : "1";
+  return end.multivalued ? "*" : "0..1";
 }
 
 /**
@@ -902,6 +951,9 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
     });
   }
 
+  // A relationship is one line, not one per end; its ends draw no `range` line of their own.
+  const pairs = relationshipsOf(model).relationships;
+  const ends = new Set(pairs.flatMap((pair) => [pair.source, pair.target].map((end) => `${end.class}.${end.slot}`)));
   const edges: GraphEdge[] = [];
   for (const klass of model.classes) {
     if (klass.is_a !== undefined && byName.has(klass.is_a)) {
@@ -913,6 +965,9 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
       }
     }
     for (const slot of classSlots(model, klass)) {
+      if (ends.has(`${klass.name}.${slot.name}`)) {
+        continue;
+      }
       if (slot.range !== undefined && byName.has(slot.range)) {
         edges.push({ from: klass.name, to: slot.range, kind: "range", label: slot.name });
       } else if (slot.range !== undefined && enumNames.has(slot.range)) {
@@ -920,5 +975,285 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
       }
     }
   }
+  for (const pair of pairs) {
+    edges.push({
+      from: pair.source.class,
+      to: pair.target.class,
+      kind: "relationship",
+      label: pair.source.slot,
+      inverse: pair.target.slot,
+      cardinality: pair.cardinality,
+      // At the target's end of the line: how many targets one source holds, and back.
+      toMultiplicity: multiplicity(pair.source),
+      fromMultiplicity: multiplicity(pair.target),
+    });
+  }
   return { nodes, edges };
+}
+
+/** What happens to the entities referencing one that is deleted (DM-66); `restrict` by default. */
+export const ON_DELETE_RULES = ["restrict", "cascade", "set-null"] as const;
+export type OnDelete = (typeof ON_DELETE_RULES)[number];
+
+/** Read from the source class to the target class (DM-65). */
+export const CARDINALITIES = ["one-to-one", "one-to-many", "many-to-one", "many-to-many"] as const;
+export type Cardinality = (typeof CARDINALITIES)[number];
+
+/** The rule identifiers of Architecture/11 §1.2, shared with the save route and Model Tools. */
+export type RelationshipRule =
+  | "range-not-a-class"
+  | "class-range-not-relationship"
+  | "primitive-range"
+  | "inverse-missing"
+  | "inverse-not-reciprocal"
+  | "slot-in-two-relationships"
+  | "required-on-computed-end"
+  | "on-delete-unknown"
+  | "on-delete-on-both-ends";
+
+/** One end of a relationship: the class, its slot and what the slot says of the other class. */
+export interface RelationshipEnd {
+  class: string;
+  slot: string;
+  multivalued: boolean;
+  required: boolean;
+}
+
+/** A relationship whose two ends agree (DM-64): what the editor, the diagram and forms read. */
+export interface Relationship {
+  source: RelationshipEnd;
+  target: RelationshipEnd;
+  cardinality: Cardinality;
+  onDelete: OnDelete;
+  /** The end whose entities hold the NGSI-LD Relationship; the other is a query (DM-67). */
+  stored: "source" | "target";
+}
+
+export interface RelationshipProblem {
+  rule: RelationshipRule;
+  /** `slots.{name}`, or `classes.{class}.attributes.{name}` for an inline slot. */
+  path: string;
+  message: string;
+}
+
+/** The cardinality two `multivalued` flags make, read from the source (DM-65). */
+export function cardinalityOf(sourceMany: boolean, targetMany: boolean): Cardinality {
+  if (sourceMany) return targetMany ? "many-to-many" : "one-to-many";
+  return targetMany ? "many-to-one" : "one-to-one";
+}
+
+/** The two `multivalued` flags of a cardinality: the source slot's and the target slot's. */
+export function flagsOf(cardinality: Cardinality): { source: boolean; target: boolean } {
+  return {
+    source: cardinality === "one-to-many" || cardinality === "many-to-many",
+    target: cardinality === "many-to-one" || cardinality === "many-to-many",
+  };
+}
+
+/** Where a foreign key would be: the "many" side, or the source of 1:1 and N:M (DM-67). */
+export function storedEnd(cardinality: Cardinality): "source" | "target" {
+  return cardinality === "one-to-many" ? "target" : "source";
+}
+
+/** The shipped import every model may name, and the class it brings (DM-09). */
+const CORE_IMPORT = "ngsi-ld-core";
+
+/** A slot where one class has it: listed or inline, with its `slot_usage` applied. */
+interface Placed {
+  owner: string;
+  slot: LinkmlSlot;
+  path: string;
+  /** Declaration order, which decides the source of a pair no `on_delete` marks (DM-64). */
+  order: number;
+}
+
+/**
+ * Every relationship of the model and every rule it breaks (DM-64…DM-69).
+ *
+ * `imported` are the models the model imports, by import name, as far as the caller has them.
+ * A range naming no class the model can see is an error when every import is in hand, and is
+ * returned as `unverified` otherwise: the save route resolves the imports and decides.
+ */
+export function relationshipsOf(
+  model: LinkmlModel,
+  imported: Record<string, LinkmlModel> = {},
+): { relationships: Relationship[]; problems: RelationshipProblem[]; unverified: [string, string][] } {
+  const all = withImports(model, imported);
+  const classes = new Set(all.classes.map((klass) => klass.name));
+  const imports = (model.imports ?? []).map(importName).filter((name): name is string => name !== undefined);
+  if (imports.includes(CORE_IMPORT)) classes.add("Entity");
+  const complete = imports.every((name) => name === CORE_IMPORT || imported[name] !== undefined);
+  const enums = new Set(all.enums.map((entry) => entry.name));
+  const primitives = new Set<string>(RANGES);
+
+  // Where each slot sits. A declared slot listed by two classes is one slot with two owners.
+  const declaredOrder = new Map(model.slots.map((slot, index) => [slot.name, index]));
+  const listedBy = new Map<string, string[]>();
+  for (const klass of model.classes) {
+    for (const name of klass.slots) listedBy.set(name, [...(listedBy.get(name) ?? []), klass.name]);
+  }
+  const placedIn = (klass: LinkmlClass, order: (name: string, inline: boolean) => number): Placed[] =>
+    classSlots(all, klass).map((slot) => {
+      const inline = !klass.slots.includes(slot.name);
+      return {
+        owner: klass.name,
+        slot,
+        path: inline ? `classes.${klass.name}.attributes.${slot.name}` : `slots.${slot.name}`,
+        order: order(slot.name, inline),
+      };
+    });
+  let inlineOrder = model.slots.length;
+  const own: Placed[] = model.classes.flatMap((klass) =>
+    placedIn(klass, (name, inline) => (inline ? inlineOrder++ : (declaredOrder.get(name) ?? 0))),
+  );
+  const endOn = (klass: string, name: string): Placed | undefined => {
+    const holder = all.classes.find((one) => one.name === klass);
+    return holder === undefined ? undefined : placedIn(holder, () => Number.MAX_SAFE_INTEGER).find((one) => one.slot.name === name);
+  };
+
+  const problems: RelationshipProblem[] = [];
+  const unverified: [string, string][] = [];
+  const relationships: Relationship[] = [];
+  const seen = new Set<string>();
+  const reported = new Set<string>();
+  const problem = (rule: RelationshipRule, path: string, message: string) => {
+    const key = `${rule}|${path}`;
+    if (!reported.has(key)) {
+      reported.add(key);
+      problems.push({ rule, path, message });
+    }
+  };
+
+  for (const end of own) {
+    const { slot, owner, path } = end;
+    const range = slot.range;
+    const classRange = range !== undefined && classes.has(range);
+    if (slot.kind !== "Relationship") {
+      // A nested value's class describes its shape (the importer's `address`), no entity (DM-68).
+      if (classRange && slot.kind !== "JsonProperty" && slot.inlined !== true) {
+        problem(
+          "class-range-not-relationship",
+          path,
+          `${slot.name} on ${owner} points at the class ${range} but is a ${slot.kind}; a slot whose range is a class is a Relationship`,
+        );
+      }
+      continue;
+    }
+    // An external reference: the id of an entity outside the model, with nothing to check.
+    if (range === undefined || range === "uriorcurie") {
+      if (slot.inverse !== undefined) {
+        problem(
+          "range-not-a-class",
+          path,
+          `${slot.name} on ${owner} names the inverse ${slot.inverse} but its range is no class; name the class it points at`,
+        );
+      }
+      continue;
+    }
+    if (primitives.has(range) || enums.has(range)) {
+      problem(
+        "primitive-range",
+        path,
+        `${slot.name} on ${owner} is a Relationship with the range ${range}; a Relationship points at a class, or at uriorcurie for an entity outside the model`,
+      );
+      continue;
+    }
+    if (!classRange) {
+      if (complete) {
+        problem("range-not-a-class", path, `${slot.name} on ${owner} points at ${range}, which is no class of this model or of its imports`);
+      } else {
+        unverified.push([path, range]);
+      }
+      continue;
+    }
+    if (slot.on_delete !== undefined && !(ON_DELETE_RULES as readonly string[]).includes(slot.on_delete)) {
+      problem("on-delete-unknown", path, `${slot.name} on ${owner} has on_delete '${slot.on_delete}'; it is one of ${ON_DELETE_RULES.join(", ")}`);
+    }
+    if (!path.startsWith("classes.") && (listedBy.get(slot.name) ?? []).length > 1) {
+      problem(
+        "slot-in-two-relationships",
+        path,
+        `${slot.name} is used by ${(listedBy.get(slot.name) ?? []).join(" and ")}, so it would be an end of two relationships; give each class a slot of its own`,
+      );
+      continue;
+    }
+    if (slot.inverse === undefined) {
+      problem(
+        "inverse-missing",
+        path,
+        `${slot.name} (${owner} → ${range}) names no inverse; add the slot on ${range} that points back`,
+      );
+      continue;
+    }
+    const other = endOn(range, slot.inverse);
+    if (other === undefined) {
+      const holder = all.classes.find((one) => one.name === range);
+      problem(
+        "inverse-missing",
+        path,
+        holder?.from !== undefined
+          ? `${slot.name} names the inverse ${slot.inverse}, which ${range} from ${holder.from} does not have; declare the relationship in that model, or make ${slot.name} an external reference`
+          : `${slot.name} names the inverse ${slot.inverse}, which ${range} does not have`,
+      );
+      continue;
+    }
+    if (other.slot.name === slot.name && other.owner === owner) {
+      problem("inverse-not-reciprocal", path, `${slot.name} names itself as its inverse; the other end is a slot of its own`);
+      continue;
+    }
+    if (other.slot.kind !== "Relationship" || other.slot.range !== owner || other.slot.inverse !== slot.name) {
+      problem(
+        "inverse-not-reciprocal",
+        path,
+        `${slot.name} (${owner} → ${range}) names ${range}.${slot.inverse} as its inverse, which ${
+          other.slot.kind !== "Relationship"
+            ? "is not a Relationship"
+            : other.slot.range !== owner
+              ? `points at ${other.slot.range ?? "nothing"}, not at ${owner}`
+              : `names ${other.slot.inverse ?? "no inverse"} back, not ${slot.name}`
+        }`,
+      );
+      continue;
+    }
+    const key = [`${owner}.${slot.name}`, `${range}.${other.slot.name}`].sort().join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const otherOrder = own.find((one) => one.owner === range && one.slot.name === other.slot.name)?.order ?? Number.MAX_SAFE_INTEGER;
+    if (slot.on_delete !== undefined && other.slot.on_delete !== undefined) {
+      problem(
+        "on-delete-on-both-ends",
+        path,
+        `both ${slot.name} and ${other.slot.name} carry on_delete; it goes on the source end only`,
+      );
+      continue;
+    }
+    const thisIsSource =
+      slot.on_delete !== undefined || (other.slot.on_delete === undefined && end.order <= otherOrder);
+    const [source, target] = thisIsSource ? [end, other] : [other, end];
+    const cardinality = cardinalityOf(source.slot.multivalued === true, target.slot.multivalued === true);
+    const stored = storedEnd(cardinality);
+    const computed = stored === "source" ? target : source;
+    if (computed.slot.required) {
+      problem(
+        "required-on-computed-end",
+        computed.path,
+        `${computed.slot.name} on ${computed.owner} is computed from ${(stored === "source" ? source : target).slot.name} and cannot be required; make the stored end required instead`,
+      );
+    }
+    const onDelete = (source.slot.on_delete ?? "restrict") as OnDelete;
+    relationships.push({
+      source: { class: source.owner, slot: source.slot.name, multivalued: source.slot.multivalued === true, required: source.slot.required === true },
+      target: { class: target.owner, slot: target.slot.name, multivalued: target.slot.multivalued === true, required: target.slot.required === true },
+      cardinality,
+      onDelete: (ON_DELETE_RULES as readonly string[]).includes(onDelete) ? onDelete : "restrict",
+      stored,
+    });
+  }
+  return { relationships, problems, unverified };
+}
+
+/** The relationships whose two ends agree; a broken one is a diagnostic, not a relationship. */
+export function relationships(model: LinkmlModel, imported: Record<string, LinkmlModel> = {}): Relationship[] {
+  return relationshipsOf(model, imported).relationships;
 }

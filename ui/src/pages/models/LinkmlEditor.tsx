@@ -58,6 +58,10 @@ export function LinkmlEditor({
   const [opened, setOpened] = useState<string | undefined>(undefined);
 
   const model = useMemo(() => parseModel(source), [source]);
+  const openClass = (name: string) => {
+    setOpened(name);
+    setView("structure");
+  };
   const diagnostics = useMemo(() => diagnose(source, locales), [source, locales]);
   const chosen = subset ?? EMPTY_SUBSET;
   const previewed = useMemo(
@@ -88,13 +92,13 @@ export function LinkmlEditor({
           />
         ) : null}
         {view === "graph" ? (
-          // Read-only, and clicking a class opens it where it can be edited (T-1111).
+          // Read-only: a class, a relationship's line and "Add relationship" all open the class
+          // in the structure view, where its relationships are listed and added (T-1111, T-2738).
           <LinkmlGraphView
             source={source}
-            onOpenClass={(name) => {
-              setOpened(name);
-              setView("structure");
-            }}
+            onOpenClass={openClass}
+            onOpenRelationship={openClass}
+            onAddRelationship={openClass}
           />
         ) : null}
         {view === "source" ? (

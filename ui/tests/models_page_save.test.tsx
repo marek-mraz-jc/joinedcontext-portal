@@ -273,6 +273,77 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     });
   });
 
+  it("keeps Save closed while the model has a broken relationship, and says why (DM-68, T-2736)", async () => {
+    const user = userEvent.setup();
+    const broken = `${PUBLISHED_LINKML}  station:
+    range: AirQualityObserved
+    annotations:
+      ngsi_ld_kind: Relationship
+`.replace("      - dateObserved\n", "      - dateObserved\n      - station\n");
+    const fetchMock = vi.fn().mockImplementation((req: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
+      const method = init?.method ?? (req instanceof Request ? req.method : "GET");
+      if (urlStr.includes("/datamodels/air-quality/source") && method === "GET") {
+        return Promise.resolve(new Response(broken, { status: 200 }));
+      }
+      if (urlStr.includes("/spaces") || urlStr.includes("/endpoints")) {
+        return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+      }
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+    global.fetch = fetchMock;
+
+    renderWithClient(
+      <ModelsPage project="ovzdusie" baseline={{ name: "air-quality", version: "1.0.0", lifecycle: "published" }} />,
+    );
+
+    const saveBtn = await screen.findByRole("button", { name: /save model/i });
+    await waitFor(() => expect(saveBtn).toHaveAttribute("aria-disabled", "true"));
+    expect(saveBtn).toHaveAccessibleDescription(/fix the errors the editor lists before saving\. left: 1\./i);
+    expect(screen.getByText(/fix the errors the editor lists before saving\. left: 1\./i, { selector: "p" })).toBeVisible();
+    await user.click(saveBtn);
+    expect(requests(fetchMock).filter((call) => call.method === "PUT")).toEqual([]);
+  });
+
+  it("shows each broken rule the server names beside its detail (DM-68, T-2736)", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi.fn().mockImplementation((req: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
+      const method = init?.method ?? (req instanceof Request ? req.method : "GET");
+      if (urlStr.includes("/datamodels/air-quality/source") && method === "GET") {
+        return Promise.resolve(new Response(PUBLISHED_LINKML, { status: 200 }));
+      }
+      if (urlStr.includes("/datamodels/air-quality/source") && method === "PUT") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              type: "https://joinedcontext.com/errors/invalid-request",
+              title: "Invalid Request",
+              status: 400,
+              detail: "the model breaks 1 relationship rule; nothing was saved (DM-68)",
+              errors: ["slots.station: inverse-missing: station (Reading → Station) names no inverse"],
+            }),
+            { status: 400, headers: { "Content-Type": "application/problem+json" } },
+          ),
+        );
+      }
+      if (urlStr.includes("/spaces") || urlStr.includes("/endpoints")) {
+        return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+      }
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+
+    renderWithClient(
+      <ModelsPage project="ovzdusie" baseline={{ name: "air-quality", version: "1.0.0", lifecycle: "published" }} />,
+    );
+    await user.click(await screen.findByRole("button", { name: /save model/i }));
+    expect(
+      await screen.findByText(
+        "the model breaks 1 relationship rule; nothing was saved (DM-68): slots.station: inverse-missing: station (Reading → Station) names no inverse",
+      ),
+    ).toBeInTheDocument();
+  });
+
   describe("a model the assistant changed (T-0738, AG-77)", () => {
     afterEach(() => {
       window.history.pushState({}, "", "/");
