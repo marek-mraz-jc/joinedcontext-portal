@@ -52,10 +52,13 @@ export interface EntitySource {
 
 export class SourceError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  /** The attribute the refusal is about, where the problem names one (`slot`, DM-70). */
+  readonly slot?: string;
+  constructor(status: number, message: string, slot?: string) {
     super(message);
     this.name = "SourceError";
     this.status = status;
+    this.slot = slot;
   }
 }
 
@@ -96,6 +99,12 @@ export function idChunks(ids: string[], maxChars = 3_500): string[][] {
     chunks.push(current);
   }
   return chunks;
+}
+
+/** The attribute a problem document names as the one refused, where it names one. */
+function slotOf(body: unknown): string | undefined {
+  const slot = typeof body === "object" && body !== null ? (body as { slot?: unknown }).slot : undefined;
+  return typeof slot === "string" && slot !== "" ? slot : undefined;
 }
 
 /** The problem document's own sentence, or `fallback`. */
@@ -169,7 +178,7 @@ export function historyOf(body: unknown, attr: string): HistoryPoint[] {
 function ngsiSource(base: string, transport: Transport, language: string, hidden?: string): EntitySource {
   const refuse = (status: number, body: unknown, fallback: string): never => {
     if (status === 404 && hidden) throw new SourceError(404, hidden);
-    throw new SourceError(status, detailOf(body, fallback));
+    throw new SourceError(status, detailOf(body, fallback), slotOf(body));
   };
   const ok = (status: number) => status >= 200 && status < 300;
   const entity = (id: string) => `${base}/entities/${encodeURIComponent(id)}`;

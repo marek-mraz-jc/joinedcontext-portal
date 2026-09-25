@@ -2382,6 +2382,11 @@
     "applying": "Uplatňuji…",
     "refusedHere": "odmítnuto",
     "notInList": "není v seznamu",
+    "relationSearch": "Hledat",
+    "relationNone": "Nic, co můžete číst, neodpovídá",
+    "relationRemove": "Odebrat",
+    "relationFailed": "Vyhledávání selhalo",
+    "relationMore": "a další",
     "map": {
       "panel": "Mapa",
       "offTheMap": "není na mapě",

@@ -15,6 +15,9 @@ import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
 import type { GeometryType } from "../geo/validate";
 import { optionLabel } from "../enums";
 import type { EnumOption } from "../enums";
+import { objectsOf, pointingAt, searchTargets } from "../relations";
+import type { TargetOption } from "../relations";
+import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
 import "./grid.css";
 
 export interface EntityGridProps extends UseEntityGridOptions {
@@ -117,6 +120,65 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const [history, setHistory] = useState<{ attr: string; id: string } | null>(null);
   const [refused, setRefused] = useState<Refusal[]>([]);
   const refusedOf = useMemo(() => new Map(refused.map((one) => [one.id, one.detail])), [refused]);
+  // A refusal that names its attribute belongs on that cell too, beside the value (DM-70).
+  const refusedCell = useMemo(
+    () => new Map(refused.flatMap((one) => (one.slot ? [[`${one.id}\u0000${one.slot}`, one.detail] as const] : []))),
+    [refused],
+  );
+
+  // The computed ends of the page: one read per end for every row on it, through the grid's own
+  // source, so only what the person may read is listed (DM-67, UI-84).
+  const relations = hookOptions.relations;
+  const computed = useMemo(
+    () => Object.entries(relations ?? {}).filter(([, end]) => end.inverseOf !== undefined),
+    [relations],
+  );
+  const pageIds = rows.map((row) => row.id).join("\n");
+  const [inverse, setInverse] = useState<Record<string, { byId: Record<string, TargetOption[]>; full: boolean } | null>>({});
+  React.useEffect(() => {
+    if (computed.length === 0 || pageIds === "") {
+      setInverse({});
+      return;
+    }
+    let live = true;
+    const ids = pageIds.split("\n");
+    Promise.all(
+      computed.map(([attr, end]) =>
+        pointingAt(hookOptions.source, end.target, end.inverseOf!, ids).then(
+          (found) => [attr, found] as const,
+          () => [attr, null] as const,
+        ),
+      ),
+    ).then((all) => {
+      if (live) setInverse(Object.fromEntries(all));
+    });
+    return () => {
+      live = false;
+    };
+  }, [computed, pageIds, hookOptions.source]);
+  // One search per target class for as long as the source stays: a new function each render
+  // would ask the endpoint again every time the grid draws.
+  const searchOf = useMemo(() => {
+    const made = new Map<string, (text: string) => Promise<TargetOption[]>>();
+    return (target: string) => {
+      let search = made.get(target);
+      if (!search) {
+        search = (text: string) => searchTargets(hookOptions.source, target, text);
+        made.set(target, search);
+      }
+      return search;
+    };
+  }, [hookOptions.source]);
+  const pickerLabels = useMemo(
+    () => ({
+      search: labels.relationSearch,
+      none: labels.relationNone,
+      remove: labels.relationRemove,
+      loading: labels.loading,
+      failed: labels.relationFailed,
+    }),
+    [labels.relationSearch, labels.relationNone, labels.relationRemove, labels.loading, labels.relationFailed],
+  );
   const rowTitle = useCallback(
     (id: string): string | undefined => {
       const detail = refusedOf.get(id);
@@ -182,6 +244,53 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
     if (cell && !Array.isArray(cell) && renderers?.[cell.kind]) {
       return renderers[cell.kind](cell, row);
+    }
+
+    const end = column.attr && column.meta === null ? relations?.[column.attr] : undefined;
+    // A computed end: the entities pointing back, as links, never an input (DM-67).
+    if (end?.inverseOf !== undefined && column.attr) {
+      const read = inverse[column.attr];
+      if (read === undefined) return <>{labels.loading}</>;
+      if (read === null) return <>{labels.error}</>;
+      const pointing = read.byId[row.id] ?? [];
+      return (
+        <span className="jc-grid-rel-list">
+          {pointing.map((one) =>
+            onOpenRelationship ? (
+              <button key={one.id} type="button" className="jc-grid-rel-btn" title={one.id} onClick={(e) => { e.stopPropagation(); onOpenRelationship(one.id); }}>
+                {one.name ?? one.id}
+              </button>
+            ) : (
+              <span key={one.id} title={one.id}>{one.name ?? one.id}</span>
+            ),
+          )}
+          {read.full && <span className="jc-grid-rel-more">{labels.relationMore}</span>}
+        </span>
+      );
+    }
+    // A stored end in edit mode: a picker of the target's entities (UI-84).
+    if (end && column.attr && editable(column)) {
+      const attr = column.attr;
+      const pending = state.edits[row.id]?.[attr];
+      const stored = objectsOf(cell);
+      const now = pending === undefined ? stored : pending === NGSI_LD_NULL ? [] : Array.isArray(pending) ? (pending as string[]) : [String(pending)];
+      return (
+        <RelationPicker
+          label={`${labels.edit} ${column.label}`}
+          value={now}
+          end={end}
+          search={searchOf(end.target)}
+          labels={pickerLabels}
+          changed={pending !== undefined}
+          invalid={refusedCell.get(`${row.id}\u0000${attr}`)}
+          onChange={(next) => {
+            const same = next.length === stored.length && next.every((id, at) => id === stored[at]);
+            // An emptied end is written as NGSI-LD's null, so the attribute goes.
+            const after = next.length === 0 ? NGSI_LD_NULL : end.many ? next : next[0];
+            setEdit(row.id, attr, same ? undefined : after);
+          }}
+        />
+      );
     }
 
     // Relationship button
@@ -250,7 +359,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     return <>{text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, hookOptions.enums, setEdit]);
+  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
