@@ -22,8 +22,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  # `build` runs in a pod of this App's own (label app-build-rust), registered with this
+  # repository's token alone and mounting this App's build cache; `propose` stays on the shared
+  # runner and mounts no cache (AP-130, AP-131).
   build:
-    runs-on: rust-1.90
+    runs-on: app-build-rust
     timeout-minutes: 30
     env:
       JC_BUILD_DIR: ${{ runner.temp }}/jc-build

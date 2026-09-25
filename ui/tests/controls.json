@@ -627,6 +627,14 @@
         "generator_types.test.ts"
       ]
     },
+    "src/pages/apps/AppOpenPage.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "app_open_page.test.tsx"
+      ]
+    },
     "src/pages/apps/AppPage.tsx": {
       "controls": {
         "Button": 3
@@ -1012,6 +1020,14 @@
         "pipeline_kpi_preset.test.tsx",
         "pipeline_studio_debug.test.tsx",
         "pipeline_studio_functions.test.ts"
+      ]
+    },
+    "src/pages/pipelines/PipelineWorkbench.tsx": {
+      "controls": {
+        "FilePicker": 1
+      },
+      "tests": [
+        "pipeline_workbench.test.tsx"
       ]
     },
     "src/pages/pipelines/PipelineTest.tsx": {

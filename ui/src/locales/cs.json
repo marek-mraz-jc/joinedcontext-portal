@@ -1068,6 +1068,70 @@
       },
       "newest": "Nejnovější",
       "older": "Starší řádky"
+    },
+    "workbench": {
+      "failed": "Krok se nepodařilo spustit; zkuste to znovu.",
+      "running": "Běží na vzorku…",
+      "advanced": "Rozšířený editor",
+      "advancedHint": "Tok, více zdrojů, kroky procesoru a KPI, na tomtéž konceptu.",
+      "source": {
+        "title": "Zdroj",
+        "hint": "Vyberte, odkud záznamy přicházejí, nebo dejte jejich soubor.",
+        "pick": "Odkud přicházejí záznamy",
+        "none": "Vyberte zdroj dat nebo endpoint",
+        "type": "Typ entit ke čtení",
+        "pickType": "Vyberte typ",
+        "file": "Vybrat soubor se vzorkem",
+        "fileTaken": "Vzorek: {name}",
+        "fileDrop": "Přetáhněte soubor CSV nebo JSON, nebo jej vyberte"
+      },
+      "sample": {
+        "title": "Vzorek",
+        "hint": "První záznamy, které zdroj vrátí, tak jak je pipeline přečte.",
+        "waiting": "Vyberte zdroj nebo dejte soubor a uvidíte jeho záznamy.",
+        "empty": "Zdroj nevrátil žádný záznam.",
+        "count": "{count, plural, one {# záznam} few {# záznamy} other {# záznamů}} s {fields, plural, one {# polem} other {# poli}}",
+        "countFirst": "Prvních {count, plural, one {# záznam} few {# záznamy} other {# záznamů}} s {fields, plural, one {# polem} other {# poli}}; zdroj má více",
+        "caption": "Záznamy vzorku"
+      },
+      "mapping": {
+        "title": "Mapování",
+        "hint": "Napište v Bloblangu, jak se záznam stane entitou; každý slot říká, co bere.",
+        "slotsOf": "Co bere {type}",
+        "slots": "Co bere model",
+        "noModel": "Cílový prostor nejmenuje datový model, takže žádný slot není znám.",
+        "pickTarget": "Vyberte cílový endpoint v kroku 6 a uvidíte, co bere jeho model.",
+        "required": "povinné",
+        "many": "více hodnot",
+        "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a další (#)}}",
+        "example": "Příklad: {example}"
+      },
+      "output": {
+        "title": "Namapovaný výstup",
+        "hint": "Každý záznam tak, jak by se zapsal, s každým problémem u jeho pole.",
+        "waiting": "Napište mapování a dejte vzorek a uvidíte, co vytvoří.",
+        "line": "řádek {line}",
+        "count": "{count, plural, =0 {Mapování nevytvořilo žádný záznam.} one {Mapování vytvořilo # záznam.} few {Mapování vytvořilo # záznamy.} other {Mapování vytvořilo # záznamů.}}",
+        "caption": "Namapované záznamy",
+        "record": "Záznam",
+        "written": "Jak se zapíše",
+        "problems": "Problémy"
+      },
+      "validation": {
+        "title": "Validace",
+        "hint": "Zapíší se jen záznamy, které model prostoru přijme; ostatní jdou do seznamu odmítnutých.",
+        "waiting": "Verdikty přijdou, až mapování vytvoří záznamy.",
+        "valid": "platný",
+        "allValid": "{count, plural, one {# záznam je platný} few {Všechny # záznamy jsou platné} other {Všech # záznamů je platných}} vůči {model} {version}.",
+        "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušují} other {# záznamů porušuje}} {model} {version} a nezapíše se; platných: {valid}."
+      },
+      "target": {
+        "title": "Cíl a uložení",
+        "hint": "Určete endpoint, přes který se záznamy zapíší; uložení navrhne změnu.",
+        "lands": "Záznamy přistanou v prostoru {space}, kontrolované vůči modelu {model}.",
+        "landsUnmodelled": "Záznamy přistanou v prostoru {space}, který zatím nejmenuje datový model.",
+        "save": "Pojmenujte pipeline níže a navrhněte ji: nic se nezapíše, dokud změnu neschválí."
+      }
     }
   },
   "dashboards": {
@@ -1873,6 +1937,15 @@
       "failed": "Build failed",
       "notBuilt": "No build is served yet"
     },
+    "openPage": {
+      "details": "Podrobnosti aplikace",
+      "newWindow": "Otevřít v novém okně",
+      "served": "Běží commit {commit}",
+      "frameTitle": "{title}, aplikace",
+      "notOpen": "Zatím tu není co otevřít. Podrobnosti aplikace říkají, co bude dál.",
+      "signInHint": "Chce aplikace přihlášení a zůstává prázdná?",
+      "signInAgain": "Přihlásit se znovu"
+    },
     "retire": {
       "title": "Retire {name}",
       "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
@@ -2292,7 +2365,12 @@
       "previewLink": "Otevřít náhled",
       "chose": "Vybrali jste: {choice}",
       "file": "Předali jste {name}",
-      "url": "Data jsou na {url}"
+      "url": "Data jsou na {url}",
+      "testsRunning": "Testuje se verze {version}…",
+      "testsPassed": "Verze {version}: všech {passed} testů prochází.",
+      "testsFailed": "Verze {version}: {failed} testů selhává. {names}",
+      "testsError": "Testy verze {version} nemohly proběhnout: {reason}",
+      "testsSkipped": "Verze {version} zde nebyla testována: {reason}"
     },
     "preview": {
       "title": "Náhled",
@@ -2522,6 +2600,10 @@
         "again": "Číst znovu",
         "explore": "Otevřít v Průzkumníku"
       }
+    },
+    "testsHold": {
+      "running": "Zveřejnění počká, až proběhnou testy verze {version}.",
+      "failed": "Verze {version} se nezveřejní, dokud selhává {failed} jejích testů: {names}. Požádejte asistenta o opravu."
     }
   },
   "assistant": {

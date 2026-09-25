@@ -142,10 +142,20 @@ pub struct Config {
     /// cluster does; it is never a guess, because guessing a namespace here would mean writing
     /// a Deployment into somebody else's.
     pub app_settings: Option<crate::apps::reconciler::Settings>,
+    /// Where an App's build pods run and on which runner images (`JC_PORTAL_BUILD_NAMESPACE`
+    /// with `JC_PORTAL_BUILD_IMAGE_NODE`, `JC_PORTAL_BUILD_IMAGE_RUST` and the forge's API base;
+    /// `JC_PORTAL_BUILD_CACHE_SIZE`, default `1Gi`; AP-130, AP-131). `None` starts no build pod,
+    /// and an App's build waits in the forge's queue.
+    pub build_pods: Option<crate::apps::build_pods::Settings>,
     /// Where a builder run's workspace is scheduled and how the proxy reaches this Portal
     /// (AG-33, AG-40). `None` leaves every agent-run route answering 503: without a namespace
     /// to schedule into and a proxy for the workspace to speak to, a run has nowhere to happen.
     pub agent_settings: Option<AgentSettings>,
+    /// Where a run tests each version before it offers publication (SDK-38): the sandbox
+    /// namespace (`JC_PORTAL_APP_TESTS_NAMESPACE`) and the lane's builder image pinned by digest
+    /// (`JC_PORTAL_APP_TESTS_IMAGE`), both or neither. `None` runs no tests in the run, says so on
+    /// it, and leaves the build lane's check as the only one (SDK-24).
+    pub app_tests: Option<crate::agents::sandbox::SandboxSettings>,
     /// Where basemap tiles and styles come from (AP-67). `None` disables the basemap route:
     /// tile requests answer 404 and generated maps render on a plain canvas.
     pub basemap: Option<BasemapConfig>,
@@ -203,6 +213,7 @@ impl std::fmt::Debug for Config {
                 &self.database_url.as_ref().map(|_| "[redacted]"),
             )
             .field("app_settings", &self.app_settings)
+            .field("build_pods", &self.build_pods)
             .field("agent_settings", &self.agent_settings)
             .field("basemap", &self.basemap)
             .finish()
@@ -305,6 +316,65 @@ fn apps_url(lookup: &impl Fn(&str) -> Option<String>) -> Result<Option<Url>, Con
     Ok(Some(url))
 }
 
+/// Where build pods run (AP-130): nothing when `JC_PORTAL_BUILD_NAMESPACE` is unset, and every
+/// other part required once it is, because a namespace with no image would start pods that
+/// never run.
+fn build_pod_settings(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<crate::apps::build_pods::Settings>, ConfigError> {
+    let set = |var: &str| {
+        lookup(var)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
+    };
+    let Some(namespace) = set("JC_PORTAL_BUILD_NAMESPACE") else {
+        return Ok(None);
+    };
+    if !crate::resource::is_dns1123(&namespace) {
+        return Err(ConfigError::Invalid {
+            var: "JC_PORTAL_BUILD_NAMESPACE",
+            reason: format!(
+                "'{namespace}' is not a Kubernetes name (lowercase letters, digits, '-')"
+            ),
+        });
+    }
+    let image = |var: &'static str| match set(var) {
+        Some(image) if image.contains("@sha256:") && !image.chars().any(char::is_whitespace) => {
+            Ok(image)
+        }
+        Some(image) => Err(ConfigError::Invalid {
+            var,
+            reason: format!("'{image}' is not an image pinned by digest (name@sha256:…)"),
+        }),
+        None => Err(ConfigError::Invalid {
+            var,
+            reason: "JC_PORTAL_BUILD_NAMESPACE is set, and a build pod needs its image".into(),
+        }),
+    };
+    let forge = set("JC_GITEA_URL").ok_or_else(|| ConfigError::Invalid {
+        var: "JC_PORTAL_BUILD_NAMESPACE",
+        reason: "a build pod registers with the forge, and JC_GITEA_URL is not set".into(),
+    })?;
+    let cache_size = set("JC_PORTAL_BUILD_CACHE_SIZE").unwrap_or_else(|| "1Gi".into());
+    let digits = cache_size.trim_end_matches("Gi").trim_end_matches("Mi");
+    if digits.is_empty()
+        || digits.len() == cache_size.len()
+        || !digits.bytes().all(|b| b.is_ascii_digit())
+    {
+        return Err(ConfigError::Invalid {
+            var: "JC_PORTAL_BUILD_CACHE_SIZE",
+            reason: format!("'{cache_size}' is not a size such as 512Mi or 1Gi"),
+        });
+    }
+    Ok(Some(crate::apps::build_pods::Settings {
+        namespace,
+        forge,
+        node_image: image("JC_PORTAL_BUILD_IMAGE_NODE")?,
+        rust_image: image("JC_PORTAL_BUILD_IMAGE_RUST")?,
+        cache_size,
+    }))
+}
+
 /// Where an App's objects are applied: `JC_PORTAL_APPS_NAMESPACE` and `JC_PORTAL_ORG_DOMAIN`,
 /// both or neither, with the host taken from the public URL rather than configured twice
 /// (AP-13).
@@ -391,6 +461,61 @@ fn app_settings(
         release,
         service_account,
     }))
+}
+
+/// The run's test sandbox (SDK-38): `JC_PORTAL_APP_TESTS_NAMESPACE`, a Kubernetes name, and
+/// `JC_PORTAL_APP_TESTS_IMAGE`, an image reference pinned by `@sha256:` digest, both or neither.
+fn app_tests(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<crate::agents::sandbox::SandboxSettings>, ConfigError> {
+    let set = |var: &str| {
+        lookup(var)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
+    };
+    match (
+        set("JC_PORTAL_APP_TESTS_NAMESPACE"),
+        set("JC_PORTAL_APP_TESTS_IMAGE"),
+    ) {
+        (None, None) => Ok(None),
+        (Some(namespace), Some(image)) => {
+            if !crate::resource::is_dns1123(&namespace) {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_APP_TESTS_NAMESPACE",
+                    reason: format!(
+                        "'{namespace}' is not a Kubernetes name (lowercase letters, digits, '-')"
+                    ),
+                });
+            }
+            // The model's code runs on it, so it is the lane's own image and nothing a tag
+            // could move (non-negotiable: images by digest).
+            let pinned = image.split_once("@sha256:").is_some_and(|(name, hex)| {
+                !name.is_empty()
+                    && hex.len() == 64
+                    && hex
+                        .bytes()
+                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            });
+            if !pinned || image.chars().any(char::is_whitespace) {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_APP_TESTS_IMAGE",
+                    reason: format!(
+                        "'{image}' is not an image pinned by digest, such as \
+                         ghcr.io/org/joinedcontext-app-builder@sha256:<64 hex>"
+                    ),
+                });
+            }
+            Ok(Some(crate::agents::sandbox::SandboxSettings {
+                namespace,
+                image,
+            }))
+        }
+        (Some(_), None) | (None, Some(_)) => Err(ConfigError::Invalid {
+            var: "JC_PORTAL_APP_TESTS_NAMESPACE",
+            reason: "JC_PORTAL_APP_TESTS_NAMESPACE and JC_PORTAL_APP_TESTS_IMAGE go together"
+                .to_owned(),
+        }),
+    }
 }
 
 /// `forge.example.org` or `forge.example.org:5000`: lowercase DNS labels and an optional port.
@@ -972,7 +1097,9 @@ impl Config {
             lookup("JC_PORTAL_APPS_CACHE_DIR").filter(|dir| !dir.trim().is_empty());
         let apps_url = apps_url(&lookup)?;
         let app_settings = app_settings(&lookup, &public_base_url)?;
+        let build_pods = build_pod_settings(&lookup)?;
         let agent_settings = agent_settings(&lookup)?;
+        let app_tests = app_tests(&lookup)?;
         let basemap = basemap_config(&lookup)?;
         let branding_file = lookup("JC_BRANDING_FILE").filter(|path| !path.trim().is_empty());
         let database_url = lookup("JC_PORTAL_DATABASE_URL").filter(|url| !url.trim().is_empty());
@@ -1041,7 +1168,9 @@ impl Config {
             journey_users,
             keycloak_admin,
             app_settings,
+            build_pods,
             agent_settings,
+            app_tests,
             basemap,
             artifact_store,
             pipeline_secrets,
@@ -1073,7 +1202,9 @@ impl Config {
             model_tools_url: None,
             functions_url: None,
             app_settings: None,
+            build_pods: None,
             agent_settings: None,
+            app_tests: None,
             basemap: None,
             apps_dir: None,
             apps_cache_dir: None,
@@ -1106,6 +1237,38 @@ mod config_documentation_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_test_sandbox_is_a_namespace_and_an_image_pinned_by_digest_or_nothing() {
+        let with = |namespace: &'static str, image: &'static str| {
+            Config::from_vars(move |name| match name {
+                "JC_PORTAL_APP_TESTS_NAMESPACE" => Some(namespace.to_owned()),
+                "JC_PORTAL_APP_TESTS_IMAGE" => Some(image.to_owned()),
+                _ => None,
+            })
+        };
+        let digest = "a".repeat(64);
+        let image: &'static str = Box::leak(
+            format!("ghcr.io/x/joinedcontext-app-builder:main@sha256:{digest}").into_boxed_str(),
+        );
+        let settings = with("dev-app-tests", image).unwrap().app_tests.unwrap();
+        assert_eq!(settings.namespace, "dev-app-tests");
+        assert_eq!(settings.image, image);
+        assert_eq!(Config::from_vars(|_| None).unwrap().app_tests, None);
+        assert_eq!(with(" ", " ").unwrap().app_tests, None);
+        for (namespace, image) in [
+            ("dev-app-tests", "ghcr.io/x/joinedcontext-app-builder:main"),
+            ("dev-app-tests", "ghcr.io/x/builder@sha256:ABC"),
+            ("Dev_Tests", image),
+            ("dev-app-tests", ""),
+            ("", image),
+        ] {
+            assert!(
+                with(namespace, image).is_err(),
+                "{namespace} {image} was accepted"
+            );
+        }
+    }
 
     #[test]
     fn the_apps_origin_is_an_origin_and_nothing_else() {
@@ -1341,6 +1504,52 @@ mod tests {
 
     /// T-0411, AP-18: a Portal deploys an app only when it is told where. Guessing a namespace
     /// would mean writing a Deployment into somebody else's.
+    #[test]
+    fn build_pods_start_only_with_a_namespace_and_then_need_pinned_images() {
+        let complete = |k: &str| match k {
+            "JC_PORTAL_PUBLIC_URL" => Some("https://bb.example.sk".to_string()),
+            "JC_PORTAL_BUILD_NAMESPACE" => Some("dev".to_string()),
+            "JC_PORTAL_BUILD_IMAGE_NODE" => Some("r.example.org/builder@sha256:aa".to_string()),
+            "JC_PORTAL_BUILD_IMAGE_RUST" => Some("r.example.org/rust@sha256:bb".to_string()),
+            "JC_GITEA_URL" => Some("http://gitea-http.dev.svc.cluster.local:3000".to_string()),
+            _ => None,
+        };
+        let settings = Config::from_vars(complete)
+            .expect("a complete configuration")
+            .build_pods
+            .expect("every part is there");
+        assert_eq!(settings.cache_size, "1Gi");
+        assert_eq!(
+            settings.forge,
+            "http://gitea-http.dev.svc.cluster.local:3000"
+        );
+
+        let without_namespace = Config::from_vars(|k| match k {
+            "JC_PORTAL_BUILD_NAMESPACE" => None,
+            other => complete(other),
+        })
+        .expect("a Portal without build pods is still a Portal");
+        assert!(without_namespace.build_pods.is_none());
+
+        for (var, value) in [
+            ("JC_PORTAL_BUILD_IMAGE_RUST", None),
+            (
+                "JC_PORTAL_BUILD_IMAGE_NODE",
+                Some("r.example.org/builder:latest"),
+            ),
+            ("JC_PORTAL_BUILD_NAMESPACE", Some("Dev_ns")),
+            ("JC_PORTAL_BUILD_CACHE_SIZE", Some("1TB")),
+            ("JC_PORTAL_BUILD_CACHE_SIZE", Some("Gi")),
+            ("JC_GITEA_URL", None),
+        ] {
+            let refused = Config::from_vars(|k| match k == var {
+                true => value.map(str::to_owned),
+                false => complete(k),
+            });
+            assert!(refused.is_err(), "{var}={value:?} was accepted");
+        }
+    }
+
     #[test]
     fn app_settings_need_every_part_and_derive_the_one_they_can() {
         let complete = |k: &str| match k {

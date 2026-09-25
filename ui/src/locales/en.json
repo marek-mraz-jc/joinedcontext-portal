@@ -1068,6 +1068,70 @@
       },
       "newest": "Newest",
       "older": "Older lines"
+    },
+    "workbench": {
+      "failed": "The step could not run; try again.",
+      "running": "Running on the sample…",
+      "advanced": "Advanced editor",
+      "advancedHint": "The flow, several sources, processor steps and a KPI, on the same draft.",
+      "source": {
+        "title": "Source",
+        "hint": "Pick where the records come from, or give a file of them.",
+        "pick": "Where the records come from",
+        "none": "Choose a data source or an endpoint",
+        "type": "Entity type to read",
+        "pickType": "Choose a type",
+        "file": "Choose a sample file",
+        "fileTaken": "Sample: {name}",
+        "fileDrop": "Drop a CSV or JSON file, or choose one"
+      },
+      "sample": {
+        "title": "Sample",
+        "hint": "The first records the source answers, as the pipeline will read them.",
+        "waiting": "Pick a source or give a file to see its records.",
+        "empty": "The source answered no records.",
+        "count": "{count, plural, one {# record} other {# records}} with {fields, plural, one {# field} other {# fields}}",
+        "countFirst": "The first {count, plural, one {# record} other {# records}} with {fields, plural, one {# field} other {# fields}}; the source has more",
+        "caption": "Sample records"
+      },
+      "mapping": {
+        "title": "Mapping",
+        "hint": "Write in Bloblang how each record becomes an entity; each slot says what it takes.",
+        "slotsOf": "What {type} takes",
+        "slots": "What the model takes",
+        "noModel": "The target space names no data model, so no slot is known.",
+        "pickTarget": "Pick the target endpoint in step 6 to see what its model takes.",
+        "required": "required",
+        "many": "several values",
+        "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
+        "example": "Example: {example}"
+      },
+      "output": {
+        "title": "Mapped output",
+        "hint": "Each record as it would be written, with every problem at its field.",
+        "waiting": "Write a mapping and give a sample to see what it makes.",
+        "line": "line {line}",
+        "count": "{count, plural, =0 {The mapping made no record.} one {The mapping made # record.} other {The mapping made # records.}}",
+        "caption": "Mapped records",
+        "record": "Record",
+        "written": "As written",
+        "problems": "Problems"
+      },
+      "validation": {
+        "title": "Validation",
+        "hint": "Only records the space's model accepts are written; the rest go to the rejected list.",
+        "waiting": "The verdicts follow once the mapping makes records.",
+        "valid": "valid",
+        "allValid": "{count, plural, one {# record is} other {All # records are}} valid against {model} {version}.",
+        "someRejected": "{count, plural, one {# record breaks} other {# records break}} {model} {version} and would not be written; {valid} valid."
+      },
+      "target": {
+        "title": "Target and save",
+        "hint": "Name the endpoint the records are written through; saving proposes a change.",
+        "lands": "The records land in the space {space}, checked against the model {model}.",
+        "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
+        "save": "Name the pipeline below and propose it: nothing is written until the change is approved."
+      }
     }
   },
   "dashboards": {
@@ -1873,6 +1937,15 @@
       "failed": "Build failed",
       "notBuilt": "No build is served yet"
     },
+    "openPage": {
+      "details": "App details",
+      "newWindow": "Open in new window",
+      "served": "Serving commit {commit}",
+      "frameTitle": "{title}, the application",
+      "notOpen": "There is nothing to open here yet. The App details say what happens next.",
+      "signInHint": "Is the app asking you to sign in and staying empty?",
+      "signInAgain": "Sign in again"
+    },
     "retire": {
       "title": "Retire {name}",
       "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
@@ -2292,7 +2365,12 @@
       "previewLink": "Open the preview",
       "chose": "You chose: {choice}",
       "file": "You handed over {name}",
-      "url": "The data is at {url}"
+      "url": "The data is at {url}",
+      "testsRunning": "Testing version {version}…",
+      "testsPassed": "Version {version}: all {passed} tests pass.",
+      "testsFailed": "Version {version}: {failed} tests fail. {names}",
+      "testsError": "The tests of version {version} could not run: {reason}",
+      "testsSkipped": "Version {version} was not tested here: {reason}"
     },
     "preview": {
       "title": "Preview",
@@ -2522,6 +2600,10 @@
         "again": "Read again",
         "explore": "Open it in Explore"
       }
+    },
+    "testsHold": {
+      "running": "Publish waits until the tests of version {version} have run.",
+      "failed": "Version {version} is not published while {failed} of its tests fail: {names}. Ask the assistant to fix them."
     }
   },
   "assistant": {
