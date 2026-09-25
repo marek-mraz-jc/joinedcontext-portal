@@ -476,7 +476,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
   // source keeps its type; changing it would be a different source.
   const typePicker = (
     <div className="flex flex-col gap-1">
-      <Field id="datasource-type" label={t("datasources.field.type")}>
+      <Field id="datasource-type" label={t("datasources.field.type")} description={t("datasources.field.typeHint")}>
         <Select
           id="datasource-type"
           value={type}

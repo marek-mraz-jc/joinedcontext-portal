@@ -36,6 +36,7 @@ const UI: UiSchema = {
   notes: { "ui:widget": "textarea" },
   revision: { "ui:widget": "hidden" },
   period: { "ui:placeholder": "30" },
+  keywords: { "ui:help": "Words a search finds it by" },
 };
 
 interface Data {
@@ -155,6 +156,20 @@ describe("the form theme against the UI contract", () => {
     }
     await user.click(screen.getAllByRole("button", { name: /Remove/i })[0]);
     expect(screen.getAllByLabelText(/Keyword/)).toHaveLength(1);
+  });
+
+  // T-2835: an item of a list has no words of its own; it is read with the list's.
+  it("describes each item of a list with the list's hint, shown once", () => {
+    form({ formData: { name: "air", keywords: ["pm10", "no2"] } });
+    const items = screen.getAllByLabelText(/Keyword/);
+    expect(items).toHaveLength(2);
+    for (const item of items) {
+      expect(item).toHaveAccessibleDescription("Words a search finds it by");
+    }
+    const shown = screen
+      .getAllByText("Words a search finds it by")
+      .filter((node) => !node.classList.contains("sr-only"));
+    expect(shown).toHaveLength(1);
   });
 
   it("marks a field the schema refuses, and says it in words beside it", async () => {

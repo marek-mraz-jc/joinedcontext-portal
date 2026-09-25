@@ -121,7 +121,8 @@
     "entry": "Eintrag {number}",
     "dropOne": "Datei hierher ziehen oder auswählen",
     "dropMany": "Dateien hierher ziehen oder auswählen",
-    "chosenFiles": "Ausgewählt: {names}"
+    "chosenFiles": "Ausgewählt: {names}",
+    "advancedModeHint": "Zeigt auch die Felder, die die meisten Manifeste auf ihren Standardwerten lassen; die Wahl wird für Sie gespeichert."
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -798,7 +799,8 @@
       "caCert": "Referenz auf Zertifizierungsstelle",
       "secretName": "Name des Secrets",
       "secretKey": "Schlüssel im Secret",
-      "input": "Eingabekonfiguration"
+      "input": "Eingabekonfiguration",
+      "typeHint": "Wie die Plattform die Quelle erreicht; die Felder darunter richten sich danach, und eine gespeicherte Quelle behält ihren Typ."
     },
     "probe": {
       "title": "Ein Abruf des Feeds",
@@ -963,7 +965,8 @@
       "preset": {
         "title": "Preset",
         "load": "Load (DataSource)",
-        "kpi": "Analyse (KPI)"
+        "kpi": "Analyse (KPI)",
+        "hint": "Laden kopiert Datensätze aus einer externen Quelle in einen Space; Analysieren berechnet einen Indikator aus dem, was ein Endpoint bereits liefert."
       },
       "kpi": {
         "title": "Analyse (KPI)",
@@ -977,8 +980,18 @@
         "test": "Test on the endpoint's page",
         "testing": "Testing…",
         "computedValue": "Computed value",
-        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute."
-      }
+        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute.",
+        "endpointHint": "Der Endpoint, aus dem der Indikator berechnet wird, gelesen unter seiner Policy.",
+        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche; benennt den Indikator und seine Pipeline.",
+        "typeHint": "Der Entitätstyp, dessen Werte aggregiert werden; der Space des Endpoints modelliert ihn.",
+        "attributeHint": "Das numerische Attribut dieses Typs, das die Aggregation liest.",
+        "aggregateHint": "Wie die Werte eines Zeitraums zu einer Zahl werden.",
+        "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h."
+      },
+      "sourceKindHint": "Eine externe Quelle, mit der sich dieses Projekt verbindet, oder ein Context Space, den dieses Projekt bereits füllt.",
+      "dataSourceHint": "Die Verbindung der Quelle, wie unter Datenquellen gespeichert; eine neue Quelle legen Sie zuerst dort an.",
+      "spaceHint": "Der Space, den die Pipeline liest, über einen seiner Endpoints und dessen Policy.",
+      "attributeHint": "Das Attribut, mit dem das Snippet unten arbeitet."
     },
     "test": {
       "title": "An einer Probe ausprobieren",
@@ -1040,7 +1053,10 @@
       "addSource": "+ Quelle",
       "removeSource": "Quelle entfernen",
       "sourceReads": "Diese Quelle liest",
-      "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen."
+      "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen.",
+      "mappingRefHint": "Ein Mapping dieses Projekts; der Schritt wendet es auf jeden Datensatz an.",
+      "moduleHint": "Pfad oder Paket des Moduls, das der Schritt ausführt.",
+      "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft."
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
@@ -1116,7 +1132,9 @@
         "pickType": "Typ wählen",
         "file": "Stichprobendatei wählen",
         "fileTaken": "Stichprobe: {name}",
-        "fileDrop": "CSV- oder JSON-Datei hierher ziehen oder wählen"
+        "fileDrop": "CSV- oder JSON-Datei hierher ziehen oder wählen",
+        "pickHint": "Die Datensätze, die die Pipeline liest: eine Datenquelle oder ein Endpoint dieses Projekts. Mit einer Beispieldatei unten probieren Sie das Mapping auch ohne beides aus.",
+        "typeHint": "Der Entitätstyp des Endpoints, den die Pipeline liest; die Stichprobe zeigt seine ersten Datensätze."
       },
       "sample": {
         "title": "Stichprobe",
@@ -1137,7 +1155,8 @@
         "required": "erforderlich",
         "many": "mehrere Werte",
         "values": "{count, plural, =0 {Werte: {values}} other {Werte: {values} und # weitere}}",
-        "example": "Beispiel: {example}"
+        "example": "Beispiel: {example}",
+        "bloblangHint": "Bloblang, das aus einem Datensatz eine Entität macht: Setzen Sie ihre id, ihren Typ und die daneben aufgeführten Slots."
       },
       "output": {
         "title": "Abgebildete Ausgabe",

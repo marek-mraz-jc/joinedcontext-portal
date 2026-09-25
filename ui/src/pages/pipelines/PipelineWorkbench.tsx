@@ -473,7 +473,7 @@ export function PipelineWorkbench({
   return (
     <div className="flex flex-col gap-3" data-testid="pipeline-workbench">
       <Step number={1} id="workbench-source" title={t("pipelines.workbench.source.title")} hint={t("pipelines.workbench.source.hint")}>
-        <Field id="workbench-source-pick" label={t("pipelines.workbench.source.pick")}>
+        <Field id="workbench-source-pick" label={t("pipelines.workbench.source.pick")} description={t("pipelines.workbench.source.pickHint")}>
           <Select id="workbench-source-pick" value={sourceValue} onChange={(event) => pickSource(event.target.value)}>
             <option value="">{t("pipelines.workbench.source.none")}</option>
             {dataSources.length > 0 ? (
@@ -497,7 +497,7 @@ export function PipelineWorkbench({
           </Select>
         </Field>
         {draft?.source?.endpointRef ? (
-          <Field id="workbench-read-type" label={t("pipelines.workbench.source.type")}>
+          <Field id="workbench-read-type" label={t("pipelines.workbench.source.type")} description={t("pipelines.workbench.source.typeHint")}>
             <Select id="workbench-read-type" value={readType ?? ""} onChange={(event) => pickReadType(event.target.value)}>
               <option value="">{t("pipelines.workbench.source.pickType")}</option>
               {[...new Set([...readTypes, ...(readType ? [readType] : [])])].map((type) => (
@@ -578,7 +578,7 @@ export function PipelineWorkbench({
 
       <Step number={3} id="workbench-mapping" title={t("pipelines.workbench.mapping.title")} hint={t("pipelines.workbench.mapping.hint")}>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <Field id="workbench-bloblang" label={t("pipelines.field.bloblang")}>
+          <Field id="workbench-bloblang" label={t("pipelines.field.bloblang")} description={t("pipelines.workbench.mapping.bloblangHint")}>
             <Textarea
               id="workbench-bloblang"
               rows={14}

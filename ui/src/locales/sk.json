@@ -121,7 +121,8 @@
     "entry": "Položka {number}",
     "dropOne": "Pretiahnite sem súbor alebo ho vyberte",
     "dropMany": "Pretiahnite sem súbory alebo ich vyberte",
-    "chosenFiles": "Vybrané: {names}"
+    "chosenFiles": "Vybrané: {names}",
+    "advancedModeHint": "Zobrazí aj polia, ktoré väčšina manifestov necháva na predvolených hodnotách; voľba sa vám zapamätá."
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",
@@ -798,7 +799,8 @@
       "caCert": "Odkaz na certifikačnú autoritu",
       "secretName": "Názov tajomstva",
       "secretKey": "Kľúč v tajomstve",
-      "input": "Konfigurácia vstupu"
+      "input": "Konfigurácia vstupu",
+      "typeHint": "Ako sa platforma k zdroju dostane; polia nižšie sa podľa toho menia a uložený zdroj si typ ponechá."
     },
     "probe": {
       "title": "Jedno stiahnutie feedu",
@@ -963,7 +965,8 @@
       "preset": {
         "title": "Preset",
         "load": "Load (DataSource)",
-        "kpi": "Analyse (KPI)"
+        "kpi": "Analyse (KPI)",
+        "hint": "Načítanie kopíruje záznamy z externého zdroja do priestoru; Analýza počíta ukazovateľ z toho, čo endpoint už poskytuje."
       },
       "kpi": {
         "title": "Analyse (KPI)",
@@ -977,8 +980,18 @@
         "test": "Test on the endpoint's page",
         "testing": "Testing…",
         "computedValue": "Computed value",
-        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute."
-      }
+        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute.",
+        "endpointHint": "Endpoint, z ktorého sa ukazovateľ počíta, čítaný podľa jeho politiky.",
+        "nameHint": "Malé písmená, číslice a pomlčky; pomenúva ukazovateľ aj jeho pipeline.",
+        "typeHint": "Typ entity, ktorého hodnoty sa agregujú; modeluje ho priestor endpointu.",
+        "attributeHint": "Číselný atribút toho typu, ktorý agregácia číta.",
+        "aggregateHint": "Ako sa hodnoty jedného obdobia zlúčia do jedného čísla.",
+        "periodHint": "Ako často sa ukazovateľ počíta, ako trvanie, napríklad 15m alebo 1h."
+      },
+      "sourceKindHint": "Externý zdroj, ku ktorému sa projekt pripája, alebo kontextový priestor, ktorý projekt už plní.",
+      "dataSourceHint": "Pripojenie zdroja, ako je uložené v Zdrojoch dát; nový zdroj pridáte najprv tam.",
+      "spaceHint": "Priestor, ktorý pipeline číta, cez jeden z jeho endpointov a politiku toho endpointu.",
+      "attributeHint": "Atribút, s ktorým pracuje úryvok nižšie."
     },
     "test": {
       "title": "Vyskúšať na vzorke",
@@ -1040,7 +1053,10 @@
       "addSource": "+ Zdroj",
       "removeSource": "Odstrániť zdroj",
       "sourceReads": "Tento zdroj číta",
-      "sourceReadsHint": "Runner zlúči všetky zdroje linky do jedného prúdu pred prvým krokom."
+      "sourceReadsHint": "Runner zlúči všetky zdroje linky do jedného prúdu pred prvým krokom.",
+      "mappingRefHint": "Mapovanie tohto projektu; krok ho použije na každý záznam.",
+      "moduleHint": "Cesta alebo balík modulu, ktorý krok spúšťa.",
+      "functionHint": "Vstupný bod modulu, ktorý krok volá pre každý záznam."
     },
     "emptyHint": "Pridajte dátový zdroj a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
@@ -1116,7 +1132,9 @@
         "pickType": "Vyberte typ",
         "file": "Vybrať súbor so vzorkou",
         "fileTaken": "Vzorka: {name}",
-        "fileDrop": "Pretiahnite súbor CSV alebo JSON, alebo ho vyberte"
+        "fileDrop": "Pretiahnite súbor CSV alebo JSON, alebo ho vyberte",
+        "pickHint": "Záznamy, ktoré pipeline číta: zdroj dát alebo endpoint tohto projektu. So vzorovým súborom nižšie si mapovanie vyskúšate aj bez nich.",
+        "typeHint": "Typ entity endpointu, ktorý pipeline číta; vzorka ukáže jeho prvé záznamy."
       },
       "sample": {
         "title": "Vzorka",
@@ -1137,7 +1155,8 @@
         "required": "povinné",
         "many": "viac hodnôt",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
-        "example": "Príklad: {example}"
+        "example": "Príklad: {example}",
+        "bloblangHint": "Bloblang, ktorý z jedného záznamu urobí jednu entitu: nastavte jej id, typ a sloty uvedené vedľa."
       },
       "output": {
         "title": "Namapovaný výstup",

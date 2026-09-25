@@ -59,42 +59,6 @@
       "why": "the page's failure state drops the purpose line under its heading"
     },
     {
-      "route": "/projects/helsinki/settings/roles/new",
-      "check": "field-hint",
-      "task": "T-2835",
-      "why": "the field has no one-line hint wired to it through aria-describedby"
-    },
-    {
-      "route": "/projects/helsinki/endpoints/new",
-      "check": "field-hint",
-      "task": "T-2835",
-      "why": "the field has no one-line hint wired to it through aria-describedby"
-    },
-    {
-      "route": "/projects/helsinki/pipelines/new",
-      "check": "field-hint",
-      "task": "T-2835",
-      "why": "the field has no one-line hint wired to it through aria-describedby"
-    },
-    {
-      "route": "/projects/helsinki/csrs/new",
-      "check": "field-hint",
-      "task": "T-2835",
-      "why": "the field has no one-line hint wired to it through aria-describedby"
-    },
-    {
-      "route": "/projects/helsinki/datasources/new",
-      "check": "field-hint",
-      "task": "T-2835",
-      "why": "the field has no one-line hint wired to it through aria-describedby"
-    },
-    {
-      "route": "/projects/helsinki/syncsources/new",
-      "check": "field-hint",
-      "task": "T-2835",
-      "why": "the field has no one-line hint wired to it through aria-describedby"
-    },
-    {
       "route": "/projects/helsinki/apps/air/open",
       "check": "purpose-line",
       "task": "T-2834",

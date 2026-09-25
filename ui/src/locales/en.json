@@ -121,7 +121,8 @@
     "entry": "Entry {number}",
     "dropOne": "Drop a file here or choose one",
     "dropMany": "Drop files here or choose them",
-    "chosenFiles": "Chosen: {names}"
+    "chosenFiles": "Chosen: {names}",
+    "advancedModeHint": "Also shows the fields most manifests leave at their defaults; the choice is remembered for you."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -817,7 +818,8 @@
       "caCert": "Certificate authority reference",
       "secretName": "Secret name",
       "secretKey": "Key in the secret",
-      "input": "Input configuration"
+      "input": "Input configuration",
+      "typeHint": "How the platform reaches the source; the fields below follow it, and a saved source keeps its type."
     },
     "probe": {
       "title": "One fetch of the feed",
@@ -955,7 +957,8 @@
       "preset": {
         "title": "Preset",
         "load": "Load (DataSource)",
-        "kpi": "Analyse (KPI)"
+        "kpi": "Analyse (KPI)",
+        "hint": "Load copies records from an external feed into a space; Analyse computes an indicator from what an endpoint already serves."
       },
       "kpi": {
         "title": "Analyse (KPI)",
@@ -969,7 +972,13 @@
         "test": "Test on the endpoint's page",
         "testing": "Testing…",
         "computedValue": "Computed value",
-        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute."
+        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute.",
+        "endpointHint": "The endpoint the indicator is computed from, read under its policy.",
+        "nameHint": "Lower-case letters, digits and hyphens; it names the indicator and its pipeline.",
+        "typeHint": "The entity type whose values are aggregated, one the endpoint's space models.",
+        "attributeHint": "The numeric attribute of that type the aggregate reads.",
+        "aggregateHint": "How the values of one period become one number.",
+        "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h."
       },
       "process": "3. Process",
       "processHint": "A snippet writes the Bloblang below; edit it afterwards or pick another compute kind in the form.",
@@ -978,7 +987,11 @@
         "sum": "Sum",
         "average": "Average",
         "count": "Count"
-      }
+      },
+      "sourceKindHint": "An external feed this project connects to, or a context space this project already fills.",
+      "dataSourceHint": "The feed's connection, as saved under Data sources; a new feed is added there first.",
+      "spaceHint": "The space the pipeline reads, through one of its endpoints and that endpoint's policy.",
+      "attributeHint": "The attribute the snippet below works on."
     },
     "test": {
       "title": "Try it on a sample",
@@ -1040,7 +1053,10 @@
       "addSource": "+ Source",
       "removeSource": "Remove source",
       "sourceReads": "This source reads",
-      "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step."
+      "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step.",
+      "mappingRefHint": "A Mapping of this project; the step applies it to each record.",
+      "moduleHint": "The path or package of the module the step runs.",
+      "functionHint": "The module's entry point the step calls for each record."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
@@ -1116,7 +1132,9 @@
         "pickType": "Choose a type",
         "file": "Choose a sample file",
         "fileTaken": "Sample: {name}",
-        "fileDrop": "Drop a CSV or JSON file, or choose one"
+        "fileDrop": "Drop a CSV or JSON file, or choose one",
+        "pickHint": "The records the pipeline reads: a data source or an endpoint of this project. A sample file below lets you try the mapping without either.",
+        "typeHint": "The entity type of the endpoint the pipeline reads; the sample shows its first records."
       },
       "sample": {
         "title": "Sample",
@@ -1137,7 +1155,8 @@
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
-        "example": "Example: {example}"
+        "example": "Example: {example}",
+        "bloblangHint": "Bloblang that turns one record into one entity: set its id, its type and the slots listed beside it."
       },
       "output": {
         "title": "Mapped output",

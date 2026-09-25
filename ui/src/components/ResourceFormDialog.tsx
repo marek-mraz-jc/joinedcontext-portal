@@ -169,6 +169,7 @@ export function ResourceFormDialog<T>({
   const { t, i18n } = useTranslation();
   const branding = useBranding();
   const viewsId = useId();
+  const advancedHintId = useId();
   const kind = ownKind ?? draftKind;
   // A proposal in flight closes the form as surely as a caller's own `disabled` does; what it
   // adds is that the button says which of the two it is (T-0962).
@@ -1053,15 +1054,21 @@ export function ResourceFormDialog<T>({
                   ) : null}
                   {footerErrorElement}
                   {arranged?.advancedFields ? (
-                    <Checkbox
-                      label={t("form.advancedMode")}
-                      checked={advanced}
-                      onChange={(event) => {
-                        const next = event.target.checked;
-                        setAdvancedChoice(next);
-                        saveAdvanced.mutate(next);
-                      }}
-                    />
+                    <>
+                      <Checkbox
+                        label={t("form.advancedMode")}
+                        aria-describedby={advancedHintId}
+                        checked={advanced}
+                        onChange={(event) => {
+                          const next = event.target.checked;
+                          setAdvancedChoice(next);
+                          saveAdvanced.mutate(next);
+                        }}
+                      />
+                      <span id={advancedHintId} className="sr-only">
+                        {t("form.advancedModeHint")}
+                      </span>
+                    </>
                   ) : null}
                 </div>
               }
