@@ -20,6 +20,7 @@ import { mappingSchema } from "../src/schemas/mapping";
 import { dataModelSchema } from "../src/schemas/datamodel";
 import { dataAgreementSchema } from "../src/schemas/dataagreement";
 import { blueprintSchema } from "../src/schemas/blueprint";
+import { agentProfileSchema } from "../src/schemas/agentprofile";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -87,6 +88,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   DataAgreement: [dataAgreementSchema(t, ["air-quality-offer"])],
   // Created and edited on Organization → Blueprints (T-1537).
   Blueprint: [blueprintSchema(t)],
+  // Created and edited on Organization → Agent profiles (T-1536).
+  AgentProfile: [agentProfileSchema(t)],
   // Edited on the Organization page's Settings tab (T-2605).
   Organization: [kinds.organizationSchema(t)],
   // Edited on Project settings → General (T-2606).

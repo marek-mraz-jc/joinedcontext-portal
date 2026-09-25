@@ -60,7 +60,8 @@
     "settings": "Nastavenia projektu",
     "profile": "Váš účet",
     "dataagreements": "Dátové dohody",
-    "blueprints": "Šablóny"
+    "blueprints": "Šablóny",
+    "agentprofiles": "Profily agentov"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -3449,7 +3450,8 @@
       "groups": "Skupiny",
       "service-accounts": "Servisné účty",
       "projects": "Projekty",
-      "blueprints": "Šablóny"
+      "blueprints": "Šablóny",
+      "agentprofiles": "Profily agentov"
     },
     "settings": {
       "title": "Nastavenia",
@@ -3870,6 +3872,31 @@
       "green": "Zelená: použije sa bez posúdenia",
       "yellow": "Žltá: jeden schvaľovateľ",
       "red": "Červená: schvaľovateľ a potvrdenie"
+    },
+    "profileRole": {
+      "steward": "Správca: operácie portálu, bez internetu",
+      "builder": "Tvorca: programátorské nástroje a zoznam povolených hostiteľov"
+    },
+    "modelProvider": {
+      "openai-compatible": "Kompatibilný s OpenAI",
+      "anthropic": "Anthropic"
+    },
+    "reasoningEffort": {
+      "low": "Nízke",
+      "medium": "Stredné",
+      "high": "Vysoké"
+    },
+    "agentTool": {
+      "shell": "Shell",
+      "cargo": "Cargo",
+      "pnpm": "pnpm",
+      "git": "Git",
+      "playwright": "Playwright"
+    },
+    "agentVerb": {
+      "read": "Čítať",
+      "propose": "Navrhovať",
+      "write": "Zapisovať"
     }
   },
   "picker": {
@@ -3942,6 +3969,43 @@
       "templates": "Šablóny manifestov",
       "templateName": "Názov šablóny",
       "template": "Šablóna"
+    }
+  },
+  "agentprofiles": {
+    "field": {
+      "name": "Názov",
+      "role": "Rola",
+      "runtime": "Prostredie",
+      "image": "Obraz",
+      "digest": "Odtlačok obrazu",
+      "model": "Model",
+      "provider": "Poskytovateľ",
+      "modelName": "Názov modelu",
+      "maxTokensPerRun": "Tokeny na beh",
+      "reasoningEffort": "Úsilie uvažovania",
+      "limits": "Limity",
+      "stepsPerRun": "Kroky na beh",
+      "wallClock": "Najdlhší beh",
+      "concurrentRuns": "Súbežné behy v organizácii",
+      "requestsPerMinute": "Požiadavky za minútu",
+      "maxResponseBytes": "Najväčšia odpoveď (bajty)",
+      "egress": "Prístup na internet",
+      "allowedHosts": "Hostitelia, na ktorých smie",
+      "host": "Hostiteľ",
+      "maxBytesPerRun": "Bajty, ktoré smie prečítať za beh",
+      "tools": "Nástroje",
+      "workspace": "Pracovný priestor",
+      "cpu": "CPU",
+      "memory": "Pamäť",
+      "ephemeralStorage": "Dočasné úložisko",
+      "access": "Kam smie siahnuť",
+      "operations": "Operácie",
+      "operation": "Operácia",
+      "kinds": "Druhy",
+      "kind": "Druh",
+      "verbs": "Čo smie robiť",
+      "endpoints": "Koncové body",
+      "endpoint": "Koncový bod"
     }
   }
 }

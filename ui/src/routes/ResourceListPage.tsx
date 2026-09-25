@@ -27,6 +27,13 @@ import type { DataModelForm } from "../schemas/datamodel";
 import { dataAgreementSchema, fromDataAgreementManifest, toDataAgreementManifest } from "../schemas/dataagreement";
 import { blueprintSchema, blueprintUiSchema, fromBlueprintManifest, toBlueprintManifest } from "../schemas/blueprint";
 import type { BlueprintForm } from "../schemas/blueprint";
+import {
+  agentProfileSchema,
+  agentProfileUiSchema,
+  fromAgentProfileManifest,
+  toAgentProfileManifest,
+} from "../schemas/agentprofile";
+import type { AgentProfileForm } from "../schemas/agentprofile";
 import type { DataAgreementForm } from "../schemas/dataagreement";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
@@ -101,6 +108,12 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
     fromManifest: (manifest) => fromBlueprintManifest(manifest) as Record<string, unknown>,
     toManifest: (form, stored) => toBlueprintManifest(form as BlueprintForm, stored),
   }),
+  agentprofiles: (t) => ({
+    schema: agentProfileSchema(t),
+    uiSchema: agentProfileUiSchema,
+    fromManifest: (manifest) => fromAgentProfileManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toAgentProfileManifest(form as AgentProfileForm, stored),
+  }),
 };
 
 /**
@@ -111,6 +124,7 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
 const CREATE_KINDS: Record<string, string> = {
   dataagreements: "DataAgreement",
   blueprints: "Blueprint",
+  agentprofiles: "AgentProfile",
 };
 
 /** `/api/v1/projects/{project}/{plural}`: a kind's own page, or its resources in a table (MF-11…MF-15). */

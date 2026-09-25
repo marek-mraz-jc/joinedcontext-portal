@@ -60,7 +60,8 @@
     "settings": "Project settings",
     "profile": "Your account",
     "dataagreements": "Data agreements",
-    "blueprints": "Blueprints"
+    "blueprints": "Blueprints",
+    "agentprofiles": "Agent profiles"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -3449,7 +3450,8 @@
       "groups": "Groups",
       "service-accounts": "Service accounts",
       "projects": "Projects",
-      "blueprints": "Blueprints"
+      "blueprints": "Blueprints",
+      "agentprofiles": "Agent profiles"
     },
     "settings": {
       "title": "Settings",
@@ -3870,6 +3872,31 @@
       "green": "Green: applied without review",
       "yellow": "Yellow: one approver",
       "red": "Red: approver and confirmation"
+    },
+    "profileRole": {
+      "steward": "Steward: Portal operations, no internet",
+      "builder": "Builder: coding tools and an allow-list of hosts"
+    },
+    "modelProvider": {
+      "openai-compatible": "OpenAI-compatible",
+      "anthropic": "Anthropic"
+    },
+    "reasoningEffort": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "agentTool": {
+      "shell": "Shell",
+      "cargo": "Cargo",
+      "pnpm": "pnpm",
+      "git": "Git",
+      "playwright": "Playwright"
+    },
+    "agentVerb": {
+      "read": "Read",
+      "propose": "Propose",
+      "write": "Write"
     }
   },
   "picker": {
@@ -3942,6 +3969,43 @@
       "templates": "Templates",
       "templateName": "Template name",
       "template": "Template"
+    }
+  },
+  "agentprofiles": {
+    "field": {
+      "name": "Name",
+      "role": "Role",
+      "runtime": "Runtime",
+      "image": "Image",
+      "digest": "Image digest",
+      "model": "Model",
+      "provider": "Provider",
+      "modelName": "Model name",
+      "maxTokensPerRun": "Tokens per run",
+      "reasoningEffort": "Reasoning effort",
+      "limits": "Limits",
+      "stepsPerRun": "Steps per run",
+      "wallClock": "Longest run",
+      "concurrentRuns": "Runs at once in the organization",
+      "requestsPerMinute": "Requests per minute",
+      "maxResponseBytes": "Largest response (bytes)",
+      "egress": "Internet access",
+      "allowedHosts": "Hosts it may reach",
+      "host": "Host",
+      "maxBytesPerRun": "Bytes it may read per run",
+      "tools": "Tools",
+      "workspace": "Workspace",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "ephemeralStorage": "Scratch storage",
+      "access": "What it may reach",
+      "operations": "Operations",
+      "operation": "Operation",
+      "kinds": "Kinds",
+      "kind": "Kind",
+      "verbs": "What it may do",
+      "endpoints": "Endpoints",
+      "endpoint": "Endpoint"
     }
   }
 }

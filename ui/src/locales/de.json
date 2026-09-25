@@ -60,7 +60,8 @@
     "settings": "Projekteinstellungen",
     "profile": "Ihr Konto",
     "dataagreements": "Datenvereinbarungen",
-    "blueprints": "Vorlagen"
+    "blueprints": "Vorlagen",
+    "agentprofiles": "Agentenprofile"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -3449,7 +3450,8 @@
       "groups": "Gruppen",
       "service-accounts": "Dienstkonten",
       "projects": "Projekte",
-      "blueprints": "Vorlagen"
+      "blueprints": "Vorlagen",
+      "agentprofiles": "Agentenprofile"
     },
     "settings": {
       "title": "Einstellungen",
@@ -3870,6 +3872,31 @@
       "green": "Grün: ohne Prüfung angewendet",
       "yellow": "Gelb: eine freigebende Person",
       "red": "Rot: Freigabe und Bestätigung"
+    },
+    "profileRole": {
+      "steward": "Steward: Portal-Operationen, kein Internet",
+      "builder": "Builder: Programmierwerkzeuge und eine Liste erlaubter Hosts"
+    },
+    "modelProvider": {
+      "openai-compatible": "OpenAI-kompatibel",
+      "anthropic": "Anthropic"
+    },
+    "reasoningEffort": {
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch"
+    },
+    "agentTool": {
+      "shell": "Shell",
+      "cargo": "Cargo",
+      "pnpm": "pnpm",
+      "git": "Git",
+      "playwright": "Playwright"
+    },
+    "agentVerb": {
+      "read": "Lesen",
+      "propose": "Vorschlagen",
+      "write": "Schreiben"
     }
   },
   "picker": {
@@ -3942,6 +3969,43 @@
       "templates": "Manifestvorlagen",
       "templateName": "Name der Vorlage",
       "template": "Vorlage"
+    }
+  },
+  "agentprofiles": {
+    "field": {
+      "name": "Name",
+      "role": "Rolle",
+      "runtime": "Laufzeit",
+      "image": "Image",
+      "digest": "Image-Digest",
+      "model": "Modell",
+      "provider": "Anbieter",
+      "modelName": "Modellname",
+      "maxTokensPerRun": "Tokens pro Lauf",
+      "reasoningEffort": "Denkaufwand",
+      "limits": "Grenzen",
+      "stepsPerRun": "Schritte pro Lauf",
+      "wallClock": "Längster Lauf",
+      "concurrentRuns": "Gleichzeitige Läufe der Organisation",
+      "requestsPerMinute": "Anfragen pro Minute",
+      "maxResponseBytes": "Größte Antwort (Bytes)",
+      "egress": "Internetzugang",
+      "allowedHosts": "Erreichbare Hosts",
+      "host": "Host",
+      "maxBytesPerRun": "Lesbare Bytes pro Lauf",
+      "tools": "Werkzeuge",
+      "workspace": "Arbeitsbereich",
+      "cpu": "CPU",
+      "memory": "Arbeitsspeicher",
+      "ephemeralStorage": "Temporärer Speicher",
+      "access": "Was er erreichen darf",
+      "operations": "Operationen",
+      "operation": "Operation",
+      "kinds": "Arten",
+      "kind": "Art",
+      "verbs": "Was er tun darf",
+      "endpoints": "Endpunkte",
+      "endpoint": "Endpunkt"
     }
   }
 }
