@@ -6,7 +6,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, readCsrfToken, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized, ORG_NAMESPACE, overlay, plainTitle } from "../api/manifest";
+import { asManifests, isChange, localized, ORG_NAMESPACE, overlay, plainTitle, refName } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import type { Verdict } from "../api/drafts";
 import { useProjects } from "../api/projects";
@@ -230,7 +230,7 @@ export function toEnvelope(
 
 export function toForm(endpoint: Manifest): EndpointForm {
   const spec = endpoint.spec as {
-    contextSpaceRef?: string;
+    contextSpaceRef?: string | { name?: string };
     slug?: string;
     audience?: string;
     enabledRepresentations?: string[];
@@ -251,7 +251,7 @@ export function toForm(endpoint: Manifest): EndpointForm {
   return {
     name: endpoint.metadata.name,
     title: plainTitle(endpoint.metadata.title),
-    contextSpaceRef: spec.contextSpaceRef ?? "",
+    contextSpaceRef: refName(spec.contextSpaceRef),
     slug: spec.slug ?? "",
     audience: spec.audience ?? "project-list",
     enabledRepresentations: spec.enabledRepresentations ?? [],
