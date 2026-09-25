@@ -17,6 +17,4 @@ spec:
   enabledRepresentations:
   - ngsi-ld
   - geojson
-  rateLimits:
-    requestsPerMinute: 600
   slug: 32ea6ze7db7g6u7qnlgezpwp75
