@@ -1473,6 +1473,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pipeline Runs
+         * @description The pipeline's latest runs, each with how many records it sent, how many the model rejected and how many failed in a step (PL-62). A run is one tick of the pipeline's clock, or one UTC hour for a source that never ends.
+         */
+        get: operations["get_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/runs/{run}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Run's Log
+         * @description One line per record of the run, newest first: the record's id, the step it failed at, its outcome (sent, rejected, failed) and what happened (PL-62). Record ids and messages are masked where they look like a credential.
+         */
+        get: operations["get_run_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/revisions": {
         parameters: {
             query?: never;
@@ -2983,6 +3023,37 @@ export interface components {
             continue?: string | null;
             remainingItemCount?: number | null;
         };
+        /** @description One line of a run's log. */
+        LogLine: {
+            /** @description When the Portal took the line, RFC 3339. */
+            at: string;
+            /**
+             * Format: int64
+             * @description Its place in the log; the `before` of the next page.
+             */
+            id: number;
+            /** @description What happened, in words; empty for a record that was sent. */
+            message: string;
+            outcome: components["schemas"]["Outcome"];
+            /** @description The record's `id`, as the mapping produced it; empty when it had none. */
+            recordId: string;
+            /** @description The run it belongs to. */
+            run: string;
+            /**
+             * Format: int32
+             * @description The step of `spec.steps` it failed at, when it failed in a step.
+             */
+            step?: number | null;
+        };
+        /** @description One page of a run's log. */
+        LogPage: {
+            items: components["schemas"]["LogLine"][];
+            /**
+             * Format: int64
+             * @description The `before` of the next page, when there is one.
+             */
+            next?: number | null;
+        };
         /** @description The URL the browser must visit to finish an RP-initiated logout at Keycloak. */
         LogoutTarget: {
             /**
@@ -3187,6 +3258,11 @@ export interface components {
             kind: string;
             smartDataModels: components["schemas"]["CatalogueEntry"][];
         };
+        /**
+         * @description What became of one record.
+         * @enum {string}
+         */
+        Outcome: "sent" | "rejected" | "failed";
         /** @description The page the question was asked from, as the browser sends it: the route only. */
         PageContextRequest: {
             route: string;
@@ -3626,6 +3702,20 @@ export interface components {
              * @description How long the rotated key keeps working beside its successor, in hours (PF-38).
              */
             overlapHours?: number | null;
+        };
+        /** @description One run with its counts. */
+        Run: {
+            /** Format: int64 */
+            failed: number;
+            /** @description The first and the last line the Portal took for it, RFC 3339. */
+            firstAt: string;
+            lastAt: string;
+            /** Format: int64 */
+            rejected: number;
+            /** @description Its name: the tick's time, or the UTC hour of a source that never ends. */
+            run: string;
+            /** Format: int64 */
+            sent: number;
         };
         /**
          * @description Everything the proxy needs to decide one request, and nothing a workspace may see.
@@ -8678,6 +8768,117 @@ export interface operations {
                 };
             };
             /** @description No runner, or it did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_runs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The runs, latest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The runs could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_run_log: {
+        parameters: {
+            query?: {
+                /** @description Lines per page, 1…500 (default 100). */
+                limit?: number | null;
+                /** @description Only lines older than this id: the `next` of the previous page. */
+                before?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+                /** @description The run, as the run list names it */
+                run: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the run's log */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The log could not be read */
             503: {
                 headers: {
                     [name: string]: unknown;

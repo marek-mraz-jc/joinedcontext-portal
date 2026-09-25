@@ -152,6 +152,10 @@ pub(crate) fn scrape(body: &str, pipeline: &str, scraped_at: String) -> Pipeline
         let Some(family) = family(sample.name) else {
             continue;
         };
+        // The outcome sink reports about the stream; its own sends are not the stream's (PL-62).
+        if label(sample.labels, "label") == Some(crate::pipeline_log::SINK_LABEL) {
+            continue;
+        }
         let add = |slot: &mut Option<u64>| *slot = Some(slot.unwrap_or(0) + sample.value as u64);
         // The component's own counters, kept beside the stream's total so the studio can paint
         // the node where a message stopped rather than only the pipeline that stopped.
@@ -331,23 +335,7 @@ pub async fn get_rejected(
     Path((project, name)): Path<(String, String)>,
     axum::extract::Query(query): axum::extract::Query<RejectedQuery>,
 ) -> Result<Json<RejectedPage>, ApiError> {
-    // Read on the pipeline, and a caller without it is told the pipeline is not there (PF-59).
-    let not_found = || {
-        ApiError::NotFound(format!(
-            "pipeline '{name}' not found in project '{project}'"
-        ))
-    };
-    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    if !effective.may_read_project() || !effective.may_read("Pipeline") {
-        return Err(not_found());
-    }
-    if !is_dns1123(&project) || !is_dns1123(&name) {
-        return Err(not_found());
-    }
-    state
-        .mirror
-        .get(&project, "Pipeline", &name)
-        .ok_or_else(not_found)?;
+    readable_pipeline(&state, &user, &project, &name)?;
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
     let unreadable = |error: sqlx::Error| {
         tracing::warn!(%project, pipeline = %name, %error, "the rejected list could not be read");
@@ -367,6 +355,131 @@ pub async fn get_rejected(
         .then(|| items.last().map(|r| r.id))
         .flatten();
     Ok(Json(RejectedPage { items, total, next }))
+}
+
+/// Read on the pipeline, and a caller without it is told the pipeline is not there (PF-59).
+fn readable_pipeline(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+) -> Result<(), ApiError> {
+    let not_found = || {
+        ApiError::NotFound(format!(
+            "pipeline '{name}' not found in project '{project}'"
+        ))
+    };
+    let effective = crate::permissions::for_request(state, &user.0.identity, project);
+    if !effective.may_read_project() || !effective.may_read("Pipeline") {
+        return Err(not_found());
+    }
+    if !is_dns1123(project) || !is_dns1123(name) {
+        return Err(not_found());
+    }
+    state
+        .mirror
+        .get(project, "Pipeline", name)
+        .map(|_| ())
+        .ok_or_else(not_found)
+}
+
+/// A pipeline's latest runs with their counts (PL-62).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RunList {
+    /// The run with the latest line first, at most 200.
+    pub items: Vec<crate::pipeline_log::Run>,
+}
+
+#[derive(Debug, Default, serde::Deserialize, utoipa::IntoParams)]
+pub struct LogQuery {
+    /// Lines per page, 1…500 (default 100).
+    pub limit: Option<usize>,
+    /// Only lines older than this id: the `next` of the previous page.
+    pub before: Option<i64>,
+}
+
+/// One page of a run's log.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LogPage {
+    pub items: Vec<crate::pipeline_log::LogLine>,
+    /// The `before` of the next page, when there is one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next: Option<i64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/pipelines/{name}/runs",
+    summary = "List Pipeline Runs",
+    description = "The pipeline's latest runs, each with how many records it sent, how many the model rejected and how many failed in a step (PL-62). A run is one tick of the pipeline's clock, or one UTC hour for a source that never ends.",
+    tag = "pipelines",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+    ),
+    responses(
+        (status = 200, description = "The runs, latest first", body = RunList),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+        (status = 503, description = "The runs could not be read", body = ProblemDetails)
+    )
+)]
+pub async fn get_runs(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<Json<RunList>, ApiError> {
+    readable_pipeline(&state, &user, &project, &name)?;
+    let items = state
+        .pipeline_log
+        .runs(&project, &name, crate::pipeline_log::RUNS_KEPT)
+        .await
+        .map_err(|error| {
+            tracing::warn!(%project, pipeline = %name, %error, "the runs could not be read");
+            ApiError::Unavailable("the pipeline's runs could not be read; try again".into())
+        })?;
+    Ok(Json(RunList { items }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/pipelines/{name}/runs/{run}/log",
+    summary = "Read a Run's Log",
+    description = "One line per record of the run, newest first: the record's id, the step it failed at, its outcome (sent, rejected, failed) and what happened (PL-62). Record ids and messages are masked where they look like a credential.",
+    tag = "pipelines",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+        ("run" = String, Path, description = "The run, as the run list names it"),
+        LogQuery,
+    ),
+    responses(
+        (status = 200, description = "One page of the run's log", body = LogPage),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+        (status = 503, description = "The log could not be read", body = ProblemDetails)
+    )
+)]
+pub async fn get_run_log(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name, run)): Path<(String, String, String)>,
+    axum::extract::Query(query): axum::extract::Query<LogQuery>,
+) -> Result<Json<LogPage>, ApiError> {
+    readable_pipeline(&state, &user, &project, &name)?;
+    let limit = query.limit.unwrap_or(100).clamp(1, 500);
+    let items = state
+        .pipeline_log
+        .lines(&project, &name, &run, limit, query.before)
+        .await
+        .map_err(|error| {
+            tracing::warn!(%project, pipeline = %name, %error, "a run's log could not be read");
+            ApiError::Unavailable("the run's log could not be read; try again".into())
+        })?;
+    let next = (items.len() == limit)
+        .then(|| items.last().map(|line| line.id))
+        .flatten();
+    Ok(Json(LogPage { items, next }))
 }
 
 /// Which rejected records to replay.
@@ -514,6 +627,14 @@ pub async fn retry_rejected(
     );
     let mut config = replay_stream(&records, &project, &slug);
     crate::pipeline_validation::insert_stage(&mut config, &schema, &sink);
+    // What the replay writes is a line of the pipeline's log like any run's (PL-62).
+    if let Some(output) = config.get_mut("output") {
+        let outcomes = format!(
+            "{}/internal/pipelines/{project}/{name}/outcomes",
+            internal.trim_end_matches('/')
+        );
+        *output = crate::pipeline_log::with_outcomes(output.take(), &outcomes);
+    }
     jcctl::bento::inject_space(
         &mut config,
         &[crate::spaces::segment(&state.mirror, &project, &space)],
@@ -596,6 +717,11 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/pipelines/{name}/rejected/retry",
             axum::routing::post(retry_rejected),
         )
+        .route("/projects/{project}/pipelines/{name}/runs", get(get_runs))
+        .route(
+            "/projects/{project}/pipelines/{name}/runs/{run}/log",
+            get(get_run_log),
+        )
         .route(
             "/projects/{project}/pipelines/{name}/metrics",
             get(get_metrics),
@@ -660,9 +786,13 @@ uptime_seconds 900
             "processor_error{label=\"validation_id\",stream=\"aq\"} 2\n",
             "processor_error{label=\"processor_0\",stream=\"aq\"} 1\n",
             "output_error{label=\"output\",stream=\"aq\"} 3\n",
+            // PL-62: the outcome sink's own sends and failures are not the stream's.
+            "output_sent{label=\"outcome\",stream=\"aq\"} 90\n",
+            "output_error{label=\"outcome\",stream=\"aq\"} 5\n",
         );
         let metrics = scrape(body, "aq", "2026-09-25T10:00:00Z".into());
         assert_eq!(metrics.sent, Some(90), "written");
+        assert!(!metrics.nodes.contains_key("outcome"));
         assert_eq!(metrics.rejected, Some(9));
         assert_eq!(metrics.errors, Some(4), "a step's error and a failed write");
         assert_eq!(

@@ -23,6 +23,7 @@ pub use ops::drafts;
 pub use ops::verdict;
 pub mod people;
 pub mod permissions;
+pub mod pipeline_log;
 pub mod pipeline_outcomes;
 pub mod pipeline_secrets;
 pub mod pipeline_validation;

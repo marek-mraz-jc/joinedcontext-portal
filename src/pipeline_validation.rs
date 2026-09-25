@@ -284,7 +284,10 @@ impl ModelSchema {
 /// A Portal that does not answer loses the rejection and never holds back the stream.
 pub fn rejected_sink(url: &str) -> Value {
     json!({ "catch": [
-        { "mapping": "root = { \"record\": this, \"error\": error(), \"step\": meta(\"jc_step\").or(null) }" },
+        { "mapping": format!(
+            "root = {{ \"record\": this, \"error\": error(), \"step\": meta(\"jc_step\").or(null), \"run\": {} }}",
+            crate::pipeline_log::RUN
+        ) },
         { "http": {
             "url": url,
             "verb": "POST",

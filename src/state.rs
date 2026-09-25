@@ -74,6 +74,8 @@ pub struct AppState {
     /// The records each pipeline's stage refused (PL-61): durable with a database, in memory
     /// without one.
     pub rejected: Arc<crate::pipeline_outcomes::RejectedStore>,
+    /// Each pipeline's runs and their log (PL-62), durable with a database.
+    pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
@@ -147,6 +149,7 @@ impl AppState {
             drift: Arc::new(crate::reconciler::drift::Store::default()),
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
+            pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             drift_watch: None,
             people: None,
             kube: None,
@@ -190,6 +193,7 @@ impl AppState {
         self.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(Some(
             db.clone(),
         )));
+        self.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(Some(db.clone())));
         self.db = Some(db);
         self
     }
@@ -234,6 +238,7 @@ impl AppState {
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
         state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
+        state.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(db.clone()));
         state.db = db;
         // What the process before this one refused stays refused (T-0980).
         state.load_revocations().await;

@@ -6302,6 +6302,185 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/runs": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List Pipeline Runs",
+        "description": "The pipeline's latest runs, each with how many records it sent, how many the model rejected and how many failed in a step (PL-62). A run is one tick of the pipeline's clock, or one UTC hour for a source that never ends.",
+        "operationId": "get_runs",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The runs, latest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runs could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/pipelines/{name}/runs/{run}/log": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Read a Run's Log",
+        "description": "One line per record of the run, newest first: the record's id, the step it failed at, its outcome (sent, rejected, failed) and what happened (PL-62). Record ids and messages are masked where they look like a credential.",
+        "operationId": "get_run_log",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "run",
+            "in": "path",
+            "description": "The run, as the run list names it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Lines per page, 1…500 (default 100).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Only lines older than this id: the `next` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of the run's log",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The log could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/revisions": {
       "get": {
         "tags": [
@@ -11479,6 +11658,75 @@
           }
         }
       },
+      "LogLine": {
+        "type": "object",
+        "description": "One line of a run's log.",
+        "required": [
+          "id",
+          "at",
+          "run",
+          "recordId",
+          "outcome",
+          "message"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "When the Portal took the line, RFC 3339."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its place in the log; the `before` of the next page."
+          },
+          "message": {
+            "type": "string",
+            "description": "What happened, in words; empty for a record that was sent."
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/Outcome"
+          },
+          "recordId": {
+            "type": "string",
+            "description": "The record's `id`, as the mapping produced it; empty when it had none."
+          },
+          "run": {
+            "type": "string",
+            "description": "The run it belongs to."
+          },
+          "step": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The step of `spec.steps` it failed at, when it failed in a step."
+          }
+        }
+      },
+      "LogPage": {
+        "type": "object",
+        "description": "One page of a run's log.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogLine"
+            }
+          },
+          "next": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The `before` of the next page, when there is one."
+          }
+        }
+      },
       "LogoutTarget": {
         "type": "object",
         "description": "The URL the browser must visit to finish an RP-initiated logout at Keycloak.",
@@ -12104,6 +12352,15 @@
             }
           }
         }
+      },
+      "Outcome": {
+        "type": "string",
+        "description": "What became of one record.",
+        "enum": [
+          "sent",
+          "rejected",
+          "failed"
+        ]
       },
       "PageContextRequest": {
         "type": "object",
@@ -13372,6 +13629,46 @@
           }
         },
         "additionalProperties": false
+      },
+      "Run": {
+        "type": "object",
+        "description": "One run with its counts.",
+        "required": [
+          "run",
+          "firstAt",
+          "lastAt",
+          "sent",
+          "rejected",
+          "failed"
+        ],
+        "properties": {
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "firstAt": {
+            "type": "string",
+            "description": "The first and the last line the Portal took for it, RFC 3339."
+          },
+          "lastAt": {
+            "type": "string"
+          },
+          "rejected": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "run": {
+            "type": "string",
+            "description": "Its name: the tick's time, or the UTC hour of a source that never ends."
+          },
+          "sent": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
       },
       "RunContext": {
         "type": "object",

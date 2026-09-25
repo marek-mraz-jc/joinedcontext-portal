@@ -147,6 +147,21 @@ impl StreamDeployer {
         }
     }
 
+    /// Sends the outcome of every batch the stream's write took to the pipeline's log (PL-62).
+    fn logged(&self, stream: &mut Value, project: &str, pipeline: &str) {
+        let Some((internal, _)) = &self.validation else {
+            return;
+        };
+        let Some(output) = stream.get_mut("output") else {
+            return;
+        };
+        let url = format!(
+            "{}/internal/pipelines/{project}/{pipeline}/outcomes",
+            internal.trim_end_matches('/')
+        );
+        *output = crate::pipeline_log::with_outcomes(output.take(), &url);
+    }
+
     /// The runner's Prometheus text for one project, or `None` when it does not answer.
     ///
     /// A stream can be Live and still read nothing — a source that refuses the runner's token,
@@ -362,6 +377,7 @@ impl StreamDeployer {
                     match rendered {
                         Ok(mut stream_json) => {
                             self.validated(&mut stream_json, &ns, &name, &spaces);
+                            self.logged(&mut stream_json, &ns, &name);
                             jcctl::bento::inject_space(&mut stream_json, &segments);
                             inject_source_space(&mut stream_json, &source_segments);
                             let outcome = self
@@ -477,6 +493,7 @@ impl StreamDeployer {
 
                 let mut stream_json = stream_json;
                 self.validated(&mut stream_json, &ns, &name, &spaces);
+                self.logged(&mut stream_json, &ns, &name);
                 jcctl::bento::inject_space(&mut stream_json, &segments);
                 inject_source_space(&mut stream_json, &source_segments);
                 let outcome = self
@@ -1005,10 +1022,11 @@ fn datasource_input(
         let p2 = serde_json::json!({
             "mutation": "root = if errored() { deleted() }"
         });
+        // Each tick is one run of the pipeline's log (PL-62).
         let inp = serde_json::json!({
             "generate": {
                 "interval": interval,
-                "mapping": "root = \"\""
+                "mapping": format!("root = \"\"\n{}", crate::pipeline_log::TICK)
             }
         });
         (inp, vec![p1, p2])
@@ -2423,9 +2441,28 @@ output:
             !text.contains("env(\\\"JC_SPACE\\\")"),
             "the space is written in: {text}"
         );
+        // The write is unchanged and first; the outcome sink follows it only once it took the
+        // batch, and drops rather than retries (PL-62).
+        let outputs = &staged["output"]["broker"]["outputs"];
+        assert_eq!(staged["output"]["broker"]["pattern"], "fan_out_sequential");
         assert_eq!(
-            staged["output"]["http_client"]["verb"], "POST",
+            outputs[0]["http_client"]["verb"], "POST",
             "the write is unchanged"
+        );
+        assert_eq!(outputs[0]["label"], "output");
+        assert_eq!(outputs[1]["label"], crate::pipeline_log::SINK_LABEL);
+        assert_eq!(outputs[1]["drop_on"]["error"], true);
+        assert_eq!(outputs[1]["drop_on"]["output"]["http_client"]["retries"], 0);
+        assert_eq!(
+            outputs[1]["drop_on"]["output"]["http_client"]["url"],
+            "http://portal-internal:8081/internal/pipelines/helsinki/citybikes-free/outcomes"
+        );
+        assert!(
+            staged["input"]["generate"]["mapping"]
+                .as_str()
+                .is_some_and(|mapping| mapping.contains("meta jc_run")),
+            "each tick is a run: {}",
+            staged["input"]
         );
 
         // A changed model is a changed render: the stage the runner gets is the new one.

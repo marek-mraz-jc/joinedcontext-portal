@@ -3,8 +3,9 @@
 --
 -- A refused record is kept with the rule it broke so a steward can fix the mapping or the model
 -- and replay it; its secret-shaped values are masked before it is stored. Both tables are bounded
--- per pipeline by the Portal (the newest 1000 rejected records, the newest 5000 log lines), so a
--- feed that breaks the model on every message cannot fill the database.
+-- per pipeline by the Portal (the newest 1000 rejected records, the newest 5000 log lines, the
+-- newest 200 runs), so a feed that breaks the model on every message cannot fill the database.
+-- A run's counts outlive its lines: a run of 4000 records keeps its numbers after its lines age out.
 CREATE TABLE IF NOT EXISTS pipeline_rejected (
   id        bigserial   PRIMARY KEY,
   project   text        NOT NULL,
@@ -31,3 +32,16 @@ CREATE TABLE IF NOT EXISTS pipeline_log (
 );
 CREATE INDEX IF NOT EXISTS pipeline_log_by_pipeline ON pipeline_log (project, pipeline, id DESC);
 CREATE INDEX IF NOT EXISTS pipeline_log_by_run ON pipeline_log (project, pipeline, run);
+
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+  project   text        NOT NULL,
+  pipeline  text        NOT NULL,
+  run       text        NOT NULL,
+  first_at  timestamptz NOT NULL DEFAULT now(),
+  last_at   timestamptz NOT NULL DEFAULT now(),
+  sent      bigint      NOT NULL DEFAULT 0,
+  rejected  bigint      NOT NULL DEFAULT 0,
+  failed    bigint      NOT NULL DEFAULT 0,
+  PRIMARY KEY (project, pipeline, run)
+);
+CREATE INDEX IF NOT EXISTS pipeline_runs_by_last ON pipeline_runs (project, pipeline, last_at DESC);

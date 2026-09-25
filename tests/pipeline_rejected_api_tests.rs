@@ -2,7 +2,8 @@
 //! ADR-N-034, T-2708): a caller without it is told the pipeline is not there, and a page is the
 //! newest records first, with the rule each broke and its secrets masked. A retry needs propose
 //! on the pipeline, replays only what carries no mask and hands it to the runner through the
-//! space's validation stage and the pipeline's own write.
+//! space's validation stage and the pipeline's own write. Its runs and each run's log are read
+//! the same way as the list (PL-62).
 
 mod common;
 
@@ -22,6 +23,7 @@ use joinedcontext_portal::pipeline_validation::ModelSchema;
 use joinedcontext_portal::state::AppState;
 
 const REJECTED: &str = "/api/v1/projects/helsinki/pipelines/stations/rejected";
+const RUNS: &str = "/api/v1/projects/helsinki/pipelines/stations/runs";
 const RETRY: &str = "/api/v1/projects/helsinki/pipelines/stations/rejected/retry";
 
 async fn world() -> AppState {
@@ -330,4 +332,85 @@ async fn a_reader_may_not_retry_and_a_runner_that_refuses_puts_the_records_back(
             .expect("count"),
         4
     );
+}
+
+#[tokio::test]
+async fn a_reader_lists_the_runs_and_reads_one_runs_log_of_this_pipeline_only() {
+    use joinedcontext_portal::pipeline_log::{NewLine, Outcome};
+    let state = world().await;
+    state.mirror.upsert(envelope(
+        "Pipeline",
+        "other",
+        "helsinki",
+        json!({ "class": "resident", "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:bikes" }),
+    ));
+    let line = |id: &str, outcome| NewLine {
+        record_id: id.into(),
+        step: None,
+        outcome,
+        message: String::new(),
+    };
+    let run = "2026-09-25T08:00:00Z";
+    let lines: Vec<NewLine> = (0..3)
+        .map(|n| line(&format!("urn:s-{n}"), Outcome::Sent))
+        .chain([line("urn:s-9", Outcome::Rejected)])
+        .collect();
+    state
+        .pipeline_log
+        .append("helsinki", "stations", run, &lines)
+        .await
+        .expect("kept");
+    state
+        .pipeline_log
+        .append(
+            "helsinki",
+            "other",
+            run,
+            &[line("urn:other", Outcome::Sent)],
+        )
+        .await
+        .expect("kept");
+
+    let runs = send(&state, person("jana"), "GET", RUNS, None).await;
+    assert_eq!(runs.status, StatusCode::OK, "{}", runs.text);
+    let runs: Value = serde_json::from_str(&runs.text).expect("json");
+    assert_eq!(runs["items"][0]["run"], run);
+    assert_eq!(runs["items"][0]["sent"], 3);
+    assert_eq!(runs["items"][0]["rejected"], 1);
+
+    let page = send(
+        &state,
+        person("jana"),
+        "GET",
+        &format!("{RUNS}/{run}/log?limit=3"),
+        None,
+    )
+    .await;
+    assert_eq!(page.status, StatusCode::OK, "{}", page.text);
+    let page: Value = serde_json::from_str(&page.text).expect("json");
+    assert_eq!(page["items"][0]["recordId"], "urn:s-9", "newest first");
+    assert_eq!(page["items"][0]["outcome"], "rejected");
+    assert!(!page.to_string().contains("urn:other"), "{page}");
+    let next = page["next"].as_i64().expect("a next page");
+    let rest = send(
+        &state,
+        person("jana"),
+        "GET",
+        &format!("{RUNS}/{run}/log?limit=3&before={next}"),
+        None,
+    )
+    .await;
+    let rest: Value = serde_json::from_str(&rest.text).expect("json");
+    assert_eq!(rest["items"].as_array().map(Vec::len), Some(1));
+
+    for path in [RUNS.to_owned(), format!("{RUNS}/{run}/log")] {
+        let refused = send(&state, person("mikko"), "GET", &path, None).await;
+        assert_eq!(
+            refused.status,
+            StatusCode::NOT_FOUND,
+            "{path}: {}",
+            refused.text
+        );
+        assert!(!refused.text.contains("urn:s-"));
+    }
 }

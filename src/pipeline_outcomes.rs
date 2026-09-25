@@ -307,6 +307,25 @@ pub fn mask(record: &Value) -> Value {
     }
 }
 
+/// Free text with every word shaped like a credential masked, and the word after a `Bearer` or
+/// `Basic` scheme too: a runner's error or a record id can quote whatever the source held.
+pub fn mask_text(text: &str) -> String {
+    let mut previous = "";
+    text.split(' ')
+        .map(|word| {
+            let scheme =
+                previous.eq_ignore_ascii_case("bearer") || previous.eq_ignore_ascii_case("basic");
+            previous = word;
+            if scheme || credential_shaped(word) {
+                MASK
+            } else {
+                word
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Whether a string reads like a credential: a bearer or basic header, a JWT, a PEM block, a
 /// URL with a password in it, or a token with a well-known issuer prefix.
 pub fn credential_shaped(text: &str) -> bool {

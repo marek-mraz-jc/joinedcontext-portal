@@ -6,7 +6,12 @@
 //! the space's compiled model, the same check the workbench runs, so the rule on the list is the
 //! one a person sees in the workbench and not the runner's wording. A record that passes that
 //! check failed in one of the author's steps, and is kept with the step it failed at.
+//!
+//! Beside it, the outcome route: the lines the runner's outcome sink sends for a batch the
+//! gateway took (PL-62). Each refused record also becomes a line of its run's log, `rejected` or
+//! `failed`, so a run's log is the whole story of its records.
 
+use crate::pipeline_log::{run_name, NewLine, Outcome};
 use crate::pipeline_validation::Problem;
 use crate::state::AppState;
 use axum::body::Bytes;
@@ -33,7 +38,23 @@ pub struct Refused {
     /// The step the harness stamped, as text: Bento metadata is text.
     #[serde(default)]
     pub step: Option<Value>,
+    /// The run the record belongs to (PL-62).
+    #[serde(default)]
+    pub run: Option<String>,
 }
+
+/// What the outcome sink posts for one batch the gateway took.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Sent {
+    #[serde(default)]
+    pub run: Option<String>,
+    /// The `id` of each record of the batch; a record without one is an empty string.
+    pub sent: Vec<Value>,
+}
+
+/// The largest batch the gateway takes, and so the most lines one report carries.
+const BATCH: usize = 1000;
 
 /// `POST /internal/pipelines/{project}/{name}/rejected`.
 pub async fn rejected(
@@ -93,23 +114,110 @@ pub(crate) async fn keep(
             runner_error(refused.error.as_deref()),
         ),
     };
+    let outcome = if problems.is_empty() {
+        Outcome::Failed
+    } else {
+        Outcome::Rejected
+    };
     let reason = crate::pipeline_outcomes::Reason {
         rule,
         path,
         message,
         step: step.and_then(|s| i32::try_from(s).ok()),
     };
-    match state
+    let line = NewLine {
+        record_id: record_id(&refused.record),
+        step: reason.step,
+        outcome,
+        message: reason.message.clone(),
+    };
+    let run = run_name(refused.run.as_deref());
+    let kept = state
         .rejected
         .reject(project, name, &refused.record, &reason)
-        .await
-    {
+        .await;
+    let logged = match &kept {
+        Ok(()) => {
+            state
+                .pipeline_log
+                .append(project, name, &run, &[line])
+                .await
+        }
+        Err(_) => Ok(()),
+    };
+    match kept.and(logged) {
         Ok(()) => StatusCode::NO_CONTENT,
         Err(error) => {
             tracing::warn!(project, pipeline = name, %error, "a rejected record was not kept");
             StatusCode::SERVICE_UNAVAILABLE
         }
     }
+}
+
+/// `POST /internal/pipelines/{project}/{name}/outcomes`: one `sent` line per record of a batch
+/// the gateway took.
+pub async fn outcomes(
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> StatusCode {
+    if crate::auth::internal::authenticate_pipeline_runner(&state, &headers)
+        .await
+        .is_err()
+    {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let Ok(sent) = serde_json::from_slice::<Sent>(&body) else {
+        return StatusCode::BAD_REQUEST;
+    };
+    log_sent(&state, &project, &name, sent).await
+}
+
+/// Keeps the lines of one report, once the caller is known.
+pub(crate) async fn log_sent(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    sent: Sent,
+) -> StatusCode {
+    if state.mirror.get(project, "Pipeline", name).is_none() {
+        return StatusCode::NOT_FOUND;
+    }
+    if sent.sent.len() > BATCH {
+        return StatusCode::PAYLOAD_TOO_LARGE;
+    }
+    let lines: Vec<NewLine> = sent
+        .sent
+        .iter()
+        .map(|id| NewLine {
+            record_id: id.as_str().unwrap_or_default().to_owned(),
+            step: None,
+            outcome: Outcome::Sent,
+            message: String::new(),
+        })
+        .collect();
+    match state
+        .pipeline_log
+        .append(project, name, &run_name(sent.run.as_deref()), &lines)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(error) => {
+            tracing::warn!(project, pipeline = name, %error, "a run's log lines were not kept");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
+}
+
+/// The record's `id`, or nothing when it has none a line could show.
+fn record_id(record: &Value) -> String {
+    record
+        .get("id")
+        .or_else(|| record.get("@id"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// The local name of the space the pipeline's first output writes into.
@@ -130,16 +238,7 @@ fn runner_error(error: Option<&str>) -> String {
         .chars()
         .take(ERROR_CHARS)
         .collect();
-    text.split(' ')
-        .map(|word| {
-            if crate::pipeline_outcomes::credential_shaped(word) {
-                crate::pipeline_outcomes::MASK
-            } else {
-                word
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    crate::pipeline_outcomes::mask_text(&text)
 }
 
 pub fn router() -> Router<AppState> {
@@ -147,6 +246,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/internal/pipelines/{project}/{name}/rejected",
             post(rejected),
+        )
+        .route(
+            "/internal/pipelines/{project}/{name}/outcomes",
+            post(outcomes),
         )
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
 }
@@ -215,6 +318,7 @@ mod tests {
             record,
             error: Some("json_schema: pm10: Invalid type".into()),
             step,
+            run: Some("2026-09-25T08:00:00Z".into()),
         }
     }
 
@@ -334,5 +438,79 @@ mod tests {
         assert!(said.contains(crate::pipeline_outcomes::MASK));
         assert_eq!(runner_error(Some(&"x".repeat(2000))).len(), ERROR_CHARS);
         assert!(runner_error(None).contains("without a reason"));
+    }
+
+    #[tokio::test]
+    async fn a_refused_record_is_a_line_of_its_run_and_a_sent_batch_is_one_line_per_record() {
+        let state = world();
+        let bad = json!({ "id": "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:s-1", "type": "AirQualityObserved", "pm10": { "type": "Property", "value": "n/a" } });
+        keep(&state, "ovzdusie", "stations", refused(bad, None)).await;
+        let valid = json!({ "id": "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:s-2", "type": "AirQualityObserved" });
+        keep(
+            &state,
+            "ovzdusie",
+            "stations",
+            refused(valid, Some(json!("0"))),
+        )
+        .await;
+        let sent = Sent {
+            run: Some("2026-09-25T08:00:00Z".into()),
+            sent: vec![json!("urn:a"), json!("urn:b"), json!(null)],
+        };
+        assert_eq!(
+            log_sent(&state, "ovzdusie", "stations", sent).await,
+            StatusCode::NO_CONTENT
+        );
+
+        let runs = state
+            .pipeline_log
+            .runs("ovzdusie", "stations", 10)
+            .await
+            .expect("runs");
+        assert_eq!(runs.len(), 1);
+        assert_eq!((runs[0].sent, runs[0].rejected, runs[0].failed), (3, 1, 1));
+        let lines = state
+            .pipeline_log
+            .lines("ovzdusie", "stations", "2026-09-25T08:00:00Z", 10, None)
+            .await
+            .expect("lines");
+        let rejected = lines
+            .iter()
+            .find(|line| line.outcome == Outcome::Rejected)
+            .expect("the refused record's line");
+        assert!(rejected.record_id.ends_with(":s-1"));
+        assert!(!rejected.message.is_empty());
+        let failed = lines
+            .iter()
+            .find(|line| line.outcome == Outcome::Failed)
+            .expect("the step's line");
+        assert_eq!(failed.step, Some(0));
+    }
+
+    #[tokio::test]
+    async fn a_report_for_an_unknown_pipeline_or_larger_than_a_batch_is_refused() {
+        let state = world();
+        let many = Sent {
+            run: None,
+            sent: vec![json!("urn:x"); BATCH + 1],
+        };
+        assert_eq!(
+            log_sent(&state, "ovzdusie", "stations", many).await,
+            StatusCode::PAYLOAD_TOO_LARGE
+        );
+        let unknown = Sent {
+            run: None,
+            sent: vec![json!("urn:x")],
+        };
+        assert_eq!(
+            log_sent(&state, "ovzdusie", "nobody", unknown).await,
+            StatusCode::NOT_FOUND
+        );
+        assert!(state
+            .pipeline_log
+            .runs("ovzdusie", "stations", 10)
+            .await
+            .expect("runs")
+            .is_empty());
     }
 }
