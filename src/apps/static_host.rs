@@ -132,6 +132,11 @@ async fn serve(
             Some(mut config) => match String::from_utf8(bytes) {
                 Ok(html) => {
                     config["user"] = super::roles::app_user(person.as_ref());
+                    // The map's style comes from the platform, never a tile host the app names
+                    // (AP-67); the policy below admits exactly its route.
+                    if let Some(url) = crate::api::basemap::style_url(&state.config, &project) {
+                        config["basemap"] = serde_json::Value::String(url);
+                    }
                     with_config(&html, &config).into_bytes()
                 }
                 Err(raw) => raw.into_bytes(),
@@ -160,7 +165,8 @@ async fn serve(
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
 
     let headers = response.headers_mut();
-    if let Ok(csp) = HeaderValue::from_str(&content_security_policy(&spec)) {
+    let basemap = crate::api::basemap::route_prefix(&state.config, &project);
+    if let Ok(csp) = HeaderValue::from_str(&content_security_policy(&spec, basemap.as_deref())) {
         headers.insert(header::CONTENT_SECURITY_POLICY, csp);
     }
     headers.insert(
@@ -461,11 +467,18 @@ pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror
 
 /// The app's Content Security Policy (AP-12). `default-src` and `connect-src` stay on `'self'`
 /// plus whatever the manifest adds; `frame-ancestors` is `'none'` unless the app is embeddable.
-pub fn content_security_policy(spec: &AppSpec) -> String {
+/// `basemap` is the project's basemap route prefix when the platform configures one (AP-67): the
+/// one source `connect-src` and `img-src` gain for the map's style and tiles.
+pub fn content_security_policy(spec: &AppSpec, basemap: Option<&str>) -> String {
     let csp = spec.csp.as_ref();
     let mut connect = vec!["'self'".to_string()];
     if let Some(csp) = csp {
         connect.extend(csp.connect_src.iter().filter(|s| *s != "self").map(quoted));
+    }
+    let mut img = "'self' data: blob:".to_string();
+    if let Some(prefix) = basemap {
+        connect.push(prefix.to_string());
+        img = format!("{img} {prefix}");
     }
 
     let declared: Vec<String> = csp
@@ -481,7 +494,7 @@ pub fn content_security_policy(spec: &AppSpec) -> String {
 
     format!(
         "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; \
-         style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; \
+         style-src 'self' 'unsafe-inline'; img-src {img}; font-src 'self' data:; \
          form-action 'self'; connect-src {}; frame-ancestors {frame_ancestors}",
         connect.join(" ")
     )
@@ -553,7 +566,7 @@ mod tests {
 
     #[test]
     fn a_plain_app_may_not_be_framed_and_talks_only_to_the_platform() {
-        let csp = content_security_policy(&spec());
+        let csp = content_security_policy(&spec(), None);
         assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
         assert!(csp.contains("connect-src 'self';"), "{csp}");
         assert!(
@@ -570,12 +583,29 @@ mod tests {
             connect_src: vec!["self".into()],
             frame_ancestors: vec!["https://portal.example.sk".into()],
         });
-        let csp = content_security_policy(&spec);
+        let csp = content_security_policy(&spec, None);
         assert!(
             csp.contains("frame-ancestors https://portal.example.sk"),
             "{csp}"
         );
         assert!(csp.contains("connect-src 'self';"), "{csp}");
+    }
+
+    #[test]
+    fn a_configured_basemap_adds_its_route_and_nothing_else() {
+        let prefix = "https://portal.example/api/v1/projects/bbsk/basemap/";
+        let csp = content_security_policy(&spec(), Some(prefix));
+        assert!(
+            csp.contains(&format!("connect-src 'self' {prefix};")),
+            "{csp}"
+        );
+        assert!(
+            csp.contains(&format!("img-src 'self' data: blob: {prefix};")),
+            "{csp}"
+        );
+        // Only those two directives widen, and only by the one prefix.
+        assert_eq!(csp.matches(prefix).count(), 2, "{csp}");
+        assert!(csp.contains("default-src 'self';"), "{csp}");
     }
 
     #[test]
@@ -586,7 +616,7 @@ mod tests {
             connect_src: Vec::new(),
             frame_ancestors: vec!["https://elsewhere.example".into()],
         });
-        assert!(content_security_policy(&spec).contains("frame-ancestors 'none'"));
+        assert!(content_security_policy(&spec, None).contains("frame-ancestors 'none'"));
     }
 
     #[test]

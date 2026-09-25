@@ -907,3 +907,82 @@ async fn an_anonymous_visitor_is_served_no_user() {
     assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
     assert_eq!(served_config(&body)["user"], serde_json::Value::Null);
 }
+
+/// AP-67, AP-12, T-2833: a published App's map reads the platform's basemap. The index names the
+/// style URL in `#jc-config`, and the policy admits that project's basemap route in `connect-src`
+/// and `img-src` and nothing more; without a configured basemap neither appears.
+#[tokio::test]
+async fn a_configured_basemap_is_in_the_config_and_the_policy_admits_only_its_route() {
+    use joinedcontext_portal::config::BasemapConfig;
+
+    let index: &[u8] = b"<!doctype html><html><head><title>map</title></head><body></body></html>";
+    let dir = app_root("basemap", &[("index.html", index)]);
+    let mut spec = app_spec("published");
+    spec["dataNeeds"] = serde_json::json!([{
+        "contextSpaceRef": { "kind": "ContextSpace", "name": "air" },
+        "types": ["AirQualityObserved"],
+        "operations": ["queryEntity"]
+    }]);
+    let mirror = mirror_with_app(spec);
+    mirror.upsert(envelope(
+        "Endpoint",
+        "ovzdusie",
+        "air-public",
+        serde_json::json!({ "contextSpaceRef": "air", "slug": "airslug" }),
+    ));
+
+    let get = |basemap: Option<BasemapConfig>| {
+        let mut config = Config {
+            apps_dir: Some(dir.path().to_string_lossy().into_owned()),
+            ..Config::for_tests()
+        };
+        config.basemap = basemap;
+        let state = AppState::new(config, None).with_mirror(mirror.clone());
+        async move {
+            let response = server::app(state)
+                .oneshot(
+                    Request::builder()
+                        .uri("/apps/air-quality/")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
+                .to_str()
+                .unwrap()
+                .to_owned();
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            (csp, served_config(&body))
+        }
+    };
+
+    let (csp, config) = get(None).await;
+    assert!(config.get("basemap").is_none(), "{config}");
+    assert!(!csp.contains("/basemap/"), "{csp}");
+
+    let basemap = BasemapConfig::for_tests(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png".to_owned(),
+        "© OpenStreetMap contributors".to_owned(),
+        dir.path().join("tiles"),
+    );
+    let (csp, config) = get(Some(basemap)).await;
+    let base = Config::for_tests().public_base_url.to_string();
+    let prefix = format!(
+        "{}/api/v1/projects/ovzdusie/basemap/",
+        base.trim_end_matches('/')
+    );
+    assert_eq!(config["basemap"], format!("{prefix}default/style.json"));
+    assert!(
+        csp.contains(&format!("connect-src 'self' {prefix};")),
+        "{csp}"
+    );
+    assert!(
+        csp.contains(&format!("img-src 'self' data: blob: {prefix};")),
+        "{csp}"
+    );
+    assert!(
+        !csp.contains("openstreetmap"),
+        "the tile host stays behind the Portal: {csp}"
+    );
+}
