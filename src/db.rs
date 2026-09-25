@@ -463,6 +463,21 @@ pub async fn update_agent_run_status(
     .map(|_| ())
 }
 
+/// Moves a run's lease: a run waiting for its change's approval is given the approval's lease
+/// (T-2772).
+pub async fn update_agent_run_expiry(
+    pool: &PgPool,
+    id: &str,
+    expires_at: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE agent_runs SET expires_at = $2::text::timestamptz WHERE id = $1")
+        .bind(id)
+        .bind(expires_at)
+        .execute(pool)
+        .await
+        .map(|_| ())
+}
+
 /// Forgets a run's ticket hash, which is what a cancellation does to its workspace's credential:
 /// every later proxy call verifies against a hash no ticket can produce (AG-46).
 pub async fn clear_agent_run_ticket(pool: &PgPool, id: &str) -> Result<(), sqlx::Error> {

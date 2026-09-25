@@ -17,10 +17,14 @@ const setData = vi.fn();
 const addSource = vi.fn();
 const addLayer = vi.fn();
 const remove = vi.fn();
+/** The style each map was built with: the platform's URL, or the SDK's plain background. */
+const styles: unknown[] = [];
 
 vi.mock("maplibre-gl", () => {
   class Map {
-    constructor(public options: unknown) {}
+    constructor(public options: { style?: unknown }) {
+      styles.push(options.style);
+    }
     on(event: string, handler: () => void) {
       // The app adds its source and layer on `load`; firing it at once is what the browser does
       // before anybody looks at the page.
@@ -68,7 +72,7 @@ function serving(options: { entities?: () => Response; temporal?: () => Response
   });
 }
 
-function show(options: Parameters<typeof serving>[0] = {}, language = "sk") {
+function show(options: Parameters<typeof serving>[0] = {}, language = "sk", basemap?: string) {
   vi.stubGlobal("fetch", serving(options));
   const client = stubClient(undefined, {
     slug: SLUG,
@@ -77,6 +81,7 @@ function show(options: Parameters<typeof serving>[0] = {}, language = "sk") {
     transport: "origin",
     appName: "banskabystrica-ovzdusie",
     language,
+    basemap,
   });
   return render(
     <JcProvider client={client}>
@@ -87,6 +92,7 @@ function show(options: Parameters<typeof serving>[0] = {}, language = "sk") {
 
 beforeEach(() => {
   calls = [];
+  styles.length = 0;
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(NOW);
   vi.unstubAllGlobals();
@@ -197,5 +203,21 @@ describe("what the screen says about itself", () => {
       rules: { "color-contrast": { enabled: false }, region: { enabled: false } },
     });
     expect(results.violations.map((violation) => violation.id)).toEqual([]);
+  });
+
+  it("draws the stations over the platform's basemap and names no tile host of its own (AP-67)", async () => {
+    const basemap = "https://portal.example/api/v1/projects/bbsk/basemap/default/style.json";
+    show({}, "sk", basemap);
+    await waitFor(() => expect(styles).toEqual([basemap]));
+    expect(screen.queryByText(LOCALES.sk.noBasemap)).toBeNull();
+  });
+
+  it("says so under the map when the platform configures no basemap", async () => {
+    show({}, "en");
+    await waitFor(() => expect(styles).toHaveLength(1));
+    const [style] = styles as Array<{ sources?: Record<string, unknown> }>;
+    // The SDK's plain background: no source, so no request leaves for a tile host.
+    expect(style.sources).toEqual({});
+    expect(screen.getByText(LOCALES.en.noBasemap)).toBeVisible();
   });
 });

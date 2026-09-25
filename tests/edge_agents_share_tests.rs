@@ -460,6 +460,23 @@ fn the_rendering_is_a_draft_that_matches_the_form_it_prefills() {
     );
 }
 
+/// T-2775, EP-20: a limit is the person's choice. A share that asked for none drafts an
+/// Endpoint without `rateLimits` and opens the form with the limit fields empty.
+#[test]
+fn a_share_that_asks_for_no_limit_drafts_none() {
+    let rendered = render(PROJECT, ORG, &share(), &[]).expect("a valid share");
+    assert!(
+        rendered.endpoint["spec"].get("rateLimits").is_none(),
+        "{}",
+        rendered.endpoint
+    );
+    assert!(
+        rendered.prefill.get("rateLimits").is_none(),
+        "{}",
+        rendered.prefill
+    );
+}
+
 // ---------------------------------------------------------------------------------------
 // T-2087 `prose_of`: what the person reads when the model answered with a tool call.
 // ---------------------------------------------------------------------------------------

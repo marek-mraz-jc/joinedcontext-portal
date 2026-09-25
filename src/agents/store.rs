@@ -264,6 +264,18 @@ impl AgentStore {
     /// Forgets the run's ticket hash. Every later proxy call for it verifies against a hash no
     /// ticket can produce, so a cancelled workspace cannot reach the model, the data or the
     /// forge again (AG-46).
+    /// Gives a run a new lease, `expires_at` in RFC 3339 (T-2772).
+    pub async fn set_expiry(&self, id: &str, expires_at: &str) -> Result<(), StoreError> {
+        if let Some(pool) = &self.db {
+            db::update_agent_run_expiry(pool, id, expires_at).await?;
+            return Ok(());
+        }
+        if let Some(run) = self.memory.write().await.runs.get_mut(id) {
+            run.expires_at = expires_at.to_owned();
+        }
+        Ok(())
+    }
+
     pub async fn invalidate_ticket(&self, id: &str) -> Result<(), StoreError> {
         if let Some(pool) = &self.db {
             db::clear_agent_run_ticket(pool, id).await?;

@@ -595,8 +595,11 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
       onChange={handleChange}
     >
       {/* The empty choice says to choose, never the field's example: an example here read as a
-          value already chosen (T-2752), and a select shows its own values anyway. */}
-      {showPlaceholder ? <option value="">{t("form.choose")}</option> : null}
+          value already chosen (T-2752), and a select shows its own values anyway. A field whose
+          empty value means something ("No limit", T-2775) names that meaning instead. */}
+      {showPlaceholder ? (
+        <option value="">{typeof options.emptyLabel === "string" ? options.emptyLabel : t("form.choose")}</option>
+      ) : null}
       {Array.isArray(enumOptions)
         ? enumOptions.map(({ value: enumValue, label }, index) => (
             <option
