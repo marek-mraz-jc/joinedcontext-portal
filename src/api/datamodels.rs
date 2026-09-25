@@ -6,19 +6,23 @@ use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
+use jc_core::envelope::ORG_NAMESPACE;
+use jc_core::kinds::data_model::{DataModelLifecycle, ModelImport};
 use jc_core::kinds::{DataModelSpec, GeneratedArtifacts, SemVer};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use utoipa::ToSchema;
 
 use crate::api::mutate::{author_credentials, branch_name, create_or_reuse_branch};
+use crate::auth::session::Identity;
 use crate::auth::CurrentUser;
 use crate::change::{Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{Author, FileWrite};
 use crate::state::AppState;
 use crate::store::ListOptions;
-use crate::tools::model_tools::{Artifacts, GenerateRequest, MAX_REQUEST_BYTES};
+use crate::tools::model_tools::{Artifacts, MAX_REQUEST_BYTES};
 
 /// Single detected difference between the published model and the candidate LinkML source.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
@@ -121,6 +125,175 @@ pub fn confine_linkml_path(linkml: &str) -> Result<String, ApiError> {
     Ok(trimmed.to_string())
 }
 
+/// The folder a DataModel's manifest, source and artifacts live in (DM-01, DM-74): a space's
+/// model in the space's `datamodels/`, a model no space owns in a folder of its own, in the
+/// project or, for `org`, in the organization repository.
+pub(crate) fn model_folder(namespace: &str, spec: &Value, name: &str) -> String {
+    let space = spec
+        .get("contextSpaceRef")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let manifest = jc_core::registry::by_kind("DataModel")
+        .map(|info| info.repo_path(namespace, space, name))
+        .unwrap_or_default();
+    manifest
+        .rsplit_once('/')
+        .map(|(folder, _)| folder.to_owned())
+        .unwrap_or_default()
+}
+
+/// Platform models one compile may import, transitively; Model Tools refuses more.
+const MAX_IMPORTS: usize = 32;
+
+/// The LinkML source of every platform model `document` imports, transitively, by its import
+/// name (DM-75): an organization model (`org.{name}.v{major}`), or a model of `project`
+/// (`project.{name}.v{major}`), at the pinned major and published. Another project's model has
+/// no import name, and an organization model imports the organization's models only. What the
+/// caller may not read is refused like what does not exist, so an import learns nothing of a
+/// space its caller cannot see (R20).
+///
+/// ponytail: a pin resolves to the version the mirror holds, and a pin to a superseded major is
+/// refused naming both; read the source at that version's commit when consumers must stay on an
+/// older major while the organization publishes a new one.
+pub(crate) async fn resolve_imports(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    document: &Value,
+) -> Result<BTreeMap<String, String>, ApiError> {
+    let effective = crate::permissions::for_request(state, identity, project);
+    let member = crate::permissions::is_organization_member(state, identity);
+    let mut resolved = BTreeMap::new();
+    let mut todo = vec![(project.to_owned(), document.clone())];
+    while let Some((importer, document)) = todo.pop() {
+        let imports = ModelImport::all_in(&document).map_err(|err| invalid(err.to_string()))?;
+        for import in imports {
+            let key = import.to_string();
+            if resolved.contains_key(&key) {
+                continue;
+            }
+            if resolved.len() >= MAX_IMPORTS {
+                return Err(invalid(format!(
+                    "a model imports at most {MAX_IMPORTS} platform models, its imports' imports included"
+                )));
+            }
+            let refused = |why: String| invalid(format!("import '{key}': {why} (DM-75)"));
+            let home = match (import.organization, importer.as_str()) {
+                (true, _) => ORG_NAMESPACE,
+                (false, ORG_NAMESPACE) => {
+                    return Err(refused(
+                        "an organization model imports organization models only".into(),
+                    ))
+                }
+                (false, own) => own,
+            };
+            let envelope = state
+                .mirror
+                .get(home, "DataModel", &import.name)
+                .filter(|envelope| {
+                    if home == ORG_NAMESPACE {
+                        member
+                    } else {
+                        effective.may_read_in(
+                            "DataModel",
+                            envelope.spec.get("contextSpaceRef").and_then(Value::as_str),
+                        )
+                    }
+                })
+                .ok_or_else(|| {
+                    refused(if import.organization {
+                        format!("the organization has no model '{}'", import.name)
+                    } else {
+                        format!(
+                            "project '{home}' has no model '{}'; a model imports its own project's models and the organization's",
+                            import.name
+                        )
+                    })
+                })?;
+            let spec: DataModelSpec = serde_json::from_value(envelope.spec.clone())
+                .map_err(|err| refused(format!("its manifest does not read: {err}")))?;
+            if spec.version.major() != import.major {
+                return Err(refused(format!(
+                    "'{}' is at version {}, and the import pins major {}",
+                    import.name, spec.version, import.major
+                )));
+            }
+            if !matches!(
+                spec.lifecycle,
+                DataModelLifecycle::Published
+                    | DataModelLifecycle::Deprecated
+                    | DataModelLifecycle::Mirrored
+            ) {
+                return Err(refused(format!(
+                    "'{}' is {}; only a published model is imported (DM-26)",
+                    import.name, spec.lifecycle
+                )));
+            }
+            let text = read_source(state, home, &import.name).await?;
+            let parsed: Value = serde_yaml_ng::from_str(&text)
+                .map_err(|err| refused(format!("its source does not read: {err}")))?;
+            todo.push((home.to_owned(), parsed));
+            resolved.insert(key, text);
+        }
+    }
+    Ok(resolved)
+}
+
+fn invalid(detail: String) -> ApiError {
+    ApiError::Invalid {
+        errors: vec![detail.clone()],
+        detail,
+    }
+}
+
+/// Every class of the imported sources: a space's types are its own classes and the ones it
+/// imports, and the gateway admits a write by `spec.classes` (DM-61, DM-75).
+fn imported_classes(imports: &BTreeMap<String, String>) -> Vec<String> {
+    imports
+        .values()
+        .filter_map(|text| serde_yaml_ng::from_str::<Value>(text).ok())
+        .filter_map(|source| source.get("classes").and_then(Value::as_object).cloned())
+        .flat_map(|classes| classes.into_iter().map(|(name, _)| name))
+        .collect()
+}
+
+/// Every model that imports the organization model `name`, at any major, as `project/model`
+/// (DM-75): what refuses its deletion. A source that cannot be read imports nothing here.
+///
+/// ponytail: reads every model's source from the local checkout on each organization-model
+/// delete; keep an index of imports when there are thousands of models.
+pub(crate) async fn importers_of(state: &AppState, name: &str) -> Vec<String> {
+    let mut importers = Vec::new();
+    let homes = std::iter::once(ORG_NAMESPACE.to_owned()).chain(state.mirror.namespaces());
+    for namespace in homes {
+        for envelope in state
+            .mirror
+            .list(&namespace, "DataModel", &ListOptions::default())
+            .items
+        {
+            let model = &envelope.metadata.name;
+            if namespace == ORG_NAMESPACE && model == name {
+                continue;
+            }
+            let Ok(text) = read_source(state, &namespace, model).await else {
+                continue;
+            };
+            let imports = serde_yaml_ng::from_str::<Value>(&text)
+                .ok()
+                .and_then(|source| ModelImport::all_in(&source).ok())
+                .unwrap_or_default();
+            if imports
+                .iter()
+                .any(|import| import.organization && import.name == name)
+            {
+                importers.push(format!("{namespace}/{model}"));
+            }
+        }
+    }
+    importers.sort();
+    importers
+}
+
 /// Reads the LinkML source from the forge for a DataModel in a project.
 pub async fn read_source(state: &AppState, project: &str, name: &str) -> Result<String, ApiError> {
     let envelope = state
@@ -131,12 +304,6 @@ pub async fn read_source(state: &AppState, project: &str, name: &str) -> Result<
                 "DataModel '{name}' not found in project '{project}'"
             ))
         })?;
-
-    let space = envelope
-        .spec
-        .get("contextSpaceRef")
-        .and_then(Value::as_str)
-        .ok_or_else(|| ApiError::BadRequest("DataModel spec missing contextSpaceRef".into()))?;
 
     let linkml = envelope
         .spec
@@ -152,7 +319,7 @@ pub async fn read_source(state: &AppState, project: &str, name: &str) -> Result<
     let gitea: &crate::git::GiteaClient = &gitea;
 
     let default_branch = gitea.default_branch().await?;
-    let repo_path = format!("projects/{project}/spaces/{space}/datamodels/{confined}");
+    let repo_path = format!("{}/{confined}", model_folder(project, &envelope.spec, name));
 
     let file = gitea
         .get_file(&repo_path, &default_branch)
@@ -361,6 +528,7 @@ pub fn bump_version(current: &SemVer, severity: &str) -> Result<SemVer, ApiError
 pub(crate) async fn compile_artifacts(
     state: &AppState,
     source: &str,
+    imports: &BTreeMap<String, String>,
 ) -> Result<Artifacts, ApiError> {
     let base = state
         .config
@@ -374,17 +542,15 @@ pub(crate) async fn compile_artifacts(
         .build()
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let response = client
-        .post(&url)
-        .json(&GenerateRequest {
-            source: source.to_string(),
-        })
-        .send()
-        .await
-        .map_err(|err| {
-            tracing::warn!(route = "generate", error = %err, "model tools unreachable");
-            ApiError::Unavailable("the model tools service did not answer".into())
-        })?;
+    // The imported sources are the Portal's to hand over, never the caller's (DM-75).
+    let mut body = json!({ "source": source });
+    if !imports.is_empty() {
+        body["imports"] = json!(imports);
+    }
+    let response = client.post(&url).json(&body).send().await.map_err(|err| {
+        tracing::warn!(route = "generate", error = %err, "model tools unreachable");
+        ApiError::Unavailable("the model tools service did not answer".into())
+    })?;
 
     if !response.status().is_success() {
         return Err(ApiError::Unavailable(
@@ -405,12 +571,13 @@ pub(crate) async fn compile_artifacts(
 /// `change_resource` check a source the same way (AG-77).
 pub(crate) async fn check_source(
     state: &AppState,
+    identity: &Identity,
     project: &str,
     name: &str,
     spec: &Value,
     source: &str,
     version: Option<&str>,
-) -> Result<(SourceDryRunResult, Value), ApiError> {
+) -> Result<(SourceDryRunResult, Value, BTreeMap<String, String>), ApiError> {
     let next_val: Value = serde_yaml_ng::from_str(source)
         .map_err(|e| ApiError::BadRequest(format!("invalid yaml body: {e}")))?;
     // The source is committed as typed, so a pasted credential would land in Git (MF-24).
@@ -458,7 +625,8 @@ pub(crate) async fn check_source(
         });
     }
 
-    let artifacts = compile_artifacts(state, source).await?;
+    let imports = resolve_imports(state, identity, project, &next_val).await?;
+    let artifacts = compile_artifacts(state, source, &imports).await?;
     if !artifacts.errors.is_empty() {
         return Err(ApiError::Invalid {
             detail: artifacts.errors.join("; "),
@@ -474,6 +642,7 @@ pub(crate) async fn check_source(
             artifacts,
         },
         next_val,
+        imports,
     ))
 }
 
@@ -578,11 +747,7 @@ pub async fn put_source(
         Some(&envelope.spec),
     )?;
 
-    let space = envelope
-        .spec
-        .get("contextSpaceRef")
-        .and_then(Value::as_str)
-        .ok_or_else(|| ApiError::BadRequest("DataModel spec missing contextSpaceRef".into()))?;
+    let folder = model_folder(&project, &envelope.spec, &name);
 
     let linkml = envelope
         .spec
@@ -603,8 +768,9 @@ pub async fn put_source(
             .as_deref()
             .or(if creating { Some("0.1.0") } else { None });
 
-    let (checked, next_val) = check_source(
+    let (checked, next_val, imports) = check_source(
         &state,
+        &user.0.identity,
         &project,
         &name,
         &envelope.spec,
@@ -633,7 +799,9 @@ pub async fn put_source(
         .and_then(Value::as_object)
         .unwrap_or(&empty_map);
     let mut classes: Vec<String> = next_classes.keys().cloned().collect();
+    classes.extend(imported_classes(&imports));
     classes.sort();
+    classes.dedup();
 
     let artifacts_spec = GeneratedArtifacts {
         json_schema: Some(format!("./json-schema/{name}.v{major}.json")),
@@ -695,15 +863,12 @@ pub async fn put_source(
         format!("update DataModel {name} source and artifacts")
     };
 
-    let manifest_path = format!("projects/{project}/spaces/{space}/datamodels/{name}.yaml");
-    let source_path = format!("projects/{project}/spaces/{space}/datamodels/{confined_linkml}");
-    let schema_path =
-        format!("projects/{project}/spaces/{space}/datamodels/json-schema/{name}.v{major}.json");
-    let context_path =
-        format!("projects/{project}/spaces/{space}/datamodels/context/{name}.v{major}.jsonld");
-    let docs_path = format!("projects/{project}/spaces/{space}/datamodels/docs/{name}.md");
-    let example_path =
-        format!("projects/{project}/spaces/{space}/datamodels/examples/{name}.example.jsonld");
+    let manifest_path = format!("{folder}/{name}.yaml");
+    let source_path = format!("{folder}/{confined_linkml}");
+    let schema_path = format!("{folder}/json-schema/{name}.v{major}.json");
+    let context_path = format!("{folder}/context/{name}.v{major}.jsonld");
+    let docs_path = format!("{folder}/docs/{name}.md");
+    let example_path = format!("{folder}/examples/{name}.example.jsonld");
 
     let writes = [
         (&manifest_path, manifest_yaml.as_str()),
@@ -737,7 +902,10 @@ pub async fn put_source(
     }
 
     // A model that did not exist has nothing to break, so it lands in the lane a draft gets.
+    // An organization model changes for every project at once, so only an administrator
+    // approves any change to it (DM-74).
     let lane = match severity {
+        _ if project == ORG_NAMESPACE => Lane::Red,
         _ if creating => Lane::Green,
         "breaking" => Lane::Red,
         "additive" => Lane::Yellow,
@@ -798,13 +966,27 @@ pub struct OrganizationModelsQuery {
     pub search: Option<String>,
 }
 
-/// One `DataModel` of the organization as the pickers list it (DM-63).
+/// Where a model lives (DM-74, DM-78).
+#[derive(Debug, Clone, Copy, Serialize, ToSchema, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub enum ModelLevel {
+    /// In the organization repository, usable by every project of the organization.
+    Organization,
+    /// In one project, a space's model or one no space owns.
+    Project,
+}
+
+/// One `DataModel` of the organization as the pickers list it (DM-63, DM-78).
 #[derive(Debug, Serialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationModel {
     pub name: String,
+    pub level: ModelLevel,
+    /// The project it belongs to; `org` for an organization model.
     pub project: String,
-    pub space: String,
+    /// The space whose model it is; absent for a model no space owns (DM-74).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub space: Option<String>,
     pub version: String,
     pub lifecycle: String,
     pub classes: Vec<String>,
@@ -854,6 +1036,11 @@ fn organization_model(
     }
     Some(OrganizationModel {
         name: env.metadata.name.clone(),
+        level: if project == ORG_NAMESPACE {
+            ModelLevel::Organization
+        } else {
+            ModelLevel::Project
+        },
         project: project.to_owned(),
         space: spec.context_space_ref,
         version: spec.version.to_string(),
@@ -892,10 +1079,19 @@ pub async fn list_organization_datamodels(
     }
     let needle = search.to_lowercase();
 
+    let member = crate::permissions::is_organization_member(&state, &user.0.identity);
     let mut items = Vec::new();
-    for project in state.mirror.namespaces() {
+    // `namespaces` names the projects; the organization's own models are in `org` (DM-74).
+    let homes = std::iter::once(ORG_NAMESPACE.to_owned()).chain(state.mirror.namespaces());
+    for project in homes {
         let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-        if !effective.may_read("DataModel") {
+        // An organization model is every member's to read; a project's by its grants (DM-74).
+        let organization = project == ORG_NAMESPACE;
+        if !(if organization {
+            member
+        } else {
+            effective.may_read("DataModel")
+        }) {
             continue;
         }
         for env in state
@@ -906,13 +1102,13 @@ pub async fn list_organization_datamodels(
             let Some(model) = organization_model(&project, &env) else {
                 continue;
             };
-            if !effective.may_read_in("DataModel", Some(&model.space)) {
+            if !organization && !effective.may_read_in("DataModel", model.space.as_deref()) {
                 continue;
             }
             let mut haystack = vec![
                 model.name.as_str(),
                 model.project.as_str(),
-                model.space.as_str(),
+                model.space.as_deref().unwrap_or_default(),
             ];
             haystack.extend(model.classes.iter().map(String::as_str));
             if matches(&needle, &haystack) {
@@ -920,7 +1116,9 @@ pub async fn list_organization_datamodels(
             }
         }
     }
-    items.sort_by(|a, b| (&a.project, &a.space, &a.name).cmp(&(&b.project, &b.space, &b.name)));
+    items.sort_by(|a, b| {
+        (a.level, &a.project, &a.space, &a.name).cmp(&(b.level, &b.project, &b.space, &b.name))
+    });
 
     let mut smart_data_models = Vec::new();
     let mut catalogue_unavailable = None;
@@ -984,6 +1182,44 @@ mod tests {
     use super::*;
 
     /// DM-56, T-1484: a model's source stays inside its space's `datamodels/` folder.
+    // DM-01, DM-74: a space's model sits in the space's folder, one no space owns in its own.
+    #[test]
+    fn a_models_folder_follows_its_level() {
+        let space = json!({ "contextSpaceRef": "air" });
+        assert_eq!(
+            model_folder("hel", &space, "aq"),
+            "projects/hel/spaces/air/datamodels"
+        );
+        assert_eq!(
+            model_folder("hel", &json!({}), "aq"),
+            "projects/hel/datamodels/aq"
+        );
+        assert_eq!(
+            model_folder(ORG_NAMESPACE, &json!({}), "aq"),
+            "datamodels/aq"
+        );
+    }
+
+    // DM-61, DM-75: the gateway admits a write by `spec.classes`, so a space's classes include
+    // the ones it imports; an imported source that does not read adds none.
+    #[test]
+    fn imported_classes_are_every_class_of_every_imported_source() {
+        let imports = BTreeMap::from([
+            (
+                "org.a.v1".to_owned(),
+                "classes:\n  Station: {}\n  Dock: {}\n".to_owned(),
+            ),
+            (
+                "project.b.v2".to_owned(),
+                "classes:\n  Kiosk: {}\n".to_owned(),
+            ),
+            ("org.c.v1".to_owned(), ": not yaml [".to_owned()),
+        ]);
+        let mut classes = imported_classes(&imports);
+        classes.sort();
+        assert_eq!(classes, ["Dock", "Kiosk", "Station"]);
+    }
+
     #[test]
     fn confine_linkml_path_keeps_a_source_inside_its_folder() {
         assert_eq!(

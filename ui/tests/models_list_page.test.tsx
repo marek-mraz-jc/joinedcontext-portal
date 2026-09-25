@@ -10,6 +10,7 @@ import { jsonResponse, list, renderRoute } from "./pageHarness";
 import { usesOfModel } from "../src/pages/models/modelUsage";
 import { yamlParts } from "../src/pages/models/ModelViews";
 import { lastChangeOf } from "../src/pages/models/ModelsList";
+import { organizationImportName } from "../src/pages/models/OrganizationModels";
 import type { Manifest } from "../src/api/manifest";
 
 const manifest = (kind: string, name: string, spec: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
@@ -135,6 +136,73 @@ describe("the list of data models", () => {
     await renderRoute({ path: "/projects/helsinki/models?new=blank", answer });
     expect(await screen.findByRole("tab", { name: en.models.view.editor, selected: true })).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: en.models.page.listCaption })).toBeNull();
+  });
+});
+
+/** The organization's list (DM-63, DM-78): one organization model and one of this project. */
+const ORGANIZATION = {
+  items: [
+    { name: "stations", level: "organization", project: "org", version: "2.1.0", lifecycle: "published", classes: ["Station", "Dock"] },
+    { name: "air", level: "project", project: "helsinki", space: "ilma", version: "1.2.0", lifecycle: "published", classes: ["Station"] },
+  ],
+  smartDataModels: [],
+};
+
+const withOrganization =
+  (organization: unknown) =>
+  (path: string): Response | undefined =>
+    path === "/api/v1/organization/datamodels" ? jsonResponse(organization) : answer(path);
+
+describe("organization models beside the project's (T-2883, DM-74, DM-78)", () => {
+  it("shows two sections, the organization's read-only with the name a model imports it by", async () => {
+    await renderRoute({ path: "/projects/helsinki/models", answer: withOrganization(ORGANIZATION) });
+    expect(await screen.findByRole("heading", { level: 2, name: en.models.page.projectSection })).toBeInTheDocument();
+    const section = await screen.findByRole("region", { name: en.models.page.organizationSection });
+    const table = await within(section).findByRole("table", { name: en.models.page.organizationCaption });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("stations");
+    expect(rows[0]).toHaveTextContent("Station, Dock");
+    expect(rows[0]).toHaveTextContent("org.stations.v2");
+    expect(within(section).queryByRole("button")).toBeNull();
+    expect(within(section).getByRole("link", { name: en.models.page.organizationOpen })).toHaveAttribute(
+      "href",
+      "/organization/models",
+    );
+  });
+
+  it("says the organization shares none when the list holds no organization model", async () => {
+    await renderRoute({ path: "/projects/helsinki/models", answer: withOrganization({ ...ORGANIZATION, items: [ORGANIZATION.items[1]] }) });
+    const section = await screen.findByRole("region", { name: en.models.page.organizationSection });
+    expect(await within(section).findByText(en.models.page.organizationEmpty)).toBeInTheDocument();
+    expect(within(section).queryByRole("table")).toBeNull();
+  });
+
+  it("gives the reason and a retry when the organization's list cannot be read", async () => {
+    await renderRoute({
+      path: "/projects/helsinki/models",
+      answer: (path) =>
+        path === "/api/v1/organization/datamodels"
+          ? jsonResponse({ title: "Unavailable", status: 503, detail: "the mirror is loading" }, 503)
+          : answer(path),
+    });
+    const section = await screen.findByRole("region", { name: en.models.page.organizationSection });
+    expect(await within(section).findByText(/the mirror is loading/)).toBeInTheDocument();
+    // The project's own models are unaffected.
+    expect(await screen.findByRole("table", { name: en.models.page.listCaption })).toBeInTheDocument();
+  });
+
+  it("names the import by the major version alone", () => {
+    expect(organizationImportName("stations", "2.1.0")).toBe("org.stations.v2");
+    expect(organizationImportName("air", "0.3.1")).toBe("org.air.v0");
+  });
+
+  it("lists them on the Organization page's Data models tab", async () => {
+    await renderRoute({ path: "/organization/models", answer: withOrganization(ORGANIZATION) });
+    expect(await screen.findByRole("tab", { name: en.organization.tab.models, selected: true })).toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: en.models.page.organizationCaption });
+    expect(table).toHaveTextContent("org.stations.v2");
+    expect(screen.queryByRole("link", { name: en.models.page.organizationOpen })).toBeNull();
   });
 });
 

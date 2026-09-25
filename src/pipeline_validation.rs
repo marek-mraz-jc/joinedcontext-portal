@@ -90,8 +90,8 @@ pub fn load(
             (model.kind == "DataModel"
                 && model.namespace.as_deref() == Some(project.as_str())
                 && model.name == named.name()
-                && spec.context_space_ref == id.name)
-                .then_some((found.path.clone(), spec))
+                && spec.context_space_ref.as_deref() == Some(id.name.as_str()))
+            .then_some((found.path.clone(), spec))
         });
         let Some((manifest, spec)) = model else {
             tracing::warn!(project = %project, space = %id.name, model = %named.name(), "the space names a model it does not hold; its pipelines are not validated");

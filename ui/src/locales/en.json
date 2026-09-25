@@ -1870,7 +1870,14 @@
       "copyYaml": "Copy the YAML",
       "downloadYaml": "Download the YAML",
       "copied": "Copied.",
-      "copyFailed": "The browser did not allow copying; select the text and copy it instead."
+      "copyFailed": "The browser did not allow copying; select the text and copy it instead.",
+      "projectSection": "This project's models",
+      "organizationSection": "Organization models",
+      "organizationLead": "Shared by the organization with every project. Organization administrators change them; a model of this project uses one by importing it.",
+      "organizationEmpty": "The organization shares no data model yet.",
+      "organizationCaption": "The organization's data models",
+      "importAs": "Import as",
+      "organizationOpen": "Open on the Organization page"
     },
     "hints": {
       "title": "This model has no class yet. Three steps to start:",
@@ -3564,6 +3571,7 @@
       "roles": "Roles",
       "groups": "Groups",
       "service-accounts": "Service accounts",
+      "models": "Organization models",
       "projects": "Projects",
       "setup": "Setup",
       "health": "Health"
@@ -4077,7 +4085,7 @@
     "chosen": "Chosen: {label}",
     "remove": "Remove {name}",
     "model": {
-      "group": "{project} / {space}",
+      "group": "Project {project} / {space}",
       "catalogue": "Smart Data Models",
       "none": "No data model matches.",
       "create": "New data model “{name}”",
@@ -4089,7 +4097,9 @@
         "deprecated": "deprecated",
         "retired": "retired",
         "mirrored": "mirrored"
-      }
+      },
+      "groupProject": "Project {project}",
+      "groupOrganization": "Organization models"
     },
     "type": {
       "local": "Types of {space}",
@@ -4097,7 +4107,9 @@
       "imported": "Imported from {name}",
       "none": "The model of {space} declares no type yet.",
       "noneInProject": "No data model of this project declares a type yet.",
-      "create": "New type “{name}”"
+      "create": "New type “{name}”",
+      "modelGroupOwn": "{name} (project model)",
+      "importedOrganization": "Imported from the organization model {name}"
     },
     "createNamed": "New: “{name}”",
     "list": "Choices"

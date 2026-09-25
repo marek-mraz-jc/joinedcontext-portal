@@ -13508,6 +13508,14 @@
           }
         }
       },
+      "ModelLevel": {
+        "type": "string",
+        "description": "Where a model lives (DM-74, DM-78).",
+        "enum": [
+          "organization",
+          "project"
+        ]
+      },
       "Need": {
         "type": "object",
         "description": "One thing a copy cannot carry (CC-84, API/01 §10).",
@@ -13912,11 +13920,11 @@
       },
       "OrganizationModel": {
         "type": "object",
-        "description": "One `DataModel` of the organization as the pickers list it (DM-63).",
+        "description": "One `DataModel` of the organization as the pickers list it (DM-63, DM-78).",
         "required": [
           "name",
+          "level",
           "project",
-          "space",
           "version",
           "lifecycle",
           "classes"
@@ -13928,6 +13936,9 @@
               "type": "string"
             }
           },
+          "level": {
+            "$ref": "#/components/schemas/ModelLevel"
+          },
           "lifecycle": {
             "type": "string"
           },
@@ -13935,10 +13946,15 @@
             "type": "string"
           },
           "project": {
-            "type": "string"
+            "type": "string",
+            "description": "The project it belongs to; `org` for an organization model."
           },
           "space": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The space whose model it is; absent for a model no space owns (DM-74)."
           },
           "version": {
             "type": "string"

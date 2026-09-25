@@ -33,9 +33,9 @@ export interface DataModelPickerProps {
 }
 
 /**
- * Every data model the person may read, grouped by project and space with the version, and the
- * Smart Data Models entries a search matches (ADR-N-033, DM-63). The list is the server's, which
- * holds nothing the caller cannot read.
+ * Every data model the person may read, grouped by level, project and space with the version, and
+ * the Smart Data Models entries a search matches (ADR-N-033, DM-63, DM-78). The list is the
+ * server's, which holds nothing the caller cannot read.
  */
 export function DataModelPicker({
   id,
@@ -60,9 +60,11 @@ export function DataModelPicker({
   const data = query.data;
 
   const { options, choices } = useMemo(() => {
-    const models = (data?.items ?? []).filter((m) => only === undefined || m.project === only).sort(
-      (a, b) => Number(b.project === project) - Number(a.project === project),
-    );
+    // The form's own project first, then the organization's models, then every other project.
+    const rank = (m: OrganizationModel) => (m.project === project ? 0 : m.level === "organization" ? 1 : 2);
+    const models = (data?.items ?? [])
+      .filter((m) => only === undefined || m.project === only)
+      .sort((a, b) => rank(a) - rank(b));
     const entries = catalogue ? (data?.smartDataModels ?? []) : [];
     const choices = new Map<string, ModelChoice>();
     const options: PickerOption[] = [];
@@ -73,7 +75,12 @@ export function DataModelPicker({
         value,
         label: model.name,
         detail: model.classes.join(", "),
-        group: t("picker.model.group", { project: model.project, space: model.space }),
+        group:
+          model.level === "organization"
+            ? t("picker.model.groupOrganization")
+            : model.space
+              ? t("picker.model.group", { project: model.project, space: model.space })
+              : t("picker.model.groupProject", { project: model.project }),
         badge:
           model.lifecycle === "published"
             ? `v${model.version}`

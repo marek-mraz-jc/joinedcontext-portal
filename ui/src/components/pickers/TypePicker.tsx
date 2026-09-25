@@ -29,12 +29,21 @@ export interface TypePickerProps {
   describedBy?: string;
 }
 
+/** A platform-model import (DM-75): `org.{name}.v{major}` or `project.{name}.v{major}`. */
+const MODEL_IMPORT = /^(org|project)\.([a-z0-9](?:[-a-z0-9]*[a-z0-9])?)\.v(?:0|[1-9][0-9]*)$/;
+
+/** A model one source imports: by its platform name with its level, or by a file or URL's name. */
+export interface ImportedModel {
+  name: string;
+  level?: "organization" | "project";
+}
+
 /**
- * The model names an `imports:` entry of a LinkML source points at: the last path segment without
- * its extension (`../air/air-quality.linkml.yaml` → `air-quality`). `linkml:types` and the other
- * LinkML built-ins name no model and are skipped.
+ * The models a LinkML source imports: `org.`/`project.` names with their level (DM-75), and the
+ * last segment of any other file or URL import. LinkML's own `linkml:` imports and a source that
+ * does not parse import nothing here.
  */
-export function importedNames(source: string): string[] {
+export function importedNames(source: string): ImportedModel[] {
   let doc: unknown;
   try {
     doc = parse(source);
@@ -47,8 +56,14 @@ export function importedNames(source: string): string[] {
   }
   return imports
     .filter((entry): entry is string => typeof entry === "string" && !entry.startsWith("linkml:"))
-    .map((entry) => (entry.split(/[/#]/).pop() ?? "").replace(/\.linkml\.ya?ml$|\.ya?ml$/, ""))
-    .filter((name) => name !== "");
+    .map((entry): ImportedModel => {
+      const platform = MODEL_IMPORT.exec(entry);
+      if (platform) {
+        return { name: platform[2], level: platform[1] === "org" ? "organization" : "project" };
+      }
+      return { name: (entry.split(/[/#]/).pop() ?? "").replace(/\.linkml\.ya?ml$|\.ya?ml$/, "") };
+    })
+    .filter((imported) => imported.name !== "");
 }
 
 /**
@@ -99,14 +114,32 @@ export function TypePicker({
       }
     };
     for (const model of local) {
-      add(model, space === undefined ? t("picker.type.modelGroup", { name: model.name, space: model.space }) : t("picker.type.local", { space }));
+      add(
+        model,
+        space !== undefined
+          ? t("picker.type.local", { space })
+          : model.space
+            ? t("picker.type.modelGroup", { name: model.name, space: model.space })
+            : t("picker.type.modelGroupOwn", { name: model.name }),
+      );
     }
     const imported = sources.flatMap((s) => (s.data ? importedNames(s.data) : []));
-    for (const name of imported) {
+    for (const { name, level } of imported) {
       const model =
-        models.find((m) => m.name === name && m.project === project) ?? models.find((m) => m.name === name);
+        level === "organization"
+          ? models.find((m) => m.name === name && m.level === "organization")
+          : level === "project"
+            ? models.find((m) => m.name === name && m.project === project)
+            : // A file or URL import names no organization model: those have a platform name.
+              (models.find((m) => m.name === name && m.project === project) ??
+              models.find((m) => m.name === name && m.level !== "organization"));
       if (model && !local.includes(model)) {
-        add(model, t("picker.type.imported", { name: `${model.project}/${model.name}` }));
+        add(
+          model,
+          model.level === "organization"
+            ? t("picker.type.importedOrganization", { name: model.name })
+            : t("picker.type.imported", { name: `${model.project}/${model.name}` }),
+        );
       }
     }
     return out;

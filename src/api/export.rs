@@ -554,7 +554,16 @@ async fn model_files(state: &AppState, file: &Exported, all: &[Exported]) -> Mod
     if model.json_schema.is_none() {
         match &model.linkml {
             Some(source) => {
-                match crate::api::datamodels::compile_artifacts(state, source).await {
+                // A model saved through the Portal commits its JSON Schema, imports resolved
+                // (DM-75), so this fallback compiles only a hand-committed source; one that
+                // imports a platform model says so in `missing` (T-2885 carries the imports).
+                match crate::api::datamodels::compile_artifacts(
+                    state,
+                    source,
+                    &std::collections::BTreeMap::new(),
+                )
+                .await
+                {
                     Ok(artifacts) if artifacts.json_schema.is_some() => {
                         model.json_schema = artifacts.json_schema;
                     }

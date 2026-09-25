@@ -1870,7 +1870,14 @@
       "copyYaml": "YAML kopieren",
       "downloadYaml": "YAML herunterladen",
       "copied": "Kopiert.",
-      "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst."
+      "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst.",
+      "projectSection": "Modelle dieses Projekts",
+      "organizationSection": "Modelle der Organisation",
+      "organizationLead": "Die Organisation teilt sie mit jedem Projekt. Administratoren der Organisation ändern sie; ein Modell dieses Projekts nutzt eines, indem es es importiert.",
+      "organizationEmpty": "Die Organisation teilt noch kein Datenmodell.",
+      "organizationCaption": "Datenmodelle der Organisation",
+      "importAs": "Importieren als",
+      "organizationOpen": "Auf der Seite Organisation öffnen"
     },
     "hints": {
       "title": "Dieses Modell hat noch keine Klasse. Drei Schritte zum Anfang:",
@@ -3564,6 +3571,7 @@
       "roles": "Rollen",
       "groups": "Gruppen",
       "service-accounts": "Dienstkonten",
+      "models": "Modelle der Organisation",
       "projects": "Projekte",
       "setup": "Einrichtung",
       "health": "Prüfstatus"
@@ -4077,7 +4085,7 @@
     "chosen": "Gewählt: {label}",
     "remove": "{name} entfernen",
     "model": {
-      "group": "{project} / {space}",
+      "group": "Projekt {project} / {space}",
       "catalogue": "Smart Data Models",
       "none": "Kein Datenmodell passt.",
       "create": "Neues Datenmodell „{name}“",
@@ -4089,7 +4097,9 @@
         "deprecated": "veraltet",
         "retired": "ausgemustert",
         "mirrored": "gespiegelt"
-      }
+      },
+      "groupProject": "Projekt {project}",
+      "groupOrganization": "Modelle der Organisation"
     },
     "type": {
       "local": "Typen von {space}",
@@ -4097,7 +4107,9 @@
       "imported": "Importiert aus {name}",
       "none": "Das Modell von {space} deklariert noch keinen Typ.",
       "noneInProject": "Kein Datenmodell dieses Projekts deklariert bisher einen Typ.",
-      "create": "Neuer Typ „{name}“"
+      "create": "Neuer Typ „{name}“",
+      "modelGroupOwn": "{name} (Projektmodell)",
+      "importedOrganization": "Importiert aus dem Organisationsmodell {name}"
     },
     "createNamed": "Neu: „{name}“",
     "list": "Auswahl"

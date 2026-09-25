@@ -1870,7 +1870,14 @@
       "copyYaml": "Kopírovat YAML",
       "downloadYaml": "Stáhnout YAML",
       "copied": "Zkopírováno.",
-      "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte ho ručně."
+      "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte ho ručně.",
+      "projectSection": "Modely tohoto projektu",
+      "organizationSection": "Modely organizace",
+      "organizationLead": "Organizace je sdílí se všemi projekty. Mění je správci organizace; model tohoto projektu je používá importem.",
+      "organizationEmpty": "Organizace zatím nesdílí žádný datový model.",
+      "organizationCaption": "Datové modely organizace",
+      "importAs": "Importovat jako",
+      "organizationOpen": "Otevřít na stránce Organizace"
     },
     "hints": {
       "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",
@@ -3564,6 +3571,7 @@
       "roles": "Role",
       "groups": "Skupiny",
       "service-accounts": "Servisní účty",
+      "models": "Modely organizace",
       "projects": "Projekty",
       "setup": "Nastavení",
       "health": "Stav ověření"
@@ -4077,7 +4085,7 @@
     "chosen": "Vybrané: {label}",
     "remove": "Odebrat {name}",
     "model": {
-      "group": "{project} / {space}",
+      "group": "Projekt {project} / {space}",
       "catalogue": "Smart Data Models",
       "none": "Žádný datový model neodpovídá.",
       "create": "Nový datový model „{name}“",
@@ -4089,7 +4097,9 @@
         "deprecated": "zastaralý",
         "retired": "vyřazený",
         "mirrored": "zrcadlený"
-      }
+      },
+      "groupProject": "Projekt {project}",
+      "groupOrganization": "Modely organizace"
     },
     "type": {
       "local": "Typy prostoru {space}",
@@ -4097,7 +4107,9 @@
       "imported": "Importováno z {name}",
       "none": "Model prostoru {space} zatím nedeklaruje žádný typ.",
       "noneInProject": "Žádný datový model tohoto projektu zatím nedeklaruje typ.",
-      "create": "Nový typ „{name}“"
+      "create": "Nový typ „{name}“",
+      "modelGroupOwn": "{name} (model projektu)",
+      "importedOrganization": "Importováno z modelu organizace {name}"
     },
     "createNamed": "Nové: „{name}“",
     "list": "Možnosti"

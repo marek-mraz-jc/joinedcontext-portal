@@ -3516,6 +3516,11 @@ export interface components {
             severity: string;
             subject: string;
         };
+        /**
+         * @description Where a model lives (DM-74, DM-78).
+         * @enum {string}
+         */
+        ModelLevel: "organization" | "project";
         /** @description One thing a copy cannot carry (CC-84, API/01 §10). */
         Need: {
             /** @description `secret`, `person` or `host`. */
@@ -3654,13 +3659,16 @@ export interface components {
             outputSchema: Record<string, never>;
             title: string;
         };
-        /** @description One `DataModel` of the organization as the pickers list it (DM-63). */
+        /** @description One `DataModel` of the organization as the pickers list it (DM-63, DM-78). */
         OrganizationModel: {
             classes: string[];
+            level: components["schemas"]["ModelLevel"];
             lifecycle: string;
             name: string;
+            /** @description The project it belongs to; `org` for an organization model. */
             project: string;
-            space: string;
+            /** @description The space whose model it is; absent for a model no space owns (DM-74). */
+            space?: string | null;
             version: string;
         };
         OrganizationModels: {

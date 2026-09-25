@@ -387,6 +387,17 @@ pub async fn delete_with_identity(
         });
     }
 
+    // 2a. An organization model a model imports stays; retiring it is the way out (DM-75, DM-26).
+    if kind_info.kind == "DataModel" && project == crate::permissions::ORG_NAMESPACE {
+        let importers = crate::api::datamodels::importers_of(state, name).await;
+        if !importers.is_empty() {
+            return Err(ApiError::Conflict(format!(
+                "organization model '{name}' is imported by {}; change those imports first, or set its lifecycle to retired (DM-26, DM-75)",
+                importers.join(", ")
+            )));
+        }
+    }
+
     // 2b. A Group leaves every binding and access entry that names it, in the same Change
     //     (PF-95): the deleter needs the rights each of those edits needs, and together they
     //     may not leave the organization without an administrator (PF-03).
