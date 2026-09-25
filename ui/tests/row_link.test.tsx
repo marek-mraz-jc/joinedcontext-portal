@@ -191,6 +191,22 @@ interface Listed {
 
 const LISTS: Listed[] = [
   {
+    list: "CKAN catalogues",
+    path: "/projects/helsinki/ckan",
+    api: "/api/v1/projects/helsinki/ckan/status",
+    body: {
+      instances: [{ name: "open-data", url: "https://data.hel.fi", organizationDefault: "helsinki", apiTokenRef: "ckan-open-data" }],
+      publications: [],
+    },
+    more: {
+      "/api/v1/projects/helsinki/ckaninstances": list([manifest("CkanInstance", "open-data", { url: "https://data.hel.fi" })]),
+      "/api/v1/projects/helsinki/ckaninstances/open-data": manifest("CkanInstance", "open-data", { url: "https://data.hel.fi" }),
+    },
+    record: "open-data",
+    opens: "/projects/helsinki/ckaninstances/open-data/edit",
+    shows: "Edit open-data",
+  },
+  {
     list: "project roles",
     path: "/projects/helsinki/settings/roles",
     api: "/api/v1/projects/helsinki/roles",
@@ -479,6 +495,51 @@ describe("every card of a record opens it on a click on the card", () => {
       });
     });
   }
+});
+
+describe("a copy of the project opens on a click on its row", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("workspaces: a plain cell opens the copy where its Open goes, Discard does not", async () => {
+    await renderRoute({
+      path: "/projects/helsinki/workspaces?lang=en",
+      answer: (path, request) =>
+        request.method === "GET" && path === "/api/v1/projects/helsinki/workspaces"
+          ? jsonResponse(
+              list([
+                {
+                  name: "ws-air",
+                  title: "Air quality rework",
+                  owner: "viewer@hel.fi",
+                  scope: { kind: "project" },
+                  expiresAt: "2026-12-01T00:00:00Z",
+                  previewState: "running",
+                },
+              ]),
+            )
+          : undefined,
+    });
+    const link = await screen.findByRole("link", { name: "Air quality rework" });
+    expect(link).toHaveAttribute("data-row-link");
+    const row = link.closest("tr") as HTMLTableRowElement;
+    const discard = within(row).queryByRole("button", { name: /Discard/ });
+    if (discard) {
+      await userEvent.click(discard);
+      await userEvent.keyboard("{Escape}");
+      expect(window.location.pathname).toBe("/projects/helsinki/workspaces");
+    }
+    await userEvent.click(within(row).getByText("The whole project"));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/helsinki/spaces");
+    });
+    expect(new URLSearchParams(window.location.search).get("workspace")).toBe("ws-air");
+  });
 });
 
 const READER = { project: "helsinki", bootstrap: false, grants: [{ rule: { kinds: ["*"], verbs: ["read"] } }] };

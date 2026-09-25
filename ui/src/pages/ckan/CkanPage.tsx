@@ -9,6 +9,7 @@ import type { Change, ResourceProposal } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
+import { RecordLink } from "../../components/RecordLink";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 import {
@@ -209,7 +210,10 @@ function Instances({
           <TableBody>
             {instances.map((instance) => (
               <TableRow key={instance.name}>
-                <TableCell className="font-mono">{instance.name}</TableCell>
+                <TableCell className="font-mono">
+                  {/* The kind's own edit address: the same form as the row's Edit (T-2875). */}
+                  <RecordLink project={project} plural="ckaninstances" name={instance.name} />
+                </TableCell>
                 <TableCell>
                   <ExternalLink href={instance.url} hideIcon className="hover:no-underline">
                     {instance.url}
