@@ -531,6 +531,14 @@
         "edit_keeps_stored_metadata.test.ts"
       ]
     },
+    "src/pages/access/GroupPage.tsx": {
+      "controls": {
+        "Button": 6
+      },
+      "tests": [
+        "group_page.test.tsx"
+      ]
+    },
     "src/pages/access/OrganizationDomain.tsx": {
       "controls": {
         "Button": 1

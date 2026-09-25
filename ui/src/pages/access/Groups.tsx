@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
@@ -268,7 +269,13 @@ export function Groups({ project }: { project: string }): JSX.Element {
                 rows.map((row) => (
                   <TableRow key={row.name}>
                     <TableCell primary>
-                      <div>{row.name}</div>
+                      <Link
+                        to="/organization/$tab/$"
+                        params={{ tab: "groups", _splat: encodeURIComponent(row.name) }}
+                        className="underline"
+                      >
+                        {row.name}
+                      </Link>
                       {row.description ? (
                         <div className="mt-0.5 text-caption text-fg-subtle">{row.description}</div>
                       ) : null}
