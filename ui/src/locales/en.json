@@ -1752,12 +1752,78 @@
       "copyFailed": "The browser did not allow copying; select the text and copy it instead."
     },
     "hints": {
-      "title": "This model has no class yet. Three ways to start:",
-      "sdm": "Import a Smart Data Model: its classes, fields and enums arrive written.",
+      "title": "This model has no class yet. Three steps to start:",
+      "sdm": "Or import a Smart Data Model: its classes, fields and enums arrive written.",
       "sdmAction": "Import a Smart Data Model",
       "klass": "Add a class: name it in the box under Classes, for example School.",
       "klassAction": "Name the first class",
-      "relation": "Add a relation: once there are two classes, give one a slot whose range is the other, for example School has users of the class User."
+      "relation": "Add a relationship: under Relationships, pick the target class and the cardinality, for example one School has many User entities.",
+      "field": "Add a field: with the class open, name it under Slots, for example name."
+    },
+    "rangeBasic": "Basic types",
+    "rangeEnums": "Enums",
+    "rangeClasses": "Classes (opens Add a relationship)",
+    "relationships": {
+      "title": "Relationships",
+      "intro": "Links from {owner} to entities of a class. Entities store one end; the inverse is computed on read.",
+      "none": "{owner} has no relationship yet.",
+      "name": "Name",
+      "other": "Other class",
+      "cardinality": "Cardinality",
+      "inverse": "Inverse",
+      "required": "Required",
+      "onDelete": "On delete",
+      "actions": "Actions",
+      "remove": "Remove",
+      "removeLabel": "Remove the relationship {name}",
+      "cardinalityOf": "Cardinality of {name}",
+      "onDeleteOf": "On delete of {name}",
+      "confirmTitle": "Remove the relationship {name}?",
+      "confirmBody": "Both ends leave the model: {source}.{sourceSlot} and {target}.{targetSlot}.",
+      "sentence": {
+        "one-to-one": "One {source} has one {target}",
+        "one-to-many": "One {source} has many {target} entities",
+        "many-to-one": "Many {source} entities share one {target}",
+        "many-to-many": "Many {source} entities have many {target} entities"
+      },
+      "cardinalityName": {
+        "one-to-one": "One to one",
+        "one-to-many": "One to many",
+        "many-to-one": "Many to one",
+        "many-to-many": "Many to many"
+      },
+      "onDeleteName": {
+        "restrict": "Restrict",
+        "cascade": "Cascade",
+        "set-null": "Set null"
+      },
+      "onDeleteHint": {
+        "restrict": "Deleting an entity is refused while others still point at it.",
+        "cascade": "Deleting an entity also deletes the entities that point at it.",
+        "set-null": "Deleting an entity removes the relationship from the entities that pointed at it."
+      },
+      "missingInverse": "{name} points at {target} but names no inverse, so it is no relationship yet.",
+      "addInverse": "Add the inverse {inverse} on {target}",
+      "add": {
+        "title": "Add a relationship from {owner}",
+        "cardinalityHint": "Read from {owner} to the target class.",
+        "target": "Target class",
+        "targetHint": "A class of this model; the inverse is written on it.",
+        "targetNone": "Choose a class",
+        "name": "Name on {owner}",
+        "nameHint": "The field on {owner} that points at the target, suggested from the target.",
+        "inverse": "Inverse on {target}",
+        "inverseHint": "The field on the target that points back. Every relationship has one.",
+        "requiredOn": "Required on {owner}",
+        "requiredStored": "Each {owner} entity has to name one.",
+        "requiredComputed": "Computed on read from the other end, so it cannot be required.",
+        "onDeleteHint": "What happens to the entities pointing at one that is deleted.",
+        "submit": "Add relationship",
+        "nameEmpty": "Name the field.",
+        "nameInvalid": "Letters, digits and _ only, starting with a letter.",
+        "nameTaken": "A field named {name} already exists.",
+        "inverseSame": "The inverse is a second field; give it another name."
+      }
     }
   },
   "apps": {

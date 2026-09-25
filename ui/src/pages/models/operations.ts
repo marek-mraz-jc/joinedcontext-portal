@@ -133,6 +133,11 @@ export interface Applied {
  */
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+/** Whether `name` can be a class or slot name: the rule `requireName` refuses on, for forms to check first. */
+export function isName(name: string): boolean {
+  return NAME.test(name);
+}
+
 class Refused extends Error {}
 
 function refuse(reason: string): never {

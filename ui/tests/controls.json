@@ -900,7 +900,8 @@
         "linkml_enum_values.test.tsx",
         "linkml_imports_enums.test.tsx",
         "linkml_source_editor.test.tsx",
-        "linkml_visual_editor.test.tsx"
+        "linkml_visual_editor.test.tsx",
+        "relationship_editor.test.tsx"
       ]
     },
     "src/pages/models/MappingsEditor.tsx": {
@@ -961,6 +962,16 @@
       },
       "tests": [
         "models_page_save.test.tsx"
+      ]
+    },
+    "src/pages/models/RelationshipEditor.tsx": {
+      "controls": {
+        "Button": 3,
+        "Checkbox": 2,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "relationship_editor.test.tsx"
       ]
     },
     "src/pages/models/SmartDataModelsImport.tsx": {

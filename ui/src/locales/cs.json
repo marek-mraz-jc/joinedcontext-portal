@@ -1752,12 +1752,78 @@
       "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte ho ručně."
     },
     "hints": {
-      "title": "Tento model zatím nemá třídu. Tři způsoby, jak začít:",
-      "sdm": "Importujte Smart Data Model: jeho třídy, pole a enumy přijdou už napsané.",
+      "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",
+      "sdm": "Nebo importujte Smart Data Model: jeho třídy, pole a enumy přijdou už napsané.",
       "sdmAction": "Importovat Smart Data Model",
       "klass": "Přidejte třídu: pojmenujte ji v poli pod Třídami, například School.",
       "klassAction": "Pojmenovat první třídu",
-      "relation": "Přidejte vztah: když jsou dvě třídy, dejte jedné slot, jehož rozsah je ta druhá, například School má users třídy User."
+      "relation": "Přidejte vztah: pod Vztahy vyberte cílovou třídu a kardinalitu, například jedna School má mnoho entit User.",
+      "field": "Přidejte pole: s otevřenou třídou ho pojmenujte pod Atributy, například name."
+    },
+    "rangeBasic": "Základní typy",
+    "rangeEnums": "Enumy",
+    "rangeClasses": "Třídy (otevře Přidat vztah)",
+    "relationships": {
+      "title": "Vztahy",
+      "intro": "Odkazy z {owner} na entity třídy. Entity ukládají jeden konec; inverzní se počítá při čtení.",
+      "none": "{owner} zatím nemá vztah.",
+      "name": "Název",
+      "other": "Druhá třída",
+      "cardinality": "Kardinalita",
+      "inverse": "Inverzní",
+      "required": "Povinný",
+      "onDelete": "Při smazání",
+      "actions": "Akce",
+      "remove": "Odstranit",
+      "removeLabel": "Odstranit vztah {name}",
+      "cardinalityOf": "Kardinalita vztahu {name}",
+      "onDeleteOf": "Při smazání, vztah {name}",
+      "confirmTitle": "Odstranit vztah {name}?",
+      "confirmBody": "Z modelu odejdou oba konce: {source}.{sourceSlot} a {target}.{targetSlot}.",
+      "sentence": {
+        "one-to-one": "Jedna {source} má jednu {target}",
+        "one-to-many": "Jedna {source} má mnoho entit {target}",
+        "many-to-one": "Mnoho entit {source} sdílí jednu {target}",
+        "many-to-many": "Mnoho entit {source} má mnoho entit {target}"
+      },
+      "cardinalityName": {
+        "one-to-one": "Jedna k jedné",
+        "one-to-many": "Jedna k mnoha",
+        "many-to-one": "Mnoho k jedné",
+        "many-to-many": "Mnoho k mnoha"
+      },
+      "onDeleteName": {
+        "restrict": "Zakázat",
+        "cascade": "Kaskádově",
+        "set-null": "Vyprázdnit"
+      },
+      "onDeleteHint": {
+        "restrict": "Smazání entity se odmítne, dokud na ni jiné ještě odkazují.",
+        "cascade": "Smazání entity smaže i entity, které na ni odkazují.",
+        "set-null": "Smazání entity odstraní vztah z entit, které na ni odkazovaly."
+      },
+      "missingInverse": "{name} odkazuje na {target}, ale neuvádí inverzní konec, takže ještě není vztahem.",
+      "addInverse": "Přidat inverzní {inverse} na {target}",
+      "add": {
+        "title": "Přidat vztah z {owner}",
+        "cardinalityHint": "Čtená z {owner} k cílové třídě.",
+        "target": "Cílová třída",
+        "targetHint": "Třída tohoto modelu; inverzní konec se zapíše na ni.",
+        "targetNone": "Vyberte třídu",
+        "name": "Název na {owner}",
+        "nameHint": "Pole na {owner}, které odkazuje na cíl, navržené podle cíle.",
+        "inverse": "Inverzní na {target}",
+        "inverseHint": "Pole na cíli, které odkazuje zpět. Každý vztah ho má.",
+        "requiredOn": "Povinný na {owner}",
+        "requiredStored": "Každá entita {owner} musí jednu uvést.",
+        "requiredComputed": "Počítá se při čtení z druhého konce, proto nemůže být povinný.",
+        "onDeleteHint": "Co se stane s entitami, které odkazují na smazanou.",
+        "submit": "Přidat vztah",
+        "nameEmpty": "Pojmenujte pole.",
+        "nameInvalid": "Jen písmena, číslice a _, na začátku písmeno.",
+        "nameTaken": "Pole s názvem {name} už existuje.",
+        "inverseSame": "Inverzní konec je druhé pole; dejte mu jiný název."
+      }
     }
   },
   "apps": {
