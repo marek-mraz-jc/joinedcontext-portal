@@ -3,7 +3,7 @@
 //! The token contributes identity only (`sub`, e-mail, username, groups); no permission is
 //! read from it. A caller without a binding reads and proposes nothing.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use jc_core::kinds::{
@@ -447,31 +447,15 @@ pub enum AccessChange<'a> {
 /// that has none yet (it runs on the bootstrap group) is not held to it: the guard stops the last
 /// one from going, it does not demand a first.
 pub fn keeps_an_administrator(mirror: &Mirror, change: AccessChange<'_>) -> Result<(), ApiError> {
-    let (kind, namespace, name, written) = match change {
-        AccessChange::Write(manifest) => (
-            manifest
-                .get("kind")
-                .and_then(Value::as_str)
-                .unwrap_or_default(),
-            manifest
-                .pointer("/metadata/namespace")
-                .and_then(Value::as_str)
-                .unwrap_or(ORG_NAMESPACE),
-            manifest
-                .pointer("/metadata/name")
-                .and_then(Value::as_str)
-                .unwrap_or_default(),
-            manifest.get("spec").cloned(),
-        ),
-        AccessChange::Remove {
-            kind,
-            namespace,
-            name,
-        } => (kind, namespace, name, None),
-    };
-    if !matches!(kind, "Role" | "RoleBinding") || !matches!(namespace, ORG_NAMESPACE | "") {
-        return Ok(());
-    }
+    keeps_an_administrator_after(mirror, &[change])
+}
+
+/// [`keeps_an_administrator`] for several access changes that land together, judged on the state
+/// after all of them: two removals that each leave an administrator can together leave none.
+pub fn keeps_an_administrator_after(
+    mirror: &Mirror,
+    changes: &[AccessChange<'_>],
+) -> Result<(), ApiError> {
     let mut roles: BTreeMap<String, Value> = mirror
         .list(ORG_NAMESPACE, "Role", &ListOptions::default())
         .items
@@ -489,16 +473,45 @@ pub fn keeps_an_administrator(mirror: &Mirror, change: AccessChange<'_>) -> Resu
     if before.is_empty() {
         return Ok(());
     }
-    let table = if kind == "Role" {
-        &mut roles
-    } else {
-        &mut bindings
-    };
-    match written {
-        Some(spec) => table.insert(name.to_owned(), spec),
-        None => table.remove(name),
-    };
-    if administrators(&roles, &bindings, now).is_empty() {
+    let mut touched = false;
+    for change in changes {
+        let (kind, namespace, name, written) = match change {
+            AccessChange::Write(manifest) => (
+                manifest
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                manifest
+                    .pointer("/metadata/namespace")
+                    .and_then(Value::as_str)
+                    .unwrap_or(ORG_NAMESPACE),
+                manifest
+                    .pointer("/metadata/name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                manifest.get("spec").cloned(),
+            ),
+            AccessChange::Remove {
+                kind,
+                namespace,
+                name,
+            } => (*kind, *namespace, *name, None),
+        };
+        if !matches!(kind, "Role" | "RoleBinding") || !matches!(namespace, ORG_NAMESPACE | "") {
+            continue;
+        }
+        touched = true;
+        let table = if kind == "Role" {
+            &mut roles
+        } else {
+            &mut bindings
+        };
+        match written {
+            Some(spec) => table.insert(name.to_owned(), spec),
+            None => table.remove(name),
+        };
+    }
+    if touched && administrators(&roles, &bindings, now).is_empty() {
         return Err(ApiError::Conflict(format!(
             "this change would leave the organization without an administrator: after it, no \
              binding at organization scope grants approve and delete on RoleBinding (today: {}). \
@@ -507,6 +520,43 @@ pub fn keeps_an_administrator(mirror: &Mirror, change: AccessChange<'_>) -> Resu
         )));
     }
     Ok(())
+}
+
+/// Every person an administrator binding names, directly or through a `Group` they are in, by
+/// lower-case e-mail (PF-03): who would be left to run the organization.
+pub fn administrator_people(mirror: &Mirror) -> BTreeSet<String> {
+    let table = |kind: &str| -> BTreeMap<String, Value> {
+        mirror
+            .list(ORG_NAMESPACE, kind, &ListOptions::default())
+            .items
+            .into_iter()
+            .map(|env| (env.metadata.name, env.spec))
+            .collect()
+    };
+    let roles = table("Role");
+    let bindings = table("RoleBinding");
+    let groups = table("Group");
+    let mut people = BTreeSet::new();
+    for name in administrators(&roles, &bindings, Utc::now()) {
+        let Some(binding) = bindings
+            .get(&name)
+            .and_then(|spec| serde_json::from_value::<RoleBindingSpec>(spec.clone()).ok())
+        else {
+            continue;
+        };
+        for subject in binding.subjects {
+            if let Some(user) = subject.user {
+                people.insert(user.to_ascii_lowercase());
+            }
+            if let Some(group) = subject.group.and_then(|group| groups.get(&group).cloned()) {
+                let members = serde_json::from_value::<jc_core::kinds::GroupSpec>(group)
+                    .map(|spec| spec.members)
+                    .unwrap_or_default();
+                people.extend(members.into_iter().map(|m| m.user.to_ascii_lowercase()));
+            }
+        }
+    }
+    people
 }
 
 /// The organization bindings that make somebody an administrator, by name (PF-03).
@@ -623,10 +673,11 @@ pub fn within_own_rights(
         for rule in rules {
             for kind in &rule.kinds {
                 for verb in &rule.verbs {
+                    // `Rule::grants`, so `propose` holds `read` here as it does at every door:
+                    // an administrator who proposes a kind may hand out reading it (PF-59).
                     let holds = held.iter().any(|(reach, grant)| {
                         reach.covers(target, mirror)
-                            && grant.rule.kinds.contains(kind)
-                            && grant.rule.verbs.contains(verb)
+                            && grant.rule.grants(kind, *verb)
                             && grant
                                 .rule
                                 .constraints
@@ -738,10 +789,5 @@ fn describe(constraint: &Constraint) -> String {
 }
 
 pub fn verb_name(verb: Verb) -> &'static str {
-    match verb {
-        Verb::Read => "read",
-        Verb::Propose => "propose",
-        Verb::Approve => "approve",
-        Verb::Delete => "delete",
-    }
+    verb.as_str()
 }

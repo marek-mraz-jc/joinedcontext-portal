@@ -30,6 +30,7 @@ import { CkanPage } from "./pages/ckan/CkanPage";
 import { ImportPage } from "./pages/import/ImportPage";
 import { SpaceInside } from "./pages/spaces/SpaceInside";
 import { AppPage } from "./pages/apps/AppPage";
+import { GroupPage } from "./pages/access/GroupPage";
 import { EndpointPage } from "./pages/endpoints/EndpointPage";
 import { AssistantPage } from "./pages/assistant/AssistantPage";
 import { HandOff } from "./assistant/HandOff";
@@ -459,10 +460,34 @@ const organizationFormRoute = createRoute({
   path: "/organization/$tab/$",
   component: function OrganizationFormRoute() {
     const { tab, _splat: rest = "" } = organizationFormRoute.useParams();
+    const group = tab === "groups" ? groupOfRest(rest) : null;
+    if (group !== null) {
+      return <OrganizationGroupView name={group} />;
+    }
     const form = formOfRest(rest);
     return rest === "" || form !== null ? <OrganizationView tab={tab} form={form} /> : <NotFound />;
   },
 });
+
+/** `groups/{name}`: one group's page (PF-95); `new` stays the new-group form. */
+function groupOfRest(rest: string): string | null {
+  const [first, second] = rest.split("/");
+  return first && first !== "new" && second === undefined ? decodeURIComponent(first) : null;
+}
+
+/** A group's page in the Organization's shell (PF-95, T-2685). */
+function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
+  const projects = useProjects();
+  const first = preferredProject(projects.data);
+  if (!first) {
+    return <NoProject projects={projects} />;
+  }
+  return (
+    <Shell project={first}>
+      <GroupPage name={name} />
+    </Shell>
+  );
+}
 
 /** `new` or `{name}/edit` after a tab's address; anything else names no form. */
 function formOfRest(rest: string): FormTarget | null {
