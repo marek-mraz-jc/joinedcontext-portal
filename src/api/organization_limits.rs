@@ -19,6 +19,55 @@ use crate::permissions::ORG_NAMESPACE;
 use crate::state::AppState;
 use crate::store::ListOptions;
 
+/// The Organization manifest's spec, when the organization repository holds one that parses.
+pub(crate) fn organization_spec(state: &AppState) -> Option<OrganizationSpec> {
+    state
+        .mirror
+        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
+        .items
+        .into_iter()
+        .find_map(|envelope| serde_json::from_value::<OrganizationSpec>(envelope.spec).ok())
+}
+
+const UPLOAD: &str = "spec.limits.data.uploadMegabytes";
+
+/// Refuses an upload or import larger than the organization accepts (`spec.limits.data.
+/// uploadMegabytes`, ADR-N-035): its own value, else the catalog's default, and never past the
+/// Portal's own ceiling, which the edge's largest body sets.
+pub(crate) fn within_upload_limit(state: &AppState, bytes: usize) -> Result<(), ApiError> {
+    // Only `spec.limits` is read, so a field this Portal does not know yet elsewhere in the
+    // manifest never turns the organization's own limit back into the default.
+    let set = state
+        .mirror
+        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
+        .items
+        .into_iter()
+        .find_map(|org| {
+            serde_json::from_value::<jc_core::kinds::OrganizationLimits>(
+                org.spec.get("limits")?.clone(),
+            )
+            .ok()
+        })
+        .and_then(|limits| limits.data.upload_megabytes);
+    let megabytes =
+        set.or_else(|| jc_core::kinds::org_settings::entry_at(UPLOAD).and_then(|e| e.default));
+    let limit = megabytes
+        .map_or(crate::api::import::MAX_UPLOAD_BYTES, |mb| {
+            mb as usize * 1024 * 1024
+        })
+        .min(crate::api::import::MAX_UPLOAD_BYTES);
+    if bytes > limit {
+        return Err(ApiError::BadRequest(format!(
+            "the upload is {:.1} MiB and the organization accepts at most {} MiB; make it smaller, \
+             or ask an organization admin to raise the upload size in Organization settings \
+             ({UPLOAD})",
+            bytes as f64 / (1024.0 * 1024.0),
+            limit / (1024 * 1024)
+        )));
+    }
+    Ok(())
+}
+
 /// Where a value in force comes from (PF-101).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -99,12 +148,7 @@ pub async fn get_limits(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<OrganizationLimits>, ApiError> {
-    let organization = state
-        .mirror
-        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
-        .items
-        .into_iter()
-        .find_map(|envelope| serde_json::from_value::<OrganizationSpec>(envelope.spec).ok());
+    let organization = organization_spec(&state);
     let bounds = &state.config.organization_bounds;
     let entries = CATALOG
         .iter()
@@ -188,4 +232,55 @@ pub async fn get_limits(
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/organization/limits", get(get_limits))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+
+    const MIB: usize = 1024 * 1024;
+
+    fn organization(spec: serde_json::Value) -> ResourceEnvelope {
+        ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: "Organization".into(),
+            metadata: ObjectMeta {
+                name: "hel".into(),
+                namespace: Some(ORG_NAMESPACE.into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        }
+    }
+
+    /// T-2870 (ADR-N-035): the upload size is the catalog's 16 MiB until the organization sets
+    /// one; what it sets holds, never past the Portal's ceiling, the edge's largest body.
+    #[test]
+    fn the_upload_size_is_the_organizations_the_default_or_the_ceiling() {
+        let state = AppState::new(Config::for_tests(), None);
+        assert!(within_upload_limit(&state, 16 * MIB).is_ok());
+        assert!(within_upload_limit(&state, 16 * MIB + 1).is_err());
+
+        state.mirror.upsert(organization(serde_json::json!({
+            "domain": "hel.fi",
+            "limits": { "data": { "uploadMegabytes": 40 } },
+        })));
+        assert!(within_upload_limit(&state, 40 * MIB).is_ok());
+        let Err(ApiError::BadRequest(message)) = within_upload_limit(&state, 40 * MIB + MIB / 2)
+        else {
+            panic!("40.5 MiB is past the organization's 40");
+        };
+        assert!(message.contains("40.5 MiB"), "{message}");
+        assert!(message.contains("at most 40 MiB"), "{message}");
+
+        state.mirror.upsert(organization(serde_json::json!({
+            "domain": "hel.fi",
+            "limits": { "data": { "uploadMegabytes": 500 } },
+        })));
+        assert!(within_upload_limit(&state, crate::api::import::MAX_UPLOAD_BYTES).is_ok());
+        assert!(within_upload_limit(&state, crate::api::import::MAX_UPLOAD_BYTES + 1).is_err());
+    }
 }
