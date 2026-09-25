@@ -1047,6 +1047,9 @@ impl Syncer {
                     }
                     (None, true) => {}
                 }
+                for warning in &outcome.warnings {
+                    tracing::info!(app = %outcome.app, warning = %warning, "app role waits for the realm");
+                }
             }
             // A run that failed as a whole (no token, no list) keeps the last secrets, so a
             // realm that is down for a minute does not take every App off the edge.
