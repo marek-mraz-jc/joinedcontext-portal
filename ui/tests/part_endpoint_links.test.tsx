@@ -110,9 +110,9 @@ describe("the export trigger", () => {
         ),
       ),
     );
-    wrap(<ExportButton project="helsinki" target={{}} label={en.export.project} />);
+    wrap(<ExportButton project="helsinki" target={{}} label={en.organization.projects.export} />);
 
-    const trigger = screen.getByRole("button", { name: en.export.project });
+    const trigger = screen.getByRole("button", { name: en.organization.projects.export });
     trigger.focus();
     await userEvent.keyboard("{Enter}");
 
@@ -138,15 +138,15 @@ describe("the export trigger", () => {
       ),
     );
     const { rerender } = wrap(
-      <ExportButton project="helsinki" target={{}} label={en.export.project} trigger={false} open={false} />,
+      <ExportButton project="helsinki" target={{}} label={en.organization.projects.export} trigger={false} open={false} />,
     );
-    expect(screen.queryByRole("button", { name: en.export.project })).toBeNull();
+    expect(screen.queryByRole("button", { name: en.organization.projects.export })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
 
     rerender(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <I18nextProvider i18n={i18n}>
-          <ExportButton project="helsinki" target={{}} label={en.export.project} trigger={false} open />
+          <ExportButton project="helsinki" target={{}} label={en.organization.projects.export} trigger={false} open />
         </I18nextProvider>
       </QueryClientProvider>,
     );

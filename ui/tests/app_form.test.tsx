@@ -178,6 +178,53 @@ describe("the App form", () => {
     expect((toAppEnvelope(PROJECT, FILLED) as { spec: object }).spec).not.toHaveProperty("lifecycle");
   });
 
+  it("writes the networks a server may reach, refuses a name or every address, and reads them back (AP-134)", () => {
+    const egress = [
+      { cidr: "203.0.113.0/24", ports: [443] },
+      { cidr: "2001:db8::/32", ports: [443, 8443] },
+    ];
+    expect(errorsOf({ ...FILLED, egress })).toBe("");
+    const manifest = toAppEnvelope(PROJECT, { ...FILLED, egress }) as { spec: Record<string, unknown> };
+    expect(manifest.spec.egress).toEqual(egress);
+    expect(fromAppEnvelope(manifest).egress).toEqual(egress);
+    // None declared writes none, and a blank row is no destination.
+    expect((toAppEnvelope(PROJECT, FILLED) as { spec: object }).spec).not.toHaveProperty("egress");
+    expect(
+      (toAppEnvelope(PROJECT, { ...FILLED, egress: [{ cidr: " ", ports: [443] }] }) as { spec: object }).spec,
+    ).not.toHaveProperty("egress");
+    for (const cidr of ["0.0.0.0/0", "::/0", "api.example.com/32", "api.example.com", "203.0.113.0", "203.0.113.0/33"]) {
+      expect(errorsOf({ ...FILLED, egress: [{ cidr, ports: [443] }] }), cidr).toContain(".egress.0.cidr");
+    }
+    expect(errorsOf({ ...FILLED, egress: [{ cidr: "203.0.113.0/24", ports: [] }] })).toContain(".egress.0.ports");
+    expect(errorsOf({ ...FILLED, egress: [{ cidr: "203.0.113.0/24", ports: [70000] }] })).toContain(".egress.0.ports");
+  });
+
+  it("keeps the App's roles and who holds them, which it has no field for (AP-90, AP-91)", () => {
+    const roles = [{ name: "editor", description: "Writes the note" }];
+    const access = [{ role: "editor", subjects: [{ group: "air-quality-team" }] }];
+    const stored = {
+      metadata: { name: FILLED.name, namespace: PROJECT },
+      spec: { ...(toAppEnvelope(PROJECT, FILLED) as { spec: object }).spec, roles, access },
+    };
+    const edited = toAppEnvelope(PROJECT, fromAppEnvelope(stored), stored) as { spec: Record<string, unknown> };
+    expect(edited.spec.roles).toEqual(roles);
+    expect(edited.spec.access).toEqual(access);
+  });
+
+  it("keeps the roles a data need is granted to, so an edit opens no write to every caller (AP-96)", () => {
+    const gated = { ...FILLED, dataNeeds: [{ ...FILLED.dataNeeds[0], roles: ["editor"] }] };
+    expect(errorsOf(gated)).toBe("");
+    const manifest = toAppEnvelope(PROJECT, gated) as { spec: { dataNeeds: { roles?: string[] }[] } };
+    expect(manifest.spec.dataNeeds[0].roles).toEqual(["editor"]);
+    const edited = toAppEnvelope(PROJECT, fromAppEnvelope(manifest), manifest) as {
+      spec: { dataNeeds: { roles?: string[] }[] };
+    };
+    expect(edited.spec.dataNeeds[0].roles).toEqual(["editor"]);
+    expect(errorsOf({ ...FILLED, dataNeeds: [{ ...FILLED.dataNeeds[0], roles: ["Editor"] }] })).toContain(
+      ".dataNeeds.0.roles",
+    );
+  });
+
   it("names every field in all four languages", async () => {
     for (const locale of ["en", "sk", "cs", "de"] as const) {
       await i18n.changeLanguage(locale);

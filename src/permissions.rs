@@ -71,6 +71,23 @@ pub struct Effective {
 }
 
 /// The effective permissions of the signed-in caller in `project`, right now.
+/// Refuses anybody but an administrator of the organization, with a `403` that names what
+/// `action` needs (UI-87). The administrator is PF-03's: `approve` and `delete` on `RoleBinding`
+/// at organization scope, as the seeded `org-admin` holds them and validation health asks.
+pub fn require_organization_admin(
+    state: &AppState,
+    identity: &Identity,
+    action: &str,
+) -> Result<(), ApiError> {
+    let effective = for_request(state, identity, ORG_NAMESPACE);
+    if effective.may("RoleBinding", Verb::Approve) && effective.may("RoleBinding", Verb::Delete) {
+        return Ok(());
+    }
+    Err(ApiError::Denied(format!(
+        "{action} is for organization administrators, on the Administration page (UI-87)"
+    )))
+}
+
 pub fn for_request(state: &AppState, identity: &Identity, project: &str) -> Effective {
     effective(
         &state.mirror,
@@ -119,6 +136,14 @@ pub fn effective(
 }
 
 impl Effective {
+    /// Whether the caller administers the organization (PF-03): `approve` and `delete` on
+    /// `RoleBinding`, as `org-admin` holds them, asked of the permissions at [`ORG_NAMESPACE`].
+    /// What only an administrator reads asks this one question: the validation health (OPS-53)
+    /// and the organization-level Endpoints page (PF-61).
+    pub fn administers_organization(&self) -> bool {
+        self.may("RoleBinding", Verb::Approve) && self.may("RoleBinding", Verb::Delete)
+    }
+
     /// Whether the caller may read anything in this project (PF-59): a binding whose scope
     /// covers it, or the bootstrap group. What is not readable is `404` and not `403`, so a
     /// project nobody bound the caller to reads like a project that is not there (R20).
@@ -202,6 +227,16 @@ impl Effective {
         if self.bootstrap {
             return Ok(());
         }
+        // An App that declares destinations on the internet lets data out as surely as a public
+        // one, so its approval is judged as a public App's: publisher or org-admin (AP-134,
+        // PF-71). The seeded steward's approve is constrained to a non-public visibility.
+        let egress_declared = kind == "App" && verb == Verb::Approve && declares_egress(target);
+        let judged_as_public = egress_declared.then(|| {
+            let mut judged = target.cloned().unwrap_or_default();
+            judged["spec"]["visibility"] = Value::from("public");
+            judged
+        });
+        let target = judged_as_public.as_ref().or(target);
         let space_of_target = target.and_then(space_ref);
         let mut violation: Option<String> = None;
         for grant in &self.grants {
@@ -243,6 +278,14 @@ impl Effective {
                     .to_owned(),
             ));
         }
+        if egress_declared {
+            return Err(ApiError::Denied(
+                "approving an App that declares spec.egress needs publisher, the role whose \
+                 approve is constrained to a public visibility; org-admin holds it too (AP-134, \
+                 PF-71)"
+                    .to_owned(),
+            ));
+        }
         if kind == "App"
             && verb == Verb::Approve
             && target
@@ -264,6 +307,14 @@ impl Effective {
             )
         })))
     }
+}
+
+/// Whether an App manifest declares a destination beyond its endpoint (AP-134).
+fn declares_egress(target: Option<&Value>) -> bool {
+    target
+        .and_then(|t| t.pointer("/spec/egress"))
+        .and_then(Value::as_array)
+        .is_some_and(|egress| !egress.is_empty())
 }
 
 /// Where a binding applies.

@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
-import { Alert, Badge, Button, ExternalLink, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Link } from "@tanstack/react-router";
+import { Alert, Badge, Button, ExternalLink, PageHeader, PageLoading } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { copyIntoPreview, PER_TYPE } from "./copyIntoPreview";
 import type { CopyResult } from "./copyIntoPreview";
 
@@ -67,7 +69,7 @@ export function TryItPage({ project, name }: { project: string; name: string }):
   if (workspace.isPending || preview.isPending) {
     return (
       <div className="space-y-6">
-        <PageHeader title={t("workspaces.tryIt.title")} />
+        <PageHeader title={t("workspaces.tryIt.title")} description={t("workspaces.tryIt.lead", { name })} />
         <PageLoading label={t("app.loading")} />
       </div>
     );
@@ -75,15 +77,19 @@ export function TryItPage({ project, name }: { project: string; name: string }):
   if (workspace.isError || preview.isError) {
     const failed = workspace.isError ? workspace : preview;
     return (
-      <div className="space-y-6">
-        <PageHeader title={t("workspaces.tryIt.title")} />
-        <PageFailed
-          error={failed.error}
-          onRetry={() => {
-            void failed.refetch();
-          }}
-        />
-      </div>
+      <ResourcePageFailed
+        title={t("workspaces.tryIt.title")}
+        description={t("workspaces.tryIt.lead", { name })}
+        error={failed.error}
+        onRetry={() => {
+          void failed.refetch();
+        }}
+        back={
+          <Link to="/projects/$project/workspaces" params={{ project }} className="focus-ring text-body text-primary-soft-fg underline hover:no-underline">
+            {t("workspaces.compare.back")}
+          </Link>
+        }
+      />
     );
   }
 

@@ -9,6 +9,7 @@ import type { Change, ResourceProposal } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
+import { RecordLink } from "../../components/RecordLink";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 import {
@@ -196,7 +197,7 @@ function Instances({
         <EmptyState title={t("ckan.instances.empty")} description={t("ckan.instances.emptyHint")} icon="ckan" />
       ) : null}
       {instances.length > 0 ? (
-        <Table caption={t("ckan.instances.title")}>
+        <Table data-records="" caption={t("ckan.instances.title")}>
           <TableHead>
             <TableHeaderCell>{t("ckan.instances.name")}</TableHeaderCell>
             <TableHeaderCell>{t("ckan.instances.url")}</TableHeaderCell>
@@ -209,7 +210,10 @@ function Instances({
           <TableBody>
             {instances.map((instance) => (
               <TableRow key={instance.name}>
-                <TableCell className="font-mono">{instance.name}</TableCell>
+                <TableCell className="font-mono">
+                  {/* The kind's own edit address: the same form as the row's Edit (T-2875). */}
+                  <RecordLink project={project} plural="ckaninstances" name={instance.name} />
+                </TableCell>
                 <TableCell>
                   <ExternalLink href={instance.url} hideIcon className="hover:no-underline">
                     {instance.url}

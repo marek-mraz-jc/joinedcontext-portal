@@ -705,12 +705,16 @@ pub async fn start_conversation(
     origin: crate::agents::run::RunOrigin,
     State(state): State<AppState>,
     Path(project): Path<String>,
+    headers: axum::http::HeaderMap,
     Json(request): Json<StartConversation>,
 ) -> Result<(StatusCode, Json<CreatedRun>), ApiError> {
     let settings = agent_settings(&state)?;
 
     let grants = crate::permissions::for_request(&state, &user.0.identity, &project);
     grants.check("App", Verb::Propose, None)?;
+    if let Some(hidden) = request.path.and_then(|path| path.hidden_by(&state.config)) {
+        return Err(ApiError::BadRequest(hidden));
+    }
     // A path ends by proposing its kind; a person who may not cannot take it (AG-87, UI-44).
     if let Some(kind) = request.path.and_then(crate::agents::paths::Path::proposes) {
         grants.check(kind, Verb::Propose, None)?;
@@ -847,6 +851,15 @@ pub async fn start_conversation(
     };
 
     state.agents.create_run(&run).await.map_err(unavailable)?;
+    // The person's identity goes to the proxy before anything the run does can read through it
+    // (ADR-N-038 §3.1, AG-94); the Portal keeps no copy.
+    crate::agents::identity::hand_over(
+        state.oidc.as_deref(),
+        &settings.proxy_base,
+        &id,
+        crate::agents::identity::persons_token(&headers, state.config.trust_edge_token),
+    )
+    .await;
     publish_event(
         &state,
         &id,
@@ -1064,6 +1077,8 @@ mod tests {
         );
         config.app_settings = Some(crate::apps::reconciler::Settings {
             host: "portal.example.org".into(),
+            apex: "example.org".into(),
+            gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
             namespace: "apps".into(),
             org_domain: "hel.fi".into(),
             apisix_namespace: "apisix".into(),

@@ -7,6 +7,7 @@ import cs from "../src/locales/cs.json";
 import de from "../src/locales/de.json";
 import en from "../src/locales/en.json";
 import sk from "../src/locales/sk.json";
+import { shippedForms } from "../src/schemas/forms";
 
 function strings(bundle: Record<string, unknown>, prefix = ""): [string, string][] {
   return Object.entries(bundle).flatMap(([key, value]): [string, string][] => {
@@ -88,6 +89,10 @@ describe("locale style", () => {
     return groups;
   }
 
+  // The editor is the Model editor (T-2876): LinkML is how it is built, not a word a person has to
+  // know. The raw source view may name its format once, quietly; every other string says "model".
+  const LINKML_ALLOWED = new Set(["models.page.yaml"]);
+
   it.each([
     ["en", en],
     ["sk", sk],
@@ -101,5 +106,39 @@ describe("locale style", () => {
   it("counts two examples in one form as crowded", () => {
     const form = { form: { nameHint: "Lowercase, e.g. bikes-app.", typeHint: "Entity type, e.g. Vehicle", other: "Plain." } };
     expect(examplesPerGroup(form, EXAMPLE_MARKERS.en)).toEqual({ form: ["form.nameHint", "form.typeHint"] });
+  });
+
+  it.each([
+    ["en", en],
+    ["sk", sk],
+    ["cs", cs],
+    ["de", de],
+  ])("names LinkML in the %s strings only where the raw source is shown (T-2876)", (_, bundle) => {
+    const all = strings(bundle);
+    expect(all.filter(([key, text]) => /linkml/i.test(text) && !/\.linkml\.yaml\b/i.test(text) && !LINKML_ALLOWED.has(key))).toEqual(
+      [],
+    );
+    expect(all.filter(([key]) => LINKML_ALLOWED.has(key)).length).toBe(1);
+  });
+
+  it("calls it the Model editor in every locale (T-2876)", () => {
+    expect([en, sk, cs, de].map((bundle) => bundle.models.title)).toEqual([
+      "Model editor",
+      "Editor modelov",
+      "Editor modelů",
+      "Modelleditor",
+    ]);
+  });
+
+  it("keeps LinkML out of the form hints (T-2876)", () => {
+    const text = (value: unknown): string[] =>
+      typeof value === "string"
+        ? [value]
+        : value && typeof value === "object"
+          ? Object.values(value as Record<string, unknown>).flatMap(text)
+          : [];
+    // Field keys (`linkml`) and file names are code; the word a person reads is "LinkML".
+    const hints = shippedForms.flatMap(text).filter((line) => /LinkML/.test(line));
+    expect(hints).toEqual([]);
   });
 });

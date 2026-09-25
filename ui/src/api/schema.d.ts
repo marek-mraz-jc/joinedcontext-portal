@@ -252,7 +252,7 @@ export interface paths {
         };
         /**
          * List Endpoints Everywhere
-         * @description Every Endpoint of every project the caller may read, each with the project it lives in.
+         * @description Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03).
          */
         get: operations["list_endpoints_everywhere"];
         put?: never;
@@ -380,6 +380,26 @@ export interface paths {
          * @description The last published result of every validation check, with its state. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (OPS-53, PF-03).
          */
         get: operations["get_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Organization Limits
+         * @description Every policy and limit of the catalog with the operator's bound, the value in force and where it comes from, and the quota of each project the caller may read (PF-96…PF-102, ADR-N-035).
+         */
+        get: operations["get_limits"];
         put?: never;
         post?: never;
         delete?: never;
@@ -941,6 +961,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/apps/{name}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export App
+         * @description One App as its repository's git bundle beside its manifest, for an organization administrator (UI-87).
+         */
+        get: operations["export_app"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/{name}/me": {
         parameters: {
             query?: never;
@@ -952,7 +992,7 @@ export interface paths {
          * The Caller's Roles In An Application
          * @description The caller's id, name, e-mail and roles in one published App, for the App's backend (AP-109).
          */
-        get: operations["me"];
+        get: operations["app_me"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1402,7 +1442,7 @@ export interface paths {
         };
         /**
          * Export Project
-         * @description The project's manifests as one bundle, narrowed to the kinds and names asked for.
+         * @description The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators.
          */
         get: operations["export"];
         put?: never;
@@ -1444,7 +1484,7 @@ export interface paths {
         put?: never;
         /**
          * Run A Blueprint
-         * @description Expands one of the organisation's blueprints with the parameters given, as a change a person approves.
+         * @description Expands one of the organisation's blueprints with the parameters given, as one change: a green flow merges at once, anything stricter waits for a person's approval.
          */
         post: operations["start_flow"];
         delete?: never;
@@ -1770,7 +1810,7 @@ export interface paths {
         };
         /**
          * Read Data Quality
-         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-70).
+         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-74).
          */
         get: operations["get_quality"];
         put?: never;
@@ -2503,6 +2543,14 @@ export interface components {
              *     }
              */
             fonts: components["schemas"]["Fonts"];
+            /**
+             * @description The project sections this installation hides (`dashboards` while `JC_PORTAL_DASHBOARDS`
+             *     is not `true`, T-2874). Like `apps_origin`, set by the route from the configuration, so
+             *     what a branding file says is overwritten; always sent, so the UI never mistakes a shown
+             *     section for one it has not heard about.
+             * @default []
+             */
+            hiddenSections: string[];
             /**
              * @description Full name: page titles and the login page.
              * @default joinedcontext
@@ -3463,6 +3511,45 @@ export interface components {
         };
         /** @enum {string} */
         Level: "error" | "warning" | "info";
+        /** @description One entry of the catalog as the settings page shows it (PF-102). */
+        LimitEntry: {
+            /**
+             * Format: int32
+             * @description The catalog's default; `null` is no limit.
+             */
+            default?: number | null;
+            /**
+             * Format: int32
+             * @description The largest value the organization may set; `null` where nobody sets a ceiling.
+             */
+            max?: number | null;
+            /**
+             * Format: int32
+             * @description The smallest value the organization may set.
+             */
+            min: number;
+            /** @description `organization` or `default`. */
+            origin: components["schemas"]["LimitOrigin"];
+            /** @description The manifest path, e.g. `spec.limits.edge.requestsPerMinute.web`. */
+            path: string;
+            /**
+             * @description The settings section: `projects`, `applications`, `edge`, `signIn`, `people`, `agents`,
+             *     `pipelinesAndData`.
+             */
+            section: string;
+            /** @description Whether the operator may only tighten the bound (ADR-N-035 §3.2). */
+            security: boolean;
+            /**
+             * Format: int32
+             * @description What the Organization manifest sets; `null` when it sets nothing.
+             */
+            value?: number | null;
+        };
+        /**
+         * @description Where a value in force comes from (PF-101).
+         * @enum {string}
+         */
+        LimitOrigin: "project" | "organization" | "default";
         ListMeta: {
             continue?: string | null;
             remainingItemCount?: number | null;
@@ -3653,6 +3740,10 @@ export interface components {
             name: string;
             outputSchema: Record<string, never>;
             title: string;
+        };
+        OrganizationLimits: {
+            entries: components["schemas"]["LimitEntry"][];
+            projects: components["schemas"]["ProjectQuota"][];
         };
         /** @description One `DataModel` of the organization as the pickers list it (DM-63). */
         OrganizationModel: {
@@ -3992,6 +4083,14 @@ export interface components {
             items: components["schemas"]["ProjectSummary"][];
             kind: string;
         };
+        /** @description The quota in force for one project the caller may read. */
+        ProjectQuota: {
+            origin: components["schemas"]["LimitOrigin"];
+            project: string;
+            quota: {
+                [key: string]: components["schemas"]["QuotaUse"];
+            };
+        };
         ProjectStatus: {
             /**
              * @description Every countable dimension by its manifest field name (`contextSpaces`,
@@ -4028,6 +4127,19 @@ export interface components {
             /** Format: int64 */
             expectedVersion?: number | null;
             manifest: unknown;
+        };
+        /** @description One quota dimension of a project. */
+        QuotaUse: {
+            /**
+             * Format: int32
+             * @description `null` is no limit.
+             */
+            limit?: number | null;
+            /**
+             * Format: int32
+             * @description The manifest count for a countable dimension (PF-75); `null` for a runtime limit.
+             */
+            used?: number | null;
         };
         /** @description Whether this replica serves the repository yet: `ready` or `loading`, nothing more (OPS-51). */
         Readiness: {
@@ -4987,7 +5099,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Every Endpoint the caller may read, across projects */
+            /** @description Every Endpoint of the organization, across projects */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4998,6 +5110,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5220,6 +5341,35 @@ export interface operations {
             };
             /** @description The results directory cannot be read */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_limits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The catalog and the values in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationLimits"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5826,7 +5976,7 @@ export interface operations {
                     "application/json": components["schemas"]["SetupState"];
                 };
             };
-            /** @description The caller lacks approve on Organization */
+            /** @description Not an administrator of the organization (PF-03) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7263,7 +7413,75 @@ export interface operations {
             };
         };
     };
-    me: {
+    export_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archive: the App's bundle, its tags, app.yaml and bundle.yaml */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization (UI-87) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or App, or not one the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The App builds from outside the forge's applications organization, or its repository moved during the export */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No repository configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    app_me: {
         parameters: {
             query?: never;
             header?: never;
@@ -8870,7 +9088,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A git export, and the caller may not read every manifest of the project */
+            /** @description A whole-project or git export by anybody but an organization administrator (UI-87), or a git export the caller may not read in full */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9033,7 +9251,7 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' to validate and plan without proposing */
                 dryRun?: string;
-                /** @description 'git': the archive of a format=git export, landing as the new project of the path (layout 2) */
+                /** @description 'git': the archive of a format=git export, landing as the new project of the path (layout 2); 'app': the archive of an App export, landing as a new App of the project (UI-87) */
                 format?: string;
             };
             header?: never;
@@ -9110,7 +9328,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            /** @description format=git by anybody who may not open a project (PF-65), format=git or format=app by anybody who does not administer the organization (UI-87) */
             403: {
                 headers: {
                     [name: string]: unknown;

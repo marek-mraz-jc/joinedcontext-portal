@@ -361,11 +361,12 @@ async fn a_single_read_never_says_whether_what_it_refuses_exists() {
 // T-2035 `list_endpoints_everywhere`
 // -------------------------------------------------------------------------------------------------
 
-/// PF-60, PF-61, R20: the endpoint listing across projects is the project-by-project read rule, applied
-/// once per project. A caller no binding names gets an empty list and not a refusal, a caller bound in
-/// one project gets that project's endpoints and no other's, and each item says which project it is in.
+/// PF-61, PF-03, R20, T-2877: the endpoint listing across projects is an administration view. An
+/// administrator of the organization reads every project's endpoints, each item saying which project
+/// it is in; everyone else is answered `404`, a reader of one project's endpoints included, who
+/// still reads that project's own list; and half an administrator's verbs is not an administrator.
 #[tokio::test]
-async fn the_endpoints_of_every_project_are_the_ones_this_caller_reads_project_by_project() {
+async fn the_endpoints_of_every_project_are_for_an_administrator_of_the_organization_only() {
     let state = world();
     state.mirror.upsert(org(
         "Role",
@@ -378,37 +379,88 @@ async fn the_endpoints_of_every_project_are_the_ones_this_caller_reads_project_b
         json!({ "subjects": [{ "user": "eva.endpoints@hel.fi" }], "role": "endpoint-reader",
                 "scope": { "project": PROJECT } }),
     ));
+    state.mirror.upsert(org(
+        "Role",
+        "administrator",
+        json!({ "rules": [
+            { "kinds": ["RoleBinding"], "verbs": ["approve", "delete"] },
+            { "kinds": ["Endpoint"], "verbs": ["read"] },
+        ] }),
+    ));
+    state.mirror.upsert(org(
+        "Role",
+        "binding-approver",
+        json!({ "rules": [
+            { "kinds": ["RoleBinding"], "verbs": ["approve"] },
+            { "kinds": ["Endpoint"], "verbs": ["read"] },
+        ] }),
+    ));
+    for (name, user, role) in [
+        ("administrators", "ada.admin@hel.fi", "administrator"),
+        (
+            "binding-approvers",
+            "bo.approver@hel.fi",
+            "binding-approver",
+        ),
+    ] {
+        state.mirror.upsert(org(
+            "RoleBinding",
+            name,
+            json!({ "subjects": [{ "user": user }], "role": role,
+                    "scope": { "organization": "hel" } }),
+        ));
+    }
 
-    // A person no binding names: an empty list, because what is not readable is not there.
-    let (status, theirs) = get(&state, Some(STRANGER), "/api/v1/endpoints").await;
-    assert_eq!(status, StatusCode::OK, "{theirs}");
-    assert_eq!(theirs["items"], json!([]), "{theirs}");
+    // The administrator: every project's endpoint, each saying which project it lives in.
+    let (status, all) = get(&state, Some("ada.admin@hel.fi"), "/api/v1/endpoints").await;
+    assert_eq!(status, StatusCode::OK, "{all}");
+    let listed: Vec<(Value, Value)> = all["items"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(|item| {
+            (
+                item["metadata"]["namespace"].clone(),
+                item["metadata"]["name"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        listed,
+        vec![
+            (json!(ELSEWHERE), json!("espoo-bikes")),
+            (json!(PROJECT), json!("helsinki-bikes")),
+        ],
+        "{all}"
+    );
 
-    // A reader of one project's endpoints: that project's, and not the one next door.
-    let (status, mine) = get(&state, Some("eva.endpoints@hel.fi"), "/api/v1/endpoints").await;
+    // Nobody else is offered the page: not a stranger, not a reader of one project's endpoints,
+    // not a reader of spaces, and not a person who approves bindings but may not delete them.
+    for caller in [
+        STRANGER,
+        "eva.endpoints@hel.fi",
+        SPACE_READER,
+        "bo.approver@hel.fi",
+    ] {
+        let (status, body) = get(&state, Some(caller), "/api/v1/endpoints").await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{caller}: {body}");
+        assert!(
+            !body.to_string().contains("bikes"),
+            "the refusal carried an endpoint: {body}"
+        );
+    }
+
+    // The reader of one project still reads that project's own endpoints, and only those.
+    let (status, mine) = get(
+        &state,
+        Some("eva.endpoints@hel.fi"),
+        &format!("/api/v1/projects/{PROJECT}/endpoints"),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{mine}");
-    let items = mine["items"].as_array().cloned().unwrap_or_default();
-    assert_eq!(items.len(), 1, "{mine}");
-    assert_eq!(
-        items[0]["metadata"]["name"],
-        json!("helsinki-bikes"),
-        "{mine}"
-    );
-    // Each item says which project it lives in, which is the whole point of the listing.
-    assert_eq!(
-        items[0]["metadata"]["namespace"],
-        json!(PROJECT),
-        "an item does not say which project it is in: {mine}",
-    );
-    assert!(
-        !mine.to_string().contains("espoo"),
-        "the listing carried another project's endpoint: {mine}",
-    );
+    assert_eq!(mine["items"].as_array().map(Vec::len), Some(1), "{mine}");
 
-    // A reader of spaces only sees no endpoints anywhere, and no session sees nothing at all.
-    let (status, none) = get(&state, Some(SPACE_READER), "/api/v1/endpoints").await;
-    assert_eq!(status, StatusCode::OK, "{none}");
-    assert_eq!(none["items"], json!([]), "{none}");
     let (status, _) = get(&state, None, "/api/v1/endpoints").await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }

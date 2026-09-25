@@ -43,7 +43,16 @@ function renderAt(where: string, spec: Record<string, unknown>, importAnswer?: (
       return json(IDENTITY);
     }
     if (url.pathname.endsWith("/permissions/me")) {
-      return json({ project: "banskabystrica", bootstrap: false, grants: [], projects: { creation: { allowed: true } } });
+      // An organization administrator, whose page the import lives on (UI-87).
+      return json({
+        project: "banskabystrica",
+        bootstrap: false,
+        grants: [{ role: "org-admin", binding: "admins", rule: { kinds: ["RoleBinding"], verbs: ["approve", "delete"] } }],
+        projects: { creation: { allowed: true } },
+      });
+    }
+    if (method === "GET" && url.pathname === "/api/v1/projects") {
+      return json(list([{ name: "banskabystrica" }]));
     }
     if (method === "GET" && url.pathname === "/api/v1/projects/org/projects/banskabystrica") {
       return json({
@@ -146,7 +155,7 @@ describe("Duplicate on the project's settings", () => {
   });
 });
 
-describe("Import project from the New project dialog", () => {
+describe("Import project from Administration → Projects (UI-87)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
   });
@@ -156,13 +165,12 @@ describe("Import project from the New project dialog", () => {
   });
 
   it("checks the archive, draws the declared parameters and sends only the values typed", async () => {
-    const { sent } = renderAt("/projects/banskabystrica/spaces", {}, (dryRun) =>
+    const { sent } = renderAt("/organization/projects", {}, (dryRun) =>
       dryRun
         ? new Response(JSON.stringify(PLAN), { status: 200, headers: { "Content-Type": "application/json" } })
         : new Response(JSON.stringify(CHANGE), { status: 202, headers: { "Content-Type": "application/json" } }),
     );
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "New project" }));
     await user.click(await screen.findByRole("button", { name: "Import project" }));
     const dialog = await screen.findByRole("dialog", { name: /Import a project/ });
     expectDenied(within(dialog).getByRole("button", { name: "Check the archive" }), "Choose an export archive first.");
@@ -194,7 +202,7 @@ describe("Import project from the New project dialog", () => {
 
   it("shows the API's refusal of the archive and draws no form", async () => {
     renderAt(
-      "/projects/banskabystrica/spaces",
+      "/organization/projects",
       {},
       () =>
         new Response(JSON.stringify({ title: "Bad Request", detail: "doprava.bundle does not match its sha256" }), {
@@ -203,7 +211,6 @@ describe("Import project from the New project dialog", () => {
         }),
     );
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "New project" }));
     await user.click(await screen.findByRole("button", { name: "Import project" }));
     const dialog = await screen.findByRole("dialog", { name: /Import a project/ });
     await user.upload(within(dialog).getByLabelText("Choose the export archive"), new File(["x"], "bad.zip"));

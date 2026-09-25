@@ -131,6 +131,7 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
             <TableRow key={proposal.metadata.name}>
               <TableCell primary>
                 <Link
+                  data-row-link=""
                   to="/projects/$project/approvals/$id"
                   params={{ project, id: proposal.metadata.name }}
                   className="focus-ring rounded-sm text-primary-soft-fg hover:underline"

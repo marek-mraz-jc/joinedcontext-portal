@@ -16,7 +16,7 @@ import {
 import { FormDataContext, FormProjectContext, portalFields, portalWidgets } from "./widgets";
 import { TouchedContext, hasAnyError } from "./touched";
 import { DNS1123, ENTITY_TYPE_PATTERN } from "../../schemas/kinds";
-import { withPickers } from "../../schemas/pickers";
+import { namesOfRefs, withPickers } from "../../schemas/pickers";
 
 /** The theme's widgets and the Portal's own (`secretRef`, `entityPicker`), which a uiSchema names. */
 const widgets = { ...portalThemeWidgets, ...portalWidgets };
@@ -143,9 +143,12 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
     kind,
   } = props;
   const { t } = useTranslation();
+  // A reference the manifest writes typed is held by its name, which is what its picker reads
+  // (T-2872): as an object it opened the field empty, and an untouched Save blanked it.
+  const shown = React.useMemo(() => namesOfRefs(kind, formData) as T | undefined, [kind, formData]);
   // What the form still wants, beside its buttons (T-1607): a long form with a folded group has to
   // say how much of the required work is done, or folding it away hides the reason Propose is off.
-  const [held, setHeld] = React.useState<unknown>(formData);
+  const [held, setHeld] = React.useState<unknown>(shown);
   // What a person has reached (T-2757): a field shows its errors once changed or left, and every
   // field once the form was checked (the page's errors arrive) or a submit was refused.
   const [touchedIds, setTouchedIds] = React.useState<ReadonlySet<string>>(() => new Set());
@@ -161,7 +164,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
   }, []);
   const progress = requiredProgress(
     schema as Parameters<typeof requiredProgress>[0],
-    held ?? formData,
+    held ?? shown,
   );
 
   const effectiveUiSchema = React.useMemo(
@@ -220,13 +223,13 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
       <FormAfterFieldsContext.Provider value={afterFields ?? null}>
         <FormSubmitStateContext.Provider value={submitState}>
           <FormProjectContext.Provider value={project}>
-          <FormDataContext.Provider value={held ?? formData}>
+          <FormDataContext.Provider value={held ?? shown}>
           <TouchedContext.Provider value={touched}>
           <Form<T>
             validator={validator}
             schema={schema}
             uiSchema={effectiveUiSchema}
-            formData={formData}
+            formData={shown}
             disabled={disabled}
             liveValidate
             extraErrors={extraErrors}

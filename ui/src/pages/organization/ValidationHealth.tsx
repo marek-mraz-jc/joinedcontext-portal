@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import { ORG_NAMESPACE } from "../../api/manifest";
-import { allows, usePermissions } from "../../api/permissions";
+import { administersOrganization, usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
 import {
   Alert,
@@ -62,10 +62,7 @@ export function ValidationHealth(): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const permissions = usePermissions(ORG_NAMESPACE);
-  const administers =
-    permissions.data !== undefined &&
-    allows(permissions.data, "RoleBinding", "approve") &&
-    allows(permissions.data, "RoleBinding", "delete");
+  const administers = administersOrganization(permissions.data);
   const health = useQuery({
     queryKey: ["validationHealth"],
     enabled: administers,

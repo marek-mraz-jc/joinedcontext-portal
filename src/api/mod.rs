@@ -2,6 +2,7 @@ pub mod activity;
 pub mod agent_runs;
 pub mod app_build;
 pub mod app_me;
+pub mod app_transfer;
 pub mod assistant;
 pub mod basemap;
 pub mod blueprints;
@@ -25,6 +26,7 @@ pub mod import_git;
 pub mod internal;
 pub mod mutate;
 pub mod ops;
+pub mod organization_limits;
 pub mod people;
 pub mod permissions;
 pub mod pipeline_test;
@@ -70,6 +72,7 @@ pub fn router() -> Router<AppState> {
         .merge(activity::router())
         .merge(drift::router())
         .merge(export::router())
+        .merge(app_transfer::router())
         .merge(federation::router())
         .merge(forms::router())
         .merge(import::router())
@@ -86,6 +89,7 @@ pub fn router() -> Router<AppState> {
         .merge(sync::router())
         .merge(sync_sources::router())
         .merge(validation::router())
+        .merge(organization_limits::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
         .layer(axum::middleware::from_fn(auth::csrf::require_csrf));

@@ -36,7 +36,7 @@ const KINDS: &[&str] = &[
     "Flow",
 ];
 
-fn member(username: &str, group: &str) -> Identity {
+pub fn member(username: &str, group: &str) -> Identity {
     Identity {
         client: None,
         subject: format!("f:1:{username}"),

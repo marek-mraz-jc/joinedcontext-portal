@@ -11,19 +11,19 @@ spec:
   about:
     en: >-
       A data model says which entity types a space carries and what their attributes mean. Its
-      source, version and classes come from the LinkML editor on the Models page; here you decide
+      source, version and classes come from the Model editor on the Models page; here you decide
       where this version is in its life and whether its entities may carry undeclared attributes.
     sk: >-
       Dátový model hovorí, ktoré typy entít priestor nesie a čo znamenajú ich atribúty. Jeho zdroj,
-      verzia a triedy pochádzajú z editora LinkML na stránke Modely; tu rozhodujete, kde je táto
+      verzia a triedy pochádzajú z editora modelov na stránke Modely; tu rozhodujete, kde je táto
       verzia vo svojom živote a či jej entity smú niesť nedeklarované atribúty.
     cs: >-
       Datový model říká, které typy entit prostor nese a co znamenají jejich atributy. Jeho zdroj,
-      verze a třídy pocházejí z editoru LinkML na stránce Modely; zde rozhodujete, kde je tato verze
+      verze a třídy pocházejí z editoru modelů na stránce Modely; zde rozhodujete, kde je tato verze
       ve svém životě a zda její entity smějí nést nedeklarované atributy.
     de: >-
       Ein Datenmodell sagt, welche Entitätstypen ein Raum trägt und was ihre Attribute bedeuten.
-      Quelle, Version und Klassen kommen aus dem LinkML-Editor auf der Seite Modelle; hier legen Sie
+      Quelle, Version und Klassen kommen aus dem Modelleditor auf der Seite Modelle; hier legen Sie
       Lebensphase und Umgang mit nicht deklarierten Attributen fest.
   order: [name, contextSpaceRef, version, linkml, lifecycle, openWorld]
   groups:
@@ -33,10 +33,10 @@ spec:
         cs: Verze modelu
         de: Die Modellversion
       description:
-        en: Where the version lives and the source it was generated from; the LinkML editor changes these.
-        sk: Kde verzia žije a zdroj, z ktorého bola vytvorená; mení ich editor LinkML.
-        cs: Kde verze žije a zdroj, ze kterého byla vytvořena; mění je editor LinkML.
-        de: Wo die Version liegt und aus welcher Quelle sie entstand; der LinkML-Editor ändert sie.
+        en: Where the version lives and the source it was generated from; the Model editor changes these.
+        sk: Kde verzia žije a zdroj, z ktorého bola vytvorená; mení ich editor modelov.
+        cs: Kde verze žije a zdroj, ze kterého byla vytvořena; mění je editor modelů.
+        de: Wo die Version liegt und aus welcher Quelle sie entstand; der Modelleditor ändert sie.
       fields: [name, contextSpaceRef, version, linkml]
     - title:
         en: Your decisions
@@ -71,10 +71,10 @@ spec:
         de: Die semantische Version der gespeicherten Quelle; die Hauptversion ist die bereitgestellte.
     linkml:
       help:
-        en: The LinkML file beside the manifest that this version was generated from.
-        sk: Súbor LinkML vedľa manifestu, z ktorého bola táto verzia vytvorená.
-        cs: Soubor LinkML vedle manifestu, ze kterého byla tato verze vytvořena.
-        de: Die LinkML-Datei neben dem Manifest, aus der diese Version erzeugt wurde.
+        en: The model's source file beside the manifest that this version was generated from.
+        sk: Zdrojový súbor modelu vedľa manifestu, z ktorého bola táto verzia vytvorená.
+        cs: Zdrojový soubor modelu vedle manifestu, ze kterého byla tato verze vytvořena.
+        de: Die Quelldatei des Modells neben dem Manifest, aus der diese Version erzeugt wurde.
     lifecycle:
       help:
         en: A draft may change; a published version is fixed; deprecated warns its readers; retired serves no one.

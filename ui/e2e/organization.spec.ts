@@ -98,7 +98,7 @@ test.describe("the Organization page", () => {
     await stubApi(page);
     await page.goto("/organization?lang=en");
     await expect(page).toHaveURL(/\/organization\/settings$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Organization" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Administration" })).toBeVisible();
     await expect(page.getByText("Only an organization administrator opens projects.")).toBeVisible();
 
     await page.getByRole("tab", { name: "Settings" }).focus();
@@ -133,7 +133,7 @@ test.describe("the Organization page", () => {
   test("has no axe violations", async ({ page }) => {
     await stubApi(page);
     await page.goto("/organization/settings?lang=en");
-    await expect(page.getByRole("heading", { level: 1, name: "Organization" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Administration" })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
 });

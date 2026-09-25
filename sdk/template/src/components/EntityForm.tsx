@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { columnKind, fieldOf, format, optionLabel, pointOf, useAccess, useClient, useSave, useSchema } from "@joinedcontext/sdk";
-import type { Cell, Field, LanguageMap, Row } from "@joinedcontext/sdk";
+import { columnKind, fieldOf, format, NGSI_LD_NULL, optionLabel, pointOf, RelationPicker, targetsOf, useAccess, useClient, useSave, useSchema } from "@joinedcontext/sdk";
+import type { Cell, Field, LanguageMap, PickerLabels, Row, TargetOption, WriteValue } from "@joinedcontext/sdk";
 import { Problem } from "./states";
 import { t } from "../i18n";
 
@@ -55,6 +55,15 @@ export function parseInput(field: Field, text: string): { value: Cell } | { erro
     }
   }
   return { value: text };
+}
+
+/** How many targets one search offers. */
+const PICK_LIMIT = 20;
+const NO_TARGETS = (): Promise<TargetOption[]> => Promise.resolve([]);
+
+/** What a relationship end writes: its target, its targets on a many end, the NGSI-LD null when cleared. */
+function objectOf(spec: Field, picked: string[]): { object: string | string[] } {
+  return { object: picked.length === 0 ? NGSI_LD_NULL : spec.many ? picked : picked[0] };
 }
 
 function getInitialDraft(
@@ -145,6 +154,29 @@ export function EntityForm({
   const [initialDraft, setInitialDraft] = useState<Record<string, string>>(() =>
     getInitialDraft(row, fieldNames, fieldSpecs),
   );
+  // A relationship end holds picked targets and is written as a Relationship (DM-64, UI-84). Only
+  // the ends the person changed are kept; every other end reads the row, so a schema that loads
+  // late never shows an end empty.
+  const [picked, setPicked] = useState<Record<string, string[]>>({});
+  const linksOf = (name: string): string[] => picked[name] ?? targetsOf(row?.[name]);
+  const pickerLabels: PickerLabels = {
+    search: t("form.pickSearch"),
+    none: t("form.pickNone"),
+    remove: t("form.pickRemove"),
+    loading: t("form.pickLoading"),
+    failed: t("form.pickFailed"),
+  };
+  // A search asks the endpoint with the person's own session, so it offers only what they may
+  // read. One per target class, kept across renders: the picker reads again when it changes.
+  const targetKey = [...new Set(fieldNames.flatMap((name) => (fieldSpecs[name]?.target ? [fieldSpecs[name].target] : [])))].join(",");
+  const searches = useMemo(() => {
+    const searchOf = (target: string) => async (text: string): Promise<TargetOption[]> => {
+      const typed = text.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const found = await client.entities.list(target, { idPattern: typed === "" ? undefined : `.*${typed}.*`, limit: PICK_LIMIT });
+      return found.map((r) => ({ id: r.id, name: typeof r.name === "string" && r.name.trim() !== "" ? r.name : undefined }));
+    };
+    return Object.fromEntries(targetKey.split(",").filter((target) => target !== "").map((target) => [target, searchOf(target)]));
+  }, [client, targetKey]);
   const [localId, setLocalId] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -198,6 +230,7 @@ export function EntityForm({
     const init = getInitialDraft(row, fieldNames, fieldSpecs);
     setDraft(init);
     setInitialDraft(init);
+    setPicked({});
     setLocalId("");
     setFieldErrors({});
     clear();
@@ -224,6 +257,10 @@ export function EntityForm({
         if (spec.required && !mapOf(name)) errors[name] = `${name} is required`;
         continue;
       }
+      if (spec.input === "relation") {
+        if (spec.required && linksOf(name).length === 0) errors[name] = `${name} is required`;
+        continue;
+      }
       const text = draft[name] ?? "";
       if (spec.required && text.trim() === "") {
         errors[name] = `${name} is required`;
@@ -245,12 +282,17 @@ export function EntityForm({
     }
 
     if (!row) {
-      const attrs: Record<string, Cell | LanguageMap> = {};
+      const attrs: Record<string, WriteValue> = {};
       for (const name of fieldNames) {
         const spec = fieldSpecs[name];
         if (spec.input === "language") {
           const map = mapOf(name);
           if (map) attrs[name] = map;
+          continue;
+        }
+        if (spec.input === "relation") {
+          const targets = linksOf(name);
+          if (targets.length > 0) attrs[name] = objectOf(spec, targets);
           continue;
         }
         const text = draft[name] ?? "";
@@ -266,7 +308,7 @@ export function EntityForm({
         onSaved?.(newId);
       }
     } else {
-      const patch: Record<string, Cell | LanguageMap> = {};
+      const patch: Record<string, WriteValue> = {};
       let changed = false;
       for (const name of fieldNames) {
         const spec = fieldSpecs[name];
@@ -277,6 +319,14 @@ export function EntityForm({
           if (map && JSON.stringify(map.languageMap) !== JSON.stringify(stored?.[name] ?? {})) {
             changed = true;
             patch[name] = map;
+          }
+          continue;
+        }
+        if (spec.input === "relation") {
+          const targets = linksOf(name);
+          if (targets.join(" ") !== targetsOf(row[name]).join(" ")) {
+            changed = true;
+            patch[name] = objectOf(spec, targets);
           }
           continue;
         }
@@ -329,6 +379,37 @@ export function EntityForm({
           const fieldDecision = can(op, type, name);
           const disabled = !fieldDecision.ok;
           const reason = disabled ? fieldDecision.reason : undefined;
+
+          if (spec.input === "relation") {
+            // The picker is a group of its own (chips, a combobox, remove buttons), named by the
+            // group rather than wrapped in one label. Without the right to write it, the targets
+            // stay readable and say why.
+            return (
+              <div key={name} className="jc-field">
+                <span aria-hidden="true">
+                  {name}
+                  {spec.required ? " *" : ""}
+                </span>
+                {disabled ? (
+                  <input type="text" aria-label={name} value={linksOf(name).join(", ")} disabled title={reason} readOnly />
+                ) : (
+                  <RelationPicker
+                    label={name}
+                    value={linksOf(name)}
+                    end={{ target: spec.target ?? "", many: spec.many ?? false, required: spec.required }}
+                    search={searches[spec.target ?? ""] ?? NO_TARGETS}
+                    labels={pickerLabels}
+                    onChange={(next) => setPicked((p) => ({ ...p, [name]: next }))}
+                  />
+                )}
+                {fieldErrors[name] && (
+                  <p className="jc-field-error" role="alert">
+                    {fieldErrors[name]}
+                  </p>
+                )}
+              </div>
+            );
+          }
 
           let inputElement: React.JSX.Element;
           switch (spec.input) {

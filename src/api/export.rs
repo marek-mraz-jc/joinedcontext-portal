@@ -389,7 +389,7 @@ fn bundle_files(included: &[&Exported]) -> Vec<jc_core::kinds::BundleFile> {
 }
 
 /// One manifest of an export as the index lists it (MF-17).
-fn bundle_item(envelope: &ResourceEnvelope, path: &str) -> jc_core::kinds::BundleItem {
+pub(crate) fn bundle_item(envelope: &ResourceEnvelope, path: &str) -> jc_core::kinds::BundleItem {
     let namespace = envelope.metadata.namespace.clone().filter(|namespace| {
         !resource::belongs_to_the_organization(&envelope.kind, Some(namespace))
     });
@@ -738,7 +738,7 @@ fn readme(
     get,
     path = "/api/v1/projects/{project}/export",
     summary = "Export Project",
-    description = "The project's manifests as one bundle, narrowed to the kinds and names asked for.",
+    description = "The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -751,7 +751,7 @@ fn readme(
         (status = 200, description = "The project's configuration at the revision"),
         (status = 400, description = "Unknown format or malformed revision", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
-        (status = 403, description = "A git export, and the caller may not read every manifest of the project", body = ProblemDetails),
+        (status = 403, description = "A whole-project or git export by anybody but an organization administrator (UI-87), or a git export the caller may not read in full", body = ProblemDetails),
         (status = 404, description = "No such project or revision", body = ProblemDetails),
         (status = 409, description = "A git export of a layout 1 project, of a repository that moved during it, or of an App outside the forge", body = ProblemDetails),
         (status = 503, description = "No repository configured", body = ProblemDetails)
@@ -778,6 +778,15 @@ pub async fn export(
         return Err(ApiError::BadRequest(format!(
             "format '{format}' is not yaml, json, zip or git"
         )));
+    }
+    // The whole project leaves only through an administrator (UI-87); manifests named one by
+    // one stay with the project's readers.
+    if format == "git" || selected(query.names.as_deref()).is_none() {
+        crate::permissions::require_organization_admin(
+            &state,
+            &user.0.identity,
+            "exporting a whole project",
+        )?;
     }
     let forge = gitea(&state, &project)?;
     let gitea: &GiteaClient = &forge;

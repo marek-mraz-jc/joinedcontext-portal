@@ -5,6 +5,7 @@
  * class generates, the LinkML, who uses it, what changed it, and its Mappings. Read-only: Edit
  * opens the editor for a person who may propose a DataModel and says why not to anyone else.
  */
+import { RecordLink } from "../../components/RecordLink";
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ import {
   Tabs,
   tabPanelProps,
 } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import { MappingsEditor } from "./MappingsEditor";
 import type { MappingModel } from "./MappingsEditor";
@@ -42,9 +44,6 @@ import type { ModelUse } from "./modelUsage";
 
 type View = "overview" | "form" | "yaml" | "used" | "history" | "mappings";
 const VIEWS: View[] = ["overview", "form", "yaml", "used", "history", "mappings"];
-
-/** Pages that have a page of their own; everything else opens on its edit form. */
-const DETAIL = new Set(["spaces", "endpoints", "apps"]);
 
 /** The source of a model: the manifest's own text, else the file the repository keeps (DM-56). */
 export function useSourceOf(project: string, model: Manifest | undefined) {
@@ -61,16 +60,7 @@ export function useSourceOf(project: string, model: Manifest | undefined) {
 
 /** A link to one user of the model: its own page where it has one, else its edit form. */
 export function UseLink({ project, use }: { project: string; use: Pick<ModelUse, "plural" | "name"> }): JSX.Element {
-  const className = "focus-ring font-mono text-primary-soft-fg underline-offset-2 hover:underline";
-  return DETAIL.has(use.plural) ? (
-    <Link to="/projects/$project/$plural/$name" params={{ project, plural: use.plural, name: use.name }} className={className}>
-      {use.name}
-    </Link>
-  ) : (
-    <Link to="/projects/$project/$plural/$name/edit" params={{ project, plural: use.plural, name: use.name }} className={className}>
-      {use.name}
-    </Link>
-  );
+  return <RecordLink project={project} plural={use.plural} name={use.name} className="font-mono" />;
 }
 
 /** The classes with their fields: what each slot is, and which class a relationship points at. */
@@ -204,21 +194,26 @@ export function ModelPage({
       </p>
     );
   }
-  if (models.isError || model === undefined) {
+  if (models.isError) {
+    return (
+      <ResourcePageFailed
+        title={name}
+        description={t("models.page.listLead")}
+        error={models.error}
+        onRetry={() => void models.refetch()}
+        back={back}
+      />
+    );
+  }
+  if (model === undefined) {
     return (
       <div className="flex flex-col gap-4">
-        {back}
+        <PageHeader title={name} description={t("models.page.listLead")} />
         <EmptyState
           icon="models"
           title={t("models.page.notFound", { name })}
-          description={models.isError ? t("app.error.generic") : t("models.page.notFoundLead")}
-          action={
-            models.isError ? (
-              <Button size="sm" onClick={() => void models.refetch()}>
-                {t("app.error.retry")}
-              </Button>
-            ) : undefined
-          }
+          description={t("models.page.notFoundLead")}
+          action={back}
         />
       </div>
     );

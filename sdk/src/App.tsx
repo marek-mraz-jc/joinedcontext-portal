@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Cell, FilterState, Row } from "./ngsi";
+import type { Cell, FilterState, RelationshipObject, Row } from "./ngsi";
+import { isRelationshipObject } from "./ngsi";
 import { applyFilters, columnKind, distinct, extent, format, loadSource, toRow } from "./ngsi";
 import type { Filter, Source, Spec, View } from "./spec";
 import { pagesOf, sourceOf } from "./spec";
@@ -12,7 +13,11 @@ import { MapView } from "./views/MapView";
 import { Stats } from "./views/Stats";
 import { Table } from "./views/Table";
 import type { Schema, WriteResult } from "./write";
-import { unitsOf, writeEntity } from "./write";
+import { attrsOf, unitsOf, writeEntity } from "./write";
+import { fixtureSource, sourceFor } from "./grid/source";
+import { searchTargets } from "./relations";
+import { originTransport } from "./sdk/transport";
+import type { TargetSearch } from "./views/Form";
 
 const DEFAULT_ACCENT = "#0f766e";
 
@@ -95,7 +100,12 @@ function FilterControl({ filter, index, rows, value, onChange }: { filter: Filte
   );
 }
 
-type Save = (source: Source, id: string | null, patch: Record<string, Cell>) => Promise<WriteResult>;
+type Save = (source: Source, id: string | null, patch: Record<string, Cell | RelationshipObject>) => Promise<WriteResult>;
+
+/** A written value as the rows on screen hold it: a relationship end is its URN, or URNs joined. */
+function asCell(value: Cell | RelationshipObject): Cell {
+  return isRelationshipObject(value) ? (Array.isArray(value.object) ? value.object.join(", ") : value.object) : value;
+}
 
 function summarizeFilters(filters: Filter[], state: FilterState): string {
   const parts: string[] = [];
@@ -158,6 +168,7 @@ function ViewCard({
   filters,
   filterState,
   inlineRows,
+  search,
 }: {
   view: View;
   spec: Spec;
@@ -175,6 +186,8 @@ function ViewCard({
   filterState: FilterState;
   /** The entities the Portal inlined for a preview, for the one view that would otherwise fetch. */
   inlineRows?: Record<string, unknown>[];
+  /** Where a form's relationship picker finds its targets. */
+  search?: TargetSearch;
 }) {
   const cardRef = useRef<HTMLElement>(null);
   const source = sourceOf(spec, view);
@@ -209,7 +222,7 @@ function ViewCard({
       case "form":
         return (
           <>
-            <Form row={rows.find((r) => r.id === selected) ?? null} rows={rows} fields={view.fields ?? source.attrs} title={view.title} schema={schema?.[source.type]} defs={schema} creating={creating} onSave={(id, patch) => onSave(source, id, patch)} onClose={() => { onSelect(null); onCreate(false); }} />
+            <Form row={rows.find((r) => r.id === selected) ?? null} rows={rows} fields={view.fields ?? source.attrs} title={view.title} schema={schema?.[source.type]} defs={schema} creating={creating} search={search} onSave={(id, patch) => onSave(source, id, patch)} onClose={() => { onSelect(null); onCreate(false); }} />
             <button type="button" className="new" onClick={() => { onSelect(null); onCreate(true); }}>New {source.type}</button>
           </>
         );
@@ -368,16 +381,30 @@ export function App({
     () => Object.fromEntries(spec.sources.map((s) => [s.name, applyFilters(edited[s.name] ?? [], filters, state, s.name)])) as Loaded,
     [edited, filters, state, spec.sources],
   );
+  // A form's relationship end searches the app's own endpoint with the person's session, which
+  // offers only what they may read; a preview has no session and searches what the Portal inlined.
+  const targetSearch = useMemo<TargetSearch>(() => {
+    const source = inline
+      ? fixtureSource(
+          Object.values(inline)
+            .filter(Array.isArray)
+            .flat()
+            .filter((e): e is Record<string, unknown> => typeof e === "object" && e !== null && !Array.isArray(e)),
+        )
+      : sourceFor({ kind: "endpoint", slug }, originTransport());
+    return (target, text) => searchTargets(source, target, text);
+  }, [inline, slug]);
   // A save is one write through the endpoint (AP-62); the screen follows only what it accepted.
   const save: Save = async (source, id, patch) => {
     const result = id && !creating
       ? await writeEntity(slug, { id, type: source.type, patch }, bridge)
-      : await writeEntity(slug, { type: source.type, entity: { id: id ?? "", ...Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, { type: "Property", value: v }])) } }, bridge);
+      : await writeEntity(slug, { type: source.type, entity: { id: id ?? "", ...attrsOf(patch) } }, bridge);
     if (result.ok) {
+      const cells = Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, asCell(v)]));
       if (id && !creating) {
-        setEdits((e) => ({ ...e, [id]: { ...e[id], ...patch } }));
+        setEdits((e) => ({ ...e, [id]: { ...e[id], ...cells } }));
       } else if (id) {
-        setCreated((c) => ({ ...c, [source.name]: [...(c[source.name] ?? []), { id, type: source.type, ...patch }] }));
+        setCreated((c) => ({ ...c, [source.name]: [...(c[source.name] ?? []), { id, type: source.type, ...cells }] }));
       }
       setNotice(`Saved ${id ?? ""}`);
     }
@@ -433,6 +460,7 @@ export function App({
             filters={filters}
             filterState={state}
             inlineRows={inline?.[sourceOf(spec, view).name] as Record<string, unknown>[] | undefined}
+            search={targetSearch}
           />
         ))}
       </main>

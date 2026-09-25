@@ -50,6 +50,7 @@ import {
   Term,
   Icon,
 } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
 
@@ -151,23 +152,24 @@ export function EndpointPage({
     return <p role="status">{t("app.loading")}</p>;
   }
   if (endpoint.isError) {
-    const message =
-      endpoint.error instanceof ApiError
-        ? (endpoint.error.problem?.detail ?? endpoint.error.message)
-        : t("app.error.generic");
     return (
-      <div role="alert">
-        <p className="text-danger">{message}</p>
-        <Button
-          size="sm"
-          className="mt-2"
-          onClick={() => {
-            void endpoint.refetch();
-          }}
-        >
-          {t("app.error.retry")}
-        </Button>
-      </div>
+      <ResourcePageFailed
+        title={name}
+        description={t("endpoints.lead")}
+        error={endpoint.error}
+        onRetry={() => {
+          void endpoint.refetch();
+        }}
+        back={
+          <Link
+            to="/projects/$project/$plural"
+            params={{ project, plural: "endpoints" }}
+            className="text-sm text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+          >
+            {t("endpoints.page.back")}
+          </Link>
+        }
+      />
     );
   }
 

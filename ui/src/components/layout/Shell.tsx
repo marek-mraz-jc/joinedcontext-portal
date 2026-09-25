@@ -4,15 +4,14 @@ import { Link, useMatchRoute, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { LanguageSwitcher } from "../LanguageSwitcher";
-import { ExportButton } from "../export/ExportButton";
 import { AssistantDock } from "../../assistant/AssistantDock";
 import { useAuth } from "../../auth/AuthProvider";
 import { rememberProject, useProjects } from "../../api/projects";
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { approvalStanding } from "../../api/approval";
-import { usePermissions } from "../../api/permissions";
-import { logoUrl, useBranding } from "../../branding";
+import { useAdministers, usePermissions } from "../../api/permissions";
+import { logoUrl, useBranding, useHiddenSections } from "../../branding";
 import {
   Alert,
   Button,
@@ -27,7 +26,7 @@ import {
   safeHref,
 } from "../ui";
 import type { IconName } from "../ui";
-import { NAV_SECTIONS, sameSection } from "./navigation";
+import { isHiddenSection, NAV_SECTIONS, sameSection } from "./navigation";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
@@ -304,6 +303,7 @@ export function Shell({
 }): JSX.Element {
   const { t } = useTranslation();
   const branding = useBranding();
+  const hiddenSections = useHiddenSections();
   const matchRoute = useMatchRoute();
   // The organization's tabs, every endpoint and `/` open on this project next (T-2753).
   useEffect(() => {
@@ -355,8 +355,8 @@ export function Shell({
     matchRoute({ to: "/projects/$project/assistant", params: { project } }),
   );
 
-  const allEndpointsActive = Boolean(matchRoute({ to: "/endpoints" }));
   const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
+  const { administers } = useAdministers();
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
@@ -417,34 +417,23 @@ export function Shell({
           <BrandMark short />
         </Link>
         <div className="ml-auto flex items-center gap-1">
-          {/* One click from anywhere in the project, which is the whole of CC-49 — from `sm`
-              up. At phone width the header has room for the language and the account and
-              nothing else, and the export is one tap away on the project's own pages.
-              The wrapper, not the button: the button's own `inline-flex` and a `hidden` on
-              the same element are the same CSS property, and the button was winning. */}
-          <div className="hidden sm:block">
-            <ExportButton
-              project={project}
-              target={{}}
-              label={t("export.project")}
-              variant="ghost"
-              size="sm"
-            />
-          </div>
-          {/* The organization is one button, and its page holds everything of it as tabs:
-              settings, members, roles, groups, service accounts, projects (owner, 2026-09-24). */}
-          <Link
-            to="/organization/$tab"
-            params={{ tab: "settings" }}
-            aria-label={t("nav.organization")}
-            aria-current={organizationActive ? "page" : undefined}
-            className={buttonClass("ghost", "sm")}
-          >
-            <Icon name="access" className="size-4" />
-            <span aria-hidden="true" className="hidden sm:inline">
-              {t("nav.organization")}
-            </span>
-          </Link>
+          {/* Administration is one entry, for organization administrators only, and its page
+              holds every organization-wide power as tabs, the whole-project export and import
+              included (UI-75, UI-87, owner 2026-09-25). */}
+          {administers ? (
+            <Link
+              to="/organization/$tab"
+              params={{ tab: "settings" }}
+              aria-label={t("nav.organization")}
+              aria-current={organizationActive ? "page" : undefined}
+              className={buttonClass("ghost", "sm")}
+            >
+              <Icon name="access" className="size-4" />
+              <span aria-hidden="true" className="hidden sm:inline">
+                {t("nav.organization")}
+              </span>
+            </Link>
+          ) : null}
           <LanguageSwitcher />
           <UserMenu />
         </div>
@@ -475,7 +464,7 @@ export function Shell({
             <NewProjectButton project={project} />
           </div>
           <ul className="flex flex-col gap-0.5">
-            {NAV_SECTIONS.map((section) => {
+            {NAV_SECTIONS.filter((section) => !isHiddenSection(section.plural, hiddenSections)).map((section) => {
               const isActive = section === activeSection;
               const body = <NavLabel icon={section.icon} label={t(section.labelKey)} />;
               return (
@@ -518,20 +507,10 @@ export function Shell({
               );
             })}
           </ul>
-          {/* Not sections of the resource API: every endpoint across projects, the model editor
-              that writes LinkML into the repository, the explorer and the CKAN view hang below
-              the list. */}
+          {/* Not sections of the resource API: the model editor that writes LinkML into the
+              repository, the explorer and the CKAN view hang below the list. Every endpoint
+              across projects is the Organization page's, for administrators (T-2877). */}
           <ul className="flex flex-col gap-0.5 border-t border-border pt-3">
-            <li>
-              <Link
-                to="/endpoints"
-                onClick={closeNav}
-                aria-current={allEndpointsActive ? "page" : undefined}
-                className={navLinkClass(allEndpointsActive)}
-              >
-                <NavLabel icon="globe" label={t("nav.allEndpoints")} />
-              </Link>
-            </li>
             <li>
               <Link
                 to="/projects/$project/models"

@@ -113,10 +113,10 @@ spec:
         de: Die Ausgabe, die diese Eingabe ergeben muss, neben dem Manifest; CI vergleicht beide.
     native[].targetSlot:
       help:
-        en: The target slot this code fills, by its LinkML identifier; letters, digits and underscores.
-        sk: Cieľový slot, ktorý tento kód plní, podľa identifikátora LinkML; písmená, číslice, podčiarkovníky.
-        cs: Cílový slot, který tento kód plní, podle identifikátoru LinkML; písmena, číslice, podtržítka.
-        de: Der Ziel-Slot, den dieser Code füllt, per LinkML-Kennung; Buchstaben, Ziffern, Unterstriche.
+        en: The target slot this code fills, by its name in the data model; letters, digits and underscores.
+        sk: Cieľový slot, ktorý tento kód plní, podľa názvu v dátovom modeli; písmená, číslice, podčiarkovníky.
+        cs: Cílový slot, který tento kód plní, podle názvu v datovém modelu; písmena, číslice, podtržítka.
+        de: Der Ziel-Slot, den dieser Code füllt, per Name im Datenmodell; Buchstaben, Ziffern, Unterstriche.
     native[].language:
       help:
         en: The language the block is written in; Bloblang is the one Bento runs today.

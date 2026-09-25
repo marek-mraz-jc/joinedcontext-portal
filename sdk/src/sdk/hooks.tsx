@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { Cell, LanguageMap, Row } from "../ngsi";
+import type { Row, WriteValue } from "../ngsi";
 import type { Schema, TypeSchema } from "../write";
 import type { AccessDocument, Decision } from "./access";
 import { can as evalCan } from "./access";
@@ -144,8 +144,8 @@ export function useEntity<T extends Row = Row>(
 
 export function useSave(): {
   /** `options.endpoint` names the endpoint of a type more than one serves (SDK-02). */
-  create(type: string, attrs: Record<string, Cell | LanguageMap>, localId?: string, options?: EndpointOption): Promise<string | null>;
-  update(id: string, patch: Record<string, Cell | LanguageMap>): Promise<boolean>;
+  create(type: string, attrs: Record<string, WriteValue>, localId?: string, options?: EndpointOption): Promise<string | null>;
+  update(id: string, patch: Record<string, WriteValue>): Promise<boolean>;
   remove(id: string): Promise<boolean>;
   saving: boolean;
   problem: ProblemError | null;
@@ -157,7 +157,7 @@ export function useSave(): {
 
   const clear = useCallback(() => setProblem(null), []);
 
-  const create = async (type: string, attrs: Record<string, Cell>, localId?: string, options?: EndpointOption): Promise<string | null> => {
+  const create = async (type: string, attrs: Record<string, WriteValue>, localId?: string, options?: EndpointOption): Promise<string | null> => {
     setSaving(true);
     setProblem(null);
     try {
@@ -172,7 +172,7 @@ export function useSave(): {
     }
   };
 
-  const update = async (id: string, patch: Record<string, Cell>): Promise<boolean> => {
+  const update = async (id: string, patch: Record<string, WriteValue>): Promise<boolean> => {
     setSaving(true);
     setProblem(null);
     try {

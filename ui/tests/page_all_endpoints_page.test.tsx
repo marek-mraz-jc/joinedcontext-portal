@@ -1,9 +1,10 @@
 /**
- * T-1787: "All endpoints" against the page contract (UI-11, UI-15, UI-16, EP-08, EP-44, PF-60).
+ * T-1787: "All endpoints" against the page contract (UI-11, UI-15, UI-16, EP-08, EP-44, PF-61).
  *
  * `all_endpoints_view.test.tsx` walks to this page through the whole application and keeps what
- * the organization-level route answers. This one imports the page itself, which is the module
- * gate, and asserts the frame: the H1 and the tab, the four states, a table that reads the same
+ * the organization-level route answers. This one renders it where it lives since T-2877, the
+ * Organization page's Endpoints tab for an administrator, and asserts the frame: the H1 above it
+ * and its own H2, the four states, a table that reads the same
  * with no rows, one row and five hundred, the keyboard, four languages, axe, and — the reason
  * the survey flagged three lines — that every link on it is built by the Portal and checked
  * before it is a link.
@@ -12,6 +13,7 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { OrganizationPage } from "../src/pages/organization/OrganizationPage";
 import { AllEndpointsPage } from "../src/routes/AllEndpointsPage";
 import {
   expectHeadingOutline,
@@ -46,6 +48,13 @@ function endpoint(index: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** An administrator of the organization (PF-03), the one person the tab is for. */
+const ADMIN = {
+  project: "org",
+  bootstrap: false,
+  grants: [{ role: "org-admin", binding: "admins", rule: { kinds: ["RoleBinding", "Endpoint"], verbs: ["read", "approve", "delete"] } }],
+};
+
 interface World {
   rows?: number;
   fails?: { status: number; detail: string };
@@ -55,9 +64,10 @@ interface World {
 
 function renderAll(world: World = {}) {
   const { rows = 2, fails, pending = false, items } = world;
-  return renderPage(<AllEndpointsPage />, {
-    path: "/endpoints",
+  return renderPage(<OrganizationPage tab="endpoints" anchor="helsinki" />, {
+    path: "/organization/endpoints",
     answer: (url) => {
+      if (url.pathname.endsWith("/permissions/me")) return json(ADMIN);
       if (!url.pathname.endsWith("/api/v1/endpoints")) return undefined;
       if (pending) return new Promise<Response>(() => undefined);
       if (fails) return problem(fails.status, fails.detail);
@@ -77,17 +87,18 @@ afterEach(() => {
 });
 
 describe("all endpoints", () => {
-  // UI-15: the page names itself, and the tab says so too. It is outside a project, so the tab
-  // carries no project name.
-  it("has one H1 and names the page in the tab, with no project", async () => {
+  // UI-15: the Organization page names itself once, and the table carries its own H2 under it.
+  // It is outside a project, so the browser tab carries no project name.
+  it("has the organization's one H1 and its own H2, with no project", async () => {
     const { container } = renderAll();
     expect(
-      await screen.findByRole("heading", { level: 1, name: en.allEndpoints.title }),
+      await screen.findByRole("heading", { level: 2, name: en.allEndpoints.title }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
     expect(screen.getByText(en.allEndpoints.lead)).toBeInTheDocument();
     expectHeadingOutline(container);
     await waitFor(() => {
-      expect(document.title).toBe(`${en.allEndpoints.title} · Helsinki Region Context`);
+      expect(document.title).toBe(`${en.organization.title} · Helsinki Region Context`);
     });
   });
 
@@ -116,7 +127,7 @@ describe("all endpoints", () => {
     expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
     expect(screen.queryByText(en.allEndpoints.empty)).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 1, name: en.allEndpoints.title }),
+      screen.getByRole("heading", { level: 2, name: en.allEndpoints.title }),
     ).toBeInTheDocument();
   });
 
@@ -188,7 +199,7 @@ describe("all endpoints", () => {
       cleanup();
       renderAll({ rows: 0 });
       expect(
-        await screen.findByRole("heading", { level: 1, name: i18n.t("allEndpoints.title") }),
+        await screen.findByRole("heading", { level: 2, name: i18n.t("allEndpoints.title") }),
         `the title is missing in ${locale}`,
       ).toBeInTheDocument();
       expect(await screen.findByText(i18n.t("allEndpoints.emptyHint"))).toBeInTheDocument();

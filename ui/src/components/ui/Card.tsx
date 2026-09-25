@@ -1,5 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { clsx } from "clsx";
+import { openRowLink } from "./Table";
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** No inner padding: for a table or a map that fills the card edge to edge. */
@@ -7,14 +8,27 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /** A raised surface with the Portal's border and radius; every panel on a page is one. */
-export function Card({ flush, className, children, ...rest }: CardProps): React.JSX.Element {
+export function Card({ flush, className, children, onClick, onAuxClick, ...rest }: CardProps): React.JSX.Element {
   return (
     <div
       className={clsx(
-        "rounded-lg border border-border bg-surface shadow-1",
+        "rounded-lg border border-border bg-surface shadow-1 has-[a[data-row-link]]:cursor-pointer",
         !flush && "p-5",
         className,
       )}
+      // A card of one record opens it on a click anywhere, as a table row does (T-2875).
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) {
+          openRowLink(event);
+        }
+      }}
+      onAuxClick={(event) => {
+        onAuxClick?.(event);
+        if (!event.defaultPrevented && event.button === 1) {
+          openRowLink(event);
+        }
+      }}
       {...rest}
     >
       {children}

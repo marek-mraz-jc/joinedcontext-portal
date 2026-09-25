@@ -8,7 +8,6 @@
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
-use jc_core::kinds::Verb;
 use serde::Serialize;
 use serde_json::Value;
 use utoipa::ToSchema;
@@ -140,17 +139,17 @@ async fn a_second_person(state: &AppState) -> bool {
     tag = "organization",
     responses(
         (status = 200, description = "The steps and the operator's part", body = SetupState),
-        (status = 403, description = "The caller lacks approve on Organization", body = ProblemDetails),
+        (status = 403, description = "Not an administrator of the organization (PF-03)", body = ProblemDetails),
     )
 )]
 pub async fn get_setup(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<SetupState>, ApiError> {
-    crate::permissions::for_request(&state, &user.0.identity, ORG_NAMESPACE).check(
-        "Organization",
-        Verb::Approve,
-        None,
+    crate::permissions::require_organization_admin(
+        &state,
+        &user.0.identity,
+        "the organization's setup",
     )?;
     let steps = steps(&state, a_second_person(&state).await);
     let operator = operator(
