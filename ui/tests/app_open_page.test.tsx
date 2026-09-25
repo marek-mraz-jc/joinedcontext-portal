@@ -305,7 +305,8 @@ describe("AppOpenPage when the App stays silent", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent(en.apps.openPage.silentTitle);
     expect(status).toHaveTextContent(en.apps.openPage.silentBody);
-    expect(within(status).getByRole("link", { name: new RegExp(en.apps.openPage.newWindow) }).getAttribute("href")).toBe("/apps/city-bikes/");
+    // One "Open in new window" on the page, the bar's: a second would make its name ambiguous.
+    expect(screen.getAllByRole("link", { name: new RegExp(en.apps.openPage.newWindow) })).toHaveLength(1);
     // The frame stays: an App built without the SDK says nothing and may render all the same.
     expect(document.body.contains(frame)).toBe(true);
     fireEvent.click(within(status).getByRole("button", { name: en.apps.openPage.signInAgain }));
