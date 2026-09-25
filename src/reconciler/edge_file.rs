@@ -152,7 +152,10 @@ fn framed_by_portal(plugins: &mut Value, host: &str) {
     if let Some(set) = headers.get_mut("set").and_then(Value::as_object_mut) {
         set.retain(|name, _| !name.eq_ignore_ascii_case("x-frame-options"));
     }
-    let policy = format!("Content-Security-Policy: frame-ancestors https://portal.{host}");
+    // No scheme: APISIX refuses an `add` entry with a second `:` (its pattern is
+    // `^[^:]+:[^:]*[^/]$`) and drops the whole plugin config, so every App route answered 503.
+    // A source without a scheme takes the App page's own, https.
+    let policy = format!("Content-Security-Policy: frame-ancestors portal.{host}");
     push(headers, "add", json!(policy));
     push(headers, "remove", json!("X-Frame-Options"));
 }
@@ -670,9 +673,15 @@ routes:
             );
             assert_eq!(
                 headers["add"],
-                json!(["Content-Security-Policy: frame-ancestors https://portal.city.example"]),
+                json!(["Content-Security-Policy: frame-ancestors portal.city.example"]),
                 "{id}"
             );
+            // APISIX's schema for `response-rewrite.headers.add`: one `:` and no trailing `/`.
+            for entry in headers["add"].as_array().expect("add") {
+                let entry = entry.as_str().expect("a string");
+                assert_eq!(entry.matches(':').count(), 1, "{id}: {entry}");
+                assert!(!entry.ends_with('/'), "{id}: {entry}");
+            }
             assert_eq!(headers["remove"], json!(["X-Frame-Options"]), "{id}");
         }
         // The endpoint route answers JSON and is framed by nobody; the fallback keeps SAMEORIGIN.
@@ -698,7 +707,7 @@ routes:
         assert_eq!(headers["remove"], json!(["X-Frame-Options"]));
         assert!(headers["add"][0]
             .as_str()
-            .is_some_and(|value| value.ends_with("frame-ancestors https://portal.city.example")));
+            .is_some_and(|value| value.ends_with("frame-ancestors portal.city.example")));
     }
 
     #[test]
