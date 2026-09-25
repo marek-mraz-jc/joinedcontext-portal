@@ -40,6 +40,7 @@ pub fn router() -> Router<AppState> {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/apps/{name}/me",
+    operation_id = "app_me",
     summary = "The Caller's Roles In An Application",
     description = "The caller's id, name, e-mail and roles in one published App, for the App's backend (AP-109).",
     tag = "apps",

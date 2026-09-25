@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "./client";
+import { ORG_NAMESPACE } from "./manifest";
 import type { components } from "./schema";
 
 /** What the caller may do in one project, from the bindings of the organization repository (PF-50). */
@@ -91,6 +92,20 @@ export function usePermissions(project: string) {
 }
 
 /** One rule of a `Role` as the form holds it: the verbs it grants on the kinds it names. */
+/**
+ * Whether the caller administers the organization (PF-03, UI-75): `approve` and `delete` on
+ * `RoleBinding` in the organization's permissions, as the seeded `org-admin` holds them and the
+ * server asks. `known` is false until the document is read, and a document that never came means
+ * no: what only an administrator sees is not shown while it is unknown.
+ */
+export function useAdministers(): { known: boolean; administers: boolean } {
+  const permissions = usePermissions(ORG_NAMESPACE);
+  return {
+    known: !permissions.isLoading,
+    administers: administersOrganization(permissions.data),
+  };
+}
+
 export interface GrantedRule {
   kinds?: string[];
   verbs?: string[];

@@ -120,17 +120,19 @@ async function visits(page: Page, who: string): Promise<Visit[]> {
 }
 
 /**
- * PF-61, T-2877: what a person who does not administer the organization meets at the
- * cross-project Endpoints — both addresses land on Settings, no tab and no menu entry offers it,
- * and the API answers `404`. Each line returned is a finding.
+ * PF-61, T-2877, UI-75: what a person who does not administer the organization meets at the
+ * cross-project Endpoints — both addresses tell them the Administration page is for
+ * administrators, no tab and no menu entry offers it, and the API answers `404`. Each line
+ * returned is a finding.
  */
 async function endpointsRefused(page: Page): Promise<string[]> {
   const found: string[] = [];
   for (const address of ["/endpoints", "/organization/endpoints"]) {
     await page.goto(`${address}?lang=en`, { waitUntil: "load" });
-    await page.waitForURL(/\/organization\/settings/, { timeout: 30_000 }).catch(() => undefined);
-    if (!new URL(page.url()).pathname.endsWith("/organization/settings")) {
-      found.push(`admin-only: ${address} stayed at ${new URL(page.url()).pathname}`);
+    const notice = page.getByText(/This page is for organization administrators/);
+    await notice.waitFor({ timeout: 30_000 }).catch(() => undefined);
+    if ((await notice.count()) === 0) {
+      found.push(`admin-only: ${address} did not say the page is for administrators`);
     }
     if ((await page.getByRole("table", { name: "All endpoints" }).count()) > 0) {
       found.push(`admin-only: ${address} shows the table`);

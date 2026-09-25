@@ -63,7 +63,7 @@ describe("the Organization page's addresses (T-2605)", () => {
 
   // Owner, 2026-09-24: the organization is one button in the header, and its page holds every
   // part of it as tabs; the sidebar lists none of them.
-  it("has one Organization button in the header, and the sidebar lists no organization tab", async () => {
+  it("has one Administration entry in the header, and the sidebar lists no organization tab", async () => {
     renderAt("/organization/members");
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("region", { name: en.nav.organization })).toBeNull();
@@ -71,10 +71,33 @@ describe("the Organization page's addresses (T-2605)", () => {
       expect(within(nav).queryByRole("link", { name: label })).toBeNull();
     }
     const header = screen.getByRole("banner");
-    const links = within(header).getAllByRole("link", { name: en.nav.organization });
+    const links = await within(header).findAllByRole("link", { name: en.nav.organization });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/organization/settings");
     expect(links[0]).toHaveAttribute("aria-current", "page");
+  });
+
+  // UI-75, UI-87 (T-2879): who does not administer the organization meets no entry to its page
+  // and no whole-project export anywhere in the top bar.
+  it("shows no Administration entry and no project export to anybody but an administrator", async () => {
+    renderAt("/projects/helsinki/spaces", {
+      project: "helsinki",
+      bootstrap: false,
+      grants: [{ role: "viewer", binding: "everyone", rule: { kinds: ["ContextSpace", "Project"], verbs: ["read"] } }],
+    });
+    const header = await screen.findByRole("banner");
+    await screen.findByRole("navigation", { name: "Main navigation" });
+    // Hidden while the permissions are read is no proof: wait for the organization's answer.
+    await waitFor(() =>
+      expect(
+        vi.mocked(fetch).mock.calls.some(([input]) =>
+          String(input instanceof Request ? input.url : input).includes("/projects/org/permissions/me"),
+        ),
+      ).toBe(true),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(within(header).queryByRole("link", { name: en.nav.organization })).toBeNull();
+    expect(within(header).queryByRole("button", { name: /Export project/i })).toBeNull();
   });
 
   it("holds every part of the organization as a tab of its page", async () => {
