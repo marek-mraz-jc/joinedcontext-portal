@@ -25,6 +25,7 @@ vi.mock("maplibre-gl", () => {
     };
     getSource = () => ({ setData: vi.fn() });
     fitBounds = vi.fn();
+    setPaintProperty = vi.fn();
     remove = vi.fn();
   }
   return { Map, setWorkerUrl: vi.fn() };
@@ -33,7 +34,7 @@ vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 
 const { applyTokens, DEFAULT_TOKENS } = await import("../src/sdk/tokens");
 const { styleFor } = await import("../src/sdk/map");
-const { GeoView } = await import("../src/geo/GeoView");
+const { fillOf, GeoView } = await import("../src/geo/GeoView");
 
 const LOOK = {
   color: { line: "#d4d9e3" },
@@ -77,4 +78,31 @@ describe("maps in the app's look", () => {
     // A configured basemap is the provider's style, untouched.
     expect(styleFor("https://tiles.example/style.json")).toBe("https://tiles.example/style.json");
   });
+
+  it("fills areas on the tokens' ramp over their value, the drawn colour where there is none (T-2933)", async () => {
+    applyTokens({ map: { point: "#8a2be2", low: "#fde68a", high: "#b91c1c" } });
+    render(
+      <GeoView
+        value={[{ type: "Feature", id: "a", geometry: { type: "Point", coordinates: [19.1, 48.7] }, properties: { value: 3 } }]}
+        ramp={[1, 5]}
+      />,
+    );
+    await waitFor(() => expect(loadHandler).toBeDefined());
+    loadHandler?.();
+    const fill = layers.find((layer) => layer.id === "areas")?.paint["fill-color"];
+    expect(fill).toEqual([
+      "case",
+      ["==", ["typeof", ["get", "value"]], "number"],
+      ["interpolate", ["linear"], ["get", "value"], 1, "#fde68a", 5, "#b91c1c"],
+      "#8a2be2",
+    ]);
+    // One value alone still gives rising stops.
+    expect(fillOf("#000", [2, 2], { low: "#fff", high: "#111" })).toEqual([
+      "case",
+      ["==", ["typeof", ["get", "value"]], "number"],
+      ["interpolate", ["linear"], ["get", "value"], 2, "#fff", 3, "#111"],
+      "#000",
+    ]);
+  });
 });
+
