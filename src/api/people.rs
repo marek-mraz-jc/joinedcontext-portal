@@ -515,7 +515,7 @@ pub(crate) async fn create(
             other => other.into(),
         })?;
     let (email_sent, temporary_password) =
-        invite(&admin, &id, &["VERIFY_EMAIL", "UPDATE_PASSWORD"]).await?;
+        invite(state, &admin, &id, &["VERIFY_EMAIL", "UPDATE_PASSWORD"]).await?;
     record(state, identity, "created", &id).await;
     let created = admin.get(&id).await?;
     Ok(CreatedPerson {
@@ -527,11 +527,13 @@ pub(crate) async fn create(
 
 /// The realm's e-mail, or when it cannot send one, a temporary password answered once (PF-92).
 async fn invite(
+    state: &AppState,
     admin: &Admin<'_>,
     id: &str,
     actions: &[&str],
 ) -> Result<(bool, Option<String>), ApiError> {
-    if admin.send_actions(id, actions).await? {
+    let lifespan = crate::api::organization_limits::invitation_lifespan(state);
+    if admin.send_actions(id, actions, lifespan).await? {
         return Ok((true, None));
     }
     let password = crate::people::temporary_password();
@@ -694,7 +696,10 @@ pub async fn edit_person(
         })?;
     if changed_email.is_some() {
         // The realm asks for the new address to be verified; without mail it waits for the login.
-        admin.send_actions(&found.id, &["VERIFY_EMAIL"]).await?;
+        let lifespan = crate::api::organization_limits::invitation_lifespan(&state);
+        admin
+            .send_actions(&found.id, &["VERIFY_EMAIL"], lifespan)
+            .await?;
     }
     record(&state, identity, "edited", &found.id).await;
     let edited = admin.get(&found.id).await?;
@@ -800,7 +805,8 @@ pub async fn reset_password(
 ) -> Result<Response, ApiError> {
     let identity = &user.0.identity;
     let (admin, found) = target(&state, identity, Verb::Update, &id).await?;
-    let (email_sent, temporary_password) = invite(&admin, &found.id, &["UPDATE_PASSWORD"]).await?;
+    let (email_sent, temporary_password) =
+        invite(&state, &admin, &found.id, &["UPDATE_PASSWORD"]).await?;
     record(&state, identity, "reset the password of", &found.id).await;
     let status = if email_sent {
         StatusCode::ACCEPTED
