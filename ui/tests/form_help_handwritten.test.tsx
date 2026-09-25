@@ -81,6 +81,12 @@ function renderPortal(path: string) {
               verbs: ["read", "propose"],
             },
           },
+          {
+            role: "people-admin",
+            binding: "people-admins",
+            scope: "organization",
+            rule: { kinds: ["Person"], verbs: ["read", "create"] },
+          },
         ],
       });
     }
@@ -211,6 +217,22 @@ describe("the help beside a hand-built form field", () => {
     }
   });
 
+  it("describes every field of the new-person form and shows an example to type", async () => {
+    // A person is not a manifest, so this form is built by hand (T-2684, ADR-N-031).
+    const person = userEvent.setup();
+    renderPortal("/organization/people");
+    await person.click(await screen.findByRole("button", { name: en.organization.people.new }));
+    const page = await findFormPage(new RegExp(en.organization.people.newTitle));
+    const fields = controls(page);
+    expect(fields.length).toBe(4);
+    for (const field of fields) {
+      expect(describedText(field).length, field.id).toBeGreaterThan(15);
+      if (field.tagName === "INPUT") {
+        expect(field.getAttribute("placeholder"), `${field.id} shows an example`).toBeTruthy();
+      }
+    }
+  });
+
   it("writes that help in all four languages, each in its own words", () => {
     const keys = [
       "access.roles.subjectKindHelp",
@@ -223,6 +245,10 @@ describe("the help beside a hand-built form field", () => {
       "ckan.instances.urlHelp",
       "ckan.instances.organizationHelp",
       "ckan.instances.tokenHelp",
+      "organization.people.form.emailHelp",
+      "organization.people.form.firstNameHelp",
+      "organization.people.form.lastNameHelp",
+      "organization.people.form.localeHelp",
     ];
     for (const key of keys) {
       const written = LOCALES.map((locale) => stringAt(locale, key));

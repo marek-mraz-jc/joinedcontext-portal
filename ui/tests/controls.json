@@ -539,6 +539,14 @@
         "ui_tabs_checkbox.test.tsx"
       ]
     },
+    "src/pages/access/GroupPage.tsx": {
+      "controls": {
+        "Button": 6
+      },
+      "tests": [
+        "group_page.test.tsx"
+      ]
+    },
     "src/pages/access/Groups.tsx": {
       "controls": {
         "Button": 2
@@ -546,14 +554,6 @@
       "tests": [
         "access_forms.test.tsx",
         "edit_keeps_stored_metadata.test.ts"
-      ]
-    },
-    "src/pages/access/GroupPage.tsx": {
-      "controls": {
-        "Button": 6
-      },
-      "tests": [
-        "group_page.test.tsx"
       ]
     },
     "src/pages/access/OrganizationDomain.tsx": {
@@ -955,6 +955,14 @@
       },
       "tests": [
         "sdm_import.test.tsx"
+      ]
+    },
+    "src/pages/organization/People.tsx": {
+      "controls": {
+        "Button": 12
+      },
+      "tests": [
+        "people_page.test.tsx"
       ]
     },
     "src/pages/pipelines/PipelineFlow.tsx": {

@@ -29,10 +29,12 @@ import { RoleBindings } from "../access/RoleBindings";
 import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationSettings } from "./OrganizationSettings";
+import { People } from "./People";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
 export const ORGANIZATION_TABS = [
   "settings",
+  "people",
   "members",
   "roles",
   "groups",
@@ -248,6 +250,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
       />
       <div {...tabPanelProps("organization", tab)} className="space-y-8">
         {tab === "settings" ? <OrganizationSettings /> : null}
+        {tab === "people" ? <People /> : null}
         {tab === "members" ? <OrganizationMembers /> : null}
         {tab === "roles" ? <Roles project={ORG_NAMESPACE} scope="organization" /> : null}
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
