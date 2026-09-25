@@ -1596,6 +1596,7 @@
       },
       "willBecome": "Uloží sa ako verzia {version}",
       "refused": "Zmena bola odmietnutá: {reason}",
+      "fixErrors": "Pred uložením opravte chyby, ktoré editor uvádza. Zostáva: {count}.",
       "confirmBreaking": "Uložiť ako verziu {version}, nekompatibilná zmena",
       "handOffRefused": "Zmenu od asistenta sa do tohto modelu nepodarilo použiť:"
     },

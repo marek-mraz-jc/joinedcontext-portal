@@ -1,17 +1,22 @@
 import { isMap, isScalar } from "yaml";
 import type { Document } from "yaml";
 import {
+  CARDINALITIES,
   DEFAULT_KIND,
   EMPTY_MODEL,
   NGSI_LD_KINDS,
+  ON_DELETE_RULES,
   RANGES,
   UNIT_CODES,
   edit,
+  flagsOf,
   parseModel,
+  relationships,
   reservedNamespace,
   setOrDelete,
+  storedEnd,
 } from "./linkml";
-import type { LinkmlModel, LinkmlSlot, NgsiLdKind } from "./linkml";
+import type { Cardinality, LinkmlModel, LinkmlSlot, NgsiLdKind, OnDelete, Relationship } from "./linkml";
 
 /**
  * The operations the editor can perform on a model, as plain data (DM-13, DM-31, DM-32).
@@ -62,7 +67,34 @@ export type Operation =
    * description. An empty text removes it.
    */
   | { op: "setEnumValue"; enum: string; value: string; field: "title" | "description"; locale?: string; text: string }
-  | { op: "removeEnumValue"; enum: string; value: string };
+  | { op: "removeEnumValue"; enum: string; value: string }
+  /**
+   * A relationship, both ends in one step (DM-64): `name` on `from` points at `to`, `inverse` on
+   * `to` points back. The cardinality is read from `from` to `to`; `required` is allowed on the
+   * stored end only (DM-65), and `onDelete` is written on the source, `restrict` by default.
+   */
+  | {
+      op: "addRelationship";
+      from: string;
+      to: string;
+      name: string;
+      inverse: string;
+      cardinality: Cardinality;
+      required?: boolean;
+      inverseRequired?: boolean;
+      onDelete?: OnDelete;
+    }
+  /** Both ends' `multivalued` together; `name` is either end. */
+  | { op: "setCardinality"; name: string; cardinality: Cardinality }
+  /** The delete rule, on the source end; `name` is either end. */
+  | { op: "setOnDelete"; name: string; onDelete: OnDelete }
+  /** Both ends from every class and from the model; `name` is either end. */
+  | { op: "removeRelationship"; name: string }
+  /**
+   * The fix for a relationship saved before inverses were required (DM-73): a multivalued
+   * inverse on the target class, so the stored end stays the slot that holds the data today.
+   */
+  | { op: "addInverse"; name: string; inverse: string };
 
 /** `unit` takes a UN/CEFACT common code (DM-06); `kind` an NGSI-LD kind; the rest their YAML value. */
 export type SlotField =
@@ -169,6 +201,40 @@ function refuseRedefinition(slot: LinkmlSlot, field: SlotField): void {
   }
 }
 
+/** The relationship a slot is an end of, when its two ends agree. */
+function relationshipOf(model: LinkmlModel, name: string): Relationship | undefined {
+  return relationships(model).find((one) => one.source.slot === name || one.target.slot === name);
+}
+
+function relationshipNamed(model: LinkmlModel, name: string): Relationship {
+  slotOf(model, name);
+  return relationshipOf(model, name) ?? refuse(`slot '${name}' is not an end of a relationship`);
+}
+
+/** What only the relationship operations change on an end, so both ends change together. */
+const RELATIONSHIP_FIELDS: SlotField[] = ["range", "kind", "multivalued"];
+
+function refuseOneSidedEdit(model: LinkmlModel, slot: LinkmlSlot, field: SlotField, value: unknown): void {
+  const relationship = relationshipOf(model, slot.name);
+  if (relationship === undefined) {
+    return;
+  }
+  if (RELATIONSHIP_FIELDS.includes(field)) {
+    refuse(
+      `slot '${slot.name}' is an end of the relationship ${relationship.source.class}.${relationship.source.slot} ↔ ` +
+        `${relationship.target.class}.${relationship.target.slot}; change its cardinality with setCardinality, ` +
+        `or remove the relationship with removeRelationship`,
+    );
+  }
+  const computed = relationship.stored === "source" ? relationship.target : relationship.source;
+  if (field === "required" && value === true && computed.slot === slot.name) {
+    refuse(
+      `slot '${slot.name}' is computed on read from ${relationship.stored === "source" ? relationship.source.slot : relationship.target.slot} ` +
+        `and cannot be required; make the stored end required (DM-65)`,
+    );
+  }
+}
+
 function setSlotField(
   document: Document,
   model: LinkmlModel,
@@ -178,6 +244,7 @@ function setSlotField(
 ): void {
   const slot = slotOf(model, name);
   refuseRedefinition(slot, field);
+  refuseOneSidedEdit(model, slot, field, value);
   const path = ["slots", name];
   if (BOOLEAN_FIELDS.includes(field)) {
     if (typeof value !== "boolean") {
@@ -313,10 +380,20 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
       });
       return;
     }
-    case "removeClass":
+    case "removeClass": {
       classOf(model, operation.name);
+      const held = relationships(model).filter(
+        (one) => one.source.class === operation.name || one.target.class === operation.name,
+      );
+      if (held.length > 0) {
+        refuse(
+          `class '${operation.name}' is an end of ${held.map((one) => one.source.slot).join(", ")}; ` +
+            `remove those relationships first, so no slot is left pointing at nothing`,
+        );
+      }
       document.deleteIn(["classes", operation.name]);
       return;
+    }
     case "renameClass": {
       classOf(model, operation.name);
       requireName(operation.to, "class");
@@ -415,6 +492,9 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
     }
     case "removeSlot":
       slotOf(model, operation.name);
+      if (relationshipOf(model, operation.name) !== undefined) {
+        refuse(`slot '${operation.name}' is an end of a relationship; removeRelationship removes both ends`);
+      }
       document.deleteIn(["slots", operation.name]);
       for (const klass of model.classes) {
         if (klass.slots.includes(operation.name)) {
@@ -438,6 +518,12 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
             ["classes", klass.name, "slots"],
             klass.slots.map((slot) => (slot === operation.name ? operation.to : slot)),
           );
+        }
+      }
+      // The other end names this one by name (DM-64).
+      for (const slot of model.slots) {
+        if (slot.inverse === operation.name) {
+          document.setIn(["slots", slot.name === operation.name ? operation.to : slot.name, "inverse"], operation.to);
         }
       }
       return;
@@ -522,9 +608,171 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
     case "removeEnumValue":
       document.deleteIn(enumValuePath(model, operation.enum, operation.value));
       return;
+    case "addRelationship":
+      addRelationship(document, model, operation);
+      return;
+    case "setCardinality": {
+      if (!(CARDINALITIES as readonly string[]).includes(operation.cardinality)) {
+        refuse(`'${operation.cardinality}' is not a cardinality: ${CARDINALITIES.join(", ")}`);
+      }
+      const relationship = relationshipNamed(model, operation.name);
+      const flags = flagsOf(operation.cardinality);
+      const computed = storedEnd(operation.cardinality) === "source" ? relationship.target : relationship.source;
+      if (computed.required) {
+        refuse(
+          `as ${operation.cardinality}, ${computed.slot} would be computed on read, and it is required; ` +
+            `clear required on ${computed.slot} first (DM-65)`,
+        );
+      }
+      setOrDelete(document, ["slots", relationship.source.slot, "multivalued"], flags.source);
+      setOrDelete(document, ["slots", relationship.target.slot, "multivalued"], flags.target);
+      return;
+    }
+    case "setOnDelete": {
+      if (!(ON_DELETE_RULES as readonly string[]).includes(operation.onDelete)) {
+        refuse(`'${operation.onDelete}' is not a delete rule: ${ON_DELETE_RULES.join(", ")}`);
+      }
+      const relationship = relationshipNamed(model, operation.name);
+      document.setIn(["slots", relationship.source.slot, "annotations", "on_delete"], operation.onDelete);
+      return;
+    }
+    case "removeRelationship": {
+      const relationship = relationshipNamed(model, operation.name);
+      for (const end of [relationship.source, relationship.target]) {
+        document.deleteIn(["slots", end.slot]);
+        for (const klass of model.classes) {
+          if (klass.slots.includes(end.slot)) {
+            document.setIn(
+              ["classes", klass.name, "slots"],
+              classSlots(document, klass.name).filter((slot) => slot !== end.slot),
+            );
+          }
+        }
+      }
+      return;
+    }
+    case "addInverse": {
+      const slot = slotOf(model, operation.name);
+      if (slot.kind !== "Relationship" || slot.range === undefined || !model.classes.some((klass) => klass.name === slot.range)) {
+        refuse(`slot '${operation.name}' is not a Relationship pointing at a class of this model`);
+      }
+      if (slot.inverse !== undefined) {
+        refuse(`slot '${operation.name}' already names the inverse '${slot.inverse}'`);
+      }
+      const owners = model.classes.filter((klass) => klass.slots.includes(operation.name));
+      if (owners.length !== 1) {
+        refuse(`slot '${operation.name}' is used by ${owners.length} classes; a relationship starts on one`);
+      }
+      addEnd(document, model, {
+        name: operation.inverse,
+        owner: slot.range ?? "",
+        range: owners[0].name,
+        inverse: operation.name,
+        multivalued: true,
+      });
+      document.setIn(["slots", operation.name, "inverse"], operation.inverse);
+      document.setIn(["slots", operation.name, "inlined"], false);
+      // The slot holding the data today is the source, so its entities do not change (DM-73).
+      if (slot.on_delete === undefined) {
+        document.setIn(["slots", operation.name, "annotations", "on_delete"], "restrict");
+      }
+      return;
+    }
     default:
       refuse(`unknown operation '${(operation as { op: string }).op}'`);
   }
+}
+
+/** One end of a relationship written as a slot of its owner (DM-64). */
+function addEnd(
+  document: Document,
+  model: LinkmlModel,
+  end: {
+    name: string;
+    owner: string;
+    range: string;
+    inverse: string;
+    multivalued: boolean;
+    required?: boolean;
+    onDelete?: OnDelete;
+  },
+): void {
+  requireName(end.name, "slot");
+  if (model.slots.some((slot) => slot.name === end.name) || document.hasIn(["slots", end.name])) {
+    refuse(`slot '${end.name}' already exists; a relationship's ends are slots of their own`);
+  }
+  classOf(model, end.owner);
+  // Under the model's own prefix, never one reserved for someone else (DM-16): a model whose
+  // default prefix is Smart Data Models' gets no IRI here, and diagnose asks for one.
+  const minted = model.default_prefix ? `${model.default_prefix}:${end.name}` : undefined;
+  const slotUri = minted && !reservedNamespace(minted, model.prefixes) ? minted : undefined;
+  document.setIn(
+    ["slots", end.name],
+    document.createNode({
+      range: end.range,
+      ...(end.multivalued ? { multivalued: true } : {}),
+      ...(end.required ? { required: true } : {}),
+      inverse: end.inverse,
+      inlined: false,
+      ...(slotUri ? { slot_uri: slotUri } : {}),
+      annotations: {
+        ngsi_ld_kind: "Relationship",
+        ...(end.onDelete ? { on_delete: end.onDelete } : {}),
+      },
+    }),
+  );
+  // A node, so the second end of a relationship on the same class reads the first one back.
+  document.setIn(["classes", end.owner, "slots"], document.createNode([...classSlots(document, end.owner), end.name]));
+}
+
+function addRelationship(
+  document: Document,
+  model: LinkmlModel,
+  operation: Extract<Operation, { op: "addRelationship" }>,
+): void {
+  if (!(CARDINALITIES as readonly string[]).includes(operation.cardinality)) {
+    refuse(`'${operation.cardinality}' is not a cardinality: ${CARDINALITIES.join(", ")}`);
+  }
+  const onDelete = operation.onDelete ?? "restrict";
+  if (!(ON_DELETE_RULES as readonly string[]).includes(onDelete)) {
+    refuse(`'${onDelete}' is not a delete rule: ${ON_DELETE_RULES.join(", ")}`);
+  }
+  classOf(model, operation.from);
+  const target = model.classes.find((klass) => klass.name === operation.to);
+  if (target === undefined) {
+    refuse(
+      `unknown class '${operation.to}': a relationship's inverse is written on its target, so the target is a class of this model`,
+    );
+  }
+  if (!operation.inverse || operation.inverse.trim() === "") {
+    refuse(`the relationship '${operation.name}' needs an inverse: the slot on ${operation.to} that points back (DM-64)`);
+  }
+  if (operation.inverse === operation.name) {
+    refuse(`'${operation.name}' cannot be its own inverse: the two ends are two slots`);
+  }
+  const flags = flagsOf(operation.cardinality);
+  const stored = storedEnd(operation.cardinality);
+  if ((stored === "source" && operation.inverseRequired) || (stored === "target" && operation.required)) {
+    const computed = stored === "source" ? operation.inverse : operation.name;
+    refuse(`as ${operation.cardinality}, ${computed} is computed on read and cannot be required; require the other end (DM-65)`);
+  }
+  addEnd(document, model, {
+    name: operation.name,
+    owner: operation.from,
+    range: operation.to,
+    inverse: operation.inverse,
+    multivalued: flags.source,
+    required: operation.required,
+    onDelete,
+  });
+  addEnd(document, model, {
+    name: operation.inverse,
+    owner: operation.to,
+    range: operation.from,
+    inverse: operation.name,
+    multivalued: flags.target,
+    required: operation.inverseRequired,
+  });
 }
 
 /**

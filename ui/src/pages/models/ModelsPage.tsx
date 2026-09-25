@@ -20,7 +20,7 @@ import { spaceOfModel } from "./modelUsage";
 import { mergeModels } from "./linkml";
 import { SmartDataModelsImport } from "./SmartDataModelsImport";
 import type { CatalogueModel } from "./SmartDataModelsImport";
-import { blankSource, parseModel } from "./linkml";
+import { blankSource, diagnose, parseModel } from "./linkml";
 import { applyOperations } from "./operations";
 import type { Operation } from "./operations";
 import {
@@ -362,11 +362,19 @@ export function ModelsPage({
       space: creating && newSpace ? newSpace : undefined,
     });
 
-  const refusedBecause = (status: number, problem: Partial<ProblemDetails>): string =>
-    problem.detail ??
-    (problem.errors && problem.errors.length > 0
-      ? problem.errors.join("; ")
-      : t("models.source.refused", { reason: problem.title ?? `HTTP ${status}` }));
+  // The detail says what happened and the errors say where: a model refused for its
+  // relationships names each broken rule there (DM-68), so both are shown.
+  const refusedBecause = (status: number, problem: Partial<ProblemDetails>): string => {
+    const errors = problem.errors && problem.errors.length > 0 ? problem.errors.join("; ") : undefined;
+    if (problem.detail && errors) return `${problem.detail}: ${errors}`;
+    return problem.detail ?? errors ?? t("models.source.refused", { reason: problem.title ?? `HTTP ${status}` });
+  };
+
+  // An error the editor lists blocks Save (DM-68); the server refuses the same list regardless.
+  const blocking = useMemo(
+    () => diagnose(source, locales).filter((diagnostic) => diagnostic.severity === "error").length,
+    [source, locales],
+  );
 
   const handleCheck = async () => {
     if (!targetName) return;
@@ -439,8 +447,13 @@ export function ModelsPage({
                 variant="primary"
                 onClick={handleSave}
                 disabled={
-                  saving || checking || taken || (severity === "breaking" && !breakingConfirmed)
+                  saving ||
+                  checking ||
+                  taken ||
+                  blocking > 0 ||
+                  (severity === "breaking" && !breakingConfirmed)
                 }
+                disabledReason={blocking > 0 ? t("models.source.fixErrors", { count: blocking }) : undefined}
               >
                 {t("models.source.save")}
               </Button>
@@ -471,6 +484,10 @@ export function ModelsPage({
             ))}
           </ul>
         </Alert>
+      ) : null}
+
+      {blocking > 0 && targetName ? (
+        <p className="text-body text-danger-soft-fg">{t("models.source.fixErrors", { count: blocking })}</p>
       ) : null}
 
       {saveError || loadError ? (

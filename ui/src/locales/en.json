@@ -1522,6 +1522,7 @@
       },
       "willBecome": "Saves as version {version}",
       "refused": "The change was refused: {reason}",
+      "fixErrors": "Fix the errors the editor lists before saving. Left: {count}.",
       "confirmBreaking": "Save it as version {version}, a breaking change",
       "handOffRefused": "The assistant's change could not be applied to this model:"
     },

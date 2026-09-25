@@ -1596,6 +1596,7 @@
       },
       "willBecome": "Wird als Version {version} gespeichert",
       "refused": "Die Änderung wurde abgelehnt: {reason}",
+      "fixErrors": "Beheben Sie vor dem Speichern die Fehler, die der Editor anzeigt. Offen: {count}.",
       "confirmBreaking": "Als Version {version} speichern, eine inkompatible Änderung",
       "handOffRefused": "Die Änderung des Assistenten ließ sich nicht auf dieses Modell anwenden:"
     },

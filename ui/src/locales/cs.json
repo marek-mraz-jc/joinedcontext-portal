@@ -1596,6 +1596,7 @@
       },
       "willBecome": "Uloží se jako verze {version}",
       "refused": "Změna byla odmítnuta: {reason}",
+      "fixErrors": "Před uložením opravte chyby, které editor uvádí. Zbývá: {count}.",
       "confirmBreaking": "Uložit jako verzi {version}, nekompatibilní změna",
       "handOffRefused": "Změnu od asistenta se do tohoto modelu nepodařilo použít:"
     },
