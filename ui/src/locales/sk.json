@@ -2226,12 +2226,7 @@
     "attach": "Priložiť vzorku (CSV, Excel, JSON alebo PDF) a navrhnúť dátový model",
     "backToChat": "Späť k asistentovi",
     "empty": {
-      "lead": "Pýtajte sa na dáta projektu, zdieľajte ich alebo si nechajte niečo postaviť.",
-      "examples": {
-        "find": "Ktoré datasety hovoria niečo o bicykloch?",
-        "share": "Zdieľaj bicyklové stanice s odborom dopravy.",
-        "build": "Postav dashboard dnešnej kvality ovzdušia."
-      },
+      "lead": "Vyberte, čo chcete urobiť, alebo sa opýtajte vlastnými slovami.",
       "composer": "Opýtajte sa asistenta",
       "send": "Odoslať",
       "failed": "Konverzácia sa nezačala. Skontrolujte správu a skúste to znova."
@@ -2260,7 +2255,41 @@
       "someRows": "{shown} z {total} riadkov"
     },
     "trail": "Pages the assistant opened",
-    "prefilledNotice": "Toto vyplnil asistent. Skontroluj to pred návrhom."
+    "prefilledNotice": "Toto vyplnil asistent. Skontroluj to pred návrhom.",
+    "paths": {
+      "integrate-pipeline": {
+        "title": "Integrovať pipeline",
+        "line": "Priveďte do priestoru feed, súbor alebo zdroj dát"
+      },
+      "upload-data": {
+        "title": "Nahrať dáta",
+        "line": "Vložte súbor s dátami do kontextového priestoru"
+      },
+      "find-data": {
+        "title": "Nájsť dáta",
+        "line": "Opýtajte sa, čo projekt má, bez akejkoľvek zmeny"
+      },
+      "share-data": {
+        "title": "Zdieľať dáta",
+        "line": "Otvorte koncový bod iným projektom alebo verejnosti"
+      },
+      "build-app": {
+        "title": "Postaviť aplikáciu",
+        "line": "Aplikácia, ktorá číta vaše koncové body"
+      },
+      "build-dashboard": {
+        "title": "Postaviť prehľad",
+        "line": "Grafy a mapa nad koncovým bodom"
+      },
+      "create-data-model": {
+        "title": "Vytvoriť dátový model",
+        "line": "Zo Smart Data Model, zo vzorového súboru alebo od nuly"
+      },
+      "define-kpi": {
+        "title": "Definovať KPI",
+        "line": "Kľúčový ukazovateľ výkonnosti vypočítaný z priestoru"
+      }
+    }
   },
   "permissions": {
     "denied": "Vypnuté: vaša rola nedovoľuje ''{verb}'' na ''{kind}'' v tomto projekte"

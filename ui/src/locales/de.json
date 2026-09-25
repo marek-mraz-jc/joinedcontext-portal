@@ -2226,12 +2226,7 @@
     "attach": "Eine Probe (CSV, Excel, JSON oder PDF) anhängen und ein Datenmodell entwerfen",
     "backToChat": "Zurück zum Assistenten",
     "empty": {
-      "lead": "Fragen Sie nach den Daten des Projekts, teilen Sie sie oder lassen Sie etwas bauen.",
-      "examples": {
-        "find": "Welche Datensätze sagen etwas über Fahrräder?",
-        "share": "Teile die Fahrradstationen mit dem Verkehrsamt.",
-        "build": "Baue ein Dashboard der heutigen Luftqualität."
-      },
+      "lead": "Wählen Sie, was Sie tun möchten, oder fragen Sie in eigenen Worten.",
       "composer": "Den Assistenten fragen",
       "send": "Senden",
       "failed": "Die Unterhaltung hat nicht begonnen. Prüfen Sie die Nachricht und versuchen Sie es erneut."
@@ -2260,7 +2255,41 @@
       "someRows": "{shown} von {total} Zeilen"
     },
     "trail": "Pages the assistant opened",
-    "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst."
+    "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",
+    "paths": {
+      "integrate-pipeline": {
+        "title": "Pipeline integrieren",
+        "line": "Einen Feed, eine Datei oder eine Datenquelle in einen Raum bringen"
+      },
+      "upload-data": {
+        "title": "Daten hochladen",
+        "line": "Eine Datei mit Daten in einen Kontextraum legen"
+      },
+      "find-data": {
+        "title": "Daten finden",
+        "line": "Fragen, was das Projekt hat, ohne etwas zu ändern"
+      },
+      "share-data": {
+        "title": "Daten teilen",
+        "line": "Einen Endpunkt für andere Projekte oder die Öffentlichkeit öffnen"
+      },
+      "build-app": {
+        "title": "App bauen",
+        "line": "Eine Anwendung, die Ihre Endpunkte liest"
+      },
+      "build-dashboard": {
+        "title": "Dashboard bauen",
+        "line": "Diagramme und eine Karte über einem Endpunkt"
+      },
+      "create-data-model": {
+        "title": "Datenmodell erstellen",
+        "line": "Aus einem Smart Data Model, einer Beispieldatei oder von Grund auf"
+      },
+      "define-kpi": {
+        "title": "KPI definieren",
+        "line": "Eine Kennzahl, berechnet aus einem Raum"
+      }
+    }
   },
   "permissions": {
     "denied": "Deaktiviert: Ihre Rolle erlaubt ''{verb}'' auf ''{kind}'' in diesem Projekt nicht"

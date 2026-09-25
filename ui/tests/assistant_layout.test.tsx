@@ -4,13 +4,13 @@
  *
  * Three defects the user met on 2026-09-20, all in the same dock. The composer sat in the middle of
  * a scrolling column with a `Recent conversations` list of truncated prompts under it, so the input
- * moved as content grew and the last thing in the panel was a list of old questions. The example
- * prompts and the app builder are the empty state's and only its (T-2464 reversed T-2423, which had
+ * moved as content grew and the last thing in the panel was a list of old questions. The paths
+ * (T-2692) are the empty state's and only its (T-2464 reversed T-2423, which had
  * put them inside a conversation too). And every corner in the dock was Tailwind's bare `rounded`,
  * 0.25rem, which is on no token of `src/tokens.css`, beside a page built from `rounded-md` and
  * `rounded-lg`.
  */
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -137,6 +137,31 @@ function renderDock({ mayPropose = true }: { mayPropose?: boolean } = {}) {
   return { messages, started };
 }
 
+/** The paths of ADR-N-032 in the order the dock lists them, and the kind each proposes. */
+const PATH_IDS = [
+  "integrate-pipeline",
+  "upload-data",
+  "find-data",
+  "share-data",
+  "build-app",
+  "build-dashboard",
+  "create-data-model",
+  "define-kpi",
+] as const;
+type PathId = (typeof PATH_IDS)[number];
+const PROPOSES: [PathId, string][] = [
+  ["integrate-pipeline", "Pipeline"],
+  ["upload-data", "ContextSpace"],
+  ["share-data", "Endpoint"],
+  ["build-app", "App"],
+  ["build-dashboard", "Dashboard"],
+  ["create-data-model", "DataModel"],
+  ["define-kpi", "Pipeline"],
+];
+/** A path's button is named by its title and its line. */
+const pathName = (path: PathId) =>
+  `${en.assistant.paths[path].title} ${en.assistant.paths[path].line}`;
+
 const dock = () => screen.getByRole("complementary", { name: en.agentRun.conversation.title });
 
 /** The dock opens as a bubble; a person clicks it. */
@@ -189,30 +214,29 @@ describe("where the assistant's input sits", () => {
   });
 
   // T-2464: the owner, in the live demo — "this should not be there.... when having conversation".
-  it("shows the starter block once in a new conversation and never inside one", async () => {
+  it("shows the paths once in a new conversation and never inside one", async () => {
     renderDock();
     await openDock();
-    const examples = await screen.findByTestId("assistant-examples");
-    expect(within(examples).getByRole("button", { name: en.apps.generate.title })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: en.assistant.empty.examples.find })).toHaveLength(1);
+    const paths = await screen.findByTestId("assistant-paths");
+    expect(within(paths).getAllByRole("button")).toHaveLength(PATH_IDS.length);
+    expect(screen.getAllByRole("button", { name: pathName("find-data") })).toHaveLength(1);
 
     await act(async () => {
       rememberRun({ project: PROJECT, runId: RUN_ID });
     });
     const composer = await screen.findByLabelText(en.agentRun.conversation.placeholder);
-    expect(screen.queryByTestId("assistant-examples")).toBeNull();
+    expect(screen.queryByTestId("assistant-paths")).toBeNull();
     expect(screen.queryByTestId("assistant-suggestions")).toBeNull();
-    for (const example of Object.values(en.assistant.empty.examples)) {
-      expect(screen.queryByRole("button", { name: example })).toBeNull();
+    for (const path of PATH_IDS) {
+      expect(screen.queryByRole("button", { name: pathName(path) })).toBeNull();
     }
-    expect(screen.queryByRole("button", { name: en.apps.generate.title })).toBeNull();
     // Nothing stands between the thread and the composer but the data bar: no chip, no initials.
     const form = composer.closest("form") as HTMLElement;
     const above = (form.firstElementChild as HTMLElement).textContent ?? "";
     expect(above.startsWith(en.assistant.data.title), above).toBe(true);
   });
 
-  it("reaches the app builder from a conversation through a new one", async () => {
+  it("offers the same paths again under New conversation", async () => {
     renderDock();
     const person = await openDock();
     await act(async () => {
@@ -220,24 +244,62 @@ describe("where the assistant's input sits", () => {
     });
     await screen.findByLabelText(en.agentRun.conversation.placeholder);
     await person.click(screen.getByRole("button", { name: en.assistant.newConversation }));
-    const examples = await screen.findByTestId("assistant-examples");
-    await person.click(within(examples).getByRole("button", { name: en.apps.generate.title }));
-    expect(await screen.findByRole("button", { name: en.assistant.backToChat })).toBeInTheDocument();
+    const paths = await screen.findByTestId("assistant-paths");
+    expect(within(paths).getAllByRole("button").map((button) => button.dataset.path)).toEqual(PATH_IDS);
   });
 
-  it("disables a prompt the caller's role cannot carry out, with the reason on it", async () => {
-    renderDock({ mayPropose: false });
-    await openDock();
-    const suggestions = await screen.findByTestId("assistant-examples");
-    expectDenied(
-      within(suggestions).getByRole("button", { name: en.assistant.empty.examples.share }),
+  // T-2692, AG-91: a path starts with nothing typed; the Portal asks its first question itself.
+  it("starts a conversation on the path a person clicks, with no prompt", async () => {
+    const { started } = renderDock();
+    const person = await openDock();
+    const share = await screen.findByRole("button", { name: pathName("share-data") });
+    await waitFor(() => expect(share).not.toHaveAttribute("aria-disabled"));
+    await person.click(share);
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(started[0]).toMatchObject({ message: "", path: "share-data" });
+    // The conversation is open: the paths are gone.
+    await waitFor(() => expect(screen.queryByTestId("assistant-paths")).toBeNull());
+  });
+
+  it("disables every path the caller's role cannot take, with the reason on it", async () => {
+    const { started } = renderDock({ mayPropose: false });
+    const person = await openDock();
+    const paths = await screen.findByTestId("assistant-paths");
+    for (const [path, kind] of PROPOSES) {
       // The reason is `permissions.denied` filled in by i18next, which is what a person reads.
-      i18n.t("permissions.denied", { verb: "propose", kind: "Endpoint" }),
-    );
+      await waitFor(() =>
+        expect(within(paths).getByRole("button", { name: pathName(path) })).toHaveAttribute("aria-disabled", "true"),
+      );
+      expectDenied(
+        within(paths).getByRole("button", { name: pathName(path) }),
+        i18n.t("permissions.denied", { verb: "propose", kind }),
+      );
+    }
     // The one that proposes nothing stays open.
-    expect(
-      within(suggestions).getByRole("button", { name: en.assistant.empty.examples.find }),
-    ).not.toHaveAttribute("aria-disabled", "true");
+    expect(within(paths).getByRole("button", { name: pathName("find-data") })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    // A refused path starts nothing.
+    await person.click(within(paths).getByRole("button", { name: pathName("build-app") }));
+    expect(started).toHaveLength(0);
+  });
+
+  it("reaches the paths from the keyboard in the order they are listed", async () => {
+    renderDock({ mayPropose: false });
+    const person = await openDock();
+    const paths = await screen.findByTestId("assistant-paths");
+    await waitFor(() =>
+      expect(within(paths).getByRole("button", { name: pathName("build-app") })).toHaveAttribute("aria-disabled", "true"),
+    );
+    within(paths).getByRole("button", { name: pathName("integrate-pipeline") }).focus();
+    const reached = [(document.activeElement as HTMLElement).dataset.path];
+    for (let step = 1; step < PATH_IDS.length; step += 1) {
+      await person.tab();
+      reached.push((document.activeElement as HTMLElement).dataset.path);
+    }
+    // A refused path keeps its place, so a person who cannot see the grey hears why.
+    expect(reached).toEqual(PATH_IDS);
   });
 });
 

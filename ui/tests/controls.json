@@ -12,7 +12,7 @@
     "src/assistant/AssistantDock.tsx": {
       "controls": {
         "button": 1,
-        "Button": 11
+        "Button": 10
       },
       "tests": [
         "agent_run.test.tsx",

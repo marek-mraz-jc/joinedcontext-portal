@@ -2226,12 +2226,7 @@
     "attach": "Přiložit vzorek (CSV, Excel, JSON nebo PDF) a navrhnout datový model",
     "backToChat": "Zpět k asistentovi",
     "empty": {
-      "lead": "Ptejte se na data projektu, sdílejte je nebo si nechte něco postavit.",
-      "examples": {
-        "find": "Které datové sady říkají něco o kolech?",
-        "share": "Sdílej stanice kol s odborem dopravy.",
-        "build": "Postav dashboard dnešní kvality ovzduší."
-      },
+      "lead": "Vyberte, co chcete udělat, nebo se zeptejte vlastními slovy.",
       "composer": "Zeptejte se asistenta",
       "send": "Odeslat",
       "failed": "Konverzace nezačala. Zkontrolujte zprávu a zkuste to znovu."
@@ -2260,7 +2255,41 @@
       "someRows": "{shown} z {total} řádků"
     },
     "trail": "Pages the assistant opened",
-    "prefilledNotice": "Toto vyplnil asistent. Zkontroluj to před návrhem."
+    "prefilledNotice": "Toto vyplnil asistent. Zkontroluj to před návrhem.",
+    "paths": {
+      "integrate-pipeline": {
+        "title": "Integrovat pipeline",
+        "line": "Přiveďte do prostoru feed, soubor nebo zdroj dat"
+      },
+      "upload-data": {
+        "title": "Nahrát data",
+        "line": "Vložte soubor s daty do kontextového prostoru"
+      },
+      "find-data": {
+        "title": "Najít data",
+        "line": "Zeptejte se, co projekt má, bez jakékoli změny"
+      },
+      "share-data": {
+        "title": "Sdílet data",
+        "line": "Otevřete koncový bod jiným projektům nebo veřejnosti"
+      },
+      "build-app": {
+        "title": "Postavit aplikaci",
+        "line": "Aplikace, která čte vaše koncové body"
+      },
+      "build-dashboard": {
+        "title": "Postavit přehled",
+        "line": "Grafy a mapa nad koncovým bodem"
+      },
+      "create-data-model": {
+        "title": "Vytvořit datový model",
+        "line": "Ze Smart Data Model, ze vzorového souboru nebo od nuly"
+      },
+      "define-kpi": {
+        "title": "Definovat KPI",
+        "line": "Klíčový ukazatel výkonnosti vypočtený z prostoru"
+      }
+    }
   },
   "permissions": {
     "denied": "Vypnuto: vaše role nedovoluje ''{verb}'' na ''{kind}'' v tomto projektu"

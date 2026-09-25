@@ -86,6 +86,10 @@ class StubEventSource {
 let requests: Request[] = [];
 const fetchCalls = () => requests;
 
+/** A path's button is named by its title and its line (T-2692). */
+const pathName = (path: keyof typeof en.assistant.paths) =>
+  `${en.assistant.paths[path].title} ${en.assistant.paths[path].line}`;
+
 function renderPortal(permissions?: unknown) {
   requests = [];
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -487,7 +491,7 @@ describe("the assistant dock", () => {
     expect(screen.queryByText(/opened/)).not.toBeInTheDocument();
   });
 
-  it("renders bubble on page without a run, opens empty state and starts conversation on example click", async () => {
+  it("renders bubble on page without a run, opens empty state and starts conversation on a path click", async () => {
     window.sessionStorage.clear();
     window.history.pushState({}, "", `/projects/${PROJECT}/spaces`);
     renderPortal();
@@ -502,10 +506,7 @@ describe("the assistant dock", () => {
     expect(emptyState).toBeInTheDocument();
     expect(screen.getByText(i18n.t("assistant.empty.lead"))).toBeInTheDocument();
 
-    const exampleButton = screen.getByRole("button", {
-      name: i18n.t("assistant.empty.examples.find"),
-    });
-    await user.click(exampleButton);
+    await user.click(screen.getByRole("button", { name: pathName("find-data") }));
 
     await waitFor(() => {
       expect(
@@ -523,7 +524,7 @@ describe("the assistant dock", () => {
     expect(screen.getByRole("heading", { name: en.assistant.title })).toBeInTheDocument();
   });
 
-  it("keeps the example prompts a viewer cannot carry out, disabled with the reason (T-1390)", async () => {
+  it("keeps the paths a viewer cannot take, disabled with the reason (T-1390, T-2692)", async () => {
     window.history.pushState({}, "", `/projects/${PROJECT}/spaces`);
     renderPortal({
       project: PROJECT,
@@ -534,18 +535,18 @@ describe("the assistant dock", () => {
     await user.click(await screen.findByRole("button", { name: en.assistant.open }));
     await screen.findByTestId("assistant-empty");
 
-    expect(screen.getByRole("button", { name: i18n.t("assistant.empty.examples.find") })).toBeEnabled();
-    for (const [example, kind] of [["share", "Endpoint"], ["build", "Dashboard"]]) {
+    expect(screen.getByRole("button", { name: pathName("find-data") })).toBeEnabled();
+    for (const [path, kind] of [["share-data", "Endpoint"], ["build-dashboard", "Dashboard"], ["build-app", "App"]] as const) {
       await waitFor(() =>
-        expect(
-          screen.getByRole("button", { name: i18n.t(`assistant.empty.examples.${example}`) }),
-        ).toHaveAttribute("aria-disabled", "true"),
+        expect(screen.getByRole("button", { name: pathName(path) })).toHaveAttribute("aria-disabled", "true"),
       );
-      const prompt = screen.getByRole("button", { name: i18n.t(`assistant.empty.examples.${example}`) });
-      expectDenied(prompt, i18n.t("permissions.denied", { verb: "propose", kind }));
+      expectDenied(
+        screen.getByRole("button", { name: pathName(path) }),
+        i18n.t("permissions.denied", { verb: "propose", kind }),
+      );
     }
-    // A disabled prompt starts nothing.
-    await user.click(screen.getByRole("button", { name: i18n.t("assistant.empty.examples.build") }));
+    // A disabled path starts nothing.
+    await user.click(screen.getByRole("button", { name: pathName("build-dashboard") }));
     expect(fetchCalls().some((req) => req.method === "POST")).toBe(false);
   });
 

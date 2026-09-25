@@ -46,7 +46,7 @@ import {
  *
  * Renders as a round bubble at the bottom right whenever the panel is closed. When open,
  * renders a 24 rem right-docked panel (full width on small viewports, full screen on toggle).
- * If no run is remembered, shows the empty state with example prompts and a paperclip in the
+ * If no run is remembered, shows the empty state with the paths and a paperclip in the
  * composer that drafts a data model from a sample file. The composer is the last element of the
  * dock in both states and does not move: what is above it scrolls (T-2424).
  * When a run is remembered, connects the live conversation panel. Open, it sits beside the page,
@@ -62,74 +62,84 @@ function trailSnapshot(): string[] {
   return trailCache;
 }
 
-/** What the assistant can be asked, and the kind each prompt would propose. */
-const EXAMPLES = [
-  ["find", null],
-  ["share", "Endpoint"],
-  ["build", "Dashboard"],
-] as const;
+/**
+ * The assistant's paths (ADR-N-032, AG-87): the icon each shows and the kind it ends by
+ * proposing, which a role must be allowed to propose to take it. Finding data proposes nothing.
+ */
+const PATHS = [
+  ["integrate-pipeline", "pipelines", "Pipeline"],
+  ["upload-data", "import", "ContextSpace"],
+  ["find-data", "search", null],
+  ["share-data", "share", "Endpoint"],
+  ["build-app", "apps", "App"],
+  ["build-dashboard", "dashboards", "Dashboard"],
+  ["create-data-model", "models", "DataModel"],
+  ["define-kpi", "explore", "Pipeline"],
+] as const satisfies readonly (readonly [string, IconName, string | null])[];
+
+type PathId = (typeof PATHS)[number][0];
 
 /**
- * The example prompts, and the entry to the app builder beside them.
+ * The paths, as the empty assistant offers them (T-2692, UI-45).
  *
  * An empty-state affordance and nothing more: they stand while no conversation is open and are
- * gone the moment the first question is sent (T-2464, the owner reversing T-2423). Inside a
- * conversation the builder and the prompts are one click away under "New conversation". A prompt
- * a role cannot carry out stays and is disabled with its reason, which is `PermissionGuard`'s job
- * through the shared Button (T-1390, UI-44).
+ * gone the moment one starts (T-2464); "New conversation" brings them back. A path a role cannot
+ * take stays and is disabled with its reason, which is `PermissionGuard`'s job through the shared
+ * Button (T-1390, UI-44). A click starts the conversation on the path, with nothing typed: the
+ * Portal asks the path's first question itself (AG-91).
  */
-function Examples({
+function Paths({
   project,
   disabled,
   onPick,
-  onGenerate,
 }: {
   project: string;
   disabled: boolean;
-  onPick: (text: string) => void;
-  onGenerate: () => void;
+  onPick: (path: PathId) => void;
 }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <div
-      data-testid="assistant-examples"
-      className="flex flex-col gap-2"
-    >
-      <Button
-        size="sm"
-        disabled={disabled}
-        onClick={onGenerate}
-        className="h-auto justify-start gap-2 rounded-md bg-primary-soft p-2 text-left text-body font-medium text-primary-soft-fg"
-      >
-        <Icon name="apps" className="size-4" />
-        {t("apps.generate.title")}
-      </Button>
-      {EXAMPLES.map(([example, kind]) => {
-        const exampleText = t(`assistant.empty.examples.${example}`);
+    <ul data-testid="assistant-paths" className="flex flex-col gap-2">
+      {PATHS.map(([path, icon, kind]) => {
         // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason through
         // `disabledReason`, which only that control knows what to do with.
         const button = (
           <Button
-            key={exampleText}
             size="sm"
             disabled={disabled}
+            data-path={path}
+            // The name is the title and its line, read with a pause between them; the
+            // description stays free for the reason a role may not take the path.
+            aria-labelledby={`assistant-path-${path} assistant-path-${path}-line`}
             onClick={() => {
-              onPick(exampleText);
+              onPick(path);
             }}
-            className="h-auto justify-start whitespace-normal rounded-md bg-surface-subtle p-2 text-left text-caption"
+            className="h-auto w-full items-start justify-start gap-2 whitespace-normal rounded-md bg-surface-subtle p-2 text-left"
           >
-            {exampleText}
+            <Icon name={icon} className="mt-0.5 size-4 shrink-0" />
+            <span className="flex flex-col">
+              <span id={`assistant-path-${path}`} className="text-body font-medium">
+                {t(`assistant.paths.${path}.title`)}
+              </span>
+              <span id={`assistant-path-${path}-line`} className="text-caption text-fg-muted">
+                {t(`assistant.paths.${path}.line`)}
+              </span>
+            </span>
           </Button>
         );
-        return kind ? (
-          <PermissionGuard key={exampleText} project={project} kind={kind} verb="propose">
-            {button}
-          </PermissionGuard>
-        ) : (
-          button
+        return (
+          <li key={path}>
+            {kind ? (
+              <PermissionGuard project={project} kind={kind} verb="propose">
+                {button}
+              </PermissionGuard>
+            ) : (
+              button
+            )}
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 
@@ -249,7 +259,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     void navigate({ href: targetRoute });
   }, [events, navigate, runId]);
 
-  const startConversation = async (promptText: string) => {
+  const startConversation = async (promptText: string, path?: PathId) => {
     setStartError(null);
     setIsStarting(true);
     try {
@@ -261,6 +271,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             message: promptText,
             endpointNames: chosenEndpoints,
             formContext: formContext(),
+            path,
           },
         }),
       );
@@ -556,14 +567,11 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             className="flex min-h-48 w-full flex-1 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-surface p-3"
           >
             <p className="text-body text-fg-muted">{t("assistant.empty.lead")}</p>
-            <Examples
+            <Paths
               project={activeProject}
               disabled={isStarting}
-              onPick={(text) => {
-                void startConversation(text);
-              }}
-              onGenerate={() => {
-                setBuilding(true);
+              onPick={(path) => {
+                void startConversation("", path);
               }}
             />
           </div>

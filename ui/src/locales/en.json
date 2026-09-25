@@ -2226,12 +2226,7 @@
     "attach": "Attach a sample file (CSV, Excel, JSON or PDF) to draft a data model",
     "backToChat": "Back to the assistant",
     "empty": {
-      "lead": "Ask about the project's data, share it, or have something built.",
-      "examples": {
-        "find": "Which datasets say anything about bikes?",
-        "share": "Share the bike stations with the transport department.",
-        "build": "Build a dashboard of today's air quality."
-      },
+      "lead": "Pick what you want to do, or ask in your own words.",
       "composer": "Ask the assistant",
       "send": "Send",
       "failed": "The conversation did not start. Check the message and try again."
@@ -2260,7 +2255,41 @@
       "someRows": "{shown} of {total} rows"
     },
     "trail": "Pages the assistant opened",
-    "prefilledNotice": "The assistant filled this in. Check it before you propose."
+    "prefilledNotice": "The assistant filled this in. Check it before you propose.",
+    "paths": {
+      "integrate-pipeline": {
+        "title": "Integrate a pipeline",
+        "line": "Bring a feed, a file or a data source into a space"
+      },
+      "upload-data": {
+        "title": "Upload data",
+        "line": "Put a file of data into a context space"
+      },
+      "find-data": {
+        "title": "Find data",
+        "line": "Ask what the project has, changing nothing"
+      },
+      "share-data": {
+        "title": "Share data",
+        "line": "Open an endpoint to other projects or the public"
+      },
+      "build-app": {
+        "title": "Build an app",
+        "line": "An application that reads your endpoints"
+      },
+      "build-dashboard": {
+        "title": "Build a dashboard",
+        "line": "Charts and a map over an endpoint"
+      },
+      "create-data-model": {
+        "title": "Create a data model",
+        "line": "From a Smart Data Model, a sample file or nothing"
+      },
+      "define-kpi": {
+        "title": "Define a KPI",
+        "line": "A key performance indicator computed from a space"
+      }
+    }
   },
   "permissions": {
     "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project"
