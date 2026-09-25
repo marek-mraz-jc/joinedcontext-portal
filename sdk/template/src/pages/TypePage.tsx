@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { displayName, useAccess, useEntities, useFilters } from "@joinedcontext/sdk";
+import { displayName, Grid, Page, useAccess, useEntities, useFilters } from "@joinedcontext/sdk";
 import type { FilterBinding, TypeSchema } from "@joinedcontext/sdk";
 import { BarChartCard, TimeSeriesCard } from "../components/charts";
 import { EntityDetail } from "../components/EntityDetail";
@@ -52,14 +52,14 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
   ];
 
   return (
-    <section className="app-page" aria-label={type}>
+    <Page label={type}>
       <FilterBar shown={shown.length} total={rows.length} onReset={reset}>
         {filters.map((_, index) => (
           <Filter key={index} binding={bind(index)} />
         ))}
       </FilterBar>
       <StatTiles rows={shown} tiles={tiles} loading={loading} />
-      <div className="app-grid">
+      <Grid columns={2}>
         {shape.geo && (
           <EntityMap rows={shown} location={shape.geo} label={shape.label} color={measure} selected={selectedId} onSelect={(row) => select(row.id)} />
         )}
@@ -75,7 +75,7 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
         {shape.time && (
           <TimeSeriesCard rows={shown} time={shape.time} y={measure} title={measure ? `${measure} over time` : `${type} over time`} />
         )}
-      </div>
+      </Grid>
       <EntityTable rows={shown} loading={loading} error={error} selected={selectedId} onSelect={(row) => select(row.id)} caption={type} />
       <ExportButton rows={shown} filename={type} formats={shape.geo ? ["csv", "geojson", "pdf"] : ["csv", "pdf"]} location={shape.geo} />
       {selected && !editing && (
@@ -100,6 +100,6 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
           onCancel={() => setEditing(false)}
         />
       )}
-    </section>
+    </Page>
   );
 }
