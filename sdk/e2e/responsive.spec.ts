@@ -126,7 +126,7 @@ if (view === "sample") {
   applyTokens(SAMPLE_TOKENS[at + "design-tokens.json"]);
   const sampleClient = stubClient({
     entities: fixtures.ROWS, schema: fixtures.SCHEMA, access: ALL, functions: fixtures.FUNCTIONS,
-  }, { appName: params.get("name"), endpointName: "sample" });
+  }, { appName: params.get("name"), endpointName: "sample", user: fixtures.USER ?? null });
   root.render(h(JcProvider, { client: sampleClient }, h(Sample)));
 } else {
   applyTokens(tokens);

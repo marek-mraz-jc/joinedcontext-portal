@@ -56,7 +56,8 @@
   color: var(--jc-color-muted, #5c4a3d);
 }
 
-.app-day {
+/* Two classes: the template styles `.jc-shell button`, which one class would not outweigh. */
+.app-month .app-day {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -98,7 +99,7 @@
 }
 
 @container (min-width: 44rem) {
-  .app-day {
+  .app-month .app-day {
     align-items: flex-start;
     padding-inline: var(--jc-space-1, 0.25rem);
   }
@@ -141,7 +142,7 @@
   list-style: none;
 }
 
-.app-event {
+.app-events .app-event {
   display: grid;
   gap: 2px;
   width: 100%;
