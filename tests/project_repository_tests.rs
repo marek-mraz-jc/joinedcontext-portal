@@ -109,12 +109,16 @@ async fn a_project_kind_lands_in_the_project_repository() {
         .into_iter()
         .map(|(path, _)| path)
         .collect();
+    // A new space's Change carries its empty draft model beside it (T-2699, DM-61), in the same
+    // repository and under the same root.
     assert_eq!(
         written,
-        [format!(
-            "{PROJECT_REPO}/contents/spaces/mobility/space.yaml"
-        )],
-        "the path inside the project repository, without projects/ovzdusie/"
+        [
+            format!("{PROJECT_REPO}/contents/spaces/mobility/datamodels/mobility.yaml"),
+            format!("{PROJECT_REPO}/contents/spaces/mobility/datamodels/mobility.linkml.yaml"),
+            format!("{PROJECT_REPO}/contents/spaces/mobility/space.yaml"),
+        ],
+        "the paths inside the project repository, without projects/ovzdusie/"
     );
     assert_eq!(
         requests(&server, "POST", &format!("{PROJECT_REPO}/pulls"))
