@@ -447,31 +447,15 @@ pub enum AccessChange<'a> {
 /// that has none yet (it runs on the bootstrap group) is not held to it: the guard stops the last
 /// one from going, it does not demand a first.
 pub fn keeps_an_administrator(mirror: &Mirror, change: AccessChange<'_>) -> Result<(), ApiError> {
-    let (kind, namespace, name, written) = match change {
-        AccessChange::Write(manifest) => (
-            manifest
-                .get("kind")
-                .and_then(Value::as_str)
-                .unwrap_or_default(),
-            manifest
-                .pointer("/metadata/namespace")
-                .and_then(Value::as_str)
-                .unwrap_or(ORG_NAMESPACE),
-            manifest
-                .pointer("/metadata/name")
-                .and_then(Value::as_str)
-                .unwrap_or_default(),
-            manifest.get("spec").cloned(),
-        ),
-        AccessChange::Remove {
-            kind,
-            namespace,
-            name,
-        } => (kind, namespace, name, None),
-    };
-    if !matches!(kind, "Role" | "RoleBinding") || !matches!(namespace, ORG_NAMESPACE | "") {
-        return Ok(());
-    }
+    keeps_an_administrator_after(mirror, &[change])
+}
+
+/// [`keeps_an_administrator`] for several access changes that land together, judged on the state
+/// after all of them: two removals that each leave an administrator can together leave none.
+pub fn keeps_an_administrator_after(
+    mirror: &Mirror,
+    changes: &[AccessChange<'_>],
+) -> Result<(), ApiError> {
     let mut roles: BTreeMap<String, Value> = mirror
         .list(ORG_NAMESPACE, "Role", &ListOptions::default())
         .items
@@ -489,16 +473,45 @@ pub fn keeps_an_administrator(mirror: &Mirror, change: AccessChange<'_>) -> Resu
     if before.is_empty() {
         return Ok(());
     }
-    let table = if kind == "Role" {
-        &mut roles
-    } else {
-        &mut bindings
-    };
-    match written {
-        Some(spec) => table.insert(name.to_owned(), spec),
-        None => table.remove(name),
-    };
-    if administrators(&roles, &bindings, now).is_empty() {
+    let mut touched = false;
+    for change in changes {
+        let (kind, namespace, name, written) = match change {
+            AccessChange::Write(manifest) => (
+                manifest
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                manifest
+                    .pointer("/metadata/namespace")
+                    .and_then(Value::as_str)
+                    .unwrap_or(ORG_NAMESPACE),
+                manifest
+                    .pointer("/metadata/name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                manifest.get("spec").cloned(),
+            ),
+            AccessChange::Remove {
+                kind,
+                namespace,
+                name,
+            } => (*kind, *namespace, *name, None),
+        };
+        if !matches!(kind, "Role" | "RoleBinding") || !matches!(namespace, ORG_NAMESPACE | "") {
+            continue;
+        }
+        touched = true;
+        let table = if kind == "Role" {
+            &mut roles
+        } else {
+            &mut bindings
+        };
+        match written {
+            Some(spec) => table.insert(name.to_owned(), spec),
+            None => table.remove(name),
+        };
+    }
+    if touched && administrators(&roles, &bindings, now).is_empty() {
         return Err(ApiError::Conflict(format!(
             "this change would leave the organization without an administrator: after it, no \
              binding at organization scope grants approve and delete on RoleBinding (today: {}). \
