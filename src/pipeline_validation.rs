@@ -41,6 +41,20 @@ impl ModelSchemas {
             .cloned()
     }
 
+    /// Every `(project, space)` that names a model, in order: what the data-quality run reads
+    /// (DM-70).
+    pub fn spaces(&self) -> Vec<(String, String)> {
+        let mut spaces: Vec<_> = self
+            .by_space
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .cloned()
+            .collect();
+        spaces.sort();
+        spaces
+    }
+
     /// Swaps in what one sync compiled.
     pub fn replace(&self, compiled: HashMap<(String, String), Arc<ModelSchema>>) {
         *self.by_space.write().unwrap_or_else(|e| e.into_inner()) = compiled;

@@ -26,6 +26,7 @@ import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
+import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
   Badge,
@@ -698,6 +699,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
       <Section title={t("spaces.inside.data")}>
         <SpaceData project={project} space={name} types={types} endpoints={spaceEndpoints} model={model} />
+      </Section>
+
+      <Section title={t("spaces.quality.title")}>
+        <SpaceQuality project={project} space={name} />
       </Section>
 
       <Section title={<Term name="endpoint">{t("endpoints.title")}</Term>}>
