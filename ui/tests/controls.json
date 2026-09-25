@@ -984,6 +984,14 @@
         "pipeline_rejected.test.tsx"
       ]
     },
+    "src/pages/pipelines/PipelineRuns.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "pipeline_runs.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineStudio.tsx": {
       "controls": {
         "Button": 6,

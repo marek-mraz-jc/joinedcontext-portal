@@ -3023,37 +3023,6 @@ export interface components {
             continue?: string | null;
             remainingItemCount?: number | null;
         };
-        /** @description One line of a run's log. */
-        LogLine: {
-            /** @description When the Portal took the line, RFC 3339. */
-            at: string;
-            /**
-             * Format: int64
-             * @description Its place in the log; the `before` of the next page.
-             */
-            id: number;
-            /** @description What happened, in words; empty for a record that was sent. */
-            message: string;
-            outcome: components["schemas"]["Outcome"];
-            /** @description The record's `id`, as the mapping produced it; empty when it had none. */
-            recordId: string;
-            /** @description The run it belongs to. */
-            run: string;
-            /**
-             * Format: int32
-             * @description The step of `spec.steps` it failed at, when it failed in a step.
-             */
-            step?: number | null;
-        };
-        /** @description One page of a run's log. */
-        LogPage: {
-            items: components["schemas"]["LogLine"][];
-            /**
-             * Format: int64
-             * @description The `before` of the next page, when there is one.
-             */
-            next?: number | null;
-        };
         /** @description The URL the browser must visit to finish an RP-initiated logout at Keycloak. */
         LogoutTarget: {
             /**
@@ -3258,11 +3227,6 @@ export interface components {
             kind: string;
             smartDataModels: components["schemas"]["CatalogueEntry"][];
         };
-        /**
-         * @description What became of one record.
-         * @enum {string}
-         */
-        Outcome: "sent" | "rejected" | "failed";
         /** @description The page the question was asked from, as the browser sends it: the route only. */
         PageContextRequest: {
             route: string;
@@ -3318,6 +3282,37 @@ export interface components {
          * @description Lifecycle phase enumeration.
          */
         Phase: "Draft" | "Pending" | "Deploying" | "Live" | "Error" | "Drifted";
+        /** @description One line of a run's log. */
+        PipelineLogLine: {
+            /** @description When the Portal took the line, RFC 3339. */
+            at: string;
+            /**
+             * Format: int64
+             * @description Its place in the log; the `before` of the next page.
+             */
+            id: number;
+            /** @description What happened, in words; empty for a record that was sent. */
+            message: string;
+            outcome: components["schemas"]["PipelineOutcome"];
+            /** @description The record's `id`, as the mapping produced it; empty when it had none. */
+            recordId: string;
+            /** @description The run it belongs to. */
+            run: string;
+            /**
+             * Format: int32
+             * @description The step of `spec.steps` it failed at, when it failed in a step.
+             */
+            step?: number | null;
+        };
+        /** @description One page of a run's log. */
+        PipelineLogPage: {
+            items: components["schemas"]["PipelineLogLine"][];
+            /**
+             * Format: int64
+             * @description The `before` of the next page, when there is one.
+             */
+            next?: number | null;
+        };
         PipelineMetrics: {
             /** Format: int64 */
             bufferDepth?: number | null;
@@ -3351,6 +3346,30 @@ export interface components {
             scrapedAt: string;
             /** Format: int64 */
             sent?: number | null;
+        };
+        /**
+         * @description What became of one record.
+         * @enum {string}
+         */
+        PipelineOutcome: "sent" | "rejected" | "failed";
+        /** @description One run with its counts. */
+        PipelineRun: {
+            /** Format: int64 */
+            failed: number;
+            /** @description The first and the last line the Portal took for it, RFC 3339. */
+            firstAt: string;
+            lastAt: string;
+            /** Format: int64 */
+            rejected: number;
+            /** @description Its name: the tick's time, or the UTC hour of a source that never ends. */
+            run: string;
+            /** Format: int64 */
+            sent: number;
+        };
+        /** @description A pipeline's latest runs with their counts (PL-62). */
+        PipelineRunList: {
+            /** @description The run with the latest line first, at most 200. */
+            items: components["schemas"]["PipelineRun"][];
         };
         /**
          * @description The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).
@@ -3702,20 +3721,6 @@ export interface components {
              * @description How long the rotated key keeps working beside its successor, in hours (PF-38).
              */
             overlapHours?: number | null;
-        };
-        /** @description One run with its counts. */
-        Run: {
-            /** Format: int64 */
-            failed: number;
-            /** @description The first and the last line the Portal took for it, RFC 3339. */
-            firstAt: string;
-            lastAt: string;
-            /** Format: int64 */
-            rejected: number;
-            /** @description Its name: the tick's time, or the UTC hour of a source that never ends. */
-            run: string;
-            /** Format: int64 */
-            sent: number;
         };
         /**
          * @description Everything the proxy needs to decide one request, and nothing a workspace may see.
@@ -8798,7 +8803,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunList"];
+                    "application/json": components["schemas"]["PipelineRunList"];
                 };
             };
             /** @description Unauthorized */
@@ -8857,7 +8862,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LogPage"];
+                    "application/json": components["schemas"]["PipelineLogPage"];
                 };
             };
             /** @description Unauthorized */
