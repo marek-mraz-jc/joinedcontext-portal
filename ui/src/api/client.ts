@@ -4,6 +4,7 @@ import createClient from "openapi-fetch";
 import { workspaceMiddleware } from "../components/layout/WorkspaceContext";
 import type { Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
+import { announceSessionEnded } from "./sessionEnded";
 
 export type ProblemDetails = components["schemas"]["ProblemDetails"];
 
@@ -26,12 +27,15 @@ export function forPeople(text: string): string {
 export class ApiError extends Error {
   readonly status: number;
   readonly problem?: ProblemDetails;
+  /** The edge's `X-Request-Id` of the answer, the reference a failure page shows (T-2747). */
+  readonly requestId?: string;
 
-  constructor(status: number, message: string, problem?: ProblemDetails) {
+  constructor(status: number, message: string, problem?: ProblemDetails, requestId?: string) {
     // Every refusal a page shows is one of these, read as `message` or as `problem.detail`.
     super(forPeople(message));
     this.name = "ApiError";
     this.status = status;
+    this.requestId = requestId;
     // A problem is the server's answer, read as it came: a field it left out stays out.
     this.problem = problem && {
       ...problem,
@@ -101,12 +105,12 @@ export function loginRedirectUrl(pathAndSearch: string): string {
 
 /**
  * A 401 on any API call means the session is over (the server refreshes a live one itself):
- * the browser goes to the login page with the current location, so no page is left rendering
- * an empty list. `/auth/me` is exempt — a 401 there is the normal anonymous answer the
- * AuthProvider turns into the login redirect through the router. A 403 passes through
- * untouched and the page shows its forbidden state.
+ * `ended` gets the login address with the current location, and the Portal asks the person to
+ * sign in again without leaving the page (T-2747). `/auth/me` is exempt — a 401 there is the
+ * normal anonymous answer the AuthProvider turns into the login redirect through the router.
+ * A 403 passes through untouched and the page shows its forbidden state.
  */
-export function createSessionMiddleware(navigate: (url: string) => void): Middleware {
+export function createSessionMiddleware(ended: (loginUrl: string) => void): Middleware {
   return {
     onResponse({ request, response }) {
       if (response.status !== 401) {
@@ -116,15 +120,13 @@ export function createSessionMiddleware(navigate: (url: string) => void): Middle
       if (path === "/api/v1/auth/me" || window.location.pathname === "/login") {
         return response;
       }
-      navigate(loginRedirectUrl(`${window.location.pathname}${window.location.search}`));
+      ended(loginRedirectUrl(`${window.location.pathname}${window.location.search}`));
       return response;
     },
   };
 }
 
-export const sessionMiddleware = createSessionMiddleware((url) => {
-  window.location.assign(url);
-});
+export const sessionMiddleware = createSessionMiddleware(announceSessionEnded);
 
 api.use(sessionMiddleware);
 // Inside a workspace, resource reads and writes go to its branch (API/01 §22).
@@ -163,7 +165,12 @@ export async function unwrap<T>(result: {
   const message =
     problem?.detail ?? problem?.title ?? (result.response.statusText || `HTTP ${status}`);
 
-  throw new ApiError(status, message, problem);
+  throw new ApiError(
+    status,
+    message,
+    problem,
+    result.response.headers.get("x-request-id") ?? undefined,
+  );
 }
 
 /** Phases a resource leaves by itself, without anyone acting. */

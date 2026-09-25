@@ -46,40 +46,74 @@ export function PageLoading({
   );
 }
 
+/** Which failure it was, for the words and the one action that fits (T-2747). */
+export type FailureKind = "session" | "forbidden" | "notFound" | "server" | "network" | "refused";
+
+export function failureKind(error: unknown): FailureKind {
+  if (!(error instanceof ApiError)) return "network";
+  if (error.status === 401) return "session";
+  if (error.status === 403) return "forbidden";
+  if (error.status === 404) return "notFound";
+  if (error.status >= 500) return "server";
+  return "refused";
+}
+
 /**
- * Why the page could not be read, in the API's own sentence, and the one thing to do about it.
+ * Why the page could not be read, in the API's own sentence, and the one thing to do about it
+ * (UI-16, T-2747):
+ * - an ended session says so; the Portal's sign-in dialog is already open over the page;
+ * - a refusal says who can give access;
+ * - a missing object offers the way back the page passes as `back`;
+ * - a server failure also names its reference, the edge's request id, to quote when reporting.
  *
- * `onRetry` is left out where asking again cannot help — a 404, a refusal that will not change —
- * so the page never offers a button that does nothing.
+ * `onRetry` is left out by the page where asking again cannot help, a 404 or a refusal that
+ * will not change, so the page never offers a button that does nothing.
  */
 export function PageFailed({
   error,
   onRetry,
+  back,
   children,
 }: {
   error: unknown;
   onRetry?: () => void;
+  /** The way back to where the missing object was listed, as the page's own link. */
+  back?: ReactNode;
   /** A sentence to show instead of the API's, where the page knows better (a run that is gone). */
   children?: ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
+  const kind = failureKind(error);
+  const said = error instanceof ApiError ? (error.problem?.detail ?? error.message) : undefined;
   const reason =
     children ??
-    (error instanceof ApiError
-      ? (error.problem?.detail ?? error.message)
-      : t("app.error.generic"));
+    (kind === "network" ? t("app.error.generic") : kind === "session" ? t("app.error.session") : said);
+  // After an ended session the sign-in dialog asks every read again itself.
+  const retry = kind === "session" ? undefined : onRetry;
+  const reference = kind === "server" && error instanceof ApiError ? error.requestId : undefined;
   return (
     <Alert
       tone="danger"
       actions={
-        onRetry ? (
-          <Button size="sm" icon={<Icon name="refresh" className="size-4" />} onClick={onRetry}>
-            {t("app.error.retry")}
-          </Button>
+        retry || (kind === "notFound" && back) ? (
+          <>
+            {kind === "notFound" ? back : null}
+            {retry ? (
+              <Button size="sm" icon={<Icon name="refresh" className="size-4" />} onClick={retry}>
+                {t("app.error.retry")}
+              </Button>
+            ) : null}
+          </>
         ) : undefined
       }
     >
       {reason}
+      {kind === "forbidden" ? <span className="mt-1 block">{t("app.error.forbiddenHint")}</span> : null}
+      {reference ? (
+        <span className="mt-1 block">
+          {t("app.error.reference")} <code className="font-mono">{reference}</code>
+        </span>
+      ) : null}
     </Alert>
   );
 }

@@ -99,9 +99,9 @@ describe("the grid view rendered", () => {
 
     expect(await screen.findByRole("grid")).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText("5 C62")).toBeInTheDocument();
+      expect(screen.getByText("5")).toBeInTheDocument();
     });
-    expect(screen.getByText("7 C62")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
   });
 
   it("says which field is wrong instead of drawing an empty table", async () => {

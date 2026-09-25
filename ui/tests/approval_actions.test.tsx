@@ -121,6 +121,23 @@ describe("approval actions", () => {
     vi.restoreAllMocks();
   });
 
+  // MF-48: a change that names what another creates says which, and a rejected one flags it.
+  it("says which change it waits on, and flags one that was rejected", async () => {
+    renderDetail({
+      change: proposal({
+        waitsOn: [
+          { name: "chg-00000007", phase: "PendingApproval" },
+          { name: "chg-00000009", phase: "Rejected" },
+        ],
+      }),
+    });
+    expect(
+      await screen.findByText(en.approvals.waitsOn.pending.replace("{change}", "chg-00000007")),
+    ).toBeInTheDocument();
+    const rejected = screen.getByText(en.approvals.waitsOn.rejected.replace("{change}", "chg-00000009"));
+    expect(rejected.closest("[role=status]")?.className).toContain("danger");
+  });
+
   it("posts the approval to the change of the route, with the CSRF token", async () => {
     const fetchMock = renderDetail();
     await userEvent.click(await screen.findByRole("button", { name: en.approvals.approve }));

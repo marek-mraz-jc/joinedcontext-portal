@@ -3,6 +3,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { BrandingProvider } from "./branding";
+import { SessionEndedDialog } from "./components/SessionEndedDialog";
 import { createPortalRouter } from "./router";
 
 function RoutedApp({ router }: { router: ReturnType<typeof createPortalRouter> }) {
@@ -20,7 +21,14 @@ function RoutedApp({ router }: { router: ReturnType<typeof createPortalRouter> }
     );
   }
 
-  return <RouterProvider router={router} context={{ auth }} />;
+  return (
+    <>
+      <RouterProvider router={router} context={{ auth }} />
+      {/* Only a person who was signed in can lose a session; an anonymous visitor's 401s are
+          the router's way to the login page. */}
+      {auth.status === "authenticated" ? <SessionEndedDialog /> : null}
+    </>
+  );
 }
 
 export function App(): React.JSX.Element {
