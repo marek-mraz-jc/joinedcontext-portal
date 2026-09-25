@@ -2229,6 +2229,11 @@
         "use": "Use this address",
         "invalid": "Give a full address starting with http:// or https://."
       }
+    },
+    "prose": {
+      "copyId": "Copy the whole id",
+      "copied": "Copied",
+      "table": "A table in the answer"
     }
   },
   "assistant": {
@@ -2345,6 +2350,19 @@
         "noWrite": "Your role does not write through this endpoint."
       },
       "pathLeft": "Not with {preset}: switch it on in Capabilities."
+    },
+    "full": {
+      "conversations": "Conversations",
+      "search": "Search conversations",
+      "none": "No conversations here yet.",
+      "noMatch": "No conversation asks about “{words}”.",
+      "untitled": "A conversation started from a path",
+      "more": "Show {count} more",
+      "showList": "Show the conversations",
+      "hideList": "Hide the conversations",
+      "data": "Data and capabilities",
+      "showData": "Show the data and capabilities",
+      "hideData": "Hide the data and capabilities"
     }
   },
   "permissions": {
