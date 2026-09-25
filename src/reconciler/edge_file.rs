@@ -17,10 +17,11 @@
 //! therefore stay where helm renders them. The composed file holds every App's client secret,
 //! which is why it is a Secret; nothing here logs it or puts it in an error.
 //!
-//! The rates are the one thing of helm's routes this wave changes (ADR-N-035): every
+//! The limits are the one thing of helm's entries this changes (ADR-N-035): every
 //! `limit-count` whose entry carries the label [`RATE_CLASS`] counts the Organization's
-//! `spec.limits.edge.requestsPerMinute` for that class, so a changed limit reaches the edge on
-//! the next run and needs no helm release.
+//! `spec.limits.edge.requestsPerMinute` for that class, and the global rule [`EDGE_BODY_RULE`]
+//! holds bodies to `spec.limits.edge.maxRequestBodyMegabytes`, so a changed limit reaches the
+//! edge on the next run and needs no helm release.
 
 use std::collections::BTreeMap;
 
@@ -62,21 +63,32 @@ pub const RATE_CLASS: &str = "jc-rate-class";
 /// Each route class and the setting that sets its rate (ADR-N-035).
 const RATE_CLASSES: [&str; 5] = ["web", "api", "dataRead", "dataWrite", "publicEndpoint"];
 
-/// Requests a minute per route class, as the edge counts them (ADR-N-035).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct EdgeRates(BTreeMap<&'static str, u32>);
+/// The base's global rule whose `client-control` holds every request body (ADR-N-035).
+pub const EDGE_BODY_RULE: &str = "edge-body";
 
-impl EdgeRates {
-    /// The organization's rate per class, else the catalog's default, held inside the operator's
-    /// bound, so a bound lowered after the change was approved still holds.
+/// What the Organization sets at the edge (ADR-N-035): requests a minute per route class and
+/// the largest request body.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EdgeLimits {
+    rates: BTreeMap<&'static str, u32>,
+    body_bytes: Option<u64>,
+}
+
+/// The organization's value, else the catalog's default, held inside the operator's bound, so a
+/// bound lowered after the change was approved still holds. `max`/`min` rather than `clamp`:
+/// an operator file with min above max must not panic here.
+fn effective(path: &str, own: Option<u32>, bounds: &OrganizationBounds) -> Option<u32> {
+    let entry = entry_at(path)?;
+    let (min, max) = bounds.range(entry);
+    Some(own.or(entry.default)?.min(max.unwrap_or(u32::MAX)).max(min))
+}
+
+impl EdgeLimits {
     pub fn of(limits: Option<&OrganizationLimits>, bounds: &OrganizationBounds) -> Self {
-        let set = limits.map(|limits| &limits.edge.requests_per_minute);
+        let edge = limits.map(|limits| &limits.edge);
+        let set = edge.map(|edge| &edge.requests_per_minute);
         let mut rates = BTreeMap::new();
         for class in RATE_CLASSES {
-            let Some(entry) = entry_at(&format!("spec.limits.edge.requestsPerMinute.{class}"))
-            else {
-                continue;
-            };
             let own = set.and_then(|rates| match class {
                 "web" => rates.web,
                 "api" => rates.api,
@@ -84,25 +96,32 @@ impl EdgeRates {
                 "dataWrite" => rates.data_write,
                 _ => rates.public_endpoint,
             });
-            let (min, max) = bounds.range(entry);
-            if let Some(rate) = own.or(entry.default) {
-                // `max`/`min` rather than `clamp`: an operator file with min above max must not
-                // panic here. APISIX refuses a count of 0, and one refused entry stops the file.
-                rates.insert(class, rate.min(max.unwrap_or(u32::MAX)).max(min).max(1));
+            let path = format!("spec.limits.edge.requestsPerMinute.{class}");
+            if let Some(rate) = effective(&path, own, bounds) {
+                // APISIX refuses a count of 0, and one refused entry stops the whole file.
+                rates.insert(class, rate.max(1));
             }
         }
-        Self(rates)
+        let own = edge.and_then(|edge| edge.max_request_body_megabytes);
+        let body_bytes = effective(jc_core::kinds::org_settings::EDGE_BODY, own, bounds)
+            .map(|megabytes| u64::from(megabytes.max(1)) * 1024 * 1024);
+        Self { rates, body_bytes }
     }
 
     /// The rate of one class, `None` for a class the catalog does not know.
     pub fn of_class(&self, class: &str) -> Option<u32> {
-        self.0.get(class).copied()
+        self.rates.get(class).copied()
+    }
+
+    /// The largest request body, in bytes.
+    pub fn body_bytes(&self) -> Option<u64> {
+        self.body_bytes
     }
 }
 
-/// Sets every labelled `limit-count` of the base to its class's rate. An entry of a class this
-/// Portal does not know keeps helm's count.
-fn apply_rates(document: &mut Value, rates: &EdgeRates) {
+/// Sets every labelled `limit-count` of the base to its class's rate, and the `edge-body` rule to
+/// the body. An entry of a class this Portal does not know keeps helm's count.
+fn apply_limits(document: &mut Value, limits: &EdgeLimits) {
     for list in ["plugin_configs", "routes"] {
         let Some(items) = document.get_mut(list).and_then(Value::as_array_mut) else {
             continue;
@@ -110,7 +129,7 @@ fn apply_rates(document: &mut Value, rates: &EdgeRates) {
         for item in items {
             let Some(rate) = item["labels"][RATE_CLASS]
                 .as_str()
-                .and_then(|class| rates.of_class(class))
+                .and_then(|class| limits.of_class(class))
             else {
                 continue;
             };
@@ -122,6 +141,20 @@ fn apply_rates(document: &mut Value, rates: &EdgeRates) {
                 limit["count"] = json!(rate);
             }
         }
+    }
+    let Some(bytes) = limits.body_bytes else {
+        return;
+    };
+    let rule = document
+        .get_mut("global_rules")
+        .and_then(Value::as_array_mut)
+        .and_then(|rules| rules.iter_mut().find(|rule| rule["id"] == EDGE_BODY_RULE));
+    if let Some(control) = rule
+        .and_then(|rule| rule.get_mut("plugins"))
+        .and_then(|plugins| plugins.get_mut("client-control"))
+        .filter(|control| control.is_object())
+    {
+        control["max_body_size"] = json!(bytes);
     }
 }
 
@@ -263,14 +296,14 @@ fn framed_by_portal(plugins: &mut Value, host: &str) {
 
 /// The base with the Organization's rates and every App's routes added, ending `#END`
 /// (AP-112, AP-133, ADR-N-035).
-pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeRates) -> Result<Composed, ComposeError> {
+pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Composed, ComposeError> {
     let mut document: Value =
         serde_yaml_ng::from_str(base).map_err(|err| ComposeError::Unreadable(err.to_string()))?;
     if !document.is_object() {
         return Err(ComposeError::Unreadable("not a mapping".into()));
     }
     // Before the App routes copy the base's chains, so they count the same rates.
-    apply_rates(&mut document, rates);
+    apply_limits(&mut document, rates);
     let endpoint_route = by_id(&document, "routes", CONTEXT_ENDPOINT)?.clone();
     let portal_route = by_id(&document, "routes", PORTAL_UI)?.clone();
     let surface_plugins = by_id(&document, "plugin_configs", APPS_SURFACE)?["plugins"].clone();
@@ -567,7 +600,7 @@ impl EdgeFile {
         apps: &[EdgeApp],
         limits: Option<&OrganizationLimits>,
     ) -> (EdgeOutcome, Vec<(String, String)>) {
-        let rates = EdgeRates::of(limits, &self.bounds);
+        let rates = EdgeLimits::of(limits, &self.bounds);
         let base = match self
             .kube
             .get_config_map(&self.namespace, BASE_CONFIG_MAP)
@@ -720,7 +753,7 @@ routes:
 
     #[test]
     fn no_app_leaves_the_base_as_it_is_and_ends_the_file() {
-        let composed = compose(BASE, &[], &EdgeRates::default()).expect("composes");
+        let composed = compose(BASE, &[], &EdgeLimits::default()).expect("composes");
         assert!(composed.file.ends_with("\n#END\n"), "{}", composed.file);
         assert_eq!(
             parsed(&composed.file),
@@ -741,7 +774,7 @@ routes:
                     namespace: "jc-helsinki-apps".into(),
                 },
             )],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -841,7 +874,7 @@ routes:
         let composed = compose(
             BASE,
             &[app("hsl-transport", true, Upstream::Static)],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -882,7 +915,7 @@ routes:
                     },
                 ),
             ],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -926,7 +959,7 @@ routes:
         let composed = compose(
             &base,
             &[app("a", false, Upstream::Static)],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -946,7 +979,7 @@ routes:
                 app("b-app", false, Upstream::Static),
                 app("a-app", false, Upstream::Static),
             ],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -970,7 +1003,7 @@ routes:
                 app("a-app", false, Upstream::Static),
                 app("b-app", false, Upstream::Static),
             ],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         assert_eq!(composed.file, again.file);
@@ -980,13 +1013,13 @@ routes:
     fn a_base_without_the_surfaces_is_refused_by_name() {
         let without = BASE.replace("id: context-endpoint", "id: something-else");
         assert_eq!(
-            compose(&without, &[], &EdgeRates::default()),
+            compose(&without, &[], &EdgeLimits::default()),
             Err(ComposeError::Missing(
                 "routes entry context-endpoint".into()
             ))
         );
         assert!(matches!(
-            compose("routes: [", &[], &EdgeRates::default()),
+            compose("routes: [", &[], &EdgeLimits::default()),
             Err(ComposeError::Unreadable(_))
         ));
     }
@@ -1000,7 +1033,7 @@ routes:
         let composed = compose(
             &base,
             &[app("portal", false, Upstream::Static)],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         assert_eq!(composed.skipped.len(), 1);
@@ -1011,7 +1044,7 @@ routes:
     fn a_base_without_the_portal_route_is_refused_by_name() {
         let without = BASE.replace("id: portal-ui\n    uri", "id: elsewhere\n    uri");
         assert_eq!(
-            compose(&without, &[], &EdgeRates::default()),
+            compose(&without, &[], &EdgeLimits::default()),
             Err(ComposeError::Missing("routes entry portal-ui".into()))
         );
     }
@@ -1029,7 +1062,7 @@ routes:
                 app("b-app", true, Upstream::Static),
                 reads_none,
             ],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -1053,7 +1086,7 @@ routes:
         let composed = compose(
             BASE,
             &[app("air-quality", false, Upstream::Static)],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -1091,7 +1124,7 @@ routes:
         let err = compose(
             "[",
             &[app("a", false, Upstream::Static)],
-            &EdgeRates::default(),
+            &EdgeLimits::default(),
         )
         .expect_err("unreadable");
         assert!(!err.to_string().contains("secret-of"));
@@ -1119,7 +1152,46 @@ routes:
             json!({"id": "odd", "uri": "/odd/*", "upstream_id": "portal-ui",
             "labels": {RATE_CLASS: "nosuchclass"}, "plugins": {"limit-count": limit(7)}}),
         );
+        document["global_rules"] = json!([{"id": EDGE_BODY_RULE,
+            "plugins": {"client-control": {"max_body_size": 16 * 1024 * 1024}}}]);
         serde_yaml_ng::to_string(&document).expect("yaml") + "#END\n"
+    }
+
+    fn body(file: &Value) -> Value {
+        by_id(file, "global_rules", EDGE_BODY_RULE).expect("the rule")["plugins"]["client-control"]
+            ["max_body_size"]
+            .clone()
+    }
+
+    #[test]
+    fn the_organizations_body_limit_reaches_the_edge_body_rule() {
+        let mib = 1024 * 1024;
+        let compose_with = |json: Option<Value>| {
+            let set = json.map(limits);
+            let edge = EdgeLimits::of(set.as_ref(), &OrganizationBounds::default());
+            parsed(&compose(&rated(), &[], &edge).expect("composes").file)
+        };
+        let set = |megabytes: u32| Some(json!({"edge": {"maxRequestBodyMegabytes": megabytes}}));
+        assert_eq!(
+            body(&compose_with(None)),
+            json!(16 * mib),
+            "the catalog default"
+        );
+        assert_eq!(
+            body(&compose_with(set(32))),
+            json!(32 * mib),
+            "above the old fixed 16"
+        );
+        assert_eq!(body(&compose_with(set(2))), json!(2 * mib));
+        assert_eq!(
+            body(&compose_with(set(1000))),
+            json!(64 * mib),
+            "the ceiling"
+        );
+        // A base without the rule stays without it: the server block's number holds.
+        let edge = EdgeLimits::of(None, &OrganizationBounds::default());
+        let file = parsed(&compose(BASE, &[], &edge).expect("composes").file);
+        assert!(file.get("global_rules").is_none());
     }
 
     fn count(file: &Value, list: &str, id: &str) -> Value {
@@ -1133,7 +1205,7 @@ routes:
     #[test]
     fn the_organizations_rates_reach_every_labelled_limit_count() {
         let set = limits(json!({"edge": {"requestsPerMinute": {"web": 900, "dataWrite": 50}}}));
-        let rates = EdgeRates::of(Some(&set), &OrganizationBounds::default());
+        let rates = EdgeLimits::of(Some(&set), &OrganizationBounds::default());
         let file = parsed(&compose(&rated(), &[], &rates).expect("composes").file);
 
         assert_eq!(count(&file, "plugin_configs", "apps-surface"), json!(900));
@@ -1150,7 +1222,7 @@ routes:
 
     #[test]
     fn without_an_organization_every_class_counts_its_default() {
-        let rates = EdgeRates::of(None, &OrganizationBounds::default());
+        let rates = EdgeLimits::of(None, &OrganizationBounds::default());
         assert_eq!(rates.of_class("web"), Some(300));
         assert_eq!(rates.of_class("api"), Some(1200));
         assert_eq!(rates.of_class("dataRead"), Some(1200));
@@ -1170,7 +1242,7 @@ routes:
                 max: Some(2000),
             },
         )]));
-        let rates = EdgeRates::of(Some(&set), &bounds);
+        let rates = EdgeLimits::of(Some(&set), &bounds);
         assert_eq!(rates.of_class("web"), Some(3000));
         assert_eq!(rates.of_class("api"), Some(2000));
     }
@@ -1178,7 +1250,7 @@ routes:
     #[test]
     fn apps_copy_the_rated_surface_chain() {
         let set = limits(json!({"edge": {"requestsPerMinute": {"web": 42}}}));
-        let rates = EdgeRates::of(Some(&set), &OrganizationBounds::default());
+        let rates = EdgeLimits::of(Some(&set), &OrganizationBounds::default());
         let file = parsed(
             &compose(
                 &rated(),
