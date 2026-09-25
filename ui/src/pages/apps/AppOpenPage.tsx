@@ -303,9 +303,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
               <Button size="sm" variant="primary" onClick={signInAgain}>
                 {t("apps.openPage.signInAgain")}
               </Button>
-              <ExternalLink href={address} hideIcon className={buttonClass("ghost", "sm")}>
-                {t("apps.openPage.newWindow")}
-              </ExternalLink>
+              {/* "Open in new window" is the bar's own link just above: one control, one name. */}
               <Button size="sm" variant="ghost" onClick={silence.dismiss}>
                 {t("apps.openPage.silentDismiss")}
               </Button>

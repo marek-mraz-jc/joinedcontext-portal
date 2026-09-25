@@ -1,5 +1,5 @@
 /**
- * The screen, over what the `public-air` endpoint answers (T-2435).
+ * The screen, over what the endpoint of `banskabystrica-verejne` answers (T-2435, T-2949).
  *
  * `fetch` is what is stubbed and nothing below it, so every case goes through the SDK's own
  * endpoint source: the same URL building, the same NGSI-LD parsing and the same refusal handling
@@ -41,7 +41,7 @@ vi.mock("maplibre-gl", () => {
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 
 const App = (await import("./App")).default;
-const { answer, history } = await import("./fixtures/ovzdusie");
+const { answer, history, sk0263a } = await import("./fixtures/verejne");
 const { LOCALES } = await import("./locales");
 
 const SLUG = "mluyob4nz52lok3ssk7pgn5vwt";
@@ -77,7 +77,7 @@ function show(options: Parameters<typeof serving>[0] = {}, language = "sk", base
   const client = stubClient(undefined, {
     slug: SLUG,
     orgDomain: "banskabystrica.sk",
-    space: "ovzdusie",
+    space: "banskabystrica-verejne",
     transport: "origin",
     appName: "banskabystrica-ovzdusie",
     language,
@@ -107,6 +107,23 @@ afterEach(() => {
 const stations = () => screen.getByRole("region", { name: LOCALES.sk.stationsLabel });
 
 describe("the stations of the city", () => {
+  // T-2949: the city's one real station, as the EEA pipelines write it, is on the screen in
+  // Banská Bystrica under the name it publishes, with a fresh reading and not an old one.
+  it("shows station SK0263A in Banská Bystrica under its published name with its latest reading", async () => {
+    show({ entities: () => json([sk0263a(NOW, 40)]) });
+    const card = await waitFor(() =>
+      within(stations()).getByRole("heading", { name: "Stanica SK0263A, mestské pozadie" }).closest("article"),
+    );
+    expect(within(card as HTMLElement).getByText(/21,3|21\.3/)).toBeInTheDocument();
+    expect(within(card as HTMLElement).queryByText(new RegExp(LOCALES.sk.band.stale))).toBeNull();
+    await waitFor(() => expect(addSource).toHaveBeenCalled());
+    const [, source] = addSource.mock.calls.at(-1) as [string, { data: { features: Array<{ geometry: { coordinates: number[] } }> } }];
+    expect(source.data.features.map((feature) => feature.geometry.coordinates)).toEqual([[19.115268, 48.733256]]);
+    // The read went to the configured endpoint of the city's public space.
+    expect(calls.some((call) => call.path.includes(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities`))).toBe(true);
+    expect(screen.getByText(LOCALES.sk.source)).toBeInTheDocument();
+  });
+
   it("draws one point per station that publishes a place, and lists every station", async () => {
     show();
     await waitFor(() => expect(addSource).toHaveBeenCalled());

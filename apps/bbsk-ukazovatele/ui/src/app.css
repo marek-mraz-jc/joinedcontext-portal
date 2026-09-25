@@ -83,6 +83,81 @@ main {
   white-space: nowrap;
 }
 
+/* A district's name is the keyboard's way to pick it on the map (T-2933): a button that reads as
+   the label, and the picked row drawn marked in the body's colour. */
+button.bar-label {
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  background: none;
+  border: 0;
+  padding: 0.125rem 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.bar-row.marked .bar-label {
+  font-weight: 700;
+}
+
+.bar-row.marked .bar-track {
+  outline: 2px solid var(--body);
+  outline-offset: 1px;
+}
+
+/* The district map: taller than the SDK default on a wide screen, shorter on a phone, the legend under it. */
+.map-panel {
+  margin: 0 0 var(--jc-space-6, 1.5rem);
+}
+
+.map-pick select {
+  font: inherit;
+  max-width: 100%;
+}
+
+.district-map {
+  margin: 0;
+}
+
+.district-map .map {
+  height: clamp(16rem, 50vh, 28rem);
+  border-radius: var(--jc-radius-sm, 4px);
+  overflow: hidden;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jc-space-2, 0.5rem);
+  font-size: 0.875rem;
+  margin-block-start: var(--jc-space-2, 0.5rem);
+}
+
+.legend-ramp {
+  display: inline-block;
+  width: min(12rem, 40vw);
+  height: 0.75rem;
+  border-radius: var(--jc-radius-sm, 4px);
+}
+
+.legend-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-none {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--jc-space-1, 0.25rem);
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+}
+
 @media (max-width: 40rem) {
   .bar-row {
     grid-template-columns: 1fr auto;

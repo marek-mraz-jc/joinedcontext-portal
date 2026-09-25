@@ -33,6 +33,11 @@ export interface Strings {
   details: string;
   /** The caption over the bar chart of one indicator's districts. */
   districtsCompared: string;
+  /** The heading of the district map, the picker of the indicator it colours, and its notes. */
+  map: string;
+  mapIndicator: string;
+  mapHint: string;
+  mapUnavailable: string;
 }
 
 const TERRITORY_SK: Record<string, string> = {
@@ -108,6 +113,10 @@ const SK: Strings = {
   rawUnit: "Jednotka zo záznamu",
   details: "Obdobie a výpočet",
   districtsCompared: "Okresy v porovnaní",
+  map: "Mapa okresov",
+  mapIndicator: "Ukazovateľ na mape",
+  mapHint: "Okres vyberiete kliknutím na mape alebo na jeho názov v grafe.",
+  mapUnavailable: "Hranice okresov sa nepodarilo načítať",
 };
 
 const EN: Strings = {
@@ -147,6 +156,10 @@ const EN: Strings = {
   rawUnit: "Unit as recorded",
   details: "Window and computation",
   districtsCompared: "Districts compared",
+  map: "District map",
+  mapIndicator: "Indicator on the map",
+  mapHint: "Pick a district by clicking it on the map or its name in the chart.",
+  mapUnavailable: "The district outlines could not be read",
 };
 
 export const LOCALES: Readonly<Record<string, Strings>> = { sk: SK, en: EN };

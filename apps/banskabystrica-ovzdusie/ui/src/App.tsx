@@ -1,8 +1,9 @@
 /**
  * The city's air-quality screen (T-2435, AP-07, AP-14, AP-45, UI-15, UI-30).
  *
- * One space, one type, read only, no login: `public-air` is a public endpoint, so the bundle
- * holds no token and never asks anybody to sign in (AP-28).
+ * One space, one type, read only, no login: the city's public space `banskabystrica-verejne`,
+ * where the EEA's hourly readings of station SK0263A land (T-2781, T-2949), is read through a
+ * public endpoint, so the bundle holds no token and never asks anybody to sign in (AP-28).
  *
  * Two things this screen is arranged against. A station that stopped reporting must not read as
  * clean air, so staleness is a band of its own and is decided before the thresholds
@@ -22,7 +23,7 @@ import { BAND_SHAPE, nameOf, stringsFor } from "./locales";
 import type { Strings } from "./locales";
 
 /** The space this application reads (`Development/10` §2). */
-const SPACE = "ovzdusie";
+const SPACE = "banskabystrica-verejne";
 
 /** One page holds the city's stations several times over, and caps a hostile answer. */
 const LIMIT = 200;
@@ -273,7 +274,7 @@ function StationCard({
   onPick: (id: string) => void;
   s: Strings;
 }) {
-  const name = nameOf(station.localId, s);
+  const name = nameOf(station, s);
   return (
     <article className={`station station-${band}${picked ? " picked" : ""}`}>
       <h3>{name}</h3>
@@ -319,7 +320,7 @@ function StationDetail({
   now: Date;
   s: Strings;
 }) {
-  const name = nameOf(station.localId, s);
+  const name = nameOf(station, s);
   return (
     <section className="detail" aria-labelledby="detail-heading">
       <h2 id="detail-heading">

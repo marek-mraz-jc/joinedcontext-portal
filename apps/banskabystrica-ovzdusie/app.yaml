@@ -32,14 +32,16 @@ spec:
   lifecycle: published
   embeddable: true
   dataNeeds:
-    # One space, one type, read only. The attributes are exactly the five the space's public
-    # grant serves (`policy-public-read.yaml`): `reliability` and `refDevice` are operational and
-    # the public never sees them, so asking for them would put a refusal in every answer.
+    # One space, one type, read only. `banskabystrica-verejne` is the city's public space, where
+    # the pipelines ovzdusie-pm10 and ovzdusie-pm25 write the EEA's hourly readings of station
+    # SK0263A (T-2781, T-2949); `ovzdusie` holds the conformance suite's seeded stations and is
+    # not the city's air. The space's public grant (`policy-verejne-read.yaml`) serves every
+    # attribute of the type, and these are the ones the screen shows.
     - contextSpaceRef:
         kind: ContextSpace
-        name: ovzdusie
+        name: banskabystrica-verejne
       types: [AirQualityObserved]
-      attrs: [dateObserved, location, observedAt, pm10, pm25]
+      attrs: [name, dateObserved, location, pm10, pm25, dataProvider]
       operations: [queryEntity, retrieveEntity, queryTemporal]
       temporalQ:
         window: P1D

@@ -516,6 +516,60 @@ async fn an_app_with_its_own_endpoint_is_served_that_endpoint_alone() {
     assert_eq!(slugs, ["ownslug"]);
 }
 
+/// AP-04 (T-2933): a further space is read through its public endpoints alone, after the App's
+/// own; another endpoint of that space is not offered, so the App's client never names it.
+#[tokio::test]
+async fn a_further_space_is_served_through_its_public_endpoint_alone() {
+    let index: &[u8] = b"<!doctype html><html><head><title>kpi</title></head><body></body></html>";
+    let dir = app_root("further", &[("index.html", index)]);
+    let mut spec = app_spec("published");
+    spec["dataNeeds"] = serde_json::json!([
+        {
+            "contextSpaceRef": { "kind": "ContextSpace", "name": "bbsk-kpi" },
+            "types": ["KeyPerformanceIndicator"],
+            "operations": ["queryEntity"]
+        },
+        {
+            "contextSpaceRef": { "kind": "ContextSpace", "name": "bbsk-registre" },
+            "types": ["AdministrativeArea"],
+            "operations": ["queryEntity"]
+        }
+    ]);
+    let mirror = mirror_with_app(spec);
+    for (name, space, slug, audience) in [
+        ("bbsk-kpi", "bbsk-kpi", "regionslug", "project-list"),
+        ("bbsk-registre", "bbsk-registre", "registreslug", "public"),
+        (
+            "bbsk-registre-steward",
+            "bbsk-registre",
+            "stewardslug",
+            "organization",
+        ),
+    ] {
+        mirror.upsert(envelope(
+            "Endpoint",
+            "ovzdusie",
+            name,
+            serde_json::json!({ "contextSpaceRef": space, "slug": slug, "audience": audience }),
+        ));
+    }
+
+    let (status, body) = get_with(dir.path(), mirror, "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    let config = served_config(&body);
+    assert_eq!(
+        config["slug"], "regionslug",
+        "the own space's endpoint is the primary"
+    );
+    let slugs: Vec<&str> = config["endpoints"]
+        .as_array()
+        .expect("endpoints")
+        .iter()
+        .filter_map(|e| e["slug"].as_str())
+        .collect();
+    assert_eq!(slugs, ["regionslug", "registreslug"]);
+}
+
 /// T-2457: the region's application reads its own indicators and the city's through the shared
 /// reference, so the index it is served names both endpoints, by space, and never a token.
 #[tokio::test]

@@ -12,22 +12,24 @@ spec:
   assigner: did:web:hel.fi
   contextSpaceRef:
     kind: ContextSpace
-    name: ovzdusie
+    name: banskabystrica-verejne
   information:
   - entities:
     - type: AirQualityObserved
     propertyNames:
+    - name
     - dateObserved
     - location
-    - observedAt
     - pm10
     - pm25
+    - dataProvider
     relationshipNames:
+    - name
     - dateObserved
     - location
-    - observedAt
     - pm10
     - pm25
+    - dataProvider
   operations:
   - queryTemporal
   temporalQ: timerel=after;timeAt=P-1D

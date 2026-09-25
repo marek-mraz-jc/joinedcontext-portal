@@ -104,7 +104,7 @@ const SK: Strings = {
   failed: "Stanice sa nepodarilo načítať.",
   failedWhy: "Dôvod",
   noEndpoint: "Aplikácia nemá nastavený endpoint, cez ktorý by čítala.",
-  source: "Zdroj: mesto Banská Bystrica, priestor ovzdusie, verejný endpoint public-air.",
+  source: "Zdroj: Európska environmentálna agentúra, údaje SHMÚ (CC BY 4.0), zverejnené mestom Banská Bystrica v priestore banskabystrica-verejne.",
   history: {
     title: "História",
     window: { hour: "Posledná hodina", day: "Posledný deň", week: "Posledný týždeň", custom: "Medzi" },
@@ -159,7 +159,7 @@ const EN: Strings = {
   failed: "The stations could not be loaded.",
   failedWhy: "Reason",
   noEndpoint: "This application has no endpoint configured to read through.",
-  source: "Source: city of Banská Bystrica, space ovzdusie, public endpoint public-air.",
+  source: "Source: European Environment Agency, data reported by SHMÚ (CC BY 4.0), published by the city of Banská Bystrica in the space banskabystrica-verejne.",
   history: {
     title: "History",
     window: { hour: "Last hour", day: "Last day", week: "Last week", custom: "Between" },
@@ -186,10 +186,10 @@ export function stringsFor(language?: string): Strings {
 }
 
 /**
- * What a station is called. The published model has no `name` slot, so the only name there is is
- * the `{localId}` of its URN: `station-1` reads "Stanica 1", and an id in any other shape is
- * shown as it is rather than dressed up as a name nobody published.
+ * What a station is called: the name it publishes, and otherwise the `{localId}` of its URN:
+ * `station-1` reads "Stanica 1", and an id in any other shape is shown as it is rather than
+ * dressed up as a name nobody published.
  */
-export function nameOf(localId: string, s: Strings): string {
-  return `${s.station} ${localId.replace(/^(station|stanica)-/i, "")}`;
+export function nameOf(station: { localId: string; name: string | null }, s: Strings): string {
+  return station.name ?? `${s.station} ${station.localId.replace(/^(station|stanica)-/i, "")}`;
 }
