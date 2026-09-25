@@ -3,7 +3,7 @@
  * a sandbox without top navigation, offers it in a window of its own, and shows the state of an App
  * that has nothing to open instead of a frame. The App's own page and the catalog link here.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -14,7 +14,7 @@ import en from "../src/locales/en.json";
 import { expectDenied } from "./checks";
 import { AuthProvider } from "../src/auth/AuthProvider";
 import { BrandingProvider } from "../src/branding";
-import { AppOpenPage, OpenAppButton } from "../src/pages/apps/AppOpenPage";
+import { appFrameOrigin, AppOpenPage, FRAME_ANSWER_MS, OpenAppButton } from "../src/pages/apps/AppOpenPage";
 
 const PROJECT = "helsinki";
 const COMMIT = "4f2a9c1e0b7d3a5f6c8e9d0a1b2c3d4e5f6a7b8c";
@@ -258,6 +258,94 @@ describe("AppOpenPage", () => {
     expect(assign).toHaveBeenCalledWith(
       `/api/v1/auth/login?redirect_to=${encodeURIComponent(`/projects/${PROJECT}/apps/city-bikes/open`)}`,
     );
+  });
+});
+
+/**
+ * T-2941: a frame the browser refused (the realm's sign-in form may not be framed) is a white box
+ * that fires `load` all the same. The App says it is up with `{kind: "jc-ready"}`; without that
+ * from its own frame and origin, the page offers the sign-in in the top window, above the frame.
+ */
+describe("AppOpenPage when the App stays silent", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  async function loadedFrame(stub: Stub = {}) {
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`, stub);
+    const frame = (await screen.findByTitle("City bikes, the application")) as HTMLIFrameElement;
+    if (stub.appsOrigin) {
+      await waitFor(() => expect(frame.getAttribute("src")).toMatch(/^https:/));
+    }
+    vi.useFakeTimers();
+    fireEvent.load(frame);
+    return frame;
+  }
+  const say = (source: MessageEventSource | null, origin: string, data: unknown = { kind: "jc-ready" }) =>
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data, origin, source }));
+    });
+  const wait = (ms = FRAME_ANSWER_MS) =>
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+  const prompt = () => screen.queryByText(en.apps.openPage.silentTitle);
+
+  it("offers the sign-in in the top window when nothing answers, and keeps the frame", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, pathname: `/projects/${PROJECT}/apps/city-bikes/open`, search: "" });
+    const frame = await loadedFrame();
+    wait(FRAME_ANSWER_MS - 1);
+    expect(prompt()).toBeNull();
+    wait(1);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent(en.apps.openPage.silentTitle);
+    expect(status).toHaveTextContent(en.apps.openPage.silentBody);
+    expect(within(status).getByRole("link", { name: new RegExp(en.apps.openPage.newWindow) }).getAttribute("href")).toBe("/apps/city-bikes/");
+    // The frame stays: an App built without the SDK says nothing and may render all the same.
+    expect(document.body.contains(frame)).toBe(true);
+    fireEvent.click(within(status).getByRole("button", { name: en.apps.openPage.signInAgain }));
+    expect(assign).toHaveBeenCalledWith(
+      `/api/v1/auth/login?redirect_to=${encodeURIComponent(`/projects/${PROJECT}/apps/city-bikes/open`)}`,
+    );
+    fireEvent.click(within(status).getByRole("button", { name: en.apps.openPage.silentDismiss }));
+    expect(prompt()).toBeNull();
+  });
+
+  it("stays quiet for an App that answers from its own frame, before or after its load", async () => {
+    const frame = await loadedFrame();
+    // Same host as the Portal: the sandbox gives the App the opaque origin.
+    say(frame.contentWindow, "null");
+    wait();
+    expect(prompt()).toBeNull();
+    // A later load of the same visit (the App's own navigation) does not ask again.
+    fireEvent.load(frame);
+    wait();
+    expect(prompt()).toBeNull();
+  });
+
+  it("ignores an answer from another origin, another window or of another kind", async () => {
+    const frame = await loadedFrame({ appsOrigin: "https://example.org" });
+    say(frame.contentWindow, "null");
+    say(frame.contentWindow, "https://evil.example");
+    say(window, "https://city-bikes.apps.example.org");
+    say(frame.contentWindow, "https://city-bikes.apps.example.org", { kind: "jc-resize" });
+    say(frame.contentWindow, "https://city-bikes.apps.example.org", "jc-ready");
+    wait();
+    expect(prompt()).not.toBeNull();
+    // The App's own origin answering clears it.
+    say(frame.contentWindow, "https://city-bikes.apps.example.org");
+    expect(prompt()).toBeNull();
+  });
+
+  it("expects the App's own origin on another host and the opaque one on the Portal's", () => {
+    expect(appFrameOrigin("/apps/city-bikes/", "https://portal.example")).toBe("null");
+    expect(appFrameOrigin("https://portal.example/apps/x/", "https://portal.example")).toBe("null");
+    expect(appFrameOrigin("https://x.apps.example.org/", "https://portal.example")).toBe("https://x.apps.example.org");
   });
 });
 
