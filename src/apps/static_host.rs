@@ -364,9 +364,16 @@ pub(crate) fn served_endpoints(
                 .map(String::as_str)
                 == Some(crate::apps::reconciler::GENERATOR)
         });
+    // The first need's space is the App's own; a further one is read through its public
+    // Endpoints alone (AP-04), as jc-core `served_endpoints` has it for the gateway.
+    let first = spec
+        .data_needs
+        .first()
+        .map(|need| need.context_space_ref.name());
     let mut found: Vec<RunEndpoint> = Vec::new();
     for need in &spec.data_needs {
         let space = need.context_space_ref.name();
+        let further = first != Some(space);
         if let Some(endpoint) = own
             .as_ref()
             .filter(|env| ref_name(&env.spec["contextSpaceRef"]).as_deref() == Some(space))
@@ -378,6 +385,7 @@ pub(crate) fn served_endpoints(
         let serving = mirror.matching(|env| {
             in_project(env, "Endpoint")
                 && ref_name(&env.spec["contextSpaceRef"]).as_deref() == Some(space)
+                && (!further || env.spec["audience"] == "public")
         });
         found.extend(sorted(serving).iter().filter_map(of));
     }
