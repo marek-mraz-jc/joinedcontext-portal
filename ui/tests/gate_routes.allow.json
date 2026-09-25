@@ -7,24 +7,9 @@
     "route the router no longer has. The two lists only ever shrink."
   ],
   "mocked": {
-    "/projects/$project/workspaces": {
-      "why": "the workspace bar is covered by tests/workspaces_ui.test.tsx; the mocked spec is owed with the four snapshots"
-    },
-    "/projects/$project/workspaces/$name/compare": {
-      "why": "covered by tests/page_compare_page.test.tsx; the mocked spec is owed"
-    },
-    "/projects/$project/workspaces/$name/try-it": {
-      "why": "covered by tests/page_try_it_page.test.tsx; the mocked spec is owed"
-    },
     "/projects/$project/ckan": {
       "task": "T-1765",
       "why": "the page has no test of its own at all; its form task writes the first one"
-    },
-    "/projects/$project/import": {
-      "why": "covered by tests/import_wizard.test.tsx; the mocked spec is owed"
-    },
-    "/projects/$project/assistant": {
-      "why": "covered by tests/assistant_page.test.tsx; the mocked spec is owed"
     }
   },
   "live": {

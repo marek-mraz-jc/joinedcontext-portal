@@ -214,7 +214,12 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
           onRetry={() => void runsQuery.refetch()}
         />
       ) : filteredRuns.length === 0 ? (
-        <EmptyState icon="chat" title={t("assistantPage.empty")} />
+        // The way to the first run is the assistant itself (T-2745 took the New work form away).
+        <EmptyState
+          icon="chat"
+          title={t("assistantPage.empty")}
+          action={<Button onClick={() => requestOpen()}>{t("assistant.open")}</Button>}
+        />
       ) : (
         <>
         <Table caption={t("assistantPage.title")}>
