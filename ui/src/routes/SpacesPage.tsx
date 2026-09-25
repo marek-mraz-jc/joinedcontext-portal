@@ -58,6 +58,11 @@ export function spaceSegment(project: string, name: string, pin?: string): strin
 export function toEnvelope(project: string, form: SpaceForm, stored?: unknown, locale = "en") {
   const { name, title, ...spec } = form;
   const { title: storedTitle, ...kept } = storedMetadata(stored);
+  // The model the space already names goes back as the manifest wrote it, `{ kind, name }` or a
+  // bare name, so an untouched Save proposes no change to it (T-2872).
+  const storedModel = (stored as { spec?: { dataModelRef?: unknown } } | undefined)?.spec?.dataModelRef;
+  const model =
+    spec.dataModelRef && refName(storedModel) === spec.dataModelRef ? { dataModelRef: storedModel } : {};
   const unchanged =
     storedTitle !== undefined &&
     (title ?? "") === localized(storedTitle as string | Record<string, string>, locale, "");
@@ -71,7 +76,7 @@ export function toEnvelope(project: string, form: SpaceForm, stored?: unknown, l
       namespace: project,
       ...(written !== undefined ? { title: written } : {}),
     },
-    spec,
+    spec: { ...spec, ...model },
   };
 }
 
@@ -86,8 +91,12 @@ export function fromEnvelope(manifest: unknown, locale = "en"): SpaceForm {
     locale,
     "",
   );
+  const spec = (envelope.spec ?? {}) as { dataModelRef?: unknown };
+  // The picker holds a model by its name; the seeds write it `{ kind: DataModel, name }` (T-2872).
+  const model = refName(spec.dataModelRef);
   return {
-    ...(envelope.spec ?? {}),
+    ...spec,
+    ...(model ? { dataModelRef: model } : {}),
     name: envelope.metadata?.name ?? "",
     ...(title === "" ? {} : { title }),
   } as SpaceForm;

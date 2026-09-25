@@ -5,6 +5,7 @@ import validator from "./forms/validator";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { errorMessageKey, SchemaForm } from "./forms/SchemaForm";
+import { namesOfRefs } from "../schemas/pickers";
 import { mergeObjects } from "@rjsf/utils";
 import type { ErrorSchema } from "@rjsf/utils";
 import type { JsonSchema, UiSchema } from "./forms/types";
@@ -732,7 +733,8 @@ export function ResourceFormDialog<T>({
   function schemaRefusals(
     form: T,
   ): { marked: ErrorSchema; sentences: string[]; missing: boolean } | null {
-    const { errors } = validator.validateFormData(form, schema);
+    // A typed reference is judged by the name its picker shows, as the form itself judges it (T-2872).
+    const { errors } = validator.validateFormData(namesOfRefs(kind, form), schema);
     if (errors.length === 0) {
       return null;
     }
@@ -842,7 +844,7 @@ export function ResourceFormDialog<T>({
     // answer, so the state it sets is the point of it.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the effect is the render after onChange: it consumes the queue so the parent's widened schema judges the YAML (T-0890)
     setQueued(null);
-    const { errors } = validator.validateFormData(queued, schema);
+    const { errors } = validator.validateFormData(namesOfRefs(kind, queued), schema);
     if (errors.length > 0) {
       setIssues(
         errors.map((issue) =>
@@ -853,7 +855,7 @@ export function ResourceFormDialog<T>({
     }
     setIssues([]);
     handleSubmit(queued);
-  }, [queued, schema, handleSubmit, t]);
+  }, [queued, schema, handleSubmit, t, kind]);
 
   // The age in the person's language: the verdict sentence is translated, and an English
   // "12s ago" inside a German one was half a translation (T-1753).
@@ -1055,7 +1057,7 @@ export function ResourceFormDialog<T>({
             <SchemaForm<T>
               schema={schema}
               project={project}
-              kind={kind ?? draftKind}
+              kind={kind}
               uiSchema={lockedUiSchema}
               formData={formData}
               disabled={disabled}
