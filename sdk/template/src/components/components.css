@@ -363,6 +363,40 @@ body {
   left: var(--jc-space-2, 0.5rem);
 }
 
+/* The colour ramp a map is coloured by, and what its two ends are worth (AP-138). */
+.jc-map-legend {
+  position: absolute;
+  z-index: 1;
+  right: var(--jc-space-2, 0.5rem);
+  bottom: var(--jc-space-2, 0.5rem);
+  display: grid;
+  gap: var(--jc-space-1, 0.25rem);
+  min-width: 8rem;
+  padding: var(--jc-space-1, 0.25rem) var(--jc-space-2, 0.5rem);
+  border-radius: var(--jc-radius-sm, 4px);
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  background: var(--jc-color-surface, #ffffff);
+  border: 1px solid var(--jc-color-line, #e2e8f0);
+  color: var(--jc-color-ink, #0f172a);
+}
+
+.jc-map-legend-name {
+  font-weight: 600;
+}
+
+.jc-map-legend-ramp {
+  display: block;
+  height: 0.5rem;
+  border-radius: var(--jc-radius-sm, 4px);
+}
+
+.jc-map-legend-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--jc-space-2, 0.5rem);
+  color: var(--jc-color-muted, #64748b);
+}
+
 .jc-loading, .jc-empty {
   padding: var(--jc-space-4, 1rem);
   color: var(--jc-color-muted, #64748b);
