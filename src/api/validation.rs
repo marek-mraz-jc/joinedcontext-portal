@@ -27,7 +27,7 @@ const MAX_FILE: u64 = 256 * 1024;
 const MAX_FAILURES: usize = 50;
 const MAX_HISTORY: usize = 200;
 const MAX_TEXT: usize = 300;
-const MAX_EVERY_HOURS: u32 = 168;
+const MAX_EVERY_HOURS: u32 = 744;
 
 /// How many results of one run ended in each verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -320,6 +320,10 @@ mod tests {
             (
                 "every",
                 good("every").replace(r#""everyHours":1"#, r#""everyHours":0"#),
+            ),
+            (
+                "monthly",
+                good("monthly").replace(r#""everyHours":1"#, r#""everyHours":745"#),
             ),
             ("title", good("title").replace("unsigned", &"x".repeat(301))),
             ("broken", "{".to_owned()),
