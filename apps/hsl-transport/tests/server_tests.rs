@@ -379,3 +379,27 @@ async fn the_readiness_probe_answers_at_the_root_without_a_query() {
         .await
         .is_some_and(|r| r.is_empty()));
 }
+
+/// T-2909: on its own host the base path is `/`; the router must build there (it panicked at
+/// start on dev with an empty route) and serve the fleet under it.
+#[tokio::test]
+async fn the_app_starts_on_its_own_host_at_the_root() {
+    let endpoint = MockServer::start().await;
+    let app = Arc::new(App::new(Config {
+        base_path: "/".to_owned(),
+        endpoint_url: format!("{}/", endpoint.uri()),
+        poll_seconds: 1,
+    }));
+    for uri in ["/healthz", "/api/vehicles"] {
+        let response = router(app.clone())
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .expect("the app answers");
+        // The fleet answers 503 until its first poll: routed, not missing.
+        assert!(
+            [StatusCode::OK, StatusCode::SERVICE_UNAVAILABLE].contains(&response.status()),
+            "{uri}: {}",
+            response.status()
+        );
+    }
+}

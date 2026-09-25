@@ -600,3 +600,32 @@ async fn nothing_is_served_above_the_apps_own_base_path() {
         assert!(body.contains("<!doctype html>"), "{body}");
     }
 }
+
+/// T-2909: on its own host the base path is `/`; the router must build there (it panicked at
+/// start on dev with an empty route) and serve the station list under it.
+#[tokio::test]
+async fn the_app_starts_on_its_own_host_at_the_root() {
+    let endpoint = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/ngsi-ld/v1/entities"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([entity()])))
+        .mount(&endpoint)
+        .await;
+    let app = router(Arc::new(App::new(Config {
+        base_path: "/".to_owned(),
+        endpoint_url: format!("{}/", endpoint.uri()),
+        anonymous: false,
+        me_url: Some(format!("{}/me", endpoint.uri())),
+    })));
+    let (status, _) = call(
+        app.clone(),
+        Request::builder()
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = call(app, signed_in("GET", "/api/stations", None)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
