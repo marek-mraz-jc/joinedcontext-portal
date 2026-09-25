@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { inputOf } from "./QuestionData";
+import type { QuestionInput } from "./QuestionData";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, unwrap } from "../../api/client";
 
@@ -84,6 +86,10 @@ export interface RunQuestion {
   required?: boolean;
   /** The platform filled the options (AG-83): only they are an answer. */
   pick?: boolean;
+  /** Options the person cannot take now, by value, each with why (UI-44, T-2694). */
+  disabledReasons?: Record<string, string>;
+  /** A file or a feed's address the question also takes (T-2694). */
+  input?: QuestionInput;
 }
 
 export function questionOf(event: RunEvent): RunQuestion | null {
@@ -93,7 +99,21 @@ export function questionOf(event: RunEvent): RunQuestion | null {
     return null;
   }
   const pick = typeof event.payload.pick === "string" && event.payload.pick !== "";
-  return { questionId: id, schema: schema as Record<string, unknown>, required: true, pick };
+  const disabledReasons: Record<string, string> = {};
+  for (const option of Array.isArray(event.payload.options) ? event.payload.options : []) {
+    const { value, disabledReason } = (option ?? {}) as { value?: unknown; disabledReason?: unknown };
+    if (typeof value === "string" && typeof disabledReason === "string") {
+      disabledReasons[value] = disabledReason;
+    }
+  }
+  return {
+    questionId: id,
+    schema: schema as Record<string, unknown>,
+    required: true,
+    pick,
+    disabledReasons,
+    input: inputOf(event.payload.input),
+  };
 }
 
 /** The questions nobody has answered yet, oldest first. */

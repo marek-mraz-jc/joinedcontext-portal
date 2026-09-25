@@ -128,7 +128,10 @@ the project's resources, name the kind in `pick` (`endpoints`, `spaces`, `datamo
 `pipelines`, `datasources`, `policies`, `projects`): the platform lists what the person may read,
 and `options` then only narrows that list by name. `multiple` takes several answers, with an
 optional `min` and `max`. Otherwise give the options you would take; the panel draws them as
-buttons and one click answers. Ask one question at a time and wait for the answer:
+buttons and one click answers. To have the person hand data over, add `input`: `["file"]` for a
+CSV, TSV or JSON file of theirs, `["url"]` for a feed's address, or both; you then read the
+file's name, size and first lines, or the address. Ask one question at a time and wait for the
+answer:
 
 ```json
 {{ "tool": "jc_ask", "arguments": {{ "question": "Which endpoints should the app read?", "pick": "endpoints", "multiple": true, "min": 1 }} }}
@@ -136,6 +139,10 @@ buttons and one click answers. Ask one question at a time and wait for the answe
 
 ```json
 {{ "tool": "jc_ask", "arguments": {{ "question": "Which unit?", "options": ["µg/m³", "ppm"], "default": "µg/m³" }} }}
+```
+
+```json
+{{ "tool": "jc_ask", "arguments": {{ "question": "Where can I read the stations?", "input": ["file", "url"] }} }}
 ```
 
 A call that is refused answers with the reason; correct it and call again. Nothing here writes
@@ -166,6 +173,53 @@ pub(super) fn called(answer: &str) -> Vec<String> {
     blocks(answer)
         .filter_map(|value| value.get("tool").and_then(Value::as_str).map(str::to_owned))
         .collect()
+}
+
+/// Lines and characters of a handed-over file the model reads: enough to see its shape.
+const FILE_HEAD_LINES: usize = 12;
+const FILE_HEAD_CHARS: usize = 2000;
+
+/// What the model reads of a person's answer (AG-80): the option, the several chosen, the
+/// address, or a file's name, size and first lines, never the whole file (T-2694, API/04).
+pub(super) fn answer_text(answers: &Value) -> String {
+    if let Some(file) = answers.get("file") {
+        let field = |key: &str| file.get(key).and_then(Value::as_str);
+        let text = field("text").unwrap_or_default();
+        let head: String = text
+            .lines()
+            .take(FILE_HEAD_LINES)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .chars()
+            .take(FILE_HEAD_CHARS)
+            .collect();
+        // The file is the person's data, not an instruction: it cannot close the fence it is in.
+        let head = head.replace("```", "'''");
+        return format!(
+            "I handed over the file {} ({}, {} bytes, {} lines). Its first lines:\n```\n{head}\n```",
+            field("name").unwrap_or("without a name"),
+            field("format").unwrap_or("text"),
+            text.len(),
+            text.lines().count(),
+        );
+    }
+    if let Some(url) = answers.get("url").and_then(Value::as_str) {
+        return format!("The data is at {url}");
+    }
+    let chosen = answers.get("answer");
+    chosen
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| {
+            // Several answers (UI-73) are one line.
+            chosen.and_then(Value::as_array).map(|many| {
+                many.iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+        })
+        .unwrap_or_else(|| answers.to_string())
 }
 
 /// The names of every `describe_tool` call of an answer.
@@ -351,6 +405,38 @@ pub(super) struct AskOption {
     pub value: String,
     pub title: String,
     pub description: Option<String>,
+    /// Why the person cannot take this option now (UI-44); the Portal's to set, never the model's.
+    pub disabled: Option<String>,
+}
+
+/// The formats a question takes a file in: text a person can read and a sample the runner splits.
+pub(crate) const SAMPLE_FORMATS: [&str; 3] = ["csv", "tsv", "json"];
+
+/// The largest file a question takes, in bytes: a sample, not a dataset (T-2694, T-2697).
+pub(crate) const SAMPLE_MAX_BYTES: usize = 256 * 1024;
+
+/// What a question asks the person to hand over besides choosing (T-2694, API/04 section 5).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct AskInput {
+    pub file: bool,
+    pub url: bool,
+}
+
+impl AskInput {
+    /// The event's `input`: `None` when the question asks for nothing but a choice or words.
+    pub(super) fn payload(self) -> Option<Value> {
+        let mut input = serde_json::Map::new();
+        if self.file {
+            input.insert(
+                "file".into(),
+                json!({ "accept": SAMPLE_FORMATS, "maxBytes": SAMPLE_MAX_BYTES }),
+            );
+        }
+        if self.url {
+            input.insert("url".into(), json!(true));
+        }
+        (!input.is_empty()).then_some(Value::Object(input))
+    }
 }
 
 /// One `jc_ask` call: the question, its options and the answer taken when nobody chooses.
@@ -365,6 +451,7 @@ pub(super) struct AskCall {
     pub multiple: bool,
     pub min: Option<usize>,
     pub max: Option<usize>,
+    pub input: AskInput,
 }
 
 /// The kinds a question may offer by name (AG-83): `pick` as the model spells it, and the kind.
@@ -526,6 +613,22 @@ fn parse_ask(arguments: &Value) -> Result<AskCall, String> {
             return Err(format!("jc_ask asks for at least {min} and at most {max}"));
         }
     }
+    let mut input = AskInput::default();
+    let asked: Vec<&Value> = match arguments.get("input") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(many)) => many.iter().collect(),
+        Some(one) => vec![one],
+    };
+    for one in asked {
+        match one.as_str() {
+            Some("file") => input.file = true,
+            Some("url") => input.url = true,
+            _ => return Err(format!("jc_ask asks for a file or a url, not {one}")),
+        }
+    }
+    if input != AskInput::default() && multiple_of(arguments) {
+        return Err("a question that asks for data takes one answer".to_owned());
+    }
     let mut options: Vec<AskOption> = Vec::new();
     for option in arguments
         .get("options")
@@ -556,6 +659,7 @@ fn parse_ask(arguments: &Value) -> Result<AskCall, String> {
             value: value.to_owned(),
             title: text("title").unwrap_or(value).to_owned(),
             description: text("description").map(str::to_owned),
+            disabled: None,
         });
     }
     Ok(AskCall {
@@ -563,10 +667,15 @@ fn parse_ask(arguments: &Value) -> Result<AskCall, String> {
         options,
         default: arguments.get("default").cloned(),
         pick,
-        multiple: arguments.get("multiple").and_then(Value::as_bool) == Some(true),
+        multiple: multiple_of(arguments),
         min,
         max,
+        input,
     })
+}
+
+fn multiple_of(arguments: &Value) -> bool {
+    arguments.get("multiple").and_then(Value::as_bool) == Some(true)
 }
 
 /// The kind a `pick` names.
@@ -580,7 +689,13 @@ fn picked_kind(pick: &str) -> &'static str {
 /// The options final, the default is settled against them: one of them for one answer, a set of
 /// them (at least `min`) for several, the model's own text only for a question with no options.
 fn settle(mut call: AskCall) -> Result<AskCall, String> {
-    let values: Vec<&str> = call.options.iter().map(|o| o.value.as_str()).collect();
+    // A disabled option is shown, never suggested.
+    let values: Vec<&str> = call
+        .options
+        .iter()
+        .filter(|o| o.disabled.is_none())
+        .map(|o| o.value.as_str())
+        .collect();
     if call.multiple {
         if values.is_empty() {
             return Err("a question with several answers needs options or a pick".to_owned());
@@ -761,27 +876,10 @@ impl Driver {
     pub(super) async fn fill_options(&self, mut call: AskCall) -> Result<AskCall, String> {
         if let Some(pick) = call.pick {
             let kind = picked_kind(pick);
-            let op = crate::ops::find("jc_resource_list")
-                .ok_or_else(|| "the resource listing is not registered".to_owned())?;
-            let caller = crate::ops::Caller {
-                identity: self.identity.clone(),
-                via: crate::ops::Via::Agent,
-                access: None,
-            };
-            let listed = crate::ops::call(
-                op,
-                &caller,
-                &self.state,
-                &self.project,
-                json!({ "kind": kind }),
-            )
-            .await
-            .map_err(|err| err.to_string())?;
+            let listed = self.readable(pick).await?;
             let named: Vec<String> = call.options.iter().map(|o| o.value.clone()).collect();
-            call.options = listed["items"]
-                .as_array()
-                .into_iter()
-                .flatten()
+            call.options = listed
+                .iter()
                 .filter_map(|item| {
                     let name = item.get("name").and_then(Value::as_str)?;
                     if !named.is_empty() && !named.iter().any(|n| n == name) {
@@ -791,6 +889,7 @@ impl Driver {
                         value: name.to_owned(),
                         title: title_of(item).unwrap_or_else(|| name.to_owned()),
                         description: describe_option(&self.state, &self.project, kind, item),
+                        disabled: None,
                     })
                 })
                 .collect();
@@ -808,6 +907,27 @@ impl Driver {
         settle(call)
     }
 
+    /// What of a `pick`'s kind the person may read, as the registry lists it for them (AG-83).
+    pub(super) async fn readable(&self, pick: &str) -> Result<Vec<Value>, String> {
+        let op = crate::ops::find("jc_resource_list")
+            .ok_or_else(|| "the resource listing is not registered".to_owned())?;
+        let caller = crate::ops::Caller {
+            identity: self.identity.clone(),
+            via: crate::ops::Via::Agent,
+            access: None,
+        };
+        let listed = crate::ops::call(
+            op,
+            &caller,
+            &self.state,
+            &self.project,
+            json!({ "kind": picked_kind(pick) }),
+        )
+        .await
+        .map_err(|err| err.to_string())?;
+        Ok(listed["items"].as_array().cloned().unwrap_or_default())
+    }
+
     /// Asks the person one question and leaves the turn (AG-80): the answer arrives as an
     /// `answer` event, which starts the next turn with what they chose.
     pub(super) async fn ask_person(
@@ -819,7 +939,14 @@ impl Driver {
         let options: Vec<Value> = call
             .options
             .iter()
-            .map(|o| json!({ "value": o.value, "title": o.title, "description": o.description }))
+            .map(|o| {
+                let mut one =
+                    json!({ "value": o.value, "title": o.title, "description": o.description });
+                if let Some(reason) = &o.disabled {
+                    one["disabledReason"] = json!(reason);
+                }
+                one
+            })
             .collect();
         self.event(
             "question",
@@ -832,6 +959,7 @@ impl Driver {
                 "multiple": call.multiple,
                 "min": call.min,
                 "max": call.max,
+                "input": call.input.payload(),
                 "elapsedMs": elapsed_ms,
             }),
         )
@@ -924,6 +1052,81 @@ mod tests {
             parse_ask(&json!({ "question": "Which?", "pick": "secrets" })).expect_err("refused");
         assert!(err.contains("endpoints"), "{err}");
         assert!(parse_ask(&json!({ "question": "Which?", "min": 3, "max": 1 })).is_err());
+    }
+
+    #[test]
+    fn a_question_asks_for_a_file_or_an_address_and_nothing_else() {
+        let call = parse_ask(&json!({ "question": "Where is it?", "input": ["file", "url"] }))
+            .expect("a question");
+        assert_eq!(
+            call.input,
+            AskInput {
+                file: true,
+                url: true
+            }
+        );
+        let input = call.input.payload().expect("an input");
+        assert_eq!(input["file"]["accept"], json!(SAMPLE_FORMATS));
+        assert_eq!(input["file"]["maxBytes"], json!(SAMPLE_MAX_BYTES));
+        assert_eq!(input["url"], json!(true));
+        let one = parse_ask(&json!({ "question": "Which file?", "input": "file" })).expect("one");
+        assert_eq!(
+            one.input,
+            AskInput {
+                file: true,
+                url: false
+            }
+        );
+        assert!(AskInput::default().payload().is_none());
+        assert!(parse_ask(&json!({ "question": "Run?", "input": ["shell"] })).is_err());
+        assert!(
+            parse_ask(&json!({ "question": "Which?", "options": ["a", "b"],
+            "multiple": true, "input": ["file"] }))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn a_disabled_option_is_shown_and_never_suggested() {
+        let mut call = parse_ask(
+            &json!({ "question": "From?", "options": ["datasource", "space"],
+            "default": "datasource" }),
+        )
+        .expect("a question");
+        call.options[0].disabled = Some("This project has no data source yet.".to_owned());
+        let call = settle(call).expect("settled");
+        assert_eq!(call.default, Some(json!("space")));
+        assert_eq!(
+            call.options.len(),
+            2,
+            "the disabled option stays, with its reason"
+        );
+    }
+
+    #[test]
+    fn the_model_reads_an_answer_as_words_and_a_file_as_its_shape() {
+        assert_eq!(answer_text(&json!({ "answer": "space" })), "space");
+        assert_eq!(answer_text(&json!({ "answer": ["a", "b"] })), "a, b");
+        assert_eq!(
+            answer_text(&json!({ "url": "https://example.org/feed.json" })),
+            "The data is at https://example.org/feed.json"
+        );
+        let text: String = (0..40).map(|row| format!("r{row},```x\n")).collect();
+        let read =
+            answer_text(&json!({ "file": { "name": "a.csv", "format": "csv", "text": text } }));
+        assert!(
+            read.starts_with("I handed over the file a.csv (csv, "),
+            "{read}"
+        );
+        assert!(
+            read.contains("40 lines") && read.contains("r11,") && !read.contains("r12,"),
+            "{read}"
+        );
+        assert_eq!(
+            read.matches("```").count(),
+            2,
+            "the file cannot close the fence: {read}"
+        );
     }
 
     #[test]

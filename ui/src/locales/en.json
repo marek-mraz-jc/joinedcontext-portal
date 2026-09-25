@@ -2032,7 +2032,9 @@
       "endpoints": "Data: {names}",
       "noEndpoints": "Data: none",
       "previewLink": "Open the preview",
-      "chose": "You chose: {choice}"
+      "chose": "You chose: {choice}",
+      "file": "You handed over {name}",
+      "url": "The data is at {url}"
     },
     "preview": {
       "title": "Preview",
@@ -2206,7 +2208,21 @@
       "atLeast": "Choose at least {min}.",
       "atMost": "Choose at most {max}.",
       "search": "Search the options",
-      "noMatch": "No option matches."
+      "noMatch": "No option matches.",
+      "file": {
+        "label": "Choose a file of your data",
+        "button": "Choose a file",
+        "hint": "{formats}, up to {kilobytes} KB. Drop it here or choose it.",
+        "wrongType": "This question takes {formats} files.",
+        "tooLarge": "The file is larger than {kilobytes} KB. Hand over a sample of it.",
+        "empty": "The file is empty.",
+        "notJson": "The file is not valid JSON."
+      },
+      "url": {
+        "label": "Or the address of a feed",
+        "use": "Use this address",
+        "invalid": "Give a full address starting with http:// or https://."
+      }
     }
   },
   "assistant": {

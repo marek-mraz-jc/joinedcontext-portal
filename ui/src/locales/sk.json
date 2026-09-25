@@ -2032,7 +2032,9 @@
       "endpoints": "Dáta: {names}",
       "noEndpoints": "Dáta: žiadne",
       "previewLink": "Otvoriť náhľad",
-      "chose": "Vybrali ste: {choice}"
+      "chose": "Vybrali ste: {choice}",
+      "file": "Odovzdali ste {name}",
+      "url": "Dáta sú na {url}"
     },
     "preview": {
       "title": "Náhľad",
@@ -2206,7 +2208,21 @@
       "atLeast": "Vyberte aspoň {min}.",
       "atMost": "Vyberte najviac {max}.",
       "search": "Hľadať v možnostiach",
-      "noMatch": "Žiadna možnosť nezodpovedá."
+      "noMatch": "Žiadna možnosť nezodpovedá.",
+      "file": {
+        "label": "Vyberte súbor so svojimi dátami",
+        "button": "Vybrať súbor",
+        "hint": "{formats}, najviac {kilobytes} KB. Pretiahnite ho sem alebo ho vyberte.",
+        "wrongType": "Táto otázka prijíma súbory {formats}.",
+        "tooLarge": "Súbor je väčší ako {kilobytes} KB. Odovzdajte jeho vzorku.",
+        "empty": "Súbor je prázdny.",
+        "notJson": "Súbor nie je platný JSON."
+      },
+      "url": {
+        "label": "Alebo adresa zdroja dát",
+        "use": "Použiť túto adresu",
+        "invalid": "Zadajte celú adresu začínajúcu http:// alebo https://."
+      }
     }
   },
   "assistant": {

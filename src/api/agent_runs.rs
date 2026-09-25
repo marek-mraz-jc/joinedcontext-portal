@@ -867,22 +867,67 @@ pub async fn answer_question(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// An answer to a question the Portal filled or that takes several answers is one of what it
-/// offered, never what a browser made up (AG-83, UI-73): a value that was not offered, a repeat
-/// or a count outside `min`/`max` is refused and the question stays open. A question of the
-/// model's own options with one answer keeps "Something else…" (UI-57).
+/// An answer is what the question offered, never what a browser made up (AG-83, UI-73, T-2694):
+/// an option that was not offered or is disabled, a file or an address the question did not ask
+/// for or that breaks its limits, a repeat or a count outside `min`/`max` is refused and the
+/// question stays open. A question of the model's own options with one answer keeps "Something
+/// else…" (UI-57).
 fn offered_answer(question: &serde_json::Value, answers: &serde_json::Value) -> Result<(), String> {
     use serde_json::Value;
+    let given = ["answer", "file", "url"]
+        .iter()
+        .filter(|key| answers.get(**key).is_some())
+        .count();
+    if given > 1 {
+        return Err("an answer is one option, one file or one address".to_owned());
+    }
+    let input = question.get("input").filter(|input| !input.is_null());
+    if let Some(file) = answers.get("file") {
+        let asked = input
+            .and_then(|input| input.get("file"))
+            .ok_or("the question asks for no file")?;
+        return offered_file(asked, file);
+    }
+    if let Some(url) = answers.get("url") {
+        if input.and_then(|input| input.get("url")) != Some(&Value::Bool(true)) {
+            return Err("the question asks for no address".to_owned());
+        }
+        return offered_url(url);
+    }
+    let options = question
+        .get("options")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let chosen_of = |answer: &Value| -> Vec<String> {
+        match answer {
+            Value::String(one) => vec![one.clone()],
+            Value::Array(many) => many
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect(),
+            _ => Vec::new(),
+        }
+    };
+    let chosen = answers.get("answer").map(chosen_of).unwrap_or_default();
+    for one in &chosen {
+        let reason = options
+            .iter()
+            .find(|option| option.get("value").and_then(Value::as_str) == Some(one.as_str()))
+            .and_then(|option| option.get("disabledReason"))
+            .and_then(Value::as_str);
+        if let Some(reason) = reason {
+            return Err(format!("'{one}' cannot be chosen: {reason}"));
+        }
+    }
     let picked = question.get("pick").is_some_and(|pick| !pick.is_null());
     let multiple = question.get("multiple").and_then(Value::as_bool) == Some(true);
     if !picked && !multiple {
         return Ok(());
     }
-    let offered: Vec<&str> = question
-        .get("options")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+    let offered: Vec<&str> = options
+        .iter()
         .filter_map(|option| option.get("value").and_then(Value::as_str))
         .collect();
     let answer = answers.get("answer");
@@ -919,6 +964,68 @@ fn offered_answer(question: &serde_json::Value, answers: &serde_json::Value) -> 
         }
     }
     Ok(())
+}
+
+/// A file handed to a question that asked for one: `{name, format, text}` and nothing else, a
+/// format it accepts, text within its size, no NUL, and JSON that parses (API/04 section 5).
+fn offered_file(asked: &serde_json::Value, file: &serde_json::Value) -> Result<(), String> {
+    use serde_json::Value;
+    let fields = file.as_object().ok_or("a file is {name, format, text}")?;
+    if let Some(stranger) = fields
+        .keys()
+        .find(|key| !["name", "format", "text"].contains(&key.as_str()))
+    {
+        return Err(format!("a file carries no '{stranger}'"));
+    }
+    let field = |key: &str| {
+        fields
+            .get(key)
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("a file needs its {key}"))
+    };
+    let (name, format, text) = (field("name")?, field("format")?, field("text")?);
+    if name.trim().is_empty() || name.chars().count() > 255 || name.contains(['/', '\\']) {
+        return Err("a file's name is up to 255 characters, without a path".to_owned());
+    }
+    let accepted = asked
+        .get("accept")
+        .and_then(Value::as_array)
+        .is_some_and(|accept| accept.iter().any(|one| one.as_str() == Some(format)));
+    if !accepted {
+        return Err(format!("the question does not take a {format} file"));
+    }
+    let limit = asked.get("maxBytes").and_then(Value::as_u64).unwrap_or(0);
+    if text.is_empty() {
+        return Err("the file is empty".to_owned());
+    }
+    if text.len() as u64 > limit {
+        return Err(format!(
+            "the file is {} bytes; the question takes up to {limit}",
+            text.len()
+        ));
+    }
+    if text.contains('\0') {
+        return Err("the file is not text".to_owned());
+    }
+    if format == "json" && serde_json::from_str::<Value>(text).is_err() {
+        return Err("the file is not JSON".to_owned());
+    }
+    Ok(())
+}
+
+/// A feed's address handed to a question that asked for one: absolute `http(s)`, at most 2048
+/// characters. Where it points is the fetch guard's to judge when the run reads it.
+fn offered_url(url: &serde_json::Value) -> Result<(), String> {
+    let url = url.as_str().ok_or("an address is a string")?;
+    if url.len() > 2048 {
+        return Err("the address is longer than 2048 characters".to_owned());
+    }
+    match url::Url::parse(url) {
+        Ok(parsed) if ["http", "https"].contains(&parsed.scheme()) && parsed.host().is_some() => {
+            Ok(())
+        }
+        _ => Err("the address is not an absolute http or https URL".to_owned()),
+    }
 }
 
 /// A person answered a run's question, on the project's activity (AG-80, OPS-48).

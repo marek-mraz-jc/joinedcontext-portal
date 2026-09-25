@@ -661,6 +661,14 @@
         "part_kpi_pipeline_card.test.tsx"
       ]
     },
+    "src/pages/apps/QuestionData.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "question_data.test.tsx"
+      ]
+    },
     "src/pages/apps/QuestionOptions.tsx": {
       "controls": {
         "button": 1,
@@ -668,6 +676,7 @@
       },
       "tests": [
         "part_question_options.test.tsx",
+        "question_data.test.tsx",
         "question_options.test.tsx"
       ]
     },

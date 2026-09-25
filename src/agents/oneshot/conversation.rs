@@ -91,29 +91,11 @@ impl Driver {
                 "answer" => {
                     // What the person chose is the next turn: the loop asked, and this is the
                     // reply it waited for (AG-80).
-                    let chosen = event
+                    let text = event
                         .payload
                         .get("answers")
-                        .and_then(|answers| answers.get("answer"));
-                    let text = chosen
-                        .and_then(Value::as_str)
-                        .map(str::to_owned)
-                        .or_else(|| {
-                            // Several answers (UI-73) are the next turn as one line.
-                            chosen.and_then(Value::as_array).map(|many| {
-                                many.iter()
-                                    .filter_map(Value::as_str)
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            })
-                        })
-                        .unwrap_or_else(|| {
-                            event
-                                .payload
-                                .get("answers")
-                                .map(|answers| answers.to_string())
-                                .unwrap_or_default()
-                        });
+                        .map(tools_registry::answer_text)
+                        .unwrap_or_default();
                     if text.trim().is_empty() {
                         continue;
                     }
@@ -1375,22 +1357,36 @@ impl Driver {
     async fn first_step(&self, path: Path) -> Result<(), String> {
         self.switch_path(path, "person", "").await?;
         let step = path.first_step();
+        let mut options = Vec::with_capacity(step.options.len());
+        for option in step.options {
+            // An option that needs what the person may not read any of stays, disabled with its
+            // reason (UI-44); a listing that fails leaves it open for the path to find out.
+            let disabled = match option.needs {
+                Some((pick, reason)) => match self.readable(pick).await {
+                    Ok(items) if items.is_empty() => Some(reason.to_owned()),
+                    _ => None,
+                },
+                None => None,
+            };
+            options.push(tools_registry::AskOption {
+                value: option.value.to_owned(),
+                title: option.title.to_owned(),
+                description: None,
+                disabled,
+            });
+        }
         let call = tools_registry::AskCall {
             question: step.question.to_owned(),
-            options: step
-                .options
-                .iter()
-                .map(|(value, title)| tools_registry::AskOption {
-                    value: (*value).to_owned(),
-                    title: (*title).to_owned(),
-                    description: None,
-                })
-                .collect(),
+            options,
             default: None,
             pick: step.pick,
             multiple: step.multiple,
             min: step.multiple.then_some(1),
             max: None,
+            input: tools_registry::AskInput {
+                file: step.file,
+                url: step.url,
+            },
         };
         let call = match self.fill_options(call.clone()).await {
             Ok(call) => call,
@@ -1606,16 +1602,9 @@ fn prior_transcript(events: Vec<AgentRunEvent>, budget_chars: usize) -> Vec<(Str
                 flush(&mut person, &mut assistant, &mut open);
                 person = event
                     .payload
-                    .pointer("/answers/answer")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| {
-                        event
-                            .payload
-                            .get("answers")
-                            .map(one_line)
-                            .unwrap_or_default()
-                    });
+                    .get("answers")
+                    .map(tools_registry::answer_text)
+                    .unwrap_or_default();
                 open = true;
             }
             "thought" => say(&mut assistant, &text()),

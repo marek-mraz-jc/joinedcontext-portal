@@ -2032,7 +2032,9 @@
       "endpoints": "Data: {names}",
       "noEndpoints": "Data: žádná",
       "previewLink": "Otevřít náhled",
-      "chose": "Vybrali jste: {choice}"
+      "chose": "Vybrali jste: {choice}",
+      "file": "Předali jste {name}",
+      "url": "Data jsou na {url}"
     },
     "preview": {
       "title": "Náhled",
@@ -2206,7 +2208,21 @@
       "atLeast": "Vyberte alespoň {min}.",
       "atMost": "Vyberte nejvýše {max}.",
       "search": "Hledat v možnostech",
-      "noMatch": "Žádná možnost neodpovídá."
+      "noMatch": "Žádná možnost neodpovídá.",
+      "file": {
+        "label": "Vyberte soubor se svými daty",
+        "button": "Vybrat soubor",
+        "hint": "{formats}, nejvýše {kilobytes} KB. Přetáhněte ho sem nebo ho vyberte.",
+        "wrongType": "Tato otázka přijímá soubory {formats}.",
+        "tooLarge": "Soubor je větší než {kilobytes} KB. Předejte jeho vzorek.",
+        "empty": "Soubor je prázdný.",
+        "notJson": "Soubor není platný JSON."
+      },
+      "url": {
+        "label": "Nebo adresa zdroje dat",
+        "use": "Použít tuto adresu",
+        "invalid": "Zadejte celou adresu začínající http:// nebo https://."
+      }
     }
   },
   "assistant": {

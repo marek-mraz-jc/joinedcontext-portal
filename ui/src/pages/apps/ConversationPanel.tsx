@@ -14,6 +14,7 @@ import { EntityWriteCard, entityWriteOf } from "./EntityWriteCard";
 import { KpiCard, kpiOf } from "./KpiCard";
 import { KpiPipelineCard, kpiPipelineOf } from "./KpiPipelineCard";
 import { QueryResultCard, queryResultOf } from "./QueryResultCard";
+import { QuestionData } from "./QuestionData";
 import type { RunEvent } from "./useAgentRun";
 
 /** Who a line came from. The three read differently, so they are drawn differently. */
@@ -173,8 +174,16 @@ export function line(
     case "usage":
       return t("agentRun.line.usage", { tokens: String(payload.tokensThisStep ?? "") });
     case "answer": {
+      const answers = payload.answers as { answer?: unknown; file?: { name?: unknown }; url?: unknown } | undefined;
+      // Data handed over is named, never shown: the file's text stays on the run (T-2694).
+      if (typeof answers?.file?.name === "string") {
+        return t("agentRun.line.file", { name: answers.file.name });
+      }
+      if (typeof answers?.url === "string") {
+        return t("agentRun.line.url", { url: answers.url });
+      }
       // What was chosen stays in the conversation, by the titles the person read (UI-74).
-      const answer = (payload.answers as { answer?: unknown } | undefined)?.answer;
+      const answer = answers?.answer;
       const chosen = (Array.isArray(answer) ? answer : [answer]).filter(
         (one): one is string => typeof one === "string",
       );
@@ -559,10 +568,20 @@ export function ConversationPanel({
               schema={question.schema as JsonSchema}
               disabled={answering}
               free={!question.pick}
+              disabledReasons={question.disabledReasons}
               onAnswer={(data) => {
                 onAnswer(question.questionId, data);
               }}
             />
+            {question.input ? (
+              <QuestionData
+                input={question.input}
+                disabled={answering}
+                onAnswer={(data) => {
+                  onAnswer(question.questionId, data);
+                }}
+              />
+            ) : null}
           </div>
         ))}
 

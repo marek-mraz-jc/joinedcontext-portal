@@ -23,14 +23,54 @@ pub enum Path {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FirstStep {
     pub question: &'static str,
-    /// Fixed options as `(value, title)`; empty with a `pick` or for free text.
-    pub options: &'static [(&'static str, &'static str)],
+    /// Fixed options; empty with a `pick` or for free text.
+    pub options: &'static [StepOption],
     /// The kind of resources the options are, as `jc_ask` names it (`endpoints`, `spaces`).
     pub pick: Option<&'static str>,
     pub multiple: bool,
     /// The page the step works on, under `/projects/{project}`.
     pub page: Option<&'static str>,
+    /// The step also takes a file dropped, or a feed's address (T-2694).
+    pub file: bool,
+    pub url: bool,
 }
+
+/// One fixed option of a first step.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StepOption {
+    pub value: &'static str,
+    pub title: &'static str,
+    /// What the option needs to exist, as a `pick` names it, and the reason it is disabled
+    /// when the person may read none of it (UI-44).
+    pub needs: Option<(&'static str, &'static str)>,
+}
+
+const fn option(value: &'static str, title: &'static str) -> StepOption {
+    StepOption {
+        value,
+        title,
+        needs: None,
+    }
+}
+
+/// Where a pipeline's data comes from, besides a file or an address (T-2694).
+const SOURCES: &[StepOption] = &[
+    StepOption {
+        needs: Some(("datasources", "This project has no data source yet.")),
+        ..option("datasource", "A data source this project already has")
+    },
+    StepOption {
+        needs: Some(("spaces", "This project has no context space yet.")),
+        ..option("space", "A context space of this project")
+    },
+];
+
+/// Where a data model starts.
+const MODEL_STARTS: &[StepOption] = &[
+    option("smart-data-model", "A Smart Data Model"),
+    option("sample", "A sample file of my data"),
+    option("blank", "Nothing, I describe it"),
+];
 
 /// What every path may call: the conversation's own tools and the ones that only read.
 const EVERY_PATH: &[&str] = &[
@@ -118,14 +158,15 @@ impl Path {
             pick: None,
             multiple: false,
             page: None,
+            file: false,
+            url: false,
         };
         match self {
+            // A feed's address and a file are the step's own inputs, beside the options.
             Path::IntegratePipeline => FirstStep {
-                options: &[
-                    ("url", "A feed on the web (a URL)"),
-                    ("file", "A file I upload"),
-                    ("datasource", "A data source this project already has"),
-                ],
+                options: SOURCES,
+                file: true,
+                url: true,
                 ..free("Where does the data come from?")
             },
             Path::UploadData => FirstStep {
@@ -148,11 +189,7 @@ impl Path {
                 ..free("Which endpoint should the dashboard draw?")
             },
             Path::CreateDataModel => FirstStep {
-                options: &[
-                    ("smart-data-model", "A Smart Data Model"),
-                    ("sample", "A sample file of my data"),
-                    ("blank", "Nothing, I describe it"),
-                ],
+                options: MODEL_STARTS,
                 page: Some("models"),
                 ..free("Where does the model start?")
             },
@@ -268,6 +305,17 @@ mod tests {
                 "{}: a step offers its own options or a pick, not both",
                 path.id()
             );
+            assert!(
+                !(step.multiple && (step.file || step.url)),
+                "{}: a step that takes data takes one answer",
+                path.id()
+            );
+            for option in step.options {
+                if let Some((pick, reason)) = option.needs {
+                    assert!(["datasources", "spaces"].contains(&pick), "{pick}");
+                    assert!(reason.ends_with('.'), "{reason}");
+                }
+            }
         }
         assert_eq!(Path::from_id("delete-everything"), None);
         assert!(serde_json::from_value::<Path>(serde_json::json!("delete-everything")).is_err());

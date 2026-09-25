@@ -2032,7 +2032,9 @@
       "endpoints": "Daten: {names}",
       "noEndpoints": "Daten: keine",
       "previewLink": "Vorschau öffnen",
-      "chose": "Ihre Wahl: {choice}"
+      "chose": "Ihre Wahl: {choice}",
+      "file": "Sie haben {name} übergeben",
+      "url": "Die Daten liegen unter {url}"
     },
     "preview": {
       "title": "Vorschau",
@@ -2206,7 +2208,21 @@
       "atLeast": "Wählen Sie mindestens {min}.",
       "atMost": "Wählen Sie höchstens {max}.",
       "search": "Optionen durchsuchen",
-      "noMatch": "Keine Option passt."
+      "noMatch": "Keine Option passt.",
+      "file": {
+        "label": "Wählen Sie eine Datei mit Ihren Daten",
+        "button": "Datei wählen",
+        "hint": "{formats}, höchstens {kilobytes} KB. Legen Sie sie hier ab oder wählen Sie sie.",
+        "wrongType": "Diese Frage nimmt {formats}-Dateien.",
+        "tooLarge": "Die Datei ist größer als {kilobytes} KB. Geben Sie eine Stichprobe davon.",
+        "empty": "Die Datei ist leer.",
+        "notJson": "Die Datei ist kein gültiges JSON."
+      },
+      "url": {
+        "label": "Oder die Adresse eines Feeds",
+        "use": "Diese Adresse verwenden",
+        "invalid": "Geben Sie eine vollständige Adresse an, die mit http:// oder https:// beginnt."
+      }
     }
   },
   "assistant": {

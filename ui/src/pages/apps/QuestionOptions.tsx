@@ -1,5 +1,5 @@
 import type { JSX, KeyboardEvent } from "react";
-import { useId, useRef, useState } from "react";
+import { Fragment, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SchemaForm } from "../../components/forms/SchemaForm";
 import type { JsonSchema } from "../../components/forms/types";
@@ -99,11 +99,14 @@ export function QuestionOptions({
   schema,
   disabled,
   free = true,
+  disabledReasons = {},
   onAnswer,
 }: {
   schema: JsonSchema;
   disabled?: boolean;
   free?: boolean;
+  /** Options the person cannot take now, each with why (UI-44, T-2694): shown, never taken. */
+  disabledReasons?: Record<string, string>;
   onAnswer: (data: unknown) => void;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -141,6 +144,9 @@ export function QuestionOptions({
     setChosen((now) => (now.includes(value) ? now.filter((one) => one !== value) : [...now, value]));
   };
   const pick = (value: string): void => {
+    if (disabledReasons[value] !== undefined) {
+      return;
+    }
     if (found.multiple) {
       toggle(value);
     } else {
@@ -198,32 +204,49 @@ export function QuestionOptions({
       >
         {shown.map((choice, at) => {
           const on = chosen.includes(choice.value);
+          const reason = disabledReasons[choice.value];
+          const reasonId = `${labelId}-reason-${at}`;
           return (
-            <button
-              key={choice.value}
-              ref={(element) => {
-                buttons.current[at] = element;
-              }}
-              type="button"
-              role={found.multiple ? undefined : "radio"}
-              aria-checked={found.multiple ? undefined : false}
-              aria-pressed={found.multiple ? on : undefined}
-              tabIndex={at === Math.min(focus, shown.length - 1) ? 0 : -1}
-              disabled={disabled}
-              onClick={() => pick(choice.value)}
-              onKeyDown={(event) => onKey(event, at)}
-              className={`rounded-md border px-3 py-2 text-left text-body disabled:opacity-50 ${
-                on ? "border-primary bg-primary/10" : "border-border bg-surface hover:bg-surface-subtle"
-              } ${found.choices.length > ROW ? "block w-full" : ""}`}
-            >
-              <span className="font-medium">{choice.title}</span>
-              {!found.multiple && found.suggested.includes(choice.value) ? (
-                <span className="ml-2 text-caption text-fg-muted">{t("agentRun.question.suggested")}</span>
+            <Fragment key={choice.value}>
+              <button
+                ref={(element) => {
+                  buttons.current[at] = element;
+                }}
+                type="button"
+                role={found.multiple ? undefined : "radio"}
+                aria-checked={found.multiple ? undefined : false}
+                aria-pressed={found.multiple ? on : undefined}
+                tabIndex={at === Math.min(focus, shown.length - 1) ? 0 : -1}
+                disabled={disabled}
+                // Refused, not removed: it keeps its place in the arrows' order and says why (UI-44).
+                aria-disabled={reason !== undefined || undefined}
+                aria-describedby={reason !== undefined ? reasonId : undefined}
+                onClick={() => pick(choice.value)}
+                onKeyDown={(event) => onKey(event, at)}
+                className={`rounded-md border px-3 py-2 text-left text-body disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 ${
+                  on ? "border-primary bg-primary/10" : "border-border bg-surface hover:bg-surface-subtle"
+                } ${found.choices.length > ROW ? "block w-full" : ""}`}
+              >
+                <span className="font-medium">{choice.title}</span>
+                {!found.multiple && found.suggested.includes(choice.value) ? (
+                  <span className="ml-2 text-caption text-fg-muted">{t("agentRun.question.suggested")}</span>
+                ) : null}
+                {choice.description ? (
+                  <span className="block text-caption text-fg-muted">{choice.description}</span>
+                ) : null}
+                {/* Seen here; heard once, as the description beside the button, not in its name. */}
+                {reason !== undefined ? (
+                  <span aria-hidden="true" className="block text-caption text-fg-muted">
+                    {reason}
+                  </span>
+                ) : null}
+              </button>
+              {reason !== undefined ? (
+                <span id={reasonId} className="sr-only">
+                  {reason}
+                </span>
               ) : null}
-              {choice.description ? (
-                <span className="block text-caption text-fg-muted">{choice.description}</span>
-              ) : null}
-            </button>
+            </Fragment>
           );
         })}
         {shown.length === 0 ? <p className="text-body text-fg-muted">{t("agentRun.question.noMatch")}</p> : null}
