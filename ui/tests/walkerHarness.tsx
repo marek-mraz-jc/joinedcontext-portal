@@ -66,6 +66,8 @@ export const ADDRESSES: Record<string, string[]> = {
   "/projects/$project/$plural/new": FORMS.map((plural) => `${P}/${plural}/new`),
   "/projects/$project/$plural/$name/edit": FORMS.map((plural) => `${P}/${plural}/air/edit`),
   "/projects/$project/$plural/$name": DETAILS.map((plural) => `${P}/${plural}/air`),
+  // A published App inside the Portal (AP-122); only `apps` has it.
+  "/projects/$project/$plural/$name/open": [`${P}/apps/air/open`],
 };
 
 /** Built only by the dev server (T-1729); a deployed Portal never serves it. */

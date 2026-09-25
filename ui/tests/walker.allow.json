@@ -93,6 +93,12 @@
       "check": "field-hint",
       "task": "T-2835",
       "why": "the field has no one-line hint wired to it through aria-describedby"
+    },
+    {
+      "route": "/projects/helsinki/apps/air/open",
+      "check": "purpose-line",
+      "task": "T-2834",
+      "why": "the page's failure state drops the purpose line under its heading"
     }
   ]
 }
