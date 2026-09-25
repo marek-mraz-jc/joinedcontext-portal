@@ -5400,7 +5400,10 @@ export interface operations {
                 /** @description `person` (the default), `journey` or `all` (AG-93). */
                 origin?: string | null;
             };
-            header?: never;
+            header?: {
+                /** @description `journey` lists every origin for the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token */
+                "X-JC-Run-Origin"?: string | null;
+            };
             path: {
                 /** @description Project name */
                 project: string;
@@ -5418,7 +5421,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunList"];
                 };
             };
-            /** @description An `origin` that is none of person, journey and all, or `X-JC-Run-Origin` beside a bearer token */
+            /** @description An `origin` that is none of person, journey and all, or an `X-JC-Run-Origin` other than journey */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5429,6 +5432,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `X-JC-Run-Origin` from anyone but the Portal's own live journeys */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5451,7 +5463,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description `journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token */
+                /** @description `journey` marks a run of the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token */
                 "X-JC-Run-Origin"?: string | null;
             };
             path: {
@@ -5521,7 +5533,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No role grants proposing an App here */
+            /** @description No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6520,7 +6532,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description `journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token */
+                /** @description `journey` marks a run of the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token */
                 "X-JC-Run-Origin"?: string | null;
             };
             path: {
@@ -6567,7 +6579,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No role grants proposing an App here */
+            /** @description No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -2009,6 +2009,18 @@
             }
           },
           {
+            "name": "X-JC-Run-Origin",
+            "in": "header",
+            "description": "`journey` lists every origin for the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -2089,7 +2101,7 @@
             }
           },
           "400": {
-            "description": "An `origin` that is none of person, journey and all, or `X-JC-Run-Origin` beside a bearer token",
+            "description": "An `origin` that is none of person, journey and all, or an `X-JC-Run-Origin` other than journey",
             "content": {
               "application/json": {
                 "schema": {
@@ -2100,6 +2112,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`X-JC-Run-Origin` from anyone but the Portal's own live journeys",
             "content": {
               "application/json": {
                 "schema": {
@@ -2140,7 +2162,7 @@
           {
             "name": "X-JC-Run-Origin",
             "in": "header",
-            "description": "`journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token",
+            "description": "`journey` marks a run of the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token",
             "required": false,
             "schema": {
               "type": [
@@ -2218,7 +2240,7 @@
             }
           },
           "403": {
-            "description": "No role grants proposing an App here",
+            "description": "No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys",
             "content": {
               "application/json": {
                 "schema": {
@@ -3543,7 +3565,7 @@
           {
             "name": "X-JC-Run-Origin",
             "in": "header",
-            "description": "`journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token",
+            "description": "`journey` marks a run of the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token",
             "required": false,
             "schema": {
               "type": [
@@ -3598,7 +3620,7 @@
             }
           },
           "403": {
-            "description": "No role grants proposing an App here",
+            "description": "No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys",
             "content": {
               "application/json": {
                 "schema": {

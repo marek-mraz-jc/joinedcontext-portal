@@ -47,6 +47,8 @@ fn config() -> Config {
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT),
             "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
+            // The live journeys sign in as the steward (AG-93, T-2816).
+            "JC_PORTAL_JOURNEY_USERS" => Some("demo.other, demo.steward"),
             _ => None,
         }
         .map(str::to_owned)
@@ -4519,4 +4521,38 @@ async fn a_journey_s_run_is_marked_and_a_list_leaves_it_out_unless_asked() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{refused}");
+}
+
+// T-2816, AG-93: only the journeys' own sessions carry the mark. Anyone else, an administrator
+// included, would hide their activity from the default lists with it, so they are refused.
+#[tokio::test]
+async fn a_person_who_is_not_a_journey_cannot_mark_a_run() {
+    let config = config();
+    let app = router(mirror(Some(builder_profile_spec())), &config);
+    let admin = session_cookie(&config, "demo.approver", &["portal-approver"]);
+    let runs = format!("/api/v1/projects/{PROJECT}/agent-runs");
+
+    let (status, refused) =
+        call_as_journey(&app, &admin, Method::POST, &runs, Some(create_body())).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{refused}");
+    assert!(
+        refused["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.contains("live journeys")),
+        "{refused}"
+    );
+    let (status, refused) = call_as_journey(&app, &admin, Method::GET, &runs, None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{refused}");
+
+    // Nothing was started by the refused request.
+    let (status, listed) = call(
+        &app,
+        &admin,
+        Method::GET,
+        &format!("{runs}?origin=all"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{listed}");
+    assert!(ids(&listed).is_empty(), "{listed}");
 }

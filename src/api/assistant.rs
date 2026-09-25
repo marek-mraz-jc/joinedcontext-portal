@@ -684,7 +684,7 @@ fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, Api
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
-        ("X-JC-Run-Origin" = Option<String>, Header, description = "`journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token"),
+        ("X-JC-Run-Origin" = Option<String>, Header, description = "`journey` marks a run of the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token"),
     ),
     request_body(
         content = StartConversation,
@@ -694,7 +694,7 @@ fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, Api
         (status = 202, description = "The conversation run, queued", body = CreatedRun),
         (status = 400, description = "Invalid request or invalid continuation", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
-        (status = 403, description = "No role grants proposing an App here", body = ProblemDetails),
+        (status = 403, description = "No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys", body = ProblemDetails),
         (status = 503, description = "No agent runner, or no such profile", body = ProblemDetails)
     )
 )]

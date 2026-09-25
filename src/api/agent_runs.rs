@@ -127,36 +127,52 @@ fn default_kind() -> String {
 pub const RUN_ORIGIN_HEADER: header::HeaderName =
     header::HeaderName::from_static("x-jc-run-origin");
 
-/// The origin a request asks its run to carry. Only a browser session may say `journey`: the
-/// header beside a bearer token (a service, a script, an agent) is refused, never ignored, so a
-/// caller learns it cannot mark a run, and so is any value but `journey`.
-pub fn run_origin(headers: &HeaderMap, front: Front) -> Result<RunOrigin, ApiError> {
+/// The origin a request asks its run to carry (AG-93). Only the Portal's own live journeys may
+/// say `journey`: a browser session of one of the configured journey users. Anyone else who
+/// sends the header, a bearer caller (a service, a script, an agent) included, is refused with
+/// 403, never quietly counted as a person, so marking a run cannot hide a person's activity.
+/// Any value but `journey` is a 400.
+pub fn run_origin(
+    headers: &HeaderMap,
+    front: Front,
+    username: &str,
+    journey_users: &[String],
+) -> Result<RunOrigin, ApiError> {
     let Some(value) = headers.get(&RUN_ORIGIN_HEADER) else {
         return Ok(RunOrigin::Person);
     };
-    if front == Front::Bearer {
+    if value.to_str().ok() != Some("journey") {
         return Err(ApiError::BadRequest(
-            "X-JC-Run-Origin is set by a browser session only, never beside a bearer token".into(),
+            "X-JC-Run-Origin must be journey".into(),
         ));
     }
-    match value.to_str() {
-        Ok("journey") => Ok(RunOrigin::Journey),
-        _ => Err(ApiError::BadRequest(
-            "X-JC-Run-Origin must be journey".into(),
-        )),
+    if front == Front::Bearer || !journey_users.iter().any(|name| name == username) {
+        return Err(ApiError::Denied(
+            "X-JC-Run-Origin is sent by the Portal's own live journeys only; leave the header out"
+                .into(),
+        ));
     }
+    Ok(RunOrigin::Journey)
 }
 
 impl axum::extract::FromRequestParts<AppState> for RunOrigin {
     type Rejection = ApiError;
 
+    /// Who is signed in is read only when the header is there: a request without it is a
+    /// person's, and its handler authenticates it as always.
     async fn from_request_parts(
         parts: &mut axum::http::request::Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
+        if !parts.headers.contains_key(&RUN_ORIGIN_HEADER) {
+            return Ok(RunOrigin::Person);
+        }
+        let user = CurrentUser::from_request_parts(parts, state).await?;
         run_origin(
             &parts.headers,
             Front::of(&parts.headers, state.config.trust_edge_token),
+            &user.0.identity.username,
+            &state.config.journey_users,
         )
     }
 }
@@ -365,7 +381,7 @@ pub struct CreatedRun {
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
-        ("X-JC-Run-Origin" = Option<String>, Header, description = "`journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token"),
+        ("X-JC-Run-Origin" = Option<String>, Header, description = "`journey` marks a run of the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token"),
     ),
     request_body(
         content = CreateRunRequest,
@@ -387,7 +403,7 @@ pub struct CreatedRun {
         (status = 202, description = "The run, queued", body = CreatedRun),
         (status = 400, description = "A request the endpoint or the policy does not allow", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
-        (status = 403, description = "No role grants proposing an App here", body = ProblemDetails),
+        (status = 403, description = "No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys", body = ProblemDetails),
         (status = 404, description = "No such endpoint in this project", body = ProblemDetails),
         (status = 503, description = "No agent runner, or no such builder profile", body = ProblemDetails)
     )
@@ -681,12 +697,14 @@ pub async fn create_run(
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
+        ("X-JC-Run-Origin" = Option<String>, Header, description = "`journey` lists every origin for the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token"),
         ListRunsQuery,
     ),
     responses(
         (status = 200, description = "The project's runs, newest first", body = RunList),
-        (status = 400, description = "An `origin` that is none of person, journey and all, or `X-JC-Run-Origin` beside a bearer token", body = ProblemDetails),
+        (status = 400, description = "An `origin` that is none of person, journey and all, or an `X-JC-Run-Origin` other than journey", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "`X-JC-Run-Origin` from anyone but the Portal's own live journeys", body = ProblemDetails),
         (status = 503, description = "The run store did not answer", body = ProblemDetails)
     )
 )]
@@ -2617,30 +2635,51 @@ mod tests {
         }
 
         #[test]
-        fn only_a_browser_session_marks_a_run_as_a_journey_s() {
+        fn only_the_journeys_own_sessions_mark_a_run_as_a_journey_s() {
+            let journeys = vec!["demo.journey".to_owned()];
             for front in [Front::Portal, Front::Edge] {
                 assert_eq!(
-                    run_origin(&headers(Some("journey")), front).ok(),
+                    run_origin(&headers(Some("journey")), front, "demo.journey", &journeys).ok(),
                     Some(RunOrigin::Journey)
                 );
                 assert_eq!(
-                    run_origin(&headers(None), front).ok(),
+                    run_origin(&headers(None), front, "demo.journey", &journeys).ok(),
                     Some(RunOrigin::Person)
                 );
+                // A person, an administrator included, cannot hide their runs behind the mark.
+                assert!(matches!(
+                    run_origin(&headers(Some("journey")), front, "demo.admin", &journeys),
+                    Err(ApiError::Denied(message)) if message.contains("live journeys")
+                ));
+                // No journey users configured: nobody marks a run.
+                assert!(matches!(
+                    run_origin(&headers(Some("journey")), front, "demo.journey", &[]),
+                    Err(ApiError::Denied(_))
+                ));
             }
-            // A service, a script or an agent is refused, not quietly counted as a person.
+            // A service, a script or an agent is refused, even under a journey user's name.
             assert!(matches!(
-                run_origin(&headers(Some("journey")), Front::Bearer),
-                Err(ApiError::BadRequest(message)) if message.contains("browser session")
+                run_origin(
+                    &headers(Some("journey")),
+                    Front::Bearer,
+                    "demo.journey",
+                    &journeys
+                ),
+                Err(ApiError::Denied(_))
             ));
             assert_eq!(
-                run_origin(&headers(None), Front::Bearer).ok(),
+                run_origin(&headers(None), Front::Bearer, "demo.admin", &journeys).ok(),
                 Some(RunOrigin::Person)
             );
             for value in ["person", "Journey", "", "journey "] {
                 assert!(
                     matches!(
-                        run_origin(&headers(Some(value)), Front::Portal),
+                        run_origin(
+                            &headers(Some(value)),
+                            Front::Portal,
+                            "demo.journey",
+                            &journeys
+                        ),
                         Err(ApiError::BadRequest(_))
                     ),
                     "{value:?}"

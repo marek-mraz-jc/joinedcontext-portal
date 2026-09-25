@@ -22,8 +22,9 @@ export default defineConfig({
     trace: "retain-on-failure",
     viewport: { width: 1600, height: 1000 },
     // Every run a journey starts is a test run (AG-93, T-2816): the Portal records it as
-    // `origin: journey` and the Assistant page leaves it out of the history people read. Only a
-    // browser session may send this; the journeys never call the API with a bearer token.
+    // `origin: journey` and the Assistant page leaves it out of the history people read. The
+    // Portal accepts it only from the demo people it names in JC_PORTAL_JOURNEY_USERS, and never
+    // beside a bearer token; anyone else who sends it is refused with 403.
     extraHTTPHeaders: { "X-JC-Run-Origin": "journey" },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
