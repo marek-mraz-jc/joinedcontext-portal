@@ -7,6 +7,10 @@
 //!
 //! Everything that decides is in the manifest: who owns the account, which credentials it
 //! declares, and when they expire. The database only remembers the keys behind them.
+//!
+//! A key asked for over MCP is not minted there (PF-104, T-2359): a person's MCP client is driven
+//! by a model, and an answer lands in its context. The operation records a claim instead, and the
+//! person mints the key by opening the claim in the Portal (`…/keys/claims/{claimId}`).
 
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use argon2::password_hash::{PasswordHasher, SaltString};
@@ -23,7 +27,7 @@ use time::OffsetDateTime;
 use utoipa::ToSchema;
 
 use crate::auth::CurrentUser;
-use crate::db::{self, KeyRow};
+use crate::db::{self, KeyClaimRow, KeyRow};
 use crate::error::{ApiError, ProblemDetails};
 use crate::resource::is_dns1123;
 use crate::state::AppState;
@@ -36,6 +40,11 @@ const MAX_OVERLAP_HOURS: i64 = 168;
 /// an account by, 32 for the secret it verifies.
 const KEY_ID_BYTES: usize = 8;
 const SECRET_BYTES: usize = 32;
+
+/// How long a claim waits for its person, and the randomness of its id (PF-104). The id is not a
+/// secret: a claim opens only for the person who asked for it.
+const CLAIM_MINUTES: i64 = 15;
+const CLAIM_ID_BYTES: usize = 16;
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -65,6 +74,53 @@ pub struct MintedKey {
     pub credential: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
+}
+
+/// What a key claim will do once its person confirms it (PF-104).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum ClaimAction {
+    Mint,
+    Rotate,
+}
+
+impl ClaimAction {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Mint => "mint",
+            Self::Rotate => "rotate",
+        }
+    }
+}
+
+/// Where the person opens a claim, and until when.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimLink {
+    pub id: String,
+    /// The Portal page that shows the claim to the person who asked for it.
+    pub url: String,
+    pub expires_at: String,
+}
+
+/// A key asked for over MCP, waiting for its person in the Portal (PF-104). It carries no token
+/// and no id of a key that does not exist yet: nothing is minted until the person confirms it.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyClaim {
+    pub claim: ClaimLink,
+    pub account: String,
+    pub action: ClaimAction,
+    pub credential: String,
+    /// The key a rotation replaces.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_id: Option<String>,
+    /// The expiry the minted key will carry, when it has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_expires_at: Option<String>,
+    /// How long the replaced key keeps working beside its successor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overlap_hours: Option<i64>,
 }
 
 /// One key as everyone else ever sees it: what an operator decides on, and nothing that opens
@@ -284,7 +340,7 @@ pub async fn list_keys(
     post,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys",
     summary = "Mint A Service Account Key",
-    description = "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.",
+    description = "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else. Over MCP nothing is minted: the answer is a one-time claim link the person who asked opens in the Portal to mint the key and see it, so the token never reaches the client (PF-104).",
     tag = "access",
     request_body(
         content = MintRequest,
@@ -309,20 +365,46 @@ pub async fn create_key(
     body: Bytes,
 ) -> Result<(StatusCode, Json<MintedKey>), ApiError> {
     let spec = admit(&state, &user, &project, &name)?;
-    let request: MintRequest = serde_json::from_slice(&body)
-        .map_err(|e| ApiError::BadRequest(format!("request body is invalid: {e}")))?;
+    let request = mint_request(&body)?;
+    let expires_at = plan_mint(
+        &spec,
+        &request.credential,
+        request.expires_at,
+        OffsetDateTime::now_utc(),
+    )?;
+    let minted = mint_now(
+        &state,
+        &user,
+        &project,
+        &name,
+        &request.credential,
+        expires_at,
+    )
+    .await?;
+    Ok((StatusCode::CREATED, Json(minted)))
+}
 
+fn mint_request(body: &[u8]) -> Result<MintRequest, ApiError> {
+    serde_json::from_slice(body)
+        .map_err(|e| ApiError::BadRequest(format!("request body is invalid: {e}")))
+}
+
+/// The expiry a key of `credential` gets, once the manifest has been shown to declare it: an
+/// explicit expiry, else the credential's own, else none. An expiry in the past is refused.
+fn plan_mint(
+    spec: &serde_json::Value,
+    credential: &str,
+    requested: Option<String>,
+    now: OffsetDateTime,
+) -> Result<Option<OffsetDateTime>, ApiError> {
     // The manifest is the authority on which credentials exist; a key for an undeclared
     // credential would be a credential nobody reviewed (PF-34).
-    let credential = api_key_credential(&spec, &request.credential).ok_or_else(|| {
+    let declared = api_key_credential(spec, credential).ok_or_else(|| {
         ApiError::BadRequest(format!(
-            "'{}' is not an api-key credential of this ServiceAccount",
-            request.credential
+            "'{credential}' is not an api-key credential of this ServiceAccount"
         ))
     })?;
-
-    let now = OffsetDateTime::now_utc();
-    let expires_at = match request.expires_at.or(credential.expires_at) {
+    match requested.or(declared.expires_at) {
         Some(raw) => {
             let at = parse_expiry(&raw)?;
             if at <= now {
@@ -330,32 +412,39 @@ pub async fn create_key(
                     "expiresAt '{raw}' is in the past"
                 )));
             }
-            Some(at)
+            Ok(Some(at))
         }
-        None => None,
-    };
+        None => Ok(None),
+    }
+}
 
+async fn mint_now(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+    credential: &str,
+    expires_at: Option<OffsetDateTime>,
+) -> Result<MintedKey, ApiError> {
     let (minted, row) = mint(
-        &project,
-        &name,
-        &request.credential,
+        project,
+        name,
+        credential,
         &user.0.identity.username,
         expires_at,
-        now,
+        OffsetDateTime::now_utc(),
     )?;
-    db::insert_key(pool(&state)?, &row)
-        .await
-        .map_err(db_error)?;
+    db::insert_key(pool(state)?, &row).await.map_err(db_error)?;
     // The key id, never the token: a log line is not a place a credential may end up (PF-36).
     tracing::info!(project = %project, account = %name, key_id = %row.key_id, "api key minted");
-    Ok((StatusCode::CREATED, Json(minted)))
+    Ok(minted)
 }
 
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate",
     summary = "Rotate A Service Account Key",
-    description = "Replaces one key with a successor; the old one stops working when its overlap ends.",
+    description = "Replaces one key with a successor; the old one stops working when its overlap ends. Over MCP nothing is rotated yet: the answer is a one-time claim link the person who asked opens in the Portal to make the rotation and see the successor, so the token never reaches the client (PF-104).",
     tag = "access",
     request_body(content = RotateRequest, example = json!({ "overlapHours": 24 })),
     params(
@@ -378,11 +467,19 @@ pub async fn rotate_key(
     body: Bytes,
 ) -> Result<(StatusCode, Json<MintedKey>), ApiError> {
     admit(&state, &user, &project, &name)?;
-    // An empty body is the default rotation, so it must not be a parse error.
+    let overlap = overlap_of(&body)?;
+    let old = rotatable(&state, &project, &name, &key_id).await?;
+    let minted = rotate_now(&state, &user, &project, &name, &old, overlap).await?;
+    Ok((StatusCode::CREATED, Json(minted)))
+}
+
+/// The overlap a rotation asks for, within 0…168 hours; an empty body is the default rotation,
+/// so it must not be a parse error.
+fn overlap_of(body: &[u8]) -> Result<i64, ApiError> {
     let request: RotateRequest = if body.is_empty() {
         RotateRequest::default()
     } else {
-        serde_json::from_slice(&body)
+        serde_json::from_slice(body)
             .map_err(|e| ApiError::BadRequest(format!("request body is invalid: {e}")))?
     };
     let overlap = request.overlap_hours.unwrap_or(DEFAULT_OVERLAP_HOURS);
@@ -391,9 +488,17 @@ pub async fn rotate_key(
             "overlapHours must be between 0 and {MAX_OVERLAP_HOURS}"
         )));
     }
+    Ok(overlap)
+}
 
-    let pool = pool(&state)?;
-    let old = db::get_key(pool, &project, &name, &key_id)
+/// The key a rotation replaces: one of this account's, and not revoked.
+async fn rotatable(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    key_id: &str,
+) -> Result<KeyRow, ApiError> {
+    let old = db::get_key(pool(state)?, project, name, key_id)
         .await
         .map_err(db_error)?
         .ok_or_else(|| ApiError::NotFound(format!("key '{key_id}' not found")))?;
@@ -402,11 +507,22 @@ pub async fn rotate_key(
             "a revoked key is not rotated; mint a new one".into(),
         ));
     }
+    Ok(old)
+}
 
+async fn rotate_now(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+    old: &KeyRow,
+    overlap: i64,
+) -> Result<MintedKey, ApiError> {
+    let pool = pool(state)?;
     let now = OffsetDateTime::now_utc();
     let (minted, row) = mint(
-        &project,
-        &name,
+        project,
+        name,
         &old.credential,
         &user.0.identity.username,
         old.expires_at,
@@ -422,7 +538,7 @@ pub async fn rotate_key(
         project = %project, account = %name, key_id = %row.key_id, replaces = %old.key_id,
         overlap_hours = overlap, "api key rotated"
     );
-    Ok((StatusCode::CREATED, Json(minted)))
+    Ok(minted)
 }
 
 #[utoipa::path(
@@ -465,6 +581,225 @@ pub async fn revoke_key(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Records a mint for its person to confirm in the Portal, after every check the mint itself makes
+/// (PF-104). What an MCP client is answered instead of a token.
+pub async fn claim_mint(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    body: Bytes,
+) -> Result<KeyClaim, ApiError> {
+    let spec = admit(&state, &user, &project, &name)?;
+    let request = mint_request(&body)?;
+    let now = OffsetDateTime::now_utc();
+    let expires_at = plan_mint(&spec, &request.credential, request.expires_at, now)?;
+    let plan = ClaimPlan {
+        action: ClaimAction::Mint,
+        credential: request.credential,
+        key_id: None,
+        key_expires_at: expires_at,
+        overlap_hours: None,
+    };
+    record_claim(&state, &user, &project, &name, plan, now).await
+}
+
+/// Records a rotation for its person to confirm in the Portal, after every check the rotation
+/// itself makes (PF-104).
+pub async fn claim_rotate(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name, key_id)): Path<(String, String, String)>,
+    body: Bytes,
+) -> Result<KeyClaim, ApiError> {
+    admit(&state, &user, &project, &name)?;
+    let overlap = overlap_of(&body)?;
+    let old = rotatable(&state, &project, &name, &key_id).await?;
+    let now = OffsetDateTime::now_utc();
+    let plan = ClaimPlan {
+        action: ClaimAction::Rotate,
+        credential: old.credential,
+        key_id: Some(old.key_id),
+        key_expires_at: old.expires_at,
+        overlap_hours: Some(overlap),
+    };
+    record_claim(&state, &user, &project, &name, plan, now).await
+}
+
+/// What a claim will do once confirmed, checked before it is recorded.
+struct ClaimPlan {
+    action: ClaimAction,
+    credential: String,
+    key_id: Option<String>,
+    key_expires_at: Option<OffsetDateTime>,
+    overlap_hours: Option<i64>,
+}
+
+async fn record_claim(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+    plan: ClaimPlan,
+    now: OffsetDateTime,
+) -> Result<KeyClaim, ApiError> {
+    let ClaimPlan {
+        action,
+        credential,
+        key_id,
+        key_expires_at,
+        overlap_hours,
+    } = plan;
+    let mut id_bytes = [0u8; CLAIM_ID_BYTES];
+    OsRng.fill_bytes(&mut id_bytes);
+    let row = KeyClaimRow {
+        id: id_bytes.iter().fold(String::new(), |mut acc, byte| {
+            use std::fmt::Write;
+            let _ = write!(acc, "{byte:02x}");
+            acc
+        }),
+        project: project.to_owned(),
+        account: name.to_owned(),
+        action: action.as_str().to_owned(),
+        credential,
+        key_id,
+        key_expires_at,
+        overlap_hours: overlap_hours.and_then(|hours| i32::try_from(hours).ok()),
+        created_by: user.0.identity.subject.clone(),
+        created_at: now,
+        expires_at: now + time::Duration::minutes(CLAIM_MINUTES),
+    };
+    db::insert_key_claim(pool(state)?, &row, now)
+        .await
+        .map_err(db_error)?;
+    tracing::info!(project = %project, account = %name, claim = %row.id, action = action.as_str(), "api key claim recorded");
+    Ok(claim_of(state, row))
+}
+
+fn claim_of(state: &AppState, row: KeyClaimRow) -> KeyClaim {
+    let base = state.config.public_base_url.as_str().trim_end_matches('/');
+    KeyClaim {
+        claim: ClaimLink {
+            url: format!(
+                "{base}/projects/{}/settings/service-accounts?account={}&claim={}",
+                row.project, row.account, row.id
+            ),
+            id: row.id,
+            expires_at: rfc3339(row.expires_at),
+        },
+        account: row.account,
+        action: if row.action == "rotate" {
+            ClaimAction::Rotate
+        } else {
+            ClaimAction::Mint
+        },
+        credential: row.credential,
+        key_id: row.key_id,
+        key_expires_at: row.key_expires_at.map(rfc3339),
+        overlap_hours: row.overlap_hours.map(i64::from),
+    }
+}
+
+/// A claim that is not the caller's, has expired, was spent or never existed: one answer for all
+/// four, so the link in a transcript tells whoever reads it nothing (R20).
+fn no_claim(claim_id: &str) -> ApiError {
+    ApiError::NotFound(format!("key claim '{claim_id}' not found; it may have expired or been used, so ask for the key again"))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}",
+    summary = "Read A Service Account Key Claim",
+    description = "What a key asked for over MCP will be, shown to the person who asked for it before it is minted.",
+    tag = "access",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "ServiceAccount name"),
+        ("claimId" = String, Path, description = "The claim the MCP answer named"),
+    ),
+    responses(
+        (status = 200, description = "What confirming the claim will do; no token", body = KeyClaim),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "No such claim for this person: another person's, expired, used or never made", body = ProblemDetails),
+        (status = 503, description = "No key database configured", body = ProblemDetails)
+    )
+)]
+pub async fn get_key_claim(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name, claim_id)): Path<(String, String, String)>,
+) -> Result<Json<KeyClaim>, ApiError> {
+    admit(&state, &user, &project, &name)?;
+    let row = db::get_key_claim(
+        pool(&state)?,
+        &claim_id,
+        &project,
+        &name,
+        &user.0.identity.subject,
+        OffsetDateTime::now_utc(),
+    )
+    .await
+    .map_err(db_error)?
+    .ok_or_else(|| no_claim(&claim_id))?;
+    Ok(Json(claim_of(&state, row)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}",
+    summary = "Use A Service Account Key Claim",
+    description = "Mints the key, or makes the rotation, a claim describes; the token is in this answer and nowhere else, and the claim is spent.",
+    tag = "access",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "ServiceAccount name"),
+        ("claimId" = String, Path, description = "The claim the MCP answer named"),
+    ),
+    responses(
+        (status = 201, description = "The minted key; the claim is spent", body = MintedKey),
+        (status = 400, description = "The credential is no longer declared, or its expiry has passed", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "No such claim for this person, or the key it rotates is gone", body = ProblemDetails),
+        (status = 409, description = "The key the claim rotates was revoked in the meantime", body = ProblemDetails),
+        (status = 503, description = "No key database configured", body = ProblemDetails)
+    )
+)]
+pub async fn use_key_claim(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name, claim_id)): Path<(String, String, String)>,
+) -> Result<(StatusCode, Json<MintedKey>), ApiError> {
+    // Still allowed now, not only when it was asked for: an owner who left since mints nothing.
+    let spec = admit(&state, &user, &project, &name)?;
+    let now = OffsetDateTime::now_utc();
+    // Spent before anything else happens, so a claim is used once whatever follows.
+    let row = db::take_key_claim(
+        pool(&state)?,
+        &claim_id,
+        &project,
+        &name,
+        &user.0.identity.subject,
+        now,
+    )
+    .await
+    .map_err(db_error)?
+    .ok_or_else(|| no_claim(&claim_id))?;
+    let minted = match (row.action.as_str(), row.key_id.as_deref()) {
+        ("rotate", Some(key_id)) => {
+            let old = rotatable(&state, &project, &name, key_id).await?;
+            let overlap = row.overlap_hours.map_or(DEFAULT_OVERLAP_HOURS, i64::from);
+            rotate_now(&state, &user, &project, &name, &old, overlap).await?
+        }
+        _ => {
+            // The manifest may have changed since: the credential is checked again, and an
+            // expiry that has passed in the meantime is refused like one asked for in the past.
+            let requested = row.key_expires_at.map(rfc3339);
+            let expires_at = plan_mint(&spec, &row.credential, requested, now)?;
+            mint_now(&state, &user, &project, &name, &row.credential, expires_at).await?
+        }
+    };
+    Ok((StatusCode::CREATED, Json(minted)))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -478,6 +813,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/serviceaccounts/{name}/keys/{keyId}",
             delete(revoke_key),
+        )
+        .route(
+            "/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}",
+            get(get_key_claim).post(use_key_claim),
         )
 }
 

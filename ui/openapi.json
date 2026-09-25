@@ -6698,7 +6698,7 @@
           "access"
         ],
         "summary": "Mint A Service Account Key",
-        "description": "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.",
+        "description": "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else. Over MCP nothing is minted: the answer is a one-time claim link the person who asked opens in the Portal to mint the key and see it, so the token never reaches the client (PF-104).",
         "operationId": "create_key",
         "parameters": [
           {
@@ -6777,6 +6777,196 @@
           },
           "404": {
             "description": "No such account, or none the caller may manage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No key database configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Read A Service Account Key Claim",
+        "description": "What a key asked for over MCP will be, shown to the person who asked for it before it is minted.",
+        "operationId": "get_key_claim",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "ServiceAccount name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "claimId",
+            "in": "path",
+            "description": "The claim the MCP answer named",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What confirming the claim will do; no token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyClaim"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such claim for this person: another person's, expired, used or never made",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No key database configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Use A Service Account Key Claim",
+        "description": "Mints the key, or makes the rotation, a claim describes; the token is in this answer and nowhere else, and the claim is spent.",
+        "operationId": "use_key_claim",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "ServiceAccount name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "claimId",
+            "in": "path",
+            "description": "The claim the MCP answer named",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The minted key; the claim is spent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedKey"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The credential is no longer declared, or its expiry has passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such claim for this person, or the key it rotates is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The key the claim rotates was revoked in the meantime",
             "content": {
               "application/json": {
                 "schema": {
@@ -6888,7 +7078,7 @@
           "access"
         ],
         "summary": "Rotate A Service Account Key",
-        "description": "Replaces one key with a successor; the old one stops working when its overlap ends.",
+        "description": "Replaces one key with a successor; the old one stops working when its overlap ends. Over MCP nothing is rotated yet: the answer is a one-time claim link the person who asked opens in the Portal to make the rotation and see the successor, so the token never reaches the client (PF-104).",
         "operationId": "rotate_key",
         "parameters": [
           {
@@ -10445,6 +10635,35 @@
           }
         }
       },
+      "ClaimAction": {
+        "type": "string",
+        "description": "What a key claim will do once its person confirms it (PF-104).",
+        "enum": [
+          "mint",
+          "rotate"
+        ]
+      },
+      "ClaimLink": {
+        "type": "object",
+        "description": "Where the person opens a claim, and until when.",
+        "required": [
+          "id",
+          "url",
+          "expiresAt"
+        ],
+        "properties": {
+          "expiresAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "The Portal page that shows the claim to the person who asked for it."
+          }
+        }
+      },
       "Colours": {
         "type": "object",
         "description": "The five colours a page is built from. Each is validated as a hex triplet or sextet before\nit is served, because the UI writes it into a CSS custom property and a value that is not a\ncolour is a way into the page (OPS-46).",
@@ -11615,6 +11834,52 @@
           "url": {
             "type": "string",
             "description": "Base URL of the catalogue."
+          }
+        }
+      },
+      "KeyClaim": {
+        "type": "object",
+        "description": "A key asked for over MCP, waiting for its person in the Portal (PF-104). It carries no token\nand no id of a key that does not exist yet: nothing is minted until the person confirms it.",
+        "required": [
+          "claim",
+          "account",
+          "action",
+          "credential"
+        ],
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ClaimAction"
+          },
+          "claim": {
+            "$ref": "#/components/schemas/ClaimLink"
+          },
+          "credential": {
+            "type": "string"
+          },
+          "keyExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The expiry the minted key will carry, when it has one."
+          },
+          "keyId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The key a rotation replaces."
+          },
+          "overlapHours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the replaced key keeps working beside its successor."
           }
         }
       },

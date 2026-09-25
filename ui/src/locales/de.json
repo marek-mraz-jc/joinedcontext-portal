@@ -1350,6 +1350,18 @@
         "credential": "Credential",
         "expires": "Gültig bis",
         "lastUsed": "Zuletzt benutzt"
+      },
+      "claim": {
+        "title": "Ein Schlüssel, den Ihr MCP-Client angefordert hat",
+        "hint": "Bestätigen Sie ihn hier, um den Schlüssel zu sehen. Ihr MCP-Client hat ihn nicht erhalten.",
+        "mint": "Einen neuen Schlüssel für die Anmeldeinformation {credential} von {account} erstellen.",
+        "rotate": "Schlüssel {keyId} von {account} rotieren: Ein Nachfolger wird erstellt, der aktuelle Schlüssel funktioniert noch {hours, plural, one {# Stunde} other {# Stunden}}.",
+        "expires": "Der neue Schlüssel läuft am {date} ab.",
+        "until": "Der Link gilt bis {time}.",
+        "confirmMint": "Erstellen und Schlüssel anzeigen",
+        "confirmRotate": "Rotieren und Schlüssel anzeigen",
+        "later": "Nicht jetzt",
+        "gone": "Dieser Link ist abgelaufen, wurde bereits verwendet oder gehört jemand anderem. Fordern Sie den Schlüssel in Ihrem MCP-Client erneut an."
       }
     },
     "matrix": {
