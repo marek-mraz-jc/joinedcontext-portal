@@ -1780,10 +1780,14 @@
     "dimensionLabel": "Dashboard use",
     "graph": {
       "title": "The model's classes and what joins them",
-      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import.",
+      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import. In a box every field shows its type: PK marks the key, FK a field that points at another class, with that class and how many it holds. A dotted line says how many at both ends too; * means any number.",
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
-      "more": "and {count} more",
+      "row": {
+        "pk": "{name}: {type}, the key that identifies each entity",
+        "fk": "{name}: {type}, a reference to another class",
+        "plain": "{name}: {type}"
+      },
       "from": "from {name}",
       "enumBox": "Enum {name}: {values}",
       "legendRelationship": "A solid line with no arrow is a relationship, named by its field and the inverse. The number at each end says how many entities of that class one entity at the other end is joined to: 1 exactly one, 0..1 at most one, 1..* at least one, * any number.",
