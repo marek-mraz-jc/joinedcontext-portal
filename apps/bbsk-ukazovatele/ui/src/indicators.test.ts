@@ -11,7 +11,7 @@ import { toRichRow } from "@joinedcontext/sdk";
 import type { RichRow } from "@joinedcontext/sdk";
 import region from "./fixtures/bbsk-kpi.json";
 import city from "./fixtures/banskabystrica-kpi.json";
-import { byKey, LIMITS, splitName, stateOf, toIndicator, UNIT_CODE, unitAsContracted } from "./indicators";
+import { byKey, districtBars, isWhole, LIMITS, splitName, stateOf, toIndicator, UNIT_CODE, unitAsContracted } from "./indicators";
 import type { Indicator } from "./indicators";
 
 const rows = (entities: unknown[]): RichRow[] =>
@@ -192,5 +192,31 @@ describe("the order the cards are met in", () => {
     const emissions = groups.find((g) => g.key === "emisie-tuhe-km2");
     expect(emissions?.rows[0].territory).toBe("kraj");
     expect(emissions?.rows).toHaveLength(14);
+  });
+});
+
+describe("the bars of one indicator", () => {
+  const population = REGION.filter((indicator) => indicator.key === "obyvatelstvo-stav");
+
+  it("draws every measured district, largest first, and leaves the whole region out", () => {
+    const bars = districtBars(population);
+    expect(bars).toHaveLength(13);
+    expect(bars.some((bar) => isWhole(bar.territory))).toBe(false);
+    for (let i = 1; i < bars.length; i++) {
+      expect(bars[i - 1].value).toBeGreaterThanOrEqual(bars[i].value);
+    }
+  });
+
+  it("gives a district that was not measured no bar, never a zero one", () => {
+    const quiet = population.map((indicator) =>
+      indicator.territory === "okres-brezno" ? { ...indicator, value: null } : indicator,
+    );
+    const bars = districtBars(quiet);
+    expect(bars).toHaveLength(12);
+    expect(bars.find((bar) => bar.territory === "okres-brezno")).toBeUndefined();
+  });
+
+  it("has nothing to draw for the city, which publishes only its whole territory", () => {
+    expect(districtBars(CITY)).toEqual([]);
   });
 });
