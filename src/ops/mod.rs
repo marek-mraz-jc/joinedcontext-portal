@@ -17,6 +17,7 @@ pub mod changes;
 pub mod compute;
 pub mod drafts;
 pub mod feed_shape;
+pub mod people;
 pub mod pipeline_steps;
 pub mod previews;
 pub mod proposals;
@@ -290,6 +291,26 @@ pub fn find(name: &str) -> Option<&'static Operation> {
     registry().iter().find(|op| op.name == name)
 }
 
+/// The lane one call of `op` runs in. The registry names one lane per operation, which is the
+/// answer for every operation but a blueprint flow: that one runs in the flow's own lane, the
+/// stricter of what the blueprint declares and what it renders, so a green sandbox blueprint is
+/// not asked about as yellow and one that renders a Red kind is asked about as red (AG-14,
+/// CC-63). An input that does not plan keeps the registered lane; the call then refuses it.
+pub fn lane_for(
+    op: &Operation,
+    identity: &crate::auth::session::Identity,
+    state: &AppState,
+    project: &str,
+    input: &Value,
+) -> Lane {
+    match op.name {
+        "jc_flow_start" => {
+            crate::api::blueprints::flow_lane(state, identity, project, input).unwrap_or(op.lane)
+        }
+        _ => op.lane,
+    }
+}
+
 pub async fn call(
     op: &Operation,
     caller: &Caller,
@@ -517,6 +538,7 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(admin::operations());
     operations.extend(sync_sources::operations());
     operations.extend(workspaces::operations());
+    operations.extend(people::operations());
     operations
 }
 

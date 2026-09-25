@@ -244,6 +244,11 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(screen.getByRole("heading", { name: "Download as CSV" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "In an MCP client" })).toBeInTheDocument();
     expect(screen.getByText(/useEntities\("KeyPerformanceIndicator"\)/)).toBeInTheDocument();
+    // A snippet scrolls sideways, so the keyboard reaches it and a screen reader names it
+    // (axe scrollable-region-focusable, found by the live journey on a real browser).
+    const shell = screen.getByLabelText("From a shell (NGSI-LD)");
+    expect(shell.tagName).toBe("PRE");
+    expect(shell).toHaveAttribute("tabindex", "0");
   });
 
   it("tells an unknown or private dataset apart from a failure, and offers the way back", async () => {

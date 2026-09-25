@@ -5,12 +5,12 @@
  * YAML view cannot disagree about what a pipeline reads (PL-42).
  */
 import { useQuery } from "@tanstack/react-query";
-import type { EnumOption } from "@joinedcontext/sdk";
+import type { EnumOption, RelationEnd } from "@joinedcontext/sdk";
 import { ApiError, readCsrfToken } from "../../api/client";
 import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { endpointUrl } from "../endpoints/links";
-import { classSlots, parseModel } from "../../pages/models/linkml";
+import { classSlots, parseModel, relationships } from "../../pages/models/linkml";
 import type { NgsiLdKind } from "../../pages/models/linkml";
 import { parseResultsCount } from "../../pages/spaces/SpaceInside";
 
@@ -136,6 +136,31 @@ export function enumsOfModel(
         title: value.title ? localized(value.title, locale, value.name) : undefined,
         description: value.description,
       }));
+    }
+  }
+  return found;
+}
+
+/**
+ * The relationship ends of one class, by slot name (UI-84, DM-64): the stored end is edited in the
+ * grid by picking entities of its target class, and the computed end, which the model derives from
+ * the stored one and nothing stores, is a read-only list of what points back (DM-67). A broken
+ * relationship is the model editor's diagnostic, not an end. `{}` without a model or a type.
+ */
+export function relationsOfModel(model: Manifest | string | undefined, type: string | undefined): Record<string, RelationEnd> {
+  const source = typeof model === "string" ? model : inlineSource(model);
+  if (!type || source === undefined) {
+    return {};
+  }
+  const found: Record<string, RelationEnd> = {};
+  for (const relationship of relationships(parseModel(source))) {
+    const [stored, computed] =
+      relationship.stored === "source" ? [relationship.source, relationship.target] : [relationship.target, relationship.source];
+    if (stored.class === type) {
+      found[stored.slot] = { target: computed.class, many: stored.multivalued, required: stored.required };
+    }
+    if (computed.class === type) {
+      found[computed.slot] = { target: stored.class, many: computed.multivalued, required: false, inverseOf: stored.slot };
     }
   }
   return found;

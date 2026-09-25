@@ -154,17 +154,18 @@ describe("what a box shows", () => {
     expect(vehicle.textContent).toContain("speed");
   });
 
-  // 0/1/many: a class with more slots than the box draws stops and counts the rest, so a wide
-  // model stays a drawing instead of a column of text.
-  it("stops at six slots and counts the rest", () => {
+  // T-2881: the owner's rule is every field at first glance, so a wide class grows its box
+  // instead of hiding the rest behind a count.
+  it("draws every slot with its type, however many there are", () => {
     renderPart(<LinkmlGraphView source={LONG} />);
 
     const wide = screen.getByRole("button", {
       name: en.models.graph.openClass.replace("{name}", "Wide"),
     });
-    expect(wide.textContent).toContain("f");
-    expect(wide.textContent).not.toContain("gh");
-    expect(wide.textContent).toContain(en.models.graph.more.replace("{count}", "3"));
+    for (const slot of ["a", "e", "i"]) {
+      expect(within(wide).getByText(slot)).toBeInTheDocument();
+    }
+    expect(within(wide).getAllByText("string")).toHaveLength(9);
   });
 
   // The three kinds of line are told apart by more than their dash pattern: the legend says
@@ -215,7 +216,7 @@ describe("what a box shows", () => {
 });
 
 describe("the graph in every locale", () => {
-  it("translates the legend, the names and the overflow count", async () => {
+  it("translates the legend and the names", async () => {
     await inEveryLocale(async () => {
       const { container, unmount } = renderPart(<LinkmlGraphView source={LONG} />);
       expectNoRawKeys(container);

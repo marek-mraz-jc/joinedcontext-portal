@@ -139,7 +139,7 @@ describe("the diagram", () => {
     expect(nodes[2].slots).toEqual(["primary", "secondary"]);
     expect(edges).toEqual([
       { from: "School", to: "SchoolLevel", kind: "enum", label: "level" },
-      { from: "School", to: "Person", kind: "range", label: "principal" },
+      { from: "School", to: "Person", kind: "range", label: "principal", fromMultiplicity: "*", toMultiplicity: "0..1" },
     ]);
   });
 

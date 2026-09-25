@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { approvalStanding } from "../../api/approval";
 import { usePermissions } from "../../api/permissions";
-import { logoUrl, useBranding } from "../../branding";
+import { logoUrl, useBranding, useHiddenSections } from "../../branding";
 import {
   Alert,
   Button,
@@ -27,7 +27,7 @@ import {
   safeHref,
 } from "../ui";
 import type { IconName } from "../ui";
-import { NAV_SECTIONS, sameSection } from "./navigation";
+import { isHiddenSection, NAV_SECTIONS, sameSection } from "./navigation";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
@@ -304,6 +304,7 @@ export function Shell({
 }): JSX.Element {
   const { t } = useTranslation();
   const branding = useBranding();
+  const hiddenSections = useHiddenSections();
   const matchRoute = useMatchRoute();
   // The organization's tabs, every endpoint and `/` open on this project next (T-2753).
   useEffect(() => {
@@ -475,7 +476,7 @@ export function Shell({
             <NewProjectButton project={project} />
           </div>
           <ul className="flex flex-col gap-0.5">
-            {NAV_SECTIONS.map((section) => {
+            {NAV_SECTIONS.filter((section) => !isHiddenSection(section.plural, hiddenSections)).map((section) => {
               const isActive = section === activeSection;
               const body = <NavLabel icon={section.icon} label={t(section.labelKey)} />;
               return (

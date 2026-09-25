@@ -233,3 +233,141 @@ describe("reading it without the picture", () => {
     });
   });
 });
+
+/** T-2881: a city's schools with a key, typed fields and every kind of reference once. */
+const CITY = `name: city
+default_range: string
+classes:
+  Thing:
+    slots: [id]
+  School:
+    is_a: Thing
+    slots: [name, capacity, location, district, headteacher, pupils, tags]
+  Pupil:
+    slots: [school, clubs]
+  Club:
+    slots: [members]
+  Headteacher:
+    slots: [runs]
+  District:
+    slots: [label]
+slots:
+  id: { identifier: true, range: uriorcurie }
+  name: { required: true }
+  capacity: { range: integer }
+  location:
+    range: GeoJSONGeometry
+    annotations: { ngsi_ld_kind: GeoProperty }
+  tags: { multivalued: true }
+  label: {}
+  district: { range: District, required: true }
+  headteacher:
+    range: Headteacher
+    required: true
+    inverse: runs
+    annotations: { ngsi_ld_kind: Relationship, on_delete: restrict }
+  runs:
+    range: School
+    inverse: headteacher
+    annotations: { ngsi_ld_kind: Relationship }
+  pupils:
+    range: Pupil
+    multivalued: true
+    inverse: school
+    annotations: { ngsi_ld_kind: Relationship, on_delete: cascade }
+  school:
+    range: School
+    required: true
+    inverse: pupils
+    annotations: { ngsi_ld_kind: Relationship }
+  clubs:
+    range: Club
+    multivalued: true
+    inverse: members
+    annotations: { ngsi_ld_kind: Relationship, on_delete: set-null }
+  members:
+    range: Pupil
+    multivalued: true
+    inverse: clubs
+    annotations: { ngsi_ld_kind: Relationship }
+`;
+
+describe("the diagram at first glance (T-2881)", () => {
+  const rowsOf = (name: string) => graphData(parseModel(CITY)).nodes.find((node) => node.name === name)?.rows;
+
+  it("types every field, puts the key first and marks every reference with how many it holds", () => {
+    expect(rowsOf("School")).toEqual([
+      // Inherited along `is_a`: a School is identified by the key Thing declares.
+      { name: "id", type: "uriorcurie", key: "pk" },
+      { name: "name", type: "string" },
+      { name: "capacity", type: "integer" },
+      { name: "location", type: "GeoProperty" },
+      { name: "district", type: "District", key: "fk", multiplicity: "1" },
+      { name: "headteacher", type: "Headteacher", key: "fk", multiplicity: "1" },
+      { name: "pupils", type: "Pupil", key: "fk", multiplicity: "*", multivalued: true },
+      { name: "tags", type: "string", multivalued: true },
+    ]);
+    // No identifier anywhere up the chain: every NGSI-LD entity still has its `id`.
+    expect(rowsOf("District")?.[0]).toEqual({ name: "id", type: "URN", key: "pk", implied: true });
+  });
+
+  it("draws the types, the PK and FK tags and the target of each reference inside the box", () => {
+    renderPart(<LinkmlGraphView source={CITY} />);
+    const school = screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "School") });
+    const rows = [...school.querySelectorAll("g")].map((row) =>
+      [...row.querySelectorAll("text")].map((text) => text.textContent).join(" "),
+    );
+    expect(rows).toEqual([
+      "PK id uriorcurie",
+      "name string",
+      "capacity integer",
+      "location GeoProperty",
+      "FK district → District 1",
+      "FK headteacher → Headteacher 1",
+      "FK pupils → Pupil *",
+      "tags string[]",
+    ]);
+    // The tag is told apart by its word and its border, never by colour alone.
+    const tags = [...school.querySelectorAll("rect")].slice(1);
+    expect(tags.map((tag) => tag.getAttribute("stroke-dasharray"))).toEqual([null, "2 1", "2 1", "2 1"]);
+    expect(school.querySelector("g title")?.textContent).toBe(
+      en.models.graph.row.pk.replace("{name}", "id").replace("{type}", "uriorcurie"),
+    );
+  });
+
+  it("reads the cardinality at both ends of every line: 1..1, 1..N, N..M and a reference with no inverse", () => {
+    renderPart(<LinkmlGraphView source={CITY} />);
+    const ends = (name: string, inverse: string, source: string, target: string) =>
+      [...screen.getByRole("button", { name: opening(name, inverse, source, target) }).querySelectorAll("text")]
+        .slice(1)
+        .map((text) => text.textContent);
+    expect(ends("headteacher", "runs", "School", "Headteacher")).toEqual(["0..1", "1"]);
+    expect(ends("pupils", "school", "School", "Pupil")).toEqual(["1", "*"]);
+    expect(ends("clubs", "members", "Pupil", "Club")).toEqual(["*", "*"]);
+
+    const { edges } = graphData(parseModel(CITY));
+    const district = edges.find((edge) => edge.kind === "range" && edge.label === "district");
+    // Required and single on School's side; nothing limits how many Schools share a District.
+    expect([district?.fromMultiplicity, district?.toMultiplicity]).toEqual(["*", "1"]);
+  });
+
+  it("cuts a long name and keeps the whole row in its tooltip", () => {
+    const long = CITY.replace("capacity: { range: integer }", "capacityOfTheWholeBuildingInPupils: { range: integer }")
+      .replace("[name, capacity,", "[name, capacityOfTheWholeBuildingInPupils,");
+    renderPart(<LinkmlGraphView source={long} />);
+    const school = screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "School") });
+    expect(school.textContent).toContain("capacityOfTheWho…");
+    expect([...school.querySelectorAll("title")].map((title) => title.textContent)).toContain(
+      "capacityOfTheWholeBuildingInPupils: integer",
+    );
+  });
+
+  it("has no axe violation with every marker drawn, in every locale", async () => {
+    await inEveryLocale(async () => {
+      const { container, unmount } = renderPart(<LinkmlGraphView source={CITY} />);
+      expectNoRawKeys(container);
+      await expectNoAxeViolations(container);
+      unmount();
+    });
+  });
+});

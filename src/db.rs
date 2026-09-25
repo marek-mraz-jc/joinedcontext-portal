@@ -172,6 +172,108 @@ pub async fn revoke_key(
     .map(|result| result.rows_affected() > 0)
 }
 
+/// A key asked for over MCP, waiting for its person (PF-104). No secret: what the claim will do,
+/// and the Keycloak subject of the one person who may use it.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct KeyClaimRow {
+    pub id: String,
+    pub project: String,
+    pub account: String,
+    /// `mint` or `rotate`.
+    pub action: String,
+    pub credential: String,
+    /// The key a rotation replaces.
+    pub key_id: Option<String>,
+    pub key_expires_at: Option<OffsetDateTime>,
+    pub overlap_hours: Option<i32>,
+    pub created_by: String,
+    pub created_at: OffsetDateTime,
+    pub expires_at: OffsetDateTime,
+}
+
+const KEY_CLAIM_COLUMNS: &str =
+    "id, project, account, action, credential, key_id, key_expires_at, \
+     overlap_hours, created_by, created_at, expires_at";
+
+/// Stores a claim, and deletes every claim that has expired by `now` on the way.
+pub async fn insert_key_claim(
+    pool: &PgPool,
+    row: &KeyClaimRow,
+    now: OffsetDateTime,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM service_account_key_claims WHERE expires_at <= $1")
+        .bind(now)
+        .execute(pool)
+        .await?;
+    sqlx::query(
+        "INSERT INTO service_account_key_claims (id, project, account, action, credential, key_id, \
+         key_expires_at, overlap_hours, created_by, created_at, expires_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+    )
+    .bind(&row.id)
+    .bind(&row.project)
+    .bind(&row.account)
+    .bind(&row.action)
+    .bind(&row.credential)
+    .bind(&row.key_id)
+    .bind(row.key_expires_at)
+    .bind(row.overlap_hours)
+    .bind(&row.created_by)
+    .bind(row.created_at)
+    .bind(row.expires_at)
+    .execute(pool)
+    .await
+    .map(|_| ())
+}
+
+/// One live claim of one person on one account; another person's, an expired one and a spent
+/// one are all a miss.
+pub async fn get_key_claim(
+    pool: &PgPool,
+    id: &str,
+    project: &str,
+    account: &str,
+    subject: &str,
+    now: OffsetDateTime,
+) -> Result<Option<KeyClaimRow>, sqlx::Error> {
+    // The only thing formatted in is the column list, a constant.
+    sqlx::query_as::<_, KeyClaimRow>(AssertSqlSafe(format!(
+        "SELECT {KEY_CLAIM_COLUMNS} FROM service_account_key_claims \
+         WHERE id = $1 AND project = $2 AND account = $3 AND created_by = $4 AND expires_at > $5"
+    )))
+    .bind(id)
+    .bind(project)
+    .bind(account)
+    .bind(subject)
+    .bind(now)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Spends a live claim: it is deleted and returned in one statement, so two requests racing for
+/// it get it once between them.
+pub async fn take_key_claim(
+    pool: &PgPool,
+    id: &str,
+    project: &str,
+    account: &str,
+    subject: &str,
+    now: OffsetDateTime,
+) -> Result<Option<KeyClaimRow>, sqlx::Error> {
+    sqlx::query_as::<_, KeyClaimRow>(AssertSqlSafe(format!(
+        "DELETE FROM service_account_key_claims \
+         WHERE id = $1 AND project = $2 AND account = $3 AND created_by = $4 AND expires_at > $5 \
+         RETURNING {KEY_CLAIM_COLUMNS}"
+    )))
+    .bind(id)
+    .bind(project)
+    .bind(account)
+    .bind(subject)
+    .bind(now)
+    .fetch_optional(pool)
+    .await
+}
+
 /// What one `SyncSource` run left behind (MF-30).
 ///
 /// The row is the loop's whole memory: which revision of the source this repository carries,

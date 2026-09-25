@@ -28,6 +28,8 @@ import {
   approve,
   ask,
   csrf,
+  hiddenSections,
+  inHiddenSection,
   proposedChange,
   removeCompletely,
   signIn,
@@ -173,6 +175,10 @@ async function changes(page: Page): Promise<string> {
 export function kindJourney(journey: KindJourney): void {
   const { task, kind, plural } = journey;
   test.setTimeout(900_000);
+  // A kind whose page the installation hides has no page to journey through (T-2874).
+  test.beforeEach(async ({ request }) => {
+    test.skip(inHiddenSection(journey.page, await hiddenSections(request)), "the installation hides this section (T-2874)");
+  });
 
   test(`${kind}: created, changed and removed through the page by a person`, async ({ browser }) => {
     const steward = await signIn(browser, STEWARD, `${journey.page}?lang=en`);

@@ -60,11 +60,13 @@ fn application_repositories(
         let mut segments = url.trim_end_matches('/').rsplit('/');
         let name = segments.next().unwrap_or_default().trim_end_matches(".git");
         let owner = segments.next().unwrap_or_default();
-        if owner != forge.owner || name.is_empty() {
+        let applications = forge.applications().owner;
+        if owner != applications || name.is_empty() {
             return Err(ApiError::Conflict(format!(
                 "the App '{}' builds from {url}, which is not a repository of this forge's \
-                 organization '{}'; a git export carries only the forge's repositories (MF-45)",
-                app.metadata.name, forge.owner
+                 organization '{applications}'; a git export carries only the forge's \
+                 repositories (MF-45)",
+                app.metadata.name
             )));
         }
         names.push((app.metadata.name.clone(), name.to_owned()));
@@ -85,7 +87,7 @@ pub async fn archive(
     for (app, repository) in application_repositories(state, project, forge)? {
         sources.push((
             app,
-            forge.for_repository(repository),
+            forge.for_application(repository),
             BundleRole::Application,
         ));
     }

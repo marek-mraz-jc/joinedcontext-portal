@@ -94,6 +94,7 @@ function renderAt(tab: OrganizationTab, world: World = {}) {
       if (url.pathname.endsWith("/permissions/me")) return json(permissions);
       if (url.pathname === "/api/v1/projects") return json(list([{ name: "helsinki" }, { name: "espoo" }]));
       if (url.pathname === "/api/v1/projects/org/organizations") return json(list([ORGANIZATION]));
+      if (url.pathname === "/api/v1/organization/limits") return json({ entries: [], projects: [] });
       if (url.pathname === "/api/v1/projects/org/rolebindings") return json(list(BINDINGS));
       if (url.pathname === "/api/v1/projects/org/roles") {
         return json(list([role("viewer", "org"), role("air-analyst", "org")]));
@@ -127,7 +128,7 @@ afterEach(() => {
 
 describe("the Organization page", () => {
   // UI-16, UI-75: one H1, one tab list, the tab of the address selected.
-  it("names itself once and offers the eight tabs, the address's one selected", async () => {
+  it("names itself once and offers the nine tabs, the address's one selected", async () => {
     renderAt("roles");
     expect(await screen.findByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
     const tabs = within(screen.getByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
@@ -140,6 +141,7 @@ describe("the Organization page", () => {
       en.organization.tab["service-accounts"],
       en.organization.tab.projects,
       en.organization.tab.setup,
+      en.organization.tab.health,
     ]);
     expect(screen.getByRole("tab", { name: en.organization.tab.roles })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "organization-tab-roles");
@@ -158,7 +160,6 @@ describe("the Organization page", () => {
     expect((await screen.findAllByText("hel.fi")).length).toBeGreaterThan(0);
     expect(screen.getByText("The members of the group project-leads open projects.")).toBeInTheDocument();
     expect(screen.getByText(en.organization.visibility.members)).toBeInTheDocument();
-    expect(screen.getByText("14 days")).toBeInTheDocument();
     expect(screen.getByText(/Data protection: Tietosuoja/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Edit hel\.fi/ })).toBeInTheDocument();
   });

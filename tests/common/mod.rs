@@ -26,6 +26,7 @@ use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 
 pub mod doors;
+pub mod routes;
 
 pub const CSRF: &str = "test-csrf-token-permissions";
 
@@ -343,6 +344,8 @@ impl CheckFirst for axum::Router {
 pub struct Realm {
     pub issuer: String,
     signer: jsonwebtoken::EncodingKey,
+    /// The realm's server, for a suite that needs one more of its endpoints.
+    pub server: &'static MockServer,
 }
 
 /// What a token for the internal listener must be issued for.
@@ -457,12 +460,17 @@ pub static REALM: std::sync::LazyLock<Realm> = std::sync::LazyLock::new(|| {
                 })))
                 .mount(server)
                 .await;
-            issuer
+            (issuer, server)
         })
     })
     .join()
     .expect("the realm started");
-    Realm { issuer, signer }
+    let (issuer, server) = issuer;
+    Realm {
+        issuer,
+        signer,
+        server,
+    }
 });
 
 /// The clients the internal listener's routes belong to, as the deployment names them.

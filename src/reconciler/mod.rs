@@ -8,6 +8,7 @@
 //! [`daemon`] is the loop that reads the repository and refreshes the live-state mirror.
 
 pub mod app_clients;
+pub mod app_hosts;
 pub mod ckan;
 pub mod daemon;
 pub mod drift;
@@ -20,6 +21,7 @@ pub mod realm;
 pub mod registrations;
 pub mod streams;
 pub mod subscriptions;
+pub mod workload_clients;
 
 pub use daemon::{SyncError, SyncStatus, Syncer};
 pub use leader::Leadership;

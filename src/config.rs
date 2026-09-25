@@ -26,6 +26,12 @@ pub struct Config {
     /// without an edge in front leaves it off and the header is ignored
     /// (`JC_TRUST_EDGE_TOKEN`, the literal string `true` to turn it on; default `false`).
     pub trust_edge_token: bool,
+    /// Whether the Dashboards section is shown (`JC_PORTAL_DASHBOARDS`, the literal string
+    /// `true` to show it; default hidden, the owner's call of 2026-09-25, T-2874). Hidden, the
+    /// navigation leaves it out, its page sends a visit to the project and the assistant does
+    /// not offer the path; the kind, its manifests and its API stay, so turning it on loses
+    /// nothing.
+    pub dashboards: bool,
     /// What the deployment says it switched on, for the organization setup page (T-2748).
     pub setup: SetupStatements,
     /// The key every session cookie is sealed with (`JC_PORTAL_COOKIE_KEY`, at least 64
@@ -110,17 +116,21 @@ pub struct Config {
     /// writable, and `{apps_dir}` need not be. `None` fetches nothing, and an App whose
     /// `status.build` names a build keeps serving the bundle the image ships.
     pub apps_cache_dir: Option<String>,
-    /// The origin apps are served from (`JC_PORTAL_APPS_URL`, e.g. `https://{domain}`; AP-26,
-    /// ADR-N-019). When set, `/apps/*` is served only on that origin and answered with a `308`
-    /// to it on any other host, above all the Portal's own: an app on the Portal origin would
-    /// call the Portal API with the viewer's session (T-2476). `None` serves on every host, as
-    /// a Portal without an edge in front of it does.
+    /// The apex every App's own origin sits under (`JC_PORTAL_APPS_URL`, e.g. `https://{domain}`;
+    /// AP-26, AP-133, ADR-N-037): App `name` is served only on `{name}.apps.{domain}` and
+    /// answered with a `308` there on any other host, above all the Portal's own, where it would
+    /// call the Portal API with the viewer's session (T-2476), and another App's. `None` serves
+    /// on every host, as a Portal without an edge in front of it does.
     pub apps_url: Option<Url>,
     /// The file the deployment renders `global.branding` into (`JC_BRANDING_FILE`; UI-30,
     /// OPS-46). `None` serves
     /// neutral joinedcontext defaults, which is what an installation without branding looks
     /// like; it is never an error.
     pub branding_file: Option<String>,
+    /// The directory the ConfigMap `jc-validation-results` is mounted at (`JC_HEALTH_DIR`;
+    /// OPS-53): one digest per validation check, read on every request to
+    /// `/api/v1/organization/health`. `None` answers an empty list; it is never an error.
+    pub health_dir: Option<String>,
     /// PostgreSQL connection string of the preferences tier (`JC_PORTAL_DATABASE_URL`,
     /// UI-09). A secret: it carries a password, so it is redacted in `Debug`. `None` runs the Portal without preferences: those routes answer
     /// 503, everything else works.
@@ -138,6 +148,10 @@ pub struct Config {
     /// (`JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID` and `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET`, a
     /// secret, both together or neither; PF-63). `None` leaves the `Group` manifests read and the realm written by nobody.
     pub keycloak_admin: Option<(String, String)>,
+    /// The operator's bounds on what an Organization may set (`JC_PORTAL_ORGANIZATION_BOUNDS_FILE`,
+    /// the file the deployment renders `portal.organizationBounds` into; PF-97, ADR-N-035). No
+    /// file keeps every entry at the catalog's built-in bound.
+    pub organization_bounds: jc_core::kinds::OrganizationBounds,
     /// Where an App's four Kubernetes objects are applied (`JC_PORTAL_APPS_NAMESPACE` with
     /// `JC_PORTAL_ORG_DOMAIN`; AP-13, AP-18, T-0411). `None` leaves
     /// the reconciler reading apps and applying nothing, which is what a Portal outside a
@@ -203,6 +217,7 @@ impl std::fmt::Debug for Config {
             .field("public_base_url", &self.public_base_url.as_str())
             .field("oidc", &self.oidc)
             .field("trust_edge_token", &self.trust_edge_token)
+            .field("dashboards", &self.dashboards)
             .field("setup", &self.setup)
             .field("cookie_key", &"[redacted]")
             .field(
@@ -237,6 +252,7 @@ impl std::fmt::Debug for Config {
             .field("artifact_store", &self.artifact_store)
             .field("pipeline_secrets", &self.pipeline_secrets)
             .field("branding_file", &self.branding_file)
+            .field("health_dir", &self.health_dir)
             .field(
                 "database_url",
                 &self.database_url.as_ref().map(|_| "[redacted]"),
@@ -411,7 +427,14 @@ fn build_pod_settings(
 /// A pod-backed App also needs (AP-108):
 ///
 /// - `JC_PORTAL_APPS_REGISTRY` — the host, and port if any, of the forge's container registry;
-///   an App's image is composed as `{registry}/{forge organization}/app-{name}@{digest}`.
+///   an App's image is composed as `{registry}/{forge organization}/app-{name}@{digest}`, the
+///   organization being the applications' own when they have one of their own.
+/// - `JC_GITEA_APPS_OWNER` — the forge organization the generated applications' repositories,
+///   packages and images live in, apart from the configuration's (PF-106); the configuration's
+///   organization when unset.
+/// - `JC_GITEA_APPS_TOKEN` — the token of the applications' own machine user, which writes their
+///   repositories and packages and nothing of the configuration's; set with the owner or not at
+///   all.
 /// - `JC_PORTAL_APPS_PULL_SECRET_NAME` — the name of the `dockerconfigjson` Secret in the apps
 ///   namespace a node pulls app images with (a forge token that reads packages only).
 /// - `JC_PORTAL_APISIX_NAMESPACE` — the namespace the installation runs APISIX in, the only one
@@ -466,12 +489,16 @@ fn app_settings(
                     ),
                 });
             }
-            let owner = set("JC_GITEA_OWNER").ok_or_else(|| ConfigError::Invalid {
-                var: "JC_PORTAL_APPS_REGISTRY",
-                reason:
-                    "the images live under the forge's organization, and JC_GITEA_OWNER is not set"
+            // The applications' organization when there is one (PF-106): their images are
+            // published there, beside their repositories.
+            let owner = set("JC_GITEA_APPS_OWNER")
+                .or_else(|| set("JC_GITEA_OWNER"))
+                .ok_or_else(|| ConfigError::Invalid {
+                    var: "JC_PORTAL_APPS_REGISTRY",
+                    reason: "the images live under the forge's organization, and JC_GITEA_OWNER \
+                             is not set"
                         .to_owned(),
-            })?;
+                })?;
             Some(format!("{registry}/{owner}"))
         }
     };
@@ -480,8 +507,15 @@ fn app_settings(
         "JC_PORTAL_SERVICE_ACCOUNT",
         set("JC_PORTAL_SERVICE_ACCOUNT"),
     )?;
+    let apex = apps_url(lookup)?
+        .and_then(|apps| apps.host_str().map(str::to_owned))
+        .unwrap_or_else(|| host.strip_prefix("portal.").unwrap_or(&host).to_owned());
+    // Validated with the rest of the configuration where the Portal reads it itself.
+    let gateway_url = set("JC_PORTAL_GATEWAY_URL").map(|url| url.trim_end_matches('/').to_owned());
     Ok(Some(crate::apps::reconciler::Settings {
         host,
+        apex,
+        gateway_url,
         namespace,
         org_domain,
         apisix_namespace,
@@ -755,6 +789,36 @@ impl std::fmt::Debug for BasemapConfig {
 }
 
 /// The basemap configuration block, or `None` when this Portal proxies no basemap (AP-67).
+/// The operator's bounds file (PF-97). Absent, every entry keeps its built-in bound. A file that
+/// cannot be read, is no map of catalog paths, holds a range upside down or loosens a security
+/// bound stops the start: a Portal holding organizations to bounds nobody meant is worse than one
+/// that says why it did not start.
+fn organization_bounds(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<jc_core::kinds::OrganizationBounds, ConfigError> {
+    const VAR: &str = "JC_PORTAL_ORGANIZATION_BOUNDS_FILE";
+    let Some(path) = lookup(VAR).filter(|path| !path.trim().is_empty()) else {
+        return Ok(jc_core::kinds::OrganizationBounds::default());
+    };
+    let invalid = |reason: String| ConfigError::Invalid { var: VAR, reason };
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| invalid(format!("cannot read '{path}': {e}")))?;
+    // An empty file is a deployment that set no bound: the built-in ones.
+    if text.trim().is_empty() {
+        return Ok(jc_core::kinds::OrganizationBounds::default());
+    }
+    let bounds: jc_core::kinds::OrganizationBounds =
+        serde_yaml_ng::from_str(&text).map_err(|e| {
+            invalid(format!(
+                "'{path}' is no map of catalog paths to {{min, max}}: {e}"
+            ))
+        })?;
+    bounds
+        .validate()
+        .map_err(|e| invalid(format!("'{path}': {e}")))?;
+    Ok(bounds)
+}
+
 fn basemap_config(
     lookup: &impl Fn(&str) -> Option<String>,
 ) -> Result<Option<BasemapConfig>, ConfigError> {
@@ -1143,6 +1207,7 @@ impl Config {
 
         // Only the literal `true` turns it on: a misspelling must not open the door (ADR-N-019).
         let trust_edge_token = lookup("JC_TRUST_EDGE_TOKEN").is_some_and(|v| v.trim() == "true");
+        let dashboards = lookup("JC_PORTAL_DASHBOARDS").is_some_and(|v| v.trim() == "true");
         let setup = SetupStatements::from_vars(&lookup);
 
         let apps_dir = lookup("JC_PORTAL_APPS_DIR");
@@ -1155,6 +1220,7 @@ impl Config {
         let app_tests = app_tests(&lookup)?;
         let basemap = basemap_config(&lookup)?;
         let branding_file = lookup("JC_BRANDING_FILE").filter(|path| !path.trim().is_empty());
+        let health_dir = lookup("JC_HEALTH_DIR").filter(|path| !path.trim().is_empty());
         let database_url = lookup("JC_PORTAL_DATABASE_URL").filter(|url| !url.trim().is_empty());
         let bootstrap_admins = lookup("JC_PORTAL_BOOTSTRAP_ADMINS")
             .map(|v| v.trim().to_owned())
@@ -1194,6 +1260,7 @@ impl Config {
             public_base_url,
             oidc,
             trust_edge_token,
+            dashboards,
             setup,
             cookie_key,
             cookie_keys_previous,
@@ -1217,10 +1284,12 @@ impl Config {
             apps_cache_dir,
             apps_url,
             branding_file,
+            health_dir,
             database_url,
             bootstrap_admins,
             journey_users,
             keycloak_admin,
+            organization_bounds: organization_bounds(&lookup)?,
             app_settings,
             build_pods,
             agent_settings,
@@ -1238,6 +1307,8 @@ impl Config {
                 .unwrap_or_else(|_| unreachable!("valid test url")),
             oidc: None,
             trust_edge_token: false,
+            // The tests exercise the section; hiding it is tested where it is decided.
+            dashboards: true,
             setup: SetupStatements::default(),
             artifact_store: None,
             pipeline_secrets: None,
@@ -1265,12 +1336,14 @@ impl Config {
             apps_cache_dir: None,
             apps_url: None,
             branding_file: None,
+            health_dir: None,
             database_url: None,
             // The dev realm's approver role: a test session that carries it may do everything,
             // one that does not is bound by whatever Role/RoleBinding the test puts in the mirror.
             bootstrap_admins: "portal-approver".to_owned(),
             journey_users: Vec::new(),
             keycloak_admin: None,
+            organization_bounds: jc_core::kinds::OrganizationBounds::default(),
         }
     }
 
@@ -1311,6 +1384,63 @@ mod tests {
         for bad in ["0", "-5", "a week"] {
             assert!(with(Some(bad)).is_err(), "{bad}");
         }
+    }
+
+    /// T-2716 (PF-97): the operator's bounds file; none keeps the built-in bounds, and a file
+    /// that loosens a security bound, names no catalog path or cannot be read stops the start.
+    #[test]
+    fn the_organization_bounds_are_the_operators_file_or_the_built_in_ones() {
+        let dir = std::env::temp_dir().join(format!("jc-bounds-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a temp dir");
+        let file = |name: &str, text: &str| {
+            let path = dir.join(name);
+            std::fs::write(&path, text).expect("the bounds file");
+            path.to_string_lossy().into_owned()
+        };
+        let with = |path: Option<String>| {
+            organization_bounds(&move |name: &str| {
+                (name == "JC_PORTAL_ORGANIZATION_BOUNDS_FILE")
+                    .then(|| path.clone())
+                    .flatten()
+            })
+        };
+        assert_eq!(with(None).expect("no file"), Default::default());
+        assert_eq!(
+            with(Some(file("empty.yaml", "\n"))).expect("empty"),
+            Default::default()
+        );
+
+        let tight = with(Some(file(
+            "tight.yaml",
+            "spec.projects.quota.contextSpaces: { max: 20 }\n\
+             spec.limits.signIn.sessionIdleMinutes: { max: 120 }\n",
+        )))
+        .expect("a tighter security bound and a quota ceiling are the operator's to set");
+        let quota = jc_core::kinds::org_settings::entry_at("spec.projects.quota.contextSpaces")
+            .expect("a catalog entry");
+        assert_eq!(tight.range(quota), (0, Some(20)));
+
+        for (name, text) in [
+            (
+                "loose.yaml",
+                "spec.limits.signIn.sessionIdleMinutes: { max: 600 }\n",
+            ),
+            ("unknown.yaml", "spec.limits.nothing: { max: 1 }\n"),
+            (
+                "upside.yaml",
+                "spec.projects.quota.apps: { min: 5, max: 1 }\n",
+            ),
+            ("typo.yaml", "spec.projects.quota.apps: { maximum: 5 }\n"),
+        ] {
+            let refused = with(Some(file(name, text))).expect_err(name).to_string();
+            assert!(
+                refused.contains("JC_PORTAL_ORGANIZATION_BOUNDS_FILE"),
+                "{refused}"
+            );
+        }
+        let missing = dir.join("absent.yaml").to_string_lossy().into_owned();
+        assert!(with(Some(missing)).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -1642,6 +1772,41 @@ mod tests {
         // Not a variable of its own: the host is the Portal's public URL. No realm and no
         // sidecar image any more: the login front is the edge's one `edge` client (ADR-N-019).
         assert_eq!(settings.host, "bb.example.sk");
+        assert_eq!(settings.apex, "bb.example.sk");
+        assert_eq!(settings.gateway_url, None);
+
+        // AP-133, AP-134: the Apps' hosts sit under the apps origin's host, else under the
+        // Portal's host without its `portal.` label; the gateway is the Portal's own.
+        let apex = |extra: &'static [(&'static str, &'static str)]| {
+            Config::from_vars(|k| {
+                extra
+                    .iter()
+                    .find(|(key, _)| *key == k)
+                    .map(|(_, value)| (*value).to_owned())
+                    .or_else(|| complete(k))
+            })
+            .expect("a complete configuration")
+            .app_settings
+            .expect("every part is there")
+        };
+        let on_dev = apex(&[
+            ("JC_PORTAL_PUBLIC_URL", "https://portal.dev.example.com"),
+            (
+                "JC_PORTAL_GATEWAY_URL",
+                "http://context-gateway.dev.svc.cluster.local:8080/",
+            ),
+        ]);
+        assert_eq!(on_dev.host, "portal.dev.example.com");
+        assert_eq!(on_dev.apex, "dev.example.com");
+        assert_eq!(
+            on_dev.gateway_url.as_deref(),
+            Some("http://context-gateway.dev.svc.cluster.local:8080")
+        );
+        let named = apex(&[
+            ("JC_PORTAL_PUBLIC_URL", "https://portal.dev.example.com"),
+            ("JC_PORTAL_APPS_URL", "https://city.example.org"),
+        ]);
+        assert_eq!(named.apex, "city.example.org");
 
         for missing in ["JC_PORTAL_APPS_NAMESPACE", "JC_PORTAL_ORG_DOMAIN"] {
             let config = Config::from_vars(|k| match k == missing {
@@ -1693,6 +1858,21 @@ mod tests {
         assert_eq!(dev.pull_secret.as_deref(), Some("app-registry"));
         assert_eq!(dev.apisix_namespace, "dev");
 
+        // PF-106: an installation whose applications have their own organization publishes and
+        // pulls their images there.
+        let apart = Config::from_vars(with(vec![
+            ("JC_PORTAL_APPS_REGISTRY", "2.28.67.127.sslip.io"),
+            ("JC_GITEA_OWNER", "joinedcontext"),
+            ("JC_GITEA_APPS_OWNER", "joinedcontext-apps"),
+        ]))
+        .unwrap()
+        .app_settings
+        .unwrap();
+        assert_eq!(
+            apart.image_of("air-quality", "sha256:ab").as_deref(),
+            Some("2.28.67.127.sslip.io/joinedcontext-apps/app-air-quality@sha256:ab")
+        );
+
         for (var, value) in [
             ("JC_PORTAL_APPS_REGISTRY", "https://forge.example.org"),
             ("JC_PORTAL_APPS_REGISTRY", "forge.example.org/git"),
@@ -1714,6 +1894,18 @@ mod tests {
         match Config::from_vars(with(vec![("JC_PORTAL_APPS_REGISTRY", "forge.example.org")])) {
             Err(ConfigError::Invalid { reason, .. }) => assert!(reason.contains("JC_GITEA_OWNER")),
             Ok(_) => panic!("a registry without the forge's organization was accepted"),
+        }
+    }
+
+    /// T-2874: dashboards are hidden unless the literal `true` shows them.
+    #[test]
+    fn dashboards_are_shown_only_when_asked_for_in_so_many_words() {
+        assert!(!Config::from_vars(|_| None).unwrap().dashboards);
+        for (value, shown) in [("1", false), ("TRUE", false), ("", false), (" true ", true)] {
+            let config =
+                Config::from_vars(|k| (k == "JC_PORTAL_DASHBOARDS").then(|| value.to_string()))
+                    .unwrap();
+            assert_eq!(config.dashboards, shown, "{value:?}");
         }
     }
 

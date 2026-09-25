@@ -5,6 +5,8 @@ import { clsx } from "clsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useHiddenSections } from "../branding";
+import { isHiddenSection } from "../components/layout/navigation";
 import { api, ApiError, unwrap } from "../api/client";
 import { ConversationPanel } from "../pages/apps/ConversationPanel";
 import { TERMINAL_STATES, useAgentRun } from "../pages/apps/useAgentRun";
@@ -91,6 +93,9 @@ const PATHS = [
 
 type PathId = (typeof PATHS)[number][0];
 
+/** The section a path works in, where an installation may hide that section (T-2874). */
+const PATH_SECTION: Partial<Record<PathId, string>> = { "build-dashboard": "dashboards" };
+
 /**
  * The paths, as the empty assistant offers them (T-2692, UI-45).
  *
@@ -113,9 +118,15 @@ function Paths({
   onPick: (path: PathId) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const hiddenSections = useHiddenSections();
+  // A hidden section's path is not offered at all: disabling it would name a page nobody sees.
+  const offered = PATHS.filter(([path]) => {
+    const section = PATH_SECTION[path];
+    return section === undefined || !isHiddenSection(section, hiddenSections);
+  });
   return (
     <ul data-testid="assistant-paths" className="flex flex-col gap-2">
-      {PATHS.map(([path, icon, kind]) => {
+      {offered.map(([path, icon, kind]) => {
         // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason through
         // `disabledReason`, which only that control knows what to do with.
         const left = capabilities !== null && !PRESET_PATHS[capabilities.preset].includes(path);
@@ -655,8 +666,12 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
                 building ? "max-w-176" : "max-w-104",
               )
             : clsx(
+                // Below md there is no room for a column beside the page: the panel covers the
+                // screen under the header, as on full screen. In the row it squeezed the page to
+                // no width, and the page's positioned controls painted through it (T-2854).
+                "fixed inset-x-0 bottom-0 top-14 z-40 flex flex-col gap-2 bg-surface p-3",
                 // Computed: the viewport's height less the 14 header it sticks under.
-                "flex w-full shrink-0 flex-col gap-2 border-l border-border bg-surface p-3 md:sticky md:top-14 md:h-[calc(100vh-3.5rem)]",
+                "md:sticky md:inset-auto md:top-14 md:z-auto md:h-[calc(100vh-3.5rem)] md:shrink-0 md:border-l md:border-border",
                 building ? "md:w-160" : "md:w-96",
               )
       }

@@ -399,7 +399,7 @@ async fn target<'a>(
     get,
     path = "/api/v1/organization/people",
     summary = "List People",
-    description = "Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.",
+    description = "Searches the organization's people, a page at a time.",
     tag = "people",
     params(
         ("search" = Option<String>, Query, description = "A substring of the name or e-mail"),
@@ -466,7 +466,7 @@ pub async fn list_people(
     post,
     path = "/api/v1/organization/people",
     summary = "Create Person",
-    description = "Creates a person and sends the realm's execute-actions e-mail; without SMTP answers a temporary password once. Needs `create` on Person.",
+    description = "Creates a person and sends the sign-up e-mail.",
     tag = "people",
     request_body(content = CreatePerson, example = json!({ "email": "jana.kovacova@example.org", "firstName": "Jana", "lastName": "Kováčová", "locale": "sk" })),
     responses(
@@ -482,14 +482,24 @@ pub async fn create_person(
     State(state): State<AppState>,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    let identity = &user.0.identity;
-    allow(&state, identity, Verb::Create)?;
-    let body: CreatePerson = parse(&body)?;
+    let created = create(&state, &user.0.identity, &body).await?;
+    Ok((StatusCode::CREATED, Json(created)).into_response())
+}
+
+/// The route's whole body, which `jc_person_create` calls too (T-2732): the caller's `create` on
+/// Person first, then the input, then the realm.
+pub(crate) async fn create(
+    state: &AppState,
+    identity: &Identity,
+    body: &[u8],
+) -> Result<CreatedPerson, ApiError> {
+    allow(state, identity, Verb::Create)?;
+    let body: CreatePerson = parse(body)?;
     let address = email(&body.email)?;
     let first_name = name("firstName", &body.first_name)?;
     let last_name = name("lastName", &body.last_name)?;
     let language = body.locale.as_deref().map(locale).transpose()?;
-    let admin = people(&state)?.admin().await?;
+    let admin = people(state)?.admin().await?;
     let id = admin
         .create(&NewPerson {
             email: &address,
@@ -506,17 +516,13 @@ pub async fn create_person(
         })?;
     let (email_sent, temporary_password) =
         invite(&admin, &id, &["VERIFY_EMAIL", "UPDATE_PASSWORD"]).await?;
-    record(&state, identity, "created", &id).await;
+    record(state, identity, "created", &id).await;
     let created = admin.get(&id).await?;
-    Ok((
-        StatusCode::CREATED,
-        Json(CreatedPerson {
-            person: person(&created, None, None),
-            email_sent,
-            temporary_password,
-        }),
-    )
-        .into_response())
+    Ok(CreatedPerson {
+        person: person(&created, None, None),
+        email_sent,
+        temporary_password,
+    })
 }
 
 /// The realm's e-mail, or when it cannot send one, a temporary password answered once (PF-92).
@@ -537,7 +543,7 @@ async fn invite(
     get,
     path = "/api/v1/organization/people/{id}",
     summary = "Get Person",
-    description = "One person with their groups, platform roles and application roles. Needs `read` on Person.",
+    description = "One person with their groups and roles.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     responses(
@@ -610,7 +616,7 @@ pub async fn get_person(
     patch,
     path = "/api/v1/organization/people/{id}",
     summary = "Edit Person",
-    description = "Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.",
+    description = "Edits a person's name, e-mail or language.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     request_body(content = EditPerson, example = json!({ "lastName": "Nováková" })),
@@ -731,7 +737,7 @@ async fn set_enabled(
     post,
     path = "/api/v1/organization/people/{id}/disable",
     summary = "Disable Person",
-    description = "Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.",
+    description = "Disables a person and ends their sessions; never the caller or the last Organization Administrator.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     responses(
@@ -754,7 +760,7 @@ pub async fn disable_person(
     post,
     path = "/api/v1/organization/people/{id}/enable",
     summary = "Enable Person",
-    description = "Enables a disabled person. Needs `disable` on Person.",
+    description = "Enables a disabled person.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     responses(
@@ -841,7 +847,7 @@ pub async fn remove_second_factor(
     post,
     path = "/api/v1/organization/people/{id}/sign-out",
     summary = "Sign Person Out",
-    description = "Ends every session of the person. Needs `disable` on Person and every right the person holds.",
+    description = "Ends every session of a person.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     responses(

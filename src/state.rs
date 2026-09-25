@@ -79,6 +79,9 @@ pub struct AppState {
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
+    /// What the last data-quality run found, by space (DM-74). Empty until the leader has run
+    /// one, which the API answers as "not checked yet".
+    pub quality: Arc<crate::quality::Store>,
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
     /// or a realm client: the two buttons answer 503 rather than writing nowhere.
     pub drift_watch: Option<Arc<crate::reconciler::drift::Watch>>,
@@ -153,6 +156,7 @@ impl AppState {
             activity_events,
             webhook_secrets: Arc::new(crate::sync::webhook_secrets::Accepted::new()),
             drift: Arc::new(crate::reconciler::drift::Store::default()),
+            quality: Arc::new(crate::quality::Store::default()),
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
@@ -385,6 +389,19 @@ impl AppState {
                     match crate::apps::kube::KubeClient::in_cluster() {
                         Ok(Some(edge_kube)) => {
                             let namespace = settings.apisix_namespace.clone();
+                            match crate::apps::kube::KubeClient::in_cluster() {
+                                Ok(Some(hosts_kube)) => {
+                                    syncer = syncer.with_app_hosts(Arc::new(
+                                        crate::reconciler::app_hosts::AppHosts::new(
+                                            hosts_kube,
+                                            namespace.clone(),
+                                        ),
+                                    ));
+                                }
+                                _ => tracing::warn!(
+                                    "no third API client: no App host gets a certificate"
+                                ),
+                            }
                             syncer = syncer.with_edge_file(
                                 Arc::new(crate::reconciler::edge_file::EdgeFile::new(
                                     edge_kube, namespace,
@@ -440,7 +457,7 @@ impl AppState {
                     .config
                     .app_settings
                     .as_ref()
-                    .map(|settings| settings.host.clone()),
+                    .map(|settings| settings.apex.clone()),
             ) {
                 (Some(oidc), Some(host)) => {
                     match crate::reconciler::app_clients::AppClientSync::new(
@@ -460,6 +477,20 @@ impl AppState {
                     }
                 }
                 _ => tracing::info!("no login client or no apps host: no App client is managed"),
+            }
+            // Every ServiceAccount bound to a workload gets its federated client (PF-47), written
+            // by the same identity as the App clients.
+            if let Some(oidc) = state.config.oidc.as_ref() {
+                match crate::reconciler::workload_clients::WorkloadClientSync::new(
+                    oidc.issuer.as_str(),
+                    oidc.client_id.clone(),
+                    oidc.client_secret().to_owned(),
+                ) {
+                    Some(clients) => syncer = syncer.with_workload_clients(Arc::new(clients)),
+                    None => tracing::warn!(
+                        "the issuer is not a realm URL, so no workload client is managed"
+                    ),
+                }
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
                 let deployer = StreamDeployer::new(url);
@@ -569,6 +600,14 @@ impl AppState {
                     // One watch, two readers: the reconciler scans with it and a resolution
                     // writes through it, so the buttons cannot reach a surface the scan did not.
                     state.drift_watch = Some(Arc::clone(&watch));
+                    // The daily data-quality run reads through the same client (DM-74).
+                    syncer = syncer.with_quality(Arc::new(crate::quality::Scanner {
+                        watch: Arc::clone(&watch),
+                        schemas: Arc::clone(&state.model_schemas),
+                        mirror: Arc::clone(&state.mirror),
+                        org_domain: state.config.org_domain.clone().unwrap_or_default(),
+                        store: Arc::clone(&state.quality),
+                    }));
                     syncer = syncer.with_drift(watch, Arc::clone(&state.drift));
                 }
                 _ => tracing::info!(

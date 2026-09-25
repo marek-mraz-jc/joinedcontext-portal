@@ -148,19 +148,31 @@ async fn built_on_forge_as(
     bundle: &[u8],
     size: Option<u64>,
 ) {
+    built_on_forge_in(gitea, APP_REPO, head, artifact, bundle, size).await;
+}
+
+/// The same, with the App's repository at `APP_REPO`'s place `app_repo`.
+async fn built_on_forge_in(
+    gitea: &MockServer,
+    app_repo: &str,
+    head: &str,
+    artifact: &str,
+    bundle: &[u8],
+    size: Option<u64>,
+) {
     Mock::given(method("GET"))
-        .and(path(APP_REPO))
+        .and(path(app_repo))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
         .mount(gitea)
         .await;
     Mock::given(method("GET"))
-        .and(path(format!("{APP_REPO}/branches/main")))
+        .and(path(format!("{app_repo}/branches/main")))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": head } })))
         .mount(gitea)
         .await;
     // Any other name: none, as the forge answers.
     Mock::given(method("GET"))
-        .and(path(format!("{APP_REPO}/actions/artifacts")))
+        .and(path(format!("{app_repo}/actions/artifacts")))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "artifacts": [] })))
         .with_priority(10)
         .mount(gitea)
@@ -174,7 +186,7 @@ async fn built_on_forge_as(
             })
         };
         Mock::given(method("GET"))
-            .and(path(format!("{APP_REPO}/actions/artifacts")))
+            .and(path(format!("{app_repo}/actions/artifacts")))
             .and(query_param("name", format!("{name}-{COMMIT}")))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 // An artifact of this name from a run of another commit never counts.
@@ -183,17 +195,17 @@ async fn built_on_forge_as(
             .mount(gitea)
             .await;
         Mock::given(method("GET"))
-            .and(path(format!("{APP_REPO}/actions/artifacts/{id}/zip")))
+            .and(path(format!("{app_repo}/actions/artifacts/{id}/zip")))
             .respond_with(ResponseTemplate::new(302).insert_header(
                 "Location",
                 // The forge signs its public ROOT_URL, which carries a path on dev
                 // (`https://host/git/`); the Portal dials the API base, where no `/git` exists.
-                format!("https://forge.public.example/git{APP_REPO}/actions/artifacts/{id}/zip/raw?sig=s{id}&expires=9"),
+                format!("https://forge.public.example/git{app_repo}/actions/artifacts/{id}/zip/raw?sig=s{id}&expires=9"),
             ))
             .mount(gitea)
             .await;
         Mock::given(method("GET"))
-            .and(path(format!("{APP_REPO}/actions/artifacts/{id}/zip/raw")))
+            .and(path(format!("{app_repo}/actions/artifacts/{id}/zip/raw")))
             .and(query_param("sig", format!("s{id}")))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(bytes.to_vec()))
             .mount(gitea)
@@ -311,6 +323,97 @@ async fn only_the_build_lane_writes_the_build_and_the_refusal_says_whose_field_i
         raw.iter().all(|r| !r.headers.contains_key("authorization")),
         "the signed address is the grant; the Portal's token never follows the redirect"
     );
+}
+
+/// PF-106: where the applications have an organization of their own, the build is read from
+/// the App's repository there and its package published there, both with the applications'
+/// token; the configuration's organization sees only the App's manifest, written with its own.
+#[tokio::test]
+async fn a_build_is_read_and_published_in_the_applications_organization() {
+    const APART: &str = "/api/v1/repos/test-owner-apps/ovzdusie_air-quality";
+    const PACKAGE_APART: &str = "/api/packages/test-owner-apps/generic/app-air-quality";
+    let gitea = forge().await;
+    built_on_forge_in(&gitea, APART, COMMIT, "bundle", BUNDLE, None).await;
+    Mock::given(method("PUT"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{PACKAGE_APART}/.*"
+        )))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&gitea)
+        .await;
+    let mut state = state_with(&gitea);
+    let uri = gitea.uri();
+    let client = joinedcontext_portal::git::GiteaClient::from_env(|key| {
+        match key {
+            "JC_GITEA_URL" => Some(uri.as_str()),
+            "JC_GITEA_OWNER" => Some("test-owner"),
+            "JC_GITEA_REPO" => Some("test-repo"),
+            "JC_GITEA_TOKEN" => Some("token-xyz"),
+            "JC_GITEA_APPS_OWNER" => Some("test-owner-apps"),
+            "JC_GITEA_APPS_TOKEN" => Some("apps-token"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("config")
+    .expect("configured");
+    state.gitea = Some(std::sync::Arc::new(client));
+
+    let accepted = as_lane(&state, app(Some(build()), None)).await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+    let requests = gitea.received_requests().await.unwrap_or_default();
+    let token = |r: &wiremock::Request| {
+        r.headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let apart: Vec<_> = requests
+        .iter()
+        .filter(|r| r.url.path().starts_with(APART) || r.url.path().starts_with(PACKAGE_APART))
+        .filter(|r| !r.url.path().ends_with("/zip/raw"))
+        .collect();
+    assert!(
+        !apart.is_empty(),
+        "nothing was read in the applications' organization"
+    );
+    for r in &apart {
+        assert_eq!(
+            token(r),
+            "token apps-token",
+            "{} {}",
+            r.method,
+            r.url.path()
+        );
+    }
+    let published: Vec<_> = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "PUT" && r.url.path().starts_with(PACKAGE_APART))
+        .collect();
+    assert_eq!(
+        published.len(),
+        2,
+        "the bundle and the SBOM are published there"
+    );
+    assert!(
+        requests
+            .iter()
+            .all(|r| !r.url.path().starts_with(APP_REPO) && !r.url.path().starts_with(PACKAGE)),
+        "the build touched the configuration's organization"
+    );
+    let manifest: Vec<_> = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "PUT" && r.url.path().contains("/test-repo/contents/"))
+        .collect();
+    assert!(!manifest.is_empty(), "the App's build was not written");
+    for r in manifest {
+        assert_eq!(
+            token(r),
+            "token token-xyz",
+            "the manifest is the configuration's to write"
+        );
+    }
 }
 
 /// AP-104: a build whose commit is not the head, whose bundle no run of it uploaded, or whose

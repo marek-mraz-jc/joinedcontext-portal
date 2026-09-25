@@ -20,11 +20,27 @@ pub fn app(state: AppState) -> Router {
     // like one nobody used (OPS-16).
     telemetry::install();
 
-    let content_security_policy = HeaderValue::from_static(
+    // `frame-src` names the apps origin and each App's own host under it, `{name}.apps.{apex}`
+    // (AP-133): the Open page shows an App under the Portal's header (AP-122, T-2871). Without
+    // it `default-src` refuses the frame before the App's own `frame-ancestors` is ever read.
+    let frame_src = match state.config.apps_url.as_ref() {
+        Some(apps) => match apps.host_str() {
+            Some(host) => format!(
+                "'self' {} {}://*.apps.{host}",
+                apps.origin().ascii_serialization(),
+                apps.scheme()
+            ),
+            None => "'self'".to_owned(),
+        },
+        None => "'self'".to_owned(),
+    };
+    let content_security_policy = HeaderValue::from_str(&format!(
         "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; \
-         form-action 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; \
-         font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:",
-    );
+         frame-src {frame_src}; form-action 'self'; img-src 'self' data: blob:; \
+         style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; \
+         worker-src 'self' blob:"
+    ))
+    .expect("an origin serializes to header-safe ASCII");
 
     // A static app carries its own Content Security Policy and its own framing rule, built from
     // its manifest (AP-12); the Portal's would override them, so those two headers are set on
