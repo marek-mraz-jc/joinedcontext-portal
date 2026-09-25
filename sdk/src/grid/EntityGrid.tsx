@@ -486,9 +486,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             <thead>
               <tr>
                 <th>{labels.id}</th>
-                <th>{labels.filter}</th>
-                <th>{labels.observedKeep}</th>
-                <th>{labels.apply}</th>
+                <th>{labels.attribute}</th>
+                <th>{labels.before}</th>
+                <th>{labels.after}</th>
               </tr>
             </thead>
             <tbody>

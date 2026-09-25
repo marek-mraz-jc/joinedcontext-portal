@@ -487,6 +487,7 @@
       }
     },
     "rateClass": {
+      "none": "Bez limitu",
       "strict": "Přísná",
       "standard": "Standardní",
       "open": "Otevřená",
@@ -714,7 +715,39 @@
         "order": "Západ je vlevo od východu a jih pod severem."
       }
     },
-    "ofApp": "Rozhraní aplikace {app}"
+    "ofApp": "Rozhraní aplikace {app}",
+    "filterEditor": {
+      "label": "Filtr tohoto rozhraní",
+      "types": "Typy entit, které obsluhuje",
+      "noType": "Ponechte alespoň jeden typ: rozhraní bez typu neobsluhuje nic.",
+      "hidden": "Skryté atributy",
+      "hiddenHelp": "Zaškrtnutý atribut se nikdy neposkytne v žádném formátu. Název se skryje v každém typu, který ho má.",
+      "identityOnly": "Pouze identita: id a type.",
+      "createsProjection": "Toto rozhraní zatím nemá projekci. Filtr, který navrhnete, vytvoří projekci {name} z modelu prostoru spolu s rozhraním, které ji používá."
+    },
+    "proof": {
+      "title": "Co tento filtr poskytuje",
+      "type": "Typ",
+      "served": "Poskytuje toto rozhraní",
+      "original": "Originál v prostoru",
+      "sides": "Strana porovnání",
+      "caption": "{type}: co rozhraní poskytuje vedle toho, co prostor obsahuje, jeden řádek na entitu",
+      "summary": "Poskytuje {served} z {total} {type} · skryté atributy: {hidden}",
+      "summaryServedOnly": "Poskytuje {served} {type}",
+      "loading": "Čtu, co filtr poskytuje...",
+      "originalUnreadable": "Samotný prostor číst nemůžete, proto porovnání ukazuje, co rozhraní poskytuje dnes, a ne váš návrh.",
+      "notServed": "neposkytuje se",
+      "notServedMark": "Neposkytuje se: filtr tuto entitu vynechává.",
+      "hiddenMark": "neposkytuje se",
+      "empty": "Na této stránce nejsou žádné entity.",
+      "refused": "Návrh filtru byl odmítnut: {reason}",
+      "failed": "Nepodařilo se přečíst, co filtr poskytuje: {reason}",
+      "notLive": "Porovnání čte přes rozhraní, proto se zobrazí, když je rozhraní aktivní.",
+      "noType": "Porovnání potřebuje alespoň jeden typ, který rozhraní obsluhuje.",
+      "previous": "Předchozí stránka",
+      "next": "Další stránka",
+      "window": "Entity {from} až {to} z {total}"
+    }
   },
   "datasources": {
     "title": "Zdroje dat",
@@ -1925,10 +1958,13 @@
         "building": "Staví se",
         "needsYou": "Čeká na vás",
         "failed": "Selhalo",
-        "readyToPublish": "Připraveno k publikování"
+        "readyToPublish": "Připraveno k publikování",
+        "waitingApproval": "Čeká na schválení"
       },
       "open": "Otevřít",
-      "conflict": "{name} se již staví. Otevřete ji místo toho."
+      "conflict": "{name} se již staví. Otevřete ji místo toho.",
+      "waiting": "{count, plural, one {Jedna aplikace čeká na schválení své změny.} few {# aplikace čekají na schválení svých změn.} other {# aplikací čeká na schválení svých změn.}} Během čekání si běh ponechá náhled.",
+      "openApprovals": "Otevřít schvalování"
     },
     "kpi": {
       "badge": "KPI"
@@ -2286,6 +2322,9 @@
     "review": "Zkontrolovat změny",
     "apply": "Uplatnit",
     "discard": "Zahodit změny",
+    "attribute": "Atribut",
+    "before": "Před změnou",
+    "after": "Po změně",
     "observedKeep": "ponechat, kdy byla hodnota pozorována",
     "observedNow": "tyto hodnoty byly pozorovány nyní",
     "applying": "Uplatňuji…",
@@ -2413,7 +2452,10 @@
       "stop": "Zastavit běh",
       "retry": "Zeptat se znovu",
       "newConversation": "Nová konverzace",
-      "sendFailed": "Zpráva se neodeslala: {reason}. To, co jste napsali, je pořád tady."
+      "sendFailed": "Zpráva se neodeslala: {reason}. To, co jste napsali, je pořád tady.",
+      "tryAgain": "Zkusit znovu",
+      "unanswered": "Vaše poslední zpráva nedostala odpověď. Nic se nezměnilo.",
+      "endedBecause": "Důvod: {reason}."
     },
     "line": {
       "status": "Nyní {status}.",
