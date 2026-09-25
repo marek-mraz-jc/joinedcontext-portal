@@ -43,6 +43,7 @@ import type { Trace } from "./PipelineTest";
 import { testPipeline } from "../../api/pipelineTest";
 import { FormHeading } from "../../components/forms/FormRoute";
 import { TypePicker } from "../../components/pickers/TypePicker";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 
 /** How many rows one sample shows: enough to tick a handful, small enough to read. */
 export const SAMPLE_LIMIT = 20;
@@ -899,17 +900,19 @@ export function PipelineStudio({
                       </Field>
                     ) : draft?.compute?.kind === "mapping" ? (
                       <Field id="flow-mapping-field" label={t("pipelines.field.mappingRef")}>
-                        <Input
+                        <ResourceNamePicker
                           id="flow-mapping-field"
-                          data-testid="flow-mapping-ref"
+                          label={t("pipelines.field.mappingRef")}
+                          labelled
+                          from={{ project, plural: "mappings" }}
                           value={draft?.compute?.mappingRef ?? ""}
-                          onChange={(e) => {
+                          onChange={(mappingRef) => {
                             onChange({
                               ...draft,
                               compute: {
                                 ...draft?.compute,
                                 kind: "mapping",
-                                mappingRef: e.target.value,
+                                mappingRef,
                               },
                             });
                           }}

@@ -3192,6 +3192,8 @@
       "none": "Model prostoru {space} zatím nedeklaruje žádný typ.",
       "noneInProject": "Žádný datový model tohoto projektu zatím nedeklaruje typ.",
       "create": "Nový typ „{name}“"
-    }
+    },
+    "createNamed": "Nové: „{name}“",
+    "list": "Možnosti"
   }
 }

@@ -15,6 +15,7 @@ import { DataModelPicker } from "../src/components/pickers/DataModelPicker";
 import type { ModelChoice } from "../src/components/pickers/DataModelPicker";
 import { TypePicker, importedNames } from "../src/components/pickers/TypePicker";
 import { Combobox } from "../src/components/pickers/Combobox";
+import { ResourceNamePicker } from "../src/components/pickers/ResourceNamePicker";
 import { catalogueValue, modelValue } from "../src/components/pickers/organizationModels";
 import { SchemaForm } from "../src/components/forms/SchemaForm";
 import { DataModelPickerWidget, TypePickerWidget } from "../src/components/forms/widgets/ModelWidgets";
@@ -316,5 +317,60 @@ describe("the forms name models and types through the pickers (T-2701)", () => {
     await waitFor(() => expect((picked as HTMLInputElement).value).toBe("mobility"));
     // The space is one of the project's spaces, from the list and not typed (T-2702).
     expect(screen.getByRole("combobox", { name: new RegExp(i18n.t("mappings.field.space")) }).tagName).toBe("SELECT");
+  });
+});
+
+describe("ResourceNamePicker (T-2702)", () => {
+  function stubList(items: string[]) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
+        requests.push(url.pathname);
+        if (url.pathname === "/api/v1/projects") {
+          return Response.json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: items.map((name) => ({ name })) });
+        }
+        return Response.json({
+          apiVersion: "joinedcontext.com/v1alpha1",
+          kind: "List",
+          metadata: {},
+          items: items.map((name) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name, namespace: "helsinki", title: { en: `${name} title` } }, spec: {} })),
+        });
+      }),
+    );
+  }
+
+  it("lists a project's manifests by title and hands back the name", async () => {
+    stubList(["air", "mobility"]);
+    const user = userEvent.setup();
+    const picked: string[] = [];
+    wrap(<ResourceNamePicker label="Space" from={{ project: "helsinki", plural: "spaces" }} value="" onChange={(n) => picked.push(n)} />);
+    await user.click(screen.getByRole("combobox", { name: "Space" }));
+    await user.click(await screen.findByRole("option", { name: /mobility title/ }));
+    expect(picked).toEqual(["mobility"]);
+    expect(requests).toContain("/api/v1/projects/helsinki/spaces");
+  });
+
+  it("offers a new name only where the form creates one", async () => {
+    stubList(["air"]);
+    const user = userEvent.setup();
+    const picked: string[] = [];
+    const { unmount } = wrap(<ResourceNamePicker label="Space" from={{ project: "helsinki", plural: "spaces" }} value="" onChange={(n) => picked.push(n)} />);
+    await user.type(screen.getByRole("combobox", { name: "Space" }), "parking");
+    expect(await screen.findByText("No results")).toBeTruthy();
+    unmount();
+    wrap(<ResourceNamePicker label="Space" create from={{ project: "helsinki", plural: "spaces" }} value="" onChange={(n) => picked.push(n)} />);
+    await user.type(screen.getByRole("combobox", { name: "Space" }), "parking");
+    await user.click(await screen.findByRole("option", { name: "New: “parking”" }));
+    expect(picked).toEqual(["parking"]);
+  });
+
+  it("lists the projects the caller reads", async () => {
+    stubList(["helsinki", "espoo"]);
+    const user = userEvent.setup();
+    wrap(<ResourceNamePicker label="Project" from="projects" value="helsinki" onChange={() => {}} />);
+    expect((screen.getByRole("combobox", { name: "Project" }) as HTMLInputElement).value).toBe("helsinki");
+    await user.click(screen.getByRole("combobox", { name: "Project" }));
+    await waitFor(() => expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(2));
   });
 });
