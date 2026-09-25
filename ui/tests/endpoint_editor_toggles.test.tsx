@@ -264,6 +264,48 @@ describe("endpoint editor toggles", () => {
     expect(within(dialog).getByText(en.endpoints.publicNotice)).toBeInTheDocument();
   });
 
+  it("opens a new endpoint on No limit and shows the burst only once a limit is picked (T-2775)", async () => {
+    const fetchMock = renderEndpoints();
+
+    await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
+    const dialog = await findFormPage();
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), "mestska-doprava");
+    await addAllowedProject(dialog, "doprava");
+    const rateClass = within(dialog).getByLabelText(
+      new RegExp(en.endpoints.field.requestsPerMinute),
+    ) as HTMLSelectElement;
+    expect(rateClass.selectedOptions[0].textContent).toBe(en.endpoints.rateClass.none);
+    expect(rateClass.value).toBe("");
+    // The burst is an advanced field: with advanced fields shown, it still waits for a limit.
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: en.form.advancedMode }));
+    const burst = () => within(dialog).queryByLabelText(new RegExp(en.endpoints.field.burst));
+    expect(burst()).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(
+      rateClass,
+      within(dialog).getByRole("option", { name: new RegExp(en.endpoints.rateClass.strict) }),
+    );
+    await waitFor(() => expect(burst()).toBeInTheDocument());
+    // Back to No limit: the limit and its burst leave together.
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText(new RegExp(en.endpoints.field.requestsPerMinute)),
+      within(dialog).getByRole("option", { name: en.endpoints.rateClass.none }),
+    );
+    await waitFor(() => expect(burst()).not.toBeInTheDocument());
+
+    // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
+    await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
+    await waitFor(() =>
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
+    // The advanced-mode switch saved a preference; the proposal is the one other write.
+    const proposals = () => writes(fetchMock).filter((request) => !request.url.includes("/preferences"));
+    await waitFor(() => expect(proposals()).toHaveLength(1));
+    const body = (await proposals()[0].clone().json()) as { spec: Record<string, unknown> };
+    expect(body.spec.rateLimits).toBeUndefined();
+  });
+
   it("omits every optional block a steward left alone on a new endpoint", async () => {
     const fetchMock = renderEndpoints();
 
@@ -281,9 +323,9 @@ describe("endpoint editor toggles", () => {
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const body = (await writes(fetchMock)[0].clone().json()) as { spec: Record<string, unknown> };
     // An untouched fieldset arrives from the form as `{}`, which `EndpointSpec::validate`
-    // refuses, so only a filled-in block reaches the manifest. The rate limit is the one
-    // exception: EP-20 wants every endpoint to carry one, so the form starts at Standard.
-    expect(body.spec.rateLimits).toEqual({ requestsPerMinute: RATE_LIMIT_CLASSES.standard });
+    // refuses, so only a filled-in block reaches the manifest. The rate limit is no exception:
+    // an endpoint has no limit unless a person picks one (EP-20, T-2775).
+    expect(body.spec.rateLimits).toBeUndefined();
     expect(body.spec.caching).toBeUndefined();
     expect(body.spec.projection).toBeUndefined();
     // No catalogue description was written, and the Organization names no open-data desk here.

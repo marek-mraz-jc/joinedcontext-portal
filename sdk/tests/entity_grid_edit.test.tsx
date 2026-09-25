@@ -85,6 +85,13 @@ describe("edit mode", () => {
     // What they are about to send, in the words of the grid they were reading.
     fireEvent.click(screen.getByRole("button", { name: DEFAULT_LABELS.review }));
     const panel = screen.getByRole("region", { name: DEFAULT_LABELS.review });
+    // Each column says what it holds: the entity, the attribute, the stored value, the new one.
+    expect(within(panel).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      DEFAULT_LABELS.id,
+      DEFAULT_LABELS.attribute,
+      DEFAULT_LABELS.before,
+      DEFAULT_LABELS.after,
+    ]);
     expect(panel.textContent).toContain("availableBikeNumber");
     expect(panel.textContent).toContain("urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001");
 

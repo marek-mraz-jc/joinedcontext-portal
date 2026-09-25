@@ -158,7 +158,15 @@ describe("writing the note", () => {
     await waitFor(() => expect(rows()).toHaveLength(CITY.length));
     await user.type(noteBox(0), text);
     await user.click(screen.getByRole("button", { name: sk.grid.review! }));
-    await user.click(within(screen.getByRole("region", { name: sk.grid.review })).getByRole("button", { name: sk.grid.apply! }));
+    const review = screen.getByRole("region", { name: sk.grid.review });
+    // The review says in Slovak what each column holds, and "Uložiť" is only the button.
+    expect(within(review).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "Identifikátor",
+      "Atribút",
+      "Pred zmenou",
+      "Po zmene",
+    ]);
+    await user.click(within(review).getByRole("button", { name: sk.grid.apply! }));
   }
 
   it("sends one PATCH carrying the note and nothing else, with the person's own session", async () => {

@@ -15,6 +15,8 @@ export interface Strings {
   subtitle: string;
   /** The map, which a screen reader cannot read: the list beside it is the same data. */
   mapLabel: string;
+  /** Said under the map when the platform configures no basemap: the stations sit on a plain background. */
+  noBasemap: string;
   stationsLabel: string;
   /** The word a station is named with: the published model carries no `name` slot. */
   station: string;
@@ -71,6 +73,7 @@ const SK: Strings = {
   subtitle:
     "Meracie stanice mesta, farebne podľa posledného merania PM10 voči dennému limitu. Vyberte stanicu a uvidíte jej posledné hodnoty a jeden deň histórie.",
   mapLabel: "Mapa staníc",
+  noBasemap: "Platforma nemá nastavenú podkladovú mapu, stanice sú na jednofarebnom pozadí.",
   stationsLabel: "Stanice",
   station: "Stanica",
   pm10: "PM10",
@@ -125,6 +128,7 @@ const EN: Strings = {
   subtitle:
     "The city's measuring stations, coloured by their latest PM10 reading against the daily limit. Pick a station to see its latest values and one day of history.",
   mapLabel: "Map of the stations",
+  noBasemap: "The platform configures no basemap, so the stations sit on a plain background.",
   stationsLabel: "Stations",
   station: "Station",
   pm10: "PM10",

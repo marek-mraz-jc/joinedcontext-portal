@@ -274,6 +274,9 @@ pub async fn internal_post_event(
                 .set_status(&run.id, next, error)
                 .await
                 .map_err(status_error)?;
+            if next == AgentRunStatus::AwaitingApproval {
+                crate::api::agent_runs::lease_for_approval(&state, &run.id).await;
+            }
         }
         _ => {}
     }
