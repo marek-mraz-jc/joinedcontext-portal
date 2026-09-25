@@ -1094,6 +1094,8 @@ impl Syncer {
                 match outcome {
                     Ok(Outcome::Applied) => tracing::info!(%app, "app objects applied"),
                     Ok(Outcome::Deleted) => tracing::info!(%app, "app objects deleted"),
+                    Ok(Outcome::NamespaceReady) => tracing::debug!(%app, "apps namespace in place"),
+                    Ok(Outcome::NamespaceDeleted) => tracing::info!(%app, "apps namespace deleted"),
                     Ok(Outcome::Skipped(why)) => {
                         tracing::debug!(%app, reason = %why, "app deploys nothing")
                     }

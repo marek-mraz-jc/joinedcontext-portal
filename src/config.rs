@@ -313,6 +313,10 @@ fn apps_url(lookup: &impl Fn(&str) -> Option<String>) -> Result<Option<Url>, Con
 ///   namespace a node pulls app images with (a forge token that reads packages only).
 /// - `JC_PORTAL_APISIX_NAMESPACE` — the namespace the installation runs APISIX in, the only one
 ///   whose pods reach an app pod; default `apisix`.
+/// - `JC_PORTAL_RELEASE` — the installation's release name; a project's pod-backed Apps run in
+///   `{release}-{project}-apps`, bound to the ClusterRole `{release}-portal-apps` (AP-116).
+/// - `JC_PORTAL_SERVICE_ACCOUNT` — the Portal's ServiceAccount in `JC_PORTAL_APPS_NAMESPACE`, the
+///   subject of the RoleBinding in each project's apps namespace (AP-116).
 fn app_settings(
     lookup: &impl Fn(&str) -> Option<String>,
     public_base_url: &Url,
@@ -368,6 +372,11 @@ fn app_settings(
             Some(format!("{registry}/{owner}"))
         }
     };
+    let release = name("JC_PORTAL_RELEASE", set("JC_PORTAL_RELEASE"))?;
+    let service_account = name(
+        "JC_PORTAL_SERVICE_ACCOUNT",
+        set("JC_PORTAL_SERVICE_ACCOUNT"),
+    )?;
     Ok(Some(crate::apps::reconciler::Settings {
         host,
         namespace,
@@ -375,6 +384,8 @@ fn app_settings(
         apisix_namespace,
         image_repository,
         pull_secret,
+        release,
+        service_account,
     }))
 }
 

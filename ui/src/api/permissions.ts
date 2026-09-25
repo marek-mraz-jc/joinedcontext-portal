@@ -4,7 +4,8 @@ import type { components } from "./schema";
 
 /** What the caller may do in one project, from the bindings of the organization repository (PF-50). */
 export type Effective = components["schemas"]["Effective"];
-export type Verb = "propose" | "approve" | "delete";
+/** `create`, `update` and `disable` are valid on `Person` only (PF-91). */
+export type Verb = "read" | "propose" | "approve" | "delete" | "create" | "update" | "disable";
 
 export interface Rule {
   kinds?: string[];
@@ -104,9 +105,10 @@ export function beyondOwnRights(
       for (const verb of rule.verbs ?? []) {
         const holds = effective.grants.some((grant) => {
           const held = grant.rule as GrantedRule;
+          // `propose` holds `read`, as jc-core `Rule::grants` says and the server reads it.
           return (
             Boolean(held.kinds?.includes(kind)) &&
-            Boolean(held.verbs?.includes(verb)) &&
+            Boolean(held.verbs?.includes(verb) || (verb === "read" && held.verbs?.includes("propose"))) &&
             (held.constraints ?? []).every((constraint) =>
               constraints.includes(JSON.stringify(constraint)),
             )

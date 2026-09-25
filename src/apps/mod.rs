@@ -9,6 +9,8 @@ pub mod functions;
 pub mod kube;
 /// An App name is unique in the organization (AP-14a).
 pub mod names;
+/// A project's own namespace for its pod-backed Apps (AP-116).
+pub mod project_namespace;
 pub mod reconciler;
 /// A person's roles in an application (ADR-N-027).
 pub mod roles;

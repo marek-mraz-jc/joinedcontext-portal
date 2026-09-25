@@ -1064,6 +1064,8 @@ mod tests {
             apisix_namespace: "apisix".into(),
             image_repository: None,
             pull_secret: None,
+            release: None,
+            service_account: None,
         });
         assert_eq!(
             org_domain(&crate::state::AppState::new(config, None), "helsinki"),
