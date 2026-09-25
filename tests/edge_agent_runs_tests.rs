@@ -246,6 +246,7 @@ fn a_run(id: &str, project: &str, app_name: &str, who: &str) -> AgentRun {
         steps: 0,
         tokens_used: 0,
         created_by: who.to_owned(),
+        origin: "person".to_owned(),
         starter: json!({ "username": who, "groups": ["a-group-nobody-else-reads"] }),
         created_at: "2026-09-19T10:00:00Z".to_owned(),
         started_at: None,

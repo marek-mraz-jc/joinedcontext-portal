@@ -172,6 +172,7 @@ async fn converse(access: Option<Value>, who: Identity) -> (AppState, Value, Str
         access,
         who,
         Conversation {
+            path: Some("share-data"),
             answer: SHARE_ANSWER,
             message: "Share the city bikes with the regional transport team",
             tool: "propose_endpoint",
@@ -187,9 +188,17 @@ async fn converse(access: Option<Value>, who: Identity) -> (AppState, Value, Str
     (state, tool, prompts)
 }
 
+/// Whether the prompts offer a playbook (T-2770): whole, or folded to the line that names it for
+/// `describe_tool`. A playbook the run may not use is neither.
+fn offers(prompts: &str, heading: &str, name: &str) -> bool {
+    prompts.contains(heading) || prompts.contains(&format!("- `{name}`:"))
+}
+
 /// What one conversation is made of: the model's one answer, the person's message, the tool
 /// the run is waited on for, and the manifests the mirror holds beyond the organization's.
 struct Conversation {
+    /// The path the router puts the conversation on; `None` is a conversation on no path.
+    path: Option<&'static str>,
     answer: &'static str,
     message: &'static str,
     tool: &'static str,
@@ -218,7 +227,7 @@ async fn converse_with(
     conversation: Conversation,
 ) -> (AppState, Vec<AgentRunEvent>, String) {
     let proxy = MockServer::start().await;
-    common::route_to_no_path(&proxy).await;
+    common::route_to(&proxy, conversation.path).await;
     Mock::given(method("POST"))
         .and(path("/v1/llm/chat/completions"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -297,7 +306,7 @@ async fn a_tool_outside_the_profile_is_absent_from_the_prompt_and_refused_when_c
 
     assert!(!prompts.is_empty(), "the model was asked");
     assert!(
-        !prompts.contains(SHARE_SECTION),
+        !offers(&prompts, SHARE_SECTION, "share-data"),
         "the share tool is not offered"
     );
     assert!(
@@ -305,7 +314,7 @@ async fn a_tool_outside_the_profile_is_absent_from_the_prompt_and_refused_when_c
         "nor the edit tool, which is the same operation"
     );
     assert!(
-        !prompts.contains(KPI_SECTION),
+        !offers(&prompts, KPI_SECTION, "kpi"),
         "the KPI tool is not offered"
     );
     assert_eq!(tool["tool"], "propose_endpoint");
@@ -333,7 +342,7 @@ async fn a_profile_that_grants_the_tool_never_widens_a_person_who_may_not_propos
     let (state, tool, prompts) = converse(Some(access), person("reader@hel.fi", &[])).await;
 
     assert!(
-        !prompts.contains(SHARE_SECTION),
+        !offers(&prompts, SHARE_SECTION, "share-data"),
         "the person may not propose an Endpoint"
     );
     assert_eq!(tool["status"], "failed", "{tool}");
@@ -356,7 +365,7 @@ async fn a_granted_tool_runs_as_the_person_who_started_the_conversation() {
 
     assert!(prompts.contains(SHARE_SECTION));
     assert!(
-        !prompts.contains(KPI_SECTION),
+        !offers(&prompts, KPI_SECTION, "kpi"),
         "jc_kpi_compute is not named"
     );
     assert_eq!(tool["status"], "ok", "{tool}");
@@ -376,8 +385,12 @@ async fn a_profile_without_an_access_block_offers_only_read_only_tools() {
     // `jc_endpoint_propose` opens a change when it is given a manifest or a draft, so it is not
     // read-only and a profile that declares no access block does not get it: AG-70 defaults such
     // a profile to the operations annotated `readOnlyHint`, and the share is not one (T-0917).
-    assert!(!prompts.contains(SHARE_SECTION));
-    assert!(!prompts.contains("## WHEN THE PERSON ASKS TO COMPLETE A CONTEXT SPACE"));
+    assert!(!offers(&prompts, SHARE_SECTION, "share-data"));
+    assert!(!offers(
+        &prompts,
+        "## WHEN THE PERSON ASKS TO COMPLETE A CONTEXT SPACE",
+        "complete-space"
+    ));
     assert_eq!(tool["status"], "failed", "{tool}");
     assert!(
         tool["error"]
@@ -449,6 +462,7 @@ async fn a_change_to_an_existing_endpoint_opens_its_form_with_the_change_and_kee
         Some(endpoint_access()),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: Some("share-data"),
             answer: "I will add CSV to the news endpoint.\n\n```json\n{\"tool\":\"change_resource\",\"kind\":\"Endpoint\",\"name\":\"helsinki-news\",\"patch\":{\"spec\":{\"enabledRepresentations\":[\"ngsi-ld\",\"geojson\",\"csv\"]}}}\n```\n",
             message: "Add csv to helsinki-news",
             tool: "change_resource",
@@ -509,6 +523,7 @@ async fn pausing_a_pipeline_opens_its_editor_with_the_patched_manifest_and_propo
         Some(pipeline_access()),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: Some("integrate-pipeline"),
             answer: "Pausing the news pipeline.\n\n```json\n{\"tool\":\"change_resource\",\"kind\":\"Pipeline\",\"name\":\"hel-news\",\"patch\":{\"spec\":{\"enabled\":false}}}\n```\n",
             message: "Pause the hel-news pipeline",
             tool: "change_resource",
@@ -574,6 +589,7 @@ async fn a_change_the_check_refuses_goes_back_to_the_model_with_the_findings() {
         Some(pipeline_access()),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: None,
             answer: "```json\n{\"tool\":\"change_resource\",\"kind\":\"Pipeline\",\"name\":\"hel-news\",\"patch\":{\"spec\":{\"class\":\"whenever\"}}}\n```",
             message: "Run hel-news whenever",
             tool: "change_resource",
@@ -603,6 +619,7 @@ async fn a_change_to_a_name_that_does_not_exist_answers_the_real_ones() {
         Some(pipeline_access()),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: None,
             answer: "```json\n{\"tool\":\"change_resource\",\"kind\":\"Pipeline\",\"name\":\"hel-parking\",\"patch\":{\"spec\":{\"enabled\":false}}}\n```",
             message: "Pause the parking pipeline",
             tool: "change_resource",
@@ -629,6 +646,7 @@ async fn a_kind_outside_the_profile_is_refused_with_the_reason() {
         Some(pipeline_access()),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: None,
             answer: "```json\n{\"tool\":\"change_resource\",\"kind\":\"ContextSpace\",\"name\":\"helsinki\",\"delete\":true}\n```",
             message: "Remove the helsinki space",
             tool: "change_resource",
@@ -660,6 +678,7 @@ async fn a_removal_opens_the_typed_confirmation_of_the_resource_and_a_person_wit
         Some(access.clone()),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: None,
             answer: removal,
             message: "Remove the helsinki space",
             tool: "change_resource",
@@ -682,6 +701,7 @@ async fn a_removal_opens_the_typed_confirmation_of_the_resource_and_a_person_wit
         Some(access),
         person("reader@hel.fi", &[]),
         Conversation {
+            path: None,
             answer: removal,
             message: "Remove the helsinki space",
             tool: "change_resource",
@@ -757,6 +777,7 @@ async fn granting_a_role_opens_the_grant_form_on_the_checked_binding_and_propose
         Some(grant_access()),
         person("lead@hel.fi", &[]),
         Conversation {
+            path: Some("share-data"),
             answer: GRANT_STEWARD,
             message: "Give jana.kovacova steward on helsinki",
             tool: "grant_role",
@@ -817,6 +838,7 @@ async fn a_grant_beyond_the_persons_rights_or_of_an_unknown_role_goes_back_to_th
         Some(grant_access()),
         person("lead@hel.fi", &[]),
         Conversation {
+            path: None,
             answer: GRANT_ADMIN,
             message: "Make jana.kovacova an administrator on helsinki",
             tool: "grant_role",
@@ -849,6 +871,7 @@ async fn a_grant_beyond_the_persons_rights_or_of_an_unknown_role_goes_back_to_th
         Some(grant_access()),
         person("lead@hel.fi", &[]),
         Conversation {
+            path: None,
             answer: GRANT_UNKNOWN,
             message: "Make jana.kovacova a superuser",
             tool: "grant_role",
@@ -870,6 +893,7 @@ async fn a_person_who_may_not_propose_bindings_is_not_offered_the_grant_and_is_r
         Some(grant_access()),
         person("reader@hel.fi", &[]),
         Conversation {
+            path: None,
             answer: GRANT_STEWARD,
             message: "Give jana.kovacova steward on helsinki",
             tool: "grant_role",
@@ -877,7 +901,7 @@ async fn a_person_who_may_not_propose_bindings_is_not_offered_the_grant_and_is_r
         },
     )
     .await;
-    assert!(!prompts.contains(GRANT_SECTION));
+    assert!(!offers(&prompts, GRANT_SECTION, "grant-role"));
     assert_eq!(
         events[0].payload["status"], "failed",
         "{}",
@@ -894,6 +918,7 @@ async fn taking_a_role_away_opens_the_removal_of_its_binding_on_the_access_page(
         Some(grant_access()),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: None,
             answer: "Opening its removal.\n\n```json\n{\"tool\":\"change_resource\",\"kind\":\"RoleBinding\",\"name\":\"lead-steward\",\"delete\":true}\n```\n",
             message: "Take the steward role away from lead",
             tool: "change_resource",
@@ -922,6 +947,7 @@ async fn a_feed_url_with_a_description_is_integrated_as_drafts_the_person_review
         Some(access),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: Some("upload-data"),
             answer: "I will integrate the weather feed.\n\n```json\n{\"tool\":\"space_complete\",\"space\":\"helsinki-weather\",\"url\":\"https://example.invalid/weather.json\",\"typeName\":\"WeatherObserved\",\"description\":\"Hourly observations of the city's weather stations.\"}\n```\n",
             message: "integrate https://example.invalid/weather.json, hourly weather observations: temperature, wind",
             tool: "space_complete",
@@ -986,6 +1012,7 @@ async fn an_edit_endpoint_call_of_the_earlier_prompt_still_names_the_real_endpoi
         Some(endpoint_access()),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: None,
             answer: "```json\n{\"tool\":\"edit_endpoint\",\"name\":\"helsinki-parking\",\"audience\":\"public\"}\n```",
             message: "Make helsinki-parking public",
             tool: "edit_endpoint",
@@ -1140,6 +1167,7 @@ async fn an_indicator_kept_updated_is_a_drafted_pipeline_into_a_new_indicator_sp
         Some(access),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: Some("define-kpi"),
             answer: KPI_PIPELINE_ANSWER,
             message: "Keep the number of free bikes updated in transportation-kpis on every change",
             tool: "draft_kpi_pipeline",
@@ -1231,6 +1259,7 @@ async fn an_indicator_pipeline_outside_the_profile_is_neither_offered_nor_drafte
         Some(access),
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
+            path: None,
             answer: KPI_PIPELINE_ANSWER,
             message: "Keep the number of free bikes updated on every change",
             tool: "draft_kpi_pipeline",
@@ -1239,7 +1268,7 @@ async fn an_indicator_pipeline_outside_the_profile_is_neither_offered_nor_drafte
     )
     .await;
 
-    assert!(!prompts.contains(KPI_PIPELINE_SECTION));
+    assert!(!offers(&prompts, KPI_PIPELINE_SECTION, "kpi-pipeline"));
     let tool = &events[0].payload;
     assert_eq!(tool["status"], "failed", "{tool}");
     assert!(tool["error"]
@@ -1430,7 +1459,7 @@ async fn a_conversation_without_endpoints_opens_the_one_the_model_names_and_runs
         .as_str()
         .unwrap_or_default();
     assert!(first.contains("## WORKING WITH THE DATA"));
-    assert!(first.contains("\"endpoint\": \"helsinki-all\""), "{first}");
+    assert!(first.contains("\"endpoint\":\"helsinki-all\""), "{first}");
 
     // The endpoint is added to the conversation, as the data bar shows it, before the calls.
     let opened = events
@@ -1668,8 +1697,13 @@ static ON_THE_RUNNER: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(())
 
 /// A model that gives `answers` in order, one per request.
 async fn model_answering(answers: &[&str]) -> MockServer {
+    model_answering_on(None, answers).await
+}
+
+/// [`model_answering`] on the path the router picks, `None` for no path.
+async fn model_answering_on(route: Option<&str>, answers: &[&str]) -> MockServer {
     let proxy = MockServer::start().await;
-    common::route_to_no_path(&proxy).await;
+    common::route_to(&proxy, route).await;
     for answer in answers {
         Mock::given(method("POST"))
             .and(path("/v1/llm/chat/completions"))
@@ -2122,7 +2156,11 @@ async fn a_dashboard_is_created_with_its_layers_once_they_name_what_the_endpoint
     let unknown_layer = call("\"stations\",\"stops\"", "\"name\"");
     let unknown_attribute = call("\"stations\"", "\"name\",\"freeBikes\"");
     let corrected = call("\"stations\"", "\"name\",\"status\"");
-    let proxy = model_answering(&[&unknown_layer, &unknown_attribute, &corrected]).await;
+    let proxy = model_answering_on(
+        Some("build-dashboard"),
+        &[&unknown_layer, &unknown_attribute, &corrected],
+    )
+    .await;
     let forge = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/api/v1/repos/owner/repo"))
@@ -2309,10 +2347,10 @@ async fn an_entity_change_is_previewed_with_the_persons_grants_and_never_written
         "the model is told why"
     );
     assert!(
-        bodies[0]["messages"][1]["content"]
-            .as_str()
-            .is_some_and(|prompt| prompt.contains("\"tool\": \"write_entities\"")),
-        "the model is told how to prepare a change"
+        bodies[0]["messages"][1]["content"].as_str().is_some_and(
+            |prompt| prompt.contains("- `change-entities`: the person asks to change entities")
+        ),
+        "the model is told where to read how to prepare a change (T-2770)"
     );
 
     assert_eq!(steps[1]["status"], "ok", "{}", steps[1]);
@@ -2347,6 +2385,7 @@ async fn the_grid_opens_narrowed_by_the_question_and_a_call_without_an_endpoint_
         Some(pipeline_access()),
         person("reader@hel.fi", &[]),
         Conversation {
+            path: None,
             answer,
             message: "Which docking stations have no bikes?",
             tool: "jc_ui_navigate",
@@ -2372,6 +2411,7 @@ async fn the_grid_opens_narrowed_by_the_question_and_a_call_without_an_endpoint_
         Some(pipeline_access()),
         person("reader@hel.fi", &[]),
         Conversation {
+            path: None,
             answer: nameless,
             message: "Which docking stations have no bikes?",
             tool: "jc_ui_navigate",

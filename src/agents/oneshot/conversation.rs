@@ -158,12 +158,29 @@ impl Driver {
         }
     }
 
+    /// One turn of the conversation: the answer to `text`, timed from the message to the answer
+    /// however it ends (AG-72, T-2771).
     pub(crate) async fn converse(
         &self,
         conversation: &[(String, String)],
         text: &str,
     ) -> Result<String, String> {
-        let catalog = self.find(text).await?;
+        let started = std::time::Instant::now();
+        let answer = self.answer_turn(conversation, text).await;
+        crate::telemetry::answered(started.elapsed().as_secs_f64());
+        answer
+    }
+
+    async fn answer_turn(
+        &self,
+        conversation: &[(String, String)],
+        text: &str,
+    ) -> Result<String, String> {
+        let catalog = if names_something_new(conversation, text) {
+            self.find(text).await?
+        } else {
+            None
+        };
         let base = self.conversation_pack(conversation, text, catalog.as_ref());
         // The endpoints the conversation reads, as they stand for this message, each with the
         // read tools it offers; the model may open more of the project's as it works (AG-75,
@@ -191,15 +208,11 @@ impl Driver {
                 })
                 .cloned()
                 .collect();
-            let section = format!(
-                "{}\n{}{}",
-                data_query::section(&chosen, &tools, &self.openable_endpoints(&chosen)),
-                tools_registry::section(&offered),
-                path_section(path)
-            );
+            let data = data_query::section(&chosen, &tools, &self.openable_endpoints(&chosen));
+            let whole = turn_pack(&base, path, &data, &offered);
             let user = format!(
                 "{}{}",
-                base.replacen("\n## THIS TURN", &format!("\n{section}\n## THIS TURN"), 1),
+                for_path(&whole, path),
                 data_query::results_section(&results)
             );
             let answer = tokio::time::timeout(
@@ -536,7 +549,8 @@ impl Driver {
                     return Ok(prose);
                 }
                 for name in described {
-                    let text = self.describe(&name, &offered);
+                    let text =
+                        playbook(&whole, &name).unwrap_or_else(|| self.describe(&name, &offered));
                     results.push((
                         drafted("describe_tool", Some(json!({ "name": name }))),
                         text,
@@ -651,17 +665,6 @@ impl Driver {
             "You are the joinedcontext Portal assistant. Answer in plain prose, or answer with \
              exactly one of the tool calls below. Never write files or SEARCH/REPLACE blocks.\n\n",
         );
-        if let Some(catalog) = catalog {
-            pack.push_str(
-                "## WHAT THE CATALOG SEARCH FOUND\n\nThe project's endpoints, spaces and \
-                 data models matching the person's words, with the caller's access verdict and \
-                 the freshness of the pipeline feeding each, read from the platform. Name them by \
-                 their `name`; invent no other.\n```json\n",
-            );
-            pack.push_str(&serde_json::to_string_pretty(catalog).unwrap_or_default());
-            pack.push_str("\n```\n\n");
-        }
-        self.looking_at(&mut pack);
         pack.push_str(WHERE_THE_ANSWERS_LIVE.trim_start());
         pack.push('\n');
         pack.push_str(&format!(
@@ -879,7 +882,7 @@ then change each resource with change_resource, which then works in the copy, th
 `jc_workspace_compare` and say in plain words what the copy changes, file by file. The person
 brings the copy back from its bar; you never bring it back and never approve it.
 "#,
-                changeable = serde_json::to_string_pretty(&changeable).unwrap_or_default(),
+                changeable = serde_json::to_string(&changeable).unwrap_or_default(),
             ));
         }
         self.creating(&mut pack);
@@ -948,6 +951,19 @@ a removal of its binding with change_resource.
             ));
         }
 
+        // What changes from message to message comes last, after the part a path keeps
+        // byte-identical for the provider's cache (T-2770).
+        if let Some(catalog) = catalog {
+            pack.push_str(
+                "\n## WHAT THE CATALOG SEARCH FOUND\n\nThe project's endpoints, spaces and \
+                 data models matching the person's words, with the caller's access verdict and \
+                 the freshness of the pipeline feeding each, read from the platform. Name them by \
+                 their `name`; invent no other.\n```json\n",
+            );
+            pack.push_str(&serde_json::to_string_pretty(catalog).unwrap_or_default());
+            pack.push_str("\n```\n");
+        }
+        self.looking_at(&mut pack);
         if !conversation.is_empty() {
             pack.push_str("\n## THE CONVERSATION SO FAR\n\n");
             for (asked, answered) in conversation {
@@ -1581,6 +1597,173 @@ fn path_section(path: Option<Path>) -> String {
         path.tools().join(", "),
         paths::menu()
     )
+}
+
+/// The pack's playbooks (T-2770): each `WHEN THE PERSON ASKS` section, the name `describe_tool`
+/// hands it out under, and the paths that carry it whole (`None` is a conversation on no path).
+/// A turn sends its own path's playbooks and one line for each of the rest, so a chat step stays
+/// under its token budget instead of carrying every flow the assistant knows.
+const PLAYBOOKS: &[(&str, &str, &[Option<Path>])] = &[
+    (
+        "## WHEN THE PERSON ASKS HOW THE PROJECT IS DOING",
+        "project-status",
+        &[Some(Path::FindData), None],
+    ),
+    (
+        "## WHEN THE PERSON ASKS WHAT THE DATA SAYS",
+        "data-answers",
+        &[Some(Path::FindData), None],
+    ),
+    (
+        "## WHEN THE PERSON ASKS TO SHARE OR PUBLISH DATA",
+        "share-data",
+        &[Some(Path::ShareData)],
+    ),
+    (
+        "## WHEN THE PERSON ASKS FOR AN INDICATOR, A KPI OR ONE NUMBER OVER THE DATA",
+        "kpi",
+        &[Some(Path::DefineKpi)],
+    ),
+    (
+        "## WHEN THE PERSON ASKS TO KEEP AN INDICATOR UPDATED",
+        "kpi-pipeline",
+        &[Some(Path::DefineKpi)],
+    ),
+    (
+        "## WHEN THE PERSON ASKS TO COMPLETE A CONTEXT SPACE",
+        "complete-space",
+        &[Some(Path::UploadData)],
+    ),
+    (
+        "## WHEN THE PERSON ASKS TO BUILD AN APPLICATION",
+        "build-app",
+        &[Some(Path::BuildApp)],
+    ),
+    (
+        "## WHEN THE PERSON ASKS TO CHANGE OR REMOVE SOMETHING",
+        "change-resource",
+        &[
+            Some(Path::IntegratePipeline),
+            Some(Path::ShareData),
+            Some(Path::CreateDataModel),
+        ],
+    ),
+    (
+        "## WHEN THE PERSON ASKS FOR SOMETHING THAT DOES NOT EXIST YET",
+        "create-resource",
+        &[Some(Path::IntegratePipeline), Some(Path::UploadData)],
+    ),
+    (
+        "## WHEN THE PERSON ASKS FOR A NEW DASHBOARD",
+        "new-dashboard",
+        &[Some(Path::BuildDashboard)],
+    ),
+    (
+        "## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE",
+        "grant-role",
+        &[Some(Path::ShareData)],
+    ),
+    // No path calls `write_entities` (AG-89): a conversation on none reads how when asked.
+    (
+        "## WHEN THE PERSON ASKS TO CHANGE ENTITIES",
+        "change-entities",
+        &[],
+    ),
+];
+
+/// The pack as the path sends it: its own playbooks whole, every other one folded to a line that
+/// names it, and nothing for a playbook the run may not use (it is not in the pack to begin with).
+fn for_path(pack: &str, path: Option<Path>) -> String {
+    let mut out = pack.to_owned();
+    let mut index = String::new();
+    for (heading, name, keep) in PLAYBOOKS {
+        if !out.contains(heading) || keep.contains(&path) {
+            continue;
+        }
+        out = without_section(&out, heading);
+        let asks = heading
+            .trim_start_matches("## WHEN THE PERSON ")
+            .to_lowercase();
+        index.push_str(&format!("- `{name}`: the person {asks}\n"));
+    }
+    if index.is_empty() {
+        return out;
+    }
+    let folded = format!(
+        "\n## OTHER REQUESTS\n\nThe steps and the exact call for these are one call away; ask for \
+         the one the person wants before you answer it:\n```json\n{{ \"tool\": \"describe_tool\", \
+         \"name\": \"<one of the names below>\" }}\n```\n{index}"
+    );
+    out.insert_str(turn_starts(&out), &folded);
+    out
+}
+
+/// Where a turn's own part of the pack starts: everything before it is the same from one turn
+/// of a path to the next, so the provider caches it (T-2770).
+const TURN_HEADINGS: [&str; 5] = [
+    "\n## WHAT THE CATALOG SEARCH FOUND",
+    "\n## THE PAGE THE PERSON IS LOOKING AT",
+    "\n## THE FORM THE PERSON IS LOOKING AT",
+    "\n## THE CONVERSATION SO FAR",
+    "\n## THIS TURN",
+];
+
+/// What one model call of a turn reads before the results, whole: the pack with the data it may
+/// read, the operations it may call and the path's own word ahead of the turn's own part.
+/// [`for_path`] folds it into what is sent; [`playbook`] reads a folded section back out.
+fn turn_pack(
+    base: &str,
+    path: Option<Path>,
+    data: &str,
+    offered: &[crate::ops::OperationSummary],
+) -> String {
+    let section = format!(
+        "\n{data}\n{}{}",
+        tools_registry::section(offered),
+        path_section(path)
+    );
+    let mut whole = base.to_owned();
+    whole.insert_str(turn_starts(&whole), &section);
+    whole
+}
+
+/// The offset of the turn's own part of a pack.
+fn turn_starts(pack: &str) -> usize {
+    TURN_HEADINGS
+        .iter()
+        .filter_map(|heading| pack.find(heading))
+        .min()
+        .unwrap_or(pack.len())
+}
+
+/// A playbook of the whole pack by its name, as `describe_tool` hands it out; none when the name
+/// is no playbook or the run may not use it.
+fn playbook(pack: &str, name: &str) -> Option<String> {
+    let (heading, _, _) = PLAYBOOKS.iter().find(|(_, key, _)| *key == name)?;
+    let start = pack.find(heading)?;
+    let body = start + heading.len();
+    let end = pack[body..]
+        .find("\n## ")
+        .map_or(pack.len(), |offset| body + offset);
+    Some(pack[start..end].trim().to_owned())
+}
+
+/// Whether a message names something the conversation does not know yet (T-2770): only then
+/// does the platform search the catalog before the model. A follow-up whose words the
+/// conversation already holds ("and the bikes now?" after the bikes were found) goes without it;
+/// the model still searches itself when it needs to.
+fn names_something_new(conversation: &[(String, String)], text: &str) -> bool {
+    let known: std::collections::BTreeSet<String> = conversation
+        .iter()
+        .flat_map(|(asked, answered)| {
+            crate::api::assistant::words(asked)
+                .into_iter()
+                .chain(crate::api::assistant::words(answered))
+        })
+        .collect();
+    crate::api::assistant::words(text)
+        .iter()
+        .any(|word| !known.contains(word))
 }
 
 /// The `jc_switch_path` call of an answer, if it makes one: the path and the reason.
@@ -2298,5 +2481,153 @@ mod tests {
             answered_before(&agent, &call(&["air"])).as_deref(),
             Some("'air'")
         );
+    }
+
+    /// The profile the chat runs on in a project that has a bit of everything: every operation
+    /// the conversation offers and every kind it drafts, so each playbook is in the pack.
+    fn everything() -> Driver {
+        let mut driver = proposing(
+            &[],
+            &[
+                ("Endpoint", "bikes-open", "helsinki"),
+                ("Pipeline", "bikes", "helsinki"),
+                ("DataSource", "bikes-feed", "helsinki"),
+                ("Role", "steward", "org"),
+            ],
+        );
+        let kinds: Vec<Value> = [
+            "ContextSpace",
+            "Endpoint",
+            "DataSource",
+            "Pipeline",
+            "Policy",
+            "Dashboard",
+            "Layer",
+            "App",
+            "DataModel",
+            "RoleBinding",
+        ]
+        .iter()
+        .map(|kind| json!({ "kind": kind, "verbs": ["read", "propose"] }))
+        .collect();
+        let operations: Vec<&str> = crate::ops::registry().iter().map(|op| op.name).collect();
+        driver.access = crate::agents::access::Access::from_spec(&json!({ "access": {
+            "operations": operations,
+            "kinds": kinds,
+        } }));
+        driver
+    }
+
+    /// What a turn sends before any result, on `path`, measured as the budget counts tokens: a
+    /// token is about four characters of this English prose and JSON.
+    fn turn_tokens(driver: &Driver, path: Option<Path>) -> (usize, String) {
+        let base = driver.conversation_pack(&[], "how many bikes are free right now?", None);
+        let offered: Vec<_> = tools_registry::offered(
+            &driver.access,
+            &driver.identity,
+            &driver.state,
+            &driver.project,
+        )
+        .into_iter()
+        .filter(|op| path.is_none_or(|path| path.allows(&op.name)))
+        .collect();
+        let data = data_query::section(&[], &[], &driver.openable_endpoints(&[]));
+        let user = for_path(&turn_pack(&base, path, &data, &offered), path);
+        ((CONVERSATION_SYSTEM.len() + user.len()) / 4, user)
+    }
+
+    /// T-2770, AG-72: every path's turn stays under 4k tokens, and so does a turn on no path;
+    /// the budget fails here before it costs seconds on dev.
+    #[test]
+    fn every_path_turn_stays_under_its_token_budget() {
+        let driver = everything();
+        for path in Path::ALL.map(Some).into_iter().chain([None]) {
+            let (tokens, user) = turn_tokens(&driver, path);
+            assert!(tokens < 4000, "{path:?}: {tokens} tokens\n{user}");
+        }
+    }
+
+    /// T-2770, T-2763: the platform searches the catalog before the model only for a message that
+    /// names something new; a follow-up of known words or of no words at all goes without it.
+    #[test]
+    fn a_follow_up_of_known_words_runs_no_catalog_search() {
+        let before = [(
+            "how many city bikes are free in helsinki?".to_owned(),
+            "12 of the 40 city bikes stations have free bikes.".to_owned(),
+        )];
+        assert!(names_something_new(&[], "how many city bikes are free?"));
+        assert!(!names_something_new(&[], "and right now??"));
+        assert!(!names_something_new(&before, "and right now??"));
+        assert!(!names_something_new(
+            &before,
+            "and the free bikes stations?"
+        ));
+        assert!(names_something_new(&before, "and the tram stops?"));
+    }
+
+    /// T-2770: a path carries its own playbooks whole and names every other one on a line
+    /// `describe_tool` answers, which hands out the same text the pack would have carried.
+    #[test]
+    fn a_path_folds_the_playbooks_it_does_not_use() {
+        let driver = everything();
+        let base = driver.conversation_pack(&[], "keep the free bikes counted", None);
+        let whole = turn_pack(&base, Some(Path::DefineKpi), "", &[]);
+        let sent = for_path(&whole, Some(Path::DefineKpi));
+        assert!(sent.contains("## WHEN THE PERSON ASKS TO KEEP AN INDICATOR UPDATED"));
+        assert!(!sent.contains("## WHEN THE PERSON ASKS TO SHARE OR PUBLISH DATA"));
+        assert!(sent.contains("- `share-data`: the person asks to share or publish data"));
+        assert!(
+            !sent.contains("`kpi-pipeline`:"),
+            "a kept playbook is not listed again"
+        );
+        let share = playbook(&whole, "share-data").expect("the share playbook");
+        assert!(share.starts_with("## WHEN THE PERSON ASKS TO SHARE OR PUBLISH DATA"));
+        assert!(share.contains("\"tool\": \"propose_endpoint\""), "{share}");
+        assert!(
+            !share.contains("## WHEN THE PERSON ASKS FOR AN INDICATOR"),
+            "{share}"
+        );
+        assert_eq!(
+            playbook(&whole, "jc_kpi_compute"),
+            None,
+            "an operation is no playbook"
+        );
+        // The index sits ahead of the turn, and the turn is still last.
+        assert!(sent.find("## OTHER REQUESTS") < sent.find("## THIS TURN"));
+        assert!(sent.trim_end().ends_with("keep the free bikes counted"));
+    }
+
+    /// AG-70: a playbook the run may not use is not in the pack, so it is neither listed nor
+    /// handed out: folding never widens what the model is shown.
+    #[test]
+    fn a_playbook_outside_the_run_access_is_neither_listed_nor_described() {
+        let driver = proposing(&["Pipeline"], &[("Pipeline", "bikes", "helsinki")]);
+        let base = driver.conversation_pack(&[], "share the bikes", None);
+        let whole = turn_pack(&base, None, "", &[]);
+        assert_eq!(playbook(&whole, "share-data"), None);
+        assert!(!for_path(&whole, None).contains("`share-data`"));
+        assert!(playbook(&whole, "change-resource").is_some());
+    }
+
+    /// T-2770: what a path sends ahead of the turn is byte-identical from one turn to the next,
+    /// whatever the catalog found, the page or the conversation, so the provider caches it.
+    #[test]
+    fn the_prefix_of_a_path_stays_byte_identical_across_turns() {
+        let driver = everything();
+        let first = driver.conversation_pack(&[], "how many bikes are free?", None);
+        let found = json!({ "items": [{ "kind": "Endpoint", "name": "bikes-open" }] });
+        let later = driver.conversation_pack(
+            &[("how many bikes are free?".into(), "12 of 40.".into())],
+            "and at the harbour?",
+            Some(&found),
+        );
+        let path = Some(Path::FindData);
+        let (first, later) = (
+            for_path(&turn_pack(&first, path, "data", &[]), path),
+            for_path(&turn_pack(&later, path, "data", &[]), path),
+        );
+        let (a, b) = (turn_starts(&first), turn_starts(&later));
+        assert_eq!(first[..a], later[..b]);
+        assert!(later[b..].contains("## WHAT THE CATALOG SEARCH FOUND"));
     }
 }

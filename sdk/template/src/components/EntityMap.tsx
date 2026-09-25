@@ -7,6 +7,7 @@ import { GridLayer, HexagonLayer } from "@deck.gl/aggregation-layers";
 
 import { currentTokens, displayName, extent, format, mapWorkerReady, NO_BASEMAP, NO_LOCATIONS, pointOf, styleFor, toFeatureCollection, useClient } from "@joinedcontext/sdk";
 import type { Cell, DesignTokens, Geo, Row } from "@joinedcontext/sdk";
+import * as i18n from "../i18n";
 
 export const DECK_THRESHOLD = 50_000;
 export type MapMode = "auto" | "points" | "hexbin" | "grid";
@@ -349,7 +350,7 @@ export function EntityMap({
 
   return (
     <div className="jc-map" style={height === undefined ? undefined : { height }}>
-      <div className="jc-map-canvas" ref={container} data-testid="jc-map" role="application" aria-label="Map" />
+      <div className="jc-map-canvas" ref={container} data-testid="jc-map" role="application" aria-label={i18n.t("map.label")} />
       {!effectiveBasemap && <span className="jc-map-notice">{NO_BASEMAP}</span>}
       {n === 0 && rows.length > 0 ? (
         <span className="jc-map-count">{NO_LOCATIONS}</span>

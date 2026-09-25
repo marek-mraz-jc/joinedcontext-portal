@@ -576,6 +576,7 @@ pub fn operations() -> Vec<Operation> {
                     let input: RunListInput = parse_input(val)?;
                     let axum::Json(list) = crate::api::agent_runs::list_runs(
                         as_user(caller),
+                        crate::agents::run::RunOrigin::Person,
                         axum::extract::State(state.clone()),
                         axum::extract::Path(project.to_owned()),
                         axum::extract::Query(crate::api::agent_runs::ListRunsQuery {
@@ -584,6 +585,7 @@ pub fn operations() -> Vec<Operation> {
                             kind: input.kind,
                             status: input.status,
                             mine: input.mine,
+                            origin: None,
                         }),
                     )
                     .await?;

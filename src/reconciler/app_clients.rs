@@ -49,6 +49,12 @@ impl ClientSecret {
     }
 }
 
+impl From<String> for ClientSecret {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
 impl std::fmt::Debug for ClientSecret {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ClientSecret(redacted)")
@@ -294,9 +300,18 @@ pub struct AppClientSync {
     client_secret: String,
     /// The apex the apps are served on.
     host: String,
+    /// Where a run records the `app-*` clients it may not write, for the write doors (AP-114).
+    foreign: Option<std::sync::Arc<super::foreign::ForeignNames>>,
 }
 
 impl AppClientSync {
+    /// Makes each run record the realm's unmanaged `app-*` clients where the write doors read
+    /// them.
+    pub fn with_foreign(mut self, foreign: std::sync::Arc<super::foreign::ForeignNames>) -> Self {
+        self.foreign = Some(foreign);
+        self
+    }
+
     /// `None` when the issuer is not a realm URL, because then there is nothing to manage.
     pub fn new(
         issuer: &str,
@@ -313,6 +328,7 @@ impl AppClientSync {
             client_id,
             client_secret,
             host,
+            foreign: None,
         })
     }
 
@@ -712,6 +728,20 @@ impl AppClientSync {
             .await
         {
             Ok(listed) => {
+                if let Some(foreign) = self.foreign.as_ref() {
+                    foreign.set_clients(
+                        listed
+                            .as_ref()
+                            .and_then(Value::as_array)
+                            .into_iter()
+                            .flatten()
+                            .filter(|client| !managed(client))
+                            .filter_map(|client| client.get("clientId").and_then(Value::as_str))
+                            .filter(|id| id.starts_with("app-"))
+                            .map(str::to_owned)
+                            .collect(),
+                    );
+                }
                 for client in listed
                     .as_ref()
                     .and_then(Value::as_array)

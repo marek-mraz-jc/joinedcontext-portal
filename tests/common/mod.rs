@@ -364,6 +364,39 @@ impl Realm {
         jsonwebtoken::encode(&header, &claims, &self.signer).expect("sign")
     }
 
+    /// A person's token of App `app`'s own client `app-{app}` (ADR-N-030): issued for it, obtained
+    /// by it, carrying `roles` as that client's roles and a realm role of the same names beside
+    /// them, which must count for nothing.
+    pub fn person_token(&self, app: &str, who: &str, roles: &[&str]) -> String {
+        self.person_token_of(&format!("app-{app}"), &format!("app-{app}"), who, roles)
+    }
+
+    /// [`Self::person_token`] with the audience and the obtaining client (`azp`) chosen apart.
+    pub fn person_token_of(
+        &self,
+        audience: &str,
+        client: &str,
+        who: &str,
+        roles: &[&str],
+    ) -> String {
+        let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
+        header.kid = Some("key-workload-test".to_owned());
+        let now = joinedcontext_portal::auth::session::now_unix();
+        let claims = json!({
+            "iss": self.issuer,
+            "aud": audience,
+            "sub": format!("sub-{who}"),
+            "azp": client,
+            "preferred_username": format!("{who}@hel.fi"),
+            "email": format!("{who}@hel.fi"),
+            "realm_access": { "roles": roles },
+            "resource_access": { client: { "roles": roles }, "app-other": { "roles": ["steward"] } },
+            "exp": now + 300,
+            "iat": now,
+        });
+        jsonwebtoken::encode(&header, &claims, &self.signer).expect("sign")
+    }
+
     /// The token a workload presents on the internal listener.
     pub fn workload(&self, client: &str) -> String {
         self.token(client, INTERNAL_AUDIENCE)
@@ -441,12 +474,18 @@ pub const ROUTER_PROMPT: &str = "route a person's message to one of the assistan
 /// A stub model that routes free text to no path, ahead of a test's scripted answers, so a script
 /// written for the conversation's own turns reads the same as before paths (T-2693).
 pub async fn route_to_no_path(proxy: &MockServer) {
+    route_to(proxy, None).await;
+}
+
+/// A stub model that routes free text to `path` (an id such as `share-data`), or to none.
+pub async fn route_to(proxy: &MockServer, route: Option<&str>) {
+    let routed = json!({ "path": route, "reason": "a script" }).to_string();
     Mock::given(method("POST"))
         .and(path("/v1/llm/chat/completions"))
         .and(wiremock::matchers::body_string_contains(ROUTER_PROMPT))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "id": "chatcmpl-router", "object": "chat.completion",
-            "choices": [{ "index": 0, "message": { "role": "assistant", "content": "{\"path\": null, \"reason\": \"a script\"}" }, "finish_reason": "stop" }],
+            "choices": [{ "index": 0, "message": { "role": "assistant", "content": routed }, "finish_reason": "stop" }],
             "usage": { "total_tokens": 10 }
         })))
         .with_priority(1)

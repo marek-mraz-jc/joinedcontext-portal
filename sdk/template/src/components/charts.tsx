@@ -4,6 +4,7 @@ import * as echarts from "echarts";
 import { aggregate, currentTokens, echartsTheme, groupBy } from "@joinedcontext/sdk";
 import type { Agg, DesignTokens, ProblemError, Row, TemporalRow } from "@joinedcontext/sdk";
 import { Empty, Loading, Problem } from "./states";
+import * as i18n from "../i18n";
 
 export interface ChartSpec {
   x: string;
@@ -116,7 +117,7 @@ export function pieOption(
     const topGroups = groups.slice(0, limit);
     const rest = groups.slice(limit);
     const otherVal = rest.reduce((acc, g) => acc + g.value, 0);
-    data = [...topGroups.map((g) => ({ name: g.key, value: g.value })), { name: "Other", value: otherVal }];
+    data = [...topGroups.map((g) => ({ name: g.key, value: g.value })), { name: i18n.t("chart.other"), value: otherVal }];
   }
 
   return {
@@ -269,7 +270,7 @@ export function ChartCard({
       ) : loading ? (
         <Loading />
       ) : option === null ? (
-        <Empty>{empty ?? "Nothing to chart for the current filters."}</Empty>
+        <Empty>{empty ?? i18n.t("chart.empty")}</Empty>
       ) : (
         <div
           className="jc-chart-canvas"

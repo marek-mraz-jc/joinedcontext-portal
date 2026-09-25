@@ -22,8 +22,8 @@ spec:
   roles:
   - name: viewer
     subjects:
-    - user: demo.viewer@hel.fi
+    - group: helsinki-alerts-viewer
   - name: steward
     subjects:
-    - user: demo.steward@hel.fi
+    - group: helsinki-alerts-steward
   slug: i6iifp45hfz5ukwtnkn3pgdchg

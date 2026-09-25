@@ -1,14 +1,19 @@
 //! A published App's backend learns the caller's roles from the Portal (AP-109, AP-92,
-//! Architecture/16 §13).
+//! ADR-N-030, Architecture/16 §13).
+//!
+//! The backend forwards the edge's token of the App's own client `app-{name}` as
+//! `Authorization: Bearer`; the roles are that token's `resource_access.app-{name}.roles` that
+//! the manifest declares, and nothing else the token or the caller carries.
 
 mod common;
 
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::{header, Request, StatusCode};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
-use common::{envelope, person, send};
+use common::envelope;
+use joinedcontext_portal::config::Config;
 use joinedcontext_portal::state::AppState;
 
 const ME: &str = "/api/v1/projects/helsinki/apps/air-quality/me";
@@ -33,101 +38,131 @@ fn app(lifecycle: &str) -> Value {
             { "name": "steward", "title": { "en": "Steward" } },
         ],
         "access": [
-            { "role": "steward", "subjects": [{ "user": "jana@hel.fi" }] },
-            { "role": "viewer", "subjects": [{ "group": "air-readers" }, { "user": "JANA@hel.fi" }] },
+            { "role": "viewer", "subjects": [{ "group": "air-quality-viewer" }] },
+            { "role": "steward", "subjects": [{ "group": "air-quality-steward" }] },
         ],
     })
 }
 
+/// A Portal that trusts the process's realm, with `air-quality` in the given lifecycle.
 fn state_with(lifecycle: &str) -> AppState {
-    let state = AppState::new(joinedcontext_portal::config::Config::for_tests(), None);
+    let config = Config::from_vars(|key| {
+        match key {
+            "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_OIDC_CLIENT_ID" => Some("portal-api"),
+            "JC_OIDC_CLIENT_SECRET" => Some("secret"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("a realm");
+    let state = AppState::new(config, None);
     state
         .mirror
         .upsert(envelope("App", "air-quality", "helsinki", app(lifecycle)));
     state
 }
 
+async fn ask(state: &AppState, path: &str, token: Option<&str>) -> (StatusCode, String, String) {
+    let mut request = Request::get(path);
+    if let Some(token) = token {
+        request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = joinedcontext_portal::server::app(state.clone())
+        .oneshot(request.body(Body::empty()).expect("a request"))
+        .await
+        .expect("a response");
+    let status = response.status();
+    let cache = response
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_owned();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("a body");
+    (status, String::from_utf8_lossy(&bytes).into_owned(), cache)
+}
+
 fn body(text: &str) -> Value {
     serde_json::from_str(text).expect("a JSON answer")
 }
 
-/// AP-92, AP-109: the roles come from the verified identity against `spec.access`, by e-mail
-/// (any case) and by group, in the order `spec.roles` declares them; a person who holds none
-/// gets an empty list, and nobody needs a rule in the project to ask about themselves.
+/// AP-92, AP-109: the roles are the token's roles of the App's own client, in the order
+/// `spec.roles` declares them; a person holding none gets an empty list, the answer names nobody
+/// else, and nobody needs a rule in the project to ask about themselves.
 #[tokio::test]
-async fn the_answer_is_the_callers_roles_from_spec_access_and_nobody_elses() {
+async fn the_answer_is_the_callers_roles_from_the_apps_own_token() {
     let state = state_with("published");
+    let realm = &common::REALM;
 
-    let jana = send(&state, person("jana"), "GET", ME, None).await;
-    assert_eq!(jana.status, StatusCode::OK, "{}", jana.text);
+    let jana = realm.person_token("air-quality", "jana", &["steward", "viewer"]);
+    let (status, text, cache) = ask(&state, ME, Some(&jana)).await;
+    assert_eq!(status, StatusCode::OK, "{text}");
     assert_eq!(
-        body(&jana.text),
-        json!({ "id": "sub-jana", "name": "jana", "email": "jana@hel.fi", "roles": ["viewer", "steward"] })
+        body(&text),
+        json!({ "id": "sub-jana", "name": "jana@hel.fi", "email": "jana@hel.fi", "roles": ["viewer", "steward"] })
     );
+    assert!(cache.contains("no-store"), "{cache}");
 
-    let mut reader = person("vera");
-    reader.groups = vec!["air-readers".into()];
+    // A role the manifest does not declare is not one.
+    let stale = realm.person_token("air-quality", "vera", &["viewer", "auditor"]);
     assert_eq!(
-        body(&send(&state, reader, "GET", ME, None).await.text)["roles"],
+        body(&ask(&state, ME, Some(&stale)).await.1)["roles"],
         json!(["viewer"])
     );
 
-    let otto = send(&state, person("otto"), "GET", ME, None).await;
-    assert_eq!(otto.status, StatusCode::OK, "{}", otto.text);
-    assert_eq!(body(&otto.text)["roles"], json!([]));
+    let otto = realm.person_token("air-quality", "otto", &[]);
+    let (status, text, _) = ask(&state, ME, Some(&otto)).await;
+    assert_eq!(status, StatusCode::OK, "{text}");
+    assert_eq!(body(&text)["roles"], json!([]));
     assert!(
-        !otto.text.contains("jana"),
-        "the answer names nobody but the caller: {}",
-        otto.text
+        !text.contains("jana"),
+        "the answer names nobody but the caller: {text}"
     );
 }
 
+/// AP-92, ADR-N-030 §3.4: a token of another client, even one naming this App in its audience,
+/// or of another App, is refused; the Portal's own login is not this App's.
+#[tokio::test]
+async fn a_token_that_is_not_the_apps_own_is_refused() {
+    let state = state_with("published");
+    let realm = &common::REALM;
+    for token in [
+        realm.person_token_of("app-air-quality", "edge", "jana", &["steward"]),
+        realm.person_token("other", "jana", &["steward"]),
+        realm.person_token_of("portal-api", "portal-api", "jana", &["steward"]),
+    ] {
+        let (status, text, _) = ask(&state, ME, Some(&token)).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{text}");
+    }
+}
+
 /// AP-109: an App that is not published, or not in this project, is a `404`; no credential is a
-/// `401`; and one person's answer is never kept by a shared cache.
+/// `401`, answered before the App is looked up.
 #[tokio::test]
 async fn an_unpublished_app_is_not_found_and_an_anonymous_caller_is_refused() {
+    let token = common::REALM.person_token("air-quality", "jana", &["viewer"]);
     for lifecycle in ["draft", "preview", "retired"] {
-        let answer = send(&state_with(lifecycle), person("jana"), "GET", ME, None).await;
-        assert_eq!(
-            answer.status,
-            StatusCode::NOT_FOUND,
-            "{lifecycle}: {}",
-            answer.text
-        );
+        let (status, text, _) = ask(&state_with(lifecycle), ME, Some(&token)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{lifecycle}: {text}");
     }
     let state = state_with("published");
-    let elsewhere = send(
+    let (status, _, _) = ask(
         &state,
-        person("jana"),
-        "GET",
         "/api/v1/projects/espoo/apps/air-quality/me",
-        None,
+        Some(&token),
     )
     .await;
-    assert_eq!(elsewhere.status, StatusCode::NOT_FOUND);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
-    let anonymous = joinedcontext_portal::server::app(state.clone())
-        .oneshot(Request::get(ME).body(Body::empty()).expect("a request"))
-        .await
-        .expect("a response");
-    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
-
-    let config = state.config.clone();
-    let response = joinedcontext_portal::server::app(state)
-        .oneshot(
-            Request::get(ME)
-                .header(
-                    axum::http::header::COOKIE,
-                    common::cookie(&config, person("jana")),
-                )
-                .body(Body::empty())
-                .expect("a request"),
-        )
-        .await
-        .expect("a response");
-    assert_eq!(response.status(), StatusCode::OK);
-    let cache = response.headers()["cache-control"]
-        .to_str()
-        .unwrap_or_default();
-    assert!(cache.contains("no-store"), "{cache}");
+    let (status, _, _) = ask(&state, ME, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _, _) = ask(&state, "/api/v1/projects/helsinki/apps/nothing/me", None).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "nothing learnt without a token"
+    );
 }

@@ -160,8 +160,11 @@ impl Path {
             Path::IntegratePipeline => {
                 "where the data comes from and where it lands are asked by the Portal, which \
                  drafts a new space itself; landing in an existing space is yours: draft the \
-                 pipeline with change_resource, test it with jc_pipeline_test and say its \
-                 verdict; the pipeline form opens on the draft"
+                 pipeline with change_resource, then walk the workbench's steps: \
+                 jc_pipeline_sample_source for the source's records, jc_pipeline_try_mapping \
+                 for what the mapping makes of them, jc_pipeline_validate for the verdict per \
+                 record against the space's model; say each output, fix the mapping until \
+                 every record is valid; the pipeline form opens on the draft"
             }
             Path::UploadData => {
                 "the space is answered; ask for the file if none came, pick its type or create \
@@ -257,6 +260,9 @@ impl Path {
             Path::IntegratePipeline => &[
                 "change_resource",
                 "jc_datasource_check",
+                "jc_pipeline_sample_source",
+                "jc_pipeline_try_mapping",
+                "jc_pipeline_validate",
                 "jc_pipeline_test",
                 "jc_pipeline_metrics",
                 "jc_manifest_dry_run",
@@ -298,6 +304,19 @@ impl Path {
     pub fn tools(self) -> Vec<&'static str> {
         EVERY_PATH.iter().chain(self.own_tools()).copied().collect()
     }
+}
+
+/// The conversation's tools no path offers: an entity change is prepared on no path (AG-78).
+const OFF_PATH_TOOLS: &[&str] = &["write_entities", "navigate"];
+
+/// A tool of the conversation by its name, as the static name a metric may label a step with;
+/// none for a name the model made up (T-2771).
+pub fn known_tool(name: &str) -> Option<&'static str> {
+    Path::ALL
+        .iter()
+        .flat_map(|path| path.tools())
+        .chain(OFF_PATH_TOOLS.iter().copied())
+        .find(|tool| *tool == name)
 }
 
 /// The paths as `choose_path` offers them to the model: one line each.
@@ -358,6 +377,14 @@ mod tests {
         assert!(
             share.find("with whom") < share.find("change_resource"),
             "{share}"
+        );
+        // T-2711: the agent walks the workbench's steps in the workbench's order (ADR-N-034).
+        let integrate = Path::IntegratePipeline.steps();
+        let at = |tool| integrate.find(tool).expect(tool);
+        assert!(
+            at("jc_pipeline_sample_source") < at("jc_pipeline_try_mapping")
+                && at("jc_pipeline_try_mapping") < at("jc_pipeline_validate"),
+            "{integrate}"
         );
     }
 

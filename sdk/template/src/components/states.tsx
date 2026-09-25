@@ -1,16 +1,17 @@
 import { Component, type ReactNode } from "react";
 import { ProblemError, reportError } from "@joinedcontext/sdk";
+import { t } from "../i18n";
 
 export function Loading({ label }: { label?: string }): React.JSX.Element {
   return (
     <div className="jc-loading" role="status" aria-live="polite">
-      {label ?? "Loading…"}
+      {label ?? t("state.loading")}
     </div>
   );
 }
 
 export function Empty({ children }: { children?: ReactNode }): React.JSX.Element {
-  return <p className="jc-empty">{children ?? "Nothing to show."}</p>;
+  return <p className="jc-empty">{children ?? t("state.empty")}</p>;
 }
 
 export function Problem({
@@ -39,7 +40,7 @@ export function Problem({
       {detail && <p>{detail}</p>}
       {onRetry && (
         <button type="button" onClick={onRetry}>
-          Retry
+          {t("state.retry")}
         </button>
       )}
     </div>
