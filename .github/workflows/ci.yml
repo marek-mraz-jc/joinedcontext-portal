@@ -124,7 +124,7 @@ jobs:
       # test needs Vite, which the SDK step above installed.
       - if: steps.has.outputs.ui == 'yes'
         name: the build lane refuses foreign packages and bundles functions
-        run: ln -s ../sdk/node_modules builder/node_modules && node --test builder/lane.test.mjs
+        run: ln -s ../sdk/node_modules builder/node_modules && node --test builder/lane.test.mjs builder/runner.test.mjs
       # A static app with no build step (AP-83) has no package.json for the loop above: its pure
       # functions are checked with node's own runner, and its page by ui/e2e (T-2597).
       - name: the plain-HTML apps' own tests

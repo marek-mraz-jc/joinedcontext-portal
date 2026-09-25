@@ -4,6 +4,7 @@ import { ProblemError } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { EntityDetail } from "./EntityDetail";
 import { EntityTable, defaultColumns } from "./EntityTable";
+import { setLanguage } from "../i18n";
 
 const STATIONS: Row[] = [
   {
@@ -122,6 +123,20 @@ describe("EntityTable", () => {
     // Changing rows length resets page to 1
     rerender(<EntityTable rows={manyRows.slice(0, 60)} pageSize={50} columns={["name"]} />);
     expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+  });
+
+  it("pages and names its controls in the person's language", () => {
+    const manyRows = Array.from({ length: 60 }, (_, i) => ({ id: `urn:ngsi-ld:T:o:s:${i}`, type: "T", name: `n${i}` }));
+    setLanguage("sk");
+    try {
+      render(<EntityTable rows={manyRows} pageSize={50} columns={["name"]} />);
+      expect(screen.getByText("Strana 1 z 2")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Ďalšia" }));
+      expect(screen.getByText("Strana 2 z 2")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Predchádzajúca" })).toBeEnabled();
+    } finally {
+      setLanguage("en");
+    }
   });
 
   it("handles onSelect on click and Enter, and marks aria-selected", () => {

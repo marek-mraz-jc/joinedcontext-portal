@@ -40,7 +40,7 @@ function useEntity<T extends Row = Row>(id: string | null, attrs?: string[]): Lo
 ```
 Loads a single entity by NGSI-LD identifier.
 ```ts
-function useSave(): { create: (type: string, attrs: Record<string, Cell>, localId?: string) => Promise<string | null>; update: (id: string, patch: Record<string, Cell>) => Promise<boolean>; remove: (id: string) => Promise<boolean>; saving: boolean; problem: ProblemError | null; clear: () => void }
+function useSave(): { create: (type: string, attrs: Record<string, Cell>, localId?: string, options?: { endpoint?: string }) => Promise<string | null>; update: (id: string, patch: Record<string, Cell>) => Promise<boolean>; remove: (id: string) => Promise<boolean>; saving: boolean; problem: ProblemError | null; clear: () => void }
 ```
 Provides write operations (`create`, `update`, `remove`) that track saving state and ProblemError refusals without throwing.
 ```ts

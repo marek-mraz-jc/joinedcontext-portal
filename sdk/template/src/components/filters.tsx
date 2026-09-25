@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { distinct, extent } from "@joinedcontext/sdk";
 import type { FilterBinding } from "@joinedcontext/sdk";
+import { t } from "../i18n";
 
 export function FilterBar({
   children,
@@ -40,7 +41,7 @@ export function SearchBox({
   if (binding.def.kind !== "search") {
     throw new Error("SearchBox needs a search filter");
   }
-  const label = binding.def.label ?? "Search";
+  const label = binding.def.label ?? t("filter.search");
   const val = typeof binding.value === "string" ? binding.value : "";
   return (
     <label className="jc-filter">
@@ -75,7 +76,7 @@ export function SelectFilter({
         value={val}
         onChange={(e) => binding.onChange(e.target.value === "" ? undefined : e.target.value)}
       >
-        <option value="">{allLabel ?? "All"}</option>
+        <option value="">{allLabel ?? t("filter.all")}</option>
         {options.map((opt) => (
           <option key={opt} value={opt}>
             {opt}
@@ -113,14 +114,14 @@ export function RangeFilter({ binding }: { binding: FilterBinding }): React.JSX.
       <span>{label}</span>
       <input
         type="number"
-        aria-label={`${label} from`}
+        aria-label={t("filter.from", { label })}
         placeholder={ext ? String(ext[0]) : undefined}
         value={fromVal}
         onChange={(e) => update(e.target.value, toVal)}
       />
       <input
         type="number"
-        aria-label={`${label} to`}
+        aria-label={t("filter.to", { label })}
         placeholder={ext ? String(ext[1]) : undefined}
         value={toVal}
         onChange={(e) => update(fromVal, e.target.value)}
@@ -155,13 +156,13 @@ export function DateRangeFilter({ binding }: { binding: FilterBinding }): React.
       <span>{label}</span>
       <input
         type="date"
-        aria-label={`${label} from`}
+        aria-label={t("filter.from", { label })}
         value={fromVal}
         onChange={(e) => update(e.target.value, toVal)}
       />
       <input
         type="date"
-        aria-label={`${label} to`}
+        aria-label={t("filter.to", { label })}
         value={toVal}
         onChange={(e) => update(fromVal, e.target.value)}
       />

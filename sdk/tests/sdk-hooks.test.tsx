@@ -89,6 +89,32 @@ describe("sdk hooks", () => {
     expect(result.current.loading).toBe(false);
   });
 
+  // SDK-02 (T-2724): a type two endpoints serve is created where the caller names, in that
+  // endpoint's space; without a name the hook hands back the client's refusal, never a guess.
+  it("useSave creates through the endpoint named, and refuses to guess between two", async () => {
+    const client = stubClient(undefined, {
+      endpoints: [
+        { name: "north", slug: "north", space: "n", types: ["Parking"] },
+        { name: "south", slug: "south", space: "s", types: ["Parking"] },
+      ],
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => <JcProvider client={client}>{children}</JcProvider>;
+    const { result } = renderHook(() => useSave(), { wrapper });
+
+    let id: string | null = null;
+    await act(async () => {
+      id = await result.current.create("Parking", { free: 3 }, "p1", { endpoint: "south" });
+    });
+    expect(id).toBe("urn:ngsi-ld:Parking:example.org:s:p1");
+    expect(client.transport.calls.at(-1)).toMatchObject({ method: "POST", path: "/api/endpoint/south/ngsi-ld/v1/entities" });
+
+    await act(async () => {
+      id = await result.current.create("Parking", { free: 3 }, "p2");
+    });
+    expect(id).toBeNull();
+    expect(result.current.problem?.title).toBe("Type 'Parking' is served by more than one endpoint");
+  });
+
   it("useSave sets problem on refusal and resolves false/null without rejecting", async () => {
     const client = stubClient({
       refuse: (req) => {
