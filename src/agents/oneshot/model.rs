@@ -7,6 +7,28 @@ const RETRY_AFTER_MS: u64 = 1000;
 /// The longest a provider's own `Retry-After` is waited for: a person waits in front of it.
 const RETRY_AFTER_MAX_MS: u64 = 5000;
 
+/// The limit a run reached, when the proxy's refusal names one of the profile's (AG-51, T-2997):
+/// `stepsPerRun` counts the run's model calls and `maxTokensPerRun` its tokens. Anything else
+/// the proxy or the provider says with a 429 is `None`, a busy service.
+fn run_limit_reached(body: &str) -> Option<String> {
+    let detail = serde_json::from_str::<Value>(body)
+        .ok()?
+        .get("detail")?
+        .as_str()?
+        .to_owned();
+    let limit = if detail.contains("stepsPerRun") || detail.starts_with("step limit") {
+        "its step limit (the agent profile's stepsPerRun, one step a model call)"
+    } else if detail.contains("token budget") {
+        "its token budget (the agent profile's maxTokensPerRun)"
+    } else {
+        return None;
+    };
+    Some(format!(
+        "this run has used {limit}, so it stops here with the version on screen. An \
+         administrator can raise the limit in the agent profile; a new message starts a new run"
+    ))
+}
+
 /// A status worth one more try (T-2772): busy, too early, timed out at a gateway, or failing for a
 /// moment. A refusal of the credentials or of the request is not.
 fn retryable(status: reqwest::StatusCode) -> bool {
@@ -126,6 +148,23 @@ impl Driver {
                 }
             };
             let status = response.status();
+            // The proxy's 429 for a run that spent a limit its profile sets is no busy provider:
+            // asked again it is refused again, and the run says which limit it reached (T-2997).
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                let wait = backoff(response.headers());
+                let text = response.text().await.unwrap_or_default();
+                if let Some(reached) = run_limit_reached(&text) {
+                    tracing::info!(%status, "the run reached a limit of its profile");
+                    return Err(CallError::Failed(reached));
+                }
+                if tries == 1 {
+                    tracing::warn!(%status, "the model provider could not answer; asking once more");
+                    tokio::time::sleep(wait).await;
+                    continue;
+                }
+                tracing::warn!(%status, provider = %provider_said(&text), "the model provider refused the call");
+                return Err(CallError::Failed(refusal(status)));
+            }
             if tries == 1 && retryable(status) {
                 tracing::warn!(%status, "the model provider could not answer; asking once more");
                 tokio::time::sleep(backoff(response.headers())).await;

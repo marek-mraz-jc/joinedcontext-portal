@@ -102,6 +102,8 @@ impl Driver {
         let mut shown: Option<Shown> = None;
         // Verification passes since the last instruction (SDK-28).
         let mut verified = 0;
+        // The failures the last test-fix pass was made for (SDK-38, T-2997).
+        let mut fixing: Option<Vec<String>> = None;
         // Whether the last instruction was handled by the editing agent (see `Check::edited`).
         let mut edited = false;
         // A frame that reports an error but never an observation (an older page, a crash
@@ -315,7 +317,7 @@ impl Driver {
                             &mut committed,
                             &on_screen,
                             &event.payload,
-                            &mut verified,
+                            &mut fixing,
                         )
                         .await?
                     {
@@ -325,6 +327,7 @@ impl Driver {
                 "message" if sent_by_person(&event) => {
                     fallback = None;
                     verified = 0;
+                    fixing = None;
                     let text = event
                         .payload
                         .get("text")
@@ -945,8 +948,15 @@ impl Driver {
         Ok(())
     }
 
-    /// SDK-38: a `tests` event of the version on screen that failed goes back to the model like a
-    /// verification pass, under the same limit; a result of an older version is past.
+    /// SDK-38: a `tests` event of the version on screen that failed goes back to the model; a
+    /// result of an older version is past.
+    ///
+    /// Each red version gets its fix pass while the fixes move the failures (T-2997). The passes
+    /// shared the three verification passes once, so a run stopped at its fifth version with its
+    /// own tests red and steps left. What bounds them now is what the profile sets: the proxy
+    /// refuses a call past `stepsPerRun` or `maxTokensPerRun`, and the run says which. The same
+    /// failures after a fix are the one stop of its own: another pass would spend the budget on a
+    /// fix the model has already shown it cannot make.
     pub(super) async fn tests_failed(
         &self,
         check: Check<'_>,
@@ -954,7 +964,7 @@ impl Driver {
         committed: &mut BTreeMap<String, String>,
         on_screen: &Shown,
         payload: &Value,
-        verified: &mut u32,
+        fixing: &mut Option<Vec<String>>,
     ) -> Result<Option<Shown>, String> {
         let version = payload.get("version").and_then(Value::as_u64);
         if version != Some(u64::from(on_screen.version)) || payload["outcome"] != "failed" {
@@ -979,15 +989,16 @@ impl Driver {
             .map(|failure| format!("- {failure}"))
             .collect::<Vec<_>>()
             .join("\n");
-        if *verified >= MAX_VERIFICATIONS {
+        if fixing.as_ref() == Some(&found) {
             self.thought(&format!(
-                "The tests still fail after {MAX_VERIFICATIONS} passes, so the run does not offer \
-                 publication; say what to change:\n{list}"
+                "The same tests fail after a fix pass, so the run does not offer publication and \
+                 stops fixing them rather than spend its budget on the same fix; say what to \
+                 change:\n{list}"
             ))
             .await?;
             return Ok(None);
         }
-        *verified += 1;
+        *fixing = Some(found.clone());
         self.thought(&format!("The tests found:\n{list}")).await?;
         if check.edited {
             let mut conversation = check.conversation.to_vec();
@@ -1916,7 +1927,12 @@ mod tests_repair {
         })
     }
 
-    async fn run_tests_failed(driver: &Driver, edited: bool, payload: &Value, verified: &mut u32) {
+    async fn run_tests_failed(
+        driver: &Driver,
+        edited: bool,
+        payload: &Value,
+        fixing: &mut Option<Vec<String>>,
+    ) {
         let conversation = vec![("A desk of today's alerts".to_owned(), "Ready.".to_owned())];
         let check = Check {
             samples: &json!({}),
@@ -1937,7 +1953,7 @@ mod tests_repair {
                 &mut BTreeMap::new(),
                 &on_screen,
                 payload,
-                verified,
+                fixing,
             )
             .await
             .expect("the repair ends");
@@ -1971,9 +1987,12 @@ mod tests_repair {
     #[tokio::test]
     async fn a_failing_test_goes_to_the_model_with_its_log() {
         let (server, driver) = driver().await;
-        let mut verified = 0;
-        run_tests_failed(&driver, false, &failed(3), &mut verified).await;
-        assert_eq!(verified, 1);
+        let mut fixing = None;
+        run_tests_failed(&driver, false, &failed(3), &mut fixing).await;
+        assert!(
+            fixing.is_some(),
+            "the failures the pass was made for are kept"
+        );
         let calls = asked(&server).await;
         assert_eq!(calls.len(), 1, "one repair pass");
         let sent = calls[0].to_string();
@@ -1993,7 +2012,7 @@ mod tests_repair {
     #[tokio::test]
     async fn after_an_instruction_the_editing_agent_gets_the_failures() {
         let (server, driver) = driver().await;
-        run_tests_failed(&driver, true, &failed(3), &mut 0).await;
+        run_tests_failed(&driver, true, &failed(3), &mut None).await;
         let calls = asked(&server).await;
         assert!(
             calls[0]["tools"].is_array(),
@@ -2005,18 +2024,45 @@ mod tests_repair {
         assert!(sent.contains("AlertDesk lists the alerts"), "{sent}");
     }
 
-    /// Three passes that still fail end with no model call and a reason the person can act on;
-    /// the publish gate refuses the version while its last result failed (`tests_hold`).
+    /// T-2997: a red version gets its fix pass however many came before, as long as the last fix
+    /// moved the failures. Runs on dev stopped at their fifth version with its tests red: the
+    /// fixes spent the three verification passes and no pass was left.
     #[tokio::test]
-    async fn the_third_failure_stops_and_says_why_publication_is_not_offered() {
+    async fn a_red_version_gets_its_fix_pass_while_the_failures_move() {
         let (server, driver) = driver().await;
-        let mut verified = MAX_VERIFICATIONS;
-        run_tests_failed(&driver, false, &failed(3), &mut verified).await;
-        assert!(asked(&server).await.is_empty(), "no fourth pass");
+        // Passes came before, and the last one was made for another failure than this one.
+        let mut fixing = Some(vec!["an earlier failure the last pass fixed".to_owned()]);
+        run_tests_failed(&driver, false, &failed(3), &mut fixing).await;
+        assert_eq!(
+            asked(&server).await.len(),
+            1,
+            "one fix pass for the red version"
+        );
+        assert!(thoughts(&driver)
+            .await
+            .iter()
+            .any(|t| t.starts_with("The tests found:")));
+    }
+
+    /// The same failures after a fix pass end with no model call and a reason the person can act
+    /// on; the publish gate refuses the version while its last result failed (`tests_hold`).
+    #[tokio::test]
+    async fn the_same_failures_after_a_fix_stop_and_say_why() {
+        let (server, driver) = driver().await;
+        let mut fixing = None;
+        run_tests_failed(&driver, false, &failed(3), &mut fixing).await;
+        run_tests_failed(&driver, false, &failed(3), &mut fixing).await;
+        assert_eq!(
+            asked(&server).await.len(),
+            1,
+            "no second pass for the same failures"
+        );
         let said = thoughts(&driver).await;
         assert!(
-            said.iter().any(|t| t.contains("does not offer publication")
-                && t.contains("AlertDesk lists the alerts")),
+            said.iter()
+                .any(|t| t.contains("The same tests fail after a fix pass")
+                    && t.contains("does not offer publication")
+                    && t.contains("AlertDesk lists the alerts")),
             "{said:?}"
         );
     }
@@ -2025,16 +2071,16 @@ mod tests_repair {
     #[tokio::test]
     async fn only_a_failure_of_the_version_on_screen_is_repaired() {
         let (server, driver) = driver().await;
-        let mut verified = 0;
+        let mut fixing = None;
         for payload in [
             failed(2),
             json!({ "version": 3, "outcome": "passed", "passed": 3, "failed": 0 }),
             json!({ "version": 3, "outcome": "error", "reason": "the tests did not finish" }),
             json!({ "version": 3, "outcome": "running" }),
         ] {
-            run_tests_failed(&driver, false, &payload, &mut verified).await;
+            run_tests_failed(&driver, false, &payload, &mut fixing).await;
         }
-        assert_eq!(verified, 0);
+        assert!(fixing.is_none());
         assert!(asked(&server).await.is_empty());
     }
 }
