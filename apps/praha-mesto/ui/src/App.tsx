@@ -4,13 +4,26 @@
  * reader's own token. Each section loads on its own, so one type failing leaves the others on
  * screen and says what failed in its own place.
  */
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { endpointSource, Header, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
 import type { RichRow } from "@joinedcontext/sdk";
-import { bikeTotals, matching, POLLUTANTS, toAirStation, toBikeStation, toCarPark } from "./praha";
+import {
+  BIKE_STEPS,
+  bikeHistogram,
+  bikePoints,
+  bikeTotals,
+  matching,
+  POLLUTANTS,
+  stepLabels,
+  toAirStation,
+  toBikeStation,
+  toCarPark,
+} from "./praha";
 import type { AirStation, BikeStation, CarPark } from "./praha";
 import { stringsFor } from "./locales";
 import type { Strings } from "./locales";
+import { Chart } from "./Chart";
+import { StationMap } from "./StationMap";
 
 const SPACE = "praha-mesto";
 /** One request's worth of rows, and how many requests a type may take (1580 stations in 2026). */
@@ -116,6 +129,16 @@ function Bikes({ s }: { s: Strings }) {
       {load.status === "ready" && load.rows.length > 0 && (
         <>
           <Totals stations={load.rows} s={s} />
+          <div className="panels">
+            <StationMap
+              points={bikePoints(load.rows)}
+              steps={BIKE_STEPS}
+              label={s.bikes.map}
+              legendTitle={s.bikes.legend}
+              noMap={s.noMap}
+            />
+            <BikeHistogram stations={load.rows} s={s} />
+          </div>
           <label htmlFor={searchId} className="search">
             {s.search}
           </label>
@@ -144,6 +167,24 @@ function Totals({ stations, s }: { stations: BikeStation[]; s: Strings }) {
       ))}
     </ul>
   );
+}
+
+function BikeHistogram({ stations, s }: { stations: BikeStation[]; s: Strings }) {
+  const counts = bikeHistogram(stations);
+  const labels = stepLabels(BIKE_STEPS);
+  const option = useMemo(
+    () => ({
+      grid: { left: 48, right: 16, top: 16, bottom: 40 },
+      xAxis: { type: "category", data: labels, name: s.bikes.legend, nameLocation: "middle", nameGap: 28 },
+      yAxis: { type: "value", name: s.bikes.histogramAxis },
+      tooltip: { trigger: "axis" },
+      series: [{ type: "bar", data: counts, colorBy: "data" }],
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [counts.join(","), s],
+  );
+  const said = labels.map((label, i) => `${label}: ${counts[i]}`).join(", ");
+  return <Chart option={option} label={s.bikes.histogram(said)} />;
 }
 
 function BikeList({ stations, total, s }: { stations: BikeStation[]; total: number; s: Strings }) {
@@ -189,6 +230,7 @@ function Parking({ s }: { s: Strings }) {
   return (
     <Section title={s.parking.title} note={s.parking.note}>
       <Status load={load} s={s} />
+      {load.status === "ready" && load.rows.length > 0 && <ParkingChart parks={load.rows} s={s} />}
       {load.status === "ready" && load.rows.length > 0 && (
         <div className="scroll">
           <table>
@@ -233,11 +275,52 @@ function Parking({ s }: { s: Strings }) {
   );
 }
 
+function ParkingChart({ parks, s }: { parks: CarPark[]; s: Strings }) {
+  const sorted = useMemo(() => matching(parks, "", s.locale), [parks, s.locale]);
+  const option = useMemo(() => {
+    const counted = (park: CarPark) => park.free !== null || park.occupied !== null;
+    return {
+      grid: { left: 150, right: 16, top: 32, bottom: 24 },
+      legend: { top: 0 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+      xAxis: { type: "value" },
+      yAxis: { type: "category", data: sorted.map((park) => park.name), axisLabel: { width: 140, overflow: "truncate" } },
+      series: [
+        { name: s.parking.occupied, type: "bar", stack: "p", data: sorted.map((park) => (counted(park) ? park.occupied : null)) },
+        { name: s.parking.free, type: "bar", stack: "p", data: sorted.map((park) => (counted(park) ? park.free : null)) },
+        { name: s.parking.capacity, type: "bar", stack: "p", data: sorted.map((park) => (counted(park) ? null : park.capacity)) },
+      ],
+    };
+  }, [sorted, s]);
+  return <Chart option={option} label={s.parking.chart(parks.length)} height={Math.max(220, sorted.length * 22 + 60)} />;
+}
+
+function AirChart({ stations, s }: { stations: AirStation[]; s: Strings }) {
+  const sorted = useMemo(() => matching(stations, "", s.locale), [stations, s.locale]);
+  const option = useMemo(
+    () => ({
+      grid: { left: 48, right: 16, top: 32, bottom: 96 },
+      legend: { top: 0 },
+      tooltip: { trigger: "axis" },
+      xAxis: { type: "category", data: sorted.map((station) => station.name), axisLabel: { rotate: 40, width: 120, overflow: "truncate" } },
+      yAxis: { type: "value", name: s.air.unit },
+      series: POLLUTANTS.map((pollutant) => ({
+        name: s.pollutant[pollutant],
+        type: "bar",
+        data: sorted.map((station) => station.readings[pollutant]?.value ?? null),
+      })),
+    }),
+    [sorted, s],
+  );
+  return <Chart option={option} label={s.air.chart(stations.length)} height={320} />;
+}
+
 function Air({ s }: { s: Strings }) {
   const load = useRows<AirStation>("AirQualityObserved", toAirStation);
   return (
     <Section title={s.air.title} note={s.air.note}>
       <Status load={load} s={s} />
+      {load.status === "ready" && load.rows.length > 0 && <AirChart stations={load.rows} s={s} />}
       {load.status === "ready" && load.rows.length > 0 && (
         <div className="scroll">
           <table>
