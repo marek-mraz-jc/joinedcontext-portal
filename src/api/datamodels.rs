@@ -855,7 +855,7 @@ fn organization_model(
     Some(OrganizationModel {
         name: env.metadata.name.clone(),
         project: project.to_owned(),
-        space: spec.context_space_ref,
+        space: spec.context_space_ref.unwrap_or_default(),
         version: spec.version.to_string(),
         lifecycle,
         classes: spec.classes,

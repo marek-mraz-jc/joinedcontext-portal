@@ -2020,9 +2020,8 @@
       "name": "App name",
       "kind": "Kind",
       "kinds": {
-        "fullstack": "Full stack (Rust backend and React screens)",
-        "static": "Static (screens only)",
-        "service": "Service (backend only, no screens)"
+        "ui": "UI (React screens, served by the Portal)",
+        "ui-rust": "UI and Rust server (React screens and an axum backend)"
       },
       "endpoint": "Endpoint",
       "pickEndpoint": "Choose an endpoint",

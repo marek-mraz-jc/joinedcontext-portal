@@ -8,7 +8,7 @@
 //! `app-{name}`, version `{commit}-{digest12}` (see `version`), with its own token: no credential that writes a package is
 //! ever on the runner (AP-101).
 //!
-//! A `fullstack` App's build is an image (AP-105, AP-107): the artifact `image-{commit}` is an OCI
+//! A `ui-rust` App's build is an image (AP-105, AP-107): the artifact `image-{commit}` is an OCI
 //! image layout whose manifest hashes to the digest, every blob to the digest the manifest names,
 //! and the Portal pushes those bytes unchanged as `app-{name}:{commit}` to the container registry.
 
@@ -180,9 +180,14 @@ pub async fn check_and_publish(
         )));
     }
 
-    // A static App's build is a bundle, a fullstack App's an image (AP-101, AP-105).
-    let fullstack = spec.get("kind").and_then(Value::as_str) == Some("fullstack");
-    let (artifact, limit) = if fullstack {
+    // A `ui` App's build is a bundle, a `ui-rust` App's an image (AP-101, AP-105), the old
+    // names read as the new ones (AP-124).
+    let ui_rust = spec
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(jc_core::kinds::AppClass::parse)
+        == Some(Ok(jc_core::kinds::AppClass::UiRust));
+    let (artifact, limit) = if ui_rust {
         ("image", MAX_IMAGE_BYTES)
     } else {
         ("bundle", MAX_BUNDLE_BYTES)
@@ -206,7 +211,7 @@ pub async fn check_and_publish(
         .download_artifact(built.id, limit)
         .await
         .map_err(forge)?;
-    let image = if fullstack {
+    let image = if ui_rust {
         let image = image_of(&bytes, digest).map_err(|reason| {
             ApiError::BadRequest(format!(
                 "artifact image-{commit} of {at} is not the image status.build names: {reason} \

@@ -21,10 +21,11 @@ import { takePrefill } from "../../assistant/state";
 export const BLUEPRINT = "app-from-prompt";
 
 /**
- * `spec.kind` of the App the blueprint writes. `static` is the kit pass, a dashboard inside a
- * minute from one model call (AP-56); `fullstack` is what the workspace builds (AP-25).
+ * `spec.kind` of the App the blueprint writes (AP-124). `ui` is the kit pass, a dashboard inside a
+ * minute from one model call (AP-56); `ui-rust` is what the workspace builds (AP-25). `ui-node` is
+ * not offered until the shape is built (AP-125).
  */
-export const APP_KINDS = ["static", "fullstack", "service"] as const;
+export const APP_KINDS = ["ui", "ui-rust"] as const;
 export type AppKind = (typeof APP_KINDS)[number];
 
 /** The two apps that ship with the platform, for a deployment with no builder to point at. */
@@ -240,7 +241,7 @@ export function AppGenerator({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [name, setName] = useState(initialName ?? "");
-  const [kind, setKind] = useState<AppKind>("static");
+  const [kind, setKind] = useState<AppKind>("ui");
   const [prompt, setPrompt] = useState("");
   // The endpoints the assistant's "Build an app" path handed over (T-2696), taken once: the first
   // is the app's endpoint, the rest are read beside it.

@@ -16,7 +16,7 @@ metadata:
     en: "Every city bike station in Helsinki: bikes available now, free docks, and which stations are empty, on a map and in a table."
     fi: "Helsingin kaupunkipyöräasemat: vapaat pyörät, vapaat telineet ja tyhjät asemat kartalla ja taulukossa."
 spec:
-  kind: static
+  kind: ui
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_helsinki-bikes.git
