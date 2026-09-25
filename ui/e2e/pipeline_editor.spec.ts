@@ -139,11 +139,18 @@ test.describe("pipeline editor", () => {
     const dialog = page.getByTestId("form-page");
 
     await dialog.getByLabel(/^Name/).fill("aq-ingest");
-    await dialog.getByLabel(/^Execution/).selectOption("resident");
-    await dialog.getByLabel(/^Data source/).selectOption("mqtt-city");
+    // Every choice reads as words (T-2756), and the source's own fields follow the choice of
+    // where to read from (T-2754).
+    await dialog.getByLabel(/^Execution/).selectOption({ label: "Always running" });
+    await dialog.getByLabel(/^Read from/).selectOption({ label: "A data source of this project (external feed)" });
+    // The studio above the form reads from the same draft: its choice is the form's.
+    await dialog.getByTestId("pipeline-studio").getByLabel(/^Data source/).selectOption("mqtt-city");
+    await expect(
+      dialog.getByRole("group", { name: "Data flow" }).getByLabel(/^Data source/).locator("option:checked"),
+    ).toHaveText("mqtt-city");
     // The options carry the endpoint's name; the value is the URN (T-0630).
     await dialog.getByLabel(/^Target endpoint/).selectOption({ label: "public-air" });
-    await dialog.getByLabel(/^Kind/).selectOption("bloblang");
+    await dialog.getByLabel(/^Kind/).selectOption({ label: "Reshape records (Bloblang)" });
     await expect(dialog.getByText(/bento\.yaml beside this manifest/)).toBeVisible();
 
     // The YAML view shows the manifest the form wrote, in the real editor.
