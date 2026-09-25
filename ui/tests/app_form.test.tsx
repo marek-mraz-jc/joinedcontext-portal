@@ -261,3 +261,18 @@ describe("the App manifest the form writes", () => {
     expect(errorsOf(back)).toBe("");
   });
 });
+
+/** AP-120, T-2690: a new App asks for a login unless the person chooses public, and a stored one that says nothing is `project`. */
+describe("an App is not public unless someone chose it", () => {
+  it("defaults the form to project and reads a manifest without visibility as project", () => {
+    const visibility = (appSchema(i18n.t.bind(i18n)).properties as Record<string, { default?: unknown }>).visibility;
+    expect(visibility.default).toBe("project");
+    const form = fromAppEnvelope({
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "App",
+      metadata: { name: "air-desk", namespace: "helsinki" },
+      spec: { kind: "static", source: { path: "./src" }, build: {} },
+    });
+    expect(form.visibility).toBe("project");
+  });
+});
