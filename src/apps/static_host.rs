@@ -470,7 +470,7 @@ pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror
 /// The app's Content Security Policy (AP-12). `default-src` and `connect-src` stay on `'self'`
 /// plus whatever the manifest adds; `frame-ancestors` is the Portal's origin, which opens every
 /// App under its header (AP-122), plus the declared origins of an embeddable app. With no Portal
-/// origin to name (see [`portal_origin`]) it is `'none'`, or `'self'` for an embeddable app.
+/// origin to name (see `portal_origin`) it is `'none'`, or `'self'` for an embeddable app.
 pub fn content_security_policy(spec: &AppSpec, portal_origin: Option<&str>) -> String {
     let csp = spec.csp.as_ref();
     let mut connect = vec!["'self'".to_string()];
