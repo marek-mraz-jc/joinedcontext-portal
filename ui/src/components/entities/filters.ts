@@ -10,7 +10,7 @@ import { ApiError, readCsrfToken } from "../../api/client";
 import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { endpointUrl } from "../endpoints/links";
-import { parseModel } from "../../pages/models/linkml";
+import { classSlots, parseModel } from "../../pages/models/linkml";
 import type { NgsiLdKind } from "../../pages/models/linkml";
 import { parseResultsCount } from "../../pages/spaces/SpaceInside";
 
@@ -92,10 +92,13 @@ export function filterSlotsOf(
   }
   const parsed = parseModel(source);
   const cls = parsed.classes.find((c) => c.name === type);
-  return (cls?.slots ?? [])
+  // Its listed slots as the class narrows them, then its inline `attributes` (T-2720).
+  const own = cls ? classSlots(parsed, cls) : [];
+  const names = [...new Set([...(cls?.slots ?? []), ...own.map((slot) => slot.name)])];
+  return names
     .filter((name) => !RESERVED.includes(name))
     .map((name) => {
-      const slot = parsed.slots.find((s) => s.name === name);
+      const slot = own.find((s) => s.name === name);
       const values = parsed.enums.find((e) => e.name === slot?.range)?.permissible_values;
       return {
         name,
@@ -125,8 +128,7 @@ export function enumsOfModel(
   const parsed = parseModel(source);
   const cls = parsed.classes.find((c) => c.name === type);
   const found: Record<string, EnumOption[]> = {};
-  for (const name of cls?.slots ?? []) {
-    const range = parsed.slots.find((s) => s.name === name)?.range;
+  for (const { name, range } of cls ? classSlots(parsed, cls) : []) {
     const values = parsed.enums.find((e) => e.name === range)?.permissible_values ?? [];
     if (values.length > 0) {
       found[name] = values.map((value) => ({

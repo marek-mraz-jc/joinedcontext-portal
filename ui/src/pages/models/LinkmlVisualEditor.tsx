@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { localized } from "../../api/manifest";
@@ -18,6 +18,7 @@ import {
 } from "../../components/ui";
 import {
   DEFAULT_KIND,
+  EMPTY_MODEL,
   NGSI_LD_KINDS,
   RANGES,
   UNIT_CODES,
@@ -46,6 +47,10 @@ export interface LinkmlVisualEditorProps {
   diagnostics?: Diagnostic[];
   /** The organisation's configured locales, for the language maps of DM-15. */
   locales?: string[];
+  /** The class to open first, when the diagram named one. */
+  initialClass?: string;
+  /** Where "Import a Smart Data Model" goes, when the page around the editor offers the import. */
+  onImport?: () => void;
 }
 
 export function LinkmlVisualEditor({
@@ -53,11 +58,14 @@ export function LinkmlVisualEditor({
   onChange,
   diagnostics = [],
   locales = [],
+  onImport,
+  initialClass,
 }: LinkmlVisualEditorProps): JSX.Element {
   const { t, i18n } = useTranslation();
   const model = useMemo(() => parseModel(source), [source]);
+  const newClassInput = useRef<HTMLInputElement>(null);
 
-  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [selectedClass, setSelectedClass] = useState<string | null>(initialClass ?? null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [newClass, setNewClass] = useState("");
   const [newSlot, setNewSlot] = useState("");
@@ -162,6 +170,32 @@ export function LinkmlVisualEditor({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
+      {/* A model with no class yet, and one that parses (a broken one says why elsewhere): the
+          three ways to start, so an empty page is not the first thing a steward meets (T-2720). */}
+      {model !== EMPTY_MODEL && model.classes.length === 0 ? (
+        <section aria-labelledby="models-hints" className="rounded border border-border p-3 lg:col-span-2">
+          <h2 id="models-hints" className="text-sm font-semibold">
+            {t("models.hints.title")}
+          </h2>
+          <ol className="mt-2 flex list-decimal flex-col gap-2 pl-5 text-body">
+            <li>
+              {t("models.hints.sdm")}
+              {onImport ? (
+                <Button size="sm" variant="secondary" className="ml-2" onClick={onImport}>
+                  {t("models.hints.sdmAction")}
+                </Button>
+              ) : null}
+            </li>
+            <li>
+              {t("models.hints.klass")}
+              <Button size="sm" variant="secondary" className="ml-2" onClick={() => newClassInput.current?.focus()}>
+                {t("models.hints.klassAction")}
+              </Button>
+            </li>
+            <li>{t("models.hints.relation")}</li>
+          </ol>
+        </section>
+      ) : null}
       {refusal ? (
         <Alert tone="danger" role="alert" className="lg:col-span-2">
           {t("models.refused", { reason: refusal })}
@@ -193,6 +227,7 @@ export function LinkmlVisualEditor({
           </ul>
           <div className="mt-2 flex gap-1">
             <Input
+              ref={newClassInput}
               aria-label={t("models.newClass")}
               placeholder={t("models.newClass")}
               value={newClass}

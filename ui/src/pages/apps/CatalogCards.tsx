@@ -160,6 +160,16 @@ export function CatalogCards({
                   >
                     {item.title ?? item.name}
                   </Link>
+                ) : item.kind === "DataModel" ? (
+                  // A model opens its own page, not the list of every model (T-2766).
+                  <Link
+                    to="/projects/$project/models/$name"
+                    params={{ project, name: item.name }}
+                    title={item.title ?? item.name}
+                    className={linkClass}
+                  >
+                    {item.title ?? item.name}
+                  </Link>
                 ) : (
                   <Link
                     to="/projects/$project/$plural"

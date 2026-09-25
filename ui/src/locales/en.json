@@ -950,7 +950,8 @@
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
-    "noCredential": "None"
+    "noCredential": "None",
+    "writesType": "Writes"
   },
   "dashboards": {
     "lead": "Maps drawn from the endpoints of this project.",
@@ -1488,10 +1489,12 @@
     "dimensionLabel": "Dashboard use",
     "graph": {
       "title": "The model's classes and what joins them",
-      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class.",
+      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import.",
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
-      "more": "and {count} more"
+      "more": "and {count} more",
+      "from": "from {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Name",
@@ -1565,6 +1568,14 @@
       "downloadYaml": "Download the YAML",
       "copied": "Copied.",
       "copyFailed": "The browser did not allow copying; select the text and copy it instead."
+    },
+    "hints": {
+      "title": "This model has no class yet. Three ways to start:",
+      "sdm": "Import a Smart Data Model: its classes, fields and enums arrive written.",
+      "sdmAction": "Import a Smart Data Model",
+      "klass": "Add a class: name it in the box under Classes, for example School.",
+      "klassAction": "Name the first class",
+      "relation": "Add a relation: once there are two classes, give one a slot whose range is the other, for example School has users of the class User."
     }
   },
   "apps": {
@@ -2082,7 +2093,8 @@
     "export": "Export this page",
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
-    "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:"
+    "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
+    "typeInModel": "This type in its data model:"
   },
   "agentRun": {
     "title": "Application run",
@@ -2430,7 +2442,8 @@
       "meaning": "What it means",
       "document": "The {format} document",
       "model": "{types}, from the data model {name} {semver}",
-      "formats": "Served as {formats}; {recommended} is read first"
+      "formats": "Served as {formats}; {recommended} is read first",
+      "fromModel": "from the data model"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",

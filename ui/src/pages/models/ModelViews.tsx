@@ -9,15 +9,17 @@
  */
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
+import { readModelSource } from "../../api/datamodelSource";
 import { SchemaForm } from "../../components/forms/SchemaForm";
 import type { JsonSchema } from "../../components/forms/types";
 import { Alert, Button, Field, Select, Skeleton, Tabs, tabPanelProps } from "../../components/ui";
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import type { Artifacts } from "./LinkmlPreviewPanel";
-import { parseModel } from "./linkml";
+import { importName, parseModel } from "./linkml";
+import { useProjectList } from "./ModelsList";
 
 export type ModelView = "diagram" | "form" | "yaml";
 export const MODEL_VIEWS: readonly ModelView[] = ["diagram", "form", "yaml"];
@@ -33,6 +35,45 @@ export function useArtifacts(source: string | undefined) {
     queryFn: async (): Promise<Artifacts> =>
       unwrap(await api.POST("/api/v1/tools/generate", { body: { source: source ?? "" } })) as Artifacts,
   });
+}
+
+/**
+ * The sources of the project's models this one imports, by name (T-2720): what the diagram needs
+ * to draw an imported class beside the model's own. An import that names no model of the project
+ * (`linkml:types`, a URL elsewhere) or one the person cannot read is left out, and the model is
+ * drawn without it.
+ */
+export function useImportSources(project: string, name: string, source: string): Record<string, string> {
+  const wanted = useMemo(
+    () =>
+      new Set(
+        (parseModel(source).imports ?? [])
+          .map(importName)
+          .filter((one): one is string => one !== undefined && one !== name),
+      ),
+    [source, name],
+  );
+  const models = useProjectList(project, "datamodels").data ?? [];
+  const imported = models.filter((model) => wanted.has(model.metadata.name));
+  const texts = useQueries({
+    queries: imported.map((model) => {
+      const inline = typeof model.spec.linkml === "string" && model.spec.linkml.includes("\n") ? model.spec.linkml : undefined;
+      return {
+        queryKey: ["datamodel-source", project, model.metadata.name],
+        retry: false,
+        queryFn: () => (inline !== undefined ? Promise.resolve(inline) : readModelSource(project, model.metadata.name)),
+      };
+    }),
+  }).map((query) => query.data);
+  const names = imported.map((model) => model.metadata.name);
+  const key = JSON.stringify([names, texts]);
+  // One object while nothing changed, so the diagram is drawn once.
+  return useMemo(() => {
+    const [keyNames, keyTexts] = JSON.parse(key) as [string[], (string | undefined)[]];
+    return Object.fromEntries(
+      keyNames.flatMap((one, index) => (typeof keyTexts[index] === "string" ? [[one, keyTexts[index]]] : [])),
+    );
+  }, [key]);
 }
 
 /**
@@ -193,8 +234,19 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
  * The three views as tabs: the diagram first, and a click on a class opens its form. `id` keeps
  * two instances on one page from sharing tab ids.
  */
-export function ModelViews({ source, name, id = "model-views" }: { source: string; name: string; id?: string }): JSX.Element {
+export function ModelViews({
+  project,
+  source,
+  name,
+  id = "model-views",
+}: {
+  project: string;
+  source: string;
+  name: string;
+  id?: string;
+}): JSX.Element {
   const { t } = useTranslation();
+  const imports = useImportSources(project, name, source);
   const [view, setView] = useState<ModelView>("diagram");
   const [opened, setOpened] = useState<string | undefined>(undefined);
   return (
@@ -211,6 +263,7 @@ export function ModelViews({ source, name, id = "model-views" }: { source: strin
         {view === "diagram" ? (
           <LinkmlGraphView
             source={source}
+            imports={imports}
             onOpenClass={(clicked) => {
               setOpened(clicked);
               setView("form");

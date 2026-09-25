@@ -16,6 +16,7 @@ import { RAMP } from "../components/dashboards/mapColours";
 import type { Bbox, MapLayer } from "../components/dashboards/MapLibreView";
 import type { DenseLayer } from "../components/dashboards/DeckGlOverlay";
 import { GridWidget } from "../components/dashboards/GridWidget";
+import { TypeLink } from "../pages/models/ModelLinks";
 import { TemporalChart } from "../components/dashboards/TemporalChart";
 import {
   DashboardEditor,
@@ -593,7 +594,7 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
                 slug={slug}
                 type={widget.entityType}
                 config={widget.grid}
-                title={widget.entityType}
+                title={<TypeLink project={project} type={widget.entityType} />}
               />
             ) : widget.widgetType === "temporal-chart" && slug && widget.entityId && widget.property ? (
               <TemporalChart
