@@ -283,6 +283,13 @@ describe("diagnose refuses each rule of DM-68 as an error with its path", () => 
     }
   });
 
+  it("a nested value may take a class range: a JsonProperty, or a slot inlined: true (the importer's address)", () => {
+    const nested = "  address:\n    range: Address\n    annotations:\n      ngsi_ld_kind: JsonProperty\n  contact:\n    range: Address\n    inlined: true\n";
+    expect(rulesOf(model(nested, "  School:\n    slots: [address, contact]\n  Address:\n    slots: []\n"))).toEqual([]);
+    const plain = "  seat:\n    range: Address\n";
+    expect(rulesOf(model(plain, "  School:\n    slots: [seat]\n  Address:\n    slots: []\n"))).toEqual(["class-range-not-relationship"]);
+  });
+
   it("an external reference (uriorcurie, or no range at all) needs no inverse; one that names an inverse is refused", () => {
     const external = "  refDevice:\n    annotations:\n      ngsi_ld_kind: Relationship\n  derivedFrom:\n    range: uriorcurie\n    annotations:\n      ngsi_ld_kind: Relationship\n";
     expect(rulesOf(model(external, "  School:\n    slots: [refDevice, derivedFrom]\n"))).toEqual([]);

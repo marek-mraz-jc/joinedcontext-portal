@@ -1068,7 +1068,8 @@ export function relationshipsOf(
     const range = slot.range;
     const classRange = range !== undefined && classes.has(range);
     if (slot.kind !== "Relationship") {
-      if (classRange) {
+      // A nested value's class describes its shape (the importer's `address`), no entity (DM-68).
+      if (classRange && slot.kind !== "JsonProperty" && slot.inlined !== true) {
         problem(
           "class-range-not-relationship",
           path,
