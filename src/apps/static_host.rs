@@ -171,22 +171,17 @@ async fn serve(
         .body(Body::from(bytes))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
 
-<<<<<<< HEAD
-    let headers = response.headers_mut();
-    let basemap = crate::api::basemap::route_prefix(&state.config, &project);
-    if let Ok(csp) = HeaderValue::from_str(&content_security_policy(&spec, basemap.as_deref())) {
-        headers.insert(header::CONTENT_SECURITY_POLICY, csp);
-=======
     // No `X-Frame-Options`: its `SAMEORIGIN` would refuse the Portal, whose host is not the apps
     // origin, and `frame-ancestors` says who may frame the App (AP-122).
+    let basemap = crate::api::basemap::route_prefix(&state.config, &project);
     if let Ok(csp) = HeaderValue::from_str(&content_security_policy(
         &spec,
         portal_origin(&state).as_deref(),
+        basemap.as_deref(),
     )) {
         response
             .headers_mut()
             .insert(header::CONTENT_SECURITY_POLICY, csp);
->>>>>>> origin/main
     }
     response
 }
@@ -478,17 +473,16 @@ pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror
 }
 
 /// The app's Content Security Policy (AP-12). `default-src` and `connect-src` stay on `'self'`
-<<<<<<< HEAD
-/// plus whatever the manifest adds; `frame-ancestors` is `'none'` unless the app is embeddable.
-/// `basemap` is the project's basemap route prefix when the platform configures one (AP-67): the
-/// one source `connect-src` and `img-src` gain for the map's style and tiles.
-pub fn content_security_policy(spec: &AppSpec, basemap: Option<&str>) -> String {
-=======
 /// plus whatever the manifest adds; `frame-ancestors` is the Portal's origin, which opens every
 /// App under its header (AP-122), plus the declared origins of an embeddable app. With no Portal
 /// origin to name (see `portal_origin`) it is `'none'`, or `'self'` for an embeddable app.
-pub fn content_security_policy(spec: &AppSpec, portal_origin: Option<&str>) -> String {
->>>>>>> origin/main
+/// `basemap` is the project's basemap route prefix when the platform configures one (AP-67): the
+/// one source `connect-src` and `img-src` gain for the map's style and tiles.
+pub fn content_security_policy(
+    spec: &AppSpec,
+    portal_origin: Option<&str>,
+    basemap: Option<&str>,
+) -> String {
     let csp = spec.csp.as_ref();
     let mut connect = vec!["'self'".to_string()];
     if let Some(csp) = csp {
@@ -594,18 +588,12 @@ mod tests {
     const PORTAL: &str = "https://portal.example.sk";
 
     #[test]
-<<<<<<< HEAD
-    fn a_plain_app_may_not_be_framed_and_talks_only_to_the_platform() {
-        let csp = content_security_policy(&spec(), None);
-        assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
-=======
     fn a_plain_app_is_framed_by_the_portal_alone_and_talks_only_to_the_platform() {
-        let csp = content_security_policy(&spec(), Some(PORTAL));
+        let csp = content_security_policy(&spec(), Some(PORTAL), None);
         assert!(
             csp.ends_with("frame-ancestors https://portal.example.sk"),
             "{csp}"
         );
->>>>>>> origin/main
         assert!(csp.contains("connect-src 'self';"), "{csp}");
         assert!(
             !csp.contains('*'),
@@ -625,11 +613,7 @@ mod tests {
                 PORTAL.into(),
             ],
         });
-<<<<<<< HEAD
-        let csp = content_security_policy(&spec, None);
-=======
-        let csp = content_security_policy(&spec, Some(PORTAL));
->>>>>>> origin/main
+        let csp = content_security_policy(&spec, Some(PORTAL), None);
         assert!(
             csp.ends_with("frame-ancestors https://portal.example.sk https://city.example.sk"),
             "{csp}"
@@ -640,7 +624,7 @@ mod tests {
     #[test]
     fn a_configured_basemap_adds_its_route_and_nothing_else() {
         let prefix = "https://portal.example/api/v1/projects/bbsk/basemap/";
-        let csp = content_security_policy(&spec(), Some(prefix));
+        let csp = content_security_policy(&spec(), Some(PORTAL), Some(prefix));
         assert!(
             csp.contains(&format!("connect-src 'self' {prefix};")),
             "{csp}"
@@ -662,27 +646,23 @@ mod tests {
             connect_src: Vec::new(),
             frame_ancestors: vec!["https://elsewhere.example".into()],
         });
-<<<<<<< HEAD
-        assert!(content_security_policy(&spec, None).contains("frame-ancestors 'none'"));
-=======
-        assert!(content_security_policy(&spec, Some(PORTAL))
+        assert!(content_security_policy(&spec, Some(PORTAL), None)
             .ends_with("frame-ancestors https://portal.example.sk"));
     }
 
     #[test]
     fn without_an_apps_origin_of_its_own_nothing_but_an_embedder_frames_an_app() {
         // The App would share the Portal's origin, so the Portal never frames it (T-2476).
-        assert!(content_security_policy(&spec(), None).ends_with("frame-ancestors 'none'"));
+        assert!(content_security_policy(&spec(), None, None).ends_with("frame-ancestors 'none'"));
         let mut spec = spec();
         spec.embeddable = true;
-        assert!(content_security_policy(&spec, None).ends_with("frame-ancestors 'self'"));
+        assert!(content_security_policy(&spec, None, None).ends_with("frame-ancestors 'self'"));
         spec.csp = Some(ContentSecurityPolicy {
             connect_src: Vec::new(),
             frame_ancestors: vec!["https://city.example.sk".into()],
         });
-        assert!(content_security_policy(&spec, None)
+        assert!(content_security_policy(&spec, None, None)
             .ends_with("frame-ancestors https://city.example.sk"));
->>>>>>> origin/main
     }
 
     #[test]
