@@ -1414,6 +1414,18 @@
         "credential": "Credential",
         "expires": "Expires",
         "lastUsed": "Last used"
+      },
+      "claim": {
+        "title": "A key your MCP client asked for",
+        "hint": "Confirm it here to see the key. Your MCP client was not given it.",
+        "mint": "Mint a new key for the credential {credential} of {account}.",
+        "rotate": "Rotate key {keyId} of {account}: a successor is minted, and the current key keeps working for {hours, plural, one {# hour} other {# hours}}.",
+        "expires": "The new key expires {date}.",
+        "until": "This link works until {time}.",
+        "confirmMint": "Mint and show the key",
+        "confirmRotate": "Rotate and show the key",
+        "cancel": "Not now",
+        "gone": "This link has expired, was already used, or belongs to someone else. Ask for the key again from your MCP client."
       }
     },
     "matrix": {

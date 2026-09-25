@@ -1414,6 +1414,18 @@
         "credential": "Údaj",
         "expires": "Platnost do",
         "lastUsed": "Naposledy použit"
+      },
+      "claim": {
+        "title": "Klíč, o který požádal váš MCP klient",
+        "hint": "Potvrďte ho zde a klíč se zobrazí. Váš MCP klient ho nedostal.",
+        "mint": "Vytvořit nový klíč pro pověření {credential} účtu {account}.",
+        "rotate": "Vyměnit klíč {keyId} účtu {account}: vytvoří se nástupce a současný klíč funguje ještě {hours} h.",
+        "expires": "Nový klíč platí do {date}.",
+        "until": "Odkaz platí do {time}.",
+        "confirmMint": "Vytvořit a zobrazit klíč",
+        "confirmRotate": "Vyměnit a zobrazit klíč",
+        "cancel": "Teď ne",
+        "gone": "Tento odkaz vypršel, byl už použit nebo patří někomu jinému. Požádejte o klíč znovu ve svém MCP klientovi."
       }
     },
     "matrix": {

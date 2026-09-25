@@ -231,3 +231,139 @@ async fn a_branch_that_moved_after_the_review_is_refused_in_words_a_person_can_a
         answer.text
     );
 }
+
+/// The head the forge's update gives the branch once `main` is merged into it.
+const UPDATED: &str = "1683ddddeeeeffff000011112222aaaabbbbcccc";
+
+/// `forge_at(200)` whose branch another merge overtook: the first merge is refused as behind
+/// its base (PF-104), the update answers `update_status`, and the manifest's blob at the updated
+/// head is `blob-reviewed` when `main` left it alone.
+async fn behind_forge(update_status: u16, manifest_after: &str) -> MockServer {
+    let gitea = forge_at(200).await;
+    Mock::given(method("POST"))
+        .and(path(format!("{}/pulls/13/merge", common::REPO)))
+        .respond_with(
+            ResponseTemplate::new(405)
+                .set_body_json(json!({ "message": "The head branch is behind the base branch" })),
+        )
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&gitea)
+        .await;
+    let update = if update_status == 409 {
+        json!({ "message": "merge failed because of conflict" })
+    } else {
+        json!({})
+    };
+    Mock::given(method("POST"))
+        .and(path(format!("{}/pulls/13/update", common::REPO)))
+        .and(query_param("style", "merge"))
+        .respond_with(ResponseTemplate::new(update_status).set_body_json(update))
+        .mount(&gitea)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{}/branches/{BRANCH}", common::REPO)))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": UPDATED } })),
+        )
+        .mount(&gitea)
+        .await;
+    for (commit, blob) in [(REVIEWED, "blob-reviewed"), (UPDATED, manifest_after)] {
+        Mock::given(method("GET"))
+            .and(path(format!("{}/git/trees/{commit}", common::REPO)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "truncated": false,
+                "tree": [
+                    { "path": MANIFEST_PATH, "type": "blob", "sha": blob },
+                    { "path": "README.md", "type": "blob", "sha": format!("readme-{commit}") }
+                ]
+            })))
+            .mount(&gitea)
+            .await;
+    }
+    gitea
+}
+
+async fn merges_asked(gitea: &MockServer) -> Vec<Value> {
+    gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|request| {
+            request.method.to_string().eq_ignore_ascii_case("post")
+                && request.url.path().ends_with("/pulls/13/merge")
+        })
+        .filter_map(|request| serde_json::from_slice(&request.body).ok())
+        .collect()
+}
+
+/// PF-104, PF-57: a Change another merge overtook is brought up to date and merged at the
+/// updated head, because every file it changes reads the same there as at the reviewed commit.
+/// A file of `main` it does not touch (`README.md`) moving is no reason to send it back.
+#[tokio::test]
+async fn a_branch_that_fell_behind_is_updated_and_merged_when_its_own_files_are_unchanged() {
+    let gitea = behind_forge(200, "blob-reviewed").await;
+    let state = state_with(&gitea);
+    let answer = approve(&state).await;
+    assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
+    let merges = merges_asked(&gitea).await;
+    assert_eq!(
+        merges.len(),
+        2,
+        "one refused merge, one after the update: {merges:?}"
+    );
+    assert_eq!(
+        merges[1].get("head_commit_id").and_then(Value::as_str),
+        Some(UPDATED),
+        "the second merge was not pinned to the updated head: {:?}",
+        merges[1]
+    );
+}
+
+/// PF-104, PF-57: when `main` changed a file of the Change meanwhile, the approval no longer
+/// covers what would merge. Nothing merges, and the reviewer is told which file and what to do.
+#[tokio::test]
+async fn a_branch_whose_own_file_main_changed_goes_back_to_its_reviewer() {
+    let gitea = behind_forge(200, "blob-main-changed-it").await;
+    let state = state_with(&gitea);
+    let answer = approve(&state).await;
+    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+    for phrase in [MANIFEST_PATH, "Open the change again", "chg-0000000d"] {
+        assert!(
+            answer.text.contains(phrase),
+            "the refusal has to say '{phrase}': {}",
+            answer.text
+        );
+    }
+    assert_eq!(
+        merges_asked(&gitea).await.len(),
+        1,
+        "a merge followed the refusal"
+    );
+}
+
+/// PF-104, CC-80: `main` that does not merge into the branch is the same answer as a branch
+/// that moved, in words, never the forge's own.
+#[tokio::test]
+async fn a_branch_main_does_not_merge_into_is_refused_in_words_a_person_can_act_on() {
+    let gitea = behind_forge(409, "blob-reviewed").await;
+    let state = state_with(&gitea);
+    let answer = approve(&state).await;
+    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+    assert!(
+        answer.text.contains("Open the change again"),
+        "{}",
+        answer.text
+    );
+    assert!(
+        !answer.text.contains("merge failed"),
+        "the forge's words reached the person: {}",
+        answer.text
+    );
+    assert_eq!(
+        merges_asked(&gitea).await.len(),
+        1,
+        "a merge followed the refusal"
+    );
+}

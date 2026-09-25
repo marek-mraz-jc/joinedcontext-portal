@@ -652,7 +652,8 @@ async fn seed_project_repository(
                 &[],
             )
             .await?;
-        repository.protect_branch("main").await
+        repository.protect_branch("main").await?;
+        repository.let_the_reader_in().await
     }
     .await;
     if let Err(error) = seeded {
@@ -771,6 +772,7 @@ pub async fn duplicate_project(
         )
         .await?;
         copy.protect_branch("main").await?;
+        copy.let_the_reader_in().await?;
         let report = crate::api::import::ImportReport {
             created: files.iter().map(|(path, _)| path.clone()).collect(),
             replaced: Vec::new(),
