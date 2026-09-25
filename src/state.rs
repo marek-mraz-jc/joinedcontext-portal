@@ -495,6 +495,14 @@ impl AppState {
                         "the issuer is not a realm URL, so no workload client is managed"
                     ),
                 }
+                // The MCP hub's `endpoint:{slug}` scopes (T-2490), by the same identity.
+                if let Some(scopes) = crate::reconciler::hub_scopes::HubScopeSync::new(
+                    oidc.issuer.as_str(),
+                    oidc.client_id.clone(),
+                    oidc.client_secret().to_owned(),
+                ) {
+                    syncer = syncer.with_hub_scopes(Arc::new(scopes));
+                }
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
                 let deployer = StreamDeployer::new(url);
