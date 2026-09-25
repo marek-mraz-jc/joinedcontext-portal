@@ -51,9 +51,8 @@ const WORKSPACE = {
   scope: { kind: "project" },
   previewState: "none",
   createdAt: "2026-09-18T09:00:00Z",
-  // A week from the run, not a date: a fixed one expired the copy on 2026-09-25 at 09:00 and
-  // turned every bar test red (T-2729).
-  expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+  // Far ahead: a date that passes turns this copy expired and fails every test that opens it.
+  expiresAt: "2099-09-25T09:00:00Z",
   changes: 3,
 };
 const file = (path: string, kind: string, operation: string, lane = "yellow") => ({
