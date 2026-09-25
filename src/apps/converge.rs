@@ -301,9 +301,10 @@ impl Converger {
         ] {
             self.kube.apply(object).await?;
         }
-        // The app ran in the Portal's namespace before its project had one: once it runs in the
-        // project's, the old objects go, which is what empties the shared namespace (AP-116).
-        if namespace != self.settings.namespace {
+        // The app ran in the Portal's namespace before its project had one: once a pod of it
+        // is up in the project's, the old objects go, which is what empties the shared namespace
+        // (AP-116). Until then they keep serving, and a later run removes them.
+        if namespace != self.settings.namespace && self.available(&namespace, &name).await? {
             self.delete_objects(&self.settings.namespace, &name).await?;
         }
         Ok(Outcome::Applied)
@@ -374,6 +375,30 @@ impl Converger {
             name: name.to_owned(),
         })?;
         EndpointSlug::new(&slug).map_err(|err| ConvergeError::Render(RenderError::Slug(err)))
+    }
+
+    /// Whether the app's Deployment in `namespace` has a pod up at its current spec.
+    async fn available(&self, namespace: &str, name: &str) -> Result<bool, ConvergeError> {
+        let Some(deployment) = self
+            .kube
+            .get("apps/v1", "Deployment", namespace, &format!("app-{name}"))
+            .await?
+        else {
+            return Ok(false);
+        };
+        let number = |pointer: &str| deployment.pointer(pointer).and_then(Value::as_u64);
+        Ok(
+            match (
+                number("/metadata/generation"),
+                number("/status/observedGeneration"),
+                number("/status/availableReplicas"),
+            ) {
+                (Some(generation), Some(observed), Some(available)) => {
+                    observed >= generation && available >= 1
+                }
+                _ => false,
+            },
+        )
     }
 
     /// Removes the four objects of one app from one namespace; removing what is not there
