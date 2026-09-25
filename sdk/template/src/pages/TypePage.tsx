@@ -27,8 +27,9 @@ function Filter({ binding }: { binding: FilterBinding }) {
 }
 
 /** One entity type: filters, tiles, map, charts, table, export, detail and, where granted, an edit form. */
-export function TypePage({ type, schema }: { type: string; schema?: TypeSchema | null }) {
-  const { rows, loading, error, reload } = useEntities(type);
+/** `endpoint` names where the type is read and written, in an application reading several (SDK-02). */
+export function TypePage({ type, schema, endpoint, label = type }: { type: string; schema?: TypeSchema | null; endpoint?: string; label?: string }) {
+  const { rows, loading, error, reload } = useEntities(type, endpoint ? { endpoint } : undefined);
   // The shape is read once the first rows arrive, so the filters keep their positions on a reload.
   const [firstRows, setFirstRows] = useState(rows);
   if (firstRows.length === 0 && rows.length > 0) setFirstRows(rows);
@@ -38,7 +39,8 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const { can } = useAccess();
+  // The grants of the endpoint the type is read through, not the primary's.
+  const { can } = useAccess(endpoint);
   const edit = can("updateAttrs", type).ok ? can("updateAttrs", type) : can("updateEntity", type);
   const selected = shown.find((row) => row.id === selectedId) ?? null;
   const select = (id: string) => {
@@ -53,7 +55,7 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
   ];
 
   return (
-    <Page label={type}>
+    <Page label={label}>
       <FilterBar shown={shown.length} total={rows.length} onReset={reset}>
         {filters.map((_, index) => (
           <Filter key={index} binding={bind(index)} />
@@ -77,7 +79,7 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
           <TimeSeriesCard rows={shown} time={shape.time} y={measure} title={t("chart.overTime", { measure: measure ?? type })} />
         )}
       </Grid>
-      <EntityTable rows={shown} loading={loading} error={error} selected={selectedId} onSelect={(row) => select(row.id)} caption={type} />
+      <EntityTable rows={shown} loading={loading} error={error} selected={selectedId} onSelect={(row) => select(row.id)} caption={label} />
       <ExportButton rows={shown} filename={type} formats={shape.geo ? ["csv", "geojson", "pdf"] : ["csv", "pdf"]} location={shape.geo} />
       {selected && !editing && (
         <div className="app-detail">
@@ -92,6 +94,7 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
       {selected && editing && (
         <EntityForm
           type={type}
+          endpoint={endpoint}
           row={selected}
           rows={rows}
           onSaved={() => {

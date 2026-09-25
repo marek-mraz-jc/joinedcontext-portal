@@ -7,17 +7,20 @@ import { Loading, Problem } from "../components/states";
 import { StatTiles } from "../components/StatTiles";
 import type { Summary } from "../../functions/summary";
 import { t } from "../i18n";
+import { sourcesOf } from "../endpoints";
+import type { TypeSource } from "../endpoints";
 import { shapeOf } from "./shape";
 
-function TypeCard({ type, schema, endpoint }: { type: string; schema?: TypeSchema; endpoint?: string }) {
-  const { rows, loading, error } = useEntities(type);
+function TypeCard({ source, schema }: { source: TypeSource; schema?: TypeSchema }) {
+  const { type, endpoint } = source;
+  const { rows, loading, error } = useEntities(type, endpoint ? { endpoint } : undefined);
   const shape = useMemo(() => shapeOf(schema, rows), [schema, rows]);
   const measure = shape.numbers[0];
   return (
     <Card
       title={type}
       actions={
-        <button type="button" onClick={() => navigate(type)}>
+        <button type="button" onClick={() => navigate(source.id)}>
           {t("overview.open")}
         </button>
       }
@@ -42,14 +45,13 @@ function TypeCard({ type, schema, endpoint }: { type: string; schema?: TypeSchem
 export function Overview({ schema }: { schema: Schema }) {
   const types = Object.keys(schema).sort();
   const { config } = useClient();
-  const endpoints = config.endpoints ?? [];
-  const endpointOf = (type: string) => (endpoints.length > 1 ? endpoints.find((e) => e.types.includes(type))?.name : undefined);
+  const sources = sourcesOf(types, config);
   const summary = useFunction<Summary>("summary", { types }, { enabled: types.length > 0 });
   return (
     <Page label={t("page.overview")}>
       <Grid columns={4}>
-        {types.map((type) => (
-          <TypeCard key={type} type={type} schema={schema[type]} endpoint={endpointOf(type)} />
+        {sources.map((source) => (
+          <TypeCard key={source.id} source={source} schema={schema[source.type]} />
         ))}
       </Grid>
       <Card title={t("overview.summary")}>

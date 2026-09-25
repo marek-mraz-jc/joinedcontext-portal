@@ -5,9 +5,13 @@ import type { Page } from "./components/AppShell";
 import { Empty, Loading, Problem } from "./components/states";
 import { Overview } from "./pages/Overview";
 import { TypePage } from "./pages/TypePage";
+import { sourcesOf } from "./endpoints";
 import { requestedLanguage, setLanguage, t } from "./i18n";
 
-/** The overview and one page per entity type the endpoint publishes. Add a page to `pages` for a new screen. */
+/**
+ * The overview and one page per entity type the endpoints publish, a type several endpoints serve
+ * once per endpoint. Add a page to `pages` for a new screen.
+ */
 export default function App() {
   const { config } = useClient();
   // Before any page renders: every `t` below answers in it.
@@ -18,11 +22,12 @@ export default function App() {
     if (!schema) return [];
     return [
       { id: "overview", label: t("page.overview"), render: () => <Overview schema={schema} /> },
-      ...Object.keys(schema)
-        .sort()
-        .map((type): Page => ({ id: type, label: type, render: () => <TypePage type={type} schema={schema[type]} /> })),
+      ...sourcesOf(Object.keys(schema), config).map((source): Page => {
+        const label = source.shared ? `${source.type} (${source.endpoint})` : source.type;
+        return { id: source.id, label, render: () => <TypePage type={source.type} schema={schema[source.type]} endpoint={source.endpoint} label={label} /> };
+      }),
     ];
-  }, [schema, language]);
+  }, [schema, config, language]);
 
   if (error) return <Problem error={error} />;
   if (!schema) return <Loading />;

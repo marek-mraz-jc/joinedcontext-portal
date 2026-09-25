@@ -89,6 +89,7 @@ export function EntityForm({
   title,
   onSaved,
   onCancel,
+  endpoint,
 }: {
   type: string;
   row?: Row | null;
@@ -97,10 +98,12 @@ export function EntityForm({
   title?: string;
   onSaved?: (id: string) => void;
   onCancel?: () => void;
+  /** The endpoint the type is written through, in an application reading several (SDK-02). */
+  endpoint?: string;
 }): React.JSX.Element {
   const { schema, typeSchema } = useSchema(type);
   const save = useSave();
-  const { can } = useAccess();
+  const { can } = useAccess(endpoint);
   const client = useClient();
   const language = client.config.language ?? "en";
 
@@ -258,7 +261,7 @@ export function EntityForm({
           }
         }
       }
-      const newId = await save.create(type, attrs, localId.trim() || undefined);
+      const newId = await save.create(type, attrs, localId.trim() || undefined, endpoint ? { endpoint } : undefined);
       if (newId) {
         onSaved?.(newId);
       }

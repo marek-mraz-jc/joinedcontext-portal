@@ -26,6 +26,7 @@ the Portal repository's `sdk/` and add the tarball (`pnpm add ./joinedcontext-sd
 | `src/components/AppShell.tsx` | the header and the routing between pages (`#/{page}`, `navigate(id)`) |
 | `src/pages/TypePage.tsx`  | one type: filters, tiles, map, charts, table, export, detail, edit form |
 | `src/components/`         | `EntityTable` (the grid), `EntityMap` (maplibre), `charts` (echarts), `EntityForm`, filters, states |
+| `src/endpoints.ts`        | which endpoint each type is read through, when the app reads several    |
 | `src/i18n.ts`             | every text the app shows, in English, Slovak, German and Czech          |
 | `src/jc-types.ts`         | the row types of the endpoint, rendered from its model: never edit      |
 | `src/design-tokens.json`  | the app's look, inside the platform's branding                           |
@@ -37,7 +38,9 @@ the Portal repository's `sdk/` and add the tarball (`pnpm add ./joinedcontext-sd
 `useEntities(type)`, `useEntity(id)`, `useSave()`, `useSchema()`, `useAccess()` and `useMe()`
 from `@joinedcontext/sdk` call the endpoints with the person's own token. An App reading several
 endpoints names each in `dataNeeds`; the client reads a type through the endpoint that serves it,
-and a type two endpoints serve is read with `useEntities(type, { endpoint: "<name>" })`. A write is offered only where
+and a type two endpoints serve gets a page per endpoint (`sourcesOf` in `src/endpoints.ts`), read
+with `useEntities(type, { endpoint })`, checked with `useAccess(endpoint)` and created with
+`useSave().create(type, attrs, localId, { endpoint })`. A write is offered only where
 `useAccess().can(...)` says the person's grant allows it.
 
 ## Languages
