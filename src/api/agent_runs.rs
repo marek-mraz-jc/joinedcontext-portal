@@ -29,7 +29,7 @@ use crate::agents::kube;
 use crate::agents::needs::{declared_roles, validate_data_needs};
 use crate::agents::profile::Profile;
 use crate::agents::run::{
-    digest_prompt, mint_run_id, mint_ticket, AgentRun, AgentRunEvent, AgentRunStatus,
+    digest_prompt, mint_run_id, mint_ticket, AgentRun, AgentRunEvent, AgentRunStatus, RunOrigin,
 };
 use crate::agents::store::{now_rfc3339, StatusChangeError, StoreError};
 use crate::agents::{kit, oneshot, preview, repository, transpile};
@@ -123,6 +123,58 @@ fn default_kind() -> String {
     "application".to_owned()
 }
 
+/// The header the Portal's own live journeys start their runs with (AG-93).
+pub const RUN_ORIGIN_HEADER: header::HeaderName =
+    header::HeaderName::from_static("x-jc-run-origin");
+
+/// The origin a request asks its run to carry. Only a browser session may say `journey`: the
+/// header beside a bearer token (a service, a script, an agent) is refused, never ignored, so a
+/// caller learns it cannot mark a run, and so is any value but `journey`.
+pub fn run_origin(headers: &HeaderMap, front: Front) -> Result<RunOrigin, ApiError> {
+    let Some(value) = headers.get(&RUN_ORIGIN_HEADER) else {
+        return Ok(RunOrigin::Person);
+    };
+    if front == Front::Bearer {
+        return Err(ApiError::BadRequest(
+            "X-JC-Run-Origin is set by a browser session only, never beside a bearer token".into(),
+        ));
+    }
+    match value.to_str() {
+        Ok("journey") => Ok(RunOrigin::Journey),
+        _ => Err(ApiError::BadRequest(
+            "X-JC-Run-Origin must be journey".into(),
+        )),
+    }
+}
+
+impl axum::extract::FromRequestParts<AppState> for RunOrigin {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        run_origin(
+            &parts.headers,
+            Front::of(&parts.headers, state.config.trust_edge_token),
+        )
+    }
+}
+
+/// Which origins a list shows (AG-93): the one asked for, else people's runs, and every origin
+/// to a journey, so it finds the runs it started.
+pub fn listed_origin(asked: Option<&str>, caller: RunOrigin) -> Result<Option<String>, ApiError> {
+    match asked {
+        None if caller == RunOrigin::Journey => Ok(None),
+        None | Some("person") => Ok(Some(RunOrigin::Person.as_str().to_owned())),
+        Some("journey") => Ok(Some(RunOrigin::Journey.as_str().to_owned())),
+        Some("all") => Ok(None),
+        Some(_) => Err(ApiError::BadRequest(
+            "origin must be person, journey or all".into(),
+        )),
+    }
+}
+
 /// Query parameters for listing runs.
 #[derive(Debug, Deserialize, IntoParams)]
 #[serde(rename_all = "camelCase")]
@@ -132,6 +184,8 @@ pub struct ListRunsQuery {
     pub kind: Option<String>,
     pub status: Option<String>,
     pub mine: Option<bool>,
+    /// `person` (the default), `journey` or `all` (AG-93).
+    pub origin: Option<String>,
 }
 
 /// One page of runs, newest first.
@@ -309,7 +363,10 @@ pub struct CreatedRun {
     summary = "Start Unattended Work",
     description = "Starts an application, dashboard or analysis run, which waits for a person's approval at the end.",
     tag = "agents",
-    params(("project" = String, Path, description = "Project name")),
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("X-JC-Run-Origin" = Option<String>, Header, description = "`journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token"),
+    ),
     request_body(
         content = CreateRunRequest,
         example = json!({
@@ -337,6 +394,7 @@ pub struct CreatedRun {
 )]
 pub async fn create_run(
     user: CurrentUser,
+    origin: RunOrigin,
     State(state): State<AppState>,
     Path(project): Path<String>,
     Json(request): Json<CreateRunRequest>,
@@ -515,6 +573,7 @@ pub async fn create_run(
         steps: 0,
         tokens_used: 0,
         created_by: user.0.identity.username.clone(),
+        origin: origin.as_str().to_owned(),
         starter: serde_json::to_value(&user.0.identity).unwrap_or(serde_json::Value::Null),
         created_at,
         started_at: None,
@@ -626,12 +685,14 @@ pub async fn create_run(
     ),
     responses(
         (status = 200, description = "The project's runs, newest first", body = RunList),
+        (status = 400, description = "An `origin` that is none of person, journey and all, or `X-JC-Run-Origin` beside a bearer token", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 503, description = "The run store did not answer", body = ProblemDetails)
     )
 )]
 pub async fn list_runs(
     user: CurrentUser,
+    origin: RunOrigin,
     State(state): State<AppState>,
     Path(project): Path<String>,
     Query(query): Query<ListRunsQuery>,
@@ -658,6 +719,7 @@ pub async fn list_runs(
         kind: query.kind,
         status: query.status,
         created_by,
+        origin: listed_origin(query.origin.as_deref(), origin)?,
     };
     let items = state
         .agents
@@ -2539,6 +2601,76 @@ pub fn preview_router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::{app_manifest, caller_token, is_function_name};
+
+    mod origin {
+        use super::super::{listed_origin, run_origin, RunOrigin, RUN_ORIGIN_HEADER};
+        use crate::auth::session::Front;
+        use crate::error::ApiError;
+        use axum::http::HeaderMap;
+
+        fn headers(value: Option<&str>) -> HeaderMap {
+            let mut headers = HeaderMap::new();
+            if let Some(value) = value {
+                headers.insert(&RUN_ORIGIN_HEADER, value.parse().expect("a header value"));
+            }
+            headers
+        }
+
+        #[test]
+        fn only_a_browser_session_marks_a_run_as_a_journey_s() {
+            for front in [Front::Portal, Front::Edge] {
+                assert_eq!(
+                    run_origin(&headers(Some("journey")), front).ok(),
+                    Some(RunOrigin::Journey)
+                );
+                assert_eq!(
+                    run_origin(&headers(None), front).ok(),
+                    Some(RunOrigin::Person)
+                );
+            }
+            // A service, a script or an agent is refused, not quietly counted as a person.
+            assert!(matches!(
+                run_origin(&headers(Some("journey")), Front::Bearer),
+                Err(ApiError::BadRequest(message)) if message.contains("browser session")
+            ));
+            assert_eq!(
+                run_origin(&headers(None), Front::Bearer).ok(),
+                Some(RunOrigin::Person)
+            );
+            for value in ["person", "Journey", "", "journey "] {
+                assert!(
+                    matches!(
+                        run_origin(&headers(Some(value)), Front::Portal),
+                        Err(ApiError::BadRequest(_))
+                    ),
+                    "{value:?}"
+                );
+            }
+        }
+
+        #[test]
+        fn a_list_shows_people_s_runs_unless_asked_and_a_journey_everything() {
+            let person = Some("person".to_owned());
+            assert_eq!(
+                listed_origin(None, RunOrigin::Person).ok(),
+                Some(person.clone())
+            );
+            assert_eq!(listed_origin(None, RunOrigin::Journey).ok(), Some(None));
+            assert_eq!(
+                listed_origin(Some("person"), RunOrigin::Journey).ok(),
+                Some(person)
+            );
+            assert_eq!(
+                listed_origin(Some("journey"), RunOrigin::Person).ok(),
+                Some(Some("journey".to_owned()))
+            );
+            assert_eq!(
+                listed_origin(Some("all"), RunOrigin::Person).ok(),
+                Some(None)
+            );
+            assert!(listed_origin(Some("everything"), RunOrigin::Person).is_err());
+        }
+    }
 
     fn published(data_needs: serde_json::Value) -> serde_json::Value {
         let mut run: super::AgentRun = serde_json::from_value(serde_json::json!({

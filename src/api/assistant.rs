@@ -682,7 +682,10 @@ fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, Api
     summary = "Start A Conversation",
     description = "Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on App in the project; the assistant reads and drafts as the caller and proposes nothing on its own.",
     tag = "agents",
-    params(("project" = String, Path, description = "Project name")),
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("X-JC-Run-Origin" = Option<String>, Header, description = "`journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token"),
+    ),
     request_body(
         content = StartConversation,
         example = json!({ "message": "Which endpoints publish air quality?" })
@@ -697,6 +700,7 @@ fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, Api
 )]
 pub async fn start_conversation(
     user: CurrentUser,
+    origin: crate::agents::run::RunOrigin,
     State(state): State<AppState>,
     Path(project): Path<String>,
     Json(request): Json<StartConversation>,
@@ -828,6 +832,7 @@ pub async fn start_conversation(
         steps: 0,
         tokens_used: 0,
         created_by: user.0.identity.username.clone(),
+        origin: origin.as_str().to_owned(),
         starter: serde_json::to_value(&user.0.identity).unwrap_or(serde_json::Value::Null),
         created_at,
         started_at: None,

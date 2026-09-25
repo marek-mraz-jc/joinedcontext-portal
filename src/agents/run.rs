@@ -164,6 +164,10 @@ pub struct AgentRun {
     pub steps: i32,
     pub tokens_used: i64,
     pub created_by: String,
+    /// `person`, or `journey` for a run the Portal's own live journeys started (AG-93). Only a
+    /// browser session sets `journey`; a list leaves those out unless it is asked for them.
+    #[serde(default = "person_origin")]
+    pub origin: String,
     /// The identity that started the run, as the Portal read it from that person's session.
     ///
     /// A run outlives the session that started it, and a workspace calling back through the
@@ -191,6 +195,27 @@ pub struct AgentRunEvent {
     pub kind: String,
     pub payload: serde_json::Value,
     pub created_at: String,
+}
+
+fn person_origin() -> String {
+    RunOrigin::Person.as_str().to_owned()
+}
+
+/// Who a run is for (AG-93): a person, or one of the Portal's own live journeys, whose test
+/// runs would otherwise crowd the history people read. It hides; it never deletes (AG-45).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunOrigin {
+    Person,
+    Journey,
+}
+
+impl RunOrigin {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Person => "person",
+            Self::Journey => "journey",
+        }
+    }
 }
 
 fn empty_endpoints() -> serde_json::Value {

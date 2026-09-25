@@ -2270,6 +2270,7 @@ async fn expired_runs_are_reaped_and_ticket_invalidated_while_live_runs_remain()
         steps: 5,
         tokens_used: 1000,
         created_by: STEWARD.to_owned(),
+        origin: "person".to_owned(),
         starter: serde_json::Value::Null,
         created_at: "2020-01-01T00:00:00Z".to_owned(),
         started_at: Some("2020-01-01T00:01:00Z".to_owned()),
@@ -2535,6 +2536,7 @@ async fn continues_validations_reject_invalid_runs() {
         steps: 0,
         tokens_used: 0,
         created_by: STEWARD.to_owned(),
+        origin: "person".to_owned(),
         starter: serde_json::Value::Null,
         created_at: "2026-09-12T08:00:00Z".to_owned(),
         started_at: None,
@@ -2657,6 +2659,7 @@ async fn caller_without_portal_approver_sees_only_own_runs_while_approver_sees_b
         steps: 0,
         tokens_used: 0,
         created_by: "viewer.user".to_owned(),
+        origin: "person".to_owned(),
         starter: serde_json::Value::Null,
         created_at: "2026-09-12T09:00:00Z".to_owned(),
         started_at: None,
@@ -4121,6 +4124,7 @@ mod filtered_list_edges {
             kind: kind.map(str::to_owned),
             status: status.map(str::to_owned),
             created_by: by.map(str::to_owned),
+            origin: None,
         }
     }
 
@@ -4174,6 +4178,47 @@ mod filtered_list_edges {
             let said = format!("{filter:?}");
             assert_eq!(ids(&pool, &project, filter, 50).await, expected, "{said}");
         }
+    }
+
+    /// AG-93: `origin` is written and read back, a run recorded before the column is a person's,
+    /// and the origin filter binds after the others without moving the `LIMIT` placeholder.
+    #[tokio::test]
+    async fn the_origin_is_stored_and_filters_after_the_other_columns() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("origin");
+        insert(&pool, &project, &ROWS[..2]).await;
+        let mut journey: AgentRun = db::load_agent_run(&pool, &format!("{project}-a"))
+            .await
+            .expect("a read")
+            .expect("the run");
+        assert_eq!(journey.origin, "person", "the column's default");
+        journey.id = format!("{project}-j");
+        journey.origin = "journey".to_owned();
+        journey.created_at = "2026-09-21T10:09:00Z".to_owned();
+        db::insert_agent_run(&pool, &journey).await.expect("insert");
+        let by_origin = |origin: Option<&str>| RunFilter {
+            app: Some("kpi".to_owned()),
+            created_by: Some("anna".to_owned()),
+            origin: origin.map(str::to_owned),
+            ..RunFilter::default()
+        };
+        assert_eq!(
+            ids(&pool, &project, by_origin(Some("person")), 50).await,
+            ["a"]
+        );
+        assert_eq!(
+            ids(&pool, &project, by_origin(Some("journey")), 1).await,
+            ["j"]
+        );
+        assert_eq!(ids(&pool, &project, by_origin(None), 50).await, ["j", "a"]);
+        assert!(
+            ids(&pool, &project, by_origin(Some("journey' OR '1'='1")), 50)
+                .await
+                .is_empty()
+        );
     }
 
     /// Case 3: two filters before it do not move the `LIMIT` placeholder onto a filter value.
@@ -4350,4 +4395,128 @@ async fn a_workspace_run_reaches_its_project_repository_alone() {
     assert_eq!(status, StatusCode::OK, "{after}");
     assert_eq!(after["repository"], json!("helsinki"));
     assert_eq!(after["pathPrefix"], json!("apps/city-bikes-overview/"));
+}
+
+/// A run as the live journeys start it: the browser session plus `X-JC-Run-Origin` (AG-93).
+async fn call_as_journey(
+    app: &axum::Router,
+    cookie: &str,
+    method: Method,
+    uri: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::COOKIE, cookie)
+        .header("x-csrf-token", CSRF)
+        .header("x-jc-run-origin", "journey");
+    let body = match body {
+        Some(json) => {
+            request = request.header(header::CONTENT_TYPE, "application/json");
+            Body::from(json.to_string())
+        }
+        None => Body::empty(),
+    };
+    let response = app
+        .clone()
+        .oneshot(request.body(body).expect("a request"))
+        .await
+        .expect("a response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+fn ids(list: &Value) -> Vec<String> {
+    list["items"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|run| run["id"].as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+// T-2816, AG-93: the journeys' test runs crowded the history people read; they are marked and
+// left out of a list unless it asks, and nothing is deleted.
+#[tokio::test]
+async fn a_journey_s_run_is_marked_and_a_list_leaves_it_out_unless_asked() {
+    let config = config();
+    let app = router(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let runs = format!("/api/v1/projects/{PROJECT}/agent-runs");
+
+    let person = create_run(&app, &cookie).await;
+    assert_eq!(person["origin"], "person");
+    // Another application: one live run per application (AP-68).
+    let mut journey_body = create_body();
+    journey_body["appName"] = json!("t2816-journey-bikes");
+    let (status, journey) =
+        call_as_journey(&app, &cookie, Method::POST, &runs, Some(journey_body)).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{journey}");
+    assert_eq!(journey["origin"], "journey");
+    let (person_id, journey_id) = (
+        person["id"].as_str().unwrap_or_default(),
+        journey["id"].as_str().unwrap_or_default(),
+    );
+
+    let (status, listed) = call(&app, &cookie, Method::GET, &runs, None).await;
+    assert_eq!(status, StatusCode::OK, "{listed}");
+    assert_eq!(
+        ids(&listed),
+        vec![person_id.to_owned()],
+        "people's runs by default"
+    );
+
+    let (_, all) = call(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("{runs}?origin=all"),
+        None,
+    )
+    .await;
+    let mut both = ids(&all);
+    both.sort();
+    let mut expected = vec![person_id.to_owned(), journey_id.to_owned()];
+    expected.sort();
+    assert_eq!(
+        both, expected,
+        "asked for, every run is there: nothing was deleted"
+    );
+
+    let (_, only) = call(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("{runs}?origin=journey"),
+        None,
+    )
+    .await;
+    assert_eq!(ids(&only), vec![journey_id.to_owned()]);
+
+    // The journey itself finds the run it started.
+    let (_, own) = call_as_journey(&app, &cookie, Method::GET, &runs, None).await;
+    assert_eq!(ids(&own).len(), 2);
+
+    let (status, refused) = call(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("{runs}?origin=tests"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{refused}");
 }

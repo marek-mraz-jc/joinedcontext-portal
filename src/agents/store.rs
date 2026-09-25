@@ -29,6 +29,8 @@ pub struct RunFilter {
     pub kind: Option<String>,
     pub status: Option<String>,
     pub created_by: Option<String>,
+    /// `person` or `journey`; `None` lists every origin (AG-93).
+    pub origin: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -120,6 +122,11 @@ impl AgentStore {
                 }
                 if let Some(created_by) = &filter.created_by {
                     if &run.created_by != created_by {
+                        return false;
+                    }
+                }
+                if let Some(origin) = &filter.origin {
+                    if &run.origin != origin {
                         return false;
                     }
                 }
@@ -491,6 +498,7 @@ mod tests {
             steps: 0,
             tokens_used: 0,
             created_by: "demo.steward@hel.fi".to_owned(),
+            origin: "person".to_owned(),
             starter: serde_json::Value::Null,
             created_at: created_at.to_owned(),
             started_at: None,

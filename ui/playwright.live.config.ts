@@ -21,6 +21,10 @@ export default defineConfig({
     actionTimeout: 30_000,
     trace: "retain-on-failure",
     viewport: { width: 1600, height: 1000 },
+    // Every run a journey starts is a test run (AG-93, T-2816): the Portal records it as
+    // `origin: journey` and the Assistant page leaves it out of the history people read. Only a
+    // browser session may send this; the journeys never call the API with a bearer token.
+    extraHTTPHeaders: { "X-JC-Run-Origin": "journey" },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

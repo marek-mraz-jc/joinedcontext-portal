@@ -2063,6 +2063,18 @@
                 "null"
               ]
             }
+          },
+          {
+            "name": "origin",
+            "in": "query",
+            "description": "`person` (the default), `journey` or `all` (AG-93).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -2072,6 +2084,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RunList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An `origin` that is none of person, journey and all, or `X-JC-Run-Origin` beside a bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -2113,6 +2135,18 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "X-JC-Run-Origin",
+            "in": "header",
+            "description": "`journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -3504,6 +3538,18 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "X-JC-Run-Origin",
+            "in": "header",
+            "description": "`journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -9078,6 +9124,10 @@
               "null"
             ],
             "description": "The GitHub copy of the application's repository on the run's branch, when the installation\nkeeps one (AP-79). The forge's `source_url` stays the repository of record."
+          },
+          "origin": {
+            "type": "string",
+            "description": "`person`, or `journey` for a run the Portal's own live journeys started (AG-93). Only a\nbrowser session sets `journey`; a list leaves those out unless it is asked for them."
           },
           "pathPrefix": {
             "type": "string"

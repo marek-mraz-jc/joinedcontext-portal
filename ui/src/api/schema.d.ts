@@ -2041,6 +2041,11 @@ export interface components {
              *     keeps one (AP-79). The forge's `source_url` stays the repository of record.
              */
             mirrorUrl?: string | null;
+            /**
+             * @description `person`, or `journey` for a run the Portal's own live journeys started (AG-93). Only a
+             *     browser session sets `journey`; a list leaves those out unless it is asked for them.
+             */
+            origin?: string;
             pathPrefix: string;
             previewUrl?: string | null;
             profile: string;
@@ -5392,6 +5397,8 @@ export interface operations {
                 kind?: string | null;
                 status?: string | null;
                 mine?: boolean | null;
+                /** @description `person` (the default), `journey` or `all` (AG-93). */
+                origin?: string | null;
             };
             header?: never;
             path: {
@@ -5409,6 +5416,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunList"];
+                };
+            };
+            /** @description An `origin` that is none of person, journey and all, or `X-JC-Run-Origin` beside a bearer token */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */
@@ -5434,7 +5450,10 @@ export interface operations {
     create_run: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description `journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token */
+                "X-JC-Run-Origin"?: string | null;
+            };
             path: {
                 /** @description Project name */
                 project: string;
@@ -6500,7 +6519,10 @@ export interface operations {
     start_conversation: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description `journey` marks a run of the Portal's own live journeys (AG-93); a browser session only, refused beside a bearer token */
+                "X-JC-Run-Origin"?: string | null;
+            };
             path: {
                 /** @description Project name */
                 project: string;

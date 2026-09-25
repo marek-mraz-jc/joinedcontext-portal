@@ -2560,7 +2560,8 @@
       "all": "Všetko",
       "live": "Bežiace",
       "ended": "Skončené",
-      "mine": "Iba moje"
+      "mine": "Iba moje",
+      "testRuns": "Zobraziť testovacie behy"
     },
     "kinds": {
       "conversation": "Konverzácia",
@@ -2609,7 +2610,8 @@
     "showMore": "Zobraziť ďalších {count} (zostáva {left})",
     "table": {
       "name": "Názov"
-    }
+    },
+    "testRun": "Testovací beh"
   },
   "activity": {
     "title": "Activity",
