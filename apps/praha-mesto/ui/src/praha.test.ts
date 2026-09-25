@@ -4,7 +4,7 @@ import { toRichRow } from "@joinedcontext/sdk";
 import bikes from "./fixtures/bikes.json";
 import parking from "./fixtures/parking.json";
 import air from "./fixtures/air.json";
-import { between, bikeHistogram, bikePoints, bikeTotals, legendOf, matching, nameOf, stepLabels, toAirStation, toBikeStation, toCarPark } from "./praha";
+import { between, bikeHistogram, histogramBars, bikePoints, bikeTotals, legendOf, matching, nameOf, stepLabels, toAirStation, toBikeStation, toCarPark } from "./praha";
 import type { BikeStation } from "./praha";
 
 const rows = (entities: unknown[]) => entities.map((entity) => toRichRow(entity as Record<string, unknown>, "cs"));
@@ -93,6 +93,15 @@ describe("the map and the histogram", () => {
     ]).map((row) => toBikeStation(row, "cs"));
     expect(inside?.at).toEqual([14.42, 50.08]);
     expect(outside?.at).toBeUndefined();
+  });
+
+  it("colours each histogram bar with its step's legend colour, the one the map dots carry", () => {
+    const legend = legendOf([0, 1, 3], "#000000", "#ff8800");
+    expect(histogramBars([5, 0, 2], legend)).toEqual([
+      { value: 5, itemStyle: { color: "#000000" } },
+      { value: 0, itemStyle: { color: "#804400" } },
+      { value: 2, itemStyle: { color: "#ff8800" } },
+    ]);
   });
 
   it("runs the legend from the low colour to the high one", () => {
