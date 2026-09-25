@@ -1632,6 +1632,18 @@
     "download": "Herunterladen"
   },
   "models": {
+    "share": {
+      "action": "Mit der Organisation teilen",
+      "title": "{name} mit der Organisation teilen?",
+      "lead": "Eine Kopie von {name} v{version} kommt Byte für Byte zu den Modellen der Organisation, damit jedes Projekt sie importieren kann. Eine Administratorin oder ein Administrator der Organisation genehmigt sie; bis dahin ändert sich nichts, und dieses Projekt behält sein eigenes Modell in jedem Fall.",
+      "confirm": "Teilen vorschlagen",
+      "notPublished": "Nur ein veröffentlichtes Modell wird geteilt: Veröffentlichen Sie es zuerst.",
+      "failed": "Das Teilen wurde nicht vorgeschlagen: {reason}",
+      "adoptLead": "Die Organisation führt dieses Modell als {importName} (v{version}), von hier geteilt. Verwenden Sie ihre Kopie: Dieses Modell importiert sie dann anstelle der Klassen, die es selbst definiert, mit denselben Namen und IRIs, sodass sich keine Entität ändert.",
+      "adopt": "Kopie der Organisation verwenden",
+      "copyLoading": "Die Kopie der Organisation wird gelesen …",
+      "copyFailed": "Die Kopie der Organisation konnte nicht gelesen werden: {reason}"
+    },
     "title": "Modelleditor",
     "version": "Version {version}",
     "add": "Hinzufügen",

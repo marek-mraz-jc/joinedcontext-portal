@@ -39,6 +39,7 @@ import { ModelForm, ModelYaml, useImportSources } from "./ModelViews";
 import { ProposeLink, useProjectList, useProjectManifests } from "./ModelsList";
 import { classSlots, parseModel } from "./linkml";
 import type { LinkmlModel } from "./linkml";
+import { OrganizationCopyOffer, ShareWithOrganization } from "./ShareModel";
 import { spaceOfModel, USING_KINDS, usesOfModel } from "./modelUsage";
 import type { ModelUse } from "./modelUsage";
 
@@ -249,12 +250,17 @@ export function ModelPage({
             </span>
           }
           actions={
-            <ProposeLink project={project} search={{ edit: name }} variant="primary">
-              {t("models.page.edit")}
-            </ProposeLink>
+            <div className="flex flex-wrap items-start gap-2">
+              <ProposeLink project={project} search={{ edit: name }} variant="primary">
+                {t("models.page.edit")}
+              </ProposeLink>
+              <ShareWithOrganization project={project} name={name} version={version} lifecycle={lifecycle} />
+            </div>
           }
         />
       </div>
+
+      {source.data !== undefined ? <OrganizationCopyOffer project={project} name={name} source={source.data} /> : null}
 
       <Tabs
         id="model-page"

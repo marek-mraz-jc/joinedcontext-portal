@@ -7,7 +7,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use jc_core::envelope::ORG_NAMESPACE;
-use jc_core::kinds::data_model::{DataModelLifecycle, ModelImport};
+use jc_core::kinds::data_model::{DataModelLifecycle, DataModelOrigin, ModelImport};
 use jc_core::kinds::{DataModelSpec, GeneratedArtifacts, SemVer};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -672,7 +672,13 @@ pub async fn get_source(
     // PF-59, R20 (T-1367): the source is a read of the model, so a caller who may not read the
     // project's models gets the answer of a model that is not there, and the forge is not asked.
     // The operations registry and the MCP resource ask the same question before `read_source`.
-    if !crate::permissions::for_request(&state, &user.0.identity, &project).may_read("DataModel") {
+    // An organization model is every member's to read, since a schema carries no data (DM-74).
+    let readable = if project == ORG_NAMESPACE {
+        crate::permissions::is_organization_member(&state, &user.0.identity)
+    } else {
+        crate::permissions::for_request(&state, &user.0.identity, &project).may_read("DataModel")
+    };
+    if !readable {
         return Err(ApiError::NotFound(format!(
             "DataModel '{name}' not found in project '{project}'"
         )));
@@ -747,16 +753,6 @@ pub async fn put_source(
         Some(&envelope.spec),
     )?;
 
-    let folder = model_folder(&project, &envelope.spec, &name);
-
-    let linkml = envelope
-        .spec
-        .get("linkml")
-        .and_then(Value::as_str)
-        .ok_or_else(|| ApiError::BadRequest("DataModel spec missing linkml".into()))?;
-
-    let confined_linkml = confine_linkml_path(linkml)?;
-
     let source_str = std::str::from_utf8(&body)
         .map_err(|e| ApiError::BadRequest(format!("invalid utf-8 body: {e}")))?
         .to_string();
@@ -782,13 +778,291 @@ pub async fn put_source(
     if is_dry {
         return Ok((StatusCode::OK, Json(checked)).into_response());
     }
+    // A model that did not exist has nothing to break, so it lands in the lane a draft gets.
+    // An organization model changes for every project at once, so only an administrator
+    // approves any change to it (DM-74).
+    let lane = match checked.severity.as_str() {
+        _ if project == ORG_NAMESPACE => Lane::Red,
+        _ if creating => Lane::Green,
+        "breaking" => Lane::Red,
+        "additive" => Lane::Yellow,
+        _ => Lane::Green,
+    };
+    let (verb, noun) = if creating {
+        ("create", "creation")
+    } else {
+        ("update", "update")
+    };
+    let change = propose_model(
+        &state,
+        &user.0.identity,
+        ModelProposal {
+            namespace: &project,
+            name: &name,
+            envelope,
+            source: &source_str,
+            checked,
+            next_val,
+            imports,
+            creating,
+            lane,
+            title: format!("{verb} DataModel {name}"),
+            body: format!(
+                "Proposed {noun} of DataModel `{name}` source, manifest and generated artifacts in project `{project}` via joinedcontext Portal."
+            ),
+        },
+    )
+    .await?;
+
+    Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+}
+
+/// The body of a share: the model's name typed back by an organization administrator who
+/// approves their own share at once (PF-58, CC-19). Without it the Change waits for one.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ShareBody {
+    #[serde(default)]
+    pub confirm: Option<String>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/datamodels/{name}/share",
+    summary = "Share Model with the Organization",
+    description = "Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-76). Only an organization-scope approver of DataModel approves it.",
+    tag = "datamodels",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "DataModel name"),
+    ),
+    request_body(
+        content = Option<ShareBody>,
+        description = "Empty, or the model's name typed by an organization administrator sharing their own model",
+        content_type = "application/json",
+        example = json!({ "confirm": "air-quality" })
+    ),
+    responses(
+        (status = 202, description = "The Change, waiting for an organization approver or merged", body = Change),
+        (status = 400, description = "The model imports a model of the project, or the body does not read", body = ProblemDetails),
+        (status = 403, description = "No propose on DataModel", body = ProblemDetails),
+        (status = 404, description = "No such model the caller may read", body = ProblemDetails),
+        (status = 409, description = "Not published, the name is held by an organization model of another origin, or the organization's copy already has this source", body = ProblemDetails),
+        (status = 503, description = "Git forge unavailable", body = ProblemDetails),
+    )
+)]
+pub async fn share_model(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let share: ShareBody = if body.is_empty() {
+        ShareBody::default()
+    } else {
+        serde_json::from_slice(&body)
+            .map_err(|e| ApiError::BadRequest(format!("invalid json body: {e}")))?
+    };
+    let identity = &user.0.identity;
+    if project == ORG_NAMESPACE {
+        return Err(ApiError::BadRequest(format!(
+            "'{name}' is an organization model already; a project's model is what is shared (DM-76)"
+        )));
+    }
+    let effective = crate::permissions::for_request(&state, identity, &project);
+    let model = state
+        .mirror
+        .get(&project, "DataModel", &name)
+        .filter(|model| {
+            effective.may_read_in(
+                "DataModel",
+                model.spec.get("contextSpaceRef").and_then(Value::as_str),
+            )
+        })
+        .ok_or_else(|| {
+            ApiError::NotFound(format!("project '{project}' has no data model '{name}'"))
+        })?;
+    effective.check(
+        "DataModel",
+        jc_core::kinds::Verb::Propose,
+        Some(&model.spec),
+    )?;
+    let spec: DataModelSpec = serde_json::from_value(model.spec.clone())
+        .map_err(|e| ApiError::Internal(format!("DataModel {name} does not read: {e}")))?;
+    if spec.lifecycle != DataModelLifecycle::Published {
+        return Err(ApiError::Conflict(format!(
+            "'{name}' is {}; only a published model is shared with the organization (DM-76)",
+            spec.lifecycle
+        )));
+    }
+    let source = read_source(&state, &project, &name).await?;
+    let from = |origin: &DataModelOrigin| {
+        origin.project == project && origin.space == spec.context_space_ref && origin.name == name
+    };
+
+    // The organization's copy of this model, when an earlier share made one: the next version of
+    // it (DM-22). A model of that name from anywhere else keeps its name (DM-76).
+    let existing = state.mirror.get(ORG_NAMESPACE, "DataModel", &name);
+    let (envelope, version) = match existing {
+        None => {
+            let mut envelope = model.clone();
+            envelope.metadata.namespace = Some(ORG_NAMESPACE.to_owned());
+            if let Some(spec) = envelope.spec.as_object_mut() {
+                spec.remove("contextSpaceRef");
+                spec.remove("origin");
+            }
+            (envelope, Some(spec.version.to_string()))
+        }
+        Some(organization) => {
+            let origin = organization
+                .spec
+                .get("origin")
+                .and_then(|origin| serde_json::from_value::<DataModelOrigin>(origin.clone()).ok());
+            if !origin.as_ref().is_some_and(from) {
+                return Err(ApiError::Conflict(format!(
+                    "the organization already has a data model '{name}'{}; rename this model to share it (DM-76)",
+                    origin.map_or_else(String::new, |o| format!(
+                        ", shared from project '{}' model '{}'",
+                        o.project, o.name
+                    ))
+                )));
+            }
+            if read_source(&state, ORG_NAMESPACE, &name)
+                .await
+                .ok()
+                .as_deref()
+                == Some(&source)
+            {
+                return Err(ApiError::Conflict(format!(
+                    "the organization's '{name}' already holds this source, at version {}",
+                    organization
+                        .spec
+                        .get("version")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                )));
+            }
+            (organization, None)
+        }
+    };
+    let creating = version.is_some();
+
+    // Checked as an organization model: its imports resolve among the organization's models only,
+    // so one importing a model of this project is refused before anything is written (DM-75).
+    let (checked, next_val, imports) = check_source(
+        &state,
+        identity,
+        ORG_NAMESPACE,
+        &name,
+        &envelope.spec,
+        &source,
+        version.as_deref(),
+    )
+    .await?;
+
+    let gitea = state
+        .forge_for(&project)
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let commit = gitea.branch_head(&gitea.default_branch().await?).await?;
+    let origin = DataModelOrigin {
+        project: project.clone(),
+        space: spec.context_space_ref.clone(),
+        name: name.clone(),
+        version: spec.version.clone(),
+        commit,
+    };
+    let mut envelope = envelope;
+    envelope.spec["origin"] =
+        serde_json::to_value(&origin).map_err(|e| ApiError::Internal(e.to_string()))?;
+    envelope.spec["lifecycle"] = json!("published");
+
+    let from_space = origin
+        .space
+        .as_deref()
+        .map(|space| format!(", space `{space}`"))
+        .unwrap_or_default();
+    let change = propose_model(
+        &state,
+        identity,
+        ModelProposal {
+            namespace: ORG_NAMESPACE,
+            name: &name,
+            envelope,
+            source: &source,
+            checked,
+            next_val,
+            imports,
+            creating,
+            lane: Lane::Red,
+            title: format!("share DataModel {name} with the organization"),
+            body: format!(
+                "Shares DataModel `{name}` {} of project `{project}`{from_space} with the organization (DM-76): the source copied byte for byte at commit {}. An organization administrator approves it.",
+                origin.version, origin.commit
+            ),
+        },
+    )
+    .await?;
+    // Only a person at the Portal approves their own share, and only as an organization
+    // administrator with the name typed; a bearer caller's waits like anyone's (PF-58).
+    let change = if identity.client.is_none() {
+        crate::api::changes::approve_as_proposed(
+            &state,
+            identity,
+            ORG_NAMESPACE,
+            "DataModel",
+            change,
+            share.confirm.as_deref(),
+        )
+        .await
+    } else {
+        change
+    };
+    Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+}
+
+/// One model Change: the manifest, its source as typed and the artifacts compiled from it, in
+/// the model's folder of the repository its namespace lives in (DM-01, DM-74).
+pub(crate) struct ModelProposal<'a> {
+    pub namespace: &'a str,
+    pub name: &'a str,
+    /// The manifest as it stands, or as it will be created; version, classes and artifacts are
+    /// set here from `checked`.
+    pub envelope: crate::resource::ResourceEnvelope,
+    pub source: &'a str,
+    pub checked: SourceDryRunResult,
+    pub next_val: Value,
+    pub imports: BTreeMap<String, String>,
+    pub creating: bool,
+    pub lane: Lane,
+    pub title: String,
+    pub body: String,
+}
+
+/// Writes a checked model to a branch of its repository and opens the Change for it.
+pub(crate) async fn propose_model(
+    state: &AppState,
+    identity: &Identity,
+    proposal: ModelProposal<'_>,
+) -> Result<Change, ApiError> {
+    let (project, name, creating, lane) = (
+        proposal.namespace,
+        proposal.name,
+        proposal.creating,
+        proposal.lane,
+    );
+    let folder = model_folder(project, &proposal.envelope.spec, name);
+    let linkml = proposal
+        .envelope
+        .spec
+        .get("linkml")
+        .and_then(Value::as_str)
+        .ok_or_else(|| ApiError::BadRequest("DataModel spec missing linkml".into()))?;
+    let confined_linkml = confine_linkml_path(linkml)?;
+    let (source_str, next_val, imports) = (proposal.source, proposal.next_val, proposal.imports);
+    let checked = proposal.checked;
     let SourceDryRunResult {
-        severity,
-        version,
-        artifacts,
-        ..
+        version, artifacts, ..
     } = checked;
-    let severity = severity.as_str();
     let target_version =
         SemVer::new(&version).map_err(|e| ApiError::BadRequest(format!("invalid version: {e}")))?;
 
@@ -810,7 +1084,7 @@ pub async fn put_source(
         example: Some(format!("./examples/{name}.example.jsonld")),
     };
 
-    let mut new_spec = envelope.spec.clone();
+    let mut new_spec = proposal.envelope.spec.clone();
     new_spec["version"] = Value::String(target_version.to_string());
     new_spec["classes"] = serde_json::to_value(&classes).unwrap_or(Value::Array(Vec::new()));
     new_spec["artifacts"] = serde_json::to_value(&artifacts_spec).unwrap_or(Value::Null);
@@ -821,7 +1095,7 @@ pub async fn put_source(
         .validate()
         .map_err(|e| ApiError::BadRequest(format!("DataModel validation error: {e}")))?;
 
-    let mut updated_envelope = envelope.clone();
+    let mut updated_envelope = proposal.envelope;
     updated_envelope.spec = new_spec;
     updated_envelope.strip_status();
 
@@ -843,7 +1117,7 @@ pub async fn put_source(
             .map_err(|e| ApiError::Internal(format!("serialize example: {e}")))?;
 
     let gitea = state
-        .forge_for(&project)
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let gitea: &crate::git::GiteaClient = &gitea;
 
@@ -853,15 +1127,11 @@ pub async fn put_source(
     } else {
         Operation::Update
     };
-    let branch = branch_name(&project, "datamodel", &name, operation);
+    let branch = branch_name(project, "datamodel", name, operation);
     let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
 
-    let (author_name, author_email) = author_credentials(&user.0.identity, &project);
-    let commit_msg = if creating {
-        format!("create DataModel {name} with its source and artifacts")
-    } else {
-        format!("update DataModel {name} source and artifacts")
-    };
+    let (author_name, author_email) = author_credentials(identity, project);
+    let commit_msg = format!("{} with its source and artifacts", proposal.title);
 
     let manifest_path = format!("{folder}/{name}.yaml");
     let source_path = format!("{folder}/{confined_linkml}");
@@ -872,7 +1142,7 @@ pub async fn put_source(
 
     let writes = [
         (&manifest_path, manifest_yaml.as_str()),
-        (&source_path, source_str.as_str()),
+        (&source_path, source_str),
         (&schema_path, json_schema_content.as_str()),
         (&context_path, context_content.as_str()),
         (&docs_path, docs_content.as_str()),
@@ -901,34 +1171,13 @@ pub async fn put_source(
         gitea.put_file(&file_write).await?;
     }
 
-    // A model that did not exist has nothing to break, so it lands in the lane a draft gets.
-    // An organization model changes for every project at once, so only an administrator
-    // approves any change to it (DM-74).
-    let lane = match severity {
-        _ if project == ORG_NAMESPACE => Lane::Red,
-        _ if creating => Lane::Green,
-        "breaking" => Lane::Red,
-        "additive" => Lane::Yellow,
-        _ => Lane::Green,
-    };
-
     crate::telemetry::proposed(lane, "DataModel");
 
-    let pr_title = if creating {
-        format!("create DataModel {name}")
-    } else {
-        format!("update DataModel {name}")
-    };
-    let pr_body = format!(
-        "Proposed {} of DataModel `{name}` source, manifest and generated artifacts in project `{project}` via joinedcontext Portal.",
-        if creating { "creation" } else { "update" }
-    );
-
     let pr = gitea
-        .create_pull_request(&branch, &default_branch, &pr_title, &pr_body)
+        .create_pull_request(&branch, &default_branch, &proposal.title, &proposal.body)
         .await?;
 
-    let change_meta = crate::api::changes::change_meta(&state, gitea, pr.number, &project);
+    let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
     let change_status = ChangeStatus::new(
         lane,
         ChangePhase::PendingApproval,
@@ -948,9 +1197,7 @@ pub async fn put_source(
     )
     .in_repository(&pr.repository)
     .with_merge_request(pr.url);
-    let change = Change::new(change_meta, change_status);
-
-    Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+    Ok(Change::new(change_meta, change_status))
 }
 
 /// The longest `search` the organization's model list takes (API/01).
@@ -990,6 +1237,22 @@ pub struct OrganizationModel {
     pub version: String,
     pub lifecycle: String,
     pub classes: Vec<String>,
+    /// The project model an organization model was shared from (DM-76); absent on every other.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<SharedFrom>,
+}
+
+/// Where an organization model was shared from (DM-76): what lets that project offer to use the
+/// organization's copy instead of its own (DM-77).
+#[derive(Debug, Serialize, ToSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SharedFrom {
+    pub project: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub space: Option<String>,
+    pub name: String,
+    /// The version that was shared.
+    pub version: String,
 }
 
 /// One Smart Data Models catalogue entry as the pickers list it (DM-12, DM-63).
@@ -1046,6 +1309,12 @@ fn organization_model(
         version: spec.version.to_string(),
         lifecycle,
         classes: spec.classes,
+        origin: spec.origin.map(|origin| SharedFrom {
+            project: origin.project,
+            space: origin.space,
+            name: origin.name,
+            version: origin.version.to_string(),
+        }),
     })
 }
 
@@ -1173,6 +1442,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/datamodels/{name}/source",
             get(get_source).put(put_source),
+        )
+        .route(
+            "/projects/{project}/datamodels/{name}/share",
+            axum::routing::post(share_model),
         )
         .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
 }

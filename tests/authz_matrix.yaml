@@ -319,6 +319,9 @@ routes:
   - route: PUT /projects/{project}/datamodels/{name}/source
     rule: "project-verb:propose:DataModel"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
+  - route: POST /projects/{project}/datamodels/{name}/share
+    rule: "project-verb:propose:DataModel"
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
   - route: GET /projects/{project}/drafts
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

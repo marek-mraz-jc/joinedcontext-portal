@@ -1632,6 +1632,18 @@
     "download": "Download"
   },
   "models": {
+    "share": {
+      "action": "Share with the organization",
+      "title": "Share {name} with the organization?",
+      "lead": "A copy of {name} v{version} goes to the organization's models, byte for byte, for every project to import. An organization administrator approves it; until then nothing changes, and this project keeps its own model either way.",
+      "confirm": "Propose the share",
+      "notPublished": "Only a published model is shared: publish it first.",
+      "failed": "The share was not proposed: {reason}",
+      "adoptLead": "The organization holds this model as {importName} (v{version}), shared from here. Use its copy: this model then imports it in place of the classes it defines, with the same names and IRIs, so no entity changes.",
+      "adopt": "Use the organization's copy",
+      "copyLoading": "Reading the organization's copy…",
+      "copyFailed": "The organization's copy could not be read: {reason}"
+    },
     "title": "Model editor",
     "version": "Version {version}",
     "add": "Add",

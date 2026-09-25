@@ -423,6 +423,13 @@
           "PUT /api/v1/projects/{project}/datamodels/{name}/source"
         ]
       },
+      "share-with-organization": {
+        "liveOwed": "T-2885",
+        "personOnly": "sharing puts a project's schema in front of every project; the Change is red and an organization administrator approves it, so a person decides to ask (DM-76, PF-58)",
+        "routes": [
+          "POST /api/v1/projects/{project}/datamodels/{name}/share"
+        ]
+      },
       "retire": {
         "live": {
           "spec": "models.spec.ts",

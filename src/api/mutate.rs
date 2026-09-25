@@ -1132,7 +1132,7 @@ async fn propose_engine(
     plan.fields.extend(grants.review.iter().cloned());
 
     // 6. Risk-classified approval lane
-    let lane = change::classify(kind_info.kind, operation, &envelope.spec);
+    let lane = change::classify_manifest(&envelope, operation);
     // OPS-16: the one series no other component can produce. A rise in red proposals is a
     // change in what people are asking the platform to do.
     crate::telemetry::proposed(lane, kind_info.kind);

@@ -4795,6 +4795,118 @@
         }
       }
     },
+    "/api/v1/projects/{project}/datamodels/{name}/share": {
+      "post": {
+        "tags": [
+          "datamodels"
+        ],
+        "summary": "Share Model with the Organization",
+        "description": "Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-76). Only an organization-scope approver of DataModel approves it.",
+        "operationId": "share_model",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "DataModel name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Empty, or the model's name typed by an organization administrator sharing their own model",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ShareBody"
+                  }
+                ]
+              },
+              "example": {
+                "confirm": "air-quality"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The Change, waiting for an organization approver or merged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The model imports a model of the project, or the body does not read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No propose on DataModel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such model the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not published, the name is held by an organization model of another origin, or the organization's copy already has this source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Git forge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/datamodels/{name}/source": {
       "get": {
         "tags": [
@@ -14077,6 +14189,17 @@
           "name": {
             "type": "string"
           },
+          "origin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SharedFrom",
+                "description": "The project model an organization model was shared from (DM-76); absent on every other."
+              }
+            ]
+          },
           "project": {
             "type": "string",
             "description": "The project it belongs to; `org` for an organization model."
@@ -15891,6 +16014,46 @@
             "items": {
               "$ref": "#/components/schemas/SetupItem"
             }
+          }
+        }
+      },
+      "ShareBody": {
+        "type": "object",
+        "description": "The body of a share: the model's name typed back by an organization administrator who\napproves their own share at once (PF-58, CC-19). Without it the Change waits for one.",
+        "properties": {
+          "confirm": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SharedFrom": {
+        "type": "object",
+        "description": "Where an organization model was shared from (DM-76): what lets that project offer to use the\norganization's copy instead of its own (DM-77).",
+        "required": [
+          "project",
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "space": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "The version that was shared."
           }
         }
       },

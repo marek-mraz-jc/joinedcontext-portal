@@ -1632,6 +1632,18 @@
     "download": "Stáhnout"
   },
   "models": {
+    "share": {
+      "action": "Sdílet s organizací",
+      "title": "Sdílet {name} s organizací?",
+      "lead": "Kopie {name} v{version} přibude bajt po bajtu mezi modely organizace, aby ji mohl importovat každý projekt. Schvaluje ji administrátor organizace; do té doby se nic nemění a tento projekt si v každém případě ponechá vlastní model.",
+      "confirm": "Navrhnout sdílení",
+      "notPublished": "Sdílet lze jen publikovaný model: nejdřív ho publikujte.",
+      "failed": "Sdílení se nenavrhlo: {reason}",
+      "adoptLead": "Organizace má tento model jako {importName} (v{version}), sdílený odsud. Použijte její kopii: tento model ji pak importuje místo tříd, které sám definuje, se stejnými názvy a IRI, takže se žádná entita nezmění.",
+      "adopt": "Použít kopii organizace",
+      "copyLoading": "Načítá se kopie organizace…",
+      "copyFailed": "Kopii organizace se nepodařilo načíst: {reason}"
+    },
     "title": "Editor modelů",
     "version": "Verze {version}",
     "add": "Přidat",

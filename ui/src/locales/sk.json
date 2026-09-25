@@ -1632,6 +1632,18 @@
     "download": "Stiahnuť"
   },
   "models": {
+    "share": {
+      "action": "Zdieľať s organizáciou",
+      "title": "Zdieľať {name} s organizáciou?",
+      "lead": "Kópia {name} v{version} pribudne bajt po bajte medzi modely organizácie, aby ju mohol importovať každý projekt. Schvaľuje ju administrátor organizácie; dovtedy sa nič nemení a tento projekt si v každom prípade ponechá vlastný model.",
+      "confirm": "Navrhnúť zdieľanie",
+      "notPublished": "Zdieľať sa dá len publikovaný model: najprv ho publikujte.",
+      "failed": "Zdieľanie sa nenavrhlo: {reason}",
+      "adoptLead": "Organizácia má tento model ako {importName} (v{version}), zdieľaný odtiaľto. Použite jej kópiu: tento model ju potom importuje namiesto tried, ktoré sám definuje, s rovnakými názvami a IRI, takže sa žiadna entita nezmení.",
+      "adopt": "Použiť kópiu organizácie",
+      "copyLoading": "Načítava sa kópia organizácie…",
+      "copyFailed": "Kópiu organizácie sa nepodarilo načítať: {reason}"
+    },
     "title": "Editor modelov",
     "version": "Verzia {version}",
     "add": "Pridať",
