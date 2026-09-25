@@ -350,6 +350,21 @@ impl AppState {
                 crate::apps::kube::KubeClient::in_cluster(),
             ) {
                 (Some(settings), Ok(Some(kube))) => {
+                    // The edge file has its own client: the converger owns the other one.
+                    match crate::apps::kube::KubeClient::in_cluster() {
+                        Ok(Some(edge_kube)) => {
+                            let namespace = settings.apisix_namespace.clone();
+                            syncer = syncer.with_edge_file(
+                                Arc::new(crate::reconciler::edge_file::EdgeFile::new(
+                                    edge_kube, namespace,
+                                )),
+                                settings.clone(),
+                            );
+                        }
+                        _ => tracing::warn!(
+                            "no second API client: the edge serves helm's base alone"
+                        ),
+                    }
                     syncer = syncer.with_converger(Arc::new(
                         crate::apps::converge::Converger::new(kube, settings),
                     ));
