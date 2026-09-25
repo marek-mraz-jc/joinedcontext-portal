@@ -876,7 +876,8 @@
         "liveOwed": "T-2746",
         "personOnly": "a key is a credential shown once to the person who minted it; an agent never receives one (AG-11)",
         "routes": [
-          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys"
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys",
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}"
         ]
       },
       "rotate-key": {

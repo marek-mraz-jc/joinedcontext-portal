@@ -399,6 +399,14 @@ routes:
     rule: "run-owner"
     expect: [403, 404, 404, allow, 404, allow, 404, 404]
     note: "a ServiceAccount's keys: its owner or a proposer, anyone else 404 (PF-36)"
+  - route: GET /projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}
+    rule: "run-owner"
+    expect: [401, 404, 404, allow, 404, allow, 404, 404]
+    note: "a key claim: its owner or a proposer pass the check (the fixture has no key database, so they get 503), and a claim is then its asker's alone; anyone else 404 (PF-104, R20)"
+  - route: POST /projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}
+    rule: "run-owner"
+    expect: [403, 404, 404, allow, 404, allow, 404, 404]
+    note: "a key claim: its owner or a proposer pass the check (the fixture has no key database, so they get 503), and a claim is then its asker's alone; anyone else 404 (PF-104, R20)"
   - route: POST /projects/{project}/syncsources/{name}/detach
     rule: "project-verb:delete:SyncSource"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]

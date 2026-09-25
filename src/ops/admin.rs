@@ -14,7 +14,9 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, ID, NAME, QUERY, TERM, TITLE};
 use super::runs::{as_user, refuse_agent};
-use super::{change_schema, dry_run_output_schema, parse_input, Annotations, OpError, Operation};
+use super::{
+    change_schema, dry_run_output_schema, parse_input, Annotations, OpError, Operation, Via,
+};
 use crate::change::Lane;
 use crate::error::ApiError;
 
@@ -252,15 +254,41 @@ fn key_revoke_input_schema() -> Value {
 
 fn minted_key_output_schema() -> Value {
     json!({
-        "type": "object",
-        "description": "The only answer that ever carries the token itself; it is never recoverable (PF-36, PF-37)",
-        "properties": {
-            "keyId": { "type": "string" },
-            "token": { "type": "string" },
-            "credential": { "type": "string" },
-            "expiresAt": { "type": "string", "format": "date-time" }
-        },
-        "required": ["keyId", "token", "credential"]
+        "oneOf": [
+            {
+                "type": "object",
+                "description": "The minted key, to a person in the Portal or on the REST route: the only answer that ever carries the token itself; it is never recoverable (PF-36, PF-37)",
+                "properties": {
+                    "keyId": { "type": "string" },
+                    "token": { "type": "string" },
+                    "credential": { "type": "string" },
+                    "expiresAt": { "type": "string", "format": "date-time" }
+                },
+                "required": ["keyId", "token", "credential"]
+            },
+            {
+                "type": "object",
+                "description": "Over MCP: a one-time claim the person who asked opens in the Portal within 15 minutes to mint the key and see its token; this answer carries no token (PF-104)",
+                "properties": {
+                    "claim": {
+                        "type": "object",
+                        "properties": {
+                            "id": { "type": "string" },
+                            "url": { "type": "string", "format": "uri" },
+                            "expiresAt": { "type": "string", "format": "date-time" }
+                        },
+                        "required": ["id", "url", "expiresAt"]
+                    },
+                    "account": { "type": "string" },
+                    "action": { "type": "string", "enum": ["mint", "rotate"] },
+                    "credential": { "type": "string" },
+                    "keyId": { "type": "string" },
+                    "keyExpiresAt": { "type": "string", "format": "date-time" },
+                    "overlapHours": { "type": "integer" }
+                },
+                "required": ["claim", "account", "action", "credential"]
+            }
+        ]
     })
 }
 
@@ -498,7 +526,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_service_account_key_mint",
             title: "Mint A Service Account Key",
-            description: "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else",
+            description: "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else. Over MCP nothing is minted: the answer is a one-time claim link the person who asked opens in the Portal to mint the key and see it, so the token never reaches the client (PF-104)",
             input: key_mint_input_schema,
             output: minted_key_output_schema,
             annotations: Annotations {
@@ -518,11 +546,25 @@ pub fn operations() -> Vec<Operation> {
                         "credential": input.credential,
                         "expiresAt": input.expires_at,
                     });
+                    let path = Path((project.to_owned(), input.account));
+                    let body = serde_json::to_vec(&body).unwrap_or_default().into();
+                    // A person's MCP client is driven by a model: it is answered a claim the
+                    // person opens in the Portal, never the token (PF-104).
+                    if caller.via == Via::Mcp {
+                        let claim = crate::api::service_accounts::claim_mint(
+                            as_user(caller),
+                            State(state.clone()),
+                            path,
+                            body,
+                        )
+                        .await?;
+                        return Ok(serde_json::to_value(claim)?);
+                    }
                     let (_, axum::Json(minted)) = crate::api::service_accounts::create_key(
                         as_user(caller),
                         State(state.clone()),
-                        Path((project.to_owned(), input.account)),
-                        serde_json::to_vec(&body).unwrap_or_default().into(),
+                        path,
+                        body,
                     )
                     .await?;
                     Ok(serde_json::to_value(minted)?)
@@ -532,7 +574,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_service_account_key_rotate",
             title: "Rotate A Service Account Key",
-            description: "Replaces one key with a successor; the old one stops working when its overlap ends",
+            description: "Replaces one key with a successor; the old one stops working when its overlap ends. Over MCP nothing is rotated yet: the answer is a one-time claim link the person who asked opens in the Portal to make the rotation and see the successor, so the token never reaches the client (PF-104)",
             input: key_rotate_input_schema,
             output: minted_key_output_schema,
             annotations: Annotations {
@@ -549,11 +591,23 @@ pub fn operations() -> Vec<Operation> {
                     refuse_agent(caller, "jc_service_account_key_rotate")?;
                     let input: KeyRotateInput = parse_input(val)?;
                     let body = json!({ "overlapHours": input.overlap_hours });
+                    let path = Path((project.to_owned(), input.account, input.key_id));
+                    let body = serde_json::to_vec(&body).unwrap_or_default().into();
+                    if caller.via == Via::Mcp {
+                        let claim = crate::api::service_accounts::claim_rotate(
+                            as_user(caller),
+                            State(state.clone()),
+                            path,
+                            body,
+                        )
+                        .await?;
+                        return Ok(serde_json::to_value(claim)?);
+                    }
                     let (_, axum::Json(minted)) = crate::api::service_accounts::rotate_key(
                         as_user(caller),
                         State(state.clone()),
-                        Path((project.to_owned(), input.account, input.key_id)),
-                        serde_json::to_vec(&body).unwrap_or_default().into(),
+                        path,
+                        body,
                     )
                     .await?;
                     Ok(serde_json::to_value(minted)?)
