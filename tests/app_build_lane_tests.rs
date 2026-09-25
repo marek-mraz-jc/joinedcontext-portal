@@ -325,7 +325,7 @@ async fn only_the_build_lane_writes_the_build_and_the_refusal_says_whose_field_i
     );
 }
 
-/// PF-105: where the applications have an organization of their own, the build is read from
+/// PF-106: where the applications have an organization of their own, the build is read from
 /// the App's repository there and its package published there, both with the applications'
 /// token; the configuration's organization sees only the App's manifest, written with its own.
 #[tokio::test]

@@ -20,7 +20,7 @@ import {
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { enumsOfModel, useModelSource } from "../../components/entities/filters";
+import { enumsOfModel, relationsOfModel, useModelSource } from "../../components/entities/filters";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
@@ -304,6 +304,7 @@ function SpaceData({
     () => enumsOfModel(modelSource, type, i18n.language),
     [modelSource, type, i18n.language],
   );
+  const relations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -381,6 +382,7 @@ function SpaceData({
           config={config}
           source={source}
           enums={enums}
+          relations={relations}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
       ) : null}

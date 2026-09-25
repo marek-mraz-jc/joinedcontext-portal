@@ -2441,6 +2441,11 @@
     "applying": "Uplatňujem…",
     "refusedHere": "odmietnuté",
     "notInList": "nie je v zozname",
+    "relationSearch": "Hľadať",
+    "relationNone": "Nič, čo môžete čítať, sa nezhoduje",
+    "relationRemove": "Odstrániť",
+    "relationFailed": "Vyhľadávanie zlyhalo",
+    "relationMore": "a ďalšie",
     "map": {
       "panel": "Mapa",
       "offTheMap": "nie je na mape",
