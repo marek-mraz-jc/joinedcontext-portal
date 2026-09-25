@@ -1,0 +1,56 @@
+import { existsSync, readFileSync } from "node:fs";
+import { extname, join, normalize } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { Page } from "@playwright/test";
+
+const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
+const NAME = "hsl-transport";
+const ORIGIN = "http://portal.test";
+export const BASE = `${ORIGIN}/apps/${NAME}/`;
+const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
+
+/** Six buses on four lines around the centre, in the shape the backend's snapshot answers. */
+export const FLEET = [
+  { id: "1", coordinates: [24.941, 60.171], bearing: 90, speed: 8.2, refLine: "550" },
+  { id: "2", coordinates: [24.952, 60.168], bearing: 180, speed: 0, refLine: "550" },
+  { id: "3", coordinates: [24.93, 60.18], bearing: 45, speed: 11, refLine: "23" },
+  { id: "4", coordinates: [24.96, 60.19], bearing: 270, refLine: "71" },
+  { id: "5", coordinates: [24.9, 60.2], bearing: 0, speed: 5, refLine: "1000N" },
+  { id: "6", coordinates: [24.97, 60.16], bearing: 300 },
+];
+
+/** What the served page did that it should not: a file it missed, an error it threw. */
+export interface Served {
+  missing: string[];
+  problems: string[];
+}
+
+/**
+ * Serves the built bundle under its published path the way the binary does, with its snapshot and
+ * one frame of its stream answered from `FLEET`. Other hosts (the basemap's tiles) are refused.
+ */
+export async function serve(page: Page): Promise<Served> {
+  const served: Served = { missing: [], problems: [] };
+  page.on("pageerror", (error) => served.problems.push(error.message));
+
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin !== ORIGIN) return route.abort();
+    const path = url.pathname.slice(`/apps/${NAME}/`.length);
+    if (!url.pathname.startsWith(`/apps/${NAME}/`)) {
+      served.missing.push(url.pathname);
+      return route.fulfill({ status: 404, body: "" });
+    }
+    if (path === "api/vehicles") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(FLEET) });
+    if (path === "api/stream") {
+      return route.fulfill({ status: 200, contentType: "text/event-stream", body: `event: vehicles\ndata: ${JSON.stringify(FLEET)}\n\n` });
+    }
+    const file = normalize(path || "index.html");
+    if (file.startsWith("..") || !existsSync(join(DIST, file))) {
+      served.missing.push(url.pathname);
+      return route.fulfill({ status: 404, body: "" });
+    }
+    return route.fulfill({ status: 200, contentType: TYPES[extname(file)] ?? "application/octet-stream", body: readFileSync(join(DIST, file)) });
+  });
+  return served;
+}

@@ -40,6 +40,11 @@ export interface ComboboxProps {
   empty: string;
   /** Typed text that a server search should also answer (debounced by the caller's query). */
   onSearch?: (text: string) => void;
+  /**
+   * The caller answers `onSearch` with `options` already matched and ranked (the unit list
+   * matches `ug/m3` to `µg/m³`), so the picker lists them as given instead of filtering again.
+   */
+  searched?: boolean;
   /** Offered under the list: a person names something that does not exist yet. */
   create?: { label: (text: string) => string; onCreate: (text: string) => void };
   /** Shown under the list, e.g. why a catalogue could not be searched. */
@@ -68,6 +73,7 @@ export function Combobox({
   failed,
   empty,
   onSearch,
+  searched = false,
   create,
   note,
 }: ComboboxProps): JSX.Element {
@@ -86,13 +92,14 @@ export function Combobox({
     () =>
       options.filter(
         (o) =>
+          searched ||
           words === "" ||
           o.label.toLowerCase().includes(words) ||
           o.value.toLowerCase().includes(words) ||
           (o.detail ?? "").toLowerCase().includes(words) ||
           o.group.toLowerCase().includes(words),
       ),
-    [options, words],
+    [options, words, searched],
   );
   const canCreate = Boolean(create && words !== "" && !options.some((o) => o.value.toLowerCase() === words));
   const count = shown.length + (canCreate ? 1 : 0);

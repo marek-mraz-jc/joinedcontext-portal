@@ -23,6 +23,9 @@
     ]
   },
   "include": [
+    "map-worker.ts",
+    "e2e",
+    "playwright.config.ts",
     "src",
     "test-setup.ts"
   ]

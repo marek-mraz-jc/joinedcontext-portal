@@ -11,7 +11,7 @@
  * attribute — and the sentence that says why the figures are not writable.
  */
 import { useMemo } from "react";
-import { endpointSource, EntityGrid, transportFor, useClient } from "@joinedcontext/sdk";
+import { endpointSource, EntityGrid, Header, Page, transportFor, useClient } from "@joinedcontext/sdk";
 import { gridConfig, notesOnly } from "./records";
 import { bodyOf, noteWords, SPACE_OF, stringsFor } from "./locales";
 
@@ -37,24 +37,29 @@ export default function App() {
 
   if (!body) {
     return (
-      <main className="page">
-        <p role="alert">{s.unknownSpace}</p>
+      <main>
+        <Page>
+          <p role="alert">{s.unknownSpace}</p>
+        </Page>
       </main>
     );
   }
 
   return (
-    <main className="page">
-      <h1>{s.title[body]}</h1>
-      <p className="subtitle">{s.subtitle[body]}</p>
-      <p className="note">{s.readOnlyWhy}</p>
-      <p className="note">{s.noteWhy}</p>
-      {source && grid ? (
-        <EntityGrid config={grid} source={source} labels={s.grid} />
-      ) : (
-        <p role="alert">{s.noEndpoint}</p>
-      )}
-      <p className="source">{s.source[body]}</p>
+    <main>
+      <Page>
+        <Header level={1} title={s.title[body]} subtitle={s.subtitle[body]} />
+        <div className="notes">
+          <p className="note">{s.readOnlyWhy}</p>
+          <p className="note">{s.noteWhy}</p>
+        </div>
+        {source && grid ? (
+          <EntityGrid config={grid} source={source} labels={s.grid} />
+        ) : (
+          <p role="alert">{s.noEndpoint}</p>
+        )}
+        <p className="source">{s.source[body]}</p>
+      </Page>
     </main>
   );
 }

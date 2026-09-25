@@ -3,41 +3,30 @@
  * the three states, which take the platform's semantic tokens so they follow the theme and the
  * high-contrast setting with everything else.
  *
- * One column under 700 px and a grid above it, so the cards read at 400 px without a horizontal
- * scrollbar; the card is the unit that wraps, never the number and its unit.
+ * The columns are the SDK's Page, Header and Grid (T-2825): one card across on a phone, up to four
+ * on a wall; the card is the unit that wraps, never the number and its unit.
  */
-.page {
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: var(--jc-space-4, 1rem);
+main {
+  padding: var(--jc-gutter, 1rem);
 }
 
-.subtitle,
 .note {
   color: var(--jc-color-text-muted, #555);
   margin: 0 0 var(--jc-space-3, 0.75rem);
 }
 
-.body {
-  margin-block: var(--jc-space-6, 2rem);
+.body h2 {
+  margin-block: var(--jc-space-4, 1rem) var(--jc-space-2, 0.5rem);
 }
 
-.cards {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--jc-space-3, 0.75rem);
-  grid-template-columns: 1fr;
+.group h3 {
+  margin-block: var(--jc-space-4, 1rem) var(--jc-space-2, 0.5rem);
 }
 
-@media (min-width: 44rem) {
-  .cards {
-    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-  }
-}
-
+/* Border-box: with the padding and the border outside a full-height box, a card ran 26 px into the
+   row under it. */
 .card {
+  box-sizing: border-box;
   border: 1px solid var(--jc-color-border, #d0d0d0);
   border-radius: var(--jc-radius-md, 0.5rem);
   padding: var(--jc-space-3, 0.75rem);

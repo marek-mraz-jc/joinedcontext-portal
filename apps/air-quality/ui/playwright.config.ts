@@ -10,13 +10,16 @@ const BASE_URL = `http://127.0.0.1:${APP_PORT}`;
 // the openid-connect plugin would set, which is the only way to see the difference between a
 // steward and a viewer.
 export default defineConfig({
-  testDir: "../tests/e2e",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: BASE_URL, trace: "on-first-retry" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", testDir: "../tests/e2e", use: { ...devices["Desktop Chrome"] } },
+    // The four-width check sits beside the bundle, where `@joinedcontext/sdk` resolves (T-2825).
+    { name: "widths", testDir: "./e2e", use: { ...devices["Desktop Chrome"] } },
+  ],
   webServer: [
     {
       command: `node ../tests/e2e/stub-endpoint.mjs`,

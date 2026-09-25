@@ -23,8 +23,12 @@ body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: var(--bg); c
 .top, main { max-width: 72rem; margin: 0 auto; padding: 0 16px; }
 .top h1 { margin: 1.5rem 0 0.25rem; }
 .lead, .hint, .status { color: var(--muted); }
-.filters { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; margin: 1rem 0; }
-.filters input { font: inherit; padding: 0.35rem 0.5rem; border: 1px solid var(--muted); border-radius: 4px; background: var(--bg); color: var(--fg); }
+/* A label and its field per row on a phone and a tablet, all three fields on one row from 60 rem. */
+.filters { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.5rem 1rem; align-items: center; margin: 1rem 0; }
+@media (min-width: 60rem) {
+  .filters { grid-template-columns: max-content minmax(12rem, 2fr) max-content minmax(9rem, 1fr) max-content minmax(9rem, 1fr); }
+}
+.filters input { min-width: 0; font: inherit; padding: 0.35rem 0.5rem; border: 1px solid var(--muted); border-radius: 4px; background: var(--bg); color: var(--fg); }
 .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; }
 @media (max-width: 48rem) { .layout { grid-template-columns: 1fr; } }
 .events { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
@@ -32,7 +36,7 @@ body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: var(--bg); c
 .events button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
 .events .name { display: block; font-weight: 600; }
 .events .when, .events .where { display: block; color: var(--muted); font-size: 0.9rem; }
-.map { width: 100%; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+.map { display: block; width: 100%; height: auto; max-height: 20rem; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
 .map circle { fill: var(--accent); fill-opacity: 0.55; }
 .map circle.selected { fill: var(--focus); fill-opacity: 1; stroke: var(--fg); stroke-width: 1.5; }
 .detail { margin-top: 1rem; }

@@ -54,7 +54,13 @@ operation, so the grid's history is switched off rather than offered as a button
 cd ui
 pnpm install
 pnpm typecheck && pnpm test && pnpm build
+pnpm e2e
 ```
+
+`pnpm e2e` serves the built bundle under `/apps/banskabystrica-zaznamy/` with the static host's
+Content Security Policy and the fixture endpoint, and holds the records and a note under review to
+375, 768, 1440 and 2560 px: no sideways scroll, no overlapping blocks, no control cut off, axe clean
+(T-2825).
 
 ## Related
 

@@ -39,7 +39,13 @@ JC_ENDPOINT_URL=https://<host>/api/endpoint/<slug>/ cargo run
 ```sh
 cargo test -p hsl-transport      # the contract with the Endpoint, against a stub
 cd ui && pnpm test               # the map source, against a MapLibre double
+cd ui && pnpm build && pnpm e2e  # the built page at four widths, light and dark
 ```
+
+`pnpm e2e` serves the built bundle under `/apps/hsl-transport/` with the snapshot and one stream
+frame answered from `ui/e2e/serve.ts`, and holds the map and its lines to 375, 768, 1440 and
+2560 px: no sideways scroll, no overlap, no control cut off, axe clean (T-2825). It is also what
+found MapLibre's worker missing from the bundle, which `ui/map-worker.ts` now ships.
 
 The Rust tests assert what actually leaves the pod: the representation asked for, the thirty
 bus cap, that no credential is ever attached, and that serving a browser costs no query. The

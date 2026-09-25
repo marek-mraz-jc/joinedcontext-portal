@@ -1998,22 +1998,25 @@
     },
     "roles": {
       "title": "Roly a členovia",
-      "lead": "Kto smie čo v tejto aplikácii. Pridanie alebo odobratie člena navrhne zmenu aplikácie, ktorú posúdi schvaľovateľ.",
+      "lead": "Kto smie čo robiť v tejto aplikácii. Každá rola má predvolenú skupinu: pridanie alebo odobratie osoby navrhne zmenu tejto skupiny a pridelenie roly inej skupine navrhne zmenu aplikácie. Každú zmenu posúdi schvaľovateľ.",
       "count": "Členovia: {count}",
       "nobody": "Túto rolu zatiaľ nemá nikto.",
       "groupMember": "Skupina {group}",
       "remove": "Odobrať",
       "removeLabel": "Odobrať {member} z roly {role}",
-      "kind": "Pridať",
-      "kindUser": "Osobu",
-      "kindGroup": "Skupinu",
       "email": "E-mail",
       "group": "Skupina",
       "pickGroup": "Vyberte skupinu",
-      "add": "Pridať člena",
       "needEmail": "Zadajte e-mailovú adresu osoby.",
       "needGroup": "Vyberte skupinu.",
-      "already": "Túto rolu už má."
+      "already": "Túto rolu už má.",
+      "defaultGroup": "Predvolená skupina {group}",
+      "noDefaultGroup": "Predvolená skupina {group} ešte neexistuje: príde s ďalšou zmenou aplikácie.",
+      "addPerson": "Pridať osobu",
+      "others": "Ďalšie skupiny a osoby s touto rolou",
+      "noOthers": "Túto rolu nemá žiadna iná skupina.",
+      "give": "Prideliť rolu skupine",
+      "groupsUnreadable": "Vaša rola nezobrazuje skupiny organizácie."
     }
   },
   "appLifecycle": {
@@ -3794,5 +3797,12 @@
     },
     "createNamed": "Nové: „{name}“",
     "list": "Možnosti"
+  },
+  "units": {
+    "search": "Hľadať podľa kódu, značky, názvu alebo veličiny",
+    "frequent": "Často používané",
+    "none": "Bez jednotky",
+    "noMatch": "Žiadna jednotka UN/CEFACT nezodpovedá. Skúste značku (µg/m³), názov alebo kód (GQ).",
+    "more": "Zobrazených {shown} z {total} jednotiek. Píšte ďalej a zoznam sa zúži."
   }
 }

@@ -15,6 +15,7 @@ pub mod edge_file;
 pub mod foreign;
 pub mod groups;
 pub mod leader;
+pub mod project_teams;
 pub mod realm;
 pub mod registrations;
 pub mod streams;
