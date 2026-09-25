@@ -623,6 +623,11 @@
     "page": {
       "back": "All endpoints",
       "proposedNotice": "A change here is proposed and an approver reviews it before anything is published.",
+      "stop": {
+        "title": "Stopping this endpoint",
+        "lead": "An endpoint has no pause. To stop publishing, delete it: the deletion is proposed as a change and an approver reviews it. Once it lands, the address answers 404 Not Found and is never used again. A new endpoint gets a new address.",
+        "delete": "Delete this endpoint…"
+      },
       "change": "Change these settings",
       "whatItIs": "What it is",
       "whatItAnswers": "What it answers",

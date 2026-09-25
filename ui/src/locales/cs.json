@@ -623,6 +623,11 @@
     "page": {
       "back": "Všechny endpointy",
       "proposedNotice": "Změna se tu navrhne a schvalovatel ji posoudí, než se cokoli zveřejní.",
+      "stop": {
+        "title": "Zastavení tohoto endpointu",
+        "lead": "Endpoint nejde pozastavit. Chcete-li ho přestat zveřejňovat, smažte ho: smazání se navrhne jako změna a posoudí ho schvalovatel. Až se změna uplatní, adresa odpovídá 404 Not Found a už se nikdy nepoužije. Nový endpoint dostane novou adresu.",
+        "delete": "Smazat tento endpoint…"
+      },
       "change": "Změnit tato nastavení",
       "whatItIs": "Co to je",
       "whatItAnswers": "Co odpovídá",
