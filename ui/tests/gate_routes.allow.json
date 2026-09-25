@@ -8,8 +8,8 @@
   ],
   "mocked": {
     "/projects/$project/ckan": {
-      "task": "T-2726",
-      "why": "worker-10 rebuilds the open data page under T-2726 (catalogue, dataset pages, one-step publish); its mocked spec comes with that page, not before it"
+      "task": "T-2849",
+      "why": "worker-10 rebuilds the open data page under T-2726; T-2849 writes its mocked spec and live journey on the rebuilt page"
     }
   },
   "live": {}

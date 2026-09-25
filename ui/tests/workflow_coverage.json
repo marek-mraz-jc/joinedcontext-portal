@@ -923,12 +923,15 @@
         ]
       },
       "status": {
-        "liveOwed": "T-2729",
+        "liveOwed": "T-2849",
         "assistant": "jc_ckan_status"
       },
       "publish-dataset": {
         "liveOwed": "T-2726",
-        "assistantOwed": "T-2726"
+        "assistantOwed": "T-2726",
+        "routes": [
+          "POST /api/v1/projects/{project}/catalogue/drafts"
+        ]
       },
       "refused-no-permission": {
         "live": {
