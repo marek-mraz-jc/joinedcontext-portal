@@ -42,7 +42,9 @@ spec:
         name: banskabystrica-verejne
       types: [AirQualityObserved]
       attrs: [name, dateObserved, location, pm10, pm25, dataProvider]
-      operations: [queryEntity, retrieveEntity, queryTemporal]
+      # The day of history is one station's, `GET /temporal/entities/{id}`: retrieveTemporal,
+      # never the type-wide queryTemporal the screen does not ask (T-2972).
+      operations: [queryEntity, retrieveEntity, retrieveTemporal]
       temporalQ:
         window: P1D
       representations: [ngsi-ld, geojson]

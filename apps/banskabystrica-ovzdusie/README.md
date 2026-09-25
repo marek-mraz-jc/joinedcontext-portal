@@ -24,10 +24,10 @@ One endpoint, one space, one type:
 | what | where |
 |---|---|
 | space | `banskabystrica-verejne` of the project `banskabystrica` |
-| endpoint | the space's public endpoint, audience `public` |
+| endpoint | its own `app-banskabystrica-ovzdusie`, audience `public`, compiled into `grants/` |
 | type | `AirQualityObserved` |
 | attributes | `name`, `dateObserved`, `location`, `pm10`, `pm25`, `dataProvider` |
-| operations | `queryEntity`, `retrieveEntity`, `queryTemporal` |
+| operations | `queryEntity`, `retrieveEntity`, `retrieveTemporal` |
 
 The pipelines `ovzdusie-pm10` and `ovzdusie-pm25` write one entity per station,
 `…:eea-SK0263A`, each stream its own attribute, with the station's name and place from the EEA
