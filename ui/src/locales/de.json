@@ -2316,6 +2316,33 @@
         "title": "KPI definieren",
         "line": "Eine Kennzahl, berechnet aus einem Raum"
       }
+    },
+    "capabilities": {
+      "button": "Fähigkeiten",
+      "everything": "Alles, was Sie dürfen",
+      "title": "Was der Assistent hier darf",
+      "endpoints": "Jeder Endpunkt",
+      "includes": "Die Wege, die er gehen darf",
+      "presets": {
+        "read": {
+          "title": "Lesen",
+          "line": "Liest die Daten und das Projekt; ändert nichts."
+        },
+        "propose": {
+          "title": "Vorschlagen",
+          "line": "Entwirft auch Änderungen, die Sie dann selbst vorschlagen."
+        },
+        "build": {
+          "title": "Bauen",
+          "line": "Baut auch Apps, Dashboards, Pipelines und KPIs."
+        }
+      },
+      "endpoint": {
+        "writes": "Darf Änderungen an {name} vorbereiten",
+        "readPreset": "Lesen ändert nichts.",
+        "noWrite": "Ihre Rolle schreibt über diesen Endpunkt nicht."
+      },
+      "pathLeft": "Nicht mit {preset}: in Fähigkeiten einschalten."
     }
   },
   "permissions": {

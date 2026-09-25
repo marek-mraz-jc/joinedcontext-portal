@@ -2316,6 +2316,33 @@
         "title": "Definovat KPI",
         "line": "Klíčový ukazatel výkonnosti vypočtený z prostoru"
       }
+    },
+    "capabilities": {
+      "button": "Schopnosti",
+      "everything": "Vše, co smíte",
+      "title": "Co tu asistent smí dělat",
+      "endpoints": "Každý endpoint",
+      "includes": "Cesty, které smí použít",
+      "presets": {
+        "read": {
+          "title": "Číst",
+          "line": "Čte data a projekt; nic nemění."
+        },
+        "propose": {
+          "title": "Navrhovat",
+          "line": "Připraví i změny, které pak navrhnete sami."
+        },
+        "build": {
+          "title": "Stavět",
+          "line": "Staví i aplikace, dashboardy, pipelines a KPI."
+        }
+      },
+      "endpoint": {
+        "writes": "Smí připravit změny v {name}",
+        "readPreset": "Čtení nic nemění.",
+        "noWrite": "Vaše role přes tento endpoint nezapisuje."
+      },
+      "pathLeft": "Ne při volbě {preset}: zapněte to ve Schopnostech."
     }
   },
   "permissions": {

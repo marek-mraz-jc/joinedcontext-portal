@@ -3,6 +3,7 @@ import { inputOf } from "./QuestionData";
 import type { QuestionInput } from "./QuestionData";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, unwrap } from "../../api/client";
+import type { components } from "../../api/schema";
 
 /** The states of Architecture/19 §5, in the order a run walks them (AG-43). */
 export const RUN_STATES = [
@@ -242,7 +243,16 @@ export function useAgentRun(project: string, runId: string | null) {
 
   const send = useMutation({
     // A message may change the endpoints a conversation queries (AG-75): they travel with it.
-    mutationFn: async (message: string | { text: string; endpointNames?: string[]; pageContext?: { route: string } }) =>
+    mutationFn: async (
+      message:
+        | string
+        | {
+            text: string;
+            endpointNames?: string[];
+            pageContext?: { route: string };
+            access?: components["schemas"]["Capabilities"];
+          },
+    ) =>
       unwrap(
         await api.POST("/api/v1/projects/{project}/agent-runs/{id}/messages", {
           params: { path: { project, id: runId ?? "" } },

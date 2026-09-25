@@ -17,10 +17,21 @@
       "tests": [
         "agent_run.test.tsx",
         "app_route.test.tsx",
+        "assistant_capabilities.test.tsx",
         "assistant_endpoints.test.tsx",
         "assistant_layout.test.tsx",
         "assistant_turns.test.tsx",
         "form_assistant_dock.test.tsx"
+      ]
+    },
+    "src/assistant/Capabilities.tsx": {
+      "controls": {
+        "Button": 1,
+        "RadioGroup": 1,
+        "Switch": 1
+      },
+      "tests": [
+        "assistant_capabilities.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
@@ -28,6 +39,7 @@
         "Button": 2
       },
       "tests": [
+        "assistant_capabilities.test.tsx",
         "assistant_endpoints.test.tsx",
         "part_endpoint_picker.test.tsx"
       ]

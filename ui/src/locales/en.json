@@ -2316,6 +2316,33 @@
         "title": "Define a KPI",
         "line": "A key performance indicator computed from a space"
       }
+    },
+    "capabilities": {
+      "button": "Capabilities",
+      "everything": "All you may do",
+      "title": "What the assistant may do here",
+      "endpoints": "Each endpoint",
+      "includes": "The paths it may take",
+      "presets": {
+        "read": {
+          "title": "Read",
+          "line": "Reads the data and the project; changes nothing."
+        },
+        "propose": {
+          "title": "Propose",
+          "line": "Also drafts changes you then propose yourself."
+        },
+        "build": {
+          "title": "Build",
+          "line": "Also builds apps, dashboards, pipelines and KPIs."
+        }
+      },
+      "endpoint": {
+        "writes": "May prepare changes to {name}",
+        "readPreset": "Read changes nothing.",
+        "noWrite": "Your role does not write through this endpoint."
+      },
+      "pathLeft": "Not with {preset}: switch it on in Capabilities."
     }
   },
   "permissions": {

@@ -19,6 +19,14 @@ import {
   sameEndpoints,
   storedEndpoints,
 } from "./EndpointPicker";
+import {
+  CapabilitiesControl,
+  PRESET_PATHS,
+  accessFor,
+  rememberCapabilities,
+  storedCapabilities,
+} from "./Capabilities";
+import type { Capabilities } from "./Capabilities";
 import { Icon } from "../components/ui/icons";
 import { pageOf } from "./pageOf";
 import type { IconName } from "../components/ui/icons";
@@ -92,10 +100,13 @@ type PathId = (typeof PATHS)[number][0];
 function Paths({
   project,
   disabled,
+  capabilities,
   onPick,
 }: {
   project: string;
   disabled: boolean;
+  /** A path the chosen capabilities leave out is disabled with why (AG-92). */
+  capabilities: Capabilities | null;
   onPick: (path: PathId) => void;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -104,10 +115,18 @@ function Paths({
       {PATHS.map(([path, icon, kind]) => {
         // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason through
         // `disabledReason`, which only that control knows what to do with.
+        const left = capabilities !== null && !PRESET_PATHS[capabilities.preset].includes(path);
         const button = (
           <Button
             size="sm"
-            disabled={disabled}
+            disabled={disabled || left}
+            disabledReason={
+              left
+                ? t("assistant.capabilities.pathLeft", {
+                    preset: t(`assistant.capabilities.presets.${capabilities.preset}.title`),
+                  })
+                : undefined
+            }
             data-path={path}
             // The name is the title and its line, read with a pause between them; the
             // description stays free for the reason a role may not take the path.
@@ -198,6 +217,17 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     setChosenEndpoints(names);
     rememberEndpoints(activeProject, names);
   };
+  // What the assistant may do (AG-92, T-2718), remembered per project like the endpoints.
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(() => storedCapabilities(project));
+  const [capabilitiesOf, setCapabilitiesOf] = useState(activeProject);
+  if (capabilitiesOf !== activeProject) {
+    setCapabilitiesOf(activeProject);
+    setCapabilities(storedCapabilities(activeProject));
+  }
+  const chooseCapabilities = (chosen: Capabilities) => {
+    setCapabilities(chosen);
+    rememberCapabilities(activeProject, chosen);
+  };
 
   const { run: record, events, streaming, answer, send, cancel } = useAgentRun(
     activeProject,
@@ -271,6 +301,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
           body: {
             message: promptText,
             endpointNames: chosenEndpoints,
+            access: accessFor(capabilities, chosenEndpoints),
             formContext: formContext(),
             pageContext: pageContext(activeProject),
             path,
@@ -366,7 +397,17 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     }
   };
   const liveBar = run ? (
-    <DataBar project={run.project} selected={liveEndpoints} onChange={setPendingEndpoints} />
+    <div className="flex flex-wrap items-start gap-1">
+      <DataBar project={run.project} selected={liveEndpoints} onChange={setPendingEndpoints} />
+      {record.data?.kind === "conversation" ? (
+        <CapabilitiesControl
+          project={run.project}
+          endpoints={liveEndpoints}
+          value={capabilities}
+          onChange={chooseCapabilities}
+        />
+      ) : null}
+    </div>
   ) : null;
 
   if (!open) {
@@ -572,6 +613,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             <Paths
               project={activeProject}
               disabled={isStarting}
+              capabilities={capabilities}
               onPick={(path) => {
                 void startConversation("", path);
               }}
@@ -588,12 +630,20 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               }
             }}
           >
-            <DataBar
-              project={activeProject}
-              selected={chosenEndpoints}
-              onChange={chooseEndpoints}
-              opens="down"
-            />
+            <div className="flex flex-wrap items-start gap-1">
+              <DataBar
+                project={activeProject}
+                selected={chosenEndpoints}
+                onChange={chooseEndpoints}
+                opens="down"
+              />
+              <CapabilitiesControl
+                project={activeProject}
+                endpoints={chosenEndpoints}
+                value={capabilities}
+                onChange={chooseCapabilities}
+              />
+            </div>
             {/* The failure is the composer's own error: tied to the box the person is still in,
                 which goes invalid, and announced (UI-44, T-1749). What was typed stays. */}
             <Field
@@ -660,6 +710,8 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               send.mutateAsync({
                 text,
                 pageContext: record.data?.kind === "conversation" ? pageContext(activeProject) : undefined,
+                // What the person switched on or off travels with each message (AG-92).
+                access: record.data?.kind === "conversation" ? accessFor(capabilities, liveEndpoints) : undefined,
                 ...(pendingEndpoints !== null && !sameEndpoints(pendingEndpoints, runEndpoints)
                   ? { endpointNames: pendingEndpoints }
                   : {}),
