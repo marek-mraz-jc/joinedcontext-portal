@@ -197,7 +197,7 @@ function Instances({
         <EmptyState title={t("ckan.instances.empty")} description={t("ckan.instances.emptyHint")} icon="ckan" />
       ) : null}
       {instances.length > 0 ? (
-        <Table caption={t("ckan.instances.title")}>
+        <Table data-records="" caption={t("ckan.instances.title")}>
           <TableHead>
             <TableHeaderCell>{t("ckan.instances.name")}</TableHeaderCell>
             <TableHeaderCell>{t("ckan.instances.url")}</TableHeaderCell>

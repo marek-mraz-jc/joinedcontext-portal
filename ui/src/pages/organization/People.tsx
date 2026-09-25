@@ -397,6 +397,7 @@ export function People(): JSX.Element {
             </Alert>
           ) : (
             <Table
+              data-records=""
               caption={t("organization.people.caption")}
               status={people.isPending ? t("app.loading") : undefined}
             >

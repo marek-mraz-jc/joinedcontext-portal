@@ -16,6 +16,7 @@ import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } fr
 import { Table, TableBody, TableCell, TableRow } from "../src/components/ui/Table";
 import { RecordLink } from "../src/components/RecordLink";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
+import { pageFindings } from "./pageChecks";
 
 function Portalled(): React.JSX.Element {
   return createPortal(<span>in a dialog</span>, document.body);
@@ -626,5 +627,29 @@ describe("a person who may not change a record still opens it, read only", () =>
     expect((await screen.findAllByText("Edit alerts")).length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "Propose change" })).toBeInTheDocument();
     expect(screen.queryByText(/Your role does not permit changing/)).toBeNull();
+  });
+});
+
+describe("the walkers' row-link check", () => {
+  const findings = () => pageFindings({ namespaces: [], layout: false }).filter((finding) => finding.startsWith("row-link"));
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("names a row of a table of records that holds no record link", () => {
+    document.body.innerHTML = `<main><table data-records=""><caption>Pipelines</caption><tbody>
+      <tr><td><a data-row-link="" href="/projects/helsinki/pipelines/ingest/edit">ingest</a></td><td>ready</td></tr>
+      <tr><td>orphan</td><td>ready</td></tr>
+    </tbody></table></main>`;
+    expect(findings()).toEqual(["row-link: Pipelines: orphanready"]);
+  });
+
+  it("passes the empty row, a loading table and a table that lists no records", () => {
+    document.body.innerHTML = `<main>
+      <table data-records=""><caption>Pipelines</caption><tbody><tr><td colspan="3">No pipelines yet</td></tr></tbody></table>
+      <table data-records="" aria-busy="true"><caption>Spaces</caption><tbody><tr><td>…</td><td>…</td></tr></tbody></table>
+      <table><caption>Fields</caption><tbody><tr><td>name</td><td>Text</td></tr></tbody></table>
+    </main>`;
+    expect(findings()).toEqual([]);
   });
 });

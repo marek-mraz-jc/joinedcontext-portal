@@ -204,7 +204,7 @@ function WorkspaceTable({
 }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <Table caption={t("workspaces.tableCaption")}>
+    <Table data-records="" caption={t("workspaces.tableCaption")}>
       <TableHead>
         <TableHeaderCell>{t("workspaces.name")}</TableHeaderCell>
         {!isMine ? (

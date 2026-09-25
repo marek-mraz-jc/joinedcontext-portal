@@ -324,7 +324,7 @@ export function Roles({
           {error instanceof ApiError ? (error.problem?.detail ?? error.message) : t("app.error.generic")}
         </Alert>
       ) : (
-        <Table caption={t("access.projectRoles.caption", { project })} status={pending ? t("app.loading") : undefined}>
+        <Table data-records="" caption={t("access.projectRoles.caption", { project })} status={pending ? t("app.loading") : undefined}>
           <TableHead>
             <TableHeaderCell>{t("access.projectRoles.role")}</TableHeaderCell>
             <TableHeaderCell>{t("access.projectRoles.where")}</TableHeaderCell>

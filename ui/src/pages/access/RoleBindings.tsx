@@ -514,6 +514,7 @@ export function RoleBindings({
         </Alert>
       ) : (
         <Table
+          data-records=""
           caption={
             scope === "organization" ? t("organization.members.caption") : t("access.roles.caption", { project })
           }

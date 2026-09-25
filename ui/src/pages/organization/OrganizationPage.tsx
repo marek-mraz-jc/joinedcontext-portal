@@ -166,6 +166,7 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
         </Alert>
       ) : (
         <Table
+          data-records=""
           caption={t("organization.projects.caption")}
           status={projects.isPending ? t("app.loading") : undefined}
         >

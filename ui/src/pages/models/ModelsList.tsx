@@ -210,7 +210,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
               </Select>
             </Field>
           </div>
-          <Table caption={t("models.page.listCaption")}>
+          <Table data-records="" caption={t("models.page.listCaption")}>
             <TableHead>
               <TableHeaderCell>{t("models.field.name")}</TableHeaderCell>
               <TableHeaderCell>{t("models.field.space")}</TableHeaderCell>

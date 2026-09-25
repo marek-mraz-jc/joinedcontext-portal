@@ -246,6 +246,7 @@ export function Groups({ project }: { project: string }): JSX.Element {
         </Alert>
       ) : (
         <Table
+          data-records=""
           caption={t("access.groups.caption")}
           status={groups.isPending ? t("app.loading") : undefined}
         >
