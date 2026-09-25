@@ -878,6 +878,8 @@ async fn propose_engine(
     //     before a Change exists, and again at approval, since the bounds may tighten between.
     if operation != Operation::Delete {
         organization_within_bounds(state, kind_info.kind, &envelope.spec, ApiError::BadRequest)?;
+        // 4f. The organization's public-app policy (PF-103), held again at approval.
+        public_app_allowed(state, project, &envelope, ApiError::BadRequest)?;
     }
 
     // 4d. A projection names only what its model version has (MP-01, T-2558): the same check
@@ -1646,6 +1648,51 @@ pub(crate) fn organization_within_bounds(
         })
 }
 
+/// An App made public while the organization refuses public Apps (`spec.policies.apps.public`,
+/// PF-100, PF-103). An App that is public already stays as it is: the policy stops new public
+/// Apps, it takes nothing offline, so an edit that keeps it public passes.
+pub(crate) fn public_app_allowed(
+    state: &AppState,
+    project: &str,
+    envelope: &ResourceEnvelope,
+    refusal: fn(String) -> ApiError,
+) -> Result<(), ApiError> {
+    use jc_core::kinds::{OrganizationPolicies, PublicApps};
+    let public = |spec: &Value| spec.get("visibility").and_then(Value::as_str) == Some("public");
+    if envelope.kind != "App" || !public(&envelope.spec) {
+        return Ok(());
+    }
+    let name = &envelope.metadata.name;
+    if state
+        .mirror
+        .get(project, "App", name)
+        .is_some_and(|stored| public(&stored.spec))
+    {
+        return Ok(());
+    }
+    let refused = state
+        .mirror
+        .list(
+            crate::permissions::ORG_NAMESPACE,
+            "Organization",
+            &crate::store::ListOptions::default(),
+        )
+        .items
+        .into_iter()
+        .find_map(|org| {
+            serde_json::from_value::<OrganizationPolicies>(org.spec.get("policies")?.clone()).ok()
+        })
+        .is_some_and(|policies| policies.apps.public == PublicApps::Refused);
+    if refused {
+        return Err(refusal(format!(
+            "App '{name}' may not be public: the organization refuses public Apps \
+             (spec.policies.apps.public). Keep it visible to the project or the organization, or \
+             ask an organization admin to allow public Apps in Organization settings (PF-103)"
+        )));
+    }
+    Ok(())
+}
+
 async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {
     use jc_core::kinds::{DataModelSpec, ModelProjectionSpec};
     // The kind's own parse ran above; a spec it accepted parses here too.
@@ -2252,6 +2299,86 @@ mod tests {
             ApiError::BadRequest
         )
         .is_ok());
+    }
+
+    /// T-2870 (PF-103): with public Apps refused, a Change that makes an App public is refused
+    /// naming the setting and who changes it; an App public already keeps being edited, and an
+    /// App kept to its project, another kind, or an organization that allows them all pass.
+    #[test]
+    fn a_new_public_app_is_refused_while_the_organization_refuses_public_apps() {
+        let state = AppState::new(Config::for_tests(), None);
+        let manifest = |kind: &str, name: &str, namespace: &str, spec: Value| ResourceEnvelope {
+            api_version: resource::API_VERSION.into(),
+            kind: kind.into(),
+            metadata: ObjectMeta {
+                name: name.into(),
+                namespace: Some(namespace.into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        };
+        let app = |name: &str, visibility: &str| {
+            manifest("App", name, "helsinki", json!({ "visibility": visibility }))
+        };
+        let organization = |public: &str| {
+            manifest(
+                "Organization",
+                "hel-fi",
+                crate::permissions::ORG_NAMESPACE,
+                json!({ "policies": { "apps": { "public": public } } }),
+            )
+        };
+        let check = |envelope: &ResourceEnvelope| {
+            public_app_allowed(&state, "helsinki", envelope, ApiError::BadRequest)
+        };
+
+        // No Organization, or one that says nothing: public Apps are allowed (the default).
+        assert!(check(&app("bikes", "public")).is_ok());
+        state.mirror.upsert(organization("allowed"));
+        assert!(check(&app("bikes", "public")).is_ok());
+
+        state.mirror.upsert(organization("refused"));
+        let refused = check(&app("bikes", "public")).expect_err("a new public App");
+        let ApiError::BadRequest(message) = refused else {
+            panic!("a bad request at the door: {refused:?}");
+        };
+        for part in [
+            "App 'bikes'",
+            "spec.policies.apps.public",
+            "Organization settings",
+        ] {
+            assert!(message.contains(part), "{part}: {message}");
+        }
+        assert!(matches!(
+            public_app_allowed(
+                &state,
+                "helsinki",
+                &app("bikes", "public"),
+                ApiError::Conflict
+            ),
+            Err(ApiError::Conflict(_))
+        ));
+        assert!(check(&app("bikes", "project")).is_ok());
+        assert!(check(&manifest(
+            "Endpoint",
+            "bikes",
+            "helsinki",
+            json!({ "visibility": "public" })
+        ))
+        .is_ok());
+
+        // Public before the policy: the policy takes nothing offline, so its edits pass; a private
+        // App of the same name in another project is not that App.
+        state.mirror.upsert(app("map", "public"));
+        assert!(check(&app("map", "public")).is_ok());
+        state.mirror.upsert(manifest(
+            "App",
+            "atlas",
+            "espoo",
+            json!({ "visibility": "public" }),
+        ));
+        assert!(check(&app("atlas", "public")).is_err());
     }
 
     fn dummy_user() -> CurrentUser {
