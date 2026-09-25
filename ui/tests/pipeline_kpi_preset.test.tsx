@@ -4,7 +4,7 @@
  * tested through the test route against the live endpoint URL, and proposed.
  */
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -45,6 +45,12 @@ const ENDPOINTS: Manifest[] = [
   },
 ];
 
+/** The models the organization list answers: the type picker offers the endpoint's space's (T-2701). */
+const MODELS = [
+  { name: "bikes", project: "helsinki", space: "helsinki", version: "1.0.0", lifecycle: "published", classes: ["BikeHireDockingStation", "Road"] },
+  { name: "kpi", project: "helsinki", space: "helsinki-kpi", version: "1.0.0", lifecycle: "published", classes: ["KeyPerformanceIndicator"] },
+];
+
 const KPI_TEST_ANSWER = {
   input: { events: 1, bytes: 10 },
   mapping: [{ id: "x", type: "KeyPerformanceIndicator", currentValue: { value: 12.5 } }],
@@ -63,6 +69,9 @@ function mockFetch(testResponse?: { status: number; body: unknown }) {
           headers: { "Content-Type": "application/json" },
         }),
       );
+    if (url.includes("/api/v1/organization/datamodels")) {
+      return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: MODELS, smartDataModels: [] });
+    }
     if (url.includes("/pipelines/test") && method === "POST") {
       return json(testResponse?.body ?? {}, testResponse?.status ?? 200);
     }
@@ -164,6 +173,27 @@ describe("PipelineStudio KPI preset", () => {
     expect(lastForm.compute?.bloblang).toContain('"C62"');
     // The broker refuses a nanosecond observedAt, so the preset stamps whole seconds.
     expect(lastForm.compute?.bloblang).toContain('now().ts_format("2006-01-02T15:04:05Z")');
+  });
+
+  it("picks the counted type from the classes of the chosen endpoint's space, never a typed name", async () => {
+    mockFetch();
+    const { onChange } = renderStudio();
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.studio.preset.title), "kpi");
+    await userEvent.selectOptions(await screen.findByLabelText(en.pipelines.studio.kpi.endpoint), "helsinki-all");
+
+    await userEvent.click(screen.getByRole("combobox", { name: en.pipelines.studio.kpi.type }));
+    const list = await screen.findByRole("listbox", { name: en.pipelines.studio.kpi.type });
+    await waitFor(() =>
+      expect(within(list).getAllByRole("option").map((o) => o.textContent)).toEqual([
+        expect.stringContaining("BikeHireDockingStation"),
+        expect.stringContaining("Road"),
+      ]),
+    );
+    await userEvent.click(within(list).getByRole("option", { name: /Road/ }));
+    await waitFor(() => {
+      const form = (onChange as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as PipelineForm;
+      expect(form.compute?.bloblang).toContain("over Road");
+    });
   });
 
   it("clicking the test button POSTs the sample url and shows the computed value", async () => {

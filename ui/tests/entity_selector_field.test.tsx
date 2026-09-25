@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { SchemaForm } from "../src/components/forms/SchemaForm";
-import { subscriptionSchema, subscriptionUiSchema } from "../src/schemas/kinds";
+import { TYPE_PICKER, subscriptionSchema, subscriptionUiSchema } from "../src/schemas/kinds";
 import { EntitySelectorField } from "../src/components/forms/widgets/EntitySelectorField";
 import { portalFields } from "../src/components/forms/widgets";
 import { expectNoViolations } from "./checks";
@@ -34,6 +34,14 @@ const SENSORS = [
 ];
 
 let changes: unknown[] = [];
+
+const urlOf = (input: unknown) =>
+  new URL(input instanceof Request ? input.url : String(input), window.location.origin);
+/** The entity reads through the gateway, which is what these cases are about. */
+const gatewayCalls = () =>
+  (fetchMock.mock.calls as [RequestInfo | URL, RequestInit | undefined][]).filter(([input]) =>
+    urlOf(input).pathname.startsWith("/cs/"),
+  );
 let fetchMock: ReturnType<typeof vi.fn>;
 
 function renderForm(formData: Record<string, unknown>) {
@@ -59,8 +67,11 @@ const last = () => changes.at(-1) as { entities?: { type?: string; id?: string }
 
 beforeEach(async () => {
   await i18n.changeLanguage("en");
-  fetchMock = vi.fn(async () =>
-    new Response(JSON.stringify(SENSORS), { status: 200, headers: { "content-type": "application/ld+json" } }),
+  fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+    // The row's type is picked from the organization's models (T-2701); the rest is the gateway.
+    urlOf(input).pathname === "/api/v1/organization/datamodels"
+      ? Response.json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [], smartDataModels: [] })
+      : new Response(JSON.stringify(SENSORS), { status: 200, headers: { "content-type": "application/ld+json" } }),
   );
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -73,7 +84,7 @@ describe("an entity reference in a form (UI-03)", () => {
   it("is the field the Subscription form's rows name", () => {
     expect(portalFields.entitySelector).toBe(EntitySelectorField);
     expect(subscriptionUiSchema.entities).toEqual({
-      items: { "ui:field": "entitySelector", "ui:options": { spaceField: "contextSpaceRef" } },
+      items: { "ui:field": "entitySelector", "ui:options": { spaceField: "contextSpaceRef" }, type: TYPE_PICKER },
     });
   });
 
@@ -95,12 +106,13 @@ describe("an entity reference in a form (UI-03)", () => {
       id: "urn:ngsi-ld:AirQualityObserved:hel.fi:air:kallio",
     });
     // CC-43: read through the gateway's space surface, with the person's own session.
-    const calls = fetchMock.mock.calls as [string, RequestInit][];
+    const calls = gatewayCalls();
+    expect(calls.length).toBeGreaterThan(0);
     for (const [input, init] of calls) {
-      const asked = new URL(input, window.location.origin);
+      const asked = urlOf(input);
       expect(asked.pathname).toBe("/cs/air/ngsi-ld/v1/entities");
       expect(asked.searchParams.get("type")).toBe("AirQualityObserved");
-      expect(init.credentials).toBe("same-origin");
+      expect(init?.credentials).toBe("same-origin");
     }
   });
 
@@ -128,13 +140,13 @@ describe("an entity reference in a form (UI-03)", () => {
 
     await user.type(idBox(), "urn:ngsi-ld:Sensor:x");
     expect(last()?.entities?.[0]?.id).toBe("urn:ngsi-ld:Sensor:x");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(gatewayCalls()).toEqual([]);
   });
 
   it("asks for nothing until the form names a space", () => {
     renderForm({ entities: [{ type: "AirQualityObserved" }] });
     expect(idBox()).not.toHaveAttribute("role", "combobox");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(gatewayCalls()).toEqual([]);
   });
 
   it("has no axe violation, waiting and picking", async () => {

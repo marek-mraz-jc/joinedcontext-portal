@@ -16,7 +16,7 @@ import { ChangeNotice } from "../components/ChangeNotice";
 import { ProjectQuota, useProjectUsage } from "../components/ProjectQuota";
 import type { ResourceTarget } from "../components/DeleteResourceDialog";
 import { ResourceRowActions } from "../components/ResourceRowActions";
-import { contextSpaceSchema } from "../schemas/kinds";
+import { contextSpaceSchema, contextSpaceUiSchema } from "../schemas/kinds";
 import { modelsOfSpace } from "../pages/spaces/SpaceInside";
 import {
   Alert,
@@ -125,6 +125,7 @@ function SpaceRowActions({
       // dialog uses (T-2278, UI-61).
       form={{
         schema: contextSpaceSchema(t),
+        uiSchema: contextSpaceUiSchema,
         fromManifest: (manifest) => fromEnvelope(manifest, locale) as unknown as Record<string, unknown>,
         toManifest: (edited, stored) =>
           toEnvelope(project, edited as unknown as SpaceForm, stored, locale),
@@ -388,6 +389,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
         title={t("spaces.add")}
         description={t("spaces.addHint")}
         schema={contextSpaceSchema(t)}
+        uiSchema={contextSpaceUiSchema}
         // The same YAML view, draft, Check and verdict every other form has (T-1380, PF-57):
         // strict validation refuses a space nobody checked, so the form checks it first.
         formData={form}

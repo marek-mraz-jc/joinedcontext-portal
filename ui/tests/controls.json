@@ -12,13 +12,14 @@
     "src/assistant/AssistantDock.tsx": {
       "controls": {
         "button": 1,
-        "Button": 10
+        "Button": 11
       },
       "tests": [
         "agent_run.test.tsx",
         "app_route.test.tsx",
         "assistant_capabilities.test.tsx",
         "assistant_endpoints.test.tsx",
+        "assistant_full_screen.test.tsx",
         "assistant_layout.test.tsx",
         "assistant_open.test.tsx",
         "assistant_turns.test.tsx",
@@ -34,6 +35,14 @@
       "tests": [
         "assistant_capabilities.test.tsx",
         "assistant_open.test.tsx"
+      ]
+    },
+    "src/assistant/ConversationList.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "assistant_full_screen.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
@@ -272,6 +281,14 @@
       "tests": [
         "part_workspace_bar.test.tsx",
         "workspaces_ui.test.tsx"
+      ]
+    },
+    "src/components/pickers/Combobox.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "pickers.test.tsx"
       ]
     },
     "src/components/ui/Button.tsx": {
@@ -674,6 +691,14 @@
       "tests": [
         "kpi_pipeline_card.test.tsx",
         "part_kpi_pipeline_card.test.tsx"
+      ]
+    },
+    "src/pages/apps/Prose.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "prose.test.tsx"
       ]
     },
     "src/pages/apps/QuestionData.tsx": {

@@ -214,6 +214,7 @@ export function EditResourceDialog({
             current.data ? (
               <SchemaForm<Record<string, unknown>>
                 schema={form.schema}
+                project={target.home ?? project}
                 // The name is where this manifest lives, so it is read here and changed nowhere.
                 uiSchema={{
                   ...form.uiSchema,
