@@ -352,7 +352,7 @@ export function EndpointPage({
                 <code className="break-all font-mono text-caption">{endpointUrl(slug, "")}</code>
                 {/* The one copy control that confirms it copied; the row's menu item cannot, because
                     the menu closes on select (T-2287). */}
-                <CopyUrlButton slug={slug} />
+                <CopyUrlButton url={endpointUrl(slug, "")} />
               </div>
             ) : (
               <Missing />

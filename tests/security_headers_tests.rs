@@ -137,6 +137,48 @@ async fn a_page_frames_only_itself_and_the_apps_origin() {
     assert_eq!(directive(&policy, "frame-ancestors"), Some("'self'"));
 }
 
+/// An App host signs its visitor in through the realm, a redirect that happens inside the Open
+/// page's frame (AP-122, T-2911): with an apps origin and a realm, `frame-src` names the realm's
+/// origin (never its path), and a Portal without an apps origin frames only itself.
+#[tokio::test]
+async fn a_page_frames_the_realm_an_app_host_signs_in_through() {
+    let realm = |key: &str| {
+        match key {
+            "JC_OIDC_ISSUER" => Some("https://idm.city.example/realms/city"),
+            "JC_OIDC_CLIENT_ID" => Some("portal"),
+            "JC_OIDC_CLIENT_SECRET" => Some("secret"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    };
+    let frame_src = |config: Config| async move {
+        let response = server::app(AppState::new(config, None))
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        let policy = response.headers()[header::CONTENT_SECURITY_POLICY]
+            .to_str()
+            .expect("ASCII")
+            .to_owned();
+        directive(&policy, "frame-src").map(str::to_owned)
+    };
+
+    let mut config = Config::from_vars(realm).expect("a realm");
+    config.apps_url = Some("https://apps.city.example".parse().expect("a url"));
+    assert_eq!(
+        frame_src(config).await.as_deref(),
+        Some("'self' https://apps.city.example https://*.apps.apps.city.example https://idm.city.example")
+    );
+
+    let config = Config::from_vars(realm).expect("a realm");
+    assert_eq!(frame_src(config).await.as_deref(), Some("'self'"));
+}
+
 #[tokio::test]
 async fn every_answer_carries_the_headers_that_do_not_depend_on_the_route() {
     let headers = page_headers().await;

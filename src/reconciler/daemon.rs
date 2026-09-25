@@ -129,6 +129,8 @@ pub struct Syncer {
     /// The federated client of every ServiceAccount bound to a workload (PF-47). `None` without
     /// a login client: such an account then has no client, and its workload no identity.
     workload_clients: Option<Arc<super::workload_clients::WorkloadClientSync>>,
+    /// The MCP hub client's `endpoint:{slug}` scopes (T-2490, EP-88).
+    hub_scopes: Option<Arc<super::hub_scopes::HubScopeSync>>,
     /// The APISIX file the edge serves, composed from helm's base and every published App's
     /// routes (ADR-N-030, AP-112), with the settings that say where each App runs. `None`
     /// outside a cluster: the edge then serves helm's base alone.
@@ -202,6 +204,7 @@ impl Syncer {
             app_clients: None,
             app_client_secrets: Arc::default(),
             workload_clients: None,
+            hub_scopes: None,
             edge_file: None,
             app_hosts: None,
             activity: None,
@@ -313,6 +316,12 @@ impl Syncer {
     }
 
     /// Makes each run bring every workload-bound ServiceAccount's client to its manifest (PF-47).
+    /// Renders the MCP hub client's `endpoint:{slug}` scopes each run (T-2490).
+    pub fn with_hub_scopes(mut self, scopes: Arc<super::hub_scopes::HubScopeSync>) -> Self {
+        self.hub_scopes = Some(scopes);
+        self
+    }
+
     pub fn with_workload_clients(
         mut self,
         clients: Arc<super::workload_clients::WorkloadClientSync>,
@@ -1097,6 +1106,21 @@ impl Syncer {
                         tracing::info!(account = %outcome.app, drift = %outcome.drift.join("; "), "workload client brought back to the account")
                     }
                     (None, true) => {}
+                }
+            }
+        }
+
+        // 5d''. One `endpoint:{slug}` scope on the MCP hub's client per Endpoint that serves MCP
+        //       (T-2490, EP-88): the connect-time allow-list a hub token carries.
+        if let Some(scopes) = self.hub_scopes.as_ref() {
+            for outcome in scopes.converge(&fresh_mirror).await {
+                if let Some(err) = &outcome.error {
+                    tracing::warn!(scope = %outcome.app, error = %err, "hub scope did not converge");
+                } else if !outcome.drift.is_empty() {
+                    tracing::info!(scope = %outcome.app, drift = %outcome.drift.join("; "), "hub scope brought back to its Endpoint");
+                }
+                for warning in &outcome.warnings {
+                    tracing::info!(scope = %outcome.app, warning = %warning, "hub scopes wait for the realm");
                 }
             }
         }

@@ -826,6 +826,10 @@
       "previous": "Previous page",
       "next": "Next page",
       "window": "Entities {from} to {to} of {total}"
+    },
+    "hub": {
+      "title": "Connect all",
+      "lead": "One MCP connector over every endpoint you may read. Paste this URL into an AI app, pick the endpoints when you sign in, and each call runs under that endpoint's own policy."
     }
   },
   "datasources": {

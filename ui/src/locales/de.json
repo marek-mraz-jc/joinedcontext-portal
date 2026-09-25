@@ -826,6 +826,10 @@
       "previous": "Vorherige Seite",
       "next": "Nächste Seite",
       "window": "Entitäten {from} bis {to} von {total}"
+    },
+    "hub": {
+      "title": "Alle verbinden",
+      "lead": "Ein MCP-Connector für alle Endpunkte, die Sie lesen dürfen. Fügen Sie diese URL in eine KI-App ein, wählen Sie bei der Anmeldung die Endpunkte, und jeder Aufruf läuft unter der Richtlinie des jeweiligen Endpunkts."
     }
   },
   "datasources": {

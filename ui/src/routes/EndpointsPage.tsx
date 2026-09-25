@@ -33,6 +33,7 @@ import {
   endpointUrl,
   REPRESENTATION_PATHS,
   servedRepresentations,
+  hubUrl,
 } from "../components/endpoints/links";
 import {
   admits,
@@ -275,10 +276,9 @@ function isLive(endpoint: Manifest | null): boolean {
   return (endpoint?.status?.phase ?? "").toLowerCase() === "live";
 }
 
-export function CopyUrlButton({ slug }: { slug: string }): JSX.Element {
+export function CopyUrlButton({ url }: { url: string }): JSX.Element {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
-  const url = endpointUrl(slug, "");
 
   return (
     <Button
@@ -1260,6 +1260,21 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         })}
       </ResourceList>
 
+      {endpoints.length > 0 ? (
+        <section aria-labelledby="connect-all" className="flex flex-col gap-3">
+          <div>
+            <h2 id="connect-all" className="text-title font-semibold text-fg">
+              {t("endpoints.hub.title")}
+            </h2>
+            <p className="mt-1 text-body text-fg-muted">{t("endpoints.hub.lead")}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="break-all font-mono text-caption">{hubUrl()}</code>
+            <CopyUrlButton url={hubUrl()} />
+          </div>
+        </section>
+      ) : null}
+
       <section aria-labelledby="shared-with-project" className="flex flex-col gap-3">
         <div>
           <h2 id="shared-with-project" className="text-title font-semibold text-fg">
@@ -1645,7 +1660,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 {activeSlug}
               </span>
             </code>
-            <CopyUrlButton slug={activeSlug} />
+            <CopyUrlButton url={endpointUrl(activeSlug, "")} />
           </div>
           <p className="text-xs text-fg-subtle">{t("endpoints.slugHint")}</p>
         </div>

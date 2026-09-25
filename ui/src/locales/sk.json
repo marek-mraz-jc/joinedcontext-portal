@@ -826,6 +826,10 @@
       "previous": "Predchádzajúca strana",
       "next": "Ďalšia strana",
       "window": "Entity {from} až {to} z {total}"
+    },
+    "hub": {
+      "title": "Pripojiť všetko",
+      "lead": "Jeden MCP konektor pre všetky rozhrania, ktoré smiete čítať. Vložte túto URL do AI aplikácie, pri prihlásení vyberte rozhrania a každé volanie prebehne pod politikou daného rozhrania."
     }
   },
   "datasources": {

@@ -263,7 +263,7 @@ fn simple_value(attribute: &Value) -> Option<&Value> {
 pub fn router(app: Arc<App>) -> Router {
     let base = app.config.base_path.trim_end_matches('/').to_owned();
     let at = |tail: &str| format!("{base}{tail}");
-    Router::new()
+    let router = Router::new()
         // The readiness probe of the pod, at the root and outside the base path
         // (Architecture/16 §5).
         .route("/healthz", get(|| async { "ok" }))
@@ -271,10 +271,17 @@ pub fn router(app: Arc<App>) -> Router {
         .route(&at("/api/stream"), get(stream))
         // Both spellings of the front page: the edge routes the prefix, and a person who
         // types it without the slash is not a different visitor.
-        .route(&base, get(assets::static_handler))
         .route(&at("/"), get(assets::static_handler))
-        .route(&at("/{*path}"), get(assets::static_handler))
-        .with_state(app)
+        .route(&at("/{*path}"), get(assets::static_handler));
+    // On its own host the base is `/` (AP-133), which `at("/")` already serves; axum refuses
+    // an empty path, and the pod crashed at start on dev with it (T-2909).
+    if base.is_empty() {
+        router.with_state(app)
+    } else {
+        router
+            .route(&base, get(assets::static_handler))
+            .with_state(app)
+    }
 }
 
 /// The fleet as the app last saw it. A map that has just loaded draws from this, so it is not

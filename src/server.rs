@@ -23,13 +23,23 @@ pub fn app(state: AppState) -> Router {
     // `frame-src` names the apps origin and each App's own host under it, `{name}.apps.{apex}`
     // (AP-133): the Open page shows an App under the Portal's header (AP-122, T-2871). Without
     // it `default-src` refuses the frame before the App's own `frame-ancestors` is ever read.
+    // It names the realm's origin too: an App host signs its visitor in with a redirect through
+    // the realm, and a frame refused that hop stays blank until the App's host was opened in a
+    // tab of its own (T-2911). The realm's pages still refuse the frame by their own headers.
     let frame_src = match state.config.apps_url.as_ref() {
         Some(apps) => match apps.host_str() {
-            Some(host) => format!(
-                "'self' {} {}://*.apps.{host}",
-                apps.origin().ascii_serialization(),
-                apps.scheme()
-            ),
+            Some(host) => {
+                let mut sources = format!(
+                    "'self' {} {}://*.apps.{host}",
+                    apps.origin().ascii_serialization(),
+                    apps.scheme()
+                );
+                if let Some(oidc) = state.config.oidc.as_ref() {
+                    sources.push(' ');
+                    sources.push_str(&oidc.issuer.origin().ascii_serialization());
+                }
+                sources
+            }
             None => "'self'".to_owned(),
         },
         None => "'self'".to_owned(),

@@ -124,6 +124,27 @@ describe("the endpoints page", () => {
     );
   });
 
+  // T-2490, EP-87: one connector URL for all of them, beside the per-endpoint ones.
+  it("offers_one_connector_url_for_every_endpoint_and_copies_it", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
+    const section = (await screen.findByRole("heading", { name: en.endpoints.hub.title })).closest("section");
+    expect(section).not.toBeNull();
+    const hub = `${window.location.origin}/api/mcp`;
+    expect(within(section as HTMLElement).getByText(hub)).toBeInTheDocument();
+    expect(within(section as HTMLElement).getByText(en.endpoints.hub.lead)).toBeInTheDocument();
+    await userEvent.click(within(section as HTMLElement).getByRole("button", { name: en.endpoints.copyUrl }));
+    expect(writeText).toHaveBeenCalledWith(hub);
+    expect(await within(section as HTMLElement).findByRole("button", { name: en.endpoints.copied })).toBeInTheDocument();
+  });
+
+  it("offers_no_connector_url_while_nothing_is_published", async () => {
+    await renderRoute({ path: PATH, answer: answering([]) });
+    await screen.findByText(en.endpoints.empty);
+    expect(screen.queryByRole("heading", { name: en.endpoints.hub.title })).not.toBeInTheDocument();
+  });
+
   it("nothing_published_yet_offers_the_way_to_the_first_endpoint", async () => {
     await renderRoute({ path: PATH, answer: answering([]) });
     expect(await screen.findByText(en.endpoints.empty)).toBeInTheDocument();
