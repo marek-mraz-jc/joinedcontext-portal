@@ -7,7 +7,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Page, Response } from "@playwright/test";
-import { APPROVER, STEWARD, VIEWER, signIn } from "./portal";
+import { APPROVER, STEWARD, VIEWER, hiddenSections, inHiddenSection, signIn } from "./portal";
 
 const PROJECTS = ["helsinki", "banskabystrica"];
 
@@ -150,8 +150,12 @@ for (const [who, person] of [
     test.setTimeout(600_000);
     const { context, page } = await signIn(browser, person, "/projects/helsinki/spaces?lang=en");
     const missing: string[] = [];
+    const hidden = await hiddenSections(page.request);
     for (const project of PROJECTS) {
       for (const [route, plural] of LISTS) {
+        if (inHiddenSection(`/projects/${project}/${route}`, hidden)) {
+          continue;
+        }
         const listed = await page.request.get(`/api/v1/projects/${project}/${plural}`);
         const items = listed.ok() ? (((await listed.json()) as { items?: unknown[] }).items ?? []) : [];
         if (items.length === 0) {

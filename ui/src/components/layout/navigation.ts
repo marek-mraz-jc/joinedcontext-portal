@@ -35,6 +35,18 @@ export const NAV_SECTIONS = [
   { plural: "settings", labelKey: "nav.settings", icon: "access" },
 ] as const satisfies ReadonlyArray<{ plural: string; labelKey: string; icon: IconName }>;
 
+/**
+ * The sections an installation may hide (`hiddenSections` of the branding, T-2874). Until the
+ * branding has answered they are treated as hidden, so neither the menu nor a bookmarked address
+ * shows one for a moment and then takes it away.
+ */
+export const HIDEABLE_SECTIONS: readonly string[] = ["dashboards"];
+
+/** Whether `plural` is hidden, given what the branding said (`undefined`: not yet). */
+export function isHiddenSection(plural: string, hidden: readonly string[] | undefined): boolean {
+  return hidden === undefined ? HIDEABLE_SECTIONS.includes(plural) : hidden.includes(plural);
+}
+
 /** Where the project menu goes: the same section of the other project, never past its list. */
 export interface SameSection {
   /** The `$plural` segment of `/projects/$project/$plural`. */

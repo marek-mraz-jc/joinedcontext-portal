@@ -265,3 +265,41 @@ async fn the_apps_origin_comes_from_the_configuration_and_never_from_the_file() 
     assert!(without.get("appsOrigin").is_none(), "{without}");
     assert_eq!(with["appsOrigin"], json!("https://apps.example.org"));
 }
+
+/// T-2874: the sections the UI hides come from the configuration, never from the file.
+#[tokio::test]
+async fn hidden_sections_come_from_the_configuration_and_never_from_the_file() {
+    let path = written("instanceName: \"X\"\nhiddenSections: [\"apps\"]\n");
+    let file = path.display().to_string();
+    let answer = |dashboards: bool| {
+        let file = file.clone();
+        async move {
+            let mut config = Config::for_tests();
+            config.branding_file = Some(file);
+            config.dashboards = dashboards;
+            let app = server::app(AppState::new(config, None));
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .uri("/api/v1/branding")
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            let bytes = response
+                .into_body()
+                .collect()
+                .await
+                .expect("body")
+                .to_bytes();
+            serde_json::from_slice::<Value>(&bytes).expect("json")
+        }
+    };
+    let hidden = answer(false).await;
+    let shown = answer(true).await;
+    let _ = std::fs::remove_file(&path);
+
+    assert_eq!(hidden["hiddenSections"], json!(["dashboards"]), "{hidden}");
+    assert_eq!(shown["hiddenSections"], json!([]), "{shown}");
+}

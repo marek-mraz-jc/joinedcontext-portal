@@ -33,6 +33,7 @@ pub async fn get_branding(State(state): State<AppState>) -> impl IntoResponse {
         .apps_url
         .as_ref()
         .map(|url| url.origin().ascii_serialization());
+    branding.hidden_sections = hidden_sections(&state.config);
     (
         [(
             header::CACHE_CONTROL,
@@ -40,6 +41,15 @@ pub async fn get_branding(State(state): State<AppState>) -> impl IntoResponse {
         )],
         Json(branding),
     )
+}
+
+/// The project sections the UI leaves out of its navigation and routes (T-2874).
+pub fn hidden_sections(config: &crate::config::Config) -> Vec<String> {
+    if config.dashboards {
+        Vec::new()
+    } else {
+        vec!["dashboards".to_owned()]
+    }
 }
 
 /// The logo or the favicon, read from beside the branding file (UI-30).

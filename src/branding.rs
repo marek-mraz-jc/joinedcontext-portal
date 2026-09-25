@@ -81,6 +81,11 @@ pub struct Branding {
     /// it there (AP-122, T-2840).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub apps_origin: Option<String>,
+    /// The project sections this installation hides (`dashboards` while `JC_PORTAL_DASHBOARDS`
+    /// is not `true`, T-2874). Like `apps_origin`, set by the route from the configuration, so
+    /// what a branding file says is overwritten; always sent, so the UI never mistakes a shown
+    /// section for one it has not heard about.
+    pub hidden_sections: Vec<String>,
 }
 
 /// The five colours a page is built from. Each is validated as a hex triplet or sextet before
@@ -145,6 +150,7 @@ impl Default for Branding {
             // An installation that says nothing serves no guide, so no form offers a link.
             documentation_base_url: String::new(),
             apps_origin: None,
+            hidden_sections: Vec::new(),
         }
     }
 }
