@@ -335,3 +335,55 @@ describe("every list opens its record on a click on the row", () => {
     });
   }
 });
+
+const READER = { project: "helsinki", bootstrap: false, grants: [{ rule: { kinds: ["*"], verbs: ["read"] } }] };
+
+describe("a person who may not change a record still opens it, read only", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const subscription = manifest("Subscription", "alerts", {
+    contextSpaceRef: "air",
+    notification: { endpoint: { uri: "https://alerts.example.org/hook" } },
+  });
+  const answer = (path: string, request: Request) => {
+    if (request.method !== "GET") return undefined;
+    if (path === "/api/v1/projects/helsinki/subscriptions") return jsonResponse(list([subscription]));
+    if (path === "/api/v1/projects/helsinki/subscriptions/alerts") return jsonResponse(subscription);
+    if (path === "/api/v1/projects/helsinki/blueprints") return jsonResponse(list([manifest("Blueprint", "alerting")]));
+    if (path === "/api/v1/projects/helsinki/blueprints/alerting") return jsonResponse(manifest("Blueprint", "alerting"));
+    return undefined;
+  };
+
+  it("a reader gets the filled form, closed, with the reason, and nothing to propose", async () => {
+    await renderRoute({ path: "/projects/helsinki/subscriptions/alerts/edit?lang=en", answer, permissions: READER });
+    expect(await screen.findByText(/Your role does not permit changing Subscription here/)).toBeInTheDocument();
+    expect(screen.getAllByText("View alerts").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Propose change" })).toBeNull();
+    const fields = await screen.findAllByRole("textbox");
+    expect(fields.length).toBeGreaterThan(0);
+    for (const field of fields) {
+      expect(field).toBeDisabled();
+    }
+    expect(screen.queryByText(/This form cannot be opened/)).toBeNull();
+  });
+
+  it("a reader reads a kind without a form as its manifest, not an editor", async () => {
+    await renderRoute({ path: "/projects/helsinki/blueprints/alerting/edit?lang=en", answer, permissions: READER });
+    const text = await screen.findByRole("group", { name: "The manifest of alerting" });
+    expect(text).toHaveTextContent("kind: Blueprint");
+    expect(screen.queryByRole("button", { name: "Propose change" })).toBeNull();
+  });
+
+  it("a steward still gets the form to change", async () => {
+    await renderRoute({ path: "/projects/helsinki/subscriptions/alerts/edit?lang=en", answer });
+    expect((await screen.findAllByText("Edit alerts")).length).toBeGreaterThan(0);
+    expect(await screen.findByRole("button", { name: "Propose change" })).toBeInTheDocument();
+    expect(screen.queryByText(/Your role does not permit changing/)).toBeNull();
+  });
+});

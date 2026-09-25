@@ -305,7 +305,10 @@
     "button": "Upraviť",
     "action": "Upraviť {name}",
     "loading": "Načítava sa {name}…",
-    "unreadable": "{name} sa nepodarilo načítať."
+    "unreadable": "{name} sa nepodarilo načítať.",
+    "viewTitle": "Zobraziť {name}",
+    "readOnly": "Vaša rola tu nedovoľuje meniť {kind}, preto je tento formulár len na čítanie. Správca projektu vám to môže udeliť.",
+    "manifest": "Manifest {name}"
   },
   "resourceList": {
     "name": "Názov",

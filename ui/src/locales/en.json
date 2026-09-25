@@ -305,7 +305,10 @@
     "button": "Edit",
     "action": "Edit {name}",
     "loading": "Reading {name}…",
-    "unreadable": "{name} could not be read."
+    "unreadable": "{name} could not be read.",
+    "viewTitle": "View {name}",
+    "readOnly": "Your role does not permit changing {kind} here, so this form is read only. An administrator of the project can grant it.",
+    "manifest": "The manifest of {name}"
   },
   "resourceList": {
     "name": "Name",

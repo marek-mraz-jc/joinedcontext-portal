@@ -58,6 +58,7 @@ export function EditResourceDialog({
   onOpenChange,
   changed,
   form,
+  readOnly = false,
 }: {
   target: ResourceTarget;
   open: boolean;
@@ -66,6 +67,11 @@ export function EditResourceDialog({
   changed?: Record<string, unknown> | null;
   /** The kind's form, when its page has one: the fields instead of the YAML (T-2278). */
   form?: EditableForm;
+  /**
+   * For a person whose role may not propose the kind: the same form, filled and closed, with the
+   * reason, instead of a record that does not open (T-2875).
+   */
+  readOnly?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const formRoute = useFormRoute();
@@ -156,11 +162,11 @@ export function EditResourceDialog({
       open={open}
       onOpenChange={close}
       size="lg"
-      title={t("resourceEdit.title", { name: target.label ?? name })}
-      description={t("resourceEdit.lead")}
+      title={t(readOnly ? "resourceEdit.viewTitle" : "resourceEdit.title", { name: target.label ?? name })}
+      description={readOnly ? t("resourceEdit.readOnly", { kind: target.kind }) : t("resourceEdit.lead")}
       closeLabel={t("resourceDelete.close")}
       footer={
-        change ? (
+        change || readOnly ? (
           <Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>
         ) : form ? (
           // The form has its own submit, and two would be one too many.
@@ -223,7 +229,9 @@ export function EditResourceDialog({
                     ...((form.uiSchema?.name as Record<string, unknown> | undefined) ?? {}),
                     "ui:readonly": true,
                   },
+                  ...(readOnly ? { "ui:submitButtonOptions": { norender: true } } : {}),
                 }}
+                disabled={readOnly}
                 formData={edited ?? form.fromManifest(current.data)}
                 submitLabel={t("resourceEdit.propose")}
                 submitting={propose.isPending}
@@ -234,6 +242,16 @@ export function EditResourceDialog({
                 onSubmit={(next) => proposeManifest(form.toManifest(next, current.data))}
               />
             ) : null
+          ) : readOnly ? (
+            // Read, not edited: the text itself, scrollable and reachable from the keyboard.
+            <pre
+              role="group"
+              aria-label={t("resourceEdit.manifest", { name })}
+              tabIndex={0}
+              className="focus-ring max-h-96 overflow-auto rounded-md border border-border bg-surface-subtle p-3 font-mono text-caption"
+            >
+              {source}
+            </pre>
           ) : (
             <div className="overflow-hidden rounded-md border border-border">
               <Suspense fallback={<PageLoading label={t("models.loadingEditor")} lines={1} className="p-3" />}>
@@ -256,9 +274,10 @@ export function EditResourceDialog({
 }
 
 /**
- * The Edit action of one row: shown only to a person whose role may propose the kind, the dialog
- * opened on click, or at once when the page was opened with `?edit=<name>`, on the change the
- * assistant made when it made one.
+ * The Edit action of one row: its button refused with the reason to a person whose role may not
+ * propose the kind, the dialog opened on click, from the row's link (`…/{name}/edit`), or at once
+ * when the page was opened with `?edit=<name>`, on the change the assistant made when it made one.
+ * Opened by a person who may not propose, the dialog shows the record read only (T-2875).
  */
 export function EditResourceAction({
   target,
@@ -304,15 +323,15 @@ export function EditResourceAction({
         </Button>
       </PermissionGuard>
       ) : null}
-      {mayPropose ? (
-        <EditResourceDialog
-          target={target}
-          open={open}
-          onOpenChange={setOpen}
-          changed={request?.manifest}
-          form={form}
-        />
-      ) : null}
+      {/* A person who may not propose still opens the record, read only (T-2875). */}
+      <EditResourceDialog
+        target={target}
+        open={open}
+        onOpenChange={setOpen}
+        changed={mayPropose ? request?.manifest : null}
+        form={form}
+        readOnly={!mayPropose}
+      />
     </>
   );
 }
