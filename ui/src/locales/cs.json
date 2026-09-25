@@ -487,6 +487,7 @@
       }
     },
     "rateClass": {
+      "none": "Bez limitu",
       "strict": "Přísná",
       "standard": "Standardní",
       "open": "Otevřená",

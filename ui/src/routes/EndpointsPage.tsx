@@ -297,6 +297,16 @@ const COLUMNS = 5;
 const SHARED_COLUMNS = 4;
 
 /** `schema` without `allowedProjects`: the manifest refuses the list outside `project-list`. */
+function withoutBurst(schema: JsonSchema): JsonSchema {
+  const rateLimits = schema.properties?.rateLimits as JsonSchema | undefined;
+  if (!rateLimits?.properties) {
+    return schema;
+  }
+  const { burst, ...kept } = rateLimits.properties;
+  void burst;
+  return { ...schema, properties: { ...schema.properties, rateLimits: { ...rateLimits, properties: kept } } };
+}
+
 function withoutAllowedProjects(schema: JsonSchema): JsonSchema {
   const properties = Object.fromEntries(
     Object.entries(schema.properties ?? {}).filter(([key]) => key !== "allowedProjects"),
@@ -1051,10 +1061,17 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     catalogues,
     pipelineNames,
   );
-  const schema =
+  const audienceSchema =
     editing?.audience === "project-list" ? baseSchema : withoutAllowedProjects(baseSchema);
+  // A burst is part of a limit: without a rate per minute there is nothing for it to exceed,
+  // and a burst alone is dropped on the way out, so the field shows once a limit is picked.
+  const schema =
+    typeof editing?.rateLimits?.requestsPerMinute === "number"
+      ? audienceSchema
+      : withoutBurst(audienceSchema);
   const uiSchema = {
     ...endpointUiSchema,
+    rateLimits: { requestsPerMinute: { "ui:options": { emptyLabel: t("endpoints.rateClass.none") } } },
     ...(pickable.length > 0 ? { allowedProjects: { "ui:widget": "checkboxes" } } : {}),
   };
 

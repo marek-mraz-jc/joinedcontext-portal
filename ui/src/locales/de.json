@@ -467,6 +467,7 @@
       }
     },
     "rateClass": {
+      "none": "Kein Limit",
       "strict": "Streng",
       "standard": "Standard",
       "open": "Offen",
