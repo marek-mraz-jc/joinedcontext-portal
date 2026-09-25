@@ -821,7 +821,8 @@
       "latency": "ms p99",
       "unavailable": "Bez čísel: runner neodpovedá.",
       "paused": "Nebeží",
-      "scheduled": "Beží podľa svojho plánu"
+      "scheduled": "Beží podľa svojho plánu",
+      "rejected": "odmietnuté"
     },
     "pause": "Pozastaviť",
     "pauseHint": "Navrhne zmenu, ktorá túto pipelinu zastaví.",
@@ -951,7 +952,33 @@
     "emptyHint": "Pridajte dátový zdroj a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
     "noCredential": "Žiadne",
-    "writesType": "Zapisuje"
+    "writesType": "Zapisuje",
+    "rejected": {
+      "open": "Odmietnuté záznamy",
+      "title": "Odmietnuté záznamy pipeliny {name}",
+      "lead": "Záznamy, ktoré dátový model odmietol, najnovšie navrchu. Nezapísali sa. Opravte mapovanie alebo model, nechajte zmenu zlúčiť, potom záznamy vyberte a skúste znova.",
+      "caption": "Odmietnuté záznamy",
+      "close": "Zavrieť",
+      "empty": "Žiadne odmietnuté záznamy",
+      "emptyHint": "Každý záznam, ktorý pipelina prečítala, prešiel dátovým modelom svojho priestoru.",
+      "total": "{count, plural, one {# uchovaný záznam} few {# uchované záznamy} other {# uchovaných záznamov}} (najnovších 1000)",
+      "at": "Odmietnutý",
+      "rule": "Pravidlo",
+      "reason": "Dôvod",
+      "record": "Záznam",
+      "step": "V kroku {step}",
+      "pick": "Vybrať záznam odmietnutý {at}",
+      "pickPage": "Vybrať všetky záznamy na tejto strane",
+      "picked": "{count, plural, one {# vybraný záznam} few {# vybrané záznamy} other {# vybraných záznamov}}",
+      "pickFirst": "Najprv vyberte záznamy, ktoré sa majú skúsiť znova.",
+      "tooMany": "Naraz skúste znova najviac 100 záznamov.",
+      "retry": "{count, plural, =0 {Skúsiť znova po oprave} one {Skúsiť znova # záznam po oprave} few {Skúsiť znova # záznamy po oprave} other {Skúsiť znova # záznamov po oprave}}",
+      "retrying": "Skúša sa znova…",
+      "replayed": "{count, plural, =0 {Žiadny záznam sa neprehral.} one {# záznam prešiel znova aktuálnym modelom; ak ho stále porušuje, vráti sa sem.} few {# záznamy prešli znova aktuálnym modelom; tie, ktoré ho stále porušujú, sa vrátia sem.} other {# záznamov prešlo znova aktuálnym modelom; tie, ktoré ho stále porušujú, sa vrátia sem.}}",
+      "maskedKept": "{count, plural, one {# záznam zostáva v zozname: jeho hodnota bola zamaskovaná ako tajomstvo a opakovanie by zapísalo masku. Prinesie ho ďalšie čítanie zdroja.} few {# záznamy zostávajú v zozname: ich hodnoty boli zamaskované ako tajomstvo a opakovanie by zapísalo masku. Prinesie ich ďalšie čítanie zdroja.} other {# záznamov zostáva v zozname: ich hodnoty boli zamaskované ako tajomstvo a opakovanie by zapísalo masku. Prinesie ich ďalšie čítanie zdroja.}}",
+      "newest": "Najnovšie",
+      "older": "Staršie záznamy"
+    }
   },
   "dashboards": {
     "lead": "Mapy nakreslené z endpointov tohto projektu.",
@@ -3148,6 +3175,7 @@
       "lastSeen": "Naposledy aktívny",
       "noMatch": "Nikto nezodpovedá „{search}“.",
       "empty": "Doména zatiaľ nemá žiadnych ľudí.",
+      "emptyHint": "Každý, kto sa prihlási do domény organizácie, sa zobrazí tu. Niekoho pridáte tlačidlom Nová osoba.",
       "noSession": "Žiadna otvorená relácia",
       "pages": "Strany ľudí",
       "previous": "Predchádzajúca",

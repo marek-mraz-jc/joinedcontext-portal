@@ -821,7 +821,8 @@
       "latency": "ms p99",
       "unavailable": "Keine Zahlen: der Runner antwortet nicht.",
       "paused": "Läuft nicht",
-      "scheduled": "Läuft nach seinem Zeitplan"
+      "scheduled": "Läuft nach seinem Zeitplan",
+      "rejected": "abgelehnt"
     },
     "pause": "Pausieren",
     "pauseHint": "Schlägt eine Änderung vor, die diese Pipeline anhält.",
@@ -951,7 +952,33 @@
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
     "noCredential": "Keine",
-    "writesType": "Schreibt"
+    "writesType": "Schreibt",
+    "rejected": {
+      "open": "Abgelehnte Datensätze",
+      "title": "Abgelehnte Datensätze von {name}",
+      "lead": "Datensätze, die das Datenmodell abgelehnt hat, die neuesten zuerst. Sie wurden nicht geschrieben. Korrigieren Sie die Zuordnung oder das Modell, lassen Sie die Änderung zusammenführen, wählen Sie dann die Datensätze aus und wiederholen Sie sie.",
+      "caption": "Abgelehnte Datensätze",
+      "close": "Schließen",
+      "empty": "Keine abgelehnten Datensätze",
+      "emptyHint": "Jeder Datensatz, den diese Pipeline gelesen hat, hat das Datenmodell seines Raums bestanden.",
+      "total": "{count, plural, one {# Datensatz aufbewahrt} other {# Datensätze aufbewahrt}} (die neuesten 1000)",
+      "at": "Abgelehnt am",
+      "rule": "Regel",
+      "reason": "Grund",
+      "record": "Datensatz",
+      "step": "In Schritt {step}",
+      "pick": "Den am {at} abgelehnten Datensatz auswählen",
+      "pickPage": "Alle Datensätze dieser Seite auswählen",
+      "picked": "{count, plural, one {# Datensatz ausgewählt} other {# Datensätze ausgewählt}}",
+      "pickFirst": "Wählen Sie zuerst die Datensätze aus, die wiederholt werden sollen.",
+      "tooMany": "Wiederholen Sie höchstens 100 Datensätze auf einmal.",
+      "retry": "{count, plural, =0 {Nach der Korrektur wiederholen} one {# Datensatz nach der Korrektur wiederholen} other {# Datensätze nach der Korrektur wiederholen}}",
+      "retrying": "Wird wiederholt…",
+      "replayed": "{count, plural, =0 {Kein Datensatz wurde wiederholt.} one {# Datensatz lief erneut durch das aktuelle Modell; verletzt er es weiterhin, kommt er hierher zurück.} other {# Datensätze liefen erneut durch das aktuelle Modell; die es weiterhin verletzen, kommen hierher zurück.}}",
+      "maskedKept": "{count, plural, one {# Datensatz bleibt in der Liste: ein Wert wurde als Geheimnis maskiert, und eine Wiederholung würde die Maske schreiben. Das nächste Lesen der Quelle bringt ihn erneut.} other {# Datensätze bleiben in der Liste: ein Wert wurde jeweils als Geheimnis maskiert, und eine Wiederholung würde die Maske schreiben. Das nächste Lesen der Quelle bringt sie erneut.}}",
+      "newest": "Neueste",
+      "older": "Ältere Datensätze"
+    }
   },
   "dashboards": {
     "lead": "Karten, gezeichnet aus den Endpunkten dieses Projekts.",
@@ -3148,6 +3175,7 @@
       "lastSeen": "Zuletzt aktiv",
       "noMatch": "Niemand passt zu „{search}“.",
       "empty": "Die Domäne hat noch keine Personen.",
+      "emptyHint": "Wer sich in der Anmeldedomäne der Organisation anmeldet, erscheint hier. Mit „Neue Person“ fügen Sie jemanden hinzu.",
       "noSession": "Keine offene Sitzung",
       "pages": "Seiten der Personen",
       "previous": "Zurück",
