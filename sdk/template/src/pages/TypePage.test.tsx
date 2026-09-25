@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import type { Row, Schema } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
@@ -100,6 +100,72 @@ describe("template", () => {
     expect(within(page).queryByTestId("jc-map")).not.toBeInTheDocument();
     expect(within(page).getByRole("heading", { name: "check the lock" })).toBeInTheDocument();
     expect(within(page).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  });
+});
+
+// SDK-02 (T-2724): an App reading several endpoints reads, checks grants and writes each type
+// through the endpoint that serves it; a type two endpoints serve gets a page per endpoint.
+describe("template over several endpoints", () => {
+  // AppShell opens the page the address names; each test starts on the overview.
+  beforeEach(() => window.history.replaceState(null, "", "/"));
+
+  const GRANT: typeof ACCESS = {
+    permissions: [{ resource: { type: "*" }, actions: ["queryEntity", "retrieveEntity", "updateAttrs"], attributes: "*" }],
+    prohibitions: [],
+  };
+  const READ_ONLY: typeof ACCESS = {
+    permissions: [{ resource: { type: "*" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }],
+    prohibitions: [],
+  };
+
+  function severalApp(endpoints: { name: string; types: string[] }[], grants: Record<string, typeof ACCESS>) {
+    const client = stubClient(
+      {
+        entities: [...STATIONS, ...NOTES],
+        schema: SCHEMA,
+        access: READ_ONLY,
+        functions: { summary: () => ({ types: [] }) },
+        refuse: (request) => {
+          const slug = /^\/api\/endpoint\/([^/]+)\/access$/.exec(request.path)?.[1];
+          return slug && grants[slug] ? { status: 200, body: grants[slug] } : null;
+        },
+      },
+      { appName: "bikes", endpoints: endpoints.map((e) => ({ ...e, slug: e.name, space: "demo" })) },
+    );
+    render(
+      <JcProvider client={client}>
+        <App />
+      </JcProvider>,
+    );
+    return client;
+  }
+
+  it("reads a type and its grants through the endpoint serving it, not the primary", async () => {
+    const client = severalApp([{ name: "a", types: ["Note"] }, { name: "b", types: ["Station"] }], { b: GRANT });
+    expect(await screen.findAllByText("From b")).toHaveLength(1);
+    fireEvent.click(await screen.findByRole("button", { name: "Station" }));
+
+    const page = screen.getByRole("region", { name: "Station" });
+    fireEvent.click(await within(page).findByText("Kallio"));
+    // Endpoint a grants no write; b does, and b serves Station.
+    expect(await within(page).findByRole("button", { name: "Edit" })).toBeInTheDocument();
+    const paths = client.transport.calls.map((call) => call.path);
+    expect(paths.some((path) => path.startsWith("/api/endpoint/b/ngsi-ld/v1/entities?") && path.includes("type=Station"))).toBe(true);
+    expect(paths.some((path) => path.startsWith("/api/endpoint/a/ngsi-ld/v1/entities?") && path.includes("type=Station"))).toBe(false);
+  });
+
+  it("gives a type two endpoints serve a page per endpoint, each reading its own", async () => {
+    const client = severalApp([{ name: "north", types: ["Station", "Note"] }, { name: "south", types: ["Station"] }], {});
+    fireEvent.click(await screen.findByRole("button", { name: "Station (south)" }));
+
+    expect(screen.getByRole("region", { name: "Station (south)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Station (north)" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(client.transport.calls.some((call) => call.path.startsWith("/api/endpoint/south/ngsi-ld/v1/entities?"))).toBe(true),
+    );
+    expect(window.location.hash).toBe("#/Station@south");
+    // No page shows the SDK's refusal of a type it cannot place.
+    expect(screen.queryByText(/served by more than one endpoint/)).not.toBeInTheDocument();
   });
 });
 

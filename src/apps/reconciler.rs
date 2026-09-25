@@ -220,8 +220,9 @@ pub fn render(
             let image = image.ok_or_else(|| RenderError::NoImage {
                 class: class.to_string(),
             })?;
+            let config = app_config(name, &endpoint, &spec, slug, &settings.org_domain)?;
             Some(render_workload(
-                name, project, &spec, image, slug, settings,
+                name, project, &spec, image, slug, settings, &config,
             )?)
         }
     };
@@ -299,6 +300,34 @@ fn compiled_grants(
     ))
 }
 
+/// The `#jc-config` the static host writes for a `ui` App (AP-95), without `user`, for a pod
+/// App's backend to write into its own page with `user` from its `/me` (Architecture/16 §13,
+/// AP-126). A pod App reads through its one endpoint, so the list holds that one.
+fn app_config(
+    name: &str,
+    endpoint: &RawManifest,
+    spec: &AppSpec,
+    slug: &EndpointSlug,
+    org_domain: &str,
+) -> Result<Value, RenderError> {
+    let space = single_space(spec)?;
+    let endpoints = [crate::agents::endpoints::RunEndpoint {
+        name: endpoint.metadata.name.clone(),
+        slug: slug.as_str().to_owned(),
+        space: space.to_owned(),
+    }];
+    let needs = serde_json::to_value(&spec.data_needs).unwrap_or_default();
+    Ok(json!({
+        "slug": slug.as_str(),
+        "orgDomain": org_domain,
+        "space": space,
+        "transport": "origin",
+        "appName": name,
+        "endpointName": endpoint.metadata.name,
+        "endpoints": crate::agents::endpoints::config(&endpoints, &needs),
+    }))
+}
+
 /// The one space every data need must name; two spaces cannot become one endpoint (AP-04).
 fn single_space(spec: &AppSpec) -> Result<&str, RenderError> {
     let first = spec.data_needs[0].context_space_ref.name();
@@ -335,6 +364,7 @@ fn render_workload(
     image: &str,
     slug: &EndpointSlug,
     settings: &Settings,
+    config: &Value,
 ) -> Result<Workload, RenderError> {
     if !pinned(image) {
         return Err(RenderError::UnpinnedImage {
@@ -384,7 +414,7 @@ fn render_workload(
                         .iter()
                         .map(|secret| json!({ "name": secret }))
                         .collect::<Vec<_>>(),
-                    "containers": [app_container(name, project, image, spec, slug, settings)],
+                    "containers": [app_container(name, project, image, spec, slug, settings, config)],
                     "volumes": [{ "name": "tmp-app", "emptyDir": {} }],
                 },
             },
@@ -449,6 +479,9 @@ fn object_meta(name: &str, namespace: &str, labels: &Value) -> Value {
 ///   edge's `X-Access-Token` as the bearer (AP-109).
 /// - `JC_ANONYMOUS` — set to `true` for a public app, so its backend treats an absent
 ///   `X-Access-Token` as normal rather than as a bug.
+/// - `JC_APP_CONFIG` — the `#jc-config` object the static host writes for a `ui` App, without
+///   `user`: the backend writes it into its page with `user` from `JC_ME_URL`, so the App SDK in
+///   `ui/` reads its endpoints as it does on the static host (AP-95, AP-126).
 ///
 /// Never a credential: an application calls its Endpoint with the caller's own token.
 fn app_container(
@@ -458,6 +491,7 @@ fn app_container(
     spec: &AppSpec,
     slug: &EndpointSlug,
     settings: &Settings,
+    config: &Value,
 ) -> Value {
     let mut env = vec![
         json!({ "name": "JC_BIND_ADDRESS", "value": format!("{APP_ADDRESS}:{APP_PORT}") }),
@@ -473,6 +507,7 @@ fn app_container(
                 settings.host
             ),
         }),
+        json!({ "name": "JC_APP_CONFIG", "value": config.to_string() }),
     ];
     if spec.visibility == AppVisibility::Public {
         // A public app is called by people who never logged in, so the backend has to know that

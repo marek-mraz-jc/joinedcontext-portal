@@ -15,14 +15,22 @@ RUN pnpm pack --pack-destination /out && mv /out/*.tgz /out/sdk.tgz \
 
 FROM node:24-slim AS template
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-WORKDIR /opt/template
 COPY --from=sdk /out/ /opt/sdk/
-COPY sdk/template/package.json ./
-# The SDK as this release built it, never a registry copy of the same version number.
-RUN node -e 'const f="package.json",p=require("./"+f);p.dependencies["@joinedcontext/sdk"]="file:/opt/sdk/sdk.tgz";require("fs").writeFileSync(f,JSON.stringify(p,null,2))' \
-    && corepack enable && pnpm install --ignore-scripts \
+# The SDK as this release built it, never a registry copy of the same version number, unpacked
+# with the template beside it as in the repository: the template's lockfile resolves the SDK
+# from the directory above (`file:..`, AP-126).
+RUN mkdir -p /build/sdk/template && tar -xzf /opt/sdk/sdk.tgz --strip-components=1 -C /build/sdk
+WORKDIR /build/sdk/template
+COPY sdk/template/package.json sdk/template/pnpm-lock.yaml ./
+COPY builder/lane.mjs /build/lane.mjs
+# Exactly the packages the lockfile names (AP-127): a lockfile out of step with package.json
+# fails the install, and a store missing a package the lockfile names fails the check.
+RUN node /build/lane.mjs lock-manifest . \
+    && corepack enable && pnpm install --frozen-lockfile --ignore-scripts \
+    && node /build/lane.mjs store-check pnpm-lock.yaml node_modules \
     && test -x node_modules/.bin/vite && test -x node_modules/.bin/vitest && test -x node_modules/.bin/tsc \
-    && cp /opt/sdk/sdk-version ./sdk-version
+    && cp /opt/sdk/sdk-version ./sdk-version \
+    && mv /build/sdk/template /opt/template
 
 # The forge's runner binary (ADR-N-028 §3.3), checked against the digest its release publishes.
 FROM node:24-slim AS runner
