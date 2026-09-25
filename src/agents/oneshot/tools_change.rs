@@ -1286,10 +1286,13 @@ impl Driver {
 
     /// One catalog search for both doors (AG-70): the platform runs it and records the tool
     /// step; `None` when nothing in the project matches.
-    async fn catalog(&self, q: &str) -> Result<Option<Value>, String> {
+    async fn catalog(&self, q: &str, step_when_empty: bool) -> Result<Option<Value>, String> {
         let started = std::time::Instant::now();
         let catalog = crate::api::assistant::search(&self.state, &self.project, q, None).await;
         let output = serde_json::to_value(&catalog).unwrap_or(Value::Null);
+        if catalog.items.is_empty() && !step_when_empty {
+            return Ok(None);
+        }
         self.event(
             "tool",
             json!({
@@ -1304,13 +1307,17 @@ impl Driver {
         Ok((!catalog.items.is_empty()).then_some(output))
     }
 
-    /// The search the platform runs before the first pass: outside the run's access it is
-    /// skipped, and the prompt goes without it (AG-70).
+    /// The search the platform runs before the model: outside the run's access it is skipped,
+    /// and the prompt goes without it (AG-70). Only words that name something are searched ("and
+    /// right now??" names nothing), and a search that finds nothing is no step the person reads:
+    /// it was the platform's, not work done for them (T-2763).
     pub(super) async fn find(&self, question: &str) -> Result<Option<Value>, String> {
-        if self.granted("jc_catalog_search").is_err() {
+        if self.granted("jc_catalog_search").is_err()
+            || crate::api::assistant::words(question).is_empty()
+        {
             return Ok(None);
         }
-        self.catalog(question).await
+        self.catalog(question, false).await
     }
 
     /// A `search_catalog` call of the model, with its own words: the same search and the same
@@ -1319,7 +1326,7 @@ impl Driver {
         if let Err(reason) = self.granted("jc_catalog_search") {
             return Ok(format!("error: {reason}"));
         }
-        Ok(match self.catalog(q).await? {
+        Ok(match self.catalog(q, true).await? {
             Some(output) => output.to_string(),
             None => format!("nothing in the project matches the words '{q}'"),
         })

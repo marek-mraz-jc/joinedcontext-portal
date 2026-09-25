@@ -111,12 +111,14 @@ impl Access {
 
 /// The function words of a request, which name nothing in a catalog (API/01 §18).
 const FILLER: &[&str] = &[
-    "a", "about", "add", "all", "an", "and", "any", "are", "as", "at", "be", "build", "but", "by",
-    "can", "change", "could", "create", "do", "does", "for", "from", "get", "give", "how", "i",
-    "in", "into", "is", "it", "its", "list", "make", "me", "my", "new", "no", "not", "of", "on",
-    "or", "our", "please", "set", "show", "so", "some", "than", "that", "the", "their", "them",
-    "then", "there", "these", "this", "those", "to", "up", "us", "was", "we", "were", "what",
-    "when", "where", "which", "who", "why", "will", "with", "would", "you", "your",
+    "a", "about", "add", "again", "all", "also", "an", "and", "any", "are", "as", "at", "be",
+    "build", "but", "by", "can", "change", "could", "create", "do", "does", "for", "from", "get",
+    "give", "hello", "here", "hi", "how", "i", "in", "into", "is", "it", "its", "just", "list",
+    "make", "me", "more", "my", "new", "no", "not", "now", "of", "ok", "okay", "on", "or", "our",
+    "page", "please", "right", "set", "show", "so", "some", "still", "than", "thank", "thanks",
+    "that", "the", "their", "them", "then", "there", "these", "this", "those", "to", "up", "us",
+    "was", "we", "were", "what", "when", "where", "which", "who", "why", "will", "with", "would",
+    "yes", "you", "your",
 ];
 
 /// The words of a question: two characters or more, lower-cased, no function word, each once.
@@ -1052,6 +1054,20 @@ mod tests {
             org_domain(&crate::state::AppState::new(config, None), "helsinki"),
             "hel.fi"
         );
+    }
+
+    /// T-2763: a follow-up that names nothing is no search: "and right now??" searched the catalog.
+    #[test]
+    fn a_turn_that_names_nothing_has_no_words() {
+        for said in [
+            "and right now??",
+            "what is on the page??",
+            "ok, thanks",
+            "yes please, here",
+        ] {
+            assert!(words(said).is_empty(), "{said}: {:?}", words(said));
+        }
+        assert_eq!(words("and the bikes right now?"), vec!["bikes"]);
     }
 
     #[test]

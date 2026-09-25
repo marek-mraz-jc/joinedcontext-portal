@@ -132,6 +132,17 @@ describe("the action inspector", () => {
     expect(within(step).queryByText("profile_sample")).toBeNull();
   });
 
+  it("shows no duration under a millisecond, and one above it", () => {
+    renderPanel(true, [
+      { seq: 1, kind: "tool", payload: { tool: "search_catalog", status: "ok", durationMs: 0, input: { q: "bikes" } } },
+      { seq: 2, kind: "message", payload: { text: "Found them.", sentBy: "agent" } },
+      { seq: 3, kind: "tool", payload: { tool: "query_endpoint", status: "ok", durationMs: 41, input: {} } },
+    ]);
+    const [search, query] = screen.getAllByRole("group");
+    expect(within(search).queryByText(/\bms$/)).toBeNull();
+    expect(within(query).getByText("41 ms")).toBeInTheDocument();
+  });
+
   it("offers no fix once the run is over", () => {
     renderPanel(false);
     const failed = screen.getAllByRole("group")[1];

@@ -1071,3 +1071,75 @@ async fn a_page_that_is_not_one_of_this_project_is_refused() {
         unknown.body
     );
 }
+
+/// T-2763: the platform searches the catalog before the model only when the words name something,
+/// and a follow-up such as "and right now??" runs no search and shows no step.
+#[tokio::test]
+async fn a_follow_up_that_names_nothing_runs_no_search() {
+    let started = start(
+        BUILDER,
+        json!({ "message": "which data do we have about bikes?" }),
+        &[
+            r#"{"path": null, "reason": "a question"}"#,
+            "The bikes endpoint has them.",
+        ],
+    )
+    .await;
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let run = started.body["id"].as_str().expect("run id");
+    let events = events_until(&started, |e| {
+        e.kind == "thought" || e.kind == "message" && e.payload["sentBy"] == "agent"
+    })
+    .await;
+    let searches = |events: &[AgentRunEvent]| {
+        of_kind(events, "tool")
+            .iter()
+            .filter(|tool| tool["tool"] == "search_catalog")
+            .count()
+    };
+    assert_eq!(
+        searches(&events),
+        1,
+        "a question that names bikes is searched"
+    );
+    let before = started
+        .proxy
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .len();
+    let (status, _) = send(
+        &started.state,
+        &started.config,
+        BUILDER,
+        &format!("/api/v1/projects/helsinki/agent-runs/{run}/messages"),
+        json!({ "text": "and right now??" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    for _ in 0..200 {
+        if started
+            .proxy
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .len()
+            > before
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let events = started
+        .state
+        .agents
+        .events_since(run, 0)
+        .await
+        .expect("events");
+    assert_eq!(
+        searches(&events),
+        1,
+        "the follow-up ran no search of its own"
+    );
+}

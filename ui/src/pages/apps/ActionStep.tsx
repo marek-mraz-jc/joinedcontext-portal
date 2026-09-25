@@ -153,7 +153,8 @@ export function ActionStep({
             ×{count}
           </span>
         ) : null}
-        {duration !== undefined ? (
+        {/* Under a millisecond is no time a person reads: "0 ms" looked like nothing done (T-2763). */}
+        {duration !== undefined && duration > 0 ? (
           <span className="shrink-0 text-fg-muted">{t("agentRun.step.duration", { ms: duration })}</span>
         ) : null}
         {reason !== "" ? (
