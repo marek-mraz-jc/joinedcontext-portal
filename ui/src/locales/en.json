@@ -816,7 +816,8 @@
       "latency": "ms p99",
       "unavailable": "No numbers: the runner is not answering.",
       "paused": "Not running",
-      "scheduled": "Runs on its schedule"
+      "scheduled": "Runs on its schedule",
+      "rejected": "rejected"
     },
     "pause": "Pause",
     "pauseHint": "Proposes a change that stops this pipeline.",
@@ -945,7 +946,33 @@
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
-    "noCredential": "None"
+    "noCredential": "None",
+    "rejected": {
+      "open": "Rejected records",
+      "title": "Rejected records of {name}",
+      "lead": "Records the data model refused, newest first. They were not written. Fix the mapping or the model, let the change merge, then pick the records and retry them.",
+      "caption": "Rejected records",
+      "close": "Close",
+      "empty": "No rejected records",
+      "emptyHint": "Every record this pipeline read passed its space's data model.",
+      "total": "{count, plural, one {# record kept} other {# records kept}} (the newest 1000)",
+      "at": "Refused at",
+      "rule": "Rule",
+      "reason": "Reason",
+      "record": "Record",
+      "step": "In step {step}",
+      "pick": "Pick the record refused at {at}",
+      "pickPage": "Pick every record on this page",
+      "picked": "{count, plural, one {# record picked} other {# records picked}}",
+      "pickFirst": "Pick the records to retry first.",
+      "tooMany": "Retry at most 100 records at a time.",
+      "retry": "{count, plural, =0 {Retry after fix} one {Retry # record after fix} other {Retry # records after fix}}",
+      "retrying": "Retrying…",
+      "replayed": "{count, plural, =0 {No record was replayed.} one {# record was replayed through the current model; if it still breaks the model it comes back here.} other {# records were replayed through the current model; any that still break the model come back here.}}",
+      "maskedKept": "{count, plural, one {# record stays on the list: a value of it was masked as a secret, and replaying it would write the mask. The pipeline's next read of its source brings it again.} other {# records stay on the list: a value of each was masked as a secret, and replaying them would write the mask. The pipeline's next read of its source brings them again.}}",
+      "newest": "Newest",
+      "older": "Older records"
+    }
   },
   "dashboards": {
     "lead": "Maps drawn from the endpoints of this project.",
