@@ -2191,7 +2191,9 @@
       "artifacts": "Kompilierte Artefakte",
       "bloblang": "Bloblang-Datei",
       "gatewayIr": "Gateway-Mapping-Datei"
-    }
+    },
+    "name": "Name",
+    "badName": "Der Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, höchstens 63, am Anfang und Ende ein Buchstabe oder eine Ziffer."
   },
   "syncSources": {
     "title": "Synchronisierungsquellen",

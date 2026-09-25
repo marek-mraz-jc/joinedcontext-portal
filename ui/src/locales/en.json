@@ -2191,7 +2191,9 @@
       "artifacts": "Compiled artifacts",
       "bloblang": "Bloblang file",
       "gatewayIr": "Gateway mapping file"
-    }
+    },
+    "name": "Name",
+    "badName": "The name is lower-case letters, digits and hyphens, at most 63, starting and ending with a letter or digit."
   },
   "syncSources": {
     "title": "Sync sources",

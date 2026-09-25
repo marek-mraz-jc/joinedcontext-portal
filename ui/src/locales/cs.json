@@ -2191,7 +2191,9 @@
       "artifacts": "Zkompilované artefakty",
       "bloblang": "Soubor Bloblang",
       "gatewayIr": "Soubor mapování brány"
-    }
+    },
+    "name": "Název",
+    "badName": "Název tvoří malá písmena, číslice a pomlčky, nejvýše 63, na začátku a na konci písmeno nebo číslice."
   },
   "syncSources": {
     "title": "Zdroje synchronizace",
