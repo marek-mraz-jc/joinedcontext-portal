@@ -638,7 +638,7 @@
     },
     "src/pages/apps/AppOpenPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 6
       },
       "tests": [
         "app_open_page.test.tsx",

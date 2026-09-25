@@ -182,6 +182,16 @@ describe("all endpoints", () => {
     expect(screen.queryByRole("link", { name: "parquet" })).not.toBeInTheDocument();
   });
 
+  // EP-24, T-2901: MCP is served by every Endpoint that does not opt out, listed or not, so its
+  // link is on the row; a manifest with `mcp: false` gets none.
+  it("links the MCP instance every endpoint serves unless it opts out", async () => {
+    renderAll({ items: [endpoint(0), endpoint(1, { mcp: false })] });
+    const links = await screen.findAllByRole("link", { name: "mcp" });
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcf0/mcp`,
+    ]);
+  });
+
   // UI-16: every link on the page is reached by keyboard, in the order the table is read, and
   // nothing takes focus on arrival.
   it("is reachable by keyboard in the order the table is read", async () => {

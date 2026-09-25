@@ -314,3 +314,73 @@ describe("the trail of a copy's page", () => {
     );
   });
 });
+
+// T-2908: the App's Open page takes the whole working area. The Shell drops what caps or pads a
+// page, and folds the project navigation behind the menu button at every width.
+describe("portal shell around a page that fills it", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const body = url.includes("/auth/me")
+          ? IDENTITY
+          : url.endsWith("/api/v1/projects")
+            ? PROJECTS
+            : url.endsWith("/apps/city-bikes")
+              ? {
+                  apiVersion: "joinedcontext.com/v1alpha1",
+                  kind: "App",
+                  metadata: { name: "city-bikes", namespace: "helsinki" },
+                  spec: { kind: "static", visibility: "internal", lifecycle: "published", dataNeeds: [] },
+                  status: { build: { commit: "4f2a9c1e0b7d3a5f6c8e9d0a1b2c3d4e5f6a7b8c" } },
+                }
+              : EMPTY_LIST;
+        return Promise.resolve(
+          new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+        );
+      }),
+    );
+    window.history.pushState({}, "", "/projects/helsinki/apps/city-bikes/open");
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(document.querySelector("iframe")).not.toBeNull(), { timeout: 4000 });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("gives the page the viewport under the header, with no breadcrumb, cap or footer", () => {
+    const main = screen.getByRole("main");
+    // The Shell is the window's height and does not scroll; the page grows into what the header
+    // leaves, which is how the App's frame fills it without a fixed height of its own.
+    expect(main.closest(".h-dvh.overflow-hidden")).not.toBeNull();
+    expect(main.className).toMatch(/\bflex-1\b/);
+    expect(main.className).toMatch(/\bmin-h-0\b/);
+    expect(main.querySelector(".max-w-content")).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    expect(screen.queryByRole("contentinfo")).toBeNull();
+  });
+
+  it("folds the project navigation behind the menu button at every width, and opens it on demand", async () => {
+    const user = userEvent.setup();
+    const nav = document.getElementById("portal-sidebar") as HTMLElement;
+    expect(nav.className).not.toMatch(/\bmd:flex\b/);
+    expect(nav.className).toMatch(/\bhidden\b/);
+    const menu = screen.getByRole("button", { name: "Menu" });
+    expect(menu.className).not.toMatch(/\bmd:hidden\b/);
+    await user.click(menu);
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+    expect(nav.className).toMatch(/\bfixed\b/);
+    await user.keyboard("{Escape}");
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+    expect(menu).toHaveFocus();
+  });
+});

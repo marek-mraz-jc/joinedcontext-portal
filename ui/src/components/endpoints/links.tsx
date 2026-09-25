@@ -21,6 +21,18 @@ export const REPRESENTATION_PATHS: Record<string, string> = {
   sta: "/sta/v1.1",
 };
 
+/**
+ * What an Endpoint serves: the representations its manifest lists plus `mcp`, which every
+ * Endpoint serves, public or internal, unless `spec.mcp` is `false` (EP-24). The gateway reads
+ * the same rule, so a link shown here answers there; its Policy still decides every call.
+ */
+export function servedRepresentations(spec: { enabledRepresentations?: unknown; mcp?: unknown }): string[] {
+  const listed = Array.isArray(spec.enabledRepresentations)
+    ? spec.enabledRepresentations.filter((rep): rep is string => typeof rep === "string")
+    : [];
+  return spec.mcp === false || listed.includes("mcp") ? listed : [...listed, "mcp"];
+}
+
 /** The links every endpoint has whatever it enables: its index and the model it publishes. */
 export const ENDPOINT_LINKS: Array<{ key: string; path: string }> = [
   { key: "index", path: "/" },

@@ -2221,12 +2221,15 @@
     "openPage": {
       "details": "Podrobnosti aplikace",
       "newWindow": "Otevřít v novém okně",
-      "served": "Běží commit {commit}",
       "frameTitle": "{title}, aplikace",
       "notOpen": "Zatím tu není co otevřít. Podrobnosti aplikace říkají, co bude dál.",
       "signInHint": "Chce aplikace přihlášení a zůstává prázdná?",
       "signInAgain": "Přihlásit se znovu",
-      "lead": "Zveřejněná aplikace spuštěná v Portálu s vaším přihlášením."
+      "lead": "Zveřejněná aplikace spuštěná v Portálu s vaším přihlášením.",
+      "fullscreen": "Celá obrazovka",
+      "fullscreenExit": "Opustit celou obrazovku",
+      "fullscreenUnavailable": "Tento prohlížeč zde celou obrazovku nenabízí.",
+      "fullscreenFailed": "Prohlížeč nepřepnul na celou obrazovku: {reason}"
     },
     "retire": {
       "title": "Vyřadit {name}",

@@ -854,7 +854,7 @@ const sectionRoute = createRoute({
     }
     if (child?.routeId === sectionOpenRoute.id && child.name !== undefined) {
       return (
-        <Shell project={project}>
+        <Shell project={project} fill>
           <AppOpenPage project={project} name={child.name} />
         </Shell>
       );
