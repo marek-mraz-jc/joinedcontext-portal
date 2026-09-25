@@ -15,13 +15,15 @@ import { KpiCard, kpiOf } from "./KpiCard";
 import { KpiPipelineCard, kpiPipelineOf } from "./KpiPipelineCard";
 import { QueryResultCard, queryResultOf } from "./QueryResultCard";
 import { QuestionData } from "./QuestionData";
+import { Prose } from "./Prose";
+import type { OpenLink } from "./Prose";
 import type { RunEvent } from "./useAgentRun";
 
 /** Who a line came from. The three read differently, so they are drawn differently. */
 export type Speaker = "agent" | "person" | "activity";
 
 export function speakerOf(kind: string): Speaker {
-  if (kind === "thought" || kind === "question") {
+  if (kind === "thought" || kind === "question" || kind === "partial") {
     return "agent";
   }
   if (kind === "message" || kind === "answer") {
@@ -50,6 +52,10 @@ export function progressOf(events: RunEvent[]): Progress | null {
   if (TERMINAL_STATES.includes(status)) {
     return "stopped";
   }
+  // The model is still writing the words on screen (T-2821).
+  if (events.at(-1)?.kind === "partial") {
+    return "working";
+  }
   const lastTurn = events.filter((event) => speakerOf(event.kind) !== "activity").at(-1);
   if (lastTurn !== undefined && speakerOf(lastTurn.kind) === "person") {
     return "working";
@@ -66,6 +72,10 @@ export function answeredSearches(events: RunEvent[]): Set<number> {
   const answered = new Set<number>();
   let search: number | null = null;
   for (const event of events) {
+    // Words the model wrote on its way to its next step are not an answer about the search.
+    if (event.kind === "partial") {
+      continue;
+    }
     if (event.kind === "tool") {
       search = event.payload.tool === "search_catalog" ? event.seq : null;
     } else if (speakerOf(event.kind) === "agent" && search !== null) {
@@ -97,11 +107,15 @@ export function questionTitle(payload: Record<string, unknown>): string {
 
 /**
  * The events a transcript draws: not the status changes (the progress line stands for them), not
- * the pages opened (the dock's notice does), and not a question the assistant says in its very
- * next line, which would read twice.
+ * the pages opened (the dock's notice does), not a question the assistant says in its very next
+ * line, which would read twice, and a `partial` only while it is the newest event: the answer or
+ * the step that follows it stands for it (API/04 §4, T-2821).
  */
 export function drawnEvents(events: RunEvent[]): RunEvent[] {
-  const shown = events.filter((event) => !UNDRAWN_KINDS.has(event.kind));
+  const newest = events.at(-1);
+  const shown = events.filter(
+    (event) => !UNDRAWN_KINDS.has(event.kind) && (event.kind !== "partial" || event === newest),
+  );
   return shown.filter((event, at) => {
     if (event.kind !== "question") {
       return true;
@@ -177,6 +191,7 @@ export function line(
     case "status":
       return t("agentRun.line.status", { status: text("status") });
     case "thought":
+    case "partial":
       return text("text");
     case "message":
       return text("text");
@@ -337,6 +352,7 @@ export function ConversationPanel({
   onUseEndpoint,
   usedEndpoints,
   building = false,
+  onOpenLink,
 }: {
   /** The project the run belongs to: what a card's links open. */
   project: string;
@@ -372,6 +388,8 @@ export function ConversationPanel({
   building?: boolean;
   /** The endpoints the conversation queries, so a found one says it is in use. */
   usedEndpoints?: string[];
+  /** Opens a Portal link of an answer in place, keeping the conversation (T-2773). */
+  onOpenLink?: OpenLink;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
@@ -555,22 +573,37 @@ export function ConversationPanel({
               );
             }
             const mine = speaker === "person";
+            // The words while the model still writes them: seen, and kept out of the log's
+            // announcements, so a screen reader hears the finished answer once rather than every
+            // half of it (UI-39, T-2821).
+            const writing = event.kind === "partial";
             return (
-              <li key={event.seq} className={mine ? "flex justify-end" : "flex"}>
-                <div className="max-w-[85%]">
+              <li
+                key={event.seq}
+                className={mine ? "flex justify-end" : "flex"}
+                aria-hidden={writing ? true : undefined}
+                data-testid={writing ? "partial-line" : undefined}
+              >
+                <div className="min-w-0 max-w-[85%]">
                   <p className={mine ? "text-right text-xs text-fg-muted" : "text-xs text-fg-muted"}>
                     {labelOf(event, t)}
                   </p>
-                  <p
-                    className={
-                      mine
-                        ? "mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-primary px-3 py-2 text-primary-fg"
-                        : "mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2"
-                    }
-                  >
-                    {/* What the person wrote stays as written; the rest loses its "(AG-70)" (T-2756). */}
-                    {mine ? line(event, t, titles) : forPeople(line(event, t, titles))}
-                  </p>
+                  {mine ? (
+                    // What the person wrote stays as written.
+                    <p className="mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-primary px-3 py-2 text-primary-fg">
+                      {line(event, t, titles)}
+                    </p>
+                  ) : event.kind === "thought" || writing ? (
+                    // An answer is Markdown, drawn as its lists, tables and links; it loses its
+                    // "(AG-70)" (T-2756, T-2773).
+                    <div className="mt-0.5 rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2">
+                      <Prose text={forPeople(line(event, t, titles))} onOpenLink={onOpenLink} />
+                    </div>
+                  ) : (
+                    <p className="mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2">
+                      {forPeople(line(event, t, titles))}
+                    </p>
+                  )}
                 </div>
               </li>
             );

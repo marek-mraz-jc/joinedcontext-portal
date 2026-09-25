@@ -17,6 +17,7 @@ use crate::change::{Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSumm
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{Author, FileWrite};
 use crate::state::AppState;
+use crate::store::ListOptions;
 use crate::tools::model_tools::{Artifacts, GenerateRequest, MAX_REQUEST_BYTES};
 
 /// Single detected difference between the published model and the candidate LinkML source.
@@ -784,8 +785,193 @@ pub async fn put_source(
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())
 }
 
+/// The longest `search` the organization's model list takes (API/01).
+const MAX_SEARCH_CHARS: usize = 100;
+/// How many catalogue entries one search answers: the index holds about a thousand.
+const MAX_CATALOGUE_ENTRIES: usize = 50;
+
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct OrganizationModelsQuery {
+    /// Matched case-insensitively on name, project, space and classes, and on a catalogue
+    /// entry's name, id and description.
+    #[serde(default)]
+    pub search: Option<String>,
+}
+
+/// One `DataModel` of the organization as the pickers list it (DM-63).
+#[derive(Debug, Serialize, ToSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganizationModel {
+    pub name: String,
+    pub project: String,
+    pub space: String,
+    pub version: String,
+    pub lifecycle: String,
+    pub classes: Vec<String>,
+}
+
+/// One Smart Data Models catalogue entry as the pickers list it (DM-12, DM-63).
+#[derive(Debug, Serialize, ToSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueEntry {
+    /// `dataModel.Environment/AirQualityObserved`.
+    pub id: String,
+    pub name: String,
+    /// `dataModel.Environment`.
+    pub subject: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganizationModels {
+    pub api_version: String,
+    pub kind: String,
+    pub items: Vec<OrganizationModel>,
+    pub smart_data_models: Vec<CatalogueEntry>,
+    /// Why no catalogue entries could be listed, when Model Tools did not answer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalogue_unavailable: Option<String>,
+}
+
+fn matches(needle: &str, haystack: &[&str]) -> bool {
+    needle.is_empty() || haystack.iter().any(|h| h.to_lowercase().contains(needle))
+}
+
+/// A mirrored `DataModel` manifest as a picker item; `None` for a retired version (DM-26) or a
+/// manifest that does not deserialize, which no picker can offer anyway.
+fn organization_model(
+    project: &str,
+    env: &crate::resource::ResourceEnvelope,
+) -> Option<OrganizationModel> {
+    let spec: DataModelSpec = serde_json::from_value(env.spec.clone()).ok()?;
+    let lifecycle = serde_json::to_value(spec.lifecycle)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_owned))?;
+    if lifecycle == "retired" {
+        return None;
+    }
+    Some(OrganizationModel {
+        name: env.metadata.name.clone(),
+        project: project.to_owned(),
+        space: spec.context_space_ref,
+        version: spec.version.to_string(),
+        lifecycle,
+        classes: spec.classes,
+    })
+}
+
+/// `GET /api/v1/organization/datamodels` (DM-63, ADR-N-033): every model of every project the
+/// caller may read, by the read rule of `GET /api/v1/endpoints`, and the catalogue entries a
+/// search matches. What the caller may not read is not in it, and nobody is refused (R20).
+#[utoipa::path(
+    get,
+    path = "/api/v1/organization/datamodels",
+    summary = "List Data Models Everywhere",
+    description = "Every DataModel the caller may read across projects, and the Smart Data Models entries a search of two characters or more matches: what the model and type pickers list.",
+    tag = "resources",
+    params(("search" = Option<String>, Query, description = "Case-insensitive substring of a name, project, space or class; at most 100 characters")),
+    responses(
+        (status = 200, description = "The models the caller may read and the matching catalogue entries", body = OrganizationModels),
+        (status = 400, description = "A search longer than 100 characters", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails)
+    )
+)]
+pub async fn list_organization_datamodels(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Query(query): Query<OrganizationModelsQuery>,
+) -> Result<Json<OrganizationModels>, ApiError> {
+    let search = query.search.unwrap_or_default();
+    let search = search.trim();
+    if search.chars().count() > MAX_SEARCH_CHARS {
+        return Err(ApiError::BadRequest(format!(
+            "search is at most {MAX_SEARCH_CHARS} characters"
+        )));
+    }
+    let needle = search.to_lowercase();
+
+    let mut items = Vec::new();
+    for project in state.mirror.namespaces() {
+        let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+        if !effective.may_read("DataModel") {
+            continue;
+        }
+        for env in state
+            .mirror
+            .list(&project, "DataModel", &ListOptions::default())
+            .items
+        {
+            let Some(model) = organization_model(&project, &env) else {
+                continue;
+            };
+            if !effective.may_read_in("DataModel", Some(&model.space)) {
+                continue;
+            }
+            let mut haystack = vec![
+                model.name.as_str(),
+                model.project.as_str(),
+                model.space.as_str(),
+            ];
+            haystack.extend(model.classes.iter().map(String::as_str));
+            if matches(&needle, &haystack) {
+                items.push(model);
+            }
+        }
+    }
+    items.sort_by(|a, b| (&a.project, &a.space, &a.name).cmp(&(&b.project, &b.space, &b.name)));
+
+    let mut smart_data_models = Vec::new();
+    let mut catalogue_unavailable = None;
+    if needle.chars().count() >= 2 {
+        match crate::tools::model_tools::fetch_catalogue(&state, false).await {
+            Ok(catalogue) => {
+                smart_data_models = catalogue
+                    .subjects
+                    .into_iter()
+                    .flat_map(|subject| {
+                        let name = subject.name;
+                        subject.models.into_iter().map(move |model| CatalogueEntry {
+                            id: model.id,
+                            name: model.name,
+                            subject: name.clone(),
+                            description: model.description,
+                        })
+                    })
+                    .filter(|entry| {
+                        matches(
+                            &needle,
+                            &[
+                                entry.name.as_str(),
+                                entry.id.as_str(),
+                                entry.description.as_deref().unwrap_or_default(),
+                            ],
+                        )
+                    })
+                    .take(MAX_CATALOGUE_ENTRIES)
+                    .collect();
+            }
+            Err(ApiError::Unavailable(reason)) => catalogue_unavailable = Some(reason),
+            Err(err) => return Err(err),
+        }
+    }
+
+    Ok(Json(OrganizationModels {
+        api_version: crate::resource::API_VERSION.to_string(),
+        kind: "List".to_string(),
+        items,
+        smart_data_models,
+        catalogue_unavailable,
+    }))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route(
+            "/organization/datamodels",
+            get(list_organization_datamodels),
+        )
         .route(
             "/projects/{project}/datamodels/{name}/source",
             get(get_source).put(put_source),

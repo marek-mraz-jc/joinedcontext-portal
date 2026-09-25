@@ -608,6 +608,59 @@
         }
       }
     },
+    "/api/v1/organization/datamodels": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "List Data Models Everywhere",
+        "description": "Every DataModel the caller may read across projects, and the Smart Data Models entries a search of two characters or more matches: what the model and type pickers list.",
+        "operationId": "list_organization_datamodels",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive substring of a name, project, space or class; at most 100 characters",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The models the caller may read and the matching catalogue entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationModels"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A search longer than 100 characters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/preferences": {
       "get": {
         "tags": [
@@ -8841,6 +8894,34 @@
           }
         }
       },
+      "CatalogueEntry": {
+        "type": "object",
+        "description": "One Smart Data Models catalogue entry as the pickers list it (DM-12, DM-63).",
+        "required": [
+          "id",
+          "name",
+          "subject"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "`dataModel.Environment/AirQualityObserved`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "description": "`dataModel.Environment`."
+          }
+        }
+      },
       "CatalogueModel": {
         "type": "object",
         "description": "One model of the Smart Data Models catalogue index, as the wizard lists and searches it.",
@@ -10918,6 +10999,77 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "OrganizationModel": {
+        "type": "object",
+        "description": "One `DataModel` of the organization as the pickers list it (DM-63).",
+        "required": [
+          "name",
+          "project",
+          "space",
+          "version",
+          "lifecycle",
+          "classes"
+        ],
+        "properties": {
+          "classes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "space": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "OrganizationModels": {
+        "type": "object",
+        "required": [
+          "apiVersion",
+          "kind",
+          "items",
+          "smartDataModels"
+        ],
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "catalogueUnavailable": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why no catalogue entries could be listed, when Model Tools did not answer."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationModel"
+            }
+          },
+          "kind": {
+            "type": "string"
+          },
+          "smartDataModels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueEntry"
+            }
           }
         }
       },

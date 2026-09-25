@@ -2229,6 +2229,11 @@
         "use": "Diese Adresse verwenden",
         "invalid": "Geben Sie eine vollständige Adresse an, die mit http:// oder https:// beginnt."
       }
+    },
+    "prose": {
+      "copyId": "Ganze Kennung kopieren",
+      "copied": "Kopiert",
+      "table": "Tabelle in der Antwort"
     }
   },
   "assistant": {
@@ -2345,6 +2350,19 @@
         "noWrite": "Ihre Rolle schreibt über diesen Endpunkt nicht."
       },
       "pathLeft": "Nicht mit {preset}: in Fähigkeiten einschalten."
+    },
+    "full": {
+      "conversations": "Unterhaltungen",
+      "search": "Unterhaltungen durchsuchen",
+      "none": "Hier gibt es noch keine Unterhaltungen.",
+      "noMatch": "Keine Unterhaltung fragt nach „{words}“.",
+      "untitled": "Eine über einen Pfad begonnene Unterhaltung",
+      "more": "{count} weitere anzeigen",
+      "showList": "Unterhaltungen anzeigen",
+      "hideList": "Unterhaltungen ausblenden",
+      "data": "Daten und Fähigkeiten",
+      "showData": "Daten und Fähigkeiten anzeigen",
+      "hideData": "Daten und Fähigkeiten ausblenden"
     }
   },
   "permissions": {
@@ -3164,6 +3182,34 @@
       "associationOps": "Alles lesen und abonnieren",
       "federationOps": "Föderieren",
       "redirectionOps": "Alles weiterleiten"
+    }
+  },
+  "picker": {
+    "search": "Suchen",
+    "chosen": "Gewählt: {label}",
+    "remove": "{name} entfernen",
+    "model": {
+      "group": "{project} / {space}",
+      "catalogue": "Smart Data Models",
+      "none": "Kein Datenmodell passt.",
+      "create": "Neues Datenmodell „{name}“",
+      "catalogueUnavailable": "Smart Data Models lassen sich gerade nicht durchsuchen: {reason}",
+      "catalogueHint": "Ab zwei Buchstaben wird auch in Smart Data Models gesucht.",
+      "lifecycle": {
+        "draft": "Entwurf",
+        "published": "veröffentlicht",
+        "deprecated": "veraltet",
+        "retired": "ausgemustert",
+        "mirrored": "gespiegelt"
+      }
+    },
+    "type": {
+      "local": "Typen von {space}",
+      "modelGroup": "{name} ({space})",
+      "imported": "Importiert aus {name}",
+      "none": "Das Modell von {space} deklariert noch keinen Typ.",
+      "noneInProject": "Kein Datenmodell dieses Projekts deklariert bisher einen Typ.",
+      "create": "Neuer Typ „{name}“"
     }
   }
 }

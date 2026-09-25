@@ -1309,38 +1309,7 @@ pub async fn approve_change_for(
             pr.title
         )
     };
-    // Gitea checks a fresh pull's mergeability in the background and answers 405 "Please try
-    // again later" until it has; an approval that follows the proposal within seconds (the
-    // demo's, a script's) waits it out instead of failing.
-    let mut attempt = 0;
-    loop {
-        match gitea
-            .merge(
-                pr_number,
-                MergeStyle::Squash,
-                &merge_msg,
-                Some(&pr.head_sha),
-            )
-            .await
-        {
-            Err(GitError::Api { status: 405, .. }) if attempt < 15 => {
-                attempt += 1;
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            }
-            // The forge refuses to merge a commit other than the one this approval walked, and
-            // it refuses a branch that no longer merges into the base; both come back 409 and
-            // both mean the same thing to the person at the button (T-1683, CC-80).
-            Err(GitError::Conflict(_)) => {
-                return Err(ApiError::Conflict(format!(
-                    "change proposal '{id}' is not what it was when it was reviewed: its branch \
-                     has moved past the commit this approval read, or it no longer merges into \
-                     the base branch. Open the change again, read what it says now, and approve \
-                     that (PF-57)."
-                )))
-            }
-            other => break other?,
-        }
-    }
+    merge_when_ready(gitea, pr_number, &merge_msg, &pr.head_sha, id).await?;
 
     // A published application's own repository merges once its Change has (AP-77).
     crate::api::agent_runs::merge_published_application(
@@ -1351,14 +1320,7 @@ pub async fn approve_change_for(
     )
     .await;
 
-    if let Some(syncer) = state.syncer.as_ref() {
-        let syncer = syncer.clone();
-        tokio::spawn(async move {
-            if let Err(err) = syncer.sync_once().await {
-                tracing::warn!(error = %err, "sync after change approval failed");
-            }
-        });
-    }
+    sync_soon(state);
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
     let change_meta = change_meta(state, gitea, pr_number, project);
@@ -1368,6 +1330,107 @@ pub async fn approve_change_for(
     let change = Change::new(change_meta, change_status);
 
     Ok(change)
+}
+
+/// Merges an approved pull request at the commit its approval read (PF-57, T-1683).
+///
+/// Gitea checks a fresh pull's mergeability in the background and answers 405 "Please try again
+/// later" until it has; an approval that follows the proposal within seconds (the demo's, a
+/// script's, the build lane's) waits it out instead of failing. The forge refuses to merge a
+/// commit other than `head_sha`, and a branch that no longer merges into the base; both come back
+/// 409 and both mean the same thing to whoever approved (T-1683, CC-80).
+async fn merge_when_ready(
+    gitea: &GiteaClient,
+    pr_number: u64,
+    message: &str,
+    head_sha: &str,
+    id: &str,
+) -> Result<(), ApiError> {
+    let mut attempt = 0;
+    loop {
+        match gitea
+            .merge(pr_number, MergeStyle::Squash, message, Some(head_sha))
+            .await
+        {
+            Err(GitError::Api { status: 405, .. }) if attempt < 15 => {
+                attempt += 1;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+            Err(GitError::Conflict(_)) => {
+                return Err(ApiError::Conflict(format!(
+                    "change proposal '{id}' is not what it was when it was reviewed: its branch \
+                     has moved past the commit this approval read, or it no longer merges into \
+                     the base branch. Open the change again, read what it says now, and approve \
+                     that (PF-57)."
+                )))
+            }
+            other => return other.map_err(ApiError::from),
+        }
+    }
+}
+
+/// The mirror catches up with `main` now rather than at the next poll, so what an approval merged
+/// shows at once.
+fn sync_soon(state: &AppState) {
+    if let Some(syncer) = state.syncer.as_ref() {
+        let syncer = syncer.clone();
+        tokio::spawn(async move {
+            if let Err(err) = syncer.sync_once().await {
+                tracing::warn!(error = %err, "sync after change approval failed");
+            }
+        });
+    }
+}
+
+/// The build lane's `status.build`, approved by the Portal itself (AP-104, AP-73; owner decision
+/// T-2661). The caller has already held the write to the lane's rule, to an App on `main` whose
+/// spec, labels and annotations it leaves as they are, and to a build its repository's workflow
+/// made and the Portal published; a person approved that source when its own Change merged
+/// (AP-77). So the Change merges now, pinned to the commit the Portal wrote, with the Portal named
+/// as its approver. The lane approves nothing (AG-11): it holds no `approve`, and this runs only
+/// inside the proposal that passed those checks.
+///
+/// A Change that carries any file beside `manifest_path` is not the lane's field alone, and waits
+/// for a person like every other; so does one the forge will not merge. Either way the answer is
+/// the pending Change, as it was before this approval existed.
+pub(crate) async fn approve_build(
+    state: &AppState,
+    gitea: &GiteaClient,
+    pr: &PullRequest,
+    manifest_path: &str,
+    change: Change,
+) -> Change {
+    let id = change.metadata.name.clone();
+    let only_the_manifest = match gitea.pull_request_files(pr.number).await {
+        Ok(files) => {
+            !files.is_empty()
+                && files
+                    .iter()
+                    .all(|file| file.path == manifest_path && !file.deleted)
+        }
+        Err(err) => {
+            tracing::warn!(change = %id, error = %err, "the build's change waits for a person: its files could not be read");
+            return change;
+        }
+    };
+    if !only_the_manifest {
+        tracing::warn!(change = %id, path = %manifest_path, "the build's change carries more than the App's manifest and waits for a person (AP-73)");
+        return change;
+    }
+    let message = format!(
+        "Merge change proposal {id}: {}\n\nApproved by the Portal: the build lane's status.build, \
+         checked against the App's repository and published (AP-73, AP-104)",
+        pr.title
+    );
+    if let Err(err) = merge_when_ready(gitea, pr.number, &message, &pr.head_sha, &id).await {
+        tracing::warn!(change = %id, error = %err, "the build's change waits for a person: the forge did not merge it");
+        return change;
+    }
+    tracing::info!(change = %id, "the Portal approved the build lane's change (AP-104)");
+    sync_soon(state);
+    let mut change = change;
+    change.status.phase = ChangePhase::Deploying;
+    change
 }
 
 /// A change a person just proposed with their own session, approved in the same call when they

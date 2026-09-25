@@ -562,3 +562,77 @@ describe("questions and answers in the transcript", () => {
     expect(screen.queryByText(/q-2026-09-25T/)).toBeNull();
   });
 });
+
+/// T-2821, API/04 §4: a `partial` is the assistant's words while the model still writes them. It
+/// shows only while it is the newest event, the answer replaces it, and the log announces the
+/// answer once rather than every half of it.
+describe("words the model is still writing", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  const asked: RunEvent = { seq: 1, kind: "message", payload: { text: "which stations are empty?", sentBy: "jana" } };
+
+  it("draws the newest partial as the assistant's line, hidden from the announcements", () => {
+    panel([
+      { seq: 0, kind: "status", payload: { status: "interviewing" } },
+      asked,
+      { seq: 2, kind: "partial", payload: { text: "Two stations", elapsedMs: 900 } },
+      { seq: 3, kind: "partial", payload: { text: "Two stations are empty", elapsedMs: 1400 } },
+    ]);
+    const lines = screen.getAllByTestId("partial-line");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toHaveTextContent("Two stations are empty");
+    expect(lines[0]).toHaveTextContent(en.agentRun.conversation.agent);
+    expect(lines[0]).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("run-progress")).toHaveTextContent(en.agentRun.progress.working);
+  });
+
+  it("gives way to the answer, and to a step, that follows it", () => {
+    const { rerender } = panel([
+      asked,
+      { seq: 2, kind: "partial", payload: { text: "Let me look.", elapsedMs: 700 } },
+      { seq: 3, kind: "tool", payload: { tool: "search_catalog", status: "ok", input: { q: "stations" } } },
+    ]);
+    expect(screen.queryByTestId("partial-line")).not.toBeInTheDocument();
+    expect(screen.queryByText("Let me look.")).not.toBeInTheDocument();
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <ConversationPanel
+          project="helsinki"
+          events={[
+            asked,
+            { seq: 2, kind: "partial", payload: { text: "Two stations are", elapsedMs: 700 } },
+            { seq: 3, kind: "thought", payload: { text: "Two stations are empty." } },
+          ]}
+          streaming
+          answering={false}
+          sending={false}
+          live
+          onAnswer={() => {}}
+          onSend={sent}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByTestId("partial-line")).not.toBeInTheDocument();
+    expect(screen.getByText("Two stations are empty.")).toBeInTheDocument();
+    expect(screen.queryByText("Two stations are")).not.toBeInTheDocument();
+  });
+
+  it("never counts the words before a step as the answer about a search", () => {
+    const events: RunEvent[] = [
+      asked,
+      { seq: 2, kind: "tool", payload: { tool: "search_catalog", status: "ok" } },
+      { seq: 3, kind: "partial", payload: { text: "Reading it." } },
+      { seq: 4, kind: "tool", payload: { tool: "query_endpoint", status: "ok" } },
+    ];
+    expect(answeredSearches(events).has(2)).toBe(false);
+  });
+
+  it("renders a partial's markup as text", () => {
+    panel([asked, { seq: 2, kind: "partial", payload: { text: "<img src=x onerror=alert(1)>" } }]);
+    expect(screen.getByTestId("partial-line")).toHaveTextContent("<img src=x onerror=alert(1)>");
+    expect(document.querySelector("img[src='x']")).toBeNull();
+  });
+});
