@@ -269,6 +269,48 @@ impl KubeClient {
         Ok(Some(body))
     }
 
+    /// Reads one ConfigMap, or `None` when it does not exist. The one kind the Portal reads and
+    /// never writes: the base of the edge file (ADR-N-030, AP-112), so it stays out of the kinds
+    /// [`KubeClient::apply`] accepts.
+    pub async fn get_config_map(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Option<Value>, KubeError> {
+        let path = path_of("configmaps", namespace, name)?;
+        let response = self
+            .http
+            .get(self.url(&path)?)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        self.checked(response, path).await.map(Some)
+    }
+
+    /// Replaces one object that exists, as read with [`KubeClient::get`]: its
+    /// `metadata.resourceVersion` makes a write that raced another one fail with `409` instead
+    /// of overwriting it. For an object whose RBAC grants `update` and not `patch`.
+    pub async fn replace(&self, object: &Value) -> Result<(), KubeError> {
+        let path = path_of(
+            object_kind(object)?,
+            namespace_of(object)?,
+            name_of(object)?,
+        )?;
+        let response = self
+            .http
+            .put(self.url(&path)?)
+            .headers(self.headers("application/json")?)
+            .body(object.to_string())
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        self.checked(response, path).await.map(|_| ())
+    }
+
     fn url(&self, path: &str) -> Result<Url, KubeError> {
         self.base
             .join(path)
