@@ -209,6 +209,8 @@
     "draftHelp": "Zatiaľ nenavrhnuté, uložené len lokálne.",
     "pendingApproval": "Čaká na schválenie",
     "pendingApprovalHelp": "Čaká na schválenie alebo zamietnutie schvaľovateľom.",
+    "notDeployed": "Nenasadené",
+    "notDeployedHelp": "Zlúčené, ale nebeží: kvóta je vyčerpaná, je pozastavené alebo ide o druh, ktorý platforma nespúšťa. Podrobnosti uvádzajú dôvod.",
     "deploying": "Nasadzuje sa",
     "deployingHelp": "Schválené a zlúčené; rekonciliátor to práve nasadzuje.",
     "live": "Aktívne",
@@ -589,7 +591,7 @@
     },
     "link": {
       "index": "index",
-      "linkml": "model (LinkML)",
+      "linkml": "zdroj modelu",
       "jsonSchema": "JSON Schema",
       "access": "prístup",
       "catalogue": "katalóg"
@@ -1585,7 +1587,7 @@
     "format": "Formát",
     "formats": {
       "whole": "Celý projekt (konfigurácia, schémy a dátové modely)",
-      "wholeHelp": "Archív ZIP: každý manifest a súbory vedľa neho, JSON Schema každého druhu, LinkML zdroj a JSON Schema každého dátového modelu a README, ktoré vysvetľuje, čo ktorý súbor znamená.",
+      "wholeHelp": "Archív ZIP: každý manifest a súbory vedľa neho, JSON Schema každého druhu, zdroj a JSON Schema každého dátového modelu a README, ktoré vysvetľuje, čo ktorý súbor znamená.",
       "yaml": "YAML",
       "yamlHelp": "Jeden manifest na dokument, pripravený na opätovné nasadenie; celý projekt končí indexom so schémami.",
       "json": "Zoznam JSON",
@@ -1606,7 +1608,7 @@
     "download": "Stiahnuť"
   },
   "models": {
-    "title": "Editor modelov LinkML",
+    "title": "Editor modelov",
     "version": "Verzia {version}",
     "add": "Pridať",
     "classes": "Triedy",
@@ -1779,10 +1781,14 @@
     "dimensionLabel": "Použitie v dashboarde",
     "graph": {
       "title": "Triedy modelu a čo ich spája",
-      "legend": "Plná čiara je `is_a`, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu.",
+      "legend": "Plná čiara je `is_a`, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu. V rámčeku má každé pole svoj typ: PK označuje kľúč, FK pole, ktoré odkazuje na inú triedu, s tou triedou a počtom. Aj bodkovaná čiara uvádza počet na oboch koncoch; * znamená ľubovoľne veľa.",
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
-      "more": "a ďalších {count}",
+      "row": {
+        "pk": "{name}: {type}, kľúč, ktorý identifikuje každú entitu",
+        "fk": "{name}: {type}, odkaz na inú triedu",
+        "plain": "{name}: {type}"
+      },
       "from": "z {name}",
       "enumBox": "Výčet {name}: {values}",
       "legendRelationship": "Plná čiara bez šípky je vzťah, pomenovaný poľom a inverzným poľom. Číslo na každom konci hovorí, s koľkými entitami tej triedy je spojená jedna entita na druhom konci: 1 presne jedna, 0..1 najviac jedna, 1..* aspoň jedna, * ľubovoľne veľa.",
@@ -1802,7 +1808,7 @@
       "name": "Názov",
       "space": "Kontextový priestor",
       "version": "Verzia",
-      "linkml": "Zdroj LinkML",
+      "linkml": "Zdroj modelu",
       "lifecycle": "Životný cyklus",
       "openWorld": "Prijímať nedeklarované atribúty"
     },
@@ -1848,7 +1854,7 @@
       "edit": "Upraviť model",
       "notFound": "Dátový model {name} neexistuje",
       "notFoundLead": "Možno bol premenovaný alebo odstránený, alebo patrí inému projektu. Zoznam ukazuje každý model, ktorý smiete čítať.",
-      "sourceFailed": "LinkML modelu sa nepodarilo načítať: {reason}",
+      "sourceFailed": "Zdroj modelu sa nepodarilo načítať: {reason}",
       "views": "Pohľady na model",
       "view": {
         "overview": "Prehľad",
@@ -1865,7 +1871,7 @@
       "noClasses": "Tento model zatiaľ nedeklaruje žiadnu triedu, takže negeneruje formulár.",
       "formClass": "Trieda",
       "formReadOnly": "Toto je formulár, ktorý model generuje, vyplnený jeho príkladom; odtiaľto sa nič neukladá.",
-      "yaml": "LinkML modelu",
+      "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovať YAML",
       "downloadYaml": "Stiahnuť YAML",
       "copied": "Skopírované.",
@@ -2108,7 +2114,11 @@
       "frameAncestors": "Smie ju vložiť",
       "limits": "Limity",
       "requestsPerMinute": "Požiadavky za minútu",
-      "maxFileRows": "Riadky na stiahnutie súboru"
+      "maxFileRows": "Riadky na stiahnutie súboru",
+      "egress": "Odchádzajúce siete",
+      "egressCidr": "Sieť",
+      "egressPorts": "Porty",
+      "needRoles": "Len pre roly"
     },
     "build": {
       "title": "Zostavenie vo forge",
@@ -2150,7 +2160,9 @@
       "retired": "Táto aplikácia je vyradená",
       "building": "Zostavuje sa…",
       "failed": "Zostavenie zlyhalo",
-      "notBuilt": "Zatiaľ sa neposkytuje žiadne zostavenie"
+      "notBuilt": "Zatiaľ sa neposkytuje žiadne zostavenie",
+      "certificate": "Adresa aplikácie sa zabezpečuje, trvá to asi minútu",
+      "host": "Adresu aplikácie sa nepodarilo pripraviť; dôvod vidí správca"
     },
     "openPage": {
       "details": "Podrobnosti aplikácie",
@@ -3820,6 +3832,209 @@
         "stale": "{count, plural, one {# kontrola neaktuálna} few {# kontroly neaktuálne} other {# kontrol neaktuálnych}}",
         "unreadable": "{count, plural, one {# výsledok nečitateľný} few {# výsledky nečitateľné} other {# výsledkov nečitateľných}}"
       }
+    },
+    "limit": {
+      "projects": {
+        "quota": {
+          "contextSpaces": {
+            "label": "Kontextové priestory na projekt",
+            "hint": "Koľko kontextových priestorov môže mať jeden projekt."
+          },
+          "residentPipelines": {
+            "label": "Trvalo bežiace pipeliny na projekt",
+            "hint": "Koľko pipelinov jedného projektu nechá runner bežať naraz."
+          },
+          "publicEndpoints": {
+            "label": "Verejné endpointy na projekt",
+            "hint": "Koľko endpointov jedného projektu môže byť otvorených všetkým."
+          },
+          "ingestEventsPerSecond": {
+            "label": "Prijaté udalosti za sekundu",
+            "hint": "Ako rýchlo môže jeden projekt zapisovať dáta."
+          },
+          "apps": {
+            "label": "Aplikácie na projekt",
+            "hint": "Koľko aplikácií jedného projektu môže byť v náhľade alebo zverejnených."
+          },
+          "agentRunsPerDay": {
+            "label": "Behy asistenta za deň",
+            "hint": "Koľko behov asistenta môže jeden projekt spustiť za deň."
+          },
+          "entitiesPerSpace": {
+            "label": "Entity na priestor",
+            "hint": "Koľko entít môže mať jeden kontextový priestor."
+          },
+          "requestsPerMinute": {
+            "label": "Požiadavky za minútu na projekt",
+            "hint": "Najviac požiadaviek za minútu, ktoré obslúžia endpointy jedného projektu."
+          }
+        },
+        "nameCooldownDays": {
+          "label": "Blokovanie názvu (dni)",
+          "hint": "Ako dlho čaká názov odstráneného projektu, kým ho niekto znova použije."
+        }
+      },
+      "limits": {
+        "edge": {
+          "requestsPerMinute": {
+            "web": {
+              "label": "Webové požiadavky za minútu",
+              "hint": "Požiadavky za minútu, ktoré môže jeden návštevník poslať Portálu a aplikáciám."
+            },
+            "api": {
+              "label": "Požiadavky na API za minútu",
+              "hint": "Požiadavky za minútu, ktoré môže jeden klient poslať API Portálu."
+            },
+            "dataRead": {
+              "label": "Čítania dát za minútu",
+              "hint": "Čítania za minútu, ktoré môže jeden klient urobiť cez endpoint."
+            },
+            "dataWrite": {
+              "label": "Zápisy dát za minútu",
+              "hint": "Zápisy za minútu, ktoré môže jeden klient urobiť cez endpoint."
+            },
+            "publicEndpoint": {
+              "label": "Požiadavky na verejný endpoint za minútu",
+              "hint": "Požiadavky za minútu, ktoré môže anonymný návštevník poslať verejnému endpointu."
+            }
+          },
+          "maxRequestBodyMegabytes": {
+            "label": "Najväčšia požiadavka (MiB)",
+            "hint": "Okraj odmietne väčšie telo požiadavky skôr, než ho čokoľvek prečíta."
+          }
+        },
+        "gateway": {
+          "maxRequestBodyMegabytes": {
+            "label": "Najväčší zápis dát (MiB)",
+            "hint": "Brána odmietne väčší zápis; najviac limit okraja."
+          }
+        },
+        "signIn": {
+          "sessionIdleMinutes": {
+            "label": "Odhlásenie po nečinnosti (minúty)",
+            "hint": "Relácia skončí po takomto čase bez aktivity."
+          },
+          "sessionMaxHours": {
+            "label": "Najdlhšia relácia (hodiny)",
+            "hint": "Po takomto čase sa človek prihlási znova, aktívny alebo nie."
+          }
+        },
+        "people": {
+          "invitationHours": {
+            "label": "Platnosť pozvánky (hodiny)",
+            "hint": "Ako dlho funguje odkaz v pozvánke."
+          }
+        },
+        "agents": {
+          "spendPerDay": {
+            "label": "Výdavky na modely za deň",
+            "hint": "Celé jednotky meny, ktoré môže asistent minúť na modely za deň."
+          },
+          "spendPerMonth": {
+            "label": "Výdavky na modely za mesiac",
+            "hint": "Celé jednotky meny, ktoré môže asistent minúť na modely za mesiac."
+          }
+        },
+        "pipelines": {
+          "rejectedKept": {
+            "label": "Uchované odmietnuté záznamy",
+            "hint": "Koľko odmietnutých záznamov si pipeline ponechá na kontrolu."
+          },
+          "sampleMegabytes": {
+            "label": "Veľkosť testovacej vzorky (MiB)",
+            "hint": "Najväčšia vzorka, ktorú test pipelinu prečíta."
+          }
+        },
+        "data": {
+          "uploadMegabytes": {
+            "label": "Najväčšie nahratie (MiB)",
+            "hint": "Najväčší súbor, ktorý môže človek nahrať; najviac limit okraja."
+          }
+        }
+      },
+      "policies": {
+        "signIn": {
+          "password": {
+            "minLength": {
+              "label": "Najkratšie heslo",
+              "hint": "Koľko znakov musí heslo mať najmenej."
+            },
+            "history": {
+              "label": "História hesiel",
+              "hint": "Koľko predchádzajúcich hesiel nové heslo nesmie zopakovať."
+            }
+          }
+        }
+      }
+    },
+    "limitGroup": {
+      "policies": "Pravidlá",
+      "policiesHint": "Čo organizácia povoľuje.",
+      "apps": "Aplikácie",
+      "appsHint": "Kto môže vidieť aplikácie, ktoré projekty zverejnia.",
+      "agents": "Asistent",
+      "agentsHint": "Čo môže asistent používať a minúť.",
+      "limits": "Limity",
+      "limitsHint": "Koľko platforma pre organizáciu urobí.",
+      "edge": "Okraj",
+      "edgeHint": "Čo okraj prepustí, na klienta.",
+      "requestsPerMinute": "Požiadavky za minútu",
+      "requestsPerMinuteHint": "Jeden limit na každý druh prevádzky.",
+      "gateway": "Brána",
+      "gatewayHint": "Čo môže niesť jeden zápis cez endpoint.",
+      "signIn": "Prihlásenie",
+      "signInHint": "Relácie a heslá.",
+      "password": "Heslá",
+      "passwordHint": "Aké musí byť heslo.",
+      "people": "Ľudia",
+      "peopleHint": "Pozvánky do organizácie.",
+      "pipelines": "Pipeliny",
+      "pipelinesHint": "Čo pipeliny uchovávajú a čítajú.",
+      "data": "Dáta",
+      "dataHint": "Čo môže človek nahrať."
+    },
+    "limits": {
+      "title": "Pravidlá a limity",
+      "lead": "Každý limit, ktorý organizácia nastavuje, hodnota v platnosti a rozsah, ktorý povoľuje prevádzkovateľ. Úprava ich mení cez schválenú zmenu.",
+      "atLeast": "najmenej {min}",
+      "between": "{min} – {max}",
+      "byDefault": "{value} (predvolené)",
+      "noLimit": "bez limitu",
+      "defaultNone": "Predvolene nie je žiadny limit.",
+      "defaultIs": "Predvolená hodnota je {value}.",
+      "allowed": "Povolené: {bound}.",
+      "usedOf": "{used} z {limit}",
+      "setting": "Nastavenie",
+      "inForce": "V platnosti",
+      "range": "Povolený rozsah",
+      "perProject": "Kvóta na projekt",
+      "perProjectLead": "Z koho kvóty každý projekt beží a čo využíva; projekty, ktoré nemôžete čítať, tu nie sú.",
+      "project": "Projekt",
+      "whose": "Kvóta od",
+      "noProjects": "Žiadny projekt, ktorý môžete čítať.",
+      "section": {
+        "projects": "Projekty",
+        "applications": "Aplikácie",
+        "edge": "Okraj",
+        "signIn": "Prihlásenie",
+        "people": "Ľudia",
+        "agents": "Asistent",
+        "pipelinesAndData": "Pipeliny a dáta"
+      },
+      "origin": {
+        "project": "projekt",
+        "organization": "organizácia",
+        "default": "nikto (bez limitu)"
+      }
+    },
+    "policy": {
+      "publicApps": "Verejné aplikácie",
+      "publicAppsHint": "Či môže projekt zverejniť aplikáciu, ktorú otvorí ktokoľvek bez prihlásenia.",
+      "publicApps_allowed": "Povolené",
+      "publicApps_refused": "Zakázané",
+      "models": "Modely, ktoré môže asistent používať",
+      "modelsHint": "Nechajte prázdne, aby boli povolené všetky modely inštalácie.",
+      "everyModel": "Všetky modely inštalácie"
     }
   },
   "projectDelete": {

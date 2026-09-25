@@ -2257,6 +2257,42 @@ async fn a_public_app_waits_for_a_publisher_and_a_project_app_is_the_stewards() 
     }
 }
 
+/// AP-134, PF-71 (T-2838): an App that declares a destination on the internet is approved as a
+/// public one: the steward is refused with a sentence that names publisher and the rule, the
+/// publisher approves it.
+#[tokio::test]
+async fn an_app_with_egress_waits_for_a_publisher() {
+    let yaml = format!(
+        "{}  egress:\n    - {{ cidr: 203.0.113.0/24, ports: [443] }}\n",
+        app_yaml(Some("project"))
+    );
+    let (server, state) = change_of_file(
+        PUBLIC_APP_BRANCH,
+        PUBLIC_APP_PATH,
+        &yaml,
+        app_steward_rules(),
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air-desk")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body.contains("publisher") && body.contains("spec.egress") && body.contains("AP-134"),
+        "{body}"
+    );
+    assert!(!merged_66(&server).await);
+
+    let (server, state) = change_of_file(
+        PUBLIC_APP_BRANCH,
+        PUBLIC_APP_PATH,
+        &yaml,
+        app_publisher_rules(),
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air-desk")).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert!(merged_66(&server).await);
+}
+
 async fn merged_66(server: &MockServer) -> bool {
     server
         .received_requests()

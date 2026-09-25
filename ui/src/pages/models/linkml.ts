@@ -88,6 +88,8 @@ export interface LinkmlSlot {
   subsets?: string[];
   /** The other end of a relationship, as LinkML `inverse` (DM-64). */
   inverse?: string;
+  /** The slot is the class's key, as LinkML `identifier` (T-2881). */
+  identifier?: boolean;
   /** Whether the target is written inside the entity; a relationship never is (DM-64). */
   inlined?: boolean;
   /** The delete rule a relationship's source end carries, as written (DM-66). */
@@ -145,6 +147,8 @@ export interface LinkmlModel {
   enums: LinkmlEnum[];
   /** The schemas this model imports, as LinkML `imports`. */
   imports?: string[];
+  /** The range of a slot that names none, as LinkML `default_range`; `string` when unset. */
+  default_range?: string;
 }
 
 export interface Diagnostic {
@@ -243,6 +247,7 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     subsets: names(raw.subsets),
     maximum_value: typeof raw.maximum_value === "number" ? raw.maximum_value : undefined,
     inverse: text(raw.inverse),
+    ...(raw.identifier === true ? { identifier: true } : {}),
     inlined: typeof raw.inlined === "boolean" ? raw.inlined : undefined,
     on_delete: text(annotated.on_delete),
   };
@@ -338,6 +343,7 @@ export function parseModel(source: string): LinkmlModel {
     slots,
     enums,
     imports: names(root.imports),
+    ...(text(root.default_range) ? { default_range: text(root.default_range) } : {}),
   };
 }
 
@@ -871,12 +877,31 @@ export function withImports(model: LinkmlModel, imported: Record<string, LinkmlM
   return { ...model, classes, slots, enums };
 }
 
+/**
+ * One line of a class's box (T-2881): the slot, what its value is, and whether it is the key or
+ * a reference to another class, so a reader never has to guess whether `school` is a string.
+ */
+export interface GraphRow {
+  name: string;
+  /** The range, `GeoProperty` for a geometry, the model's default range when the slot names none. */
+  type: string;
+  /** `pk` for the class's identifier, `fk` for a slot whose range is a class. */
+  key?: "pk" | "fk";
+  /** How many values one entity holds (DM-65): on every reference, and a list's `[]` otherwise. */
+  multiplicity?: Multiplicity;
+  multivalued?: boolean;
+  /** The model declares no identifier: every NGSI-LD entity still has its `id`, a URN. */
+  implied?: boolean;
+}
+
 /** One box of the graph: a class with its own slots, or an enum with its values. */
 export interface GraphNode {
   name: string;
   kind: "class" | "enum";
   /** A class's own slots (listed and inline), without the inherited ones; an enum's values. */
   slots: string[];
+  /** A class's rows: its key first, then every own slot with its type (T-2881). */
+  rows?: GraphRow[];
   /** How far down the `is_a` chain it sits, which is the row it is drawn on; enums go last. */
   depth: number;
   /** The import it came from, when it is not the model's own. */
@@ -893,7 +918,11 @@ export interface GraphEdge {
   /** A relationship's other end: the slot on `to` pointing back (DM-64). */
   inverse?: string;
   cardinality?: Cardinality;
-  /** How many `from` entities one `to` entity is joined to, and the other way round (DM-65). */
+  /**
+   * How many `from` entities one `to` entity is joined to, and the other way round (DM-65). A
+   * `range` line has no inverse to read the `from` end off, so it says `*`: nothing limits how
+   * many entities point at one target.
+   */
   fromMultiplicity?: Multiplicity;
   toMultiplicity?: Multiplicity;
 }
@@ -933,10 +962,47 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
     return parent === undefined ? 0 : depthOf(parent, seen) + 1;
   };
 
+  // The key a class has, its own or one it inherits along `is_a`.
+  const keyOf = (klass: LinkmlClass, seen: Set<string> = new Set()): LinkmlSlot | undefined => {
+    if (seen.has(klass.name)) return undefined;
+    seen.add(klass.name);
+    const own = classSlots(model, klass).find((slot) => slot.identifier === true);
+    const parent = klass.is_a === undefined ? undefined : byName.get(klass.is_a);
+    return own ?? (parent === undefined ? undefined : keyOf(parent, seen));
+  };
+  const typeOf = (slot: LinkmlSlot): string =>
+    slot.kind === "GeoProperty" ? "GeoProperty" : (slot.range ?? model.default_range ?? "string");
+  const rowsOf = (klass: LinkmlClass): GraphRow[] => {
+    const key = keyOf(klass);
+    const declared = classSlots(model, klass);
+    const known = new Set(declared.map((slot) => slot.name));
+    const rows: GraphRow[] = [
+      key === undefined
+        ? { name: "id", type: "URN", key: "pk", implied: true }
+        : { name: key.name, type: typeOf(key), key: "pk" },
+    ];
+    for (const slot of declared) {
+      if (slot.name === key?.name) continue;
+      const reference = slot.range !== undefined && byName.has(slot.range);
+      rows.push({
+        name: slot.name,
+        type: typeOf(slot),
+        ...(reference ? { key: "fk" as const, multiplicity: multiplicity({ class: klass.name, slot: slot.name, multivalued: slot.multivalued === true, required: slot.required === true }) } : {}),
+        ...(slot.multivalued === true ? { multivalued: true } : {}),
+      });
+    }
+    // A listed slot the model does not declare is still a field of the class; `diagnose` says why.
+    for (const name of klass.slots) {
+      if (!known.has(name) && name !== key?.name) rows.push({ name, type: model.default_range ?? "string" });
+    }
+    return rows;
+  };
+
   const nodes: GraphNode[] = model.classes.map((klass) => ({
     name: klass.name,
     kind: "class",
     slots: [...klass.slots, ...(klass.attributes ?? []).map((slot) => slot.name).filter((name) => !klass.slots.includes(name))],
+    rows: rowsOf(klass),
     depth: depthOf(klass),
     ...(klass.from ? { from: klass.from } : {}),
   }));
@@ -969,7 +1035,14 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
         continue;
       }
       if (slot.range !== undefined && byName.has(slot.range)) {
-        edges.push({ from: klass.name, to: slot.range, kind: "range", label: slot.name });
+        edges.push({
+          from: klass.name,
+          to: slot.range,
+          kind: "range",
+          label: slot.name,
+          toMultiplicity: multiplicity({ class: klass.name, slot: slot.name, multivalued: slot.multivalued === true, required: slot.required === true }),
+          fromMultiplicity: "*",
+        });
       } else if (slot.range !== undefined && enumNames.has(slot.range)) {
         edges.push({ from: klass.name, to: slot.range, kind: "enum", label: slot.name });
       }

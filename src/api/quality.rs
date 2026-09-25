@@ -1,5 +1,5 @@
 //! `GET /api/v1/projects/{project}/spaces/{space}/quality`: the last data-quality run's report
-//! of one space (DM-70, API/01 §27).
+//! of one space (DM-74, API/01 §27).
 
 use axum::extract::{Path, State};
 use axum::routing::get;
@@ -16,7 +16,7 @@ use crate::state::AppState;
     get,
     path = "/api/v1/projects/{project}/spaces/{space}/quality",
     summary = "Read Data Quality",
-    description = "The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-70).",
+    description = "The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-74).",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -90,7 +90,7 @@ mod tests {
         }
     }
 
-    // DM-70: a caller who reads the space and not its entities learns the counts, not the ids.
+    // DM-74: a caller who reads the space and not its entities learns the counts, not the ids.
     #[test]
     fn example_ids_are_only_for_whoever_reads_the_entities() {
         let hidden = for_caller(report(), false);

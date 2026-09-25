@@ -8,6 +8,7 @@ import type { EditableForm } from "../../components/EditResourceDialog";
 import { Alert, EmptyState, Skeleton } from "../../components/ui";
 import { organizationSchema } from "../../schemas/kinds";
 import { OrganizationDomain } from "../access/OrganizationDomain";
+import { OrganizationLimitsView } from "./OrganizationLimitsView";
 
 interface Contact {
   role?: string;
@@ -30,6 +31,7 @@ interface OrganizationSpec {
   defaultLocale?: string;
   contacts?: Contact[];
   projects?: ProjectsPolicy;
+  policies?: { apps?: { public?: string }; agents?: { models?: string[] } };
 }
 
 /** What the form edits: the spec without `gitRepositoryUrl`, which is the installation's. */
@@ -76,15 +78,20 @@ export function OrganizationSettings(): JSX.Element {
         }),
       ),
   });
+  // The catalog with the operator's bounds and the values in force (API/01 §28): the sections
+  // below and the range every numeric field of the form is held to (PF-97, PF-102).
+  const limits = useQuery({
+    queryKey: ["organization-limits"],
+    queryFn: async () => unwrap(await api.GET("/api/v1/organization/limits")),
+  });
   const organization = asManifests(organizations.data?.items ?? [])[0];
   const spec = (organization?.spec ?? {}) as OrganizationSpec;
   const policy = spec.projects ?? {};
   const form: EditableForm = {
-    schema: organizationSchema(t),
+    schema: organizationSchema(t, limits.data?.entries ?? []),
     fromManifest: fromOrganization,
     toManifest: toOrganization,
   };
-  const quota = Object.entries(policy.quota ?? {}).filter(([, value]) => value !== undefined);
 
   return (
     <div className="space-y-8">
@@ -159,19 +166,33 @@ export function OrganizationSettings(): JSX.Element {
             <dd className="text-fg">
               {t(`organization.visibility.${policy.visibility === "members" ? "members" : "organization"}`)}
             </dd>
-            <dt className="font-medium text-fg">{t("organization.field.nameCooldownDays")}</dt>
-            <dd className="text-fg">
-              {t("organization.settings.cooldown", { days: policy.nameCooldownDays ?? 30 })}
-            </dd>
-            <dt className="font-medium text-fg">{t("organization.field.quota.title")}</dt>
-            <dd className="text-fg">
-              {quota.length === 0
-                ? t("organization.settings.noQuota")
-                : quota
-                    .map(([dimension, value]) => `${t(`organization.field.quota.${dimension}`)}: ${String(value)}`)
-                    .join(" · ")}
-            </dd>
           </dl>
+        )}
+      </section>
+      <section className="space-y-4" aria-labelledby="organization-limits-heading">
+        <div>
+          <h2 id="organization-limits-heading" className="text-title font-semibold text-fg">
+            {t("organization.limits.title")}
+          </h2>
+          <p className="text-body text-fg-muted">{t("organization.limits.lead")}</p>
+        </div>
+        {limits.isPending ? (
+          <div role="status" className="space-y-2">
+            <span className="sr-only">{t("app.loading")}</span>
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        ) : limits.isError ? (
+          <Alert tone="danger" role="alert">
+            {limits.error instanceof ApiError
+              ? (limits.error.problem?.detail ?? limits.error.message)
+              : t("app.error.generic")}
+          </Alert>
+        ) : (
+          <OrganizationLimitsView
+            limits={limits.data}
+            publicApps={spec.policies?.apps?.public}
+            models={spec.policies?.agents?.models}
+          />
         )}
       </section>
       <OrganizationDomain />

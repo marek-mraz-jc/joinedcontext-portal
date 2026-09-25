@@ -3,7 +3,7 @@ import type { JSX, PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { graphData, parseModel, withImports } from "./linkml";
-import type { GraphEdge, GraphNode } from "./linkml";
+import type { GraphEdge, GraphNode, GraphRow } from "./linkml";
 
 /**
  * One box's size, the gaps around it and the three text sizes, all in the SVG's own units.
@@ -14,7 +14,7 @@ import type { GraphEdge, GraphNode } from "./linkml";
  * drawing, so they are geometry — written once, beside the geometry that depends on them.
  */
 const BOX = {
-  width: 200,
+  width: 240,
   header: 26,
   row: 16,
   padding: 8,
@@ -25,9 +25,15 @@ const BOX = {
   title: 11,
   slot: 10,
   edge: 9,
+  /** The PK/FK tag before a row's name, and the room it takes. */
+  tag: 8,
+  tagWidth: 18,
 };
-/** Past this many slots a box says "and n more" rather than growing down the page. */
-const SLOTS_SHOWN = 6;
+/**
+ * Characters a row's name and its type may each take before they are cut with "…": half a box
+ * at the slot size, so the two never run into each other. The whole row is in its tooltip.
+ */
+const CHARS = 17;
 /** Pixels per drawing unit: natural size, and how far the buttons go each way. */
 const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2 };
 /** One object for "no imports", so the drawing is not recomputed on every render. */
@@ -39,9 +45,15 @@ interface Placed extends GraphNode {
   height: number;
 }
 
+/** How many lines a box draws below its title: every row of a class, every value of an enum. */
+function lines(node: GraphNode): number {
+  return node.rows?.length ?? node.slots.length;
+}
+
 /**
  * Where each box sits: a band per `is_a` depth, parents above children, and within a band a
- * grid about as wide as it is tall, in the model's own order.
+ * grid about as wide as it is tall, in the model's own order. Every slot is drawn (T-2881), so a
+ * row of the grid is as tall as its tallest box.
  *
  * No layout library. A class graph is a forest of short chains joined by a few relationships:
  * a square grid keeps most relationship lines between neighbours instead of across a row of
@@ -52,22 +64,18 @@ export function place(nodes: GraphNode[]): Placed[] {
   for (const node of nodes) {
     bands.set(node.depth, [...(bands.get(node.depth) ?? []), node]);
   }
-  const rowHeight = BOX.header + (SLOTS_SHOWN + 1) * BOX.row + BOX.padding + BOX.gapY;
+  const height = (node: GraphNode) => BOX.header + lines(node) * BOX.row + BOX.padding;
   const placed: Placed[] = [];
   let top = 0;
   for (const [, band] of [...bands.entries()].sort(([a], [b]) => a - b)) {
     const columns = band.length <= 3 ? band.length : Math.ceil(Math.sqrt(band.length));
-    band.forEach((node, index) => {
-      const shown = Math.min(node.slots.length, SLOTS_SHOWN);
-      const extra = node.slots.length > SLOTS_SHOWN ? 1 : 0;
-      placed.push({
-        ...node,
-        x: (index % columns) * (BOX.width + BOX.gapX),
-        y: top + Math.floor(index / columns) * rowHeight,
-        height: BOX.header + (shown + extra) * BOX.row + BOX.padding,
+    for (let first = 0; first < band.length; first += columns) {
+      const row = band.slice(first, first + columns);
+      row.forEach((node, index) => {
+        placed.push({ ...node, x: index * (BOX.width + BOX.gapX), y: top, height: height(node) });
       });
-    });
-    top += Math.ceil(band.length / columns) * rowHeight;
+      top += Math.max(...row.map(height)) + BOX.gapY;
+    }
   }
   return placed;
 }
@@ -103,6 +111,17 @@ function near(start: Point, end: Point): Point {
   const ux = (end.x - start.x) / length;
   const uy = (end.y - start.y) / length;
   return { x: start.x + ux * 16 - uy * 9, y: start.y + uy * 16 + ux * 9 + 3 };
+}
+
+/** `text` cut to `CHARS` characters, with "…" where it was cut. */
+function cut(text: string): string {
+  return text.length > CHARS ? `${text.slice(0, CHARS - 1)}…` : text;
+}
+
+/** What a row says its value is: a reference names its class and how many, a list says `[]`. */
+function typeText(row: GraphRow): string {
+  if (row.key === "fk") return `→ ${row.type} ${row.multiplicity ?? ""}`.trimEnd();
+  return row.multivalued ? `${row.type}[]` : row.type;
 }
 
 /**
@@ -280,6 +299,14 @@ export function LinkmlGraphView({
                       {edge.label}
                     </text>
                   ) : null}
+                  {/* A reference says how many at both ends too (T-2881): its own slot's at the
+                      target, and at the source `*`, since no inverse limits it. */}
+                  {edge.toMultiplicity ? (
+                    <>
+                      <Multiplicity at={near({ x: x1, y: y1 }, { x: x2, y: y2 })} value={edge.fromMultiplicity} />
+                      <Multiplicity at={near({ x: x2, y: y2 }, { x: x1, y: y1 })} value={edge.toMultiplicity} />
+                    </>
+                  ) : null}
                 </g>
               );
             })}
@@ -316,27 +343,30 @@ export function LinkmlGraphView({
                       {t("models.graph.from", { name: node.from })}
                     </text>
                   ) : null}
-                  {node.slots.slice(0, SLOTS_SHOWN).map((slot, index) => (
-                    <text
-                      key={slot}
-                      x={node.x + BOX.padding}
-                      y={node.y + BOX.header + index * BOX.row + 4}
-                      fontSize={BOX.slot}
-                      className="fill-current text-fg-muted"
-                    >
-                      {slot}
-                    </text>
-                  ))}
-                  {node.slots.length > SLOTS_SHOWN ? (
-                    <text
-                      x={node.x + BOX.padding}
-                      y={node.y + BOX.header + SLOTS_SHOWN * BOX.row + 4}
-                      fontSize={BOX.slot}
-                      className="fill-current text-fg-muted"
-                    >
-                      {t("models.graph.more", { count: node.slots.length - SLOTS_SHOWN })}
-                    </text>
-                  ) : null}
+                  {node.rows
+                    ? node.rows.map((row, index) => (
+                        <SlotRow
+                          key={row.name}
+                          row={row}
+                          x={node.x}
+                          y={node.y + BOX.header + index * BOX.row + 4}
+                          tip={t(`models.graph.row.${row.key ?? "plain"}`, {
+                            name: row.name,
+                            type: typeText(row),
+                          })}
+                        />
+                      ))
+                    : node.slots.map((slot, index) => (
+                        <text
+                          key={slot}
+                          x={node.x + BOX.padding}
+                          y={node.y + BOX.header + index * BOX.row + 4}
+                          fontSize={BOX.slot}
+                          className="fill-current text-fg-muted"
+                        >
+                          {slot}
+                        </text>
+                      ))}
                 </>
               );
               // The drawing's one edit, on a class of this model: its inverse is written here too.
@@ -435,6 +465,65 @@ export function LinkmlGraphView({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** How many, at one end of a line: bold, so it is read before the name in the middle. */
+function Multiplicity({ at, value }: { at: Point; value?: string }): JSX.Element | null {
+  return value ? (
+    <text x={at.x} y={at.y} textAnchor="middle" fontSize={BOX.edge} className="fill-current font-semibold">
+      {value}
+    </text>
+  ) : null;
+}
+
+/**
+ * One row of a class's box (T-2881): a PK or FK tag, told apart by its word and its border (a
+ * solid one for the key, a dashed one for a reference) and never by colour, the slot's name, and
+ * its type at the right edge. The tooltip says the whole row when either half was cut.
+ */
+function SlotRow({ row, x, y, tip }: { row: GraphRow; x: number; y: number; tip: string }): JSX.Element {
+  const nameAt = x + BOX.padding + BOX.tagWidth + 4;
+  return (
+    <g className={row.key ? "text-fg" : "text-fg-muted"}>
+      <title>{tip}</title>
+      {row.key ? (
+        <>
+          <rect
+            x={x + BOX.padding}
+            y={y - 9}
+            width={BOX.tagWidth}
+            height={11}
+            rx={2}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1}
+            strokeDasharray={row.key === "fk" ? "2 1" : undefined}
+          />
+          <text
+            x={x + BOX.padding + BOX.tagWidth / 2}
+            y={y}
+            textAnchor="middle"
+            fontSize={BOX.tag}
+            className="fill-current font-semibold"
+          >
+            {row.key === "pk" ? "PK" : "FK"}
+          </text>
+        </>
+      ) : null}
+      <text
+        x={nameAt}
+        y={y + 1}
+        fontSize={BOX.slot}
+        className={row.key === "pk" ? "fill-current font-semibold" : "fill-current"}
+        fontStyle={row.implied ? "italic" : undefined}
+      >
+        {cut(row.name)}
+      </text>
+      <text x={x + BOX.width - BOX.padding} y={y + 1} textAnchor="end" fontSize={BOX.slot} className="fill-current">
+        {cut(typeText(row))}
+      </text>
+    </g>
   );
 }
 

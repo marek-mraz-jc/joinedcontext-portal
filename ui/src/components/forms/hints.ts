@@ -16,6 +16,11 @@ const WIDGET = "x-jc-widget";
 const OPTIONS = "x-jc-options";
 /** rjsf's own multi-line box, for a parameter written as prose (T-2757); it takes no options. */
 const TEXTAREA = "textarea";
+/**
+ * A slug the Portal mints when the flow starts (EP-02, Development/05 section 2.1): nobody types
+ * one, so the form does not show it.
+ */
+const MINTED_SLUG = "endpointSlug";
 
 function properties(schema: unknown): Record<string, JsonSchema> | undefined {
   const declared = (schema as { properties?: unknown } | null)?.properties;
@@ -56,6 +61,9 @@ export function pickers(
     }
     if (widget === TEXTAREA) {
       entry["ui:widget"] = TEXTAREA;
+    }
+    if (widget === MINTED_SLUG) {
+      entry["ui:widget"] = "hidden";
     }
     // An object parameter arranges its own properties under its name, the way RJSF nests them.
     Object.assign(entry, pickers(property, shared));
