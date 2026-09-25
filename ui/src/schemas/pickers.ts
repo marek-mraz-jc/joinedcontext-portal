@@ -20,7 +20,11 @@ const project = (plural: string): Entry => ({ "ui:widget": "resourcePicker", "ui
 
 export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
   ContextSpace: { dataModelRef: MODEL },
-  Endpoint: { contextSpaceRef: project("spaces"), "publish.ckan.instanceRef": project("ckaninstances") },
+  Endpoint: {
+    contextSpaceRef: project("spaces"),
+    "publish.ckan.instanceRef": project("ckaninstances"),
+    "catalog.pipelineRef": project("pipelines"),
+  },
   DataModel: { contextSpaceRef: project("spaces") },
   Pipeline: {
     "source.dataSourceRef": project("datasources"),

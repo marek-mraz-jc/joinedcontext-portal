@@ -35,6 +35,7 @@ spec:
       rateLimits,
       caching,
       publish,
+      catalog,
     ]
   groups:
     - title:
@@ -83,6 +84,18 @@ spec:
         de: Diesen Endpunkt als Datensatz im Open-Data-Katalog der Installation veröffentlichen.
       folded: true
       fields: [publish]
+    - title:
+        en: Catalogue description
+        sk: Popis v katalógu
+        cs: Popis v katalogu
+        de: Katalogbeschreibung
+      description:
+        en: Who publishes the data, under what licence, what it covers and where it comes from, as every catalogue reads it.
+        sk: Kto údaje zverejňuje, pod akou licenciou, čo pokrývajú a odkiaľ pochádzajú, tak ako to číta každý katalóg.
+        cs: Kdo data zveřejňuje, pod jakou licencí, co pokrývají a odkud pocházejí, tak jak to čte každý katalog.
+        de: Wer die Daten veröffentlicht, unter welcher Lizenz, was sie abdecken und woher sie stammen, wie jeder Katalog es liest.
+      folded: true
+      fields: [catalog]
   fields:
     name:
       placeholder: "parking-public"
@@ -179,3 +192,120 @@ spec:
         sk: Kedy sa tabuľka zarovná s odpoveďou rozhrania; zmazaná entita stráca riadok v oboch prípadoch.
         cs: Kdy se tabulka srovná s odpovědí rozhraní; smazaná entita ztrácí řádek v obou případech.
         de: Wann die Tabelle der Antwort des Endpunkts folgt; eine gelöschte Entität verliert ihre Zeile so oder so.
+    catalog.publisher.name:
+      placeholder: "City data office"
+      help:
+        en: "The organization that publishes this data, as a catalogue names it."
+        sk: "Organizácia, ktorá tieto údaje zverejňuje, tak ako ju uvádza katalóg."
+        cs: "Organizace, která tato data zveřejňuje, tak jak ji uvádí katalog."
+        de: "Die Organisation, die diese Daten veröffentlicht, wie ein Katalog sie nennt."
+    catalog.publisher.uri:
+      placeholder: "https://{orgDomain}/"
+      help:
+        en: "The publisher's web address, which catalogues use to tell publishers apart."
+        sk: "Webová adresa vydavateľa, podľa ktorej katalógy rozlišujú vydavateľov."
+        cs: "Webová adresa vydavatele, podle které katalogy rozlišují vydavatele."
+        de: "Die Webadresse des Herausgebers, an der Kataloge Herausgeber unterscheiden."
+    catalog.contactPoint.name:
+      placeholder: "Open data desk"
+      help:
+        en: "The desk that answers questions about this data, as a reader should address it."
+        sk: "Pracovisko, ktoré odpovedá na otázky k týmto údajom, tak ako ho má čitateľ osloviť."
+        cs: "Pracoviště, které odpovídá na dotazy k těmto datům, tak jak jej má čtenář oslovit."
+        de: "Die Stelle, die Fragen zu diesen Daten beantwortet, so wie Lesende sie ansprechen sollen."
+    catalog.contactPoint.email:
+      placeholder: "opendata@{orgDomain}"
+      help:
+        en: "A shared mailbox such as the open-data desk; a person's own address is refused, because every catalogue publishes it."
+        sk: "Spoločná schránka, napríklad pracoviska otvorených údajov; osobná adresa sa odmietne, lebo ju zverejní každý katalóg."
+        cs: "Společná schránka, například pracoviště otevřených dat; osobní adresa se odmítne, protože ji zveřejní každý katalog."
+        de: "Ein Sammelpostfach wie das der Open-Data-Stelle; eine persönliche Adresse wird abgelehnt, weil jeder Katalog sie veröffentlicht."
+    catalog.license:
+      help:
+        en: "The licence the data is published under; it decides what a user owes, such as crediting you."
+        sk: "Licencia, pod ktorou sa údaje zverejňujú; určuje, čo používateľ dlhuje, napríklad uviesť vás ako zdroj."
+        cs: "Licence, pod kterou se data zveřejňují; určuje, co uživatel dluží, například uvést vás jako zdroj."
+        de: "Die Lizenz der Daten; sie bestimmt, was Nutzende schulden, etwa Sie als Quelle zu nennen."
+    catalog.attribution:
+      placeholder: "Source: City data office"
+      help:
+        en: "The words a user writes when crediting the data, as the licence asks."
+        sk: "Slová, ktorými používateľ uvedie zdroj údajov, ako to žiada licencia."
+        cs: "Slova, kterými uživatel uvede zdroj dat, jak to žádá licence."
+        de: "Die Worte, mit denen Nutzende die Quelle nennen, wie die Lizenz es verlangt."
+    catalog.themes:
+      widget: checkboxes
+      help:
+        en: "The European data themes a person browses by to find this dataset."
+        sk: "Európske témy údajov, podľa ktorých ľudia prehliadajú katalóg a nájdu tento dataset."
+        cs: "Evropská témata dat, podle kterých lidé procházejí katalog a najdou tento dataset."
+        de: "Die europäischen Datenthemen, nach denen Menschen stöbern, um diesen Datensatz zu finden."
+    catalog.keywords:
+      placeholder: ["air quality"]
+      help:
+        en: "Words a person types into a catalogue search, one per entry, in your language."
+        sk: "Slová, ktoré ľudia zadávajú do vyhľadávania v katalógu, jedno na záznam, vo vašom jazyku."
+        cs: "Slova, která lidé zadávají do vyhledávání v katalogu, jedno na záznam, ve vašem jazyce."
+        de: "Wörter, die Menschen in die Katalogsuche eingeben, eines je Eintrag, in Ihrer Sprache."
+    catalog.spatial:
+      placeholder: ["DE300"]
+      help:
+        en: "The area the data covers: a NUTS region code, or the web address of a place in a gazetteer."
+        sk: "Územie, ktoré údaje pokrývajú: kód regiónu NUTS alebo webová adresa miesta v registri."
+        cs: "Území, které data pokrývají: kód regionu NUTS nebo webová adresa místa v rejstříku."
+        de: "Das Gebiet der Daten: ein NUTS-Regionscode oder die Webadresse eines Ortes in einem Ortsverzeichnis."
+    catalog.temporal.start:
+      placeholder: "2024-01-01"
+      help:
+        en: "The first day the data covers, when it holds history."
+        sk: "Prvý deň, ktorý údaje pokrývajú, ak obsahujú históriu."
+        cs: "První den, který data pokrývají, pokud obsahují historii."
+        de: "Der erste Tag, den die Daten abdecken, wenn sie eine Historie haben."
+    catalog.temporal.end:
+      placeholder: "2025-12-31"
+      help:
+        en: "The last day the data covers; empty while it is still being updated."
+        sk: "Posledný deň, ktorý údaje pokrývajú; prázdne, kým sa ešte aktualizujú."
+        cs: "Poslední den, který data pokrývají; prázdné, dokud se ještě aktualizují."
+        de: "Der letzte abgedeckte Tag; leer, solange die Daten noch aktualisiert werden."
+    catalog.frequency:
+      help:
+        en: "How often the data changes, matching how often its pipeline runs."
+        sk: "Ako často sa údaje menia, v súlade s tým, ako často beží ich tok údajov."
+        cs: "Jak často se data mění, v souladu s tím, jak často běží jejich tok dat."
+        de: "Wie oft sich die Daten ändern, passend dazu, wie oft ihre Pipeline läuft."
+    catalog.source[].url:
+      placeholder: "https://data.example.org/dataset/air-quality"
+      help:
+        en: "The web address of the original open dataset this data is taken from."
+        sk: "Webová adresa pôvodného otvoreného datasetu, z ktorého tieto údaje pochádzajú."
+        cs: "Webová adresa původního otevřeného datasetu, ze kterého tato data pocházejí."
+        de: "Die Webadresse des ursprünglichen offenen Datensatzes, aus dem diese Daten stammen."
+    catalog.source[].title:
+      placeholder: "Air quality measurements"
+      help:
+        en: "The original dataset's name, as its own catalogue lists it."
+        sk: "Názov pôvodného datasetu, tak ako ho uvádza jeho vlastný katalóg."
+        cs: "Název původního datasetu, tak jak jej uvádí jeho vlastní katalog."
+        de: "Der Name des ursprünglichen Datensatzes, wie sein eigener Katalog ihn führt."
+    catalog.source[].description:
+      placeholder: "Hourly readings of the monitoring stations"
+      help:
+        en: "One sentence on what the original dataset holds."
+        sk: "Jedna veta o tom, čo pôvodný dataset obsahuje."
+        cs: "Jedna věta o tom, co původní dataset obsahuje."
+        de: "Ein Satz dazu, was der ursprüngliche Datensatz enthält."
+    catalog.pipelineRef:
+      placeholder: "air-quality-import"
+      help:
+        en: "The pipeline of this project that fills the space, so a reader sees how the data got here."
+        sk: "Tok údajov tohto projektu, ktorý plní priestor, aby čitateľ videl, ako sa sem údaje dostali."
+        cs: "Tok dat tohoto projektu, který plní prostor, aby čtenář viděl, jak se sem data dostala."
+        de: "Die Pipeline dieses Projekts, die den Raum füllt, damit Lesende sehen, wie die Daten hierher kamen."
+    catalog.applicableLegislation:
+      placeholder: ["http://data.europa.eu/eli/reg_impl/2023/138/oj"]
+      help:
+        en: "The law that applies to the data, as its ELI address; the high-value datasets regulation for such data."
+        sk: "Právny predpis, ktorý sa na údaje vzťahuje, ako adresa ELI; pri súboroch vysokej hodnoty ich nariadenie."
+        cs: "Právní předpis, který se na data vztahuje, jako adresa ELI; u datových sad vysoké hodnoty jejich nařízení."
+        de: "Das Gesetz, das für die Daten gilt, als ELI-Adresse; für hochwertige Datensätze deren Verordnung."

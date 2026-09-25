@@ -460,7 +460,31 @@
       "openData": "Open data",
       "datastore": "Data sheet",
       "sheetFrom": "Sheet built from",
-      "sheetRefresh": "Sheet refresh"
+      "sheetRefresh": "Sheet refresh",
+      "catalog": {
+        "title": "Catalogue description",
+        "publisher": "Publisher",
+        "publisherName": "Publisher name",
+        "publisherUri": "Publisher web address",
+        "contactPoint": "Contact point",
+        "contactName": "Contact desk",
+        "contactEmail": "Contact e-mail",
+        "license": "Licence",
+        "attribution": "Attribution text",
+        "themes": "Themes",
+        "keywords": "Keywords",
+        "spatial": "Area covered",
+        "temporal": "Period covered",
+        "temporalStart": "Covered from",
+        "temporalEnd": "Covered until",
+        "frequency": "Updated",
+        "source": "Original datasets",
+        "sourceUrl": "Original dataset address",
+        "sourceTitle": "Original dataset name",
+        "sourceDescription": "Original dataset description",
+        "pipeline": "Filled by pipeline",
+        "legislation": "Applicable law"
+      }
     },
     "rateClass": {
       "strict": "Strict",
@@ -619,7 +643,43 @@
       "noFileLimits": "The platform's own file limits apply.",
       "publication": "Published as open data",
       "notSet": "not set",
-      "filterPropose": "Propose this filter"
+      "filterPropose": "Propose this filter",
+      "catalog": {
+        "title": "In the catalogue",
+        "lead": "What every open-data catalogue reads about this endpoint, and what a user may do with the data.",
+        "notCatalogued": "No catalogue description yet: the record names only its title, its formats and its access rights. Change the settings to add a publisher, a licence and what the data covers.",
+        "publisher": "Published by",
+        "licence": "Licence",
+        "frequency": "Updated",
+        "contact": "Questions to",
+        "coverage": "Covers",
+        "period": "{start} to {end}",
+        "ongoing": "today",
+        "origin": "Comes from",
+        "byPipeline": "filled by the pipeline {name}",
+        "themes": "Themes",
+        "offer": "What a user may do",
+        "noLicence": "No licence is named, so the record makes no offer: a user cannot tell what they may do with the data.",
+        "thePublisher": "the publisher",
+        "who": {
+          "public": "Anyone",
+          "organization": "Anyone in the organization",
+          "project-list": "The listed projects of the organization"
+        },
+        "use": {
+          "none": "{who} may use this data for any purpose, without conditions.",
+          "attribute": "{who} may use this data if they credit {publisher}.",
+          "shareAlike": "{who} may use this data if they credit {publisher}."
+        },
+        "shareAlike": "What they publish from it goes out under the same licence.",
+        "raw": {
+          "jsonld": "DCAT-AP record (JSON-LD)",
+          "turtle": "DCAT-AP record (Turtle)",
+          "odrl": "Your access as ODRL",
+          "lead": "The document as a harvester or a data-space connector reads it from this endpoint.",
+          "failed": "The endpoint did not answer. It answers once the change that created it is approved and applied."
+        }
+      }
     },
     "condition": {
       "title": "Add a condition",
@@ -3103,7 +3163,8 @@
       "administrative": "Administration",
       "technical": "Technology",
       "data-protection": "Data protection",
-      "security": "Security"
+      "security": "Security",
+      "open-data": "Open-data desk"
     },
     "visibility": {
       "organization": "Every signed-in person of the organization",
@@ -3489,6 +3550,41 @@
       "associationOps": "Read everything and subscribe",
       "federationOps": "Federate",
       "redirectionOps": "Forward everything"
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "CC0": "Creative Commons Zero (public domain)",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Database Licence (ODbL)",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication"
+    },
+    "dataTheme": {
+      "AGRI": "Agriculture, fisheries, forestry and food",
+      "ECON": "Economy and finance",
+      "EDUC": "Education, culture and sport",
+      "ENER": "Energy",
+      "ENVI": "Environment",
+      "GOVE": "Government and public sector",
+      "HEAL": "Health",
+      "INTR": "International issues",
+      "JUST": "Justice, legal system and public safety",
+      "REGI": "Regions and cities",
+      "SOCI": "Population and society",
+      "TECH": "Science and technology",
+      "TRAN": "Transport"
+    },
+    "frequency": {
+      "CONT": "Continuously",
+      "HOURLY": "Every hour",
+      "DAILY": "Every day",
+      "WEEKLY": "Every week",
+      "MONTHLY": "Every month",
+      "QUARTERLY": "Every quarter",
+      "ANNUAL": "Every year",
+      "IRREG": "Irregularly",
+      "NEVER": "Never, it is final",
+      "UNKNOWN": "Not known"
     }
   },
   "picker": {
