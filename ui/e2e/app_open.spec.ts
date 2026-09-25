@@ -62,7 +62,7 @@ test.describe("an App inside the Portal (AP-122)", () => {
     await expect(frame).toHaveAttribute("title", "City bikes, the application");
     await expect(frame).toHaveAttribute(
       "sandbox",
-      "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads",
+      "allow-scripts allow-forms allow-popups allow-downloads",
     );
     await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
 

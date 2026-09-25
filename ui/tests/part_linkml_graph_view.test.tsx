@@ -124,8 +124,9 @@ describe("the drawing as a screen reader and a keyboard find it", () => {
     renderPart(<LinkmlGraphView source={MODEL} />);
 
     // Without a handler the boxes still carry their names; pressing one simply does nothing.
-    await user.click(screen.getAllByRole("button")[0]);
-    expect(screen.getAllByRole("button").length).toBe(4);
+    const drawing = screen.getByRole("group", { name: en.models.graph.title });
+    await user.click(within(drawing).getAllByRole("button")[0]);
+    expect(within(drawing).getAllByRole("button").length).toBe(4);
   });
 
   it("has no axe violations", async () => {

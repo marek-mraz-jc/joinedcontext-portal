@@ -369,6 +369,8 @@ export function FormRouteHost({
   );
 
   const showing = open > 0;
+  // The address names a form, the page's reads have answered, and nothing opened it.
+  const unopened = form !== null && !showing && fetching === 0;
   // The last form closed, by its back control, its Cancel, a saved proposal or a page that
   // dropped its editor: the address leaves the form too, so a reload or the back button does
   // not land on a form that is no longer there. (The browser's back button leaves the address
@@ -397,24 +399,23 @@ export function FormRouteHost({
           empty slot beside the list would push the page down by a gap (T-2489). */}
       <div>
         {notice !== null && form === null && !showing ? <div className="mb-4">{notice}</div> : null}
-        <div hidden={showing || form !== null}>{children}</div>
-        <div ref={setSlot} />
-        {form !== null && !showing ? (
-          fetching > 0 ? (
-            <PageLoading label={t("form.opening")} lines={2} />
-          ) : (
-            <div className="flex flex-col gap-4">
-              <Alert tone="warning" role="alert">
-                {/* A create address names no resource, and the list's plural is an API word, not
-                    one a person reads (T-2750). */}
-                {form.mode === "edit" ? t("form.notOpen", { name: form.name }) : t("form.notOpenNew")}
-              </Alert>
-              <div>
-                <Button onClick={value.close}>{t("form.backToList")}</Button>
-              </div>
+        {/* An address whose form nothing opened says so above the list, which stays: the page
+            keeps its heading and what does exist is one glance away (UI-16, T-2730). */}
+        {unopened && form !== null ? (
+          <div className="mb-4 flex flex-col gap-3">
+            <Alert tone="warning" role="alert">
+              {/* A create address names no resource, and the list's plural is an API word, not
+                  one a person reads (T-2750). */}
+              {form.mode === "edit" ? t("form.notOpen", { name: form.name }) : t("form.notOpenNew")}
+            </Alert>
+            <div>
+              <Button onClick={value.close}>{t("form.backToList")}</Button>
             </div>
-          )
+          </div>
         ) : null}
+        <div hidden={showing || (form !== null && !unopened)}>{children}</div>
+        <div ref={setSlot} />
+        {form !== null && !showing && !unopened ? <PageLoading label={t("form.opening")} lines={2} /> : null}
       </div>
     </FormRouteContext.Provider>
   );
