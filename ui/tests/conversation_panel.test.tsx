@@ -420,3 +420,47 @@ describe("a build run reads as a build (T-0703)", () => {
     );
   });
 });
+
+// A person reads what was asked and answered, never a question's id (UI-16), and a question the
+// assistant says in its next line is read once.
+describe("questions and answers in the transcript", () => {
+  const t = i18n.t.bind(i18n);
+  const question = (seq: number, title?: string): RunEvent => ({
+    seq,
+    kind: "question",
+    payload: {
+      questionId: "q-2026-09-25T020428.100602538Z",
+      schema: title === undefined ? {} : { type: "object", title, properties: { answer: { type: "string", title } } },
+    },
+  });
+
+  it("says a question by its words, or that one was asked", () => {
+    expect(line(question(1, "Which space should it land in?"), t)).toBe("Asked: Which space should it land in?");
+    expect(line(question(1), t)).toBe(en.agentRun.line.asked);
+  });
+
+  it("says a form's answer by what was typed, and never the question's id", () => {
+    const answer = (answers: unknown): RunEvent => ({
+      seq: 2,
+      kind: "answer",
+      payload: { questionId: "q-2026-09-25T020428.100602538Z", answers },
+    });
+    expect(line(answer({ center: "Kallio" }), t)).toBe("You answered: Kallio");
+    expect(line(answer({}), t)).toBe(en.agentRun.line.answered);
+    expect(line(answer({ answer: "space" }), t, new Map([["space", "A context space"]]))).toBe(
+      "You chose: A context space",
+    );
+  });
+
+  it("reads a question the assistant says next only once, and one it does not say, once", () => {
+    panel([
+      question(1, "Where does the data come from?"),
+      { seq: 2, kind: "thought", payload: { text: "Where does the data come from?" } },
+      { seq: 3, kind: "answer", payload: { questionId: "q-2026-09-25T020428.100602538Z", answers: { answer: "space" } } },
+      question(4, "Which space should it land in?"),
+    ]);
+    expect(screen.getAllByText(/Where does the data come from\?/)).toHaveLength(1);
+    expect(screen.getByText("Asked: Which space should it land in?")).toBeInTheDocument();
+    expect(screen.queryByText(/q-2026-09-25T/)).toBeNull();
+  });
+});

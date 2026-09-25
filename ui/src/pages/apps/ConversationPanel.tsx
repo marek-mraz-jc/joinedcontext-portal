@@ -88,10 +88,32 @@ function wordsOf(input: unknown): string {
 /** A row of the transcript: one event, or the machinery lines between two of them. */
 type Row = { event: RunEvent; count: number } | { details: RunEvent[] };
 
+/** The words a question asked, as its schema titles them; "" when it carries none. */
+export function questionTitle(payload: Record<string, unknown>): string {
+  const schema = payload.schema as { title?: unknown; properties?: { answer?: { title?: unknown } } } | undefined;
+  const title = schema?.title ?? schema?.properties?.answer?.title;
+  return typeof title === "string" ? title : "";
+}
+
+/**
+ * The events a transcript draws: not the status changes (the progress line stands for them), not
+ * the pages opened (the dock's notice does), and not a question the assistant says in its very
+ * next line, which would read twice.
+ */
+export function drawnEvents(events: RunEvent[]): RunEvent[] {
+  const shown = events.filter((event) => !UNDRAWN_KINDS.has(event.kind));
+  return shown.filter((event, at) => {
+    if (event.kind !== "question") {
+      return true;
+    }
+    const next = shown[at + 1];
+    return !(next?.kind === "thought" && next.payload.text === questionTitle(event.payload) && questionTitle(event.payload) !== "");
+  });
+}
+
 function rowsOf(events: RunEvent[]): Row[] {
   const rows: Row[] = [];
-  // The progress line stands for the status changes, and the dock's notice for the page opened.
-  for (const folded of foldRepeats(events.filter((event) => !UNDRAWN_KINDS.has(event.kind)))) {
+  for (const folded of foldRepeats(drawnEvents(events))) {
     const last = rows.at(-1);
     if (!DETAIL_KINDS.has(folded.event.kind)) {
       rows.push(folded);
@@ -187,12 +209,17 @@ export function line(
       const chosen = (Array.isArray(answer) ? answer : [answer]).filter(
         (one): one is string => typeof one === "string",
       );
-      return chosen.length > 0
-        ? t("agentRun.line.chose", { choice: chosen.map((one) => titles.get(one) ?? one).join(", ") })
-        : t("agentRun.line.answer", { question: text("questionId") });
+      if (chosen.length > 0) {
+        return t("agentRun.line.chose", { choice: chosen.map((one) => titles.get(one) ?? one).join(", ") });
+      }
+      // A form's answer: what was typed, never the question's id (UI-16).
+      const typed = Object.values(answers ?? {}).filter((one): one is string => typeof one === "string" && one !== "");
+      return typed.length > 0 ? t("agentRun.line.answer", { answer: typed.join(", ") }) : t("agentRun.line.answered");
     }
-    case "question":
-      return t("agentRun.line.question", { question: text("questionId") });
+    case "question": {
+      const title = questionTitle(payload);
+      return title !== "" ? t("agentRun.line.question", { question: title }) : t("agentRun.line.asked");
+    }
     case "lag":
       return t("agentRun.line.lag", { missed: String(payload.missed ?? "") });
     case "endpoints": {
