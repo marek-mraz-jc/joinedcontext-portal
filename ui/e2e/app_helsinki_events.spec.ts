@@ -4,13 +4,13 @@ import { expect, test, type Page } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
 import { axeViolations } from "./axe";
 
-// The plain-HTML sample application (T-2597) served the way the Portal static host serves it:
+// The plain-HTML example of the SDK (T-2597, AP-83; sdk/examples since T-2923) served the way the Portal static host serves it:
 // the folder as it is, `#jc-config` written first thing in the head, the host's Content Security
 // Policy on the page, and the endpoint stubbed with the five events the node tests use. No
 // server: the page's own origin is answered from the folder.
 
 const ORIGIN = "https://apps.test";
-const APP = join(import.meta.dirname, "../../apps/helsinki-events");
+const APP = join(import.meta.dirname, "../../sdk/examples/plain-html-events");
 const EVENTS: unknown[] = JSON.parse(readFileSync(join(APP, "test/events.json"), "utf8"));
 // Byte for byte what src/apps/static_host.rs sends for an app that is not embeddable.
 const CSP =

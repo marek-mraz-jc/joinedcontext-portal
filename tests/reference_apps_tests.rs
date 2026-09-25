@@ -292,19 +292,17 @@ fn the_shipped_mark_is_on_exactly_the_bundles_the_image_builds() {
     }
 }
 
-/// AP-83, AP-01, AP-75. The plain-HTML sample is what T-2599 pushes to its own repository
-/// unchanged: a static App with no build step, whose folder is the bundle (`index.html` at its
+/// AP-83, AP-01, AP-75. The SDK's plain-HTML example (a published App is React since AP-138,
+/// T-2923): a static App with no build step, whose folder is the bundle (`index.html` at its
 /// root, no toolchain file), and whose manifest passes the validation `jcctl validate` runs.
 #[test]
-fn the_plain_html_sample_is_its_own_bundle_and_a_valid_published_app() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("apps/helsinki-events");
-    let (_, yaml) = reference_apps()
-        .into_iter()
-        .find(|(name, _)| name == "helsinki-events")
-        .expect("apps/helsinki-events/app.yaml");
+fn the_plain_html_example_is_its_own_bundle_and_a_valid_app() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sdk/examples/plain-html-events");
+    let yaml = std::fs::read_to_string(root.join("app.yaml"))
+        .expect("sdk/examples/plain-html-events/app.yaml");
     match jc_core::registry::validate_yaml("App", &yaml) {
         Some(Ok(_)) => {}
-        other => panic!("jcctl validate refuses apps/helsinki-events: {other:?}"),
+        other => panic!("jcctl validate refuses sdk/examples/plain-html-events: {other:?}"),
     }
     let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
     assert_eq!(app.spec.class, jc_core::AppClass::Ui);
