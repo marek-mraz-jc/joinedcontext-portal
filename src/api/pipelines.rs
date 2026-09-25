@@ -385,6 +385,7 @@ fn readable_pipeline(
 
 /// A pipeline's latest runs with their counts (PL-62).
 #[derive(Debug, Serialize, ToSchema)]
+#[schema(as = PipelineRunList)]
 pub struct RunList {
     /// The run with the latest line first, at most 200.
     pub items: Vec<crate::pipeline_log::Run>,
@@ -400,6 +401,7 @@ pub struct LogQuery {
 
 /// One page of a run's log.
 #[derive(Debug, Serialize, ToSchema)]
+#[schema(as = PipelineLogPage)]
 pub struct LogPage {
     pub items: Vec<crate::pipeline_log::LogLine>,
     /// The `before` of the next page, when there is one.

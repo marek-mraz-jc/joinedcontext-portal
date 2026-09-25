@@ -1038,6 +1038,36 @@
       "maskedKept": "{count, plural, one {# record stays on the list: a value of it was masked as a secret, and replaying it would write the mask. The pipeline's next read of its source brings it again.} other {# records stay on the list: a value of each was masked as a secret, and replaying them would write the mask. The pipeline's next read of its source brings them again.}}",
       "newest": "Newest",
       "older": "Older records"
+    },
+    "runs": {
+      "open": "Runs and log",
+      "title": "Runs of {name}",
+      "lead": "Each run with how many records it wrote, how many the data model rejected and how many failed in a step. Open a run to read its log, one line per record.",
+      "caption": "Runs",
+      "close": "Close",
+      "empty": "No runs yet",
+      "emptyHint": "The first run shows here once the pipeline has read its source.",
+      "run": "Run",
+      "hour": "Hour from {at}",
+      "sent": "Written",
+      "rejected": "Rejected",
+      "failed": "Failed",
+      "log": "Log",
+      "show": "Show the log of {run}",
+      "logCaption": "Log of the run {run}",
+      "noLines": "The lines of this run have aged out; the counts above stay.",
+      "at": "Time",
+      "record": "Record",
+      "outcome": "Outcome",
+      "message": "Message",
+      "noId": "(no id)",
+      "outcomes": {
+        "sent": "Written",
+        "rejected": "Rejected",
+        "failed": "Failed"
+      },
+      "newest": "Newest",
+      "older": "Older lines"
     }
   },
   "dashboards": {
@@ -2656,7 +2686,8 @@
       "all": "All",
       "live": "Running",
       "ended": "Ended",
-      "mine": "Only mine"
+      "mine": "Only mine",
+      "testRuns": "Show test runs"
     },
     "kinds": {
       "conversation": "Conversation",
@@ -2705,7 +2736,8 @@
     "showMore": "Show {count} more ({left} left)",
     "table": {
       "name": "Name"
-    }
+    },
+    "testRun": "Test run"
   },
   "activity": {
     "title": "Activity",

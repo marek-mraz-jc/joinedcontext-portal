@@ -1038,6 +1038,36 @@
       "maskedKept": "{count, plural, one {# záznam zostáva v zozname: jeho hodnota bola zamaskovaná ako tajomstvo a opakovanie by zapísalo masku. Prinesie ho ďalšie čítanie zdroja.} few {# záznamy zostávajú v zozname: ich hodnoty boli zamaskované ako tajomstvo a opakovanie by zapísalo masku. Prinesie ich ďalšie čítanie zdroja.} other {# záznamov zostáva v zozname: ich hodnoty boli zamaskované ako tajomstvo a opakovanie by zapísalo masku. Prinesie ich ďalšie čítanie zdroja.}}",
       "newest": "Najnovšie",
       "older": "Staršie záznamy"
+    },
+    "runs": {
+      "open": "Behy a záznam",
+      "title": "Behy pipeline {name}",
+      "lead": "Každý beh s počtom zapísaných záznamov, záznamov odmietnutých dátovým modelom a záznamov, ktoré zlyhali v kroku. Otvorte beh a prečítajte si jeho záznam, jeden riadok na záznam.",
+      "caption": "Behy",
+      "close": "Zavrieť",
+      "empty": "Zatiaľ žiadny beh",
+      "emptyHint": "Prvý beh sa tu zobrazí, keď pipeline prečíta svoj zdroj.",
+      "run": "Beh",
+      "hour": "Hodina od {at}",
+      "sent": "Zapísané",
+      "rejected": "Odmietnuté",
+      "failed": "Zlyhané",
+      "log": "Záznam",
+      "show": "Zobraziť záznam behu {run}",
+      "logCaption": "Záznam behu {run}",
+      "noLines": "Riadky tohto behu už boli vymazané; počty vyššie zostávajú.",
+      "at": "Čas",
+      "record": "Záznam",
+      "outcome": "Výsledok",
+      "message": "Správa",
+      "noId": "(bez id)",
+      "outcomes": {
+        "sent": "Zapísaný",
+        "rejected": "Odmietnutý",
+        "failed": "Zlyhal"
+      },
+      "newest": "Najnovšie",
+      "older": "Staršie riadky"
     }
   },
   "dashboards": {
@@ -2656,7 +2686,8 @@
       "all": "Všetko",
       "live": "Bežiace",
       "ended": "Skončené",
-      "mine": "Iba moje"
+      "mine": "Iba moje",
+      "testRuns": "Zobraziť testovacie behy"
     },
     "kinds": {
       "conversation": "Konverzácia",
@@ -2705,7 +2736,8 @@
     "showMore": "Zobraziť ďalších {count} (zostáva {left})",
     "table": {
       "name": "Názov"
-    }
+    },
+    "testRun": "Testovací beh"
   },
   "activity": {
     "title": "Activity",

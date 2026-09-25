@@ -1038,6 +1038,36 @@
       "maskedKept": "{count, plural, one {# záznam zůstává v seznamu: jeho hodnota byla zamaskována jako tajemství a opakování by zapsalo masku. Přinese ho další čtení zdroje.} few {# záznamy zůstávají v seznamu: jejich hodnoty byly zamaskovány jako tajemství a opakování by zapsalo masku. Přinese je další čtení zdroje.} other {# záznamů zůstává v seznamu: jejich hodnoty byly zamaskovány jako tajemství a opakování by zapsalo masku. Přinese je další čtení zdroje.}}",
       "newest": "Nejnovější",
       "older": "Starší záznamy"
+    },
+    "runs": {
+      "open": "Běhy a záznam",
+      "title": "Běhy pipeline {name}",
+      "lead": "Každý běh s počtem zapsaných záznamů, záznamů odmítnutých datovým modelem a záznamů, které selhaly v kroku. Otevřete běh a přečtěte si jeho záznam, jeden řádek na záznam.",
+      "caption": "Běhy",
+      "close": "Zavřít",
+      "empty": "Zatím žádný běh",
+      "emptyHint": "První běh se tu zobrazí, až pipeline přečte svůj zdroj.",
+      "run": "Běh",
+      "hour": "Hodina od {at}",
+      "sent": "Zapsané",
+      "rejected": "Odmítnuté",
+      "failed": "Selhané",
+      "log": "Záznam",
+      "show": "Zobrazit záznam běhu {run}",
+      "logCaption": "Záznam běhu {run}",
+      "noLines": "Řádky tohoto běhu už byly smazány; počty výše zůstávají.",
+      "at": "Čas",
+      "record": "Záznam",
+      "outcome": "Výsledek",
+      "message": "Zpráva",
+      "noId": "(bez id)",
+      "outcomes": {
+        "sent": "Zapsán",
+        "rejected": "Odmítnut",
+        "failed": "Selhal"
+      },
+      "newest": "Nejnovější",
+      "older": "Starší řádky"
     }
   },
   "dashboards": {
@@ -2656,7 +2686,8 @@
       "all": "Vše",
       "live": "Běžící",
       "ended": "Skončené",
-      "mine": "Jen moje"
+      "mine": "Jen moje",
+      "testRuns": "Zobrazit testovací běhy"
     },
     "kinds": {
       "conversation": "Konverzace",
@@ -2705,7 +2736,8 @@
     "showMore": "Zobrazit dalších {count} (zbývá {left})",
     "table": {
       "name": "Název"
-    }
+    },
+    "testRun": "Testovací běh"
   },
   "activity": {
     "title": "Activity",
