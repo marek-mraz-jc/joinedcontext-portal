@@ -619,7 +619,7 @@
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
         "Button": 3,
-        "Checkbox": 3
+        "Checkbox": 2
       },
       "tests": [
         "app_generator.test.tsx",
