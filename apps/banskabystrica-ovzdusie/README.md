@@ -1,6 +1,7 @@
 # Ovzdušie v Banskej Bystrici / Air quality in Banská Bystrica
 
-One screen over the city's `ovzdusie` space: the measuring stations on a map, coloured by their
+One screen over the city's public space `banskabystrica-verejne`, where the EEA's hourly readings
+of station SK0263A land (T-2781, T-2949): the measuring stations on a map, coloured by their
 latest PM10 against the daily limit, and one day of history for the station a reader picks. It
 reads and never writes, and it never asks anybody to sign in.
 
@@ -22,15 +23,18 @@ One endpoint, one space, one type:
 
 | what | where |
 |---|---|
-| space | `ovzdusie` of the project `banskabystrica` |
-| endpoint | `public-air`, audience `public` |
+| space | `banskabystrica-verejne` of the project `banskabystrica` |
+| endpoint | the space's public endpoint, audience `public` |
 | type | `AirQualityObserved` |
-| attributes | `dateObserved`, `location`, `observedAt`, `pm10`, `pm25` |
+| attributes | `name`, `dateObserved`, `location`, `pm10`, `pm25`, `dataProvider` |
 | operations | `queryEntity`, `retrieveEntity`, `queryTemporal` |
 
-The attributes are exactly the five the space's public grant serves. `reliability` and `refDevice`
-are operational and the public grant does not reach them, so asking for them would put a refusal
-into every answer (`policy-public-read.yaml`).
+The pipelines `ovzdusie-pm10` and `ovzdusie-pm25` write one entity per station,
+`…:eea-SK0263A`, each stream its own attribute, with the station's name and place from the EEA
+station metadata. The space's public grant (`policy-verejne-read.yaml`) serves every attribute of
+the type. The space `ovzdusie` is the conformance suite's: its seeded stations are test data and
+this screen does not read them. The data is the EEA's (SHMÚ's readings, CC BY 4.0), and the
+screen says so under the list.
 
 **No login and no token.** The endpoint is public, so the bundle holds no credential and the
 browser sends none; `App.test.tsx` asserts that no request carries an `Authorization` header
