@@ -487,7 +487,7 @@ export function ModelsPage({
       ) : null}
 
       {blocking > 0 && targetName ? (
-        <p className="text-body text-danger-soft-fg">{t("models.source.fixErrors", { count: blocking })}</p>
+        <p className="text-body text-danger">{t("models.source.fixErrors", { count: blocking })}</p>
       ) : null}
 
       {saveError || loadError ? (
