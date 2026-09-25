@@ -82,6 +82,8 @@ pub struct AppState {
     /// What the last data-quality run found, by space (DM-74). Empty until the leader has run
     /// one, which the API answers as "not checked yet".
     pub quality: Arc<crate::quality::Store>,
+    /// How much each space holds, as the broker counts it (API/01 §29).
+    pub space_usage: Arc<crate::space_usage::Counter>,
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
     /// or a realm client: the two buttons answer 503 rather than writing nowhere.
     pub drift_watch: Option<Arc<crate::reconciler::drift::Watch>>,
@@ -134,6 +136,7 @@ impl AppState {
             .map(|o| Arc::new(BearerVerifier::new(&o.issuer, &o.client_id)));
         let draft_events = DraftHub::new();
         let drafts = DraftStore::new(None).with_hub(draft_events.clone());
+        let space_usage = Arc::new(crate::space_usage::Counter::new(config.broker_url.clone()));
         let activity_events = crate::activity::ActivityHub::new();
         let activity = crate::activity::ActivityStore::new(None).with_hub(activity_events.clone());
         Self {
@@ -157,6 +160,7 @@ impl AppState {
             webhook_secrets: Arc::new(crate::sync::webhook_secrets::Accepted::new()),
             drift: Arc::new(crate::reconciler::drift::Store::default()),
             quality: Arc::new(crate::quality::Store::default()),
+            space_usage,
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),

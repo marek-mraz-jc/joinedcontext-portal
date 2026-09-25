@@ -252,7 +252,7 @@ export interface paths {
         };
         /**
          * List Endpoints Everywhere
-         * @description Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03).
+         * @description Every Endpoint of every project with its project, for an organization administrator (PF-61, PF-03).
          */
         get: operations["list_endpoints_everywhere"];
         put?: never;
@@ -1813,6 +1813,26 @@ export interface paths {
          * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-74).
          */
         get: operations["get_quality"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Space Usage
+         * @description The entity count of one space, read from the broker that holds it and kept for five minutes. `0` for a space the broker has no tenant for yet. The same count for everyone who reads the space.
+         */
+        get: operations["get_usage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4416,6 +4436,19 @@ export interface components {
             observedAt: string;
             rules: components["schemas"]["RuleCount"][];
             truncated: boolean;
+        };
+        /** @description What one space holds. */
+        SpaceUsage: {
+            /**
+             * Format: int64
+             * @description The entities of the space's tenant, as the broker counts them.
+             */
+            entities: number;
+            /**
+             * Format: date-time
+             * @description When the broker answered.
+             */
+            observedAt: string;
         };
         /** @description Request payload for starting or continuing an assistant conversation. */
         StartConversation: {
@@ -10455,6 +10488,58 @@ export interface operations {
             };
             /** @description No such space the caller may read */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The space's usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceUsage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No broker is configured, or it did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

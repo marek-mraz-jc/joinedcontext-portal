@@ -335,6 +335,7 @@
     "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular."
   },
   "spaces": {
+    "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
     "lead": "Die benannten Sammlungen von Kontextdaten dieses Projekts; jede Entität liegt in genau einer.",
     "title": "Kontexträume",
     "empty": "Dieses Projekt hat noch keinen Kontextraum.",
@@ -351,10 +352,12 @@
       "ttlDays": "Lebensdauer in Tagen",
       "phase": "Zustand",
       "source": "Quelle",
+      "entities": "Entitäten",
       "inside": "Inhalt",
       "missingUnitCode": "Fehlende Einheit"
     },
     "inside": {
+      "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
       "open": "Inhalt ansehen",
       "data": "Daten",
       "dataLead": "Alles, was dieser Raum hält, soweit Ihre Rechte es zulassen. Ein Endpunkt zeigt dasselbe, durch seine Policy verengt.",
@@ -388,7 +391,6 @@
       "modelImport": "Smart Data Model importieren"
     },
     "complete": {
-      "spacePlaceholder": "city-bikes",
       "urlPlaceholder": "https://example.org/stations.json",
       "kind": {
         "DataModel": "Datenmodell",
@@ -661,7 +663,7 @@
       "q": "Attributabfrage",
       "qHelp": "Veröffentlicht werden nur Entitäten, die dieser Abfrage entsprechen, etwa age>30. Ein Endpunkt verengt, was der Raum hält, und weitet es nie aus.",
       "scopeQ": "Bereich",
-      "scopeQHelp": "Der Zweig des Bereichsbaums, der veröffentlicht wird, etwa /Helsinki/Kamppi.",
+      "scopeQHelp": "Der Zweig des Bereichsbaums, der veröffentlicht wird: ein Pfad, der mit / beginnt.",
       "geoQ": "Gebiet",
       "geoQHelp": "Das Gebiet, in dem Entitäten liegen müssen; auf der Karte gezeichnet reist es als georel, geometry und coordinates zusammen.",
       "temporalQ": "Zeitraum",
@@ -1021,7 +1023,7 @@
       "readThrough": "Lesen über Endpoint",
       "readThroughHint": "Die Policy des Endpoints entscheidet, was die Pipeline sieht.",
       "entities": "2. Entitäten",
-      "typePlaceholder": "Entitätstyp, z. B. AirQualityObserved",
+      "typePlaceholder": "Entitätstyp",
       "qHint": "NGSI-LD-Filter, z. B. pm10>50",
       "loadSample": "Stichprobe laden",
       "sampleHint": "Bis zu {count} Entitäten, gelesen mit Ihrer Sitzung; markieren Sie Zeilen, um nur diese zu verarbeiten.",
@@ -2043,7 +2045,7 @@
         "none": "Dieser Endpoint veröffentlicht keine Attribute, es gibt nichts zu lesen.",
         "loginOnly": "Unabhängig davon, wie der Endpoint veröffentlicht ist, läuft die erzeugte Anwendung in der Plattform und nur eine angemeldete Person kann sie öffnen.",
         "writeRole": "Nur diese Anwendungsrolle darf schreiben (optional)",
-        "writeRoleHelp": "Leer lassen, dann darf jede Person schreiben, die die App öffnen kann. Mit einem Rollennamen, z. B. steward, schreiben nur die Personen, die Sie nach dem Veröffentlichen auf der Seite der App dieser Rolle hinzufügen.",
+        "writeRoleHelp": "Leer lassen, dann darf jede Person schreiben, die die App öffnen kann. Mit einem Rollennamen schreiben nur die Personen, die Sie nach dem Veröffentlichen auf der Seite der App dieser Rolle hinzufügen.",
         "writeRoleInvalid": "Kleinbuchstaben, Ziffern und Bindestriche, beginnend mit einem Buchstaben, höchstens 32 Zeichen.",
         "access": "Was die App darf",
         "accessHelp": "Nur lesen liest die Entitäten und ihren Verlauf. Lesen und ändern ändert und ergänzt auch Attribute (updateAttrs, appendAttrs). Voll legt auch Entitäten an und löscht sie (createEntity, deleteEntity). Eine Schreibvorgabe wird als Änderung auf rotem Pfad geprüft, außer eine Rolle unten begrenzt sie.",
@@ -2083,7 +2085,7 @@
         "title": "Neuer Endpunkt",
         "hint": "Wird sofort als eigene Änderung vorgeschlagen. Der Builder übernimmt ihn, sobald die Änderung zusammengeführt ist und der Endpunkt bereitsteht.",
         "name": "Name des Endpunkts",
-        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, z. B. bikes-app.",
+        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche.",
         "nameInvalid": "Kleinbuchstaben, Ziffern und Bindestriche verwenden, Anfang und Ende Buchstabe oder Ziffer, höchstens 63 Zeichen.",
         "space": "Kontextraum",
         "spaceMissing": "Wählen Sie den Kontextraum, den der Endpunkt bereitstellt.",
@@ -2422,7 +2424,7 @@
   },
   "entities": {
     "type": "Entitätstyp",
-    "typePlaceholder": "Entitätstyp, z. B. AirQualityObserved",
+    "typePlaceholder": "Entitätstyp",
     "scopeQ": "Bereich (scope)",
     "scopeQHint": "NGSI-LD scopeQ, z. B. /district/1",
     "filters": "Filter",

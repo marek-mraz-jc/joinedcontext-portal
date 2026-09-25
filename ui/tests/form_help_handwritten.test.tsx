@@ -2,13 +2,13 @@
  * UI-02, UI-11, UI-12, UI-44: the forms a page builds by hand carry the same help as the forms
  * built from a schema.
  *
- * `tests/form_help.test.ts` holds the seven schema-driven forms to one sentence of help and one
- * example per field. Four kinds are filled in by hand instead — a catalogue, a role binding, a
+ * `tests/form_help.test.ts` holds the schema-driven forms to one sentence of help per field and one
+ * example per form at most (T-2882). Four kinds are filled in by hand instead — a catalogue, a role binding, a
  * role and a group — and had labels and nothing else: measured on main on 2026-09-20, 11 of their
  * 11 fields showed no description at all (T-1624, T-1625, T-1626, T-1632).
  *
  * A control is judged the way a person meets it: the accessible description a screen reader
- * announces, and the placeholder a sighted person reads before typing. The help is asserted in
+ * announces, and the one placeholder a sighted person reads before typing. The help is asserted in
  * all four languages, because help that only exists in English is help for some of the people.
  */
 import { cleanup, render, screen, within } from "@testing-library/react";
@@ -165,7 +165,7 @@ describe("the help beside a hand-built form field", () => {
     vi.restoreAllMocks();
   });
 
-  it("describes every field of the catalogue form and shows an example to type", async () => {
+  it("describes every field of the catalogue form and shows one example, on the address", async () => {
     renderPortal("/projects/banskabystrica/ckan");
 
     const submit = await screen.findByRole("button", { name: en.ckan.instances.propose });
@@ -174,12 +174,10 @@ describe("the help beside a hand-built form field", () => {
     expect(fields.length).toBe(4);
     for (const field of fields) {
       expect(describedText(field).length, field.id).toBeGreaterThan(15);
-      expect(field.getAttribute("placeholder"), `${field.id} shows an example`).toBeTruthy();
     }
-    // The example is a name, never a credential: the token itself is a secret the operator loads.
-    expect(
-      (form.querySelector("#ckan-instance-secret") as HTMLInputElement).placeholder,
-    ).toBe("ckan-api-token");
+    // One example per form (T-2882): the address, whose shape is the one a person gets wrong.
+    const examples = fields.filter((field) => field.getAttribute("placeholder"));
+    expect(examples.map((field) => field.getAttribute("placeholder"))).toEqual(["https://opendata.example.org"]);
   });
 
   it("describes every field of the role binding form", async () => {
@@ -223,7 +221,7 @@ describe("the help beside a hand-built form field", () => {
     }
   });
 
-  it("describes every field of the new-person form and shows an example to type", async () => {
+  it("describes every field of the new-person form and shows one example, on the address", async () => {
     // A person is not a manifest, so this form is built by hand (T-2684, ADR-N-031).
     const person = userEvent.setup();
     renderPortal("/organization/people");
@@ -233,10 +231,9 @@ describe("the help beside a hand-built form field", () => {
     expect(fields.length).toBe(4);
     for (const field of fields) {
       expect(describedText(field).length, field.id).toBeGreaterThan(15);
-      if (field.tagName === "INPUT") {
-        expect(field.getAttribute("placeholder"), `${field.id} shows an example`).toBeTruthy();
-      }
     }
+    const examples = fields.filter((field) => field.getAttribute("placeholder"));
+    expect(examples.map((field) => field.getAttribute("placeholder"))).toEqual(["firstname.lastname@example.org"]);
   });
 
   it("writes that help in all four languages, each in its own words", () => {

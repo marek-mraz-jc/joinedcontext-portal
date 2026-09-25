@@ -288,7 +288,7 @@ async fn mirror_at(
     get,
     path = "/api/v1/endpoints",
     summary = "List Endpoints Everywhere",
-    description = "Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03).",
+    description = "Every Endpoint of every project with its project, for an organization administrator (PF-61, PF-03).",
     tag = "resources",
     responses(
         (status = 200, description = "Every Endpoint of the organization, across projects", body = ResourceList),

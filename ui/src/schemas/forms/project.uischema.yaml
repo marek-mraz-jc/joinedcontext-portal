@@ -58,63 +58,54 @@ spec:
         cs: Název, který lidé čtou v přepínači projektů a nahoře na každé jeho stránce.
         de: Der Name im Projektwechsler und oben auf jeder Seite des Projekts.
     description:
-      placeholder: Measures the city's air quality and publishes it
       help:
         en: One or two sentences on what the project is for, for whoever is deciding whether to join it.
         sk: Jedna či dve vety o tom, načo projekt je, pre toho, kto sa rozhoduje, či sa pridá.
         cs: Jedna či dvě věty o tom, k čemu projekt je, pro toho, kdo se rozhoduje, zda se přidá.
         de: Ein, zwei Sätze, wofür das Projekt da ist, für alle, die überlegen, ob sie mitmachen.
     quotas.contextSpaces:
-      placeholder: 5
       help:
         en: How many context spaces this project may run; it cannot exceed the organization's limit.
         sk: Koľko kontextových priestorov smie projekt prevádzkovať; nesmie prekročiť limit organizácie.
         cs: Kolik kontextových prostorů smí projekt provozovat; nesmí překročit limit organizace.
         de: Wie viele Kontexträume dieses Projekt betreiben darf; höchstens die Grenze der Organisation.
     quotas.residentPipelines:
-      placeholder: 3
       help:
         en: How many of this project's pipelines may run all the time.
         sk: Koľko pipeline tohto projektu smie bežať nepretržite.
         cs: Kolik pipeline tohoto projektu smí běžet nepřetržitě.
         de: Wie viele Pipelines dieses Projekts dauerhaft laufen dürfen.
     quotas.publicEndpoints:
-      placeholder: 2
       help:
         en: How many of this project's endpoints anyone may read without signing in.
         sk: Koľko koncových bodov tohto projektu smie ktokoľvek čítať bez prihlásenia.
         cs: Kolik koncových bodů tohoto projektu smí kdokoli číst bez přihlášení.
         de: Wie viele Endpunkte dieses Projekts alle ohne Anmeldung lesen dürfen.
     quotas.ingestEventsPerSecond:
-      placeholder: 100
       help:
         en: How many updates per second this project's sources may write.
         sk: Koľko aktualizácií za sekundu smú zapísať zdroje tohto projektu.
         cs: Kolik aktualizací za sekundu smějí zapsat zdroje tohoto projektu.
         de: Wie viele Aktualisierungen pro Sekunde die Quellen dieses Projekts schreiben dürfen.
     quotas.apps:
-      placeholder: 3
       help:
         en: How many applications this project may publish.
         sk: Koľko aplikácií smie tento projekt zverejniť.
         cs: Kolik aplikací smí tento projekt zveřejnit.
         de: Wie viele Anwendungen dieses Projekt veröffentlichen darf.
     quotas.agentRunsPerDay:
-      placeholder: 10
       help:
         en: How many assistant runs this project may start in one day.
         sk: Koľko behov asistenta smie tento projekt spustiť za deň.
         cs: Kolik běhů asistenta smí tento projekt spustit za den.
         de: Wie viele Assistentenläufe dieses Projekt pro Tag starten darf.
     quotas.entitiesPerSpace:
-      placeholder: 50000
       help:
         en: How many entities one context space of this project may hold.
         sk: Koľko entít smie mať jeden kontextový priestor tohto projektu.
         cs: Kolik entit smí mít jeden kontextový prostor tohoto projektu.
         de: Wie viele Entitäten ein Kontextraum dieses Projekts halten darf.
     quotas.requestsPerMinute:
-      placeholder: 300
       help:
         en: How many requests per minute one endpoint of this project answers.
         sk: Na koľko požiadaviek za minútu odpovie jeden koncový bod tohto projektu.

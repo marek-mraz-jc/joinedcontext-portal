@@ -50,21 +50,18 @@ spec:
       fields: [parameterSchema, templates]
   fields:
     name:
-      placeholder: "weather-feed"
       help:
         en: The short name the blueprint is filed under; the gallery and every run of it use this name.
         sk: Krátky názov, pod ktorým je šablóna uložená; galéria a každé jej spustenie ho používajú.
         cs: Krátký název, pod nímž je šablona uložena; galerie a každé její spuštění jej používají.
         de: Der kurze Name der Vorlage; die Galerie und jede Ausführung verwenden ihn.
     version:
-      placeholder: "1.0.0"
       help:
         en: The version a run pins, as major.minor.patch; raise it whenever the templates change.
         sk: Verzia, ktorú spustenie pripne, ako major.minor.patch; zvýšte ju pri každej zmene šablón.
         cs: Verze, kterou spuštění připne, jako major.minor.patch; zvyšte ji při každé změně šablon.
         de: Die Version, die eine Ausführung festhält, als Major.Minor.Patch; bei jeder Vorlagenänderung erhöhen.
     category:
-      placeholder: "ingest"
       help:
         en: The gallery section the blueprint is listed under; left empty, it is listed with the rest.
         sk: Sekcia galérie, v ktorej je šablóna uvedená; ak je prázdne, je uvedená so zvyškom.
@@ -77,7 +74,6 @@ spec:
         cs: Jak se posuzuje změna, kterou spuštění navrhne; červená žádá schvalovatele napsat název.
         de: Wie die vorgeschlagene Änderung geprüft wird; Rot verlangt, dass die freigebende Person den Namen eintippt.
     allowedRoles:
-      placeholder: [steward]
       help:
         en: The roles whose holders see the blueprint in the gallery and may run it; at least one.
         sk: Roly, ktorých držitelia vidia šablónu v galérii a smú ju spustiť; aspoň jedna.
@@ -91,14 +87,12 @@ spec:
         cs: JSON Schema typu object; každá vlastnost je pole formuláře, které člověk vyplní při spuštění.
         de: Ein JSON Schema vom Typ object; jede Eigenschaft ist ein Feld des Formulars zum Ausführen.
     templates[].name:
-      placeholder: "feed-source"
       help:
         en: The name of the manifest this template renders; two templates of a blueprint cannot share one.
         sk: Názov manifestu, ktorý šablóna vykreslí; dve šablóny jednej predlohy ho nemôžu zdieľať.
         cs: Název manifestu, který šablona vykreslí; dvě šablony jedné předlohy jej nemohou sdílet.
         de: Der Name des Manifests, das diese Vorlage erzeugt; zwei Vorlagen teilen ihn nicht.
     templates[].template:
-      placeholder: "kind: DataSource\nmetadata:\n  name: '{{ city }}-weather'"
       help:
         en: The manifest as text, with the parameters written in double braces where their values go.
         sk: Manifest ako text, s parametrami v dvojitých zátvorkách tam, kam patria ich hodnoty.

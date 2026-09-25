@@ -12,6 +12,8 @@ import {
   spaceOf,
 } from "../src/pages/spaces/SpaceInside";
 import type { Manifest } from "../src/api/manifest";
+import { ApiError } from "../src/api/client";
+import { spaceUsageQuery, usageRefusal } from "../src/api/spaceUsage";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -125,7 +127,7 @@ const SPACE_ROWS = [
 function renderInside(
   gateway: { status: number; count?: number },
   surface: { status: number; rows?: unknown[] } = { status: 200 },
-  seed: { space?: unknown; models?: unknown } = {},
+  seed: { space?: unknown; models?: unknown; usage?: { status: number; body: unknown } } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = urlOf(input);
@@ -159,6 +161,10 @@ function renderInside(
         "NGSILD-Results-Count": String((surface.rows ?? SPACE_ROWS).length),
       });
     }
+    if (path.endsWith("/spaces/ovzdusie/usage")) {
+      const usage = seed.usage ?? { status: 200, body: { entities: 0, observedAt: "2026-09-25T11:40:00Z" } };
+      return json(usage.body, usage.status);
+    }
     if (path.endsWith("/spaces/ovzdusie")) {
       return json(seed.space ?? SPACE);
     }
@@ -185,6 +191,27 @@ function renderInside(
   );
   return fetchMock;
 }
+
+describe("a space's usage (T-2889)", () => {
+  it("is kept as long as the Portal keeps it and a refusal is not retried", () => {
+    const query = spaceUsageQuery("banskabystrica", "ovzdusie");
+    expect(query.queryKey).toEqual(["space-usage", "banskabystrica", "ovzdusie"]);
+    expect(query.staleTime).toBe(5 * 60 * 1000);
+    expect(query.retry).toBe(false);
+  });
+
+  it("gives the server's reason, then the error's own words", () => {
+    const refused = new ApiError(503, "Service Unavailable", {
+      type: "about:blank",
+      title: "Service Unavailable",
+      status: 503,
+      detail: "the broker answered 500",
+    });
+    expect(usageRefusal(refused)).toBe("the broker answered 500");
+    expect(usageRefusal(new Error("offline"))).toBe("offline");
+    expect(usageRefusal("nothing")).toBe("");
+  });
+});
 
 describe("count header parsing", () => {
   it("reads NGSILD-Results-Count as a number, case-insensitively", () => {
@@ -270,6 +297,23 @@ describe("space inside view", () => {
     expect(gatewayCalls.some((url) => url.searchParams.get("count") === "true" && url.searchParams.get("limit") === "1")).toBe(true);
     expect(gatewayCalls.some((url) => url.searchParams.get("options") === "keyValues" && url.searchParams.get("limit") === "3")).toBe(true);
     expect(gatewayCalls.every((url) => url.origin === window.location.origin)).toBe(true);
+  });
+
+  // T-2889: the whole space's count, the broker's, above the per-type breakdown.
+  it("says how many entities the whole space holds, and why when it cannot", async () => {
+    renderInside({ status: 200, count: 42 }, { status: 200 }, {
+      usage: { status: 200, body: { entities: 14232, observedAt: "2026-09-25T11:40:00Z" } },
+    });
+    expect(await screen.findByTestId("space-total")).toHaveTextContent("The space holds 14,232 entities.");
+  });
+
+  it("names the reason instead of a count the broker could not give", async () => {
+    renderInside({ status: 200, count: 42 }, { status: 200 }, {
+      usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker answered 500" } },
+    });
+    expect(await screen.findByTestId("space-total")).toHaveTextContent(
+      i18n.t("spaces.entitiesUnknown", { reason: "the broker answered 500" }),
+    );
   });
 
   it("takes the space's types from the model that names it, with no dataModelRef on the space", async () => {

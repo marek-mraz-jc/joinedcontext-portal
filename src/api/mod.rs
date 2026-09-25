@@ -37,6 +37,7 @@ pub mod quality;
 pub mod resources;
 pub mod service_accounts;
 pub mod setup;
+pub mod space_usage;
 pub mod sync;
 pub mod sync_sources;
 pub mod validation;
@@ -85,6 +86,7 @@ pub fn router() -> Router<AppState> {
         .merge(preferences::router())
         .merge(projects::router())
         .merge(quality::router())
+        .merge(space_usage::router())
         .merge(service_accounts::router())
         .merge(sync::router())
         .merge(sync_sources::router())
