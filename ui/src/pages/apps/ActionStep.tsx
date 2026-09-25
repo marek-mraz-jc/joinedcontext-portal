@@ -47,6 +47,7 @@ const LABELLED = new Set([
   "propose_endpoint",
   "edit_endpoint",
   "space_complete",
+  "profile_sample",
   "compute_kpi",
   "draft_kpi_pipeline",
 ]);

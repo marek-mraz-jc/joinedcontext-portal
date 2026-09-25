@@ -91,11 +91,24 @@ impl Driver {
                 "answer" => {
                     // What the person chose is the next turn: the loop asked, and this is the
                     // reply it waited for (AG-80).
-                    let text = event
+                    let mut text = event
                         .payload
                         .get("answers")
                         .map(tools_registry::answer_text)
                         .unwrap_or_default();
+                    // A step of the path the Portal takes itself is not the model's turn (T-2695).
+                    match self.integrate_answer(&event).await {
+                        Ok(Some(integrate::Taken::Done(prose))) => {
+                            conversation.push((text, prose));
+                            continue;
+                        }
+                        Ok(Some(integrate::Taken::Model(words))) => text = words,
+                        Ok(None) => {}
+                        Err(reason) => {
+                            let _ = self.thought(&format!("That step failed: {reason}")).await;
+                            continue;
+                        }
+                    }
                     if text.trim().is_empty() {
                         continue;
                     }
@@ -1320,7 +1333,7 @@ impl Driver {
         *self.path.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn elapsed_ms(&self) -> u64 {
+    pub(super) fn elapsed_ms(&self) -> u64 {
         u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX)
     }
 
@@ -1387,6 +1400,7 @@ impl Driver {
                 file: step.file,
                 url: step.url,
             },
+            step: step.step,
         };
         let call = match self.fill_options(call.clone()).await {
             Ok(call) => call,

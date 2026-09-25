@@ -2070,6 +2070,7 @@
         "propose_endpoint": "Endpunkt entworfen",
         "edit_endpoint": "Änderung des Endpunkts geprüft",
         "space_complete": "Quelle geprüft und Raum entworfen",
+        "profile_sample": "Zeilen und Spalten der Datei gelesen",
         "compute_kpi": "Kennzahl berechnet",
         "draft_kpi_pipeline": "Pipeline entworfen"
       },

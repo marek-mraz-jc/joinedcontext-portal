@@ -112,6 +112,26 @@ describe("the action inspector", () => {
     expect(label).toHaveAttribute("title", label.textContent ?? "");
   });
 
+  // T-2695: the Portal's own step on a handed-over file reads as what it did, never its name.
+  it("names the profile of a handed-over file in words", () => {
+    renderPanel(true, [
+      {
+        seq: 1,
+        kind: "tool",
+        payload: {
+          tool: "profile_sample",
+          status: "ok",
+          durationMs: 1,
+          input: { name: "stations.csv", format: "csv" },
+          output: { rows: 2, columns: ["station", "bikes"] },
+        },
+      },
+    ]);
+    const [step] = screen.getAllByRole("group");
+    expect(within(step).getByText(en.agentRun.step.label.profile_sample)).toBeInTheDocument();
+    expect(within(step).queryByText("profile_sample")).toBeNull();
+  });
+
   it("offers no fix once the run is over", () => {
     renderPanel(false);
     const failed = screen.getAllByRole("group")[1];

@@ -38,6 +38,7 @@ use jc_core::kinds::Verb;
 mod code_pass;
 mod conversation;
 mod edit_loop;
+mod integrate;
 mod model;
 mod tools_change;
 mod tools_data;

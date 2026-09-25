@@ -33,6 +33,8 @@ pub struct FirstStep {
     /// The step also takes a file dropped, or a feed's address (T-2694).
     pub file: bool,
     pub url: bool,
+    /// The name the Portal knows the step's answer by, when it takes the next step itself.
+    pub step: Option<&'static str>,
 }
 
 /// One fixed option of a first step.
@@ -160,6 +162,7 @@ impl Path {
             page: None,
             file: false,
             url: false,
+            step: None,
         };
         match self {
             // A feed's address and a file are the step's own inputs, beside the options.
@@ -167,6 +170,7 @@ impl Path {
                 options: SOURCES,
                 file: true,
                 url: true,
+                step: Some("integrate-source"),
                 ..free("Where does the data come from?")
             },
             Path::UploadData => FirstStep {

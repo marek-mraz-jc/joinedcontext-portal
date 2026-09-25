@@ -2070,6 +2070,7 @@
         "propose_endpoint": "Pripravil endpoint",
         "edit_endpoint": "Skontroloval zmenu endpointu",
         "space_complete": "Skontroloval zdroj a pripravil priestor",
+        "profile_sample": "Prečítal riadky a stĺpce súboru",
         "compute_kpi": "Vypočítal ukazovateľ",
         "draft_kpi_pipeline": "Pripravil pipeline"
       },

@@ -2070,6 +2070,7 @@
         "propose_endpoint": "Drafted the endpoint",
         "edit_endpoint": "Checked the endpoint's change",
         "space_complete": "Checked the feed and drafted the space",
+        "profile_sample": "Read the file's rows and columns",
         "compute_kpi": "Computed the indicator",
         "draft_kpi_pipeline": "Drafted the pipeline"
       },

@@ -452,6 +452,9 @@ pub(super) struct AskCall {
     pub min: Option<usize>,
     pub max: Option<usize>,
     pub input: AskInput,
+    /// Which step of a path the Portal takes itself this question is (T-2695); the model's own
+    /// questions are none.
+    pub step: Option<&'static str>,
 }
 
 /// The kinds a question may offer by name (AG-83): `pick` as the model spells it, and the kind.
@@ -671,6 +674,7 @@ fn parse_ask(arguments: &Value) -> Result<AskCall, String> {
         min,
         max,
         input,
+        step: None,
     })
 }
 
@@ -960,6 +964,7 @@ impl Driver {
                 "min": call.min,
                 "max": call.max,
                 "input": call.input.payload(),
+                "step": call.step,
                 "elapsedMs": elapsed_ms,
             }),
         )
