@@ -53,7 +53,7 @@
     "people": {
       "create": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "assistant": "jc_person_create",
         "routes": [
           "POST /api/v1/organization/people"
         ]
@@ -63,25 +63,25 @@
           "spec": "organization.spec.ts",
           "test": "an administrator reads the organization and grants a role that reaches the person"
         },
-        "assistantOwed": "T-2732"
+        "assistant": "jc_person_get"
       },
       "edit": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "assistant": "jc_person_edit",
         "routes": [
           "PATCH /api/v1/organization/people/{id}"
         ]
       },
       "disable": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "assistant": "jc_person_disable",
         "routes": [
           "POST /api/v1/organization/people/{id}/disable"
         ]
       },
       "enable": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "assistant": "jc_person_enable",
         "routes": [
           "POST /api/v1/organization/people/{id}/enable"
         ]
@@ -102,7 +102,7 @@
       },
       "sign-out-everywhere": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "assistant": "jc_person_sign_out",
         "routes": [
           "POST /api/v1/organization/people/{id}/sign-out"
         ]
@@ -119,7 +119,7 @@
           "spec": "organization.spec.ts",
           "test": "a viewer is told who can see the members, and the list is never fetched for them"
         },
-        "assistantOwed": "T-2732"
+        "assistant": "jc_person_list"
       }
     },
     "groups": {
@@ -189,7 +189,7 @@
       },
       "copy": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "personOnly": "copying a whole repository of the forge under a new slug is a person's decision in the Portal, not a tool a run holds (PF-89)",
         "routes": [
           "POST /api/v1/projects/{project}/duplicate"
         ]
@@ -524,7 +524,7 @@
       },
       "retry-rejected": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "personOnly": "a person replays the records they picked on the pipeline page once the fix merged; the assistant changes the mapping with `jc_pipeline_propose` (PL-61)",
         "routes": [
           "POST /api/v1/projects/{project}/pipelines/{name}/rejected/retry"
         ]
@@ -1003,7 +1003,7 @@
           "spec": "apps-samples.spec.ts",
           "test": "each sample application is built from its own repository and the catalog says which commit"
         },
-        "assistantOwed": "T-2732",
+        "personOnly": "a person asks the forge to run the App's reviewed build.yml again; the assistant changes an application by a run, which the workflow builds on merge (AP-103)",
         "routes": [
           "POST /api/v1/projects/{project}/apps/{name}/rebuild"
         ]
@@ -1020,7 +1020,7 @@
           "spec": "apps-fullstack.spec.ts",
           "test": "a steward adds, corrects and removes a station, and the viewer sees it"
         },
-        "assistantOwed": "T-2732"
+        "personOnly": "an App's form is used inside the App by a person signed in to it; the assistant prepares the same entity writes with `write_entities`, which the person applies (AG-78)"
       },
       "refused-no-permission": {
         "live": {
@@ -1147,14 +1147,14 @@
       },
       "drift-adopt": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "personOnly": "which side of a drift wins is a resolution a person picks, held to propose on Entity",
         "routes": [
           "POST /api/v1/projects/{project}/drift/{space}/{id}/adopt"
         ]
       },
       "drift-revert": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "personOnly": "a revert writes the repository's entity into the live space at once, with no Change to approve, so a person picks it",
         "routes": [
           "POST /api/v1/projects/{project}/drift/{space}/{id}/revert"
         ]
