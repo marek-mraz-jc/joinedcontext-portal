@@ -31,5 +31,5 @@ spec:
     - pm25
     - dataProvider
   operations:
-  - queryTemporal
+  - retrieveTemporal
   temporalQ: timerel=after;timeAt=P-1D

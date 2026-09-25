@@ -244,6 +244,18 @@ describe("history", () => {
     expect(historyOf(null, "speed")).toEqual([]);
   });
 
+  it("an endpoint's 404 is a history with nothing in it, and a refusal stays a refusal (T-2972)", async () => {
+    const answering = (status: number) => async (): Promise<JcResponse> => ({
+      status,
+      body: { title: "Refused", detail: "Access Denied by Policy" },
+    });
+    await expect(endpointSource("demo", answering(404)).history!("urn:x", "a", { lastN: 5 })).resolves.toEqual([]);
+    await expect(endpointSource("demo", answering(403)).history!("urn:x", "a", { lastN: 5 })).rejects.toMatchObject({
+      status: 403,
+      message: "Access Denied by Policy",
+    });
+  });
+
   it("a space's history hides a missing grant like its query", async () => {
     const transport = async (): Promise<JcResponse> => ({ status: 404, body: { title: "Not Found" } });
     await expect(spaceSource("s", transport).history!("urn:x", "a", { lastN: 5 })).rejects.toMatchObject({

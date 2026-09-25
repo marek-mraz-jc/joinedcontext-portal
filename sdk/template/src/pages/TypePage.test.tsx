@@ -70,6 +70,9 @@ describe("template", () => {
     expect(screen.getByRole("heading", { name: "Station" })).toBeInTheDocument();
     expect(await screen.findByText("Entities per type")).toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    // The summary's numbers reach a screen reader through the chart's table (T-2974).
+    const summary = within(screen.getByRole("figure", { name: "Entities per type" })).getByRole("table");
+    expect(within(summary).getByRole("row", { name: "Note 1" })).toBeInTheDocument();
   });
 
   it("AP-138: the overview maps located data and charts every type that has something to chart", async () => {
