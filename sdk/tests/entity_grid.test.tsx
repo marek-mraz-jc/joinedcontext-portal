@@ -44,9 +44,27 @@ describe("EntityGrid", () => {
   it("renders value with unit", async () => {
     render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
     await waitFor(() => {
-      expect(screen.getByText("5 C62")).toBeInTheDocument();
-      expect(screen.getByText("3 C62")).toBeInTheDocument();
+      expect(screen.getByText("5")).toBeInTheDocument();
+      expect(screen.getByText("3")).toBeInTheDocument();
     });
+  });
+
+  it("writes a value with its unit's symbol and names the unit on hover (DM-06)", async () => {
+    const air = parseGridConfig({
+      source: { kind: "fixture", name: "air" },
+      type: "AirQualityObserved",
+      columns: [{ attr: "pm10", label: "PM10" }],
+      pageSize: 10,
+    }).config!;
+    const station = {
+      id: "urn:ngsi-ld:AirQualityObserved:hel:helsinki:1",
+      type: "AirQualityObserved",
+      pm10: { type: "Property", value: 12, unitCode: "GQ" },
+    };
+    render(<EntityGrid config={air} source={fixtureSource([station])} />);
+    const cell = await screen.findByText("12 µg/m³");
+    expect(cell.closest("td")).toHaveAttribute("title", "microgram per cubic metre (GQ)");
+    expect(screen.getByRole("columnheader", { name: /PM10 \(µg\/m³\)/ })).toBeInTheDocument();
   });
 
   it("toggles observedAt column via header menu", async () => {
@@ -433,7 +451,7 @@ describe("EntityGrid", () => {
       fireEvent.click(sort);
       // Ascending by the page's own values: 3 before 5, and the header says which way it went.
       const cells = screen.getAllByRole("gridcell").map((cell) => cell.textContent);
-      expect(cells.indexOf("3 C62")).toBeLessThan(cells.indexOf("5 C62"));
+      expect(cells.indexOf("3")).toBeLessThan(cells.indexOf("5"));
       expect(screen.getByRole("button", { name: `${DEFAULT_LABELS.sortPage} Bikes` }).textContent).toContain("↑");
     });
   });

@@ -26,7 +26,7 @@ spec:
       Sensoren, Fahrzeuge oder Gebäude selbst, alle nach einem Datenmodell. Geben Sie ihm einen
       kurzen Namen und wählen Sie das Modell; hinein kommt es über eine Pipeline, hinaus über
       einen Endpunkt.
-  order: [name, title, dataModelRef, defaultLocale, isSandbox, ttlDays]
+  order: [name, title, dataModelRef, defaultLocale, missingUnitCode, isSandbox, ttlDays]
   groups:
     - title:
         en: Basics
@@ -38,7 +38,7 @@ spec:
         sk: Názov, popisný titulok a dátový model pre tento kontextový priestor.
         cs: Název, popisný titulek a datový model pro tento kontextový prostor.
         de: Name, Titel und Datenmodell für diesen Kontextraum.
-      fields: [name, title, dataModelRef, defaultLocale]
+      fields: [name, title, dataModelRef, defaultLocale, missingUnitCode]
     - title:
         en: Sandbox settings
         sk: Nastavenia pieskoviska
@@ -79,6 +79,12 @@ spec:
         sk: Hlavný jazyk viacjazyčných vlastností entít, ak nie je vyžiadaný konkrétny jazyk.
         cs: Hlavní jazyk vícejazyčných vlastností entit, pokud není vyžádán konkrétní jazyk.
         de: Standardsprache für mehrsprachige Entitätseigenschaften, wenn keine bestimmte Sprache angefragt wird.
+    missingUnitCode:
+      help:
+        en: What a write without the unit of a measured value gets. Fill writes the model's unit (µg/m³ for PM10); refuse turns the write away so the sender fixes it.
+        sk: Čo dostane zápis nameranej hodnoty bez jednotky. Doplniť zapíše jednotku z modelu (µg/m³ pre PM10); odmietnuť zápis vráti, aby ho odosielateľ opravil.
+        cs: Co dostane zápis naměřené hodnoty bez jednotky. Doplnit zapíše jednotku z modelu (µg/m³ pro PM10); odmítnout zápis vrátí, aby ho odesílatel opravil.
+        de: Was ein Schreibvorgang ohne die Einheit eines Messwerts bekommt. Ergänzen schreibt die Einheit des Modells (µg/m³ für PM10); ablehnen weist ihn zurück, damit der Absender ihn korrigiert.
     isSandbox:
       help:
         en: Mark as a temporary environment used for experiments and app previews.

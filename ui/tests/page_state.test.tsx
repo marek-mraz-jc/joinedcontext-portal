@@ -130,6 +130,61 @@ describe("the page's failed state", () => {
     });
   });
 
+  const problem = (status: number, detail: string) => ({ type: "about:blank", status, title: "x", detail });
+
+  it("T-2747: a refusal says who gives access", () => {
+    show(<PageFailed error={new ApiError(403, "Forbidden", problem(403, "You may not read the project helsinki."))} />);
+    expect(screen.getByText("You may not read the project helsinki.")).toBeInTheDocument();
+    expect(screen.getByText(en.app.error.forbiddenHint)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("T-2747: a missing object offers the page's way back to its list", () => {
+    show(
+      <PageFailed
+        error={new ApiError(404, "Not found", problem(404, "There is no endpoint bikes."))}
+        back={<a href="/projects/helsinki/endpoints">Back to the endpoints</a>}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Back to the endpoints" })).toHaveAttribute("href", "/projects/helsinki/endpoints");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("T-2747: a server failure offers Retry and its reference, never the stack", async () => {
+    const retry = vi.fn();
+    show(
+      <PageFailed
+        error={new ApiError(502, "Bad Gateway", problem(502, "The configuration store did not answer."), "3f2c1a9e6b1d4c3e")}
+        onRetry={retry}
+      />,
+    );
+    expect(screen.getByText("The configuration store did not answer.")).toBeInTheDocument();
+    expect(screen.getByText("3f2c1a9e6b1d4c3e")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: en.app.error.retry }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("T-2747: a lost connection says so and offers Retry", () => {
+    show(<PageFailed error={new TypeError("Failed to fetch")} onRetry={vi.fn()} />);
+    expect(screen.getByText(en.app.error.generic)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+  });
+
+  it("T-2747: an ended session says to sign in again rather than showing an empty page", () => {
+    show(<PageFailed error={new ApiError(401, "Unauthorized", problem(401, "unauthenticated"))} onRetry={vi.fn()} />);
+    expect(screen.getByText(en.app.error.session)).toBeInTheDocument();
+    expect(screen.queryByText("unauthenticated")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("T-2747: every kind reads in every locale the Portal ships", async () => {
+    await inEveryLocale(async (locale) => {
+      for (const key of ["app.error.session", "app.error.forbiddenHint", "app.error.reference"]) {
+        expect(i18n.t(key), `${locale} ${key}`).not.toMatch(/^app\./);
+      }
+    });
+  });
+
   it("has no axe violation, with the button and without it", async () => {
     const withRetry = show(<PageFailed error={new Error("gone")} onRetry={() => {}} />);
     await expectNoAxeViolations(withRetry.container);

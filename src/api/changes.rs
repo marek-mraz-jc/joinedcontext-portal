@@ -63,6 +63,63 @@ pub struct ChangeProposal {
     /// copy first, and whose (UI-63, CC-79).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
+    /// The changes this one waits on, each with where it stands (MF-48): it names what they
+    /// create, so it merges after them, and a `Rejected` one flags it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub waits_on: Vec<AwaitedChange>,
+}
+
+/// A change another one waits on (MF-48).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AwaitedChange {
+    pub name: String,
+    pub phase: ChangePhase,
+}
+
+/// The changes the merge request `pr` waits on, read from its body and asked of the forge
+/// (MF-48). One the forge no longer knows is `Rejected`: what it would have created never will be.
+async fn awaited_changes(
+    state: &AppState,
+    gitea: &GiteaClient,
+    pr: &PullRequest,
+    project: &str,
+) -> Result<Vec<AwaitedChange>, ApiError> {
+    let mut awaited = Vec::new();
+    for number in crate::references::waited_on(&pr.body) {
+        let phase = match gitea.pull_request(number).await {
+            Ok(other) if other.merged => ChangePhase::Merged,
+            Ok(other) if other.state == "closed" => ChangePhase::Rejected,
+            Ok(_) => ChangePhase::PendingApproval,
+            Err(GitError::NotFound) => ChangePhase::Rejected,
+            Err(err) => return Err(err.into()),
+        };
+        awaited.push(AwaitedChange {
+            name: change_meta(state, gitea, number, project).name,
+            phase,
+        });
+    }
+    Ok(awaited)
+}
+
+/// Refuses the approval of a change that waits on one not merged yet (MF-48): it names what that
+/// change creates, and merging first would commit a reference to nothing.
+fn merges_after(id: &str, awaited: &[AwaitedChange]) -> Result<(), ApiError> {
+    match awaited
+        .iter()
+        .find(|other| other.phase != ChangePhase::Merged)
+    {
+        None => Ok(()),
+        Some(other) if other.phase == ChangePhase::Rejected => Err(ApiError::Conflict(format!(
+            "change proposal '{id}' names what {} would have created, and {} was rejected; \
+             reject this change, or propose it again naming a resource that is there (MF-48)",
+            other.name, other.name
+        ))),
+        Some(other) => Err(ApiError::Conflict(format!(
+            "change proposal '{id}' names what {} creates; approve {} first, then this one (MF-48)",
+            other.name, other.name
+        ))),
+    }
 }
 
 impl ChangeProposal {
@@ -729,6 +786,8 @@ fn build_proposal(
         files: None,
         file_count: None,
         workspace: workspace_of(&pr.head_branch),
+        // Filled by the caller, which asks the forge (MF-48).
+        waits_on: Vec::new(),
     }
 }
 
@@ -845,6 +904,7 @@ pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeL
         // The count only: a listing that read every file of every open change to render
         // "+3 files" would pay for the detail page on the way past it (T-0861).
         proposal.file_count = Some(carried.len());
+        proposal.waits_on = awaited_changes(state, gitea, &pr, project).await?;
         proposals.push(proposal);
     }
 
@@ -916,6 +976,7 @@ pub async fn change_for(
     });
     Ok(ChangeProposal {
         metadata: change_meta(state, gitea, pr_number, project),
+        waits_on: awaited_changes(state, gitea, &pr, project).await?,
         author,
         file_count: Some(files.len()),
         files: Some(files),
@@ -1256,6 +1317,7 @@ pub async fn approve_change_for(
     // lane; a native file approves under the kind its directory names.
     let (bundle_lane, deletes_every_kind) =
         approve_every_file(state, identity, project, gitea, &pr).await?;
+    merges_after(id, &awaited_changes(state, gitea, &pr, project).await?)?;
 
     let author = human_author(gitea, &pr).await;
     let is_author = match (&author.email, &identity.email) {

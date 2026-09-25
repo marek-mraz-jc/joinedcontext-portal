@@ -82,3 +82,7 @@ export { download, toCsv, toGeoJson, toPdf, toPng } from "../artifact";
 // Application Bootstrap
 export { startApp } from "./start";
 export { reportError } from "./report";
+
+// UN/CEFACT units (DM-06): the platform's code list, and a value written with its unit's symbol.
+export { UNITS, conversion, convertible, formatValue, unitLabel, unitOf, unitSymbol, unitTitle } from "./units";
+export type { Unit } from "./units";
