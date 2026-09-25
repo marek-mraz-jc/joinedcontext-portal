@@ -994,7 +994,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "endpoint_admits_person.test.ts",

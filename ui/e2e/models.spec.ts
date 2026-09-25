@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-// The Data models page as a person meets it (T-2765; DM-61, DM-62): the list of the project's
+// The Data models page as a person meets it (T-2765, T-2762; DM-61, DM-62): the list of the project's
 // models, one click to a model's own page, and its diagram, form and YAML. `vite preview` has no
 // Portal API behind it, so the API is answered in the browser; the pages are the real build.
 
@@ -79,6 +79,7 @@ async function stubApi(page: Page): Promise<void> {
     if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
     if (path.endsWith("/datamodels")) return json(MODELS);
     if (path.endsWith("/spaces")) return json(SPACES);
+    if (path.endsWith("/spaces/helsinki")) return json(SPACES.items[0]);
     if (path.endsWith("/endpoints")) return json(ENDPOINTS);
     if (path === "/api/v1/tools/generate") return json(ARTIFACTS);
     return json(list([]));
@@ -114,6 +115,17 @@ test.describe("the data models", () => {
 
     await page.getByRole("link", { name: "All data models" }).click();
     await expect(page).toHaveURL(/\/projects\/helsinki\/models$/);
+  });
+
+  test("the space shows its model, and the model's name opens the model's page", async ({ page }) => {
+    await stubApi(page);
+    await page.goto("/projects/helsinki/spaces/helsinki?lang=en");
+    const model = page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name: "Data model" }) });
+    await expect(model.getByRole("group", { name: "The model's classes and what joins them" })).toBeVisible();
+    await model.getByRole("tab", { name: "YAML" }).click();
+    await expect(model.getByLabel("The model's LinkML")).toContainText("permissible_values:");
+    await model.getByRole("link", { name: "Helsinki city context" }).click();
+    await expect(page).toHaveURL(/\/projects\/helsinki\/models\/helsinki$/);
   });
 
   test("a model's address opens its page, and an unknown one says so", async ({ page }) => {

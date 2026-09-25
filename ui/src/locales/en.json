@@ -342,7 +342,12 @@
       "noPolicies": "This space has no policy yet.",
       "assignee": "Assignee",
       "operations": "Operations",
-      "copyId": "Copy the id {id}"
+      "copyId": "Copy the id {id}",
+      "model": "Data model",
+      "modelEmpty": "This space has no data model yet",
+      "modelEmptyLead": "A data model names the space's entity types and their attributes. Create one or import a Smart Data Model for this space.",
+      "modelCreate": "Create a data model",
+      "modelImport": "Import a Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
