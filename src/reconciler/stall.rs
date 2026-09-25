@@ -89,6 +89,22 @@ impl StallWatch {
     }
 }
 
+/// Whether the author's `bento.yaml` ends with `mapping: root = deleted()` (T-2979): such a
+/// stream does its work in its processors (the vehicles reaper deletes with an `http` one) and
+/// no message ever reaches the output, so `sent` standing still says nothing about it. Only
+/// the last processor counts: a filter midway that drops everything is the stall this watch
+/// exists for (T-2961).
+pub fn writes_through_processors(bento: &str) -> bool {
+    serde_yaml_ng::from_str::<serde_json::Value>(bento)
+        .ok()
+        .and_then(|config| {
+            let last = config.pointer("/pipeline/processors")?.as_array()?.last()?;
+            let mapping = last.get("mapping")?.as_str()?;
+            Some(mapping.split_whitespace().collect::<String>() == "root=deleted()")
+        })
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,6 +237,32 @@ mod tests {
             watch.observe("helsinki", "hfp", &blind, after(t0, 30)),
             None
         );
+    }
+
+    #[test]
+    fn only_a_last_processor_that_drops_everything_writes_through_processors() {
+        let ends = |last: &str| {
+            format!("pipeline:\n  processors:\n    - mapping: root = this\n    - {last}\n")
+        };
+        assert!(writes_through_processors(&ends(
+            "mapping: root = deleted()"
+        )));
+        assert!(writes_through_processors(&ends(
+            "mapping: |\n        root  =  deleted()\n"
+        )));
+        // A conditional drop, a filter midway, another processor at the end: the output is written.
+        assert!(!writes_through_processors(&ends(
+            "mapping: root = if this.stale { deleted() }"
+        )));
+        assert!(!writes_through_processors(
+            "pipeline:\n  processors:\n    - mapping: root = deleted()\n    - mapping: root = this\n"
+        ));
+        assert!(!writes_through_processors(&ends(
+            "log:\n        message: done"
+        )));
+        // Nothing to read: no processors, not YAML at all.
+        assert!(!writes_through_processors("pipeline: {}\n"));
+        assert!(!writes_through_processors("pipeline: [\n"));
     }
 
     #[test]

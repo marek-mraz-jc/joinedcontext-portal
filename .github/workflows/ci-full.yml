@@ -41,12 +41,22 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
       - run: cd sdk && pnpm install --frozen-lockfile && pnpm build
+      # The pipeline runner at the digest components/pipeline-runner/images.yaml pins, in streams
+      # mode, for the tests that replace and delete a stream whose write fails (T-2983). A
+      # service container cannot be given the `streams` argument, so it is started here. The
+      # three variables are placeholders the outcome sink names; nothing answers at that URL.
+      - run: >-
+          docker run -d --name pipeline-runner -p 4195:4195
+          -e JC_CLIENT_ID=ci -e JC_CLIENT_SECRET=ci -e JC_TOKEN_URL=http://127.0.0.1:9/token
+          ghcr.io/warpstreamlabs/bento@sha256:656c55de3f8deddd4ee743f3c76f3b497e67324e940f2bc1769693cd8b906364
+          streams
       # Every test binary runs: without --no-fail-fast the first failing one hid the rest
       # (resource_mutate_tests was red for hours behind kit_pass_tests, T-2859).
       - run: cargo test --workspace --all-targets --all-features --no-fail-fast
         env:
           JC_PREVIEW_OUT: "${{ runner.temp }}/preview"
           JC_PORTAL_TEST_DATABASE_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
+          JC_PORTAL_TEST_BENTO_URL: http://127.0.0.1:4195
       # The template's preview document, as the test above wrote it, rendered in a sandboxed
       # frame with its own policy (SDK-16, T-0678).
       - run: cd sdk && pnpm exec playwright install --with-deps chromium && pnpm e2e

@@ -1449,7 +1449,12 @@ pub fn render_merged(
             ))
         }
         1 => outputs.remove(0),
-        _ => serde_json::json!({ "broker": { "pattern": "fan_out", "outputs": outputs } }),
+        // Fail fast (PL-53, T-2983): a write that fails after its own retries is nacked back to
+        // the input, which replays it to every output, each an idempotent upsert. Plain
+        // `fan_out` retries it inside the broker without heeding a stop.
+        _ => {
+            serde_json::json!({ "broker": { "pattern": "fan_out_fail_fast", "outputs": outputs } })
+        }
     };
 
     Ok(serde_json::json!({
@@ -2586,9 +2591,13 @@ output:
             "the space is written in: {text}"
         );
         // The write is unchanged and first; the outcome sink follows it only once it took the
-        // batch, and drops rather than retries (PL-62).
+        // batch, and drops rather than retries (PL-62). A failed write goes back to the input
+        // rather than round the broker forever, so the stream can always stop (T-2983).
         let outputs = &staged["output"]["broker"]["outputs"];
-        assert_eq!(staged["output"]["broker"]["pattern"], "fan_out_sequential");
+        assert_eq!(
+            staged["output"]["broker"]["pattern"],
+            "fan_out_sequential_fail_fast"
+        );
         assert_eq!(
             outputs[0]["http_client"]["verb"], "POST",
             "the write is unchanged"
@@ -3348,8 +3357,9 @@ output:
             .as_str()
             .is_some_and(|m| m.contains("array")));
 
+        // A failed write goes back to the input rather than round the broker forever (T-2983).
         let output = &stream["output"]["broker"];
-        assert_eq!(output["pattern"], "fan_out");
+        assert_eq!(output["pattern"], "fan_out_fail_fast");
         let outputs = output["outputs"].as_array().expect("outputs");
         assert_eq!(outputs.len(), 2);
         assert!(outputs[1]["http_client"]["url"]

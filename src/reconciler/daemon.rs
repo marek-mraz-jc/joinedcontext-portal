@@ -1229,17 +1229,13 @@ impl Syncer {
                     StreamOutcome::Live => {
                         // Errors and nothing ever sent, else records in and nothing out for the
                         // stall window (T-2967); an unreachable runner changes neither.
-                        let body = counters.get(&ns).and_then(Option::as_deref);
-                        let verdict = body
-                            .and_then(|body| failing(body, &name))
-                            .map(|said| ("NothingWritten", said))
-                            .or_else(|| {
-                                let metrics =
-                                    crate::api::pipelines::scrape(body?, &name, String::new());
-                                self.stalls
-                                    .observe(&ns, &name, &metrics, now)
-                                    .map(|said| ("Stalled", said))
-                            });
+                        let verdict = writing_verdict(
+                            &self.stalls,
+                            (&ns, &name),
+                            counters.get(&ns).and_then(Option::as_deref),
+                            bentos.get(&(ns.clone(), name.clone())).map(String::as_str),
+                            now,
+                        );
                         if let Some(status) = envelope.status.as_mut() {
                             status.phase = crate::resource::Phase::Live;
                             status.conditions = match verdict {
@@ -2186,6 +2182,30 @@ impl Drop for Scratch {
     }
 }
 
+/// What a Live stream's counters say about its writing: errors and nothing ever sent
+/// (`NothingWritten`), else records in and nothing out for the stall window (`Stalled`, T-2967).
+/// `body` is the runner's scrape, absent when it did not answer; `bento` the author's file, whose
+/// stream may write through its processors and never reach the output (T-2979).
+fn writing_verdict(
+    stalls: &super::stall::StallWatch,
+    (project, pipeline): (&str, &str),
+    body: Option<&str>,
+    bento: Option<&str>,
+    now: std::time::Instant,
+) -> Option<(&'static str, String)> {
+    let body = body?;
+    if let Some(said) = failing(body, pipeline) {
+        return Some(("NothingWritten", said));
+    }
+    if bento.is_some_and(super::stall::writes_through_processors) {
+        return None;
+    }
+    let metrics = crate::api::pipelines::scrape(body, pipeline, String::new());
+    stalls
+        .observe(project, pipeline, &metrics, now)
+        .map(|said| ("Stalled", said))
+}
+
 /// What a Live stream's counters say when it is not writing (T-0914).
 ///
 /// Errors and nothing sent is a stream that runs and never lands: a source that refuses the
@@ -3019,6 +3039,62 @@ output_error{stream="kpi"} 6
         assert_eq!(unknown.conditions[0].reason.as_deref(), Some("Follower"));
         // And the leader's own record of the same mirror is what a follower reads back.
         assert_eq!(stream_phases(&mirror).len(), 3);
+    }
+
+    /// T-2979: a stream whose author's last processor drops every message writes through its
+    /// processors (the vehicles reaper deletes with an `http` one) and is not watched for a
+    /// stall; its processors' errors still say NothingWritten, and a stream that writes through
+    /// its output with the same counters is still Stalled.
+    #[test]
+    fn a_stream_that_drops_every_message_at_the_end_is_not_stalled() {
+        use crate::reconciler::stall::{StallWatch, WINDOW};
+        const REAPER: &str = "pipeline:\n  processors:\n    - mapping: root = this\n    - http:\n        url: http://gw/delete\n    - mapping: root = deleted()\n";
+        const FILTER: &str =
+            "pipeline:\n  processors:\n    - mapping: root = if this.stale { deleted() }\n";
+        let took = |received: u64, errors: u64| {
+            format!(
+                "input_received{{label=\"input\",stream=\"p\"}} {received}\n\
+                 output_sent{{label=\"output\",stream=\"p\"}} 0\n\
+                 processor_error{{label=\"processor_1\",stream=\"p\"}} {errors}\n"
+            )
+        };
+        let start = std::time::Instant::now();
+        let later = start + WINDOW;
+        let verdicts = |bento: &str, errors: u64| {
+            let stalls = StallWatch::default();
+            let first = writing_verdict(
+                &stalls,
+                ("hel", "p"),
+                Some(&took(12, errors)),
+                Some(bento),
+                start,
+            );
+            let second = writing_verdict(
+                &stalls,
+                ("hel", "p"),
+                Some(&took(24, errors)),
+                Some(bento),
+                later,
+            );
+            (
+                first.map(|(reason, _)| reason),
+                second.map(|(reason, _)| reason),
+            )
+        };
+
+        assert_eq!(verdicts(REAPER, 0), (None, None));
+        assert_eq!(
+            verdicts(REAPER, 3),
+            (Some("NothingWritten"), Some("NothingWritten"))
+        );
+        assert_eq!(verdicts(FILTER, 0), (None, Some("Stalled")));
+        // No bento.yaml at all (an inline compute): watched as before.
+        let stalls = StallWatch::default();
+        assert!(writing_verdict(&stalls, ("hel", "p"), Some(&took(12, 0)), None, start).is_none());
+        assert_eq!(
+            writing_verdict(&stalls, ("hel", "p"), Some(&took(24, 0)), None, later).map(|(r, _)| r),
+            Some("Stalled")
+        );
     }
 
     /// T-2880: an HTTP source's `authorization.headerRef` reaches the runner under the name its
