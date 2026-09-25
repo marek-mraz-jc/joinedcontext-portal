@@ -631,6 +631,28 @@ async fn a_build_change_that_carries_another_file_waits_for_a_person() {
     assert!(merges(&gitea).await.is_empty(), "nothing is merged");
 }
 
+/// A merge the forge refuses (the branch moved, a conflict with `main`) leaves the lane's Change
+/// waiting for a person, the way it waited before the Portal approved builds; the write stands.
+#[tokio::test]
+async fn a_build_change_the_forge_will_not_merge_waits_for_a_person() {
+    let gitea = forge().await;
+    built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+    package_takes(&gitea, 201).await;
+    change_holds(&gitea, &[&manifest_path()]).await;
+    Mock::given(method("POST"))
+        .and(path(format!("{}/pulls/9/merge", common::REPO)))
+        .respond_with(ResponseTemplate::new(409).set_body_json(json!({ "message": "conflict" })))
+        .with_priority(1)
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea);
+
+    let accepted = as_lane(&state, app(Some(build()), None)).await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+    let change: Value = serde_json::from_str(&accepted.text).expect("a Change");
+    assert_eq!(change["status"]["phase"], "PendingApproval", "{change}");
+}
+
 /// A person's App change is theirs to have approved: the build lane's approval never reaches it.
 #[tokio::test]
 async fn a_persons_app_change_is_not_approved_by_the_portal() {
