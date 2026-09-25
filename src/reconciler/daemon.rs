@@ -691,6 +691,7 @@ impl Syncer {
                     root: org.path().to_path_buf(),
                     _staged: vec![org],
                     projects: BTreeMap::new(),
+                    unstaged: Vec::new(),
                 },
                 repository,
             ));
@@ -698,6 +699,7 @@ impl Syncer {
         let mut staged = Vec::new();
         let mut directories = BTreeMap::new();
         let mut projects = BTreeMap::new();
+        let mut unstaged = Vec::new();
         for (slug, entry) in read_registry(org.path())? {
             let git_ref = entry.spec.git_ref.clone().unwrap_or_default();
             let Some(name) = entry.spec.repository.and_then(|repository| repository.name) else {
@@ -714,6 +716,7 @@ impl Syncer {
                 }
                 Err(error) => {
                     tracing::warn!(project = %slug, %git_ref, %error, "the project's repository did not stage; its last render stays");
+                    unstaged.push(slug.clone());
                 }
             }
             projects.insert(slug, (client, git_ref));
@@ -738,6 +741,7 @@ impl Syncer {
                 root: into,
                 _staged: staged,
                 projects,
+                unstaged,
             },
             assembly.repository,
         ))
@@ -1324,7 +1328,13 @@ impl Syncer {
                 .into_iter()
                 .map(|env| env.metadata.name)
                 .collect();
-            for (name, state) in hosts.converge(&published, &settings.apex).await {
+            let states = hosts.converge(&published, &settings.apex).await;
+            if scratch.unstaged.is_empty() {
+                hosts.retire(&published).await;
+            } else {
+                tracing::warn!(projects = ?scratch.unstaged, "no App host is retired this run: a project's repository did not stage, so its Apps may only be missing from this read");
+            }
+            for (name, state) in states {
                 let (reason, message) = match state {
                     super::app_hosts::HostState::Ready => continue,
                     super::app_hosts::HostState::Pending(message) => {
@@ -1975,6 +1985,10 @@ struct Render {
     _staged: Vec<Scratch>,
     /// Slug → the project's repository and the ref it renders at.
     projects: BTreeMap<String, (GiteaClient, String)>,
+    /// The registered projects whose repository did not stage in this run. What the mirror
+    /// holds of them is the last render, or nothing on a replica's first run, so a step that
+    /// removes what the mirror lacks waits for a run where this is empty.
+    unstaged: Vec<String>,
 }
 
 impl Render {
