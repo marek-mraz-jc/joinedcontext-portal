@@ -1261,6 +1261,7 @@
         "dataagreement_form.test.tsx",
         "datamodel_form.test.tsx",
         "dataoffer_form.test.tsx",
+        "dataspaceparticipant_form.test.tsx",
         "mapping_form.test.tsx",
         "resource_list_page.test.tsx"
       ]

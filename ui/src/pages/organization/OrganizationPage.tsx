@@ -43,6 +43,7 @@ export const ORGANIZATION_TABS = [
   "service-accounts",
   "blueprints",
   "agentprofiles",
+  "dataspaceparticipants",
   "projects",
   "setup",
 ] as const;
@@ -263,6 +264,9 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
         {tab === "blueprints" ? <KindList project={ORG_NAMESPACE} plural="blueprints" embedded /> : null}
         {tab === "agentprofiles" ? <KindList project={ORG_NAMESPACE} plural="agentprofiles" embedded /> : null}
+        {tab === "dataspaceparticipants" ? (
+          <KindList project={ORG_NAMESPACE} plural="dataspaceparticipants" embedded />
+        ) : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
       </div>

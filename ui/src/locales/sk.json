@@ -77,7 +77,8 @@
     "dataagreements": "Dátové dohody",
     "blueprints": "Šablóny",
     "agentprofiles": "Profily agentov",
-    "dataoffers": "Dátové ponuky"
+    "dataoffers": "Dátové ponuky",
+    "dataspaceparticipants": "Dátový priestor"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -3485,7 +3486,8 @@
       "projects": "Projekty",
       "setup": "Nastavenie",
       "blueprints": "Šablóny",
-      "agentprofiles": "Profily agentov"
+      "agentprofiles": "Profily agentov",
+      "dataspaceparticipants": "Dátový priestor"
     },
     "settings": {
       "title": "Nastavenia",
@@ -3999,6 +4001,10 @@
       "read": "Čítať",
       "propose": "Navrhovať",
       "write": "Zapisovať"
+    },
+    "connectorEngine": {
+      "rainbow": "Rainbow",
+      "edc": "Eclipse Dataspace Components"
     }
   },
   "picker": {
@@ -4281,6 +4287,17 @@
       "policy": "Ponuka (ODRL, JSON)",
       "containsPersonalData": "Obsahuje osobné údaje",
       "purpose": "Účel (DPV)"
+    }
+  },
+  "dataspaceparticipants": {
+    "field": {
+      "name": "Názov",
+      "did": "Identifikátor účastníka (did:web)",
+      "credentialIssuer": "Vydavateľ poverení",
+      "connectorUrl": "Adresa konektora",
+      "engine": "Motor konektora",
+      "trustAnchors": "Dôveryhodní vydavatelia",
+      "trustAnchor": "Dôveryhodný vydavateľ (did:web)"
     }
   }
 }

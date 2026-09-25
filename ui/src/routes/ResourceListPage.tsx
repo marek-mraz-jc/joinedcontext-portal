@@ -36,6 +36,12 @@ import {
 import type { AgentProfileForm } from "../schemas/agentprofile";
 import { dataOfferSchema, dataOfferUiSchema, fromDataOfferManifest, toDataOfferManifest } from "../schemas/dataoffer";
 import type { DataOfferForm } from "../schemas/dataoffer";
+import {
+  dataSpaceParticipantSchema,
+  fromDataSpaceParticipantManifest,
+  toDataSpaceParticipantManifest,
+} from "../schemas/dataspaceparticipant";
+import type { DataSpaceParticipantForm } from "../schemas/dataspaceparticipant";
 import type { DataAgreementForm } from "../schemas/dataagreement";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
@@ -116,6 +122,11 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
     fromManifest: (manifest) => fromBlueprintManifest(manifest) as Record<string, unknown>,
     toManifest: (form, stored) => toBlueprintManifest(form as BlueprintForm, stored),
   }),
+  dataspaceparticipants: (t) => ({
+    schema: dataSpaceParticipantSchema(t),
+    fromManifest: (manifest) => fromDataSpaceParticipantManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toDataSpaceParticipantManifest(form as DataSpaceParticipantForm, stored),
+  }),
   agentprofiles: (t) => ({
     schema: agentProfileSchema(t),
     uiSchema: agentProfileUiSchema,
@@ -134,7 +145,14 @@ const CREATE_KINDS: Record<string, string> = {
   dataoffers: "DataOffer",
   blueprints: "Blueprint",
   agentprofiles: "AgentProfile",
+  dataspaceparticipants: "DataSpaceParticipant",
 };
+
+/**
+ * Kinds jc-core keeps one of per organization, at one path whatever the name (T-1544): New is offered
+ * only once the list has answered that there is none, so a second one is never proposed over the first.
+ */
+const ONE_PER_ORGANIZATION = new Set(["dataspaceparticipants"]);
 
 /** `/api/v1/projects/{project}/{plural}`: a kind's own page, or its resources in a table (MF-11…MF-15). */
 export function ResourceListPage({
@@ -220,7 +238,7 @@ export function KindList({
   // does not — never the bare URL segment the table used as its caption (UI-01, UI-16).
   const title = t(`nav.${plural}`, { defaultValue: humanizeName(plural) });
   const newButton =
-    createKind && form ? (
+    createKind && form && !(ONE_PER_ORGANIZATION.has(plural) && (list.data === undefined || items.length > 0)) ? (
       <PermissionGuard project={project} kind={createKind} verb="propose">
         <Button
           variant="primary"

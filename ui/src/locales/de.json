@@ -77,7 +77,8 @@
     "dataagreements": "Datenvereinbarungen",
     "blueprints": "Vorlagen",
     "agentprofiles": "Agentenprofile",
-    "dataoffers": "Datenangebote"
+    "dataoffers": "Datenangebote",
+    "dataspaceparticipants": "Datenraum"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -3485,7 +3486,8 @@
       "projects": "Projekte",
       "setup": "Einrichtung",
       "blueprints": "Vorlagen",
-      "agentprofiles": "Agentenprofile"
+      "agentprofiles": "Agentenprofile",
+      "dataspaceparticipants": "Datenraum"
     },
     "settings": {
       "title": "Einstellungen",
@@ -3999,6 +4001,10 @@
       "read": "Lesen",
       "propose": "Vorschlagen",
       "write": "Schreiben"
+    },
+    "connectorEngine": {
+      "rainbow": "Rainbow",
+      "edc": "Eclipse Dataspace Components"
     }
   },
   "picker": {
@@ -4281,6 +4287,17 @@
       "policy": "Angebot (ODRL, JSON)",
       "containsPersonalData": "Enthält personenbezogene Daten",
       "purpose": "Zweck (DPV)"
+    }
+  },
+  "dataspaceparticipants": {
+    "field": {
+      "name": "Name",
+      "did": "Teilnehmerkennung (did:web)",
+      "credentialIssuer": "Nachweisaussteller",
+      "connectorUrl": "Connector-Adresse",
+      "engine": "Connector-Engine",
+      "trustAnchors": "Vertrauenswürdige Aussteller",
+      "trustAnchor": "Vertrauenswürdiger Aussteller (did:web)"
     }
   }
 }
