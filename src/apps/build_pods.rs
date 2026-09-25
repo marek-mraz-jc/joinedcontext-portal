@@ -1,4 +1,4 @@
-//! A build pod per App (AP-124, AP-125, ADR-N-028 §5 amended 2026-09-25, T-2794).
+//! A build pod per App (AP-130, AP-131, ADR-N-028 §5 amended 2026-09-25, T-2794).
 //!
 //! An App's `build` job asks for the label `app-build-{class}`, which no shared runner carries.
 //! Each pass lists the organization's queued jobs, and for a job of an App's repository creates
@@ -17,6 +17,7 @@ use serde_json::{json, Value};
 
 use crate::apps::kube::{KubeClient, KubeError};
 use crate::git::gitea::{GiteaClient, QueuedJob};
+use crate::resource::ResourceEnvelope;
 use crate::store::{ListOptions, Mirror};
 
 /// The label every build pod, its Job, its Secret and its claim carry, with the App's name.
@@ -28,7 +29,7 @@ const RUNNER_NAME: &str = "gitea-runner";
 /// How long a finished Job, its pod and its token Secret stay for a person to read the logs.
 const FINISHED_TTL_SECONDS: u64 = 600;
 
-/// Where a build pod runs and what it runs (AP-124).
+/// Where a build pod runs and what it runs (AP-130).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
     /// The runner's namespace, where the Portal may write Jobs, Secrets and claims and nothing
@@ -92,12 +93,19 @@ impl Class {
     }
 }
 
+/// An App that still builds: one the mirror holds whose lifecycle is not `retired` (AP-21).
+fn builds(app: &ResourceEnvelope) -> bool {
+    app.spec.get("lifecycle").and_then(Value::as_str) != Some("retired")
+}
+
 /// The App a repository belongs to, `(project, app)`: `{project}_{app}` names it (AP-75), and
-/// only an App the mirror holds counts, so a repository that merely looks like one gets no pod.
+/// only an App the mirror holds and that is not retired counts, so a repository that merely
+/// looks like one gets no pod.
 pub fn app_of(mirror: &Mirror, repository: &str) -> Option<(String, String)> {
     let (project, app) = repository.split_once('_')?;
     mirror
         .get(project, "App", app)
+        .filter(builds)
         .map(|_| (project.to_owned(), app.to_owned()))
 }
 
@@ -124,7 +132,7 @@ fn labels(app: &str) -> Value {
     })
 }
 
-/// The App's cache claim (AP-125).
+/// The App's cache claim (AP-131).
 pub fn claim(settings: &Settings, app: &str) -> Value {
     json!({
         "apiVersion": "v1",
@@ -141,7 +149,7 @@ pub fn claim(settings: &Settings, app: &str) -> Value {
     })
 }
 
-/// The Job that runs one forge job of one App (AP-124).
+/// The Job that runs one forge job of one App (AP-130).
 pub fn job(settings: &Settings, class: Class, app: &str, id: u64) -> Value {
     let name = job_name(app, id);
     let image = match class {
@@ -343,12 +351,13 @@ pub async fn dispatch_once(
         .namespaces()
         .iter()
         .flat_map(|namespace| mirror.list(namespace, "App", &ListOptions::default()).items)
+        .filter(|app| builds(app))
         .map(|app| app.metadata.name)
         .collect();
     // ponytail: a mirror that holds no App at all is read as "not loaded yet" and sweeps
     // nothing, so a restart never empties every cache; the last App's claim then waits for the
-    // project's next App to go.
-    if apps.is_empty() {
+    // organization's next App to go.
+    if mirror.is_empty() {
         return Ok(pass);
     }
     for claim in kube
@@ -474,6 +483,19 @@ mod tests {
         );
         assert_eq!(app_of(&mirror, "helsinki_events"), None);
         assert_eq!(app_of(&mirror, "configuration"), None);
+
+        mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "App".into(),
+            metadata: ObjectMeta::new("old", "helsinki"),
+            spec: json!({ "lifecycle": "retired" }),
+            status: None,
+        });
+        assert_eq!(
+            app_of(&mirror, "helsinki_old"),
+            None,
+            "a retired App builds no more"
+        );
     }
 
     #[test]

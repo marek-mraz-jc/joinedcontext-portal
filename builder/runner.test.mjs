@@ -1,5 +1,5 @@
 // node --test builder/runner.test.mjs
-// The build pod's runner (AP-124): with GITEA_RUNNER_ONCE=1 it registers once, runs one job and
+// The build pod's runner (AP-130): with GITEA_RUNNER_ONCE=1 it registers once, runs one job and
 // ends, so the Job completes; the registration token is gone from disk before the job starts and
 // reaches `register` on stdin, never on a command line.
 import { strict as assert } from "node:assert";

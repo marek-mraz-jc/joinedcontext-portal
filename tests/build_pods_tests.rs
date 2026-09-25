@@ -1,4 +1,4 @@
-//! A build pod per App (AP-124, AP-125, T-2794).
+//! A build pod per App (AP-130, AP-131, T-2794).
 //!
 //! One pass runs against a stub that answers as both the forge and the API server, so what is
 //! asserted is what leaves the Portal: a registration token of the App's own repository, a Job
@@ -276,8 +276,9 @@ async fn a_retired_apps_cache_goes_and_a_live_apps_stays() {
             "app.kubernetes.io/component=build-pod,joinedcontext.com/build-app",
         ))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(json!({ "items": [claim("bikes"), claim("retired")] })),
+            ResponseTemplate::new(200).set_body_json(
+                json!({ "items": [claim("bikes"), claim("retired"), claim("old")] }),
+            ),
         )
         .mount(&server)
         .await;
@@ -289,17 +290,29 @@ async fn a_retired_apps_cache_goes_and_a_live_apps_stays() {
         .expect(1)
         .mount(&server)
         .await;
+    // An App the mirror still holds as `retired` loses its cache as one that is gone does.
+    Mock::given(method("DELETE"))
+        .and(path(format!(
+            "/api/v1/namespaces/{NS}/persistentvolumeclaims/build-cache-old"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .expect(1)
+        .mount(&server)
+        .await;
 
     let (kube, forge) = clients(&server);
-    let pass = dispatch_once(
-        &kube,
-        &forge,
-        &mirror(&[("helsinki", "bikes")]),
-        &settings(),
-    )
-    .await
-    .expect("the pass");
-    assert_eq!(pass.removed, ["build-cache-retired"]);
+    let apps = mirror(&[("helsinki", "bikes")]);
+    apps.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_owned(),
+        kind: "App".into(),
+        metadata: ObjectMeta::new("old", "helsinki"),
+        spec: json!({ "kind": "static", "lifecycle": "retired" }),
+        status: None,
+    });
+    let pass = dispatch_once(&kube, &forge, &apps, &settings())
+        .await
+        .expect("the pass");
+    assert_eq!(pass.removed, ["build-cache-retired", "build-cache-old"]);
 
     // A mirror that holds no App yet deletes nothing: a restart never empties the caches.
     let empty = MockServer::start().await;

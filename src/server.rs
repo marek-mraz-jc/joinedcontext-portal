@@ -172,7 +172,7 @@ pub async fn serve(config: Config) -> std::io::Result<()> {
         }
     }
 
-    // A build pod per queued App build (AP-124), on the replica that holds the lease.
+    // A build pod per queued App build (AP-130), on the replica that holds the lease.
     if let (Some(syncer), Some(gitea), Some(settings)) = (
         state.syncer.as_ref(),
         state.gitea.as_ref(),

@@ -140,7 +140,7 @@ pub struct Config {
     pub app_settings: Option<crate::apps::reconciler::Settings>,
     /// Where an App's build pods run and on which runner images (`JC_PORTAL_BUILD_NAMESPACE`
     /// with `JC_PORTAL_BUILD_IMAGE_NODE`, `JC_PORTAL_BUILD_IMAGE_RUST` and the forge's API base;
-    /// `JC_PORTAL_BUILD_CACHE_SIZE`, default `1Gi`; AP-124, AP-125). `None` starts no build pod,
+    /// `JC_PORTAL_BUILD_CACHE_SIZE`, default `1Gi`; AP-130, AP-131). `None` starts no build pod,
     /// and an App's build waits in the forge's queue.
     pub build_pods: Option<crate::apps::build_pods::Settings>,
     /// Where a builder run's workspace is scheduled and how the proxy reaches this Portal
@@ -307,7 +307,7 @@ fn apps_url(lookup: &impl Fn(&str) -> Option<String>) -> Result<Option<Url>, Con
     Ok(Some(url))
 }
 
-/// Where build pods run (AP-124): nothing when `JC_PORTAL_BUILD_NAMESPACE` is unset, and every
+/// Where build pods run (AP-130): nothing when `JC_PORTAL_BUILD_NAMESPACE` is unset, and every
 /// other part required once it is, because a namespace with no image would start pods that
 /// never run.
 fn build_pod_settings(

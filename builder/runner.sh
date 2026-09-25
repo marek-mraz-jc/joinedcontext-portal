@@ -15,7 +15,7 @@
 #   GITEA_INSTANCE           the forge's in-cluster URL
 #   GITEA_RUNNER_TOKEN_FILE  the copied registration token (default /tmp/runner-secret/token)
 #   GITEA_RUNNER_NAME        a name prefix (default: the pod's hostname)
-#   GITEA_RUNNER_ONCE        1 in an App's build pod (AP-124): register once with that App's
+#   GITEA_RUNNER_ONCE        1 in an App's build pod (AP-130): register once with that App's
 #                            repository token, take one job and end, so the Job completes
 set -eu
 

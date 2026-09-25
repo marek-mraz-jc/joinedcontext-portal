@@ -87,7 +87,7 @@ pub struct WorkflowRun {
     pub url: String,
 }
 
-/// A forge job waiting for a runner, as the build-pod dispatcher reads it (AP-124).
+/// A forge job waiting for a runner, as the build-pod dispatcher reads it (AP-130).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueuedJob {
     /// The forge's id of the job, unique in the installation.
@@ -1115,7 +1115,7 @@ impl GiteaClient {
     }
 
     /// `GET /orgs/{owner}/actions/jobs?status=queued` — every job of the organization that waits
-    /// for a runner, each with its labels and the repository it belongs to (AP-124). One page of
+    /// for a runner, each with its labels and the repository it belongs to (AP-130). One page of
     /// 50: a queue longer than that is served on the next pass.
     pub async fn queued_jobs(&self) -> Result<Vec<QueuedJob>, GitError> {
         let mut url = Url::parse(&format!(
@@ -1147,7 +1147,7 @@ impl GiteaClient {
     }
 
     /// `POST /actions/runners/registration-token` of this repository: a token a runner registers
-    /// with to take this repository's jobs and no other's (AP-124). It is a credential, so it
+    /// with to take this repository's jobs and no other's (AP-130). It is a credential, so it
     /// is returned to be written into one Secret and never logged.
     pub async fn repository_registration_token(&self) -> Result<String, GitError> {
         let url = self.repo_url("actions/runners/registration-token")?;
