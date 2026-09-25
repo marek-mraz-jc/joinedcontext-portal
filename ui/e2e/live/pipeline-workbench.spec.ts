@@ -141,6 +141,26 @@ test("a pipeline built in the workbench writes only what the model takes", async
       expect(stored.status(), "the broken station is absent or holds a number").toBe(404);
     }
 
+    // The rejected record, retried after a fix that has not happened: it is replayed through the
+    // current model, which still refuses it, so it comes back to the list.
+    await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "load" });
+    await page.getByRole("button", { name: `More actions for ${PIPELINE}` }).click();
+    await page.getByRole("menuitem", { name: "Rejected records" }).click();
+    const rejectedDialog = page.getByRole("dialog", { name: `Rejected records of ${PIPELINE}` });
+    await rejectedDialog.getByRole("checkbox", { name: "Pick every record on this page" }).check();
+    await rejectedDialog.getByRole("button", { name: /^Retry \d+ records? after fix$/ }).click();
+    await expect(rejectedDialog.getByText(/records? (was|were) replayed through the current model/)).toBeVisible({ timeout: 30_000 });
+    await rejectedDialog.getByRole("button", { name: "Close" }).click();
+    await expect
+      .poll(
+        async () => {
+          const again = await page.request.get(`/api/v1/projects/${PROJECT}/pipelines/${PIPELINE}/rejected`);
+          return again.ok() ? ((await again.json()) as { total: number }).total : 0;
+        },
+        { timeout: 120_000, intervals: [5_000], message: "the replayed record is refused again" },
+      )
+      .toBeGreaterThanOrEqual(1);
+
     // The pipeline's page shows the run with its counts, and its log names the rejected record.
     await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "load" });
     await page.getByRole("button", { name: `More actions for ${PIPELINE}` }).click();
