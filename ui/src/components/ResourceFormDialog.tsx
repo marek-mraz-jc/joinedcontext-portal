@@ -1023,6 +1023,7 @@ export function ResourceFormDialog<T>({
             <SchemaForm<T>
               schema={schema}
               project={project}
+              kind={kind ?? draftKind}
               uiSchema={lockedUiSchema}
               formData={formData}
               disabled={disabled}

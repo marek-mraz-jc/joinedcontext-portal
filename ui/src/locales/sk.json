@@ -1214,6 +1214,49 @@
       "publish": "Zverejnite tento záznam TXT v DNS domény:",
       "copy": "Kopírovať záznam",
       "copied": "Záznam skopírovaný"
+    },
+    "groupPage": {
+      "lead": "Kto je v tejto skupine a čo skupina smie.",
+      "back": "Všetky skupiny",
+      "notFound": "Skupina {name} v organizácii neexistuje.",
+      "deleteCascade": "Zmazaním skupiny ju tá istá zmena odstráni aj z {bindings} priradení rolí platformy a {apps} rolí aplikácií.",
+      "members": "Členovia",
+      "email": "E-mail osoby",
+      "addMember": "Pridať člena",
+      "removeMember": "Odobrať {member} zo skupiny",
+      "remove": "Odobrať",
+      "needEmail": "Najprv zadajte e-mailovú adresu osoby.",
+      "already": "Už je tam.",
+      "platformRoles": "Roly platformy",
+      "platformLead": "Priradenia rolí, ktoré menujú túto skupinu: aká rola a kde platí.",
+      "noPlatformRole": "Túto skupinu zatiaľ nemenuje žiadne priradenie.",
+      "roleAt": "{role}, {where}",
+      "removeRole": "Odobrať skupinu z {role}",
+      "onlySubject": "Priradenie menuje iba túto skupinu, preto ho odobratie zmaže.",
+      "where": "Kde",
+      "organization": "Celá organizácia",
+      "space": "Kontextový priestor",
+      "wholeProject": "Celý projekt",
+      "role": "Rola",
+      "pickRole": "Vyberte rolu",
+      "projectRole": "{role} (rola projektu {project})",
+      "needRole": "Najprv vyberte rolu.",
+      "refused": {
+        "projectRoleAtOrganization": "{role} je rola jedného projektu, preto ju nemožno dať pre celú organizáciu. Vyberte ten projekt alebo rolu organizácie.",
+        "projectRoleElsewhere": "{role} patrí inému projektu a platí iba tam."
+      },
+      "addRole": "Dať rolu",
+      "appRoles": "Roly aplikácií",
+      "appLead": "Roly aplikácií, ktoré má skupina {group}.",
+      "noAppRole": "Tejto skupine zatiaľ nedáva rolu žiadna aplikácia.",
+      "appRole": "{role} v {app} ({project})",
+      "removeAppRole": "Odobrať skupinu z {role}",
+      "project": "Projekt",
+      "pickProject": "Vyberte projekt",
+      "app": "Aplikácia",
+      "pickApp": "Vyberte aplikáciu",
+      "needAppRole": "Najprv vyberte projekt, aplikáciu a jednu z jej rolí.",
+      "addAppRole": "Dať rolu aplikácie"
     }
   },
   "flows": {
@@ -3311,6 +3354,8 @@
       "none": "Model priestoru {space} zatiaľ nedeklaruje žiadny typ.",
       "noneInProject": "Žiadny dátový model tohto projektu zatiaľ nedeklaruje typ.",
       "create": "Nový typ „{name}“"
-    }
+    },
+    "createNamed": "Nové: „{name}“",
+    "list": "Možnosti"
   }
 }

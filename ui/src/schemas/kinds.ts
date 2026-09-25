@@ -39,17 +39,6 @@ function titleProperty(label: string) {
   return { type: "string", title: label } as const;
 }
 
-/**
- * An entity type is picked from the models the person may read, never typed (ADR-N-033): the space's
- * model and its imports when the form's `contextSpaceRef` names one, the project's models otherwise.
- */
-export const TYPE_PICKER = { "ui:widget": "typePicker", "ui:options": { spaceField: "contextSpaceRef" } } as const;
-
-/** A space's model is one of the project's models, picked by name (ADR-N-033). */
-export const contextSpaceUiSchema: UiSchema = {
-  dataModelRef: { "ui:widget": "dataModelPicker" },
-};
-
 export function contextSpaceSchema(t: (key: string) => string): JsonSchema {
   return {
     type: "object",
@@ -1149,15 +1138,11 @@ export const pipelineUiSchema: UiSchema = {
     "quotas",
     "*",
   ],
-  source: {
-    "ui:order": ["dataSourceRef", "endpointRef", "query", "trigger", "*"],
-    trigger: { subscription: { type: TYPE_PICKER } },
-  },
+  source: { "ui:order": ["dataSourceRef", "endpointRef", "query", "trigger", "*"] },
   compute: {
     "ui:order": ["kind", "bloblang", "mappingRef", "module", "function", "*"],
     bloblang: { "ui:widget": "textarea", "ui:options": { rows: 14 } },
   },
-  output: { type: TYPE_PICKER },
 };
 
 /** What decides which fields of the pipeline form are on screen (T-2754). */
@@ -1577,7 +1562,6 @@ export function policySchema(
  */
 export const policyUiSchema: UiSchema = {
   operations: { "ui:widget": "operations" },
-  information: { items: { entities: { items: { type: TYPE_PICKER } } } },
   q: { "ui:autocomplete": "off" },
   scopeQ: { "ui:autocomplete": "off" },
   geoQ: { "ui:autocomplete": "off" },
@@ -1875,9 +1859,7 @@ export const subscriptionUiSchema: UiSchema = {
   q: { "ui:autocomplete": "off" },
   geoQ: { "ui:autocomplete": "off" },
   // UI-03: an entity's id is picked from what the chosen space serves, under the person's session.
-  entities: {
-    items: { "ui:field": "entitySelector", "ui:options": { spaceField: "contextSpaceRef" }, type: TYPE_PICKER },
-  },
+  entities: { items: { "ui:field": "entitySelector", "ui:options": { spaceField: "contextSpaceRef" } } },
 };
 
 /** What a service account's grant covers, in the order a person narrows it (PF-35). */
@@ -2061,7 +2043,7 @@ export function serviceAccountSchema(
 
 /** The operations picker for each grant, as the Policy form has it (T-2282). */
 export const serviceAccountUiSchema: UiSchema = {
-  roles: { items: { operations: { "ui:widget": "operations" }, types: { items: TYPE_PICKER } } },
+  roles: { items: { operations: { "ui:widget": "operations" } } },
 };
 
 /**
@@ -2235,7 +2217,6 @@ export function registrationUiSchema(t: (key: string) => string): UiSchema {
       },
     },
     endpoint: { "ui:autocomplete": "off" },
-    information: { items: { entities: { items: { type: TYPE_PICKER } } } },
   };
 }
 
@@ -2463,7 +2444,6 @@ export const appUiSchema: UiSchema = {
   dataNeeds: {
     items: {
       operations: { "ui:widget": "operations" },
-      types: { items: TYPE_PICKER },
       q: { "ui:autocomplete": "off" },
       scopeQ: { "ui:autocomplete": "off" },
     },

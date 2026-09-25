@@ -308,6 +308,158 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List People
+         * @description Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.
+         */
+        get: operations["list_people"];
+        put?: never;
+        /**
+         * Create Person
+         * @description Creates a person and sends the realm's execute-actions e-mail; without SMTP answers a temporary password once. Needs `create` on Person.
+         */
+        post: operations["create_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Person
+         * @description One person with their groups, platform roles and application roles. Needs `read` on Person.
+         */
+        get: operations["get_person"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Person
+         * @description Proposes one Change taking the person out of every Group and RoleBinding and disables them; the Keycloak user is deleted once it is merged. A person nothing names is deleted at once. Needs `delete` on Person and every right the person holds.
+         */
+        delete: operations["delete_person"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit Person
+         * @description Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.
+         */
+        patch: operations["edit_person"];
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable Person
+         * @description Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.
+         */
+        post: operations["disable_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable Person
+         * @description Enables a disabled person. Needs `disable` on Person.
+         */
+        post: operations["enable_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/remove-second-factor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove Second Factor
+         * @description Removes every OTP and WebAuthn credential of the person. Needs `disable` on Person and every right the person holds.
+         */
+        post: operations["remove_second_factor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Sends the realm's password reset; without SMTP answers a temporary password once. Needs `update` on Person and every right the person holds.
+         */
+        post: operations["reset_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign Person Out
+         * @description Ends every session of the person. Needs `disable` on Person and every right the person holds.
+         */
+        post: operations["sign_out_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/preferences": {
         parameters: {
             query?: never;
@@ -1953,6 +2105,13 @@ export interface components {
              */
             roles: string[];
         };
+        /** @description An application role the person holds (PF-94). */
+        AppRole: {
+            app: string;
+            project: string;
+            role: string;
+            via: Record<string, never>;
+        };
         /** @description Request body for approving or rejecting a change proposal. */
         ApproveBody: {
             confirm?: string | null;
@@ -2335,6 +2494,12 @@ export interface components {
          * @enum {string}
          */
         ConflictPolicy: "fail" | "skip" | "replace" | "rename";
+        CreatePerson: {
+            email: string;
+            firstName: string;
+            lastName: string;
+            locale?: string | null;
+        };
         /** @description What a person asks for when they start a run (AP-51). */
         CreateRunRequest: {
             /** @description `static`, `service` or `fullstack`, as the `App` kind spells them. */
@@ -2363,6 +2528,12 @@ export interface components {
             unattended?: boolean;
             /** @description Who may reach the published application. `public` is refused (AP-42). */
             visibility?: string;
+        };
+        /** @description The one answer that may carry a temporary password, once (PF-92). */
+        CreatedPerson: {
+            emailSent: boolean;
+            person: components["schemas"]["Person"];
+            temporaryPassword?: string | null;
         };
         /**
          * @description The ticket, handed to the workspace and to nobody else. It is in the create answer because
@@ -2477,6 +2648,12 @@ export interface components {
          * @enum {string}
          */
         EdgeKind: "registers" | "serves" | "feeds" | "consumes" | "publishes";
+        EditPerson: {
+            email?: string | null;
+            firstName?: string | null;
+            lastName?: string | null;
+            locale?: string | null;
+        };
         /** @description What one caller may do in one project: `GET /api/v1/projects/{project}/permissions/me`. */
         Effective: {
             /**
@@ -2617,6 +2794,9 @@ export interface components {
              *     manifest whose `spec.contextSpaceRef` names it.
              */
             space?: string | null;
+        };
+        GroupRef: {
+            name: string;
         };
         Health: {
             name: string;
@@ -2977,10 +3157,45 @@ export interface components {
             /** Format: int64 */
             rejectedLogRecords: number;
         };
+        PasswordReset: {
+            emailSent: boolean;
+            temporaryPassword?: string | null;
+        };
         /** @description Whether syncing is on or off. */
         PauseRequest: {
             /** @description `true` switches the loop off, `false` switches it back on. */
             paused: boolean;
+        };
+        /** @description A person as the Portal shows one (API/01 §24). */
+        Person: {
+            /** @description When the realm created the person (RFC 3339). */
+            createdAt?: string | null;
+            email: string;
+            emailVerified: boolean;
+            enabled: boolean;
+            firstName: string;
+            id: string;
+            lastName: string;
+            /** @description The last access of the person's newest open session; `null` when none is open. */
+            lastSeen?: string | null;
+            locale?: string | null;
+            /** @description The Change a deletion waits for; `null` when none is pending. */
+            pendingDeletion?: string | null;
+            requiredActions: string[];
+        };
+        PersonDetail: {
+            appRoles: components["schemas"]["AppRole"][];
+            groups: components["schemas"]["GroupRef"][];
+            person: components["schemas"]["Person"];
+            platformRoles: components["schemas"]["PlatformRole"][];
+        };
+        PersonPage: {
+            items: components["schemas"]["Person"][];
+            /**
+             * Format: int32
+             * @description `first` of the following page, when there is one.
+             */
+            next?: number | null;
         };
         /**
          * Phase
@@ -3043,6 +3258,14 @@ export interface components {
             create?: number;
             delete?: number;
             update?: number;
+        };
+        /** @description A platform role the person holds, and the binding and the way it reaches them (PF-94). */
+        PlatformRole: {
+            binding: string;
+            role: string;
+            scope: Record<string, never>;
+            /** @description `{ "user": … }` or `{ "group": … }`. */
+            via: Record<string, never>;
         };
         Preferences: {
             /**
@@ -4138,6 +4361,585 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_people: {
+        parameters: {
+            query?: {
+                /** @description A substring of the name or e-mail */
+                search?: string;
+                /** @description Offset, default 0 */
+                first?: number;
+                /** @description Page size, default 50, at most 100 */
+                max?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of people */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonPage"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks read on Person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "email": "jana.kovacova@example.org",
+                 *       "firstName": "Jana",
+                 *       "lastName": "Kováčová",
+                 *       "locale": "sk"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreatePerson"];
+            };
+        };
+        responses: {
+            /** @description Created; the only answer that may carry a temporary password */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedPerson"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks create on Person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The e-mail is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person and where they are granted something */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonDetail"];
+                };
+            };
+            /** @description The caller lacks read on Person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Change the deletion waits for */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Deleted: no manifest named the person */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller lacks delete on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller, the last Organization Administrator, a removal already pending, or a reference in a project's own repository */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client, forge or database */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    edit_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "lastName": "Nováková"
+                 *     }
+                 */
+                "application/json": components["schemas"]["EditPerson"];
+            };
+        };
+        responses: {
+            /** @description The person as edited */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Person"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks update on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The e-mail is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    disable_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person, disabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Person"];
+                };
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller themselves, or the last Organization Administrator */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    enable_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person, enabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Person"];
+                };
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    remove_second_factor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    reset_password: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The realm cannot send mail: a temporary password, once */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordReset"];
+                };
+            };
+            /** @description The reset e-mail went */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordReset"];
+                };
+            };
+            /** @description The caller lacks update on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    sign_out_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out everywhere */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
