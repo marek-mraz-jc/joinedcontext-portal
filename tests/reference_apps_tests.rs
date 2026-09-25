@@ -297,7 +297,8 @@ fn the_shipped_mark_is_on_exactly_the_bundles_the_image_builds() {
 /// root, no toolchain file), and whose manifest passes the validation `jcctl validate` runs.
 #[test]
 fn the_plain_html_example_is_its_own_bundle_and_a_valid_app() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sdk/examples/plain-html-events");
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sdk/examples/plain-html-events");
     let yaml = std::fs::read_to_string(root.join("app.yaml"))
         .expect("sdk/examples/plain-html-events/app.yaml");
     match jc_core::registry::validate_yaml("App", &yaml) {
