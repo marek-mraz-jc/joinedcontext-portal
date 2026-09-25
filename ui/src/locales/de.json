@@ -196,7 +196,8 @@
       "pending": "Wartet auf {change}: Geben Sie zuerst diese Änderung frei, dann diese hier.",
       "merged": "{change}, auf die diese Änderung wartet, ist zusammengeführt.",
       "rejected": "{change}, auf die diese Änderung wartet, wurde abgelehnt: Was diese Änderung nennt, entsteht nicht. Lehnen Sie sie ab oder schlagen Sie sie neu vor."
-    }
+    },
+    "back": "Alle Freigaben"
   },
   "lane": {
     "green": "Grün",
@@ -2110,7 +2111,8 @@
       "frameTitle": "{title}, die Anwendung",
       "notOpen": "Hier gibt es noch nichts zu öffnen. Die App-Details sagen, wie es weitergeht.",
       "signInHint": "Fragt die App nach einer Anmeldung und bleibt leer?",
-      "signInAgain": "Erneut anmelden"
+      "signInAgain": "Erneut anmelden",
+      "lead": "Die veröffentlichte Anwendung, im Portal mit Ihrer Anmeldung ausgeführt."
     },
     "retire": {
       "title": "Retire {name}",

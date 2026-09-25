@@ -117,13 +117,14 @@ describe("the wait and the failure are two states (UI-15, UI-16)", () => {
     expect(waiting).toHaveTextContent(`Reading ${NAME}…`);
   });
 
-  it("a_manifest_that_cannot_be_read_says_why_in_the_servers_words_and_offers_a_retry", async () => {
+  it("a_manifest_that_cannot_be_read_says_why_in_the_servers_words_and_offers_no_retry_a_refusal_answers_again", async () => {
     renderDialog(() =>
       json({ title: "Forbidden", status: 403, detail: "Your role may not read this resource." }, 403, true),
     );
     const alert = await within(await dialog()).findByRole("alert");
     expect(alert).toHaveTextContent("Your role may not read this resource.");
-    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    // A refusal answers the same the second time (T-2834); the 503 case below offers Retry.
+    expect(within(alert).queryByRole("button", { name: en.app.error.retry })).toBeNull();
     // And it is not still claiming to be loading.
     expect(within(await dialog()).queryByText(`Reading ${NAME}…`)).toBeNull();
   });

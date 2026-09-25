@@ -637,7 +637,7 @@
     },
     "src/pages/apps/AppOpenPage.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 4
       },
       "tests": [
         "app_open_page.test.tsx"
@@ -842,7 +842,7 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 6,
+        "Button": 5,
         "Checkbox": 2
       },
       "tests": [
@@ -978,7 +978,7 @@
     },
     "src/pages/models/ModelPage.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 1
       },
       "tests": [
         "models_list_page.test.tsx"
@@ -1181,7 +1181,7 @@
     },
     "src/routes/ApprovalDetailPage.tsx": {
       "controls": {
-        "Button": 6
+        "Button": 5
       },
       "tests": [
         "approval_actions.test.tsx"

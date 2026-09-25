@@ -35,6 +35,7 @@ import {
   Icon,
   PageFailed,
   PageHeader,
+  ResourcePageFailed,
   PageLoading,
   Select,
   Table,
@@ -594,11 +595,22 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   }
   if (space.isError) {
     return (
-      <PageFailed
+      <ResourcePageFailed
+        title={name}
+        description={t("spaces.lead")}
         error={space.error}
         onRetry={() => {
           void space.refetch();
         }}
+        back={
+          <Link
+            to="/projects/$project/$plural"
+            params={{ project, plural: "spaces" }}
+            className="focus-ring text-body text-primary-soft-fg underline hover:no-underline"
+          >
+            {t("spaces.inside.back")}
+          </Link>
+        }
       />
     );
   }

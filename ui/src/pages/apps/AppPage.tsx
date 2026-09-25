@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
-import { Button, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Button, PageHeader, PageLoading, ResourcePageFailed } from "../../components/ui";
 import { AgentRunPage } from "./AgentRunPage";
 import { AppBuildPanel } from "./AppBuildPanel";
 import { AppGenerator } from "./AppGenerator";
@@ -49,7 +49,11 @@ export function AppPage({ project, name }: { project: string; name: string }): J
   if (isPending) {
     return (
       <div className="space-y-4">
-        <PageHeader title={title} actions={<Button onClick={back}>{t("apps.back")}</Button>} />
+        <PageHeader
+          title={title}
+          description={t("apps.subtitle")}
+          actions={<Button onClick={back}>{t("apps.back")}</Button>}
+        />
         <PageLoading label={t("app.loading")} />
       </div>
     );
@@ -57,15 +61,15 @@ export function AppPage({ project, name }: { project: string; name: string }): J
 
   if (isError) {
     return (
-      <div className="space-y-4">
-        <PageHeader title={title} actions={<Button onClick={back}>{t("apps.back")}</Button>} />
-        <PageFailed
-          error={error}
-          onRetry={() => {
-            void refetch();
-          }}
-        />
-      </div>
+      <ResourcePageFailed
+        title={title}
+        description={t("apps.subtitle")}
+        error={error}
+        onRetry={() => {
+          void refetch();
+        }}
+        back={<Button onClick={back}>{t("apps.back")}</Button>}
+      />
     );
   }
 

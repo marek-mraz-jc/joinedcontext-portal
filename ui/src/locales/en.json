@@ -196,7 +196,8 @@
       "pending": "Waits on {change}: approve that change first, then this one.",
       "merged": "{change}, which this change waits on, is merged.",
       "rejected": "{change}, which this change waits on, was rejected: what this change names will not be created. Reject it, or propose it again."
-    }
+    },
+    "back": "All approvals"
   },
   "lane": {
     "green": "Green",
@@ -2110,7 +2111,8 @@
       "frameTitle": "{title}, the application",
       "notOpen": "There is nothing to open here yet. The App details say what happens next.",
       "signInHint": "Is the app asking you to sign in and staying empty?",
-      "signInAgain": "Sign in again"
+      "signInAgain": "Sign in again",
+      "lead": "The published application, run inside the Portal with your sign-in."
     },
     "retire": {
       "title": "Retire {name}",

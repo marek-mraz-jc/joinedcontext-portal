@@ -196,7 +196,8 @@
       "pending": "Čeká na {change}: nejprve schvalte tu změnu, potom tuto.",
       "merged": "{change}, na kterou tato změna čeká, je sloučená.",
       "rejected": "{change}, na kterou tato změna čeká, byla zamítnuta: to, co tato změna jmenuje, nevznikne. Zamítněte ji nebo ji navrhněte znovu."
-    }
+    },
+    "back": "Všechna schvalování"
   },
   "lane": {
     "green": "Zelená",
@@ -2110,7 +2111,8 @@
       "frameTitle": "{title}, aplikace",
       "notOpen": "Zatím tu není co otevřít. Podrobnosti aplikace říkají, co bude dál.",
       "signInHint": "Chce aplikace přihlášení a zůstává prázdná?",
-      "signInAgain": "Přihlásit se znovu"
+      "signInAgain": "Přihlásit se znovu",
+      "lead": "Zveřejněná aplikace spuštěná v Portálu s vaším přihlášením."
     },
     "retire": {
       "title": "Retire {name}",

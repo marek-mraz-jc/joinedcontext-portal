@@ -21,6 +21,7 @@ import {
   Button,
   EmptyState,
   PageHeader,
+  ResourcePageFailed,
   Table,
   TableBody,
   TableCell,
@@ -204,21 +205,26 @@ export function ModelPage({
       </p>
     );
   }
-  if (models.isError || model === undefined) {
+  if (models.isError) {
+    return (
+      <ResourcePageFailed
+        title={name}
+        description={t("models.page.listLead")}
+        error={models.error}
+        onRetry={() => void models.refetch()}
+        back={back}
+      />
+    );
+  }
+  if (model === undefined) {
     return (
       <div className="flex flex-col gap-4">
-        {back}
+        <PageHeader title={name} description={t("models.page.listLead")} />
         <EmptyState
           icon="models"
           title={t("models.page.notFound", { name })}
-          description={models.isError ? t("app.error.generic") : t("models.page.notFoundLead")}
-          action={
-            models.isError ? (
-              <Button size="sm" onClick={() => void models.refetch()}>
-                {t("app.error.retry")}
-              </Button>
-            ) : undefined
-          }
+          description={t("models.page.notFoundLead")}
+          action={back}
         />
       </div>
     );

@@ -21,6 +21,7 @@ import {
   Field,
   Input,
   PageHeader,
+  ResourcePageFailed,
   Select,
   Table,
   TableBody,
@@ -605,11 +606,21 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
   }
   if (detail.error || !detail.data) {
     return (
-      <Alert tone="danger" role="alert">
+      <ResourcePageFailed
+        title={id}
+        description={t("organization.people.lead")}
+        error={detail.error}
+        onRetry={() => void detail.refetch()}
+        back={
+          <Link to="/organization/$tab" params={{ tab: "people" }} className="text-body underline">
+            {t("organization.people.back")}
+          </Link>
+        }
+      >
         {detail.error instanceof ApiError && detail.error.status === 404
           ? t("organization.people.notFound")
-          : reasonOf(detail.error, t("app.error.generic"))}
-      </Alert>
+          : undefined}
+      </ResourcePageFailed>
     );
   }
 
