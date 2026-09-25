@@ -325,6 +325,33 @@ describe("the conversation panel", () => {
     expect(screen.getByLabelText(en.agentRun.conversation.placeholder)).toHaveValue("");
   });
 
+  /// T-2772: a turn that ended without an answer offers the same message again, in this
+  /// conversation, one press; an answered turn and an older failure offer nothing.
+  it("offers Try again on a failed answer and sends the last message again", async () => {
+    const asked = { seq: 1, kind: "message", payload: { text: "how many bikes are free?", sentBy: "jana" } };
+    const failed = {
+      seq: 2,
+      kind: "thought",
+      payload: { text: "The answer failed: the model service did not answer in time.", failed: true },
+    };
+    panel([asked, failed]);
+    expect(screen.getByText(failed.payload.text)).toBeInTheDocument();
+    expect(screen.getByText(en.agentRun.conversation.unanswered)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: en.agentRun.conversation.tryAgain }));
+    expect(sent).toHaveBeenCalledWith("how many bikes are free?");
+  });
+
+  it("offers no Try again once the failed answer is followed by an answer", () => {
+    panel([
+      { seq: 1, kind: "message", payload: { text: "bikes?", sentBy: "jana" } },
+      { seq: 2, kind: "thought", payload: { text: "The answer failed: busy.", failed: true } },
+      { seq: 3, kind: "message", payload: { text: "bikes?", sentBy: "jana" } },
+      { seq: 4, kind: "thought", payload: { text: "12 stations have free bikes." } },
+    ]);
+    expect(screen.queryByRole("button", { name: en.agentRun.conversation.tryAgain })).toBeNull();
+    expect(screen.queryByText(en.agentRun.conversation.unanswered)).toBeNull();
+  });
+
   it("will not send whitespace", async () => {
     const user = userEvent.setup();
     panel([]);

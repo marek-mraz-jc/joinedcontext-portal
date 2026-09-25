@@ -2273,7 +2273,9 @@
       "stop": "Zastavit běh",
       "retry": "Zeptat se znovu",
       "newConversation": "Nová konverzace",
-      "sendFailed": "Zpráva se neodeslala: {reason}. To, co jste napsali, je pořád tady."
+      "sendFailed": "Zpráva se neodeslala: {reason}. To, co jste napsali, je pořád tady.",
+      "tryAgain": "Zkusit znovu",
+      "unanswered": "Vaše poslední zpráva nedostala odpověď. Nic se nezměnilo."
     },
     "line": {
       "status": "Nyní {status}.",

@@ -421,6 +421,28 @@ export function ConversationPanel({
     foot.current?.scrollIntoView?.({ block: "nearest" });
   }, [events.length]);
 
+  // A turn that ended without an answer (T-2772): its reason is the newest line, and the way on
+  // is the same message sent again in this conversation, one press.
+  const newest = events.length > 0 ? events[events.length - 1] : undefined;
+  const unanswered =
+    newest?.kind === "thought" && newest.payload.failed === true
+      ? ([...events]
+          .reverse()
+          .find(
+            (event) =>
+              event.kind === "message" && event.payload.sentBy !== "agent" && typeof event.payload.text === "string",
+          )?.payload.text as string | undefined)
+      : undefined;
+  const sendAgain = (text: string): void => {
+    setFailed(null);
+    const answer = onSend(text);
+    if (answer && typeof (answer as Promise<unknown>).then === "function") {
+      void (answer as Promise<unknown>).catch((error: unknown) =>
+        setFailed(error instanceof Error ? error.message : t("app.error.generic")),
+      );
+    }
+  };
+
   const send = (): void => {
     const text = draft.trim();
     if (text === "" || sending) {
@@ -633,6 +655,20 @@ export function ConversationPanel({
         {/* Keyed on the newest turn: a turn that arrives remounts the wait and starts it over,
             which is the reset without a clock read during the render (T-1761). */}
         <StallNotice key={events.length} working={working} onCancel={onCancel} onRetry={onRetry} />
+
+        {live && unanswered !== undefined && unanswered.trim() !== "" ? (
+          <Alert
+            tone="warning"
+            className="mt-2"
+            actions={
+              <Button variant="primary" size="xs" disabled={sending} onClick={() => sendAgain(unanswered)}>
+                {t("agentRun.conversation.tryAgain")}
+              </Button>
+            }
+          >
+            {t("agentRun.conversation.unanswered")}
+          </Alert>
+        ) : null}
 
         {questions.map((question) => (
           <div

@@ -2273,7 +2273,9 @@
       "stop": "Lauf stoppen",
       "retry": "Erneut fragen",
       "newConversation": "Neues Gespräch",
-      "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier."
+      "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier.",
+      "tryAgain": "Erneut versuchen",
+      "unanswered": "Ihre letzte Nachricht wurde nicht beantwortet. Es wurde nichts geändert."
     },
     "line": {
       "status": "Jetzt {status}.",

@@ -65,12 +65,7 @@ impl Driver {
             if self.current_path().is_none() {
                 self.choose_path(&self.prompt).await?;
             }
-            match self.converse(&conversation, &self.prompt).await {
-                Ok(prose) => conversation.push((self.prompt.clone(), prose)),
-                Err(reason) => {
-                    let _ = self.thought(&format!("The answer failed: {reason}")).await;
-                }
-            }
+            self.turn(&mut conversation, self.prompt.clone()).await;
         }
 
         loop {
@@ -105,19 +100,15 @@ impl Driver {
                         Ok(Some(integrate::Taken::Model(words))) => text = words,
                         Ok(None) => {}
                         Err(reason) => {
-                            let _ = self.thought(&format!("That step failed: {reason}")).await;
+                            self.failed_answer(&format!("That step failed: {reason}"))
+                                .await;
                             continue;
                         }
                     }
                     if text.trim().is_empty() {
                         continue;
                     }
-                    match self.converse(&conversation, &text).await {
-                        Ok(prose) => conversation.push((text, prose)),
-                        Err(reason) => {
-                            let _ = self.thought(&format!("The answer failed: {reason}")).await;
-                        }
-                    }
+                    self.turn(&mut conversation, text).await;
                 }
                 "message" if sent_by_person(&event) => {
                     // The page the person sent this from is the one they ask about now (T-2763).
@@ -146,15 +137,34 @@ impl Driver {
                         .and_then(Value::as_str)
                         .unwrap_or_default()
                         .to_owned();
-                    match self.converse(&conversation, &text).await {
-                        Ok(prose) => conversation.push((text, prose)),
-                        Err(reason) => {
-                            let _ = self.thought(&format!("The answer failed: {reason}")).await;
-                        }
-                    }
+                    self.turn(&mut conversation, text).await;
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// One message answered: the answer joins the conversation, or the reason it failed is said
+    /// in the chat, where the person can send it again (T-2772). Never nothing.
+    pub(super) async fn turn(&self, conversation: &mut Vec<(String, String)>, text: String) {
+        match self.converse(conversation, &text).await {
+            Ok(prose) => conversation.push((text, prose)),
+            Err(reason) => {
+                self.failed_answer(&format!("The answer failed: {reason}"))
+                    .await;
+            }
+        }
+    }
+
+    /// A turn that ended without an answer, said in the chat with its reason and marked so the
+    /// dock offers to send the message again (T-2772, API/04 §4). A store that cannot take even
+    /// this is logged: there is nobody else left to tell.
+    async fn failed_answer(&self, text: &str) {
+        if let Err(err) = self
+            .event("thought", json!({ "text": text, "failed": true }))
+            .await
+        {
+            tracing::warn!(run = %self.run_id, error = %err, "a failed answer could not be said");
         }
     }
 
@@ -2545,6 +2555,146 @@ mod tests {
             let (tokens, user) = turn_tokens(&driver, path);
             assert!(tokens < 4000, "{path:?}: {tokens} tokens\n{user}");
         }
+    }
+
+    /// A driver whose model is the stub at `base`, answering within `timeout`.
+    fn chatting_with(base: &str, timeout: std::time::Duration) -> (Driver, AppState) {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.proxy_base = base.to_owned();
+        driver.answer_timeout = timeout;
+        (driver, state)
+    }
+
+    fn completion(text: &str) -> wiremock::ResponseTemplate {
+        wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "choices": [{ "index": 0, "message": { "role": "assistant", "content": text }, "finish_reason": "stop" }],
+            "usage": { "total_tokens": 9 }
+        }))
+    }
+
+    /// The thoughts of the test run, each with whether it is a failed answer.
+    async fn said(state: &AppState) -> Vec<(String, bool)> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|event| event.kind == "thought")
+            .map(|event| {
+                (
+                    event.payload["text"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_owned(),
+                    event.payload["failed"] == json!(true),
+                )
+            })
+            .collect()
+    }
+
+    /// T-2772: a busy provider is asked once more, after its own Retry-After, and the person
+    /// reads the answer, not the 429.
+    #[tokio::test]
+    async fn a_busy_model_is_asked_once_more_and_answers() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let model = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "0"))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&model)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(completion("12 stations have free bikes."))
+            .mount(&model)
+            .await;
+        let (driver, state) = chatting_with(&model.uri(), std::time::Duration::from_secs(10));
+        let mut conversation = Vec::new();
+        driver
+            .turn(&mut conversation, "how many bikes are free?".into())
+            .await;
+        assert_eq!(conversation.len(), 1, "{:?}", said(&state).await);
+        assert_eq!(conversation[0].1, "12 stations have free bikes.");
+        assert_eq!(model.received_requests().await.unwrap_or_default().len(), 2);
+        assert!(said(&state).await.iter().all(|(_, failed)| !failed));
+    }
+
+    /// T-2772 chaos: a model that fails twice, answers garbage, answers too slowly or is not
+    /// there at all yields a failed answer in the chat within the turn's time, with a reason a
+    /// person acts on and never the provider's body.
+    #[tokio::test]
+    async fn every_model_failure_is_a_visible_failed_answer_within_the_timeout() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let leak = "sk-or-v1-provider-body-secret";
+        let failing = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(500).set_body_string(format!("{{\"error\":\"{leak}\"}}")),
+            )
+            .mount(&failing)
+            .await;
+        let garbage = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("<html>oops</html>"))
+            .mount(&garbage)
+            .await;
+        let slow = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(completion("late").set_delay(std::time::Duration::from_secs(5)))
+            .mount(&slow)
+            .await;
+        // A port nothing listens on: the connection is refused at once.
+        let absent = {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+            format!("http://{}", listener.local_addr().expect("an address"))
+        };
+        // The turn's time leaves room for the one retry's pause where there is a retry.
+        let seconds = std::time::Duration::from_secs;
+        for (case, base, timeout, reason) in [
+            (
+                "500 twice",
+                failing.uri(),
+                seconds(3),
+                "did not answer in time",
+            ),
+            ("garbage", garbage.uri(), seconds(1), "not JSON"),
+            (
+                "too slow",
+                slow.uri(),
+                seconds(1),
+                "no answer within 1 seconds",
+            ),
+            ("not there", absent, seconds(3), "could not be reached"),
+        ] {
+            let (driver, state) = chatting_with(&base, timeout);
+            let started = std::time::Instant::now();
+            let mut conversation = Vec::new();
+            driver
+                .turn(&mut conversation, "how many bikes are free?".into())
+                .await;
+            assert!(
+                started.elapsed() < timeout + seconds(1),
+                "{case}: {:?}",
+                started.elapsed()
+            );
+            assert!(conversation.is_empty(), "{case}");
+            let said = said(&state).await;
+            let (text, failed) = said
+                .last()
+                .unwrap_or_else(|| panic!("{case}: nothing said"));
+            assert!(failed, "{case}: {text}");
+            assert!(text.contains(reason), "{case}: {text}");
+            assert!(!text.contains(leak), "{case}: {text}");
+        }
+        assert_eq!(
+            failing.received_requests().await.unwrap_or_default().len(),
+            2,
+            "a 500 is asked once more, then said"
+        );
     }
 
     /// T-2770, T-2763: the platform searches the catalog before the model only for a message that
