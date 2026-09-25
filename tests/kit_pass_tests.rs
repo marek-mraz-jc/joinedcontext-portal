@@ -1820,7 +1820,7 @@ const STATIONS: &str = "import { useEntities } from \"@joinedcontext/sdk\";\nimp
 const STATIONS_TEST: &str = "import { render } from \"@testing-library/react\";\nimport { describe, expect, it } from \"vitest\";\nimport { JcProvider } from \"@joinedcontext/sdk\";\nimport { stubClient } from \"@joinedcontext/sdk/testing\";\nimport { Stations } from \"./Stations\";\n\ndescribe(\"Stations\", () => {\n  it(\"lists the stations\", () => {\n    const { container } = render(<JcProvider client={stubClient()}><Stations /></JcProvider>);\n    expect(container).toBeTruthy();\n  });\n});";
 /// The same page reaching for a package SDK-12 does not allow.
 const STATIONS_AXIOS: &str = "import axios from \"axios\";\n\nexport function Stations() {\n  return <p>{String(axios)}</p>;\n}";
-const APP_PAGES: &str = "      { id: \"overview\", label: \"Overview\", render: () => <Overview schema={schema} /> },\n";
+const APP_PAGES: &str = "      { id: \"overview\", label: t(\"page.overview\"), render: () => <Overview schema={schema} /> },\n";
 const APP_IMPORTS: &str = "import { TypePage } from \"./pages/TypePage\";\n";
 
 /// The blocks of an application with a Stations page wired into `App.tsx`.
