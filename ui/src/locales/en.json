@@ -3165,5 +3165,33 @@
       "federationOps": "Federate",
       "redirectionOps": "Forward everything"
     }
+  },
+  "picker": {
+    "search": "Search",
+    "chosen": "Chosen: {label}",
+    "remove": "Remove {name}",
+    "model": {
+      "group": "{project} / {space}",
+      "catalogue": "Smart Data Models",
+      "none": "No data model matches.",
+      "create": "New data model “{name}”",
+      "catalogueUnavailable": "Smart Data Models cannot be searched right now: {reason}",
+      "catalogueHint": "Type two letters or more to search Smart Data Models too.",
+      "lifecycle": {
+        "draft": "draft",
+        "published": "published",
+        "deprecated": "deprecated",
+        "retired": "retired",
+        "mirrored": "mirrored"
+      }
+    },
+    "type": {
+      "local": "Types of {space}",
+      "modelGroup": "{name} ({space})",
+      "imported": "Imported from {name}",
+      "none": "The model of {space} declares no type yet.",
+      "noneInProject": "No data model of this project declares a type yet.",
+      "create": "New type “{name}”"
+    }
   }
 }

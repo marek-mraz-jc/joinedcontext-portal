@@ -274,6 +274,14 @@
         "workspaces_ui.test.tsx"
       ]
     },
+    "src/components/pickers/Combobox.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "pickers.test.tsx"
+      ]
+    },
     "src/components/ui/Button.tsx": {
       "controls": {
         "button": 1
