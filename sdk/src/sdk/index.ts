@@ -70,6 +70,10 @@ export type { HistoryLabels } from "../grid/EntityHistory";
 // The host's own transport, for a page that renders the grid itself (T-1439).
 export { originTransport, transportFor } from "./transport";
 
+// Layout primitives: every screen responsive without the app writing CSS (T-2777, UI-84)
+export { Card, Grid, Header, Page, Sidebar, Split, Tabs } from "./layout";
+export type { Tab } from "./layout";
+
 // Tables, maps, exports: what the template's components stand on
 export { compare } from "../views/Table";
 export { mapWorkerReady, NO_BASEMAP, NO_LOCATIONS, styleFor } from "./map";

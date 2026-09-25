@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useEntities, useFunction } from "@joinedcontext/sdk";
+import { Card, Grid, Page, useEntities, useFunction } from "@joinedcontext/sdk";
 import type { Schema, TypeSchema } from "@joinedcontext/sdk";
 import { navigate } from "../components/AppShell";
 import { BarChartCard } from "../components/charts";
@@ -13,21 +13,22 @@ function TypeCard({ type, schema }: { type: string; schema?: TypeSchema }) {
   const shape = useMemo(() => shapeOf(schema, rows), [schema, rows]);
   const measure = shape.numbers[0];
   return (
-    <article className="app-card">
-      <header>
-        <h2>{type}</h2>
+    <Card
+      title={type}
+      actions={
         <button type="button" onClick={() => navigate(type)}>
           Open
         </button>
-      </header>
+      }
+    >
       <Problem error={error} />
       <StatTiles
         rows={rows}
         loading={loading}
         tiles={[{ label: "Entities", agg: "count" }, ...(measure ? [{ label: `Average ${measure}`, agg: "avg" as const, attr: measure }] : [])]}
       />
-      {shape.categories[0] && <BarChartCard rows={rows} x={shape.categories[0]} y={measure} agg={measure ? "avg" : "count"} top={10} height={220} />}
-    </article>
+      {shape.categories[0] && <BarChartCard rows={rows} x={shape.categories[0]} y={measure} agg={measure ? "avg" : "count"} top={10} />}
+    </Card>
   );
 }
 
@@ -36,14 +37,13 @@ export function Overview({ schema }: { schema: Schema }) {
   const types = Object.keys(schema).sort();
   const summary = useFunction<Summary>("summary", { types }, { enabled: types.length > 0 });
   return (
-    <section className="app-page" aria-label="Overview">
-      <div className="app-grid">
+    <Page label="Overview">
+      <Grid columns={4}>
         {types.map((type) => (
           <TypeCard key={type} type={type} schema={schema[type]} />
         ))}
-      </div>
-      <article className="app-card" aria-label="Server summary">
-        <h2>Server summary</h2>
+      </Grid>
+      <Card title="Server summary">
         {summary.loading && <Loading />}
         <Problem error={summary.error} onRetry={summary.reload} />
         {summary.data && (
@@ -56,7 +56,7 @@ export function Overview({ schema }: { schema: Schema }) {
             ))}
           </ul>
         )}
-      </article>
-    </section>
+      </Card>
+    </Page>
   );
 }

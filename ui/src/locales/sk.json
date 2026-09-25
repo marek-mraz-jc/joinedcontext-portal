@@ -2293,6 +2293,11 @@
         "use": "Použiť túto adresu",
         "invalid": "Zadajte celú adresu začínajúcu http:// alebo https://."
       }
+    },
+    "prose": {
+      "copyId": "Kopírovať celý identifikátor",
+      "copied": "Skopírované",
+      "table": "Tabuľka v odpovedi"
     }
   },
   "assistant": {
@@ -2409,6 +2414,19 @@
         "noWrite": "Vaša rola cez tento endpoint nezapisuje."
       },
       "pathLeft": "Nie pri voľbe {preset}: zapnite to v Schopnostiach."
+    },
+    "full": {
+      "conversations": "Konverzácie",
+      "search": "Hľadať v konverzáciách",
+      "none": "Zatiaľ tu nie sú žiadne konverzácie.",
+      "noMatch": "Žiadna konverzácia sa nepýta na „{words}“.",
+      "untitled": "Konverzácia začatá z cesty",
+      "more": "Zobraziť ďalších {count}",
+      "showList": "Zobraziť konverzácie",
+      "hideList": "Skryť konverzácie",
+      "data": "Dáta a schopnosti",
+      "showData": "Zobraziť dáta a schopnosti",
+      "hideData": "Skryť dáta a schopnosti"
     }
   },
   "permissions": {
