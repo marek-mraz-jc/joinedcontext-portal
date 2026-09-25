@@ -31,6 +31,7 @@ import { ImportPage } from "./pages/import/ImportPage";
 import { SpaceInside } from "./pages/spaces/SpaceInside";
 import { AppPage } from "./pages/apps/AppPage";
 import { GroupPage } from "./pages/access/GroupPage";
+import { PersonPage } from "./pages/organization/People";
 import { EndpointPage } from "./pages/endpoints/EndpointPage";
 import { AssistantPage } from "./pages/assistant/AssistantPage";
 import { HandOff } from "./assistant/HandOff";
@@ -464,6 +465,10 @@ const organizationFormRoute = createRoute({
     if (group !== null) {
       return <OrganizationGroupView name={group} />;
     }
+    const person = tab === "people" ? groupOfRest(rest) : null;
+    if (person !== null) {
+      return <OrganizationPersonView id={person} />;
+    }
     const form = formOfRest(rest);
     return rest === "" || form !== null ? <OrganizationView tab={tab} form={form} /> : <NotFound />;
   },
@@ -485,6 +490,20 @@ function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
   return (
     <Shell project={first}>
       <GroupPage name={name} />
+    </Shell>
+  );
+}
+
+/** A person's page in the Organization's shell (PF-93, T-2684); `new` stays the new-person form. */
+function OrganizationPersonView({ id }: { id: string }): React.JSX.Element {
+  const projects = useProjects();
+  const first = preferredProject(projects.data);
+  if (!first) {
+    return <NoProject projects={projects} />;
+  }
+  return (
+    <Shell project={first}>
+      <PersonPage id={id} />
     </Shell>
   );
 }

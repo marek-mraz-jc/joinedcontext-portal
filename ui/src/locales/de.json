@@ -3074,6 +3074,7 @@
     "tabsLabel": "Bereiche der Organisation",
     "tab": {
       "settings": "Einstellungen",
+      "people": "Personen",
       "members": "Mitglieder",
       "roles": "Rollen",
       "groups": "Gruppen",
@@ -3115,6 +3116,127 @@
       "own": "{count, plural, =0 {Keine eigenen} one {# eigene} other {# eigene}}",
       "throughOrganization": "{count, plural, one {# über die Organisation} other {# über die Organisation}}",
       "settings": "Einstellungen"
+    },
+    "people": {
+      "title": "Personen",
+      "lead": "Die Personen der Anmeldedomäne der Organisation. Was jede darf, geben die Bindungen und Gruppen vor, die sie nennen.",
+      "new": "Neue Person",
+      "hidden": "Diese Liste sieht nur, wessen Rolle Personen liest. Eine Organisationsadministration kann sie vergeben.",
+      "invited": "Die Domäne hat {email} eine E-Mail zum Bestätigen der Adresse und Setzen eines Passworts geschickt.",
+      "search": "Personen suchen",
+      "searchPlaceholder": "Name oder E-Mail",
+      "searchButton": "Suchen",
+      "caption": "Personen der Organisation",
+      "name": "Name",
+      "email": "E-Mail",
+      "state": "Status",
+      "lastSeen": "Zuletzt aktiv",
+      "noMatch": "Niemand passt zu „{search}“.",
+      "empty": "Die Domäne hat noch keine Personen.",
+      "noSession": "Keine offene Sitzung",
+      "pages": "Seiten der Personen",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "enabled": "Aktiv",
+      "disabled": "Deaktiviert",
+      "verified": "E-Mail bestätigt",
+      "unverified": "E-Mail nicht bestätigt",
+      "removalPending": "Entfernung wartet auf Freigabe",
+      "newTitle": "Neue Person",
+      "newLead": "Die Domäne schickt der Person einen Link zum Bestätigen der Adresse und Setzen eines Passworts. Ohne E-Mail zeigt sie einmal ein vorläufiges Passwort.",
+      "create": "Person anlegen",
+      "back": "Zurück zu Personen",
+      "notFound": "Die Domäne kennt diese Person nicht.",
+      "account": "Konto",
+      "created": "Angelegt",
+      "pendingSteps": "Schritte bei der nächsten Anmeldung",
+      "edit": "Bearbeiten",
+      "groups": "Gruppen",
+      "noGroups": "In keiner Gruppe.",
+      "platformRoles": "Plattformrollen",
+      "appRoles": "Anwendungsrollen",
+      "noRoles": "Keine.",
+      "viaGroup": "über die Gruppe {group}",
+      "direct": "direkt genannt",
+      "editTitle": "{name} bearbeiten",
+      "editLead": "Eine geänderte E-Mail-Adresse muss vor der Anmeldung erneut bestätigt werden.",
+      "save": "Speichern",
+      "form": {
+        "email": "E-Mail",
+        "emailHelp": "Die Adresse, mit der sich die Person anmeldet und an die die Einladung geht.",
+        "firstName": "Vorname",
+        "firstNameHelp": "Der Vorname, wie die Person ihn schreibt, angezeigt im Portal und in E-Mails.",
+        "lastName": "Nachname",
+        "lastNameHelp": "Der Nachname, wie die Person ihn schreibt, angezeigt im Portal und in E-Mails.",
+        "locale": "Sprache",
+        "localeHelp": "Die Sprache der Anmeldeseiten und der E-Mails der Domäne für diese Person.",
+        "localeRealm": "Standard der Domäne",
+        "emailInvalid": "Geben Sie eine E-Mail-Adresse ein, etwa jana.novakova@example.org.",
+        "required": "Pflichtfeld."
+      },
+      "language": {
+        "en": "English",
+        "sk": "Slovenčina",
+        "cs": "Čeština",
+        "de": "Deutsch"
+      },
+      "step": {
+        "VERIFY_EMAIL": "E-Mail bestätigen",
+        "UPDATE_PASSWORD": "Passwort setzen",
+        "CONFIGURE_TOTP": "zweiten Faktor einrichten",
+        "UPDATE_PROFILE": "Profil ergänzen"
+      },
+      "action": {
+        "disable": "Deaktivieren",
+        "enable": "Aktivieren",
+        "reset-password": "Passwort zurücksetzen",
+        "remove-second-factor": "Zweiten Faktor entfernen",
+        "sign-out": "Überall abmelden",
+        "delete": "Löschen"
+      },
+      "done": {
+        "disable": "Deaktiviert. Jede Sitzung der Person ist beendet.",
+        "enable": "Aktiviert. Die Person kann sich wieder anmelden.",
+        "reset-password": "Die Domäne hat der Person einen Link für ein neues Passwort geschickt.",
+        "remove-second-factor": "Zweiter Faktor entfernt. Die Person richtet bei der nächsten Anmeldung einen neuen ein.",
+        "sign-out": "Jede Sitzung der Person ist beendet.",
+        "delete": "Gelöscht."
+      },
+      "confirm": {
+        "disable": {
+          "title": "{name} deaktivieren?",
+          "body": "Die Person kann sich nicht mehr anmelden, jede offene Sitzung endet. Gruppen und Rollen bleiben."
+        },
+        "enable": {
+          "title": "{name} aktivieren?",
+          "body": "Die Person kann sich wieder anmelden, mit den Rechten aus ihren Gruppen und Bindungen."
+        },
+        "reset-password": {
+          "title": "Passwort von {name} zurücksetzen?",
+          "body": "Die Domäne schickt einen Link für ein neues Passwort. Ohne E-Mail erhalten Sie einmal ein vorläufiges Passwort."
+        },
+        "remove-second-factor": {
+          "title": "Zweiten Faktor von {name} entfernen?",
+          "body": "Der Authenticator gilt hier nicht mehr; bei der nächsten Anmeldung wird ein neuer eingerichtet."
+        },
+        "sign-out": {
+          "title": "{name} überall abmelden?",
+          "body": "Jede offene Sitzung endet. Die Person kann sich wieder anmelden."
+        },
+        "delete": {
+          "title": "{name} löschen?",
+          "body": "Die Person wird sofort deaktiviert. Nennen Gruppen oder Bindungen sie, nimmt eine Änderung sie aus jeder heraus; das Konto verschwindet, sobald diese Änderung freigegeben ist. Das lässt sich nicht rückgängig machen."
+        }
+      },
+      "password": {
+        "title": "Vorläufiges Passwort",
+        "lead": "Die Domäne kann keine E-Mails senden, geben Sie dieses Passwort {email} selbst weiter.",
+        "warning": "Es wird nur jetzt angezeigt und nirgends sonst. Die Person muss es bei der ersten Anmeldung ersetzen. Senden Sie es über einen Kanal, den nur sie liest.",
+        "label": "Vorläufiges Passwort",
+        "copy": "Kopieren",
+        "copied": "In die Zwischenablage kopiert.",
+        "done": "Fertig"
+      }
     }
   },
   "projectDelete": {
