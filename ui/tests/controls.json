@@ -790,6 +790,14 @@
         "runner_input_schema.test.ts"
       ]
     },
+    "src/pages/endpoints/CatalogSection.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "endpoint_catalog.test.tsx"
+      ]
+    },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
         "Button": 5
@@ -1105,6 +1113,7 @@
       },
       "tests": [
         "editor_round_trip.test.ts",
+        "endpoint_catalog.test.tsx",
         "endpoint_open_data.test.tsx"
       ]
     },
