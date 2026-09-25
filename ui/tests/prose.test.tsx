@@ -81,7 +81,8 @@ describe("an answer's Markdown", () => {
     const writeText = vi.fn(async () => {});
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     const { container } = prose(`The event ${URN}. Short: urn:ngsi-ld:Event:x:y:z`);
-    expect(shortId(URN)).toBe("urn:ngsi-ld:Event:…:…i-af5kileoqi");
+    expect(shortId(URN)).toBe("urn:ngsi-ld:Event:…:helsinki-af5kileoqi");
+    expect(shortId(`urn:ngsi-ld:Event:hel.fi:x:${"a".repeat(30)}b`)).toBe(`urn:ngsi-ld:Event:…${"a".repeat(19)}b`);
     expect(container.textContent).toContain(`${shortId(URN)}`);
     expect(container.querySelector(".sr-only")?.textContent).toBe(URN);
     expect(container.textContent).toContain("urn:ngsi-ld:Event:x:y:z");

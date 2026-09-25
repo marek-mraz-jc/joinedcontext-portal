@@ -105,13 +105,14 @@ export function blocksOf(text: string): Block[] {
 /** Longer than this, an id shows its type and its own last part, and a button copies it whole. */
 const LONG_ID = 40;
 
-/** `urn:ngsi-ld:Type:…:local`, the local part itself cut when it is long. */
+/** `urn:ngsi-ld:Type:…:local`: the type and the entity's own name, the middle left out. */
 export function shortId(urn: string): string {
   if (urn.length <= LONG_ID) return urn;
   const parts = urn.split(":");
   const local = parts.at(-1) ?? "";
-  const tail = local.length > 16 ? `…${local.slice(-12)}` : local;
-  return parts.length > 4 ? `${parts.slice(0, 3).join(":")}:…:${tail}` : `${urn.slice(0, 24)}…${urn.slice(-12)}`;
+  if (parts.length <= 4) return `${urn.slice(0, 24)}…${urn.slice(-12)}`;
+  const type = parts.slice(0, 3).join(":");
+  return local.length <= 24 ? `${type}:…:${local}` : `${type}:…${local.slice(-20)}`;
 }
 
 function LongId({ id }: { id: string }): JSX.Element {
