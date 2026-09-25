@@ -12,7 +12,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::RwLock;
 
 /// How many rejected records one pipeline keeps (PL-61).
@@ -225,6 +225,48 @@ impl RejectedStore {
                 .unwrap_or_else(|e| e.into_inner())
                 .get(&(project.to_owned(), pipeline.to_owned()))
                 .map_or(0, |(_, list)| list.len() as u64)),
+        }
+    }
+
+    /// Drops the list of every pipeline a project `loaded` no longer holds: a deleted pipeline's
+    /// refused records go with it. `loaded` maps each project a completed sync read to the
+    /// pipelines it holds, so a paused pipeline keeps its list, and a project this sync did not
+    /// read (its repository did not stage) is not touched at all.
+    pub async fn forget_gone(
+        &self,
+        loaded: &BTreeMap<String, HashSet<String>>,
+    ) -> Result<(), sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let scope: Vec<&str> = loaded.keys().map(String::as_str).collect();
+                let (projects, pipelines): (Vec<&str>, Vec<&str>) = loaded
+                    .iter()
+                    .flat_map(|(project, names)| {
+                        names.iter().map(move |n| (project.as_str(), n.as_str()))
+                    })
+                    .unzip();
+                sqlx::query(
+                    "DELETE FROM pipeline_rejected r WHERE r.project = ANY($1::text[]) AND NOT EXISTS (SELECT 1 FROM \
+                     UNNEST($2::text[], $3::text[]) AS k(project, pipeline) \
+                     WHERE k.project = r.project AND k.pipeline = r.pipeline)",
+                )
+                .bind(&scope)
+                .bind(&projects)
+                .bind(&pipelines)
+                .execute(pool)
+                .await?;
+                Ok(())
+            }
+            Inner::Memory(map) => {
+                map.write()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .retain(|(project, pipeline), _| {
+                        loaded
+                            .get(project)
+                            .is_none_or(|names| names.contains(pipeline))
+                    });
+                Ok(())
+            }
         }
     }
 
