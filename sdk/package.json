@@ -41,7 +41,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && vite build --config vite.worker.config.ts && vite build --config vite.template.config.ts && vite build --config vite.runtime.config.ts && vite build --config vite.server.config.ts && pnpm run build:package",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && for sample in samples/*/tsconfig.json; do tsc -p \"$sample\" --noEmit || exit 1; done",
     "test": "vitest run",
     "e2e": "playwright test",
     "build:package": "vite build --config vite.package.config.ts && tsc -p tsconfig.package.json && cp src/sdk/tokens.json dist/package/tokens.json",
@@ -68,6 +68,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "axe-core": "4.13.0",
     "echarts": "^6.1.0",
     "jsdom": "^30.0.1",
     "recharts": "^3.10.1",

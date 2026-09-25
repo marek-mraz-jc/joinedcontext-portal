@@ -281,6 +281,15 @@ describe("the Role form", () => {
     ).toEqual(["propose on DataSource"]);
   });
 
+  it("counts propose as holding read, as the server does", () => {
+    // The seeded org-admin proposes every kind and names no `read`: granting the viewer role is
+    // within its rights (jc-core `Rule::grants`, PF-59).
+    const document = effective([{ kinds: ["Pipeline"], verbs: ["propose", "approve", "delete"] }]);
+    expect(beyondOwnRights(document, [{ kinds: ["Pipeline"], verbs: ["read"] }])).toEqual([]);
+    const approver = effective([{ kinds: ["Pipeline"], verbs: ["approve"] }]);
+    expect(beyondOwnRights(approver, [{ kinds: ["Pipeline"], verbs: ["read"] }])).toEqual(["read on Pipeline"]);
+  });
+
   it("keeps a constraint the author's own grant carries, as the server does", () => {
     // `within_own_rights` holds a grant only when every constraint of the held rule is in the new
     // one: dropping the constraint widens the grant, which is the escalation it refuses (PF-52).

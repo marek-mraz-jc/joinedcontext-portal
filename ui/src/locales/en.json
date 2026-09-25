@@ -342,7 +342,12 @@
       "noPolicies": "This space has no policy yet.",
       "assignee": "Assignee",
       "operations": "Operations",
-      "copyId": "Copy the id {id}"
+      "copyId": "Copy the id {id}",
+      "model": "Data model",
+      "modelEmpty": "This space has no data model yet",
+      "modelEmptyLead": "A data model names the space's entity types and their attributes. Create one or import a Smart Data Model for this space.",
+      "modelCreate": "Create a data model",
+      "modelImport": "Import a Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -455,7 +460,31 @@
       "openData": "Open data",
       "datastore": "Data sheet",
       "sheetFrom": "Sheet built from",
-      "sheetRefresh": "Sheet refresh"
+      "sheetRefresh": "Sheet refresh",
+      "catalog": {
+        "title": "Catalogue description",
+        "publisher": "Publisher",
+        "publisherName": "Publisher name",
+        "publisherUri": "Publisher web address",
+        "contactPoint": "Contact point",
+        "contactName": "Contact desk",
+        "contactEmail": "Contact e-mail",
+        "license": "Licence",
+        "attribution": "Attribution text",
+        "themes": "Themes",
+        "keywords": "Keywords",
+        "spatial": "Area covered",
+        "temporal": "Period covered",
+        "temporalStart": "Covered from",
+        "temporalEnd": "Covered until",
+        "frequency": "Updated",
+        "source": "Original datasets",
+        "sourceUrl": "Original dataset address",
+        "sourceTitle": "Original dataset name",
+        "sourceDescription": "Original dataset description",
+        "pipeline": "Filled by pipeline",
+        "legislation": "Applicable law"
+      }
     },
     "rateClass": {
       "strict": "Strict",
@@ -614,7 +643,43 @@
       "noFileLimits": "The platform's own file limits apply.",
       "publication": "Published as open data",
       "notSet": "not set",
-      "filterPropose": "Propose this filter"
+      "filterPropose": "Propose this filter",
+      "catalog": {
+        "title": "In the catalogue",
+        "lead": "What every open-data catalogue reads about this endpoint, and what a user may do with the data.",
+        "notCatalogued": "No catalogue description yet: the record names only its title, its formats and its access rights. Change the settings to add a publisher, a licence and what the data covers.",
+        "publisher": "Published by",
+        "licence": "Licence",
+        "frequency": "Updated",
+        "contact": "Questions to",
+        "coverage": "Covers",
+        "period": "{start} to {end}",
+        "ongoing": "today",
+        "origin": "Comes from",
+        "byPipeline": "filled by the pipeline {name}",
+        "themes": "Themes",
+        "offer": "What a user may do",
+        "noLicence": "No licence is named, so the record makes no offer: a user cannot tell what they may do with the data.",
+        "thePublisher": "the publisher",
+        "who": {
+          "public": "Anyone",
+          "organization": "Anyone in the organization",
+          "project-list": "The listed projects of the organization"
+        },
+        "use": {
+          "none": "{who} may use this data for any purpose, without conditions.",
+          "attribute": "{who} may use this data if they credit {publisher}.",
+          "shareAlike": "{who} may use this data if they credit {publisher}."
+        },
+        "shareAlike": "What they publish from it goes out under the same licence.",
+        "raw": {
+          "jsonld": "DCAT-AP record (JSON-LD)",
+          "turtle": "DCAT-AP record (Turtle)",
+          "odrl": "Your access as ODRL",
+          "lead": "The document as a harvester or a data-space connector reads it from this endpoint.",
+          "failed": "The endpoint did not answer. It answers once the change that created it is approved and applied."
+        }
+      }
     },
     "condition": {
       "title": "Add a condition",
@@ -816,7 +881,8 @@
       "latency": "ms p99",
       "unavailable": "No numbers: the runner is not answering.",
       "paused": "Not running",
-      "scheduled": "Runs on its schedule"
+      "scheduled": "Runs on its schedule",
+      "rejected": "rejected"
     },
     "pause": "Pause",
     "pauseHint": "Proposes a change that stops this pipeline.",
@@ -945,7 +1011,34 @@
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
-    "noCredential": "None"
+    "noCredential": "None",
+    "writesType": "Writes",
+    "rejected": {
+      "open": "Rejected records",
+      "title": "Rejected records of {name}",
+      "lead": "Records the data model refused, newest first. They were not written. Fix the mapping or the model, let the change merge, then pick the records and retry them.",
+      "caption": "Rejected records",
+      "close": "Close",
+      "empty": "No rejected records",
+      "emptyHint": "Every record this pipeline read passed its space's data model.",
+      "total": "{count, plural, one {# record kept} other {# records kept}} (the newest 1000)",
+      "at": "Refused at",
+      "rule": "Rule",
+      "reason": "Reason",
+      "record": "Record",
+      "step": "In step {step}",
+      "pick": "Pick the record refused at {at}",
+      "pickPage": "Pick every record on this page",
+      "picked": "{count, plural, one {# record picked} other {# records picked}}",
+      "pickFirst": "Pick the records to retry first.",
+      "tooMany": "Retry at most 100 records at a time.",
+      "retry": "{count, plural, =0 {Retry after fix} one {Retry # record after fix} other {Retry # records after fix}}",
+      "retrying": "Retrying…",
+      "replayed": "{count, plural, =0 {No record was replayed.} one {# record was replayed through the current model; if it still breaks the model it comes back here.} other {# records were replayed through the current model; any that still break the model come back here.}}",
+      "maskedKept": "{count, plural, one {# record stays on the list: a value of it was masked as a secret, and replaying it would write the mask. The pipeline's next read of its source brings it again.} other {# records stay on the list: a value of each was masked as a secret, and replaying them would write the mask. The pipeline's next read of its source brings them again.}}",
+      "newest": "Newest",
+      "older": "Older records"
+    }
   },
   "dashboards": {
     "lead": "Maps drawn from the endpoints of this project.",
@@ -1209,6 +1302,49 @@
       "publish": "Publish this TXT record in the domain's DNS:",
       "copy": "Copy the record",
       "copied": "Record copied"
+    },
+    "groupPage": {
+      "lead": "Who is in this group, and what the group may do.",
+      "back": "All groups",
+      "notFound": "There is no group {name} in the organization.",
+      "deleteCascade": "Deleting this group also takes it out of {bindings} platform role binding(s) and {apps} application role(s), in the same change.",
+      "members": "Members",
+      "email": "E-mail of the person",
+      "addMember": "Add member",
+      "removeMember": "Remove {member} from the group",
+      "remove": "Remove",
+      "needEmail": "Type the person's e-mail address first.",
+      "already": "Already there.",
+      "platformRoles": "Platform roles",
+      "platformLead": "The role bindings that name this group: which role, and where it holds.",
+      "noPlatformRole": "No binding names this group yet.",
+      "roleAt": "{role}, {where}",
+      "removeRole": "Take the group out of {role}",
+      "onlySubject": "The binding names only this group, so removing it deletes the binding.",
+      "where": "Where",
+      "organization": "Whole organization",
+      "space": "Context space",
+      "wholeProject": "The whole project",
+      "role": "Role",
+      "pickRole": "Choose a role",
+      "projectRole": "{role} (role of project {project})",
+      "needRole": "Choose a role first.",
+      "refused": {
+        "projectRoleAtOrganization": "{role} is a role of one project, so it cannot be given for the whole organization. Choose that project, or an organization role.",
+        "projectRoleElsewhere": "{role} belongs to another project and holds only there."
+      },
+      "addRole": "Give role",
+      "appRoles": "Application roles",
+      "appLead": "The roles of applications that {group} holds.",
+      "noAppRole": "No application gives this group a role yet.",
+      "appRole": "{role} in {app} ({project})",
+      "removeAppRole": "Take the group out of {role}",
+      "project": "Project",
+      "pickProject": "Choose a project",
+      "app": "Application",
+      "pickApp": "Choose an application",
+      "needAppRole": "Choose a project, an application and one of its roles first.",
+      "addAppRole": "Give application role"
     }
   },
   "flows": {
@@ -1296,6 +1432,7 @@
     "newSlot": "New slot",
     "newEnum": "New enum",
     "newEnumValue": "New value of {name}",
+    "removeEnumValue": "Remove the value {value}",
     "classUri": "Class IRI",
     "description": "Description",
     "titleIn": "Title ({locale})",
@@ -1404,7 +1541,9 @@
       "file": "Saved as {name}.linkml.yaml",
       "taken": "The project already has a model named {name}. Choose another name.",
       "held": "Kept as the shared draft {name}; it is here after a reload, until you save the model.",
-      "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do."
+      "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do.",
+      "spaceHas": "{space} (already has {model})",
+      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it."
     },
     "infer": {
       "title": "Model from a file",
@@ -1437,10 +1576,12 @@
     "dimensionLabel": "Dashboard use",
     "graph": {
       "title": "The model's classes and what joins them",
-      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class.",
+      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import.",
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
-      "more": "and {count} more"
+      "more": "and {count} more",
+      "from": "from {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Name",
@@ -1455,6 +1596,73 @@
       "published": "Published",
       "deprecated": "Deprecated",
       "retired": "Retired"
+    },
+    "page": {
+      "listLead": "Every data model of this project: one per Context Space, and what builds on it.",
+      "listCaption": "The project's data models",
+      "new": {
+        "blank": "New blank model",
+        "file": "New model from a file",
+        "sdm": "New model from Smart Data Models"
+      },
+      "emptyTitle": "No data model yet",
+      "emptyLead": "Create one for a space: start blank, infer it from a file, or import a Smart Data Model.",
+      "search": "Search by name, title or class",
+      "everySpace": "Every space",
+      "lastChange": "Last change",
+      "usedBy": "Used by",
+      "noMatch": "No model matches the search and the space chosen.",
+      "unused": "Nothing yet",
+      "uses": {
+        "Endpoint": "{count, plural, one {# endpoint} other {# endpoints}}",
+        "Pipeline": "{count, plural, one {# pipeline} other {# pipelines}}",
+        "App": "{count, plural, one {# app} other {# apps}}",
+        "Dashboard": "{count, plural, one {# dashboard} other {# dashboards}}"
+      },
+      "usedKind": {
+        "ContextSpace": "Context Space",
+        "Endpoint": "Endpoints",
+        "Pipeline": "Pipelines",
+        "Subscription": "Subscriptions",
+        "App": "Applications",
+        "Dashboard": "Dashboards",
+        "Mapping": "Mappings"
+      },
+      "unusedLead": "Nothing in this project uses the model yet: no space, endpoint, pipeline, app or dashboard names it.",
+      "back": "All data models",
+      "edit": "Edit model",
+      "notFound": "No data model named {name}",
+      "notFoundLead": "It may have been renamed or removed, or it belongs to another project. The list shows every model you may read.",
+      "sourceFailed": "The model's LinkML could not be read: {reason}",
+      "views": "Views of the model",
+      "view": {
+        "overview": "Overview",
+        "diagram": "Diagram",
+        "form": "Form",
+        "yaml": "YAML",
+        "used": "Where used",
+        "history": "History",
+        "mappings": "Mappings"
+      },
+      "class": "Class",
+      "relationship": "relationship",
+      "enum": "pick list",
+      "noClasses": "This model declares no class yet, so it generates no form.",
+      "formClass": "Class",
+      "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
+      "yaml": "The model's LinkML",
+      "copyYaml": "Copy the YAML",
+      "downloadYaml": "Download the YAML",
+      "copied": "Copied.",
+      "copyFailed": "The browser did not allow copying; select the text and copy it instead."
+    },
+    "hints": {
+      "title": "This model has no class yet. Three ways to start:",
+      "sdm": "Import a Smart Data Model: its classes, fields and enums arrive written.",
+      "sdmAction": "Import a Smart Data Model",
+      "klass": "Add a class: name it in the box under Classes, for example School.",
+      "klassAction": "Name the first class",
+      "relation": "Add a relation: once there are two classes, give one a slot whose range is the other, for example School has users of the class User."
     }
   },
   "apps": {
@@ -1876,6 +2084,7 @@
       "isEmpty": "is empty",
       "present": "has a value",
       "pattern": "matches",
+      "anyOf": "is one of",
       "gt": "is greater than",
       "gte": "is at least",
       "lt": "is less than",
@@ -1911,6 +2120,7 @@
     "observedNow": "these values were observed now",
     "applying": "Applying…",
     "refusedHere": "refused",
+    "notInList": "not in the list",
     "map": {
       "panel": "Map",
       "offTheMap": "not on the map",
@@ -1970,7 +2180,8 @@
     "export": "Export this page",
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
-    "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:"
+    "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
+    "typeInModel": "This type in its data model:"
   },
   "agentRun": {
     "title": "Application run",
@@ -2229,6 +2440,43 @@
         "use": "Use this address",
         "invalid": "Give a full address starting with http:// or https://."
       }
+    },
+    "prose": {
+      "copyId": "Copy the whole id",
+      "copied": "Copied",
+      "table": "A table in the answer"
+    },
+    "follow": {
+      "title": "How {name} goes live",
+      "aChange": "a change",
+      "proposed": "Proposed the {kind} {name}",
+      "reading": "Reading the change…",
+      "unread": "The change could not be read",
+      "rejected": "Rejected: nothing was changed",
+      "approved": "Approved",
+      "waiting": "Waits for a person who may approve {kind} changes in this project",
+      "red": "A red-lane change is approved on its own page, where its name is typed back.",
+      "approve": "Approve",
+      "deploy": "Goes live once approved",
+      "deploying": "Deploying…",
+      "live": "Live",
+      "open": "The {kind} is live: open it",
+      "stage": {
+        "done": "Done",
+        "working": "In progress",
+        "waiting": "Waiting",
+        "failed": "Failed",
+        "later": "Not yet"
+      },
+      "test": {
+        "later": "Tested once live",
+        "reading": "Reading a few rows of {name} as you…",
+        "read": "{count, plural, one {Read # row} other {Read # rows}} of {total} {type} from {name}",
+        "empty": "{name} is live and holds no entities yet",
+        "failed": "The test read failed",
+        "again": "Read again",
+        "explore": "Open it in Explore"
+      }
     }
   },
   "assistant": {
@@ -2281,7 +2529,8 @@
       "meaning": "What it means",
       "document": "The {format} document",
       "model": "{types}, from the data model {name} {semver}",
-      "formats": "Served as {formats}; {recommended} is read first"
+      "formats": "Served as {formats}; {recommended} is read first",
+      "fromModel": "from the data model"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",
@@ -2345,6 +2594,19 @@
         "noWrite": "Your role does not write through this endpoint."
       },
       "pathLeft": "Not with {preset}: switch it on in Capabilities."
+    },
+    "full": {
+      "conversations": "Conversations",
+      "search": "Search conversations",
+      "none": "No conversations here yet.",
+      "noMatch": "No conversation asks about “{words}”.",
+      "untitled": "A conversation started from a path",
+      "more": "Show {count} more",
+      "showList": "Show the conversations",
+      "hideList": "Hide the conversations",
+      "data": "Data and capabilities",
+      "showData": "Show the data and capabilities",
+      "hideData": "Hide the data and capabilities"
     }
   },
   "permissions": {
@@ -2901,7 +3163,8 @@
       "administrative": "Administration",
       "technical": "Technology",
       "data-protection": "Data protection",
-      "security": "Security"
+      "security": "Security",
+      "open-data": "Open-data desk"
     },
     "visibility": {
       "organization": "Every signed-in person of the organization",
@@ -2912,6 +3175,7 @@
     "tabsLabel": "Parts of the organization",
     "tab": {
       "settings": "Settings",
+      "people": "People",
       "members": "Members",
       "roles": "Roles",
       "groups": "Groups",
@@ -2953,6 +3217,128 @@
       "own": "{count, plural, =0 {None of its own} one {# of its own} other {# of its own}}",
       "throughOrganization": "{count, plural, one {# through the organization} other {# through the organization}}",
       "settings": "Settings"
+    },
+    "people": {
+      "title": "People",
+      "lead": "The people of the organization’s sign-in realm. What each one may do comes from the bindings and groups that name them.",
+      "new": "New person",
+      "hidden": "Only a person whose role reads people sees this list. An organization administrator can grant it.",
+      "invited": "The realm sent {email} an e-mail to verify the address and set a password.",
+      "search": "Search people",
+      "searchPlaceholder": "Name or e-mail",
+      "searchButton": "Search",
+      "caption": "People of the organization",
+      "name": "Name",
+      "email": "E-mail",
+      "state": "State",
+      "lastSeen": "Last active",
+      "noMatch": "Nobody matches “{search}”.",
+      "empty": "The realm has no people yet.",
+      "emptyHint": "Everyone who signs in to the organization’s realm appears here. Add someone with New person.",
+      "noSession": "No open session",
+      "pages": "Pages of people",
+      "previous": "Previous",
+      "next": "Next",
+      "enabled": "Active",
+      "disabled": "Disabled",
+      "verified": "E-mail verified",
+      "unverified": "E-mail not verified",
+      "removalPending": "Removal waits for approval",
+      "newTitle": "New person",
+      "newLead": "The realm e-mails the person a link to verify the address and set a password. A realm without e-mail gives you a temporary password once.",
+      "create": "Create person",
+      "back": "Back to People",
+      "notFound": "The realm has no such person.",
+      "account": "Account",
+      "created": "Created",
+      "pendingSteps": "Steps at the next sign-in",
+      "edit": "Edit",
+      "groups": "Groups",
+      "noGroups": "In no group.",
+      "platformRoles": "Platform roles",
+      "appRoles": "Application roles",
+      "noRoles": "None.",
+      "viaGroup": "through the group {group}",
+      "direct": "named directly",
+      "editTitle": "Edit {name}",
+      "editLead": "A changed e-mail address must be verified again before the person signs in with it.",
+      "save": "Save",
+      "form": {
+        "email": "E-mail",
+        "emailHelp": "The address the person signs in with and receives the invitation at.",
+        "firstName": "First name",
+        "firstNameHelp": "The first name as the person writes it, shown in the Portal and in e-mails.",
+        "lastName": "Last name",
+        "lastNameHelp": "The last name as the person writes it, shown in the Portal and in e-mails.",
+        "locale": "Language",
+        "localeHelp": "The language of the sign-in pages and the realm’s e-mails for this person.",
+        "localeRealm": "The realm’s default",
+        "emailInvalid": "Type an e-mail address such as jana.novakova@example.org.",
+        "required": "Required."
+      },
+      "language": {
+        "en": "English",
+        "sk": "Slovenčina",
+        "cs": "Čeština",
+        "de": "Deutsch"
+      },
+      "step": {
+        "VERIFY_EMAIL": "verify the e-mail",
+        "UPDATE_PASSWORD": "set a password",
+        "CONFIGURE_TOTP": "set up a second factor",
+        "UPDATE_PROFILE": "complete the profile"
+      },
+      "action": {
+        "disable": "Disable",
+        "enable": "Enable",
+        "reset-password": "Reset password",
+        "remove-second-factor": "Remove second factor",
+        "sign-out": "Sign out everywhere",
+        "delete": "Delete"
+      },
+      "done": {
+        "disable": "Disabled. Every session of the person ended.",
+        "enable": "Enabled. The person can sign in again.",
+        "reset-password": "The realm e-mailed the person a link to set a new password.",
+        "remove-second-factor": "Second factor removed. The person sets up a new one at the next sign-in.",
+        "sign-out": "Every session of the person ended.",
+        "delete": "Deleted."
+      },
+      "confirm": {
+        "disable": {
+          "title": "Disable {name}?",
+          "body": "The person can no longer sign in and every open session ends. Their groups and roles stay."
+        },
+        "enable": {
+          "title": "Enable {name}?",
+          "body": "The person can sign in again with the rights their groups and bindings give."
+        },
+        "reset-password": {
+          "title": "Reset the password of {name}?",
+          "body": "The realm e-mails a link to set a new password. Without e-mail you get a temporary password once."
+        },
+        "remove-second-factor": {
+          "title": "Remove the second factor of {name}?",
+          "body": "Their authenticator stops working here; they set up a new one at the next sign-in."
+        },
+        "sign-out": {
+          "title": "Sign {name} out everywhere?",
+          "body": "Every open session ends. The person can sign in again."
+        },
+        "delete": {
+          "title": "Delete {name}?",
+          "body": "The person is disabled now. When groups or bindings name them, a Change takes them out of each; the account goes once that Change is approved. This cannot be undone."
+        }
+      },
+      "password": {
+        "title": "Temporary password",
+        "lead": "The realm cannot send e-mail, so hand this password to {email} yourself.",
+        "warning": "It is shown this once and nowhere else. The person must replace it at the first sign-in. Send it by a channel only they read.",
+        "label": "Temporary password",
+        "copy": "Copy",
+        "copied": "Copied to the clipboard.",
+        "done": "Done"
+      }
     }
   },
   "projectDelete": {
@@ -3164,6 +3550,71 @@
       "associationOps": "Read everything and subscribe",
       "federationOps": "Federate",
       "redirectionOps": "Forward everything"
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "CC0": "Creative Commons Zero (public domain)",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Database Licence (ODbL)",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication"
+    },
+    "dataTheme": {
+      "AGRI": "Agriculture, fisheries, forestry and food",
+      "ECON": "Economy and finance",
+      "EDUC": "Education, culture and sport",
+      "ENER": "Energy",
+      "ENVI": "Environment",
+      "GOVE": "Government and public sector",
+      "HEAL": "Health",
+      "INTR": "International issues",
+      "JUST": "Justice, legal system and public safety",
+      "REGI": "Regions and cities",
+      "SOCI": "Population and society",
+      "TECH": "Science and technology",
+      "TRAN": "Transport"
+    },
+    "frequency": {
+      "CONT": "Continuously",
+      "HOURLY": "Every hour",
+      "DAILY": "Every day",
+      "WEEKLY": "Every week",
+      "MONTHLY": "Every month",
+      "QUARTERLY": "Every quarter",
+      "ANNUAL": "Every year",
+      "IRREG": "Irregularly",
+      "NEVER": "Never, it is final",
+      "UNKNOWN": "Not known"
     }
+  },
+  "picker": {
+    "search": "Search",
+    "chosen": "Chosen: {label}",
+    "remove": "Remove {name}",
+    "model": {
+      "group": "{project} / {space}",
+      "catalogue": "Smart Data Models",
+      "none": "No data model matches.",
+      "create": "New data model “{name}”",
+      "catalogueUnavailable": "Smart Data Models cannot be searched right now: {reason}",
+      "catalogueHint": "Type two letters or more to search Smart Data Models too.",
+      "lifecycle": {
+        "draft": "draft",
+        "published": "published",
+        "deprecated": "deprecated",
+        "retired": "retired",
+        "mirrored": "mirrored"
+      }
+    },
+    "type": {
+      "local": "Types of {space}",
+      "modelGroup": "{name} ({space})",
+      "imported": "Imported from {name}",
+      "none": "The model of {space} declares no type yet.",
+      "noneInProject": "No data model of this project declares a type yet.",
+      "create": "New type “{name}”"
+    },
+    "createNamed": "New: “{name}”",
+    "list": "Choices"
   }
 }

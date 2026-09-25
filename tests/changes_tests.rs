@@ -1972,6 +1972,23 @@ fn endpoint_yaml(audience: &str) -> String {
 /// One open change that gives the `air` endpoint `audience`, with `approver` bound to `rules`
 /// over the organization.
 async fn endpoint_change_of(audience: &str, rules: Value) -> (MockServer, AppState) {
+    change_of_file(
+        PUBLIC_ENDPOINT_BRANCH,
+        PUBLIC_ENDPOINT_PATH,
+        &endpoint_yaml(audience),
+        rules,
+    )
+    .await
+}
+
+/// One open change (pull 66, `chg-00000042`) that writes `content` at `file` on `branch`, with
+/// `approver` bound to `rules` over the organization.
+async fn change_of_file(
+    branch: &str,
+    file: &str,
+    content: &str,
+    rules: Value,
+) -> (MockServer, AppState) {
     use joinedcontext_portal::permissions::ORG_NAMESPACE;
     use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 
@@ -2011,7 +2028,7 @@ async fn endpoint_change_of(audience: &str, rules: Value) -> (MockServer, AppSta
             "html_url": "https://gitea.example.sk/pulls/66",
             "state": "open",
             "title": "share air quality",
-            "head": { "ref": PUBLIC_ENDPOINT_BRANCH },
+            "head": { "ref": branch },
             "base": { "ref": "main" },
             "created_at": "2026-09-16T09:14:22Z",
             "user": { "login": "someone", "full_name": "Someone Else", "email": "someone@banskabystrica.sk" },
@@ -2020,14 +2037,14 @@ async fn endpoint_change_of(audience: &str, rules: Value) -> (MockServer, AppSta
         })))
         .mount(&server)
         .await;
-    pr_files(&server, 66, &[(PUBLIC_ENDPOINT_PATH, "added")]).await;
+    pr_files(&server, 66, &[(file, "added")]).await;
     Mock::given(method("GET"))
         .and(path(format!(
-            "/api/v1/repos/test-owner/test-repo/contents/{PUBLIC_ENDPOINT_PATH}"
+            "/api/v1/repos/test-owner/test-repo/contents/{file}"
         )))
-        .and(query_param("ref", PUBLIC_ENDPOINT_BRANCH))
+        .and(query_param("ref", branch))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "sha": "blob-66", "content": encode_b64(&endpoint_yaml(audience))
+            "sha": "blob-66", "content": encode_b64(content)
         })))
         .mount(&server)
         .await;
@@ -2146,6 +2163,96 @@ async fn an_org_admin_approves_both_and_the_public_one_still_needs_the_name_type
     let (status, body) = approve_endpoint(state, Some("air")).await;
     assert_eq!(status, StatusCode::ACCEPTED, "{body}");
     assert!(merged_66(&server).await);
+}
+
+const PUBLIC_APP_BRANCH: &str = "portal/create-app-air-desk-00000042";
+const PUBLIC_APP_PATH: &str = "projects/ovzdusie/apps/air-desk/app.yaml";
+
+/// An App manifest; `visibility: None` writes none, which is `project` (AP-120).
+fn app_yaml(visibility: Option<&str>) -> String {
+    let visibility = visibility.map_or(String::new(), |v| format!("  visibility: {v}\n"));
+    format!(
+        "apiVersion: joinedcontext.com/v1alpha1\nkind: App\nmetadata:\n  name: air-desk\n  \
+         namespace: ovzdusie\nspec:\n  kind: static\n  source:\n    path: ./src\n  build: {{}}\n{visibility}"
+    )
+}
+
+/// The seeded steward and publisher on App (PF-71, AP-120).
+fn app_steward_rules() -> Value {
+    json!([
+        { "kinds": ["App"], "verbs": ["propose"] },
+        { "kinds": ["App"], "verbs": ["approve"],
+          "constraints": [{ "field": "spec.visibility", "notIn": ["public"] }] }
+    ])
+}
+
+fn app_publisher_rules() -> Value {
+    json!([
+        { "kinds": ["App"], "verbs": ["read"] },
+        { "kinds": ["App"], "verbs": ["approve"],
+          "constraints": [{ "field": "spec.visibility", "in": ["public"] }] }
+    ])
+}
+
+/// AP-120, PF-72 (T-2690): an App anyone opens without a login is the publisher's to approve,
+/// and the steward's refusal names the role; an App without visibility is `project`, the steward's.
+#[tokio::test]
+async fn a_public_app_waits_for_a_publisher_and_a_project_app_is_the_stewards() {
+    let public = app_yaml(Some("public"));
+    let (server, state) = change_of_file(
+        PUBLIC_APP_BRANCH,
+        PUBLIC_APP_PATH,
+        &public,
+        app_steward_rules(),
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air-desk")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body.contains("publisher") && body.contains("AP-120"),
+        "{body}"
+    );
+    assert!(!merged_66(&server).await);
+
+    let (server, state) = change_of_file(
+        PUBLIC_APP_BRANCH,
+        PUBLIC_APP_PATH,
+        &public,
+        app_publisher_rules(),
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air-desk")).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert!(merged_66(&server).await);
+
+    for visibility in [None, Some("project")] {
+        let yaml = app_yaml(visibility);
+        let (server, state) = change_of_file(
+            PUBLIC_APP_BRANCH,
+            PUBLIC_APP_PATH,
+            &yaml,
+            app_steward_rules(),
+        )
+        .await;
+        let (status, body) = approve_endpoint(state, Some("air-desk")).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{visibility:?}: {body}");
+        assert!(merged_66(&server).await);
+
+        let (server, state) = change_of_file(
+            PUBLIC_APP_BRANCH,
+            PUBLIC_APP_PATH,
+            &yaml,
+            app_publisher_rules(),
+        )
+        .await;
+        let (status, body) = approve_endpoint(state, Some("air-desk")).await;
+        assert_eq!(
+            status,
+            StatusCode::FORBIDDEN,
+            "a publisher approves only what goes public: {body}"
+        );
+        assert!(!merged_66(&server).await);
+    }
 }
 
 async fn merged_66(server: &MockServer) -> bool {

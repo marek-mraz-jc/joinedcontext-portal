@@ -11,6 +11,8 @@ export interface Fixture {
   schema?: Schema;
   access?: AccessDocument;
   functions?: Record<string, (body: unknown) => unknown | Promise<unknown>>;
+  /** The temporal read's answer, as the broker's `temporalValues` bodies; those of the asked type are returned. */
+  temporal?: { id: string; type: string; [attr: string]: unknown }[];
   refuse?: (request: JcRequest) => JcResponse | null;
 }
 
@@ -148,7 +150,8 @@ export function stubTransport(fixture?: Fixture): StubTransport {
     }
 
     if (pathname.endsWith("/ngsi-ld/v1/temporal/entities") && method === "GET") {
-      return { status: 200, body: [] };
+      const type = params.get("type");
+      return { status: 200, body: (fixture?.temporal ?? []).filter((item) => !type || item.type === type) };
     }
 
     if (pathname.endsWith("/schema/index.json") && method === "GET") {

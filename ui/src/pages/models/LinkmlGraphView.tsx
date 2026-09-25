@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { graphData, parseModel } from "./linkml";
+import { graphData, parseModel, withImports } from "./linkml";
 import type { GraphEdge, GraphNode } from "./linkml";
 
 /**
@@ -25,6 +25,8 @@ const BOX = {
 };
 /** Past this many slots a box says "and n more" rather than growing down the page. */
 const SLOTS_SHOWN = 6;
+/** One object for "no imports", so the drawing is not recomputed on every render. */
+const NO_IMPORTS: Record<string, string> = {};
 
 interface Placed extends GraphNode {
   x: number;
@@ -82,17 +84,29 @@ function line(from: Placed, to: Placed): { x1: number; y1: number; x2: number; y
  */
 export function LinkmlGraphView({
   source,
+  imports = NO_IMPORTS,
   onOpenClass,
 }: {
   source: string;
+  /** The sources of the models this one imports, by import name: their classes are drawn too. */
+  imports?: Record<string, string>;
   onOpenClass?: (name: string) => void;
 }): JSX.Element {
   const { t } = useTranslation();
-  const { nodes, edges } = useMemo(() => graphData(parseModel(source)), [source]);
+  const { nodes, edges } = useMemo(
+    () =>
+      graphData(
+        withImports(
+          parseModel(source),
+          Object.fromEntries(Object.entries(imports).map(([name, text]) => [name, parseModel(text)])),
+        ),
+      ),
+    [source, imports],
+  );
   const placed = useMemo(() => place(nodes), [nodes]);
   const at = useMemo(() => new Map(placed.map((node) => [node.name, node])), [placed]);
 
-  if (placed.length === 0) {
+  if (!placed.some((node) => node.kind === "class")) {
     return (
       <p role="status" className="text-body text-fg-muted">
         {t("models.graph.empty")}
@@ -103,7 +117,7 @@ export function LinkmlGraphView({
   const width = Math.max(...placed.map((node) => node.x + BOX.width)) + BOX.padding;
   const height = Math.max(...placed.map((node) => node.y + node.height)) + BOX.padding;
   const stroke = (edge: GraphEdge) =>
-    edge.kind === "mixin" ? "6 4" : edge.kind === "range" ? "2 3" : undefined;
+    edge.kind === "mixin" ? "6 4" : edge.kind === "range" ? "2 3" : edge.kind === "enum" ? "1 4" : undefined;
 
   return (
     <div className="flex flex-col gap-2">
@@ -166,63 +180,92 @@ export function LinkmlGraphView({
             );
           })}
 
-          {placed.map((node) => (
-            <g
-              key={node.name}
-              role="button"
-              tabIndex={0}
-              aria-label={t("models.graph.openClass", { name: node.name })}
-              // `focus-ring`, never a bare `outline-none`: the box is in the tab order, so
-              // taking its outline away left a keyboard with nothing to follow (UI-15).
-              className="focus-ring cursor-pointer"
-              onClick={() => onOpenClass?.(node.name)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onOpenClass?.(node.name);
-                }
-              }}
-            >
-              <rect
-                x={node.x}
-                y={node.y}
-                width={BOX.width}
-                height={node.height}
-                rx={6}
-                className="fill-surface-subtle stroke-border"
-                strokeWidth={1}
-              />
-              <text
-                x={node.x + BOX.padding}
-                y={node.y + 17}
-                fontSize={BOX.title}
-                className="fill-current font-semibold"
+          {placed.map((node) => {
+            const box = (
+              <>
+                <rect
+                  x={node.x}
+                  y={node.y}
+                  width={BOX.width}
+                  height={node.height}
+                  rx={node.kind === "enum" ? 2 : 6}
+                  className={node.kind === "enum" ? "fill-surface stroke-border" : "fill-surface-subtle stroke-border"}
+                  strokeWidth={1}
+                  strokeDasharray={node.from || node.kind === "enum" ? "4 3" : undefined}
+                />
+                <text
+                  x={node.x + BOX.padding}
+                  y={node.y + 17}
+                  fontSize={BOX.title}
+                  className="fill-current font-semibold"
+                >
+                  {node.kind === "enum" ? `«enum» ${node.name}` : node.name}
+                </text>
+                {node.from ? (
+                  <text
+                    x={node.x + BOX.width - BOX.padding}
+                    y={node.y + 17}
+                    fontSize={BOX.edge}
+                    textAnchor="end"
+                    className="fill-current text-fg-muted"
+                  >
+                    {t("models.graph.from", { name: node.from })}
+                  </text>
+                ) : null}
+                {node.slots.slice(0, SLOTS_SHOWN).map((slot, index) => (
+                  <text
+                    key={slot}
+                    x={node.x + BOX.padding}
+                    y={node.y + BOX.header + index * BOX.row + 4}
+                    fontSize={BOX.slot}
+                    className="fill-current text-fg-muted"
+                  >
+                    {slot}
+                  </text>
+                ))}
+                {node.slots.length > SLOTS_SHOWN ? (
+                  <text
+                    x={node.x + BOX.padding}
+                    y={node.y + BOX.header + SLOTS_SHOWN * BOX.row + 4}
+                    fontSize={BOX.slot}
+                    className="fill-current text-fg-muted"
+                  >
+                    {t("models.graph.more", { count: node.slots.length - SLOTS_SHOWN })}
+                  </text>
+                ) : null}
+              </>
+            );
+            // An enum opens nothing, so it is not a button: a stop in the tab order that does
+            // nothing when pressed is worse than none. It says what it is to a screen reader.
+            return node.kind === "enum" ? (
+              <g
+                key={`enum-${node.name}`}
+                role="img"
+                aria-label={t("models.graph.enumBox", { name: node.name, values: node.slots.join(", ") })}
               >
-                {node.name}
-              </text>
-              {node.slots.slice(0, SLOTS_SHOWN).map((slot, index) => (
-                <text
-                  key={slot}
-                  x={node.x + BOX.padding}
-                  y={node.y + BOX.header + index * BOX.row + 4}
-                  fontSize={BOX.slot}
-                  className="fill-current text-fg-muted"
-                >
-                  {slot}
-                </text>
-              ))}
-              {node.slots.length > SLOTS_SHOWN ? (
-                <text
-                  x={node.x + BOX.padding}
-                  y={node.y + BOX.header + SLOTS_SHOWN * BOX.row + 4}
-                  fontSize={BOX.slot}
-                  className="fill-current text-fg-muted"
-                >
-                  {t("models.graph.more", { count: node.slots.length - SLOTS_SHOWN })}
-                </text>
-              ) : null}
-            </g>
-          ))}
+                {box}
+              </g>
+            ) : (
+              <g
+                key={node.name}
+                role="button"
+                tabIndex={0}
+                aria-label={t("models.graph.openClass", { name: node.name })}
+                // `focus-ring`, never a bare `outline-none`: the box is in the tab order, so
+                // taking its outline away left a keyboard with nothing to follow (UI-15).
+                className="focus-ring cursor-pointer"
+                onClick={() => onOpenClass?.(node.name)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpenClass?.(node.name);
+                  }
+                }}
+              >
+                {box}
+              </g>
+            );
+          })}
         </svg>
       </div>
     </div>

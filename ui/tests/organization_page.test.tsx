@@ -127,12 +127,13 @@ afterEach(() => {
 
 describe("the Organization page", () => {
   // UI-16, UI-75: one H1, one tab list, the tab of the address selected.
-  it("names itself once and offers the six tabs, the address's one selected", async () => {
+  it("names itself once and offers the seven tabs, the address's one selected", async () => {
     renderAt("roles");
     expect(await screen.findByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
     const tabs = within(screen.getByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       en.organization.tab.settings,
+      en.organization.tab.people,
       en.organization.tab.members,
       en.organization.tab.roles,
       en.organization.tab.groups,

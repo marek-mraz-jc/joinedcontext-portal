@@ -38,20 +38,51 @@ WORKDIR /src
 COPY . .
 RUN CARGO_HOME=/opt/cargo cargo fetch --locked
 
-# The rust-1.90 runner (AP-105, AP-106): the toolchain with the musl target, node and the
-# template for the interface, the crate store, and the same lane and runner as the Node one.
-# Built with `--target rust`; the last stage stays the Node runner.
-FROM rust:1.90-slim-bookworm AS rust
-# The tag pins the toolchain, not its Debian: upgrade the base's packages so the image carries
-# the security fixes bookworm has shipped since the tag was cut (the image lane's trivy gate).
+# The toolchain of the rust-1.90 runner. The tag pins the toolchain, not its Debian: upgrade the
+# base's packages so the image carries the security fixes bookworm has shipped since the tag was
+# cut (the image lane's trivy gate).
+FROM rust:1.90-slim-bookworm AS toolchain
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends git curl ca-certificates musl-tools \
     && rm -rf /var/lib/apt/lists/* \
     && rustup target add x86_64-unknown-linux-musl
+
+# The dependencies of the reference fullstack apps, compiled here, by CI, from their own
+# Cargo.lock (AP-106, T-2794): the lane's two builds, `cargo test` and the release musl binary,
+# with the lane's own paths, so the fingerprints match and a job only compiles its own crate and
+# what its lock does not share. Cargo-chef style: each app's manifest and lock over stub sources,
+# so nothing of the apps' code is in the seed.
+FROM toolchain AS seed
+COPY --from=crates /opt/cargo/registry/index /opt/cargo/registry/index
+COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
+COPY apps/air-quality/Cargo.toml apps/air-quality/Cargo.lock /manifests/air-quality/
+COPY apps/hsl-transport/Cargo.toml apps/hsl-transport/Cargo.lock /manifests/hsl-transport/
+ENV CARGO_HOME=/tmp/build/cargo CARGO_TARGET_DIR=/tmp/build/target CARGO_NET_OFFLINE=true
+RUN set -eu; for app in air-quality hsl-transport; do \
+      rm -rf /tmp/build/app /tmp/build/cargo && mkdir -p /tmp/build/cargo/registry /tmp/build/app/src; \
+      ln -s /opt/cargo/registry/index /opt/cargo/registry/cache /tmp/build/cargo/registry/; \
+      cp /manifests/$app/Cargo.toml /manifests/$app/Cargo.lock /tmp/build/app/; \
+      echo 'fn main() {}' > /tmp/build/app/src/main.rs; : > /tmp/build/app/src/lib.rs; \
+      cd /tmp/build/app; \
+      cargo test --offline --locked --no-run; \
+      cargo build --release --offline --locked --target x86_64-unknown-linux-musl; \
+    done; \
+    # The stubs' own artifacts are no App's: only the dependencies stay.
+    find /tmp/build/target -depth \( -name 'air-quality*' -o -name 'air_quality*' -o -name 'libair_quality*' \
+      -o -name 'hsl-transport*' -o -name 'hsl_transport*' -o -name 'libhsl_transport*' \) -exec rm -rf {} +; \
+    rm -rf /tmp/build/target/*/incremental /tmp/build/target/*/*/incremental; \
+    mv /tmp/build/target /opt/cargo/target-seed
+
+# The rust-1.90 runner (AP-105, AP-106): the toolchain with the musl target, node and the
+# template for the interface, the crate store, the precompiled dependencies, and the same lane and
+# runner as the Node one. Built with `--target rust`; the last stage stays the Node runner.
+FROM toolchain AS rust
 COPY --from=node:24-slim /usr/local/bin/node /usr/local/bin/node
 COPY --from=template /opt/template/ /opt/template/
 COPY --from=crates /opt/cargo/registry/index /opt/cargo/registry/index
 COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
+# Read-only to the lane's uid: a job copies it and never writes it.
+COPY --from=seed /opt/cargo/target-seed /opt/cargo/target-seed
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
 COPY --from=runner --chmod=0755 /gitea-runner /usr/local/bin/gitea-runner

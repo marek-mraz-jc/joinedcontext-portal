@@ -288,6 +288,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/datamodels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Models Everywhere
+         * @description Every DataModel the caller may read across projects, and the Smart Data Models entries a search of two characters or more matches: what the model and type pickers list.
+         */
+        get: operations["list_organization_datamodels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List People
+         * @description Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.
+         */
+        get: operations["list_people"];
+        put?: never;
+        /**
+         * Create Person
+         * @description Creates a person and sends the realm's execute-actions e-mail; without SMTP answers a temporary password once. Needs `create` on Person.
+         */
+        post: operations["create_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Person
+         * @description One person with their groups, platform roles and application roles. Needs `read` on Person.
+         */
+        get: operations["get_person"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Person
+         * @description Proposes one Change taking the person out of every Group and RoleBinding and disables them; the Keycloak user is deleted once it is merged. A person nothing names is deleted at once. Needs `delete` on Person and every right the person holds.
+         */
+        delete: operations["delete_person"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit Person
+         * @description Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.
+         */
+        patch: operations["edit_person"];
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable Person
+         * @description Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.
+         */
+        post: operations["disable_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable Person
+         * @description Enables a disabled person. Needs `disable` on Person.
+         */
+        post: operations["enable_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/remove-second-factor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove Second Factor
+         * @description Removes every OTP and WebAuthn credential of the person. Needs `disable` on Person and every right the person holds.
+         */
+        post: operations["remove_second_factor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Sends the realm's password reset; without SMTP answers a temporary password once. Needs `update` on Person and every right the person holds.
+         */
+        post: operations["reset_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign Person Out
+         * @description Ends every session of the person. Needs `disable` on Person and every right the person holds.
+         */
+        post: operations["sign_out_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/preferences": {
         parameters: {
             query?: never;
@@ -1261,6 +1433,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/rejected": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rejected Records
+         * @description The records the pipeline's validation stage refused and did not write, newest first, each with the rule it broke; secrets masked (PL-61).
+         */
+        get: operations["get_rejected"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/rejected/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Rejected Records
+         * @description Replays the named rejected records once through the pipeline's current validation stage and its own write (PL-61): a record that passes now is written, one that still fails comes back with its rule. Needs propose on Pipeline.
+         */
+        post: operations["retry_rejected"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pipeline Runs
+         * @description The pipeline's latest runs, each with how many records it sent, how many the model rejected and how many failed in a step (PL-62). A run is one tick of the pipeline's clock, or one UTC hour for a source that never ends.
+         */
+        get: operations["get_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/runs/{run}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Run's Log
+         * @description One line per record of the run, newest first: the record's id, the step it failed at, its outcome (sent, rejected, failed) and what happened (PL-62). Record ids and messages are masked where they look like a credential.
+         */
+        get: operations["get_run_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/revisions": {
         parameters: {
             query?: never;
@@ -1933,6 +2185,13 @@ export interface components {
              */
             roles: string[];
         };
+        /** @description An application role the person holds (PF-94). */
+        AppRole: {
+            app: string;
+            project: string;
+            role: string;
+            via: Record<string, never>;
+        };
         /** @description Request body for approving or rejecting a change proposal. */
         ApproveBody: {
             confirm?: string | null;
@@ -2127,6 +2386,15 @@ export interface components {
             stale?: boolean;
             subjects?: components["schemas"]["CatalogueSubject"][];
         };
+        /** @description One Smart Data Models catalogue entry as the pickers list it (DM-12, DM-63). */
+        CatalogueEntry: {
+            description?: string | null;
+            /** @description `dataModel.Environment/AirQualityObserved`. */
+            id: string;
+            name: string;
+            /** @description `dataModel.Environment`. */
+            subject: string;
+        };
         /** @description One model of the Smart Data Models catalogue index, as the wizard lists and searches it. */
         CatalogueModel: {
             /** @description Attribute names, so the wizard can search by attribute without fetching the model. */
@@ -2306,6 +2574,12 @@ export interface components {
          * @enum {string}
          */
         ConflictPolicy: "fail" | "skip" | "replace" | "rename";
+        CreatePerson: {
+            email: string;
+            firstName: string;
+            lastName: string;
+            locale?: string | null;
+        };
         /** @description What a person asks for when they start a run (AP-51). */
         CreateRunRequest: {
             /** @description `static`, `service` or `fullstack`, as the `App` kind spells them. */
@@ -2334,6 +2608,12 @@ export interface components {
             unattended?: boolean;
             /** @description Who may reach the published application. `public` is refused (AP-42). */
             visibility?: string;
+        };
+        /** @description The one answer that may carry a temporary password, once (PF-92). */
+        CreatedPerson: {
+            emailSent: boolean;
+            person: components["schemas"]["Person"];
+            temporaryPassword?: string | null;
         };
         /**
          * @description The ticket, handed to the workspace and to nobody else. It is in the create answer because
@@ -2448,6 +2728,12 @@ export interface components {
          * @enum {string}
          */
         EdgeKind: "registers" | "serves" | "feeds" | "consumes" | "publishes";
+        EditPerson: {
+            email?: string | null;
+            firstName?: string | null;
+            lastName?: string | null;
+            locale?: string | null;
+        };
         /** @description What one caller may do in one project: `GET /api/v1/projects/{project}/permissions/me`. */
         Effective: {
             /**
@@ -2588,6 +2874,9 @@ export interface components {
              *     manifest whose `spec.contextSpaceRef` names it.
              */
             space?: string | null;
+        };
+        GroupRef: {
+            name: string;
         };
         Health: {
             name: string;
@@ -2733,6 +3022,37 @@ export interface components {
         ListMeta: {
             continue?: string | null;
             remainingItemCount?: number | null;
+        };
+        /** @description One line of a run's log. */
+        LogLine: {
+            /** @description When the Portal took the line, RFC 3339. */
+            at: string;
+            /**
+             * Format: int64
+             * @description Its place in the log; the `before` of the next page.
+             */
+            id: number;
+            /** @description What happened, in words; empty for a record that was sent. */
+            message: string;
+            outcome: components["schemas"]["Outcome"];
+            /** @description The record's `id`, as the mapping produced it; empty when it had none. */
+            recordId: string;
+            /** @description The run it belongs to. */
+            run: string;
+            /**
+             * Format: int32
+             * @description The step of `spec.steps` it failed at, when it failed in a step.
+             */
+            step?: number | null;
+        };
+        /** @description One page of a run's log. */
+        LogPage: {
+            items: components["schemas"]["LogLine"][];
+            /**
+             * Format: int64
+             * @description The `before` of the next page, when there is one.
+             */
+            next?: number | null;
         };
         /** @description The URL the browser must visit to finish an RP-initiated logout at Keycloak. */
         LogoutTarget: {
@@ -2921,6 +3241,28 @@ export interface components {
             outputSchema: Record<string, never>;
             title: string;
         };
+        /** @description One `DataModel` of the organization as the pickers list it (DM-63). */
+        OrganizationModel: {
+            classes: string[];
+            lifecycle: string;
+            name: string;
+            project: string;
+            space: string;
+            version: string;
+        };
+        OrganizationModels: {
+            apiVersion: string;
+            /** @description Why no catalogue entries could be listed, when Model Tools did not answer. */
+            catalogueUnavailable?: string | null;
+            items: components["schemas"]["OrganizationModel"][];
+            kind: string;
+            smartDataModels: components["schemas"]["CatalogueEntry"][];
+        };
+        /**
+         * @description What became of one record.
+         * @enum {string}
+         */
+        Outcome: "sent" | "rejected" | "failed";
         /** @description The page the question was asked from, as the browser sends it: the route only. */
         PageContextRequest: {
             route: string;
@@ -2931,10 +3273,45 @@ export interface components {
             /** Format: int64 */
             rejectedLogRecords: number;
         };
+        PasswordReset: {
+            emailSent: boolean;
+            temporaryPassword?: string | null;
+        };
         /** @description Whether syncing is on or off. */
         PauseRequest: {
             /** @description `true` switches the loop off, `false` switches it back on. */
             paused: boolean;
+        };
+        /** @description A person as the Portal shows one (API/01 §24). */
+        Person: {
+            /** @description When the realm created the person (RFC 3339). */
+            createdAt?: string | null;
+            email: string;
+            emailVerified: boolean;
+            enabled: boolean;
+            firstName: string;
+            id: string;
+            lastName: string;
+            /** @description The last access of the person's newest open session; `null` when none is open. */
+            lastSeen?: string | null;
+            locale?: string | null;
+            /** @description The Change a deletion waits for; `null` when none is pending. */
+            pendingDeletion?: string | null;
+            requiredActions: string[];
+        };
+        PersonDetail: {
+            appRoles: components["schemas"]["AppRole"][];
+            groups: components["schemas"]["GroupRef"][];
+            person: components["schemas"]["Person"];
+            platformRoles: components["schemas"]["PlatformRole"][];
+        };
+        PersonPage: {
+            items: components["schemas"]["Person"][];
+            /**
+             * Format: int32
+             * @description `first` of the following page, when there is one.
+             */
+            next?: number | null;
         };
         /**
          * Phase
@@ -2964,6 +3341,12 @@ export interface components {
              *     this runner does not export.
              */
             received?: number | null;
+            /**
+             * Format: int64
+             * @description Records the validation stage refused since the runner started (PL-61): counted apart
+             *     from `errors`, because a refused record is the stage working, not the stream failing.
+             */
+            rejected?: number | null;
             /** @description When the Portal read the runner, RFC 3339. The counters are as old as this instant. */
             scrapedAt: string;
             /** Format: int64 */
@@ -2997,6 +3380,14 @@ export interface components {
             create?: number;
             delete?: number;
             update?: number;
+        };
+        /** @description A platform role the person holds, and the binding and the way it reaches them (PF-94). */
+        PlatformRole: {
+            binding: string;
+            role: string;
+            scope: Record<string, never>;
+            /** @description `{ "user": … }` or `{ "group": … }`. */
+            via: Record<string, never>;
         };
         Preferences: {
             /**
@@ -3182,6 +3573,44 @@ export interface components {
             /** @description The entity types the source is claimed to hold. */
             types: string[];
         };
+        /** @description One record the runner did not write. */
+        Rejected: {
+            /** @description When the runner refused it, RFC 3339. */
+            at: string;
+            /**
+             * Format: int64
+             * @description Its place in the list, which "Retry after fix" names.
+             */
+            id: number;
+            /** @description What is wrong, in words. */
+            message: string;
+            /** @description The attribute the constraint is about. */
+            path: string;
+            /** @description The record as the mapping produced it, secrets masked. */
+            record: unknown;
+            /** @description The constraint it broke (a SHACL component, `type` or `id`, PL-59). */
+            rule: string;
+            /**
+             * Format: int32
+             * @description The step of `spec.steps` the record failed at, when it failed in a step and not in the
+             *     validation stage.
+             */
+            step?: number | null;
+        };
+        /** @description One page of a pipeline's rejected records. */
+        RejectedPage: {
+            items: components["schemas"]["Rejected"][];
+            /**
+             * Format: int64
+             * @description The `before` of the next page, when there is one.
+             */
+            next?: number | null;
+            /**
+             * Format: int64
+             * @description How many the pipeline holds, at most 1000 (PL-61).
+             */
+            total: number;
+        };
         /** @description What the proxy relays on behalf of a workspace it has already authenticated. */
         RelayedEvent: {
             kind: string;
@@ -3240,6 +3669,24 @@ export interface components {
                 [key: string]: string;
             } | null;
         };
+        /** @description What a replay sent to the runner, and what it could not send. */
+        RetryAnswer: {
+            /**
+             * @description Records left on the list because a value of theirs was masked when they were kept:
+             *     replaying the mask would write it. The pipeline's next read of its source brings them.
+             */
+            masked: number[];
+            /**
+             * @description Records replayed through the pipeline's current stage and write; one that still breaks
+             *     the model comes back to the list with its rule.
+             */
+            replayed: number;
+        };
+        /** @description Which rejected records to replay. */
+        RetryRequest: {
+            /** @description The `id`s of the records, 1…100. */
+            ids: number[];
+        };
         Revision: {
             author: string;
             date: string;
@@ -3255,6 +3702,20 @@ export interface components {
              * @description How long the rotated key keeps working beside its successor, in hours (PF-38).
              */
             overlapHours?: number | null;
+        };
+        /** @description One run with its counts. */
+        Run: {
+            /** Format: int64 */
+            failed: number;
+            /** @description The first and the last line the Portal took for it, RFC 3339. */
+            firstAt: string;
+            lastAt: string;
+            /** Format: int64 */
+            rejected: number;
+            /** @description Its name: the tick's time, or the UTC hour of a source that never ends. */
+            run: string;
+            /** Format: int64 */
+            sent: number;
         };
         /**
          * @description Everything the proxy needs to decide one request, and nothing a workspace may see.
@@ -4057,6 +4518,626 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_organization_datamodels: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive substring of a name, project, space or class; at most 100 characters */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The models the caller may read and the matching catalogue entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationModels"];
+                };
+            };
+            /** @description A search longer than 100 characters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_people: {
+        parameters: {
+            query?: {
+                /** @description A substring of the name or e-mail */
+                search?: string;
+                /** @description Offset, default 0 */
+                first?: number;
+                /** @description Page size, default 50, at most 100 */
+                max?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of people */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonPage"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks read on Person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "email": "jana.kovacova@example.org",
+                 *       "firstName": "Jana",
+                 *       "lastName": "Kováčová",
+                 *       "locale": "sk"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreatePerson"];
+            };
+        };
+        responses: {
+            /** @description Created; the only answer that may carry a temporary password */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedPerson"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks create on Person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The e-mail is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person and where they are granted something */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonDetail"];
+                };
+            };
+            /** @description The caller lacks read on Person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Change the deletion waits for */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Deleted: no manifest named the person */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller lacks delete on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller, the last Organization Administrator, a removal already pending, or a reference in a project's own repository */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client, forge or database */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    edit_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "lastName": "Nováková"
+                 *     }
+                 */
+                "application/json": components["schemas"]["EditPerson"];
+            };
+        };
+        responses: {
+            /** @description The person as edited */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Person"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks update on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The e-mail is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    disable_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person, disabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Person"];
+                };
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller themselves, or the last Organization Administrator */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    enable_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person, enabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Person"];
+                };
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    remove_second_factor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    reset_password: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The realm cannot send mail: a temporary password, once */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordReset"];
+                };
+            };
+            /** @description The reset e-mail went */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordReset"];
+                };
+            };
+            /** @description The caller lacks update on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    sign_out_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out everywhere */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };
@@ -7548,6 +8629,256 @@ export interface operations {
                 };
             };
             /** @description No runner configured, or it did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_rejected: {
+        parameters: {
+            query?: {
+                /** @description Records per page, 1…100 (default 50). */
+                limit?: number | null;
+                /** @description Only records older than this id: the `next` of the previous page. */
+                before?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of rejected records */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RejectedPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The list could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    retry_rejected: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "ids": [
+                 *         412,
+                 *         409
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["RetryRequest"];
+            };
+        };
+        responses: {
+            /** @description The replay was handed to the runner */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryAnswer"];
+                };
+            };
+            /** @description No ids, or more than 100 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may read the pipeline but not propose it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The pipeline's space names no model, so there is no stage to replay through */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No runner, or it did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_runs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The runs, latest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The runs could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_run_log: {
+        parameters: {
+            query?: {
+                /** @description Lines per page, 1…500 (default 100). */
+                limit?: number | null;
+                /** @description Only lines older than this id: the `next` of the previous page. */
+                before?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+                /** @description The run, as the run list names it */
+                run: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the run's log */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The log could not be read */
             503: {
                 headers: {
                     [name: string]: unknown;

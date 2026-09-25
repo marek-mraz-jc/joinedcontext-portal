@@ -9,9 +9,11 @@ import { proposeChecked } from "../api/proposal";
 import type { Change, Manifest } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ChangeNotice } from "../components/ChangeNotice";
+import { TypeLink } from "../pages/models/ModelLinks";
 import { ResourceList } from "../components/ResourceList";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { PipelineEditorDialog } from "../pages/pipelines/PipelineEditor";
+import { PipelineRejectedDialog } from "../pages/pipelines/PipelineRejected";
 import type { PipelineForm, toEnvelope } from "../pages/pipelines/PipelineEditor";
 import { takeEditRequest, takePrefill } from "../assistant/state";
 import { useProjectUsage } from "../components/ProjectQuota";
@@ -43,6 +45,7 @@ interface PipelineSpec {
   enabled?: boolean;
   secretRefs?: SecretRef[];
   source?: { dataSourceRef?: { name?: string } | string };
+  output?: { type?: string };
 }
 
 /** The data source a pipeline reads, by name, when it names one. */
@@ -140,7 +143,7 @@ function StreamMetrics({
     return <span className="text-caption text-fg-subtle">{t("app.loading")}</span>;
   }
 
-  const { received, errors, latencyP99Ms, rate } = metrics.data;
+  const { received, errors, rejected, latencyP99Ms, rate } = metrics.data;
   return (
     <dl className="grid grid-cols-[auto_auto] gap-x-2 gap-y-0.5 text-caption">
       {rate !== null ? (
@@ -160,6 +163,14 @@ function StreamMetrics({
           <dt className="text-fg-subtle">{t("pipelines.metrics.errors")}</dt>
           <dd className={errors > 0 ? "font-medium tabular-nums text-danger" : "tabular-nums text-fg"}>
             {errors.toLocaleString()}
+          </dd>
+        </>
+      ) : null}
+      {rejected != null ? (
+        <>
+          <dt className="text-fg-subtle">{t("pipelines.metrics.rejected")}</dt>
+          <dd className={rejected > 0 ? "font-medium tabular-nums text-warning" : "tabular-nums text-fg"}>
+            {rejected.toLocaleString()}
           </dd>
         </>
       ) : null}
@@ -201,6 +212,8 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
     initial !== undefined || editing !== null || urlDraftName !== undefined,
   );
   const [formError, setFormError] = useState<string | null>(null);
+  // The pipeline whose rejected records are open (PL-61).
+  const [rejectedOf, setRejectedOf] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "pipelines"),
@@ -408,6 +421,12 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                     {pipeline.metadata.name}
                   </div>
                 ) : null}
+                {typeof spec.output?.type === "string" && spec.output.type !== "" ? (
+                  <div className="mt-0.5 text-caption text-fg-subtle">
+                    {t("pipelines.writesType")}{" "}
+                    <TypeLink project={project} type={spec.output.type} className="font-mono" />
+                  </div>
+                ) : null}
               </TableCell>
               <TableCell secondary>
                 <Badge tone={klass === "resident" ? "info" : "neutral"} title={t(`pipelines.class.${klass}Help`)}>
@@ -469,6 +488,13 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                       plural: "pipelines",
                       name: pipeline.metadata.name,
                     }}
+                    extra={[
+                      {
+                        key: "rejected",
+                        label: t("pipelines.rejected.open"),
+                        onSelect: () => setRejectedOf(pipeline.metadata.name),
+                      },
+                    ]}
                     onEdit={() =>
                       formRoute ? formRoute.openEdit(pipeline.metadata.name) : openEditor(pipeline)
                     }
@@ -492,6 +518,10 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           );
         })}
       </ResourceList>
+
+      {rejectedOf !== null ? (
+        <PipelineRejectedDialog project={project} name={rejectedOf} onClose={() => setRejectedOf(null)} />
+      ) : null}
 
       {dialogOpen ? (
         <PipelineEditorDialog

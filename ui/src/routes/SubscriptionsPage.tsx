@@ -1,6 +1,6 @@
 import { useCreateFormFromDraft } from "../components/forms/FormRoute";
-import { useState } from "react";
-import type { JSX } from "react";
+import { Fragment, useState } from "react";
+import type { JSX, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
@@ -8,6 +8,7 @@ import { proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { ChangeNotice } from "../components/ChangeNotice";
+import { TypeLink } from "../pages/models/ModelLinks";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
 import { ResourceList } from "../components/ResourceList";
@@ -155,12 +156,34 @@ function secretNames(subscriptions: Manifest[]): string[] {
   return [...names].sort();
 }
 
-/** What a row says a subscription watches: its types or ids, then its attributes. */
-function watched(form: SubscriptionForm): string {
-  const entities = selectors(form.entities).map(
-    (selector) => String(selector.type ?? selector.id ?? selector.idPattern),
+/**
+ * What a row says a subscription watches: its types or ids, then its attributes. A type links to
+ * the class of the model that carries it (T-2766).
+ */
+function Watched({ project, form }: { project: string; form: SubscriptionForm }): JSX.Element {
+  const parts: ReactNode[] = [
+    ...selectors(form.entities).map((selector, index) =>
+      typeof selector.type === "string" ? (
+        <TypeLink key={`t${index}`} project={project} type={selector.type} space={form.contextSpaceRef || undefined} />
+      ) : (
+        String(selector.id ?? selector.idPattern)
+      ),
+    ),
+    ...(form.watchedAttributes ?? []),
+  ];
+  if (parts.length === 0) {
+    return <>—</>;
+  }
+  return (
+    <>
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {index === 0 ? null : ", "}
+          {part}
+        </Fragment>
+      ))}
+    </>
   );
-  return [...entities, ...(form.watchedAttributes ?? [])].join(", ");
 }
 
 const COLUMNS = 6;
@@ -315,7 +338,9 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
                 <span className="font-mono text-caption">{shape.contextSpaceRef || "—"}</span>
               </TableCell>
               <TableCell>
-                <span className="font-mono text-caption">{watched(shape) || "—"}</span>
+                <span className="font-mono text-caption">
+                  <Watched project={project} form={shape} />
+                </span>
               </TableCell>
               <TableCell>
                 <span className="break-all font-mono text-caption">

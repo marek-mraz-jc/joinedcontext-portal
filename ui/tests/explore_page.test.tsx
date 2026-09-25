@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { InRouter } from "./pageHarness";
 import { queryKeys } from "../src/api/client";
 import { ExplorePage } from "../src/pages/explore/ExplorePage";
 import { expectDenied } from "./checks";
@@ -138,7 +139,9 @@ async function openDetail(remove: () => Response, access?: unknown, entity: unkn
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+        <InRouter>
+          <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+        </InRouter>
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -194,7 +197,9 @@ describe("the explorer", () => {
     render(
       <QueryClientProvider client={client}>
         <I18nextProvider i18n={i18n}>
-          <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+          <InRouter>
+            <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+          </InRouter>
         </I18nextProvider>
       </QueryClientProvider>,
     );
@@ -235,7 +240,9 @@ describe("the explorer", () => {
     render(
       <QueryClientProvider client={client}>
         <I18nextProvider i18n={i18n}>
-          <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+          <InRouter>
+            <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+          </InRouter>
         </I18nextProvider>
       </QueryClientProvider>,
     );
@@ -261,7 +268,9 @@ describe("the first pick (T-2755)", () => {
     render(
       <QueryClientProvider client={client}>
         <I18nextProvider i18n={i18n}>
-          <ExplorePage project="helsinki" />
+          <InRouter>
+            <ExplorePage project="helsinki" />
+          </InRouter>
         </I18nextProvider>
       </QueryClientProvider>,
     );
@@ -401,7 +410,9 @@ describe("correcting a value from the explorer", () => {
     render(
       <QueryClientProvider client={client}>
         <I18nextProvider i18n={i18n}>
-          <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+          <InRouter>
+            <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+          </InRouter>
         </I18nextProvider>
       </QueryClientProvider>,
     );
@@ -461,12 +472,14 @@ it("opens on the entity the route names", async () => {
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <ExplorePage
-          project="helsinki"
-          initialSpace="helsinki"
-          initialEndpoint="helsinki-bikes"
-          initialEntityId={ROW.id}
-        />
+        <InRouter>
+          <ExplorePage
+            project="helsinki"
+            initialSpace="helsinki"
+            initialEndpoint="helsinki-bikes"
+            initialEntityId={ROW.id}
+          />
+        </InRouter>
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -512,12 +525,14 @@ it("opens the grid on the type and the filter the route carries, without a space
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <ExplorePage
-          project="helsinki"
-          initialEndpoint="helsinki-bikes"
-          initialType="BikeHireDockingStation"
-          initialQ="availableBikeNumber==0"
-        />
+        <InRouter>
+          <ExplorePage
+            project="helsinki"
+            initialEndpoint="helsinki-bikes"
+            initialType="BikeHireDockingStation"
+            initialQ="availableBikeNumber==0"
+          />
+        </InRouter>
       </I18nextProvider>
     </QueryClientProvider>,
   );

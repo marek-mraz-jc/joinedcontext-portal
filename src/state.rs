@@ -43,6 +43,9 @@ pub struct AppState {
     /// The preferences tier (UI-09). `None` without a database: the preferences routes answer
     /// 503 and nothing else notices.
     pub db: Option<sqlx::PgPool>,
+    /// The people of the realm, through the admin client (PF-90). `None` without that client:
+    /// the people routes then answer 503.
+    pub people: Option<Arc<crate::people::People>>,
     /// Builder runs and their event streams (AG-43, AG-45). Always present, durable only when
     /// there is a database; [`AgentStore::is_durable`] is what says which.
     pub agents: Arc<AgentStore>,
@@ -65,6 +68,14 @@ pub struct AppState {
     /// What authorises a run through the sync webhook route, by source (MF-44). Always present;
     /// empty until the reconciler has resolved a pass, so the door is shut before it is opened.
     pub webhook_secrets: Arc<crate::sync::webhook_secrets::Accepted>,
+    /// The compiled model of every space that names one: what the reconciler renders the
+    /// validation stage from and the rejected route names a rule by (PL-60, PL-61).
+    pub model_schemas: Arc<crate::pipeline_validation::ModelSchemas>,
+    /// The records each pipeline's stage refused (PL-61): durable with a database, in memory
+    /// without one.
+    pub rejected: Arc<crate::pipeline_outcomes::RejectedStore>,
+    /// Each pipeline's runs and their log (PL-62), durable with a database.
+    pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
@@ -136,7 +147,11 @@ impl AppState {
             activity_events,
             webhook_secrets: Arc::new(crate::sync::webhook_secrets::Accepted::new()),
             drift: Arc::new(crate::reconciler::drift::Store::default()),
+            model_schemas: Arc::default(),
+            rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
+            pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             drift_watch: None,
+            people: None,
             kube: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
             mcp_calls: Arc::new(RwLock::new(HashMap::new())),
@@ -175,6 +190,10 @@ impl AppState {
         self.workspaces = crate::ops::workspaces::WorkspaceStore::new(Some(db.clone()));
         self.activity = crate::activity::ActivityStore::new(Some(db.clone()))
             .with_hub(self.activity_events.clone());
+        self.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(Some(
+            db.clone(),
+        )));
+        self.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(Some(db.clone())));
         self.db = Some(db);
         self
     }
@@ -218,6 +237,8 @@ impl AppState {
         state.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
+        state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
+        state.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(db.clone()));
         state.db = db;
         // What the process before this one refused stays refused (T-0980).
         state.load_revocations().await;
@@ -235,6 +256,14 @@ impl AppState {
                     "the ServiceAccount mount is unreadable, so no builder workspace is scheduled"
                 ),
             }
+        }
+        // The people of the realm, managed with the admin client that manages its groups (PF-90).
+        if let (Some(oidc), Some((id, secret))) = (
+            state.config.oidc.as_ref(),
+            state.config.keycloak_admin.clone(),
+        ) {
+            state.people =
+                crate::people::People::new(oidc.issuer.as_str(), id, secret).map(Arc::new);
         }
         // Warm the key cache so the first bearer call does not pay for the fetch; a realm that
         // is down at startup only costs a warning, the next unknown `kid` fetches again.
@@ -283,6 +312,11 @@ impl AppState {
                     syncer.with_pipeline_secrets(crate::pipeline_secrets::Resolver::new(backend));
             }
 
+            // A person's removal finishes once its Change is merged (PF-93): the pending ones are
+            // in the database, so the step runs only with one and with the realm's admin client.
+            if let (Some(people), Some(pool)) = (state.people.clone(), state.db.clone()) {
+                syncer = syncer.with_people(people, pool);
+            }
             // With a database the replicas elect one reconciler; without one there is nothing
             // to elect with, and a Portal that runs alone reconciles alone (T-0191, CC-03).
             if let Some(pool) = state.db.as_ref() {
@@ -370,7 +404,19 @@ impl AppState {
                 _ => tracing::info!("no login client or no apps host: no App client is managed"),
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
-                syncer = syncer.with_streams(Arc::new(StreamDeployer::new(url)));
+                let deployer = StreamDeployer::new(url);
+                // A refused record reaches the Portal on the listener the test harness reaches
+                // (PL-61); without that address the stream writes as it did, unvalidated.
+                let deployer = match state.config.pipeline_test_capture_url.clone() {
+                    Some(internal) => {
+                        deployer.with_validation(internal, Arc::clone(&state.model_schemas))
+                    }
+                    None => {
+                        tracing::warn!("no internal listener address for the runner: pipelines are not validated before they write");
+                        deployer
+                    }
+                };
+                syncer = syncer.with_streams(Arc::new(deployer));
             } else {
                 tracing::info!("no pipeline runner: DataSource pipelines stay Pending");
             }

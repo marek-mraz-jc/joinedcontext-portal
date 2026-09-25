@@ -720,11 +720,10 @@ async fn an_address_is_an_answer_and_a_file_is_refused_where_none_was_asked() {
     );
 }
 
-/// T-2695: a CSV handed over at the first step is profiled, the person picks a new space, and
-/// the space and its model are drafted and opened ready to propose, with every step timed and
-/// without a single model call: the Portal takes these steps itself.
-#[tokio::test]
-async fn a_file_becomes_a_drafted_space_without_the_model() {
+/// A file handed over at the first step is profiled, a new space picked for it, and the question
+/// that follows asks for the feed the file is a sample of (T-2695, option (c)): the run is at that
+/// question, with every event so far.
+async fn a_file_at_the_feed_question() -> (Started, String, Vec<AgentRunEvent>) {
     let started = start(
         BUILDER,
         json!({ "path": "integrate-pipeline" }),
@@ -736,14 +735,10 @@ async fn a_file_becomes_a_drafted_space_without_the_model() {
     let events = events_until(&started, |e| e.kind == "question").await;
     let source = of_kind(&events, "question")[0].clone();
     assert_eq!(source["step"], "integrate-source");
-    let say = |question: &str, answers: Value| {
-        let (state, config) = (started.state.clone(), started.config.clone());
-        let uri = format!("/api/v1/projects/helsinki/agent-runs/{run}/answers");
-        let body = json!({ "questionId": question, "answers": answers });
-        async move { send(&state, &config, BUILDER, &uri, body).await }
-    };
     let csv = "station,name,bikes,lat,lon\n1,Kamppi,4,60.169,24.931\n2,Kallio,0,60.184,24.950\n";
     let (status, body) = say(
+        &started,
+        &run,
         source["questionId"].as_str().expect("id"),
         json!({ "file": { "name": "Bike-Stations.CSV", "format": "csv", "text": csv } }),
     )
@@ -784,10 +779,141 @@ async fn a_file_becomes_a_drafted_space_without_the_model() {
     );
 
     let (status, body) = say(
+        &started,
+        &run,
         target["questionId"].as_str().expect("id"),
         json!({ "answer": "new" }),
     )
     .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let events = events_until(&started, |e| {
+        e.kind == "question" && e.payload["step"] == "integrate-feed"
+    })
+    .await;
+    assert!(
+        of_kind(&events, "tool")
+            .iter()
+            .all(|tool| tool["tool"] != "space_complete"),
+        "nothing is drafted before the feed is known"
+    );
+    let feed = of_kind(&events, "question")
+        .into_iter()
+        .find(|q| q["step"] == "integrate-feed")
+        .expect("the feed question")
+        .clone();
+    assert_eq!(feed["input"]["url"], true, "{feed}");
+    assert!(feed["input"].get("file").is_none(), "{feed}");
+    let options: Vec<&str> = feed["options"]
+        .as_array()
+        .expect("options")
+        .iter()
+        .filter_map(|o| o["value"].as_str())
+        .collect();
+    assert_eq!(options, ["none"], "{feed}");
+    let question = feed["questionId"].as_str().expect("id").to_owned();
+    (started, question, events)
+}
+
+/// One answer to a question of the run `run`, as the person `BUILDER`.
+async fn say(started: &Started, run: &str, question: &str, answers: Value) -> (StatusCode, Value) {
+    let uri = format!("/api/v1/projects/helsinki/agent-runs/{run}/answers");
+    let body = json!({ "questionId": question, "answers": answers });
+    send(&started.state, &started.config, BUILDER, &uri, body).await
+}
+
+/// T-2695 (c): the file is a sample of a feed. With the feed's address the new space gets its data
+/// source reading that address and the pipeline, tested on the file, and not a single model call.
+#[tokio::test]
+async fn a_file_and_its_feeds_address_become_a_pipeline_tested_on_the_file() {
+    let (started, feed, _) = a_file_at_the_feed_question().await;
+    let run = started.body["id"].as_str().expect("run id").to_owned();
+    let (status, body) = say(
+        &started,
+        &run,
+        &feed,
+        json!({ "url": "https://feed.example.org/gbfs/station_status.json" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let events = events_until(&started, |e| e.kind == "navigate").await;
+    let completed = of_kind(&events, "tool")
+        .into_iter()
+        .find(|tool| tool["tool"] == "space_complete")
+        .expect("the space is drafted")
+        .clone();
+    assert_eq!(completed["status"], "ok", "{completed}");
+    let drafts = completed["output"]["drafts"].as_array().expect("drafts");
+    let kinds: Vec<&str> = drafts.iter().filter_map(|d| d["kind"].as_str()).collect();
+    for kind in [
+        "ContextSpace",
+        "DataModel",
+        "DataSource",
+        "Endpoint",
+        "Pipeline",
+    ] {
+        assert!(kinds.contains(&kind), "{kind} in {kinds:?}");
+    }
+    let source = drafts
+        .iter()
+        .find(|d| d["kind"] == "DataSource")
+        .expect("source");
+    assert_eq!(
+        source["manifest"]["spec"]["http"]["url"],
+        "https://feed.example.org/gbfs/station_status.json",
+        "the source reads the feed, not the file"
+    );
+    let pipeline = drafts
+        .iter()
+        .find(|d| d["kind"] == "Pipeline")
+        .expect("pipeline");
+    assert_eq!(
+        pipeline["manifest"]["spec"]["source"]["dataSourceRef"]["name"],
+        "bike-stations-source"
+    );
+    assert!(
+        pipeline["verdict"].is_object(),
+        "the test run on the file: {pipeline}"
+    );
+    assert_eq!(
+        of_kind(&events, "navigate")[0]["route"],
+        "/projects/helsinki/spaces/complete?space=bike-stations",
+        "the file's name, lower case, is the space's"
+    );
+    assert!(of_kind(&events, "thought").iter().all(|t| !t["text"]
+        .as_str()
+        .unwrap_or_default()
+        .starts_with("A file is data once")));
+    assert!(
+        of_kind(&events, "change").is_empty(),
+        "nothing is proposed: the person sends the change on the page"
+    );
+    // T-2697: every step and every page opened says when in the run it happened, in order.
+    let times: Vec<u64> = events
+        .iter()
+        .filter(|e| e.kind == "tool" || e.kind == "navigate")
+        .map(|e| {
+            e.payload["elapsedMs"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("no elapsedMs on {} {}", e.kind, e.payload))
+        })
+        .collect();
+    assert!(times.len() >= 3, "{times:?}");
+    assert!(times.windows(2).all(|w| w[0] <= w[1]), "{times:?}");
+    let calls = started.proxy.received_requests().await.unwrap_or_default();
+    assert!(
+        calls.is_empty(),
+        "the Portal took every step: {} model calls",
+        calls.len()
+    );
+}
+
+/// With no feed the file is data once: its space and model are drafted, the person is told the
+/// rows load through Import, and there is no pipeline.
+#[tokio::test]
+async fn a_file_without_a_feed_becomes_a_drafted_space_without_the_model() {
+    let (started, feed, _) = a_file_at_the_feed_question().await;
+    let run = started.body["id"].as_str().expect("run id").to_owned();
+    let (status, body) = say(&started, &run, &feed, json!({ "answer": "none" })).await;
     assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
     let events = events_until(&started, |e| e.kind == "navigate").await;
     let completed = of_kind(&events, "tool")
@@ -818,32 +944,12 @@ async fn a_file_becomes_a_drafted_space_without_the_model() {
     );
     let navigate = of_kind(&events, "navigate")[0];
     assert_eq!(
-        navigate["route"], "/projects/helsinki/spaces/complete?space=bike-stations",
-        "the file's name, lower case, is the space's"
+        navigate["route"],
+        "/projects/helsinki/spaces/complete?space=bike-stations"
     );
     assert_eq!(navigate["prefill"]["result"]["space"], "bike-stations");
-    assert!(
-        of_kind(&events, "change").is_empty(),
-        "nothing is proposed: the person sends the change on the page"
-    );
-    // T-2697: every step and every page opened says when in the run it happened, in order.
-    let times: Vec<u64> = events
-        .iter()
-        .filter(|e| e.kind == "tool" || e.kind == "navigate")
-        .map(|e| {
-            e.payload["elapsedMs"]
-                .as_u64()
-                .unwrap_or_else(|| panic!("no elapsedMs on {} {}", e.kind, e.payload))
-        })
-        .collect();
-    assert!(times.len() >= 3, "{times:?}");
-    assert!(times.windows(2).all(|w| w[0] <= w[1]), "{times:?}");
     let calls = started.proxy.received_requests().await.unwrap_or_default();
-    assert!(
-        calls.is_empty(),
-        "the Portal took every step: {} model calls",
-        calls.len()
-    );
+    assert!(calls.is_empty(), "{} model calls", calls.len());
 }
 
 /// An existing space is the model's to land the data in, told which one in plain words.
@@ -1562,5 +1668,162 @@ async fn a_model_call_that_failed_at_a_gateway_is_asked_once_more() {
     assert!(
         !said.iter().any(|t| t.contains("model service")),
         "{said:?}"
+    );
+}
+
+/// A chat completion as server-sent events, one frame per piece of `pieces`, usage last.
+fn streamed(pieces: &[&str]) -> ResponseTemplate {
+    let mut body = String::new();
+    for piece in pieces {
+        body.push_str(&format!(
+            "data: {}\n\n",
+            json!({ "choices": [{ "index": 0, "delta": { "content": piece } }] })
+        ));
+    }
+    body.push_str(&format!(
+        "data: {}\n\ndata: [DONE]\n\n",
+        json!({ "choices": [{ "index": 0, "delta": {}, "finish_reason": "stop" }], "usage": { "total_tokens": 100 } })
+    ));
+    ResponseTemplate::new(200).set_body_raw(body, "text/event-stream")
+}
+
+/// T-2821 (ADR-N-032 §4, API/04 §4): a conversation turn asks the model for a stream, the words
+/// before a tool fence show as `partial` events while it writes, no partial carries the tool
+/// call, the call still runs, and the answer is the thought.
+#[tokio::test]
+async fn a_turn_streams_its_words_and_never_the_tool_call() {
+    let proxy = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .and(wiremock::matchers::body_partial_json(
+            json!({ "stream": true }),
+        ))
+        .respond_with(streamed(&[
+            "Let me look ",
+            "for the stations.\n\n``",
+            "`json\n{\"tool\":\"search_catalog\",\"q\":\"bike stations\"}\n```\n",
+        ]))
+        .up_to_n_times(1)
+        .mount(&proxy)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .and(wiremock::matchers::body_partial_json(
+            json!({ "stream": true }),
+        ))
+        .respond_with(streamed(&["Two stations ", "are empty."]))
+        .mount(&proxy)
+        .await;
+    let config = config(&proxy.uri());
+    let state = AppState::new(config.clone(), None).with_mirror(mirror());
+    let (status, body) = send(
+        &state,
+        &config,
+        READER,
+        "/api/v1/projects/helsinki/assistant/conversations",
+        json!({ "path": "find-data", "message": "which stations are empty?" }),
+    )
+    .await;
+    let started = Started {
+        state,
+        config,
+        status,
+        body,
+        proxy,
+    };
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let events = events_until(&started, |e| {
+        e.kind == "thought"
+            && e.payload["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("stations are empty") || t.contains("failed"))
+    })
+    .await;
+    let partials: Vec<&str> = of_kind(&events, "partial")
+        .iter()
+        .filter_map(|p| p["text"].as_str())
+        .collect();
+    assert!(
+        partials.contains(&"Let me look for the stations."),
+        "the words before the tool call show while the model writes: {partials:?}"
+    );
+    assert!(
+        partials
+            .iter()
+            .all(|p| !p.contains('`') && !p.contains("tool")),
+        "no partial carries the tool call: {partials:?}"
+    );
+    assert!(
+        of_kind(&events, "partial")
+            .iter()
+            .all(|p| p["elapsedMs"].is_u64()),
+        "every partial says when it was written"
+    );
+    let first_partial = events.iter().position(|e| e.kind == "partial");
+    let search = events
+        .iter()
+        .position(|e| e.kind == "tool" && e.payload["tool"] == "search_catalog");
+    assert!(
+        first_partial.is_some() && search.is_some() && first_partial < search,
+        "the words show before the call they lead to runs"
+    );
+    let said: Vec<&str> = of_kind(&events, "thought")
+        .iter()
+        .filter_map(|t| t["text"].as_str())
+        .collect();
+    assert!(said.contains(&"Two stations are empty."), "{said:?}");
+}
+
+/// T-2821: a stream the provider ends with an error mid-way is a failed answer the person can
+/// act on, never a half answer taken as whole.
+#[tokio::test]
+async fn a_stream_the_provider_breaks_off_says_so() {
+    let proxy = MockServer::start().await;
+    let body = format!(
+        "data: {}\n\ndata: {}\n\n",
+        json!({ "choices": [{ "index": 0, "delta": { "content": "Two stat" } }] }),
+        json!({ "error": { "message": "upstream overloaded" } })
+    );
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(body, "text/event-stream"))
+        .mount(&proxy)
+        .await;
+    let config = config(&proxy.uri());
+    let state = AppState::new(config.clone(), None).with_mirror(mirror());
+    let (status, body) = send(
+        &state,
+        &config,
+        READER,
+        "/api/v1/projects/helsinki/assistant/conversations",
+        json!({ "path": "find-data", "message": "which stations are empty?" }),
+    )
+    .await;
+    let started = Started {
+        state,
+        config,
+        status,
+        body,
+        proxy,
+    };
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let events = events_until(&started, |e| {
+        e.kind == "thought"
+            && e.payload["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("part way"))
+    })
+    .await;
+    let said: Vec<&str> = of_kind(&events, "thought")
+        .iter()
+        .filter_map(|t| t["text"].as_str())
+        .collect();
+    assert!(
+        !said.contains(&"Two stat"),
+        "a broken stream is not the answer: {said:?}"
+    );
+    assert!(
+        !said.iter().any(|t| t.contains("upstream overloaded")),
+        "the provider's own words stay in the log: {said:?}"
     );
 }

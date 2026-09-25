@@ -37,6 +37,28 @@ describe("sdk testing fixtures", () => {
     expect(client.transport.rows()).toHaveLength(3);
   });
 
+  it("stubTransport answers a temporal read with the fixture's bodies of that type, and none by default", async () => {
+    const temporal = [
+      { id: "urn:1", type: "Station", bikes: { type: "Property", values: [[5, "2026-09-25T10:00:00Z"], [4, "2026-09-25T10:10:00Z"]] } },
+      { id: "urn:9", type: "Other", bikes: { type: "Property", values: [[1, "2026-09-25T10:00:00Z"]] } },
+    ];
+    const query = { timerel: "after" as const, timeAt: "2026-09-25T00:00:00Z" };
+    const rows = await stubClient({ entities: SAMPLE_ROWS, temporal }).temporal.list("Station", query);
+    expect(rows).toEqual([
+      {
+        id: "urn:1",
+        type: "Station",
+        series: {
+          bikes: [
+            { value: 5, observedAt: "2026-09-25T10:00:00Z" },
+            { value: 4, observedAt: "2026-09-25T10:10:00Z" },
+          ],
+        },
+      },
+    ]);
+    expect(await stubClient({ entities: SAMPLE_ROWS }).temporal.list("Station", query)).toEqual([]);
+  });
+
   it("stubTransport returns 404 problem for unknown function", async () => {
     const transport = stubTransport({
       functions: {

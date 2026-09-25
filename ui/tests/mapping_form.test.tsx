@@ -96,6 +96,10 @@ function showList() {
       }
       if (url.pathname.endsWith("/mappings/ovzdusie-to-aqo")) return json(STORED);
       if (url.pathname.endsWith("/mappings")) return json(list([STORED]));
+      // The space is picked from the project's spaces (T-2702), not typed.
+      if (url.pathname.endsWith("/banskabystrica/spaces")) {
+        return json(list(["ovzdusie", "ovzdusie-verejne"].map((name) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name, namespace: "banskabystrica" }, spec: {} }))));
+      }
       return undefined;
     },
   });
@@ -120,7 +124,7 @@ describe("editing a Mapping from its list (UI-01, UI-45)", () => {
   it("opens_the_form_with_what_is_stored_not_the_yaml", async () => {
     showList();
     const { dialog } = await openEdit();
-    expect(within(dialog).getByLabelText(new RegExp(`^${en.mappings.field.space}`))).toHaveValue("ovzdusie");
+    await waitFor(() => expect(within(dialog).getByLabelText(new RegExp(`^${en.mappings.field.space}`))).toHaveValue("ovzdusie"));
     expect(within(dialog).getByLabelText(new RegExp(`^${en.mappings.field.name}`))).toHaveAttribute("readonly");
     expect(within(dialog).getByDisplayValue("./tests/a.input.json")).toBeInTheDocument();
     expect(within(dialog).queryByRole("textbox", { name: "YAML" })).toBeNull();
@@ -131,8 +135,8 @@ describe("editing a Mapping from its list (UI-01, UI-45)", () => {
     const { sent } = showList();
     const { user, dialog } = await openEdit();
     const space = within(dialog).getByLabelText(new RegExp(`^${en.mappings.field.space}`));
-    await user.clear(space);
-    await user.type(space, "ovzdusie-verejne");
+    await within(space).findByRole("option", { name: "ovzdusie-verejne" });
+    await user.selectOptions(space, "ovzdusie-verejne");
     await user.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
     await waitFor(() => expect(sent.filter((request) => !request.dryRun)).toHaveLength(1));
     const proposed = sent.find((request) => !request.dryRun)!;
