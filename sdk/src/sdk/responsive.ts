@@ -36,12 +36,17 @@ export const BLOCKS = [
 /** What an application may be built from besides the template's classes. */
 export const LIVE_BLOCKS = `${BLOCKS}, article, aside, figure, form, table`;
 
-/** Pairs of visible blocks, neither inside the other, whose boxes intersect by more than a pixel. */
+/**
+ * Pairs of visible blocks, neither inside the other, whose boxes intersect by more than a pixel.
+ * A block that is not drawn (the content of a closed `<details>`, `visibility: hidden`) is not
+ * counted: Chromium still lays it out when asked for its box, wherever it would stand (T-2981).
+ */
 export async function overlaps(page: Page, blocks: string = BLOCKS): Promise<string[]> {
   return page.evaluate((selector) => {
     const name = (el: Element) =>
       `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${(el.textContent ?? "").trim().slice(0, 30)}"`;
     const boxes = [...document.querySelectorAll(selector)]
+      .filter((el) => el.checkVisibility({ visibilityProperty: true }))
       .map((el) => ({ el, box: el.getBoundingClientRect() }))
       .filter(({ box }) => box.width > 0 && box.height > 0);
     const found: string[] = [];
@@ -70,7 +75,7 @@ export async function clippedControls(page: Page): Promise<string[]> {
     const found: string[] = [];
     for (const control of controls) {
       const box = control.getBoundingClientRect();
-      if (box.width === 0 || box.height === 0 || getComputedStyle(control).visibility === "hidden") continue;
+      if (box.width === 0 || box.height === 0 || !control.checkVisibility({ visibilityProperty: true })) continue;
       for (let parent = control.parentElement; parent; parent = parent.parentElement) {
         const style = getComputedStyle(parent);
         const hides = ["hidden", "clip"];
