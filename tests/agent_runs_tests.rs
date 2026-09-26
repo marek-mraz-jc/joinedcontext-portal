@@ -3704,6 +3704,142 @@ async fn approving_the_change_merges_the_applications_repository_at_the_publishe
     assert_eq!(stored.status, "awaiting_approval");
 }
 
+/// A run that published and waits for approval, its Change recorded as `number`.
+async fn waiting_on(state: &AppState, number: i32) -> AgentRun {
+    let run = a_static_run(AgentRunStatus::AwaitingApproval);
+    state.agents.create_run(&run).await.expect("a run");
+    state
+        .agents
+        .set_merge_request(&run.id, number)
+        .await
+        .expect("its change");
+    run
+}
+
+async fn status_of(state: &AppState, run: &AgentRun) -> AgentRun {
+    state
+        .agents
+        .get_run(&run.id)
+        .await
+        .expect("store")
+        .expect("run")
+}
+
+/// T-3015: a rejected publish Change ends the run that proposed it, with the reason on its
+/// status event; a Change never ends a run of another number, project or state.
+#[tokio::test]
+async fn a_rejected_change_ends_only_its_own_waiting_run() {
+    let state = AppState::new(config(), None);
+    let rejected = waiting_on(&state, 7).await;
+    let other_change = waiting_on(&state, 8).await;
+    let never_published = a_static_run(AgentRunStatus::AwaitingApproval);
+    state
+        .agents
+        .create_run(&never_published)
+        .await
+        .expect("a run");
+    let previewing = a_static_run(AgentRunStatus::Previewing);
+    state.agents.create_run(&previewing).await.expect("a run");
+    state
+        .agents
+        .set_merge_request(&previewing.id, 7)
+        .await
+        .expect("its change");
+
+    use joinedcontext_portal::api::agent_runs::end_rejected_publication;
+    let why = "its change chg-00000007 was rejected by jana@hel.fi: not this one";
+    assert!(!end_rejected_publication(&state, "espoo", &rejected.id, 7, why).await);
+    assert!(!end_rejected_publication(&state, PROJECT, &other_change.id, 7, why).await);
+    assert!(!end_rejected_publication(&state, PROJECT, &never_published.id, 7, why).await);
+    assert!(!end_rejected_publication(&state, PROJECT, &previewing.id, 7, why).await);
+    assert!(!end_rejected_publication(&state, PROJECT, "run-unknown", 7, why).await);
+    for run in [&rejected, &other_change, &never_published] {
+        assert_eq!(status_of(&state, run).await.status, "awaiting_approval");
+    }
+    assert_eq!(status_of(&state, &previewing).await.status, "previewing");
+
+    assert!(end_rejected_publication(&state, PROJECT, &rejected.id, 7, why).await);
+    let ended = status_of(&state, &rejected).await;
+    assert_eq!(ended.status, "cancelled");
+    assert_eq!(ended.error.as_deref(), Some(why));
+    let events = state
+        .agents
+        .events_since(&rejected.id, 0)
+        .await
+        .expect("events");
+    assert!(
+        events.iter().any(|event| event.kind == "status"
+            && event.payload["status"] == "cancelled"
+            && event.payload["reason"] == why),
+        "the stream says why: {events:?}"
+    );
+    // Once is enough: a second reject of the same Change finds nothing waiting.
+    assert!(!end_rejected_publication(&state, PROJECT, &rejected.id, 7, why).await);
+}
+
+/// T-3015: a publish Change closed in the forge without a merge ends its waiting run on the
+/// reaper's next pass; an open, a merged, another application's and an unreadable pull request
+/// leave theirs waiting.
+#[tokio::test]
+async fn a_change_closed_on_the_forge_ends_its_waiting_run() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    let state = AppState::new(config(), None).with_gitea(forge(&server));
+    let closed = waiting_on(&state, 5).await;
+    let merged = waiting_on(&state, 6).await;
+    let open = waiting_on(&state, 7).await;
+    let another_app = waiting_on(&state, 8).await;
+    let unreadable = waiting_on(&state, 9).await;
+    let pull = |number: u64, state: &str, merged: bool, app: &str| {
+        json!({
+            "number": number, "html_url": "h", "state": state, "merged": merged, "title": "t",
+            "head": { "ref": format!("portal/create-app-{app}-0000000{number}"), "sha": "abc" },
+            "base": { "ref": "main", "sha": "b" }
+        })
+    };
+    for (number, body) in [
+        (5, pull(5, "closed", false, "city-bikes")),
+        (6, pull(6, "closed", true, "city-bikes")),
+        (7, pull(7, "open", false, "city-bikes")),
+        (8, pull(8, "closed", false, "air-quality")),
+    ] {
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/repos/joinedcontext/configuration/pulls/{number}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/joinedcontext/configuration/pulls/9"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&server)
+        .await;
+
+    let ended = joinedcontext_portal::agents::reaper::end_closed_publications(&state).await;
+    assert_eq!(ended, 1);
+    let run = status_of(&state, &closed).await;
+    assert_eq!(run.status, "cancelled");
+    assert!(
+        run.error
+            .as_deref()
+            .is_some_and(|why| why.contains("change #5 was closed on the forge")),
+        "{:?}",
+        run.error
+    );
+    for run in [&merged, &open, &another_app, &unreadable] {
+        assert_eq!(status_of(&state, run).await.status, "awaiting_approval");
+    }
+    // The next pass has nothing left to end.
+    assert_eq!(
+        joinedcontext_portal::agents::reaper::end_closed_publications(&state).await,
+        0
+    );
+}
+
 // ---- T-2516: `end_run` under failure (AG-46) ----------------------------------------------
 
 /// What the kube API saw at each workspace delete: the run's ticket hash and whether its
