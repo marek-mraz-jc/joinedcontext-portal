@@ -552,7 +552,10 @@ mod pass_edges {
     }
 
     fn resolver(bao: &MockServer) -> Resolver {
-        let jwt = std::env::temp_dir().join("jc-portal-t2504-token");
+        // One file per mock server: the tests run in parallel, and a shared file read while
+        // another test's write had truncated it is empty, which the resolver refuses (T-3004).
+        let jwt =
+            std::env::temp_dir().join(format!("jc-portal-t2504-token-{}", bao.address().port()));
         std::fs::write(&jwt, "a.service.account.token").expect("write the token");
         Resolver::new(Backend::OpenBao {
             address: bao.uri(),
