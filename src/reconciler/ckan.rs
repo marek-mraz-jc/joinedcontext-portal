@@ -208,7 +208,7 @@ pub fn publish_one(
 ) -> Result<Publication, String> {
     let record = publisher::record(target, settings).map_err(|err| err.to_string())?;
     let rows = publisher::rows(target, settings).map_err(|err| err.to_string())?;
-    publish_with(api, target, &record, rows.as_deref(), settings)
+    publish_with(api, target, &record, rows.as_ref(), settings)
 }
 
 /// The catalogue half of a publication: the dataset and the sheet, from a record already read.
@@ -219,7 +219,7 @@ pub fn publish_with(
     api: &mut impl CkanApi,
     target: &Target,
     record: &serde_json::Value,
-    rows: Option<&str>,
+    rows: Option<&publisher::Rows>,
     settings: &Settings,
 ) -> Result<Publication, String> {
     let line = publisher::publish_one(api, target, record, rows, settings)
