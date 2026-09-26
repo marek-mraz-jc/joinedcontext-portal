@@ -811,7 +811,7 @@ test("10. nothing of the walk is left, the person is signed out everywhere and r
   // No group names the person any more, so Delete removes them at once.
   await page.goto(`/organization/people/${personId}?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: `Delete ${EDITED}?` })).toBeVisible();
+  await expect(page.getByRole("alertdialog", { name: `Delete ${EDITED}?` })).toBeVisible();
   await page.getByTestId("confirm-accept").click();
   await expect(page).toHaveURL(/\/organization\/people(\?|$)/, { timeout: 60_000 });
   expect(await status(page, `/api/v1/organization/people/${personId}`), "the person is gone").toBe(404);

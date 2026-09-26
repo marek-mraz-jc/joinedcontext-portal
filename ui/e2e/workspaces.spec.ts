@@ -264,7 +264,7 @@ test.describe("the copies, what a copy changes, and trying it", () => {
     expect(await axeViolations(page)).toEqual([]);
 
     await mine.getByRole("button", { name: "Discard" }).click();
-    const dialog = page.getByRole("dialog", { name: "Discard" });
+    const dialog = page.getByRole("alertdialog", { name: "Discard" });
     await expect(dialog).toContainText(`Discard the copy ${COPY}?`);
     expect(world.sent, "nothing is sent before the person confirms").toEqual([]);
     await dialog.getByRole("button", { name: "Discard" }).click();

@@ -39,7 +39,7 @@ test("the owner updates a copy from the project and discards it from the list", 
     const row = mine.getByRole("row").filter({ hasText: COPY });
     await expect(row).toHaveCount(1, { timeout: 30_000 });
     await row.getByRole("button", { name: "Discard" }).click();
-    const confirm = page.getByRole("dialog", { name: "Discard" });
+    const confirm = page.getByRole("alertdialog", { name: "Discard" });
     await expect(confirm).toContainText(`Discard the copy ${COPY}?`);
     await confirm.getByRole("button", { name: "Discard" }).click();
     await expect(confirm).toBeHidden({ timeout: 30_000 });
