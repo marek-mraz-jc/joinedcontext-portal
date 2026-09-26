@@ -17,6 +17,10 @@ use std::sync::RwLock;
 /// The label of the outcome sink in a rendered stream, which the metrics leave out.
 pub const SINK_LABEL: &str = "outcome";
 
+/// The labels of the pass report and its request (T-3001), which the metrics leave out like the
+/// sink: a report the Portal did not take says nothing about the stream's own reads and writes.
+pub const PASS_LABELS: [&str; 2] = ["pass", "pass_report"];
+
 /// How many log lines one pipeline keeps.
 pub const LINES_KEPT: usize = 5000;
 /// How many runs one pipeline keeps the counts of.
@@ -190,6 +194,52 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
     }})
 }
 
+/// Reports every pass of a clocked stream to its run's log before the pass reads (T-3001, PL-62):
+/// a report with no records, which the outcome route keeps as a run with its counts at zero. A
+/// pass whose writes all went elsewhere (a reaper deleting through its own step) or that found
+/// nothing new is then still seen to have run.
+///
+/// Only a stream on a `generate` clock has passes; a resident source is one run per hour and its
+/// records say that it runs. The report is a branch whose answer is thrown away, and the `catch`
+/// after it clears a failed report, so the Portal being away never costs the tick its read.
+pub fn with_passes(stream: &mut serde_json::Value, url: &str) {
+    if stream.pointer("/input/generate").is_none() {
+        return;
+    }
+    let report = serde_json::json!({ "label": PASS_LABELS[0], "branch": {
+        "request_map": format!("root = {{ \"run\": {RUN}, \"sent\": [] }}"),
+        "processors": [{ "label": PASS_LABELS[1], "http": {
+            "url": url,
+            "verb": "POST",
+            "headers": { "Content-Type": "application/json" },
+            "timeout": "5s",
+            "retries": 0,
+            "oauth2": {
+                "enabled": true,
+                "client_key": "${JC_CLIENT_ID}",
+                "client_secret": "${JC_CLIENT_SECRET}",
+                "token_url": "${JC_TOKEN_URL}",
+            },
+        }}],
+    }});
+    let Some(pipeline) = stream.as_object_mut().map(|stream| {
+        stream
+            .entry("pipeline")
+            .or_insert_with(|| serde_json::json!({}))
+    }) else {
+        return;
+    };
+    let Some(pipeline) = pipeline.as_object_mut() else {
+        return;
+    };
+    let processors = pipeline
+        .entry("processors")
+        .or_insert_with(|| serde_json::json!([]));
+    if let Some(processors) = processors.as_array_mut() {
+        processors.splice(0..0, [report, serde_json::json!({ "catch": [] })]);
+    }
+}
+
 fn clean(text: &str) -> String {
     let short: String = text.chars().take(TEXT_CHARS).collect();
     crate::pipeline_outcomes::mask_text(&short)
@@ -230,7 +280,8 @@ impl LogStore {
     }
 
     /// Adds the lines of one report to the run's log and its counts, then drops what is beyond
-    /// the bounds.
+    /// the bounds. A report with no lines is a pass that wrote nothing: the run is kept with its
+    /// counts at zero, so "ran, nothing new" reads apart from "did not run" (T-3001).
     pub async fn append(
         &self,
         project: &str,
@@ -238,9 +289,6 @@ impl LogStore {
         run: &str,
         lines: &[NewLine],
     ) -> Result<(), sqlx::Error> {
-        if lines.is_empty() {
-            return Ok(());
-        }
         let count = |outcome: Outcome| lines.iter().filter(|l| l.outcome == outcome).count() as i64;
         let (sent, rejected, failed) = (
             count(Outcome::Sent),
@@ -503,6 +551,52 @@ mod tests {
             outcome,
             message: message.to_owned(),
         }
+    }
+
+    /// T-3001, PL-62: a clocked stream reports each pass before it reads, and a report that
+    /// fails never drops the tick it was made for.
+    #[test]
+    fn a_clocked_stream_reports_every_pass_and_a_resident_one_is_left_alone() {
+        let url = "http://portal-internal:8081/internal/pipelines/helsinki/reaper/outcomes";
+        let mut clocked = serde_json::json!({
+            "input": { "generate": { "interval": "60s", "mapping": TICK } },
+            "pipeline": { "processors": [{ "try": [{ "http": {} }] }] },
+            "output": { "drop": {} },
+        });
+        with_passes(&mut clocked, url);
+        let processors = clocked["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        assert_eq!(processors.len(), 3, "{processors:?}");
+        let branch = &processors[0]["branch"];
+        assert_eq!(branch["processors"][0]["http"]["url"], url);
+        assert_eq!(branch["processors"][0]["http"]["verb"], "POST");
+        let request = branch["request_map"].as_str().expect("a request map");
+        assert!(
+            request.contains(RUN) && request.contains("\"sent\": []"),
+            "{request}"
+        );
+        assert!(
+            branch.get("result_map").is_none(),
+            "the tick goes on as it was"
+        );
+        assert_eq!(processors[1], serde_json::json!({ "catch": [] }));
+        assert!(
+            processors[2].get("try").is_some(),
+            "the read follows the report"
+        );
+
+        let mut resident = serde_json::json!({
+            "input": { "nats": { "urls": ["nats://demo-nats:4222"], "subject": "x" } },
+            "pipeline": { "processors": [{ "mapping": "root = this" }] },
+            "output": { "drop": {} },
+        });
+        let before = resident.clone();
+        with_passes(&mut resident, url);
+        assert_eq!(
+            resident, before,
+            "a stream without a clock has no pass to report"
+        );
     }
 
     #[tokio::test]

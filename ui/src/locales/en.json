@@ -1195,6 +1195,7 @@
       "show": "Show the log of {run}",
       "logCaption": "Log of the run {run}",
       "noLines": "The lines of this run have aged out; the counts above stay.",
+      "nothingWritten": "This pass read its source and found nothing to write.",
       "at": "Time",
       "record": "Record",
       "outcome": "Outcome",

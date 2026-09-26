@@ -487,6 +487,35 @@ mod tests {
         assert_eq!(failed.step, Some(0));
     }
 
+    /// T-3001, PL-62: a pass that wrote nothing is still a run, with its counts at zero, so a
+    /// person can tell "ran, nothing new" from "did not run".
+    #[tokio::test]
+    async fn a_pass_that_wrote_nothing_is_a_run_with_its_counts_at_zero() {
+        let state = world();
+        let pass = Sent {
+            run: Some("2026-09-26T01:00:00Z".into()),
+            sent: Vec::new(),
+        };
+        assert_eq!(
+            log_sent(&state, "ovzdusie", "stations", pass).await,
+            StatusCode::NO_CONTENT
+        );
+        let runs = state
+            .pipeline_log
+            .runs("ovzdusie", "stations", 10)
+            .await
+            .expect("runs");
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].run, "2026-09-26T01:00:00Z");
+        assert_eq!((runs[0].sent, runs[0].rejected, runs[0].failed), (0, 0, 0));
+        assert!(state
+            .pipeline_log
+            .lines("ovzdusie", "stations", "2026-09-26T01:00:00Z", 10, None)
+            .await
+            .expect("lines")
+            .is_empty());
+    }
+
     #[tokio::test]
     async fn a_report_for_an_unknown_pipeline_or_larger_than_a_batch_is_refused() {
         let state = world();
