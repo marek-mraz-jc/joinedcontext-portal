@@ -219,13 +219,13 @@ describe("sync sources view", () => {
 
     await userEvent.click(screen.getByRole("button", { name: en.syncSources.detach }));
     // Cancelling detaches nothing: the source is still attached after the dialog closes.
-    const asking = await screen.findByRole("dialog");
+    const asking = await screen.findByRole("alertdialog");
     expect(asking).toHaveAccessibleDescription(expect.stringContaining("regional-datamodels"));
     await userEvent.click(within(asking).getByTestId("confirm-cancel"));
     expect(calls.some((call) => call.path.endsWith("/detach"))).toBe(false);
 
     await userEvent.click(screen.getByRole("button", { name: en.syncSources.detach }));
-    await userEvent.click(within(await screen.findByRole("dialog")).getByTestId("confirm-accept"));
+    await userEvent.click(within(await screen.findByRole("alertdialog")).getByTestId("confirm-accept"));
 
     await waitFor(() => {
       expect(calls.some((call) => call.path.endsWith("/detach"))).toBe(true);

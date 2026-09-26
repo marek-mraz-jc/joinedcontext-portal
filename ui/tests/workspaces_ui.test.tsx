@@ -454,7 +454,7 @@ describe("the list of copies", () => {
     expect(within(others).queryByRole("button", { name: "Discard" })).toBeNull();
     await userEvent.click(within(mine).getByRole("button", { name: "Discard" }));
     // The shared dialog asks, names the copy, and nothing is deleted until it is answered.
-    const asking = await screen.findByRole("dialog");
+    const asking = await screen.findByRole("alertdialog");
     expect(asking).toHaveAccessibleDescription(expect.stringContaining("air-v2"));
     expect(requests.some((r) => r.method === "DELETE")).toBe(false);
 

@@ -34,7 +34,14 @@ export interface DialogProps {
   className?: string;
   /** Added to the scrolling body, for a caller that needs it flush or padded differently. */
   bodyClassName?: string;
-  children: ReactNode;
+  /**
+   * `alertdialog` for a question that must be answered, an "are you sure" (WAI-ARIA): a screen
+   * reader announces it as an alert, and a click outside it answers nothing, so it stays open;
+   * Escape and its own buttons still close it.
+   */
+  role?: "dialog" | "alertdialog";
+  /** The body; a dialog whose title and description say everything has none, and no empty band. */
+  children?: ReactNode;
 }
 
 /**
@@ -51,6 +58,7 @@ export function Dialog({
   footer,
   className,
   bodyClassName,
+  role = "dialog",
   children,
 }: DialogProps): React.JSX.Element {
   // The dialog is opened from outside, so Radix has no trigger to hand focus back to and leaves
@@ -61,6 +69,8 @@ export function Dialog({
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-40 bg-overlay backdrop-blur-[2px]" />
         <RadixDialog.Content
+          role={role}
+          onInteractOutside={role === "alertdialog" ? (event) => event.preventDefault() : undefined}
           onOpenAutoFocus={(event) => {
             opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             // Radix would take the first tabbable element, which is the Close button in the
@@ -101,9 +111,11 @@ export function Dialog({
               <Icon name="close" className="size-4" />
             </RadixDialog.Close>
           </div>
-          <div className={clsx("min-h-0 flex-1 overflow-y-auto px-6 py-5", bodyClassName)}>
-            {children}
-          </div>
+          {children != null && children !== false ? (
+            <div className={clsx("min-h-0 flex-1 overflow-y-auto px-6 py-5", bodyClassName)}>
+              {children}
+            </div>
+          ) : null}
           {footer ? (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-surface-subtle px-6 py-3">
               {footer}

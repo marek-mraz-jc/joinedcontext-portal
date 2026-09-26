@@ -257,14 +257,14 @@ describe("a person's page", () => {
 
     const button = await screen.findByRole("button", { name: P.action[action] });
     await user.click(button);
-    let dialog = await screen.findByRole("dialog", { name: P.confirm[action].title.replace("{name}", "Jana Nováková") });
+    let dialog = await screen.findByRole("alertdialog", { name: P.confirm[action].title.replace("{name}", "Jana Nováková") });
     // Cancel holds the focus: Enter on a dialog that arrived under the pointer costs nothing.
     await waitFor(() => expect(within(dialog).getByTestId("confirm-cancel")).toHaveFocus());
     await user.click(within(dialog).getByTestId("confirm-cancel"));
     expect(sent.filter((s) => s.method !== "GET")).toEqual([]);
 
     await user.click(button);
-    dialog = await screen.findByRole("dialog", { name: P.confirm[action].title.replace("{name}", "Jana Nováková") });
+    dialog = await screen.findByRole("alertdialog", { name: P.confirm[action].title.replace("{name}", "Jana Nováková") });
     await user.click(within(dialog).getByTestId("confirm-accept"));
     await waitFor(() => expect(sent.filter((s) => s.method === method && s.path === path)).toHaveLength(1));
     expect(await screen.findByText(P.done[action])).toBeInTheDocument();
@@ -276,7 +276,7 @@ describe("a person's page", () => {
     renderPage(<PersonPage id="jana-id" />, { path: "/organization/people/jana-id", answer: answer(sent) });
 
     await user.click(await screen.findByRole("button", { name: P.action.delete }));
-    const dialog = await screen.findByRole("dialog", { name: "Delete Jana Nováková?" });
+    const dialog = await screen.findByRole("alertdialog", { name: "Delete Jana Nováková?" });
     expect(dialog).toHaveTextContent(/a Change takes them out of each/);
     await user.click(within(dialog).getByTestId("confirm-accept"));
     await waitFor(() => expect(sent.filter((s) => s.method === "DELETE")).toHaveLength(1));
@@ -289,7 +289,7 @@ describe("a person's page", () => {
     renderPage(<PersonPage id="jana-id" />, { path: "/organization/people/jana-id", answer: answer(sent, { smtp: false }) });
 
     await user.click(await screen.findByRole("button", { name: P.action["reset-password"] }));
-    await user.click(within(await screen.findByRole("dialog")).getByTestId("confirm-accept"));
+    await user.click(within(await screen.findByRole("alertdialog")).getByTestId("confirm-accept"));
     const shown = await screen.findByRole("dialog", { name: P.password.title });
     expect(within(shown).getByRole("textbox", { name: P.password.label })).toHaveValue(PASSWORD);
     await user.keyboard("{Escape}");
