@@ -461,8 +461,9 @@ impl AppState {
                 ),
             }
             // Every published App's own client (ADR-N-030, AP-111). It is written as the Portal
-            // client's own service account, the one identity the realm gives `manage-clients`;
-            // the group credential above stays limited to group memberships (T-0411, T-0866).
+            // client's own service account, the one identity the realm gives `manage-clients`.
+            // Who holds an App role is looked up and mapped with the group credential above,
+            // which already writes memberships; the login client only reads the holders (T-3022).
             match (
                 state.config.oidc.as_ref(),
                 state
@@ -478,7 +479,10 @@ impl AppState {
                         oidc.client_secret().to_owned(),
                         host,
                     ) {
-                        Some(clients) => {
+                        Some(mut clients) => {
+                            if let Some((id, secret)) = state.config.keycloak_admin.clone() {
+                                clients = clients.with_members(id, secret);
+                            }
                             syncer = syncer.with_app_clients(Arc::new(
                                 clients.with_foreign(Arc::clone(&state.foreign_names)),
                             ))
