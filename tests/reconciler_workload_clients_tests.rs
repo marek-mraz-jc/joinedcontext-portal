@@ -10,7 +10,7 @@
 //! it.
 
 use jc_core::kinds::service_account::KubernetesBinding;
-use joinedcontext_portal::reconciler::app_clients::audience_mapper;
+use joinedcontext_portal::reconciler::app_clients::{audience_mapper, groups_mapper};
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::reconciler::workload_clients::{desired, WorkloadClientSync};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
@@ -366,6 +366,44 @@ async fn a_console_change_is_written_back_and_reported() {
     );
     let written = &bodies(&keycloak, "PUT", &format!("{REALM}/clients/uuid-air")).await[0];
     assert_eq!(written["clientAuthenticatorType"], "federated-jwt");
+}
+
+/// T-3033: only an App's client carries the platform's groups mapper. A workload's grants are its
+/// manifest's (PF-35), so the same mapper on an account's client is removed like any other.
+#[tokio::test]
+async fn an_accounts_client_carries_no_groups_mapper() {
+    let client = managed_client("uuid-air", "helsinki", "air-adapter", "env-dept", "adapter");
+    let keycloak = realm(json!([client.clone()])).await;
+    client_lookup(&keycloak, "helsinki-air-adapter", json!([client])).await;
+    let mut audience = audience_mapper(SLUG);
+    audience["id"] = json!("m-1");
+    let mut groups = groups_mapper();
+    groups["id"] = json!("m-groups");
+    mappers(&keycloak, "uuid-air", json!([audience, groups])).await;
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![
+            account(
+                "helsinki",
+                "air-adapter",
+                Some(("env-dept", "adapter")),
+                "space-writer",
+            ),
+            endpoint("helsinki", "air-all", "air", SLUG),
+        ]))
+        .await;
+
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec![format!(
+            "DELETE {REALM}/clients/uuid-air/protocol-mappers/models/m-groups"
+        )]
+    );
+    assert_eq!(
+        outcomes[0].removed_mappers,
+        vec!["oidc-group-membership-mapper mapper groups".to_owned()]
+    );
 }
 
 /// PF-47: a client of the derived id this platform did not create is never touched, and the

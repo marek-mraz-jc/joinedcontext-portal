@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use joinedcontext_portal::reconciler::app_clients::{
-    audience_mapper, desired, record, AppClientSync,
+    audience_mapper, desired, groups_mapper, record, AppClientSync,
 };
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
@@ -70,7 +70,8 @@ async fn roles_in_place(keycloak: &MockServer, uuid: &str, app: &str) {
             "{REALM}/clients/{uuid}/protocol-mappers/models"
         )))
         .respond_with(
-            ResponseTemplate::new(200).set_body_json(json!([mapper("m-1", &format!("app-{app}"))])),
+            ResponseTemplate::new(200)
+                .set_body_json(json!([mapper("m-1", &format!("app-{app}")), groups_held()])),
         )
         .with_priority(10)
         .mount(keycloak)
@@ -80,6 +81,13 @@ async fn roles_in_place(keycloak: &MockServer, uuid: &str, app: &str) {
 fn mapper(id: &str, audience: &str) -> Value {
     let mut held = audience_mapper(audience);
     held["id"] = json!(id);
+    held
+}
+
+/// The platform's `groups` mapper as the realm holds it on an App's client (AP-113, T-3033).
+fn groups_held() -> Value {
+    let mut held = groups_mapper();
+    held["id"] = json!("m-groups");
     held
 }
 
@@ -221,8 +229,21 @@ async fn a_published_app_with_no_client_gets_one_and_its_secret_is_read_back() {
         vec![
             format!("POST {REALM}/clients"),
             format!("POST {REALM}/clients/uuid-bikes/protocol-mappers/models"),
+            format!("POST {REALM}/clients/uuid-bikes/protocol-mappers/models"),
         ]
     );
+    // Its audience and the platform's groups mapper, so the person's token names their projects.
+    let mappers = body_of(
+        &keycloak,
+        "POST",
+        "/clients/uuid-bikes/protocol-mappers/models",
+    )
+    .await;
+    assert_eq!(
+        mappers[0]["config"]["included.custom.audience"],
+        "app-bikes"
+    );
+    assert_eq!(mappers[1], groups_mapper());
     let created = keycloak
         .received_requests()
         .await
@@ -460,7 +481,7 @@ async fn the_apps_roles_become_client_roles_mapped_to_its_groups_and_users_and_n
     answer(
         &keycloak,
         "/clients/uuid-a/protocol-mappers/models",
-        json!([mapper("m-1", "app-alerts")]),
+        json!([mapper("m-1", "app-alerts"), groups_held()]),
     )
     .await;
     writes_succeed(&keycloak).await;
@@ -540,6 +561,7 @@ async fn the_audiences_are_the_app_and_every_endpoint_it_reads_and_nothing_else(
     edited["config"]["access.token.claim"] = json!("false");
     answer(&keycloak, "/clients/uuid-a/protocol-mappers/models", json!([
         edited,
+        groups_held(),
         mapper("m-old", "ep-gone"),
         // Another kind under the wave's prefix is still not an audience the App reads (T-2857).
         { "id": "m-theirs", "name": "audience-by-hand", "protocolMapper": "oidc-hardcoded-claim-mapper", "config": {} },
@@ -597,10 +619,96 @@ async fn the_audiences_are_the_app_and_every_endpoint_it_reads_and_nothing_else(
     );
 }
 
+#[tokio::test]
+async fn an_apps_client_carries_the_platforms_groups_mapper_and_keeps_it() {
+    // T-3033: the person's App token named no project, so the gateway refused every
+    // project-bound Endpoint the App reads, silently. The client carries the groups mapper every
+    // platform client carries; a changed one is written back, and a foreign mapper that took its
+    // name is removed before ours is written.
+    let keycloak = realm().await;
+    client_in_place(&keycloak).await;
+    answer(&keycloak, "/clients/uuid-a/roles", json!([])).await;
+    let mut widened = groups_held();
+    widened["config"]["full.path"] = json!("true");
+    answer(
+        &keycloak,
+        "/clients/uuid-a/protocol-mappers/models",
+        json!([mapper("m-app", "app-alerts"), widened]),
+    )
+    .await;
+    writes_succeed(&keycloak).await;
+
+    let run = sync(&keycloak)
+        .converge(&mirror_with(vec![alerts(json!({}))]))
+        .await;
+
+    let outcome = &run.outcomes[0];
+    assert_eq!(outcome.error, None, "{outcome:?}");
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec![format!(
+            "PUT {REALM}/clients/uuid-a/protocol-mappers/models/m-groups"
+        )]
+    );
+    let written = body_of(
+        &keycloak,
+        "PUT",
+        "/clients/uuid-a/protocol-mappers/models/m-groups",
+    )
+    .await;
+    assert_eq!(written[0]["config"], groups_mapper()["config"]);
+    assert_eq!(
+        outcome.drift,
+        vec!["the groups mapper was changed; it was written back".to_owned()]
+    );
+    assert!(outcome.removed_mappers.is_empty());
+}
+
+#[tokio::test]
+async fn a_foreign_mapper_named_groups_is_removed_and_the_platforms_is_written() {
+    let keycloak = realm().await;
+    client_in_place(&keycloak).await;
+    answer(&keycloak, "/clients/uuid-a/roles", json!([])).await;
+    answer(
+        &keycloak,
+        "/clients/uuid-a/protocol-mappers/models",
+        json!([
+            mapper("m-app", "app-alerts"),
+            { "id": "m-fake", "name": "groups", "protocolMapper": "oidc-hardcoded-claim-mapper",
+              "config": { "claim.name": "groups", "claim.value": "helsinki-admins" } },
+        ]),
+    )
+    .await;
+    writes_succeed(&keycloak).await;
+
+    let run = sync(&keycloak)
+        .converge(&mirror_with(vec![alerts(json!({}))]))
+        .await;
+
+    let outcome = &run.outcomes[0];
+    assert_eq!(outcome.error, None, "{outcome:?}");
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec![
+            format!("DELETE {REALM}/clients/uuid-a/protocol-mappers/models/m-fake"),
+            format!("POST {REALM}/clients/uuid-a/protocol-mappers/models"),
+        ]
+    );
+    assert_eq!(
+        body_of(&keycloak, "POST", "/clients/uuid-a/protocol-mappers/models").await,
+        vec![groups_mapper()]
+    );
+    assert_eq!(
+        outcome.removed_mappers,
+        vec!["oidc-hardcoded-claim-mapper mapper groups".to_owned()]
+    );
+    assert!(!format!("{outcome:?}").contains("helsinki-admins"));
+}
+
 /// A client whose mappers are exactly the App's audiences: nothing to read back as wrong.
 async fn only_the_apps_audience(keycloak: &MockServer, extra: Vec<Value>) {
     answer(keycloak, "/clients/uuid-a/roles", json!([])).await;
-    let mut held = vec![mapper("m-app", "app-alerts")];
+    let mut held = vec![mapper("m-app", "app-alerts"), groups_held()];
     held.extend(extra);
     answer(
         keycloak,
@@ -728,7 +836,7 @@ async fn a_realm_that_fails_on_the_roles_still_gets_the_audiences() {
     answer(
         &keycloak,
         "/clients/uuid-a/protocol-mappers/models",
-        json!([mapper("m-app", "app-alerts")]),
+        json!([mapper("m-app", "app-alerts"), groups_held()]),
     )
     .await;
     writes_succeed(&keycloak).await;
@@ -853,7 +961,7 @@ async fn viewer_held_by_others(keycloak: &MockServer) {
     answer(
         keycloak,
         "/clients/uuid-a/protocol-mappers/models",
-        json!([mapper("m-1", "app-alerts")]),
+        json!([mapper("m-1", "app-alerts"), groups_held()]),
     )
     .await;
     writes_succeed(keycloak).await;
