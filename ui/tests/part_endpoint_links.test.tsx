@@ -19,7 +19,10 @@ import {
   endpointUrl,
   EndpointLink,
   ENDPOINT_LINKS,
+  hubUrl,
+  mcpOrigin,
   REPRESENTATION_PATHS,
+  representationUrl,
   servedRepresentations,
 } from "../src/components/endpoints/links";
 import { ExportButton } from "../src/components/export/ExportButton";
@@ -92,6 +95,30 @@ describe("the endpoint link pill", () => {
       expect(url.origin).toBe(window.location.origin);
       expect(url.pathname.startsWith("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa"), path).toBe(true);
     }
+  });
+
+  // T-3019: an MCP client refuses resource metadata that names another URL than the one it called
+  // (RFC 9728 §3.3), and the gateway names the platform host, so MCP addresses are handed out there.
+  it("an_mcp_address_is_on_the_platform_host_and_every_other_on_this_origin", () => {
+    const slug = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
+    expect(representationUrl(slug, "mcp", "dev.city.example")).toBe(
+      `https://dev.city.example/api/endpoint/${slug}/mcp`,
+    );
+    expect(representationUrl(slug, "geojson", "dev.city.example")).toBe(
+      `${window.location.origin}/api/endpoint/${slug}/file.geojson`,
+    );
+    expect(hubUrl("dev.city.example")).toBe("https://dev.city.example/api/mcp");
+    expect(representationUrl("a/../b", "mcp", "dev.city.example")).toBe(
+      "https://dev.city.example/api/endpoint/a%2F..%2Fb/mcp",
+    );
+  });
+
+  it("an_mcp_address_stays_on_this_origin_without_a_bare_platform_host", () => {
+    expect(mcpOrigin("Dev.City.Example:8443")).toBe("https://dev.city.example:8443");
+    for (const domain of [undefined, "", "  ", "evil.example/api", "user@evil.example", "https://evil.example", "a b"]) {
+      expect(mcpOrigin(domain), String(domain)).toBe(window.location.origin);
+    }
+    expect(hubUrl(undefined)).toBe(`${window.location.origin}/api/mcp`);
   });
 
   it("a_catalogue_address_escapes_the_name_it_is_given", () => {

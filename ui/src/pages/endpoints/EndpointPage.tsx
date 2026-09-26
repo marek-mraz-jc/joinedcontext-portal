@@ -23,9 +23,11 @@ import {
   EndpointLink,
   REPRESENTATION_PATHS,
   endpointUrl,
+  representationUrl,
   servedRepresentations,
   useCatalogueLinks,
 } from "../../components/endpoints/links";
+import { useBranding } from "../../branding";
 import { spaceOf } from "../../components/endpoints/sharing";
 import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
 import type { Binding } from "../../components/endpoints/policyBinding";
@@ -80,6 +82,7 @@ export function EndpointPage({
   name: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const { domain } = useBranding();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const navigate = useNavigate();
   const permissions = usePermissions(project);
@@ -371,7 +374,7 @@ export function EndpointPage({
               {servedRepresentations(spec).map((rep) => (
                 <li key={rep}>
                   {slug && REPRESENTATION_PATHS[rep] ? (
-                    <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>{rep}</EndpointLink>
+                    <EndpointLink href={representationUrl(slug, rep, domain)}>{rep}</EndpointLink>
                   ) : (
                     <Badge mono>{rep}</Badge>
                   )}

@@ -57,11 +57,45 @@ export function endpointUrl(slug: string, path: string): string {
 }
 
 /**
- * The MCP hub: one connector over every Endpoint the caller may read, the Endpoint named on each
- * call (EP-87, ADR-N-025). On this origin like every Endpoint URL the Portal shows.
+ * The origin an MCP client connects to: the platform host, which the gateway names as the
+ * `resource` of every MCP URL (`JC_GATEWAY_PUBLIC_URL`, built from the same domain the branding
+ * serves as `domain`). A client refuses resource metadata that names another URL than the one it
+ * called (RFC 9728 §3.3), so the Portal's own host, right for a browser whose edge session is the
+ * bearer, is wrong for a connector (T-3019). The page's origin when the installation names no
+ * domain, or one that is not a bare host.
  */
-export function hubUrl(): string {
-  return `${window.location.origin}/api/mcp`;
+export function mcpOrigin(domain: string | undefined): string {
+  const host = domain?.trim().toLowerCase() ?? "";
+  if (host) {
+    try {
+      const url = new URL(`https://${host}`);
+      if (url.host === host && url.pathname === "/" && !url.username && !url.password) {
+        return url.origin;
+      }
+    } catch {
+      // Not a host: the page's own origin below.
+    }
+  }
+  return window.location.origin;
+}
+
+/**
+ * Where one representation of an endpoint answers: `mcp` on the platform host an MCP client
+ * connects to, every other one on this origin, where the edge turns the session into the bearer.
+ */
+export function representationUrl(slug: string, representation: string, domain: string | undefined): string {
+  const path = REPRESENTATION_PATHS[representation] ?? "/";
+  return representation === "mcp"
+    ? `${mcpOrigin(domain)}/api/endpoint/${encodeURIComponent(slug)}${path}`
+    : endpointUrl(slug, path);
+}
+
+/**
+ * The MCP hub: one connector over every Endpoint the caller may read, the Endpoint named on each
+ * call (EP-87, ADR-N-025), on the platform host an MCP client connects to.
+ */
+export function hubUrl(domain: string | undefined): string {
+  return `${mcpOrigin(domain)}/api/mcp`;
 }
 
 /**
