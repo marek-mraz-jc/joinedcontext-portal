@@ -2179,7 +2179,7 @@ pub async fn merge_published_application(
     let Some(manifest) = manifest.filter(|manifest| manifest.kind == "App") else {
         return;
     };
-    let Some(run_id) = manifest.metadata.annotations.get(AGENT_RUN_ANNOTATION) else {
+    let Some(run_id) = publishing_run(Some(manifest)) else {
         return;
     };
     let Some(sha) = manifest
@@ -2240,6 +2240,57 @@ pub async fn merge_published_application(
             {
                 tracing::warn!(run = %run.id, error = ?err, "merge refusal not streamed");
             }
+        }
+    }
+}
+
+/// The run an `App` manifest was published by, as its annotation names it; `None` for any other
+/// manifest.
+pub fn publishing_run(manifest: Option<&crate::resource::ResourceEnvelope>) -> Option<&str> {
+    manifest
+        .filter(|manifest| manifest.kind == "App")?
+        .metadata
+        .annotations
+        .get(AGENT_RUN_ANNOTATION)
+        .map(String::as_str)
+}
+
+/// After the Change that publishes an application is rejected, or closed on the forge without
+/// being merged: the run that proposed it stops waiting for an approval nothing can give any more,
+/// so the catalogue stops showing it as waiting (T-3015). It ends `cancelled` with `reason`, and
+/// the status event says why.
+///
+/// Only the run whose own Change this is: the same project, the Change number the run recorded
+/// when it published, and still waiting for approval. Any other run is left as it is, so a
+/// Change can never end a run it does not belong to. Returns whether the run ended.
+pub async fn end_rejected_publication(
+    state: &AppState,
+    project: &str,
+    run_id: &str,
+    change_number: u64,
+    reason: &str,
+) -> bool {
+    let run = match state.agents.get_run(run_id).await {
+        Ok(Some(run)) => run,
+        Ok(None) => return false,
+        Err(err) => {
+            tracing::warn!(run = %run_id, error = %err, "rejected application's run not read");
+            return false;
+        }
+    };
+    let own_change = run
+        .merge_request
+        .and_then(|number| u64::try_from(number).ok())
+        == Some(change_number);
+    let waiting = AgentRunStatus::parse(&run.status) == Some(AgentRunStatus::AwaitingApproval);
+    if run.project != project || !own_change || !waiting {
+        return false;
+    }
+    match end_run(state, &run, AgentRunStatus::Cancelled, reason).await {
+        Ok(_) => true,
+        Err(err) => {
+            tracing::warn!(run = %run.id, error = ?err, "rejected application's run not ended");
+            false
         }
     }
 }

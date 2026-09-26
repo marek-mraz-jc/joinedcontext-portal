@@ -1718,6 +1718,27 @@ pub async fn reject_change_for(
     // the proposal pending.
     gitea.close_pull_request(pr_number).await?;
 
+    // The run that proposed a rejected application stops waiting for it (T-3015). An
+    // organization Change (`chg-org-`) never publishes an application, and its number counts
+    // in another repository than the runs' own.
+    if let (Some(run_id), Ok(_)) = (
+        crate::api::agent_runs::publishing_run(data.head_envelope.as_ref()),
+        parse_change_id(id),
+    ) {
+        let why = match reason.map(str::trim).filter(|reason| !reason.is_empty()) {
+            Some(reason) => format!(
+                "its change {id} was rejected by {rejecter}: {reason}; the application was not \
+                 published, start a new run from the Apps page to try again"
+            ),
+            None => format!(
+                "its change {id} was rejected by {rejecter}; the application was not published, \
+                 start a new run from the Apps page to try again"
+            ),
+        };
+        crate::api::agent_runs::end_rejected_publication(state, project, run_id, pr_number, &why)
+            .await;
+    }
+
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
     let lane = if data.operation == Operation::Delete {
         Lane::Red
