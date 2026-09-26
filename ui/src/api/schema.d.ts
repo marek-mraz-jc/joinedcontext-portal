@@ -3686,14 +3686,7 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /**
-         * @description Folds every series of one stream into the counters the view shows. Series of the same family
-         *     are summed (a stream may have several inputs or outputs); the latency takes the slowest
-         *     output rather than a sum, which would mean nothing.
-         *     The runner registers each stream under the pipeline's own name, so the pipeline name is
-         *     also the `stream` label to select on.
-         *     What one component of a stream counted, as its own label reports it (T-1125).
-         */
+        /** @description What one component of a stream counted, as its own label reports it (T-1125). */
         NodeCounters: {
             /** Format: int64 */
             errors?: number | null;
