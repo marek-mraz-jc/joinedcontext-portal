@@ -1195,6 +1195,7 @@
       "show": "Zobraziť záznam behu {run}",
       "logCaption": "Záznam behu {run}",
       "noLines": "Riadky tohto behu už boli vymazané; počty vyššie zostávajú.",
+      "nothingWritten": "Tento beh prečítal zdroj a nenašiel nič na zápis.",
       "at": "Čas",
       "record": "Záznam",
       "outcome": "Výsledok",

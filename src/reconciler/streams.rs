@@ -181,6 +181,7 @@ impl StreamDeployer {
             internal.trim_end_matches('/')
         );
         *output = crate::pipeline_log::with_outcomes(output.take(), &url);
+        crate::pipeline_log::with_passes(stream, &url);
     }
 
     /// The runner's Prometheus text for one project, or `None` when it does not answer.

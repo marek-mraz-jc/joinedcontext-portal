@@ -2336,6 +2336,16 @@ output_error{stream="kpi"} 6
         assert_eq!(failing(RUNNING_STREAM, "nothing-of-that-name"), None);
     }
 
+    /// T-3001: a reaper writes nothing through its output by design; a pass report the Portal
+    /// did not take must not make it read as a stream that fails.
+    #[test]
+    fn a_reaper_whose_pass_reports_fail_is_not_said_to_be_failing() {
+        let metrics = "input_received{label=\"input\",stream=\"reaper\"} 30\n\
+                       processor_error{label=\"pass\",stream=\"reaper\"} 30\n\
+                       processor_error{label=\"pass_report\",stream=\"reaper\"} 30\n";
+        assert_eq!(failing(metrics, "reaper"), None);
+    }
+
     /// What `stageable` logs at `warn`, captured on this thread.
     fn warnings_of(content: &str) -> (Option<String>, String) {
         #[derive(Clone, Default)]

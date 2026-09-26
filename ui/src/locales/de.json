@@ -1195,6 +1195,7 @@
       "show": "Protokoll des Laufs {run} anzeigen",
       "logCaption": "Protokoll des Laufs {run}",
       "noLines": "Die Zeilen dieses Laufs sind bereits gelöscht; die Zahlen oben bleiben.",
+      "nothingWritten": "Dieser Lauf hat seine Quelle gelesen und nichts zu schreiben gefunden.",
       "at": "Zeit",
       "record": "Datensatz",
       "outcome": "Ergebnis",

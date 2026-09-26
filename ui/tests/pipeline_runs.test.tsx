@@ -2,7 +2,8 @@
  * T-2710: a pipeline's runs and the log of each on the pipelines page (PL-62, ADR-N-034). The
  * row's menu opens them; each run says how many records it wrote, rejected and failed, the newest
  * run's log is open, another run opens by its button, and a log pages older and back. A run whose
- * lines aged out keeps its counts and says so; a list that could not be read says why.
+ * lines aged out keeps its counts and says so; a pass that wrote nothing is a run of zeros that
+ * says so (T-3001); a list that could not be read says why.
  */
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -160,6 +161,20 @@ describe("a pipeline's runs and log", () => {
     const dialog = await openRuns();
     expect(await within(dialog).findByText(en.pipelines.runs.noLines)).toBeInTheDocument();
     expect(within(dialog).getByText("4,000")).toBeInTheDocument();
+  });
+
+  // T-3001: a pass that read its source and found nothing new is a run of zeros, and its log
+  // says so rather than claiming lines that aged out.
+  it("a_pass_that_wrote_nothing_is_a_run_of_zeros_and_says_it_found_nothing", async () => {
+    await renderRoute({
+      path: PATH,
+      answer: answering({ items: [run(TICK, 0, 0, 0), run(HOUR, 40, 0, 0)] }, {}),
+    });
+    const dialog = await openRuns();
+    expect(await within(dialog).findByText(en.pipelines.runs.nothingWritten)).toBeInTheDocument();
+    expect(within(dialog).queryByText(en.pipelines.runs.noLines)).toBeNull();
+    const rows = within(within(dialog).getByRole("table", { name: en.pipelines.runs.caption })).getAllByRole("row");
+    expect(within(rows[1]).getAllByText("0")).toHaveLength(3);
   });
 
   it("runs_that_could_not_be_read_say_why_and_escape_closes", async () => {

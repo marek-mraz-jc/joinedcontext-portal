@@ -152,8 +152,12 @@ pub(crate) fn scrape(body: &str, pipeline: &str, scraped_at: String) -> Pipeline
         let Some(family) = family(sample.name) else {
             continue;
         };
-        // The outcome sink reports about the stream; its own sends are not the stream's (PL-62).
-        if label(sample.labels, "label") == Some(crate::pipeline_log::SINK_LABEL) {
+        // The outcome sink and the pass report say what the stream did; their own sends and
+        // errors are not the stream's (PL-62, T-3001).
+        if label(sample.labels, "label").is_some_and(|node| {
+            node == crate::pipeline_log::SINK_LABEL
+                || crate::pipeline_log::PASS_LABELS.contains(&node)
+        }) {
             continue;
         }
         let add = |slot: &mut Option<u64>| *slot = Some(slot.unwrap_or(0) + sample.value as u64);
@@ -802,6 +806,22 @@ uptime_seconds 900
             None,
             "no stage, no count"
         );
+    }
+
+    /// T-3001: a pass report the Portal did not take is neither an error of the stream nor a
+    /// node of it.
+    #[test]
+    fn the_pass_reports_own_failures_are_not_the_streams() {
+        let body = concat!(
+            "input_received{label=\"input\",stream=\"reaper\"} 5\n",
+            "processor_error{label=\"pass\",stream=\"reaper\"} 5\n",
+            "processor_error{label=\"pass_report\",stream=\"reaper\"} 5\n",
+            "processor_error{label=\"processor_0\",stream=\"reaper\"} 1\n",
+        );
+        let metrics = scrape(body, "reaper", "2026-09-26T01:00:00Z".into());
+        assert_eq!(metrics.errors, Some(1), "only the stream's own step");
+        assert!(!metrics.nodes.contains_key("pass"));
+        assert!(!metrics.nodes.contains_key("pass_report"));
     }
 
     #[test]

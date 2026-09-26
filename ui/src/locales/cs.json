@@ -1195,6 +1195,7 @@
       "show": "Zobrazit záznam běhu {run}",
       "logCaption": "Záznam běhu {run}",
       "noLines": "Řádky tohoto běhu už byly smazány; počty výše zůstávají.",
+      "nothingWritten": "Tento běh přečetl zdroj a nenašel nic k zápisu.",
       "at": "Čas",
       "record": "Záznam",
       "outcome": "Výsledek",

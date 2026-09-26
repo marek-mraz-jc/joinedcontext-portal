@@ -159,6 +159,7 @@ export function PipelineRunsDialog({
                 run={open}
                 title={label(open)}
                 time={time}
+                empty={items.some((run) => run.run === open && run.sent + run.rejected + run.failed === 0)}
               />
             ) : null}
           </>
@@ -175,12 +176,15 @@ function RunLog({
   run,
   title,
   time,
+  empty,
 }: {
   project: string;
   name: string;
   run: string;
   title: string;
   time: Intl.DateTimeFormat;
+  /** The run read its source and had nothing to write, so it never had lines (T-3001). */
+  empty: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   // The pages walked so far, as their `before`: the first is the newest page.
@@ -210,7 +214,9 @@ function RunLog({
           <TableSkeleton columns={4} />
         </Table>
       ) : lines.length === 0 ? (
-        <p className="text-caption text-fg-subtle">{t("pipelines.runs.noLines")}</p>
+        <p className="text-caption text-fg-subtle">
+          {t(empty ? "pipelines.runs.nothingWritten" : "pipelines.runs.noLines")}
+        </p>
       ) : (
         <>
           <Table caption={caption} maxHeight="max-h-96">
