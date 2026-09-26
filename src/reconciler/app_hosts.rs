@@ -10,6 +10,10 @@
 //! Encrypt issues 50 certificates per registered domain a week, and cert-manager renews one that
 //! exists. It deletes both when the App is no longer published. An object of that name it did
 //! not create is never read for its state, changed or deleted; the App is reported instead.
+//!
+//! Where the App zone is delegated to a DNS API, the chart's wildcard certificate
+//! `apisix-apps-wildcard` serves every App host (ADR-N-037 §6, T-3013). Once it is issued and the
+//! edge Ingress carries it, a published App's host is ready at once and gets no objects of its own.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,6 +25,8 @@ use crate::apps::kube::{KubeClient, KubeError};
 pub const EDGE_INGRESS: &str = "apisix";
 /// The chart's edge Certificate, whose issuer every App's certificate is requested from.
 pub const EDGE_CERTIFICATE: &str = "apisix-edge";
+/// The chart's certificate for `*.apps.{domain}`, when the installation has one (ADR-N-037 §6).
+pub const APPS_WILDCARD_CERTIFICATE: &str = "apisix-apps-wildcard";
 const MANAGED_BY: &str = "app.kubernetes.io/managed-by";
 const MANAGED_VALUE: &str = "joinedcontext-portal";
 const COMPONENT: &str = "app.kubernetes.io/component";
@@ -128,6 +134,29 @@ pub fn state_of(certificate: &Value) -> HostState {
     }
 }
 
+/// Whether `wildcard` serves every App host under `apex`: issued, naming `*.apps.{apex}`, and the
+/// edge Ingress `edge` terminating that name with the certificate's Secret. Anything less leaves the
+/// hosts to certificates of their own, as before the wildcard.
+pub fn wildcard_serves(wildcard: &Value, edge: &Value, apex: &str) -> bool {
+    let name = format!("*.apps.{apex}");
+    let names = |hosts: &Value| {
+        hosts
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|host| host.as_str() == Some(name.as_str()))
+    };
+    let secret = &wildcard["spec"]["secretName"];
+    state_of(wildcard) == HostState::Ready
+        && names(&wildcard["spec"]["dnsNames"])
+        && secret.is_string()
+        && edge["spec"]["tls"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|tls| names(&tls["hosts"]) && &tls["secretName"] == secret)
+}
+
 /// A kube error as a sentence that names the object and the status, never the body sent.
 fn said(object: &str, err: &KubeError) -> String {
     match err {
@@ -176,6 +205,28 @@ impl AppHosts {
             }
             Err(err) => return failed_all(said(&format!("Ingress {EDGE_INGRESS}"), &err)),
         };
+        match self
+            .kube
+            .get(
+                CERTIFICATE_API,
+                "Certificate",
+                ns,
+                APPS_WILDCARD_CERTIFICATE,
+            )
+            .await
+        {
+            Ok(Some(wildcard)) if wildcard_serves(&wildcard, &template, apex) => {
+                return published
+                    .iter()
+                    .map(|app| (app.clone(), HostState::Ready))
+                    .collect();
+            }
+            Ok(_) => {}
+            Err(err) => tracing::warn!(
+                error = %said(&format!("Certificate {APPS_WILDCARD_CERTIFICATE}"), &err),
+                "the wildcard certificate was not read; each App host keeps a certificate of its own"
+            ),
+        }
         let issuer = match self
             .kube
             .get(CERTIFICATE_API, "Certificate", ns, EDGE_CERTIFICATE)
@@ -382,6 +433,60 @@ mod tests {
         assert!(matches!(
             state_of(&with(json!([{ "type": "Issuing", "status": "True" }]))),
             HostState::Pending(_)
+        ));
+    }
+
+    fn wildcard(ready: &str, names: Value) -> Value {
+        json!({
+            "spec": { "secretName": "apisix-apps-wildcard-tls", "dnsNames": names },
+            "status": { "conditions": [{ "type": "Ready", "status": ready }] },
+        })
+    }
+
+    fn edge_with(tls: Value) -> Value {
+        let mut edge = template();
+        edge["spec"]["tls"] = tls;
+        edge
+    }
+
+    #[test]
+    fn the_wildcard_serves_app_hosts_only_issued_named_and_on_the_edge() {
+        let edge = edge_with(json!([
+            { "hosts": ["city.example"], "secretName": "apisix-edge-tls" },
+            { "hosts": ["*.apps.city.example"], "secretName": "apisix-apps-wildcard-tls" },
+        ]));
+        let issued = wildcard("True", json!(["*.apps.city.example"]));
+        assert!(wildcard_serves(&issued, &edge, "city.example"));
+
+        // Not issued yet: the hosts keep their own certificates until it is.
+        assert!(!wildcard_serves(
+            &wildcard("False", json!(["*.apps.city.example"])),
+            &edge,
+            "city.example"
+        ));
+        // Issued for another domain, or for the apex's own wildcard, which no App host is under.
+        assert!(!wildcard_serves(&issued, &edge, "other.example"));
+        assert!(!wildcard_serves(
+            &wildcard("True", json!(["*.city.example"])),
+            &edge,
+            "city.example"
+        ));
+        // Issued, but the edge does not terminate the App hosts with it.
+        assert!(!wildcard_serves(&issued, &template(), "city.example"));
+        assert!(!wildcard_serves(
+            &issued,
+            &edge_with(
+                json!([{ "hosts": ["*.apps.city.example"], "secretName": "apisix-edge-tls" }])
+            ),
+            "city.example"
+        ));
+        // No Secret named: nothing to match the edge against.
+        let mut nameless = issued.clone();
+        nameless["spec"]["secretName"] = Value::Null;
+        assert!(!wildcard_serves(
+            &nameless,
+            &edge_with(json!([{ "hosts": ["*.apps.city.example"] }])),
+            "city.example"
         ));
     }
 
