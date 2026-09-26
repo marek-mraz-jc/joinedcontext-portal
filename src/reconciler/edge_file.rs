@@ -733,6 +733,8 @@ mod tests {
           secret: ${{OIDC_SESSION_SECRET}}
           cookie_name: jc_edge_apps
           cookie_path: /apps/
+          idling_timeout: 3600
+          absolute_timeout: 36000
       response-rewrite:
         headers:
           set:
@@ -1044,6 +1046,12 @@ routes:
             session("app-a-app")["cookie_name"],
             session("app-b-app")["cookie_name"]
         );
+        // An App's session lives as long as the edge session it was copied from, so a person who
+        // is signed in to the Portal is not signed out of its Apps sooner (T-3034).
+        for app in ["app-a-app", "app-b-app"] {
+            assert_eq!(session(app)["idling_timeout"], 3600, "{app}");
+            assert_eq!(session(app)["absolute_timeout"], 36000, "{app}");
+        }
         // Sorted by name, so the same Apps always compose the same file.
         let again = compose(
             BASE,
