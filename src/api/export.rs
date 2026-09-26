@@ -66,7 +66,10 @@ pub struct RevisionList {
     pub items: Vec<Revision>,
 }
 
-/// Drops every string value stored under a credential key, at any depth (MF-17).
+/// Drops every scalar stored under a credential key, at any depth (MF-17): a string, and a number
+/// or a boolean too, which YAML reads from an unquoted `password: 123456` and which every write
+/// door refuses as a literal secret all the same (`find_literal_secret`, T-2540, T-3020). `null`
+/// is an absent value, and an object (a `secretRef`) or an array is walked, not dropped.
 ///
 /// The key stays with an empty string rather than disappearing: a bundle must stay re-importable,
 /// and a manifest that lost a required field would not validate on the way back in.
@@ -74,7 +77,8 @@ pub(crate) fn strip_secret_values(value: &mut Value) {
     match value {
         Value::Object(map) => {
             for (key, child) in map.iter_mut() {
-                if SECRET_KEYS.contains(&key.as_str()) && child.is_string() {
+                let scalar = child.is_string() || child.is_number() || child.is_boolean();
+                if SECRET_KEYS.contains(&key.as_str()) && scalar {
                     *child = Value::String(String::new());
                 } else {
                     strip_secret_values(child);
@@ -1197,6 +1201,28 @@ mod tests {
             "a reference to a secret is not a secret and must survive the export"
         );
         assert_eq!(spec["url"], "mqtt://broker");
+    }
+
+    #[test]
+    fn a_number_or_a_boolean_under_a_credential_key_is_emptied_too() {
+        let mut spec = serde_json::json!({
+            "auth": { "password": 918273, "token": true, "clientSecret": null },
+            "outputs": [{ "apiKey": 4.5e3 }, { "password": { "secretRef": { "name": "db" } } }],
+            "port": 8883,
+            "enabled": true,
+        });
+        strip_secret_values(&mut spec);
+        let dumped = spec.to_string();
+        assert!(!dumped.contains("918273"), "{dumped}");
+        assert!(!dumped.contains("4500"), "{dumped}");
+        assert_eq!(spec["auth"]["password"], "");
+        assert_eq!(spec["auth"]["token"], "");
+        assert_eq!(spec["outputs"][0]["apiKey"], "");
+        // An absent value stays absent, a reference stays a reference, and the rest is untouched.
+        assert_eq!(spec["auth"]["clientSecret"], Value::Null);
+        assert_eq!(spec["outputs"][1]["password"]["secretRef"]["name"], "db");
+        assert_eq!(spec["port"], 8883);
+        assert_eq!(spec["enabled"], true);
     }
 
     #[test]
