@@ -5,12 +5,12 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { asManifests, localized } from "../api/manifest";
 import {
-  catalogueUrl,
   ENDPOINT_LINKS,
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
   servedRepresentations,
+  useCatalogueLinks,
 } from "../components/endpoints/links";
 import { SharedWithBadge, spaceOf } from "../components/endpoints/sharing";
 import {
@@ -45,6 +45,12 @@ export function AllEndpointsPage(): JSX.Element {
     queryKey: queryKeys.allEndpoints(),
     queryFn: async () => unwrap(await api.GET("/api/v1/endpoints")),
   });
+  // Only the projects that publish an Endpoint are asked for their catalogues.
+  const catalogueLink = useCatalogueLinks(
+    asManifests(endpoints.data?.items ?? [])
+      .filter((endpoint) => (endpoint.spec as { publish?: { ckan?: unknown } }).publish?.ckan)
+      .map((endpoint) => endpoint.metadata.namespace ?? ""),
+  );
 
   const head = (
     <TableHead>
@@ -136,6 +142,7 @@ export function AllEndpointsPage(): JSX.Element {
               const space = spaceOf(endpoint);
               const slug = spec.slug ?? "";
               const key = `${project}/${endpoint.metadata.name}`;
+              const catalogue = catalogueLink(project, endpoint);
               return (
                 <TableRow key={key}>
                   <TableCell>
@@ -199,11 +206,13 @@ export function AllEndpointsPage(): JSX.Element {
                             </EndpointLink>
                           </li>
                         ))}
-                        <li>
-                          <EndpointLink muted href={catalogueUrl(endpoint.metadata.name)}>
-                            {t("endpoints.link.catalogue")}
-                          </EndpointLink>
-                        </li>
+                        {catalogue ? (
+                          <li>
+                            <EndpointLink muted href={catalogue}>
+                              {t("endpoints.link.catalogue")}
+                            </EndpointLink>
+                          </li>
+                        ) : null}
                       </ul>
                     ) : null}
                   </TableCell>

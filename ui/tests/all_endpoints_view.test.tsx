@@ -43,9 +43,28 @@ const BY_PATH: Record<string, unknown> = {
     apiVersion: LIST,
     kind: "List",
     items: [
-      endpoint("banskabystrica", "ovzdusie", "public-air", "k7m2qz4tv6xh3n5jb2ryd3wcfa", "public"),
+      {
+        ...endpoint("banskabystrica", "ovzdusie", "public-air", "k7m2qz4tv6xh3n5jb2ryd3wcfa", "public"),
+        spec: {
+          ...endpoint("banskabystrica", "ovzdusie", "public-air", "k7m2qz4tv6xh3n5jb2ryd3wcfa", "public").spec,
+          publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "bb-open-data" }, name: "ovzdusie-bb" } },
+        },
+      },
       endpoint("helsinki", "helsinki", "helsinki-bikes", "a1b2c3d4e5f6g7h8j9k0m1n2p3", "public"),
       endpoint("helsinki", "helsinki", "helsinki-events", "z9y8x7w6v5u4t3s2r1q0p9n8m7", "organization"),
+    ],
+  },
+  // The catalogue the published Endpoint names: its link is this instance's own site (T-3018).
+  "/api/v1/projects/banskabystrica/ckaninstances": {
+    apiVersion: LIST,
+    kind: "List",
+    items: [
+      {
+        apiVersion: LIST,
+        kind: "CkanInstance",
+        metadata: { name: "bb-open-data", namespace: "banskabystrica" },
+        spec: { url: "https://data.city.example", secretRef: { name: "ckan-token" } },
+      },
     ],
   },
 };
@@ -118,13 +137,19 @@ describe("all endpoints view", () => {
       "href",
       `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/`,
     );
-    expect(within(bb).getByRole("link", { name: "catalogue" })).toHaveAttribute(
-      "href",
-      `https://data.${window.location.host}/dataset/public-air`,
-    );
+    // The dataset the Endpoint publishes, on its CkanInstance's site, not a host guessed from the
+    // Portal's own (`data.portal.…` has no certificate, T-3018).
+    await waitFor(() => {
+      expect(within(bb).getByRole("link", { name: "catalogue" })).toHaveAttribute(
+        "href",
+        "https://data.city.example/dataset/ovzdusie-bb",
+      );
+    });
 
     const hel = within(table).getByText("helsinki-events").closest("tr") as HTMLTableRowElement;
     expect(within(hel).getByText("Organization")).toBeInTheDocument();
+    // An Endpoint that publishes nowhere promises no catalogue entry.
+    expect(within(hel).queryByRole("link", { name: "catalogue" })).not.toBeInTheDocument();
     expect(within(table).getByText("helsinki-bikes")).toBeInTheDocument();
 
     // One request, answered by the route that decides what is in it — not one per project.
@@ -132,6 +157,9 @@ describe("all endpoints view", () => {
     expect(paths).toContain("/api/v1/endpoints");
     // No fan-out across projects any more: helsinki's own list is never fetched for this page.
     expect(paths).not.toContain("/api/v1/projects/helsinki/endpoints");
+    // Only a project that publishes an Endpoint is asked for its catalogues.
+    expect(paths).toContain("/api/v1/projects/banskabystrica/ckaninstances");
+    expect(paths).not.toContain("/api/v1/projects/helsinki/ckaninstances");
   });
 
   // PF-61, T-2877, UI-75: anyone but an administrator is told the page is for administrators,

@@ -209,6 +209,29 @@ impl AgentStore {
         Ok(expired)
     }
 
+    /// Every run in `status`, in every project, oldest first.
+    pub async fn list_in_status(
+        &self,
+        status: AgentRunStatus,
+    ) -> Result<Vec<AgentRun>, StoreError> {
+        if let Some(pool) = &self.db {
+            return Ok(db::list_agent_runs_in_status(pool, status.as_str()).await?);
+        }
+        let memory = self.memory.read().await;
+        let mut runs: Vec<AgentRun> = memory
+            .runs
+            .values()
+            .filter(|run| run.status == status.as_str())
+            .cloned()
+            .collect();
+        runs.sort_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        Ok(runs)
+    }
+
     /// Moves a run to `next`, refusing a transition the lifecycle does not have (AG-43).
     ///
     /// The refusal is the answer, not a log line: a cancel of a published run and a second

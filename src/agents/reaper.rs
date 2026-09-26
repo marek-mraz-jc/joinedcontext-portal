@@ -56,14 +56,84 @@ fn why(run: &crate::agents::run::AgentRun) -> String {
     )
 }
 
+/// Ends every run still waiting for a Change that was closed on the forge without being merged
+/// (T-3015). A reject in the Portal ends its run at once; a pull request closed in the forge
+/// itself is only seen here. A forge that does not answer leaves the run waiting, and its lease
+/// ends it as before. Returns the number of runs ended.
+pub async fn end_closed_publications(state: &AppState) -> usize {
+    let waiting = match state
+        .agents
+        .list_in_status(AgentRunStatus::AwaitingApproval)
+        .await
+    {
+        Ok(runs) => runs,
+        Err(err) => {
+            tracing::error!(error = %err, "reaper: failed to list runs waiting for approval");
+            return 0;
+        }
+    };
+    let mut ended = 0;
+    for run in waiting {
+        let Some(number) = run.merge_request.and_then(|n| u64::try_from(n).ok()) else {
+            continue;
+        };
+        let Some(forge) = state.forge_for(&run.project) else {
+            continue;
+        };
+        let pull = match forge.pull_request(number).await {
+            Ok(pull) => pull,
+            Err(err) => {
+                tracing::debug!(run_id = %run.id, error = %err, "reaper: run's change not read");
+                continue;
+            }
+        };
+        if pull.merged || pull.state != "closed" {
+            continue;
+        }
+        // The pull request under that number publishes this run's application, so a
+        // repository that numbers its pulls anew never ends a run through another's.
+        let publishes_it =
+            crate::api::changes::parse_branch_name(&pull.head_branch).is_some_and(|branch| {
+                branch.kind_lower == "app" && branch.resource_name == run.app_name
+            });
+        if !publishes_it {
+            continue;
+        }
+        let reason = format!(
+            "its change #{number} was closed on the forge without being merged; the application \
+             was not published, start a new run from the Apps page to try again"
+        );
+        if crate::api::agent_runs::end_rejected_publication(
+            state,
+            &run.project,
+            &run.id,
+            number,
+            &reason,
+        )
+        .await
+        {
+            ended += 1;
+            tracing::info!(run_id = %run.id, change = number, "ended run whose change was closed");
+        }
+    }
+    ended
+}
+
 /// Spawns the periodic background reaper loop (runs every 30 seconds, skips missed ticks).
+/// Closed Changes are read from the forge every tenth tick, five minutes, one request per
+/// waiting run.
 pub fn spawn_periodic(state: AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(30));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut tick: u64 = 0;
         loop {
             interval.tick().await;
             reap_expired(&state).await;
+            if tick.is_multiple_of(10) {
+                end_closed_publications(&state).await;
+            }
+            tick = tick.wrapping_add(1);
         }
     });
 }

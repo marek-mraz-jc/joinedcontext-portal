@@ -78,6 +78,7 @@ const ENDPOINTS = list([
         "dcat",
       ],
       policyRef: "urn:ngsi-ld:Policy:banskabystrica.sk:ovzdusie:public-air-quality",
+      publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "bb-open-data" } } },
     }),
     status: { phase: "Live" },
   },
@@ -86,6 +87,14 @@ const ENDPOINTS = list([
     slug: "zzzzzzzzzzzzzzzzzzzzzzzzzz",
     audience: "public",
     enabledRepresentations: ["ngsi-ld"],
+  }),
+]);
+
+/** The catalogue `public-air` publishes to: its link is this site, not one guessed (T-3018). */
+const CATALOGUES = list([
+  manifest("CkanInstance", "bb-open-data", {
+    url: "https://data.city.example/",
+    secretRef: { name: "ckan-token" },
   }),
 ]);
 
@@ -127,7 +136,12 @@ const SPACE_ROWS = [
 function renderInside(
   gateway: { status: number; count?: number },
   surface: { status: number; rows?: unknown[] } = { status: 200 },
-  seed: { space?: unknown; models?: unknown; usage?: { status: number; body: unknown } } = {},
+  seed: {
+    space?: unknown;
+    models?: unknown;
+    endpoints?: unknown;
+    usage?: { status: number; body: unknown };
+  } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = urlOf(input);
@@ -172,7 +186,10 @@ function renderInside(
       return json(seed.models ?? MODELS);
     }
     if (path.endsWith("/endpoints")) {
-      return json(ENDPOINTS);
+      return json(seed.endpoints ?? ENDPOINTS);
+    }
+    if (path.endsWith("/ckaninstances")) {
+      return json(CATALOGUES);
     }
     if (path.endsWith("/policies")) {
       return json(POLICIES);
@@ -367,7 +384,26 @@ describe("space inside view", () => {
     expect(rows.map((row) => row.textContent)).toHaveLength(2);
   });
 
-  it("lists only the endpoints and policies of this space, with a catalogue link per endpoint", async () => {
+  it("says an endpoint that publishes to no catalogue is not published, and links nowhere", async () => {
+    const unpublished = {
+      ...manifest("Endpoint", "public-air", {
+        contextSpaceRef: "ovzdusie",
+        slug: SLUG,
+        audience: "public",
+        enabledRepresentations: ["ngsi-ld"],
+      }),
+      status: { phase: "Live" },
+    };
+    renderInside({ status: 200, count: 1 }, { status: 200 }, { endpoints: list([unpublished]) });
+
+    const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
+    expect(within(endpointRow).getByText(en.spaces.inside.notPublished)).toBeInTheDocument();
+    expect(
+      within(endpointRow).queryByRole("link", { name: en.spaces.inside.catalogueLink }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lists only the endpoints and policies of this space, with a catalogue link per published endpoint", async () => {
     renderInside({ status: 200, count: 1 });
 
     const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
@@ -376,9 +412,10 @@ describe("space inside view", () => {
       "href",
       `${window.location.origin}/api/endpoint/${SLUG}/ngsi-ld/v1/types`,
     );
+    // The dataset on its CkanInstance's own site (T-3018).
     expect(
-      within(endpointRow).getByRole("link", { name: en.spaces.inside.catalogueLink }),
-    ).toHaveAttribute("href", `https://data.${window.location.host}/dataset/public-air`);
+      await within(endpointRow).findByRole("link", { name: en.spaces.inside.catalogueLink }),
+    ).toHaveAttribute("href", "https://data.city.example/dataset/public-air");
     expect(screen.queryByText("other-space")).not.toBeInTheDocument();
 
     const policyRow = (await screen.findByText("public-air-quality")).closest("tr") as HTMLElement;
