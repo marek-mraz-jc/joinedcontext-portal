@@ -14,7 +14,15 @@ import en from "../src/locales/en.json";
 import { expectDenied } from "./checks";
 import { AuthProvider } from "../src/auth/AuthProvider";
 import { BrandingProvider } from "../src/branding";
-import { appFrameOrigin, AppOpenPage, FRAME_ANSWER_MS, OpenAppButton } from "../src/pages/apps/AppOpenPage";
+import {
+  appFrameOrigin,
+  AppOpenPage,
+  FRAME_ANSWER_MS,
+  OpenAppButton,
+  SSO_CHECK_MS,
+  SSO_CHECK_PATH,
+  ssoAnswer,
+} from "../src/pages/apps/AppOpenPage";
 
 const PROJECT = "helsinki";
 const COMMIT = "4f2a9c1e0b7d3a5f6c8e9d0a1b2c3d4e5f6a7b8c";
@@ -262,9 +270,11 @@ describe("AppOpenPage", () => {
 });
 
 /**
- * T-2941: a frame the browser refused (the realm's sign-in form may not be framed) is a white box
- * that fires `load` all the same. The App says it is up with `{kind: "jc-ready"}`; without that
- * from its own frame and origin, the page offers the sign-in in the top window, above the frame.
+ * T-2941, T-3034: a frame the browser refused (the realm's sign-in form may not be framed) is a
+ * white box that fires `load` all the same, and so is an App that renders without saying so. The
+ * App says it is up with `{kind: "jc-ready"}`; when it stays silent, the page asks the realm
+ * silently in a hidden frame of its own origin, and offers the sign-in only when the realm says
+ * the person must sign in.
  */
 describe("AppOpenPage when the App stays silent", () => {
   beforeEach(async () => {
@@ -293,39 +303,84 @@ describe("AppOpenPage when the App stays silent", () => {
     act(() => {
       vi.advanceTimersByTime(ms);
     });
-  const prompt = () => screen.queryByText(en.apps.openPage.silentTitle);
+  const prompt = () => screen.queryByText(en.apps.openPage.signedOutTitle);
+  const check = () => screen.queryByTestId("app-sso-check") as HTMLIFrameElement | null;
+  /** The check frame lands on `href`, as the browser would after the realm's redirect. */
+  const land = (href: string) => {
+    const frame = check();
+    if (!frame) throw new Error("no sign-in check is running");
+    Object.defineProperty(frame, "contentWindow", { configurable: true, value: { location: { href } } });
+    fireEvent.load(frame);
+  };
+  const done = `${window.location.origin}/api/v1/auth/sso-check/done`;
 
-  it("offers the sign-in in the top window when nothing answers, and keeps the frame", async () => {
+  it("asks the realm silently, and offers the sign-in in the top window only when it says so", async () => {
     const assign = vi.fn();
     vi.stubGlobal("location", { ...window.location, assign, pathname: `/projects/${PROJECT}/apps/city-bikes/open`, search: "" });
     const frame = await loadedFrame();
     wait(FRAME_ANSWER_MS - 1);
-    expect(prompt()).toBeNull();
+    expect(check()).toBeNull();
     wait(1);
+    const hidden = check();
+    expect(hidden?.getAttribute("src")).toBe(SSO_CHECK_PATH);
+    expect(hidden?.hidden).toBe(true);
+    // Its own origin and no script: the page reads the address, the frame runs nothing.
+    expect(hidden?.getAttribute("sandbox")).toBe("allow-same-origin");
+    expect(prompt()).toBeNull();
+    land(`${done}#error=login_required&iss=https%3A%2F%2Fidm.example`);
+    expect(check()).toBeNull();
     const status = screen.getByRole("status");
-    expect(status).toHaveTextContent(en.apps.openPage.silentTitle);
-    expect(status).toHaveTextContent(en.apps.openPage.silentBody);
+    expect(status).toHaveTextContent(en.apps.openPage.signedOutTitle);
+    expect(status).toHaveTextContent(en.apps.openPage.signedOutBody);
     // One "Open in new window" on the page, the bar's: a second would make its name ambiguous.
     expect(screen.getAllByRole("link", { name: new RegExp(en.apps.openPage.newWindow) })).toHaveLength(1);
-    // The frame stays: an App built without the SDK says nothing and may render all the same.
     expect(document.body.contains(frame)).toBe(true);
     fireEvent.click(within(status).getByRole("button", { name: en.apps.openPage.signInAgain }));
     expect(assign).toHaveBeenCalledWith(
       `/api/v1/auth/login?redirect_to=${encodeURIComponent(`/projects/${PROJECT}/apps/city-bikes/open`)}`,
     );
-    fireEvent.click(within(status).getByRole("button", { name: en.apps.openPage.silentDismiss }));
+    fireEvent.click(within(status).getByRole("button", { name: en.apps.openPage.signedOutDismiss }));
     expect(prompt()).toBeNull();
   });
 
-  it("stays quiet for an App that answers from its own frame, before or after its load", async () => {
+  it("stays quiet for a silent App while the realm session lives", async () => {
+    await loadedFrame();
+    wait();
+    land(`${done}#code=abc.def&iss=https%3A%2F%2Fidm.example`);
+    expect(check()).toBeNull();
+    wait(SSO_CHECK_MS * 2);
+    expect(prompt()).toBeNull();
+  });
+
+  it("claims nothing on an answer it cannot read or a check that never lands", async () => {
+    await loadedFrame();
+    wait();
+    // A load on the realm's side is another origin: not an answer, the check goes on.
+    land("https://idm.example/realms/dev/protocol/openid-connect/auth");
+    expect(check()).not.toBeNull();
+    land(`${done}#error=invalid_request`);
+    expect(check()).toBeNull();
+    expect(prompt()).toBeNull();
+
+    // A new load of the App starts over; this time the realm never answers.
+    fireEvent.load(screen.getByTitle("City bikes, the application"));
+    wait();
+    expect(check()).not.toBeNull();
+    wait(SSO_CHECK_MS);
+    expect(check()).toBeNull();
+    expect(prompt()).toBeNull();
+  });
+
+  it("asks nothing of an App that answers from its own frame, before or after its load", async () => {
     const frame = await loadedFrame();
     // Same host as the Portal: the sandbox gives the App the opaque origin.
     say(frame.contentWindow, "null");
     wait();
-    expect(prompt()).toBeNull();
+    expect(check()).toBeNull();
     // A later load of the same visit (the App's own navigation) does not ask again.
     fireEvent.load(frame);
     wait();
+    expect(check()).toBeNull();
     expect(prompt()).toBeNull();
   });
 
@@ -337,10 +392,24 @@ describe("AppOpenPage when the App stays silent", () => {
     say(frame.contentWindow, "https://city-bikes.apps.example.org", { kind: "jc-resize" });
     say(frame.contentWindow, "https://city-bikes.apps.example.org", "jc-ready");
     wait();
-    expect(prompt()).not.toBeNull();
-    // The App's own origin answering clears it.
+    expect(check()).not.toBeNull();
+    // The App's own origin answering ends the check before the realm has said anything.
     say(frame.contentWindow, "https://city-bikes.apps.example.org");
+    expect(check()).toBeNull();
     expect(prompt()).toBeNull();
+  });
+
+  it("reads only the realm's answer on the Portal's own check page", () => {
+    expect(ssoAnswer(undefined)).toBeNull();
+    expect(ssoAnswer("not a url")).toBeNull();
+    expect(ssoAnswer(`https://evil.example/api/v1/auth/sso-check/done#error=login_required`)).toBeNull();
+    expect(ssoAnswer(`${window.location.origin}/elsewhere#error=login_required`)).toBeNull();
+    for (const error of ["login_required", "interaction_required", "consent_required"]) {
+      expect(ssoAnswer(`${done}#error=${error}`)).toBe("signedOut");
+    }
+    expect(ssoAnswer(`${done}#code=x`)).toBe("signedIn");
+    expect(ssoAnswer(`${done}#error=invalid_request&code=x`)).toBe("unknown");
+    expect(ssoAnswer(done)).toBe("unknown");
   });
 
   it("expects the App's own origin on another host and the opaque one on the Portal's", () => {

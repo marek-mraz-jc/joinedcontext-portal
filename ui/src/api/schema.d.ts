@@ -120,6 +120,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/sso-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/auth/sso-check` — asks the realm, without showing anything, whether the person's
+         *     realm session lives (AP-122, T-3034).
+         * @description The Open page loads it in a hidden frame of its own origin when a framed App stays silent, and
+         *     reads the answer off the frame's address once it lands on [`SSO_CHECK_DONE`]: only a realm that
+         *     says the person must sign in brings the sign-in offer, never the App's silence alone.
+         */
+        get: operations["sso_check"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso-check/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/auth/sso-check/done` — the empty page the silent check lands on (T-3034). The
+         *     answer is in its fragment, which the browser never sends, so the page carries nothing and runs
+         *     nothing: the Open page reads the frame's address itself.
+         */
+        get: operations["sso_check_done"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/blueprints": {
         parameters: {
             query?: never;
@@ -4962,6 +5006,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    sso_check: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the realm's authorization endpoint with prompt=none */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No identity provider is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    sso_check_done: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An empty HTML page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": unknown;
                 };
             };
         };

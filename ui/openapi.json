@@ -338,6 +338,48 @@
         }
       }
     },
+    "/api/v1/auth/sso-check": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "`GET /api/v1/auth/sso-check` — asks the realm, without showing anything, whether the person's\nrealm session lives (AP-122, T-3034).",
+        "description": "The Open page loads it in a hidden frame of its own origin when a framed App stays silent, and\nreads the answer off the frame's address once it lands on [`SSO_CHECK_DONE`]: only a realm that\nsays the person must sign in brings the sign-in offer, never the App's silence alone.",
+        "operationId": "sso_check",
+        "responses": {
+          "303": {
+            "description": "Redirect to the realm's authorization endpoint with prompt=none"
+          },
+          "503": {
+            "description": "No identity provider is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso-check/done": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "`GET /api/v1/auth/sso-check/done` — the empty page the silent check lands on (T-3034). The\nanswer is in its fragment, which the browser never sends, so the page carries nothing and runs\nnothing: the Open page reads the frame's address itself.",
+        "operationId": "sso_check_done",
+        "responses": {
+          "200": {
+            "description": "An empty HTML page",
+            "content": {
+              "text/html": {}
+            }
+          }
+        }
+      }
+    },
     "/api/v1/blueprints": {
       "get": {
         "tags": [
