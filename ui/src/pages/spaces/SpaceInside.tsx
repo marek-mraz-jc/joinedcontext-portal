@@ -12,12 +12,12 @@ import type { Manifest } from "../../api/manifest";
 import { ActivityFeed } from "../../components/ActivityFeed";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import {
-  catalogueUrl,
   ENDPOINT_LINKS,
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
   servedRepresentations,
+  useCatalogueLinks,
 } from "../../components/endpoints/links";
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
@@ -598,6 +598,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const models = useProjectList(project, "datamodels");
   const endpoints = useProjectList(project, "endpoints");
   const policies = useProjectList(project, "policies");
+  const catalogueLink = useCatalogueLinks([project]);
 
   if (space.isPending) {
     return <PageLoading label={t("app.loading")} />;
@@ -758,6 +759,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                   policyRef?: string;
                 };
                 const endpointSlug = spec.slug ?? "";
+                const catalogue = catalogueLink(project, endpoint);
                 return (
                   <TableRow key={endpoint.metadata.name}>
                     <TableCell>
@@ -781,9 +783,11 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                       />
                     </TableCell>
                     <TableCell>
-                      <EndpointLink href={catalogueUrl(endpoint.metadata.name)}>
-                        {t("spaces.inside.catalogueLink")}
-                      </EndpointLink>
+                      {catalogue ? (
+                        <EndpointLink href={catalogue}>{t("spaces.inside.catalogueLink")}</EndpointLink>
+                      ) : (
+                        <span className="text-fg-subtle">{t("spaces.inside.notPublished")}</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

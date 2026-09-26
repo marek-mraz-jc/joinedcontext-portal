@@ -22,9 +22,9 @@ import {
   ENDPOINT_LINKS,
   EndpointLink,
   REPRESENTATION_PATHS,
-  catalogueUrl,
   endpointUrl,
   servedRepresentations,
+  useCatalogueLinks,
 } from "../../components/endpoints/links";
 import { spaceOf } from "../../components/endpoints/sharing";
 import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
@@ -50,6 +50,7 @@ import {
   SourceLink,
   Term,
   Icon,
+  safeHref,
 } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
@@ -148,6 +149,7 @@ export function EndpointPage({
     (model) => (model.spec as { contextSpaceRef?: string }).contextSpaceRef === endpointSpace,
   );
   const modelSource = useModelSource(project, spaceModel);
+  const catalogueLink = useCatalogueLinks([project]);
 
   if (endpoint.isPending) {
     return <p role="status">{t("app.loading")}</p>;
@@ -176,6 +178,7 @@ export function EndpointPage({
 
   const manifest = endpoint.data as Manifest;
   const spec = manifest.spec as EndpointSpec;
+  const catalogue = catalogueLink(project, manifest);
   const slug = spec.slug ?? "";
   const space = spaceOf(manifest);
   const projectionName = refName(spec.projectionRef);
@@ -534,14 +537,18 @@ export function EndpointPage({
               </Fact>
             ) : null}
             <Fact label={t("endpoints.field.catalogue")}>
-              <a
-                href={catalogueUrl(spec.publish.ckan.name ?? name)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary-soft-fg underline hover:no-underline"
-              >
-                {spec.publish.ckan.name ?? name}
-              </a>
+              {catalogue ? (
+                <a
+                  href={safeHref(catalogue)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary-soft-fg underline hover:no-underline"
+                >
+                  {spec.publish.ckan.name ?? name}
+                </a>
+              ) : (
+                <Badge mono>{spec.publish.ckan.name ?? name}</Badge>
+              )}
             </Fact>
           </Facts>
         </Section>
