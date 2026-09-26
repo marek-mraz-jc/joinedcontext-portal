@@ -72,20 +72,16 @@ async fn fetch(
     commit: &str,
     digest: &str,
 ) -> Result<(), FetchError> {
-    let package = package(name);
-    let read = |version: String| {
-        let package = package.clone();
-        async move {
-            gitea
-                .applications()
-                .get_generic_file(&package, &version, "bundle.tar.gz", MAX_BUNDLE_BYTES)
-                .await
+    // The applications' organization publishes every build (AP-101). A build published before
+    // its repository moved there (T-2969) stays with the organization that owned the repository
+    // then, the configuration's, since the registry has no transfer: the same package and
+    // version is read there, and the digest check below still decides, so a move never
+    // unserves an App and nothing but the build `status.build` names is served (T-3026).
+    let applications = gitea.applications();
+    let bytes = match read_bundle(&applications, name, commit, digest).await {
+        Err(GitError::NotFound) if applications.owner != gitea.owner => {
+            read_bundle(gitea, name, commit, digest).await?
         }
-    };
-    // A build published before T-2671 sits under the bare commit; the digest check below holds
-    // either way.
-    let bytes = match read(version(commit, digest)).await {
-        Err(GitError::NotFound) => read(commit.to_owned()).await?,
         other => other?,
     };
     let found = format!("sha256:{:x}", Sha256::digest(&bytes));
@@ -99,6 +95,29 @@ async fn fetch(
     tokio::task::spawn_blocking(move || install(&bytes, &dir))
         .await
         .map_err(|err| FetchError::Unpack(err.to_string()))?
+}
+
+/// `bundle.tar.gz` of the build of `commit` with `digest`, from `owner`'s registry. A build
+/// published before T-2671 sits under the bare commit.
+async fn read_bundle(
+    owner: &GiteaClient,
+    name: &str,
+    commit: &str,
+    digest: &str,
+) -> Result<Vec<u8>, GitError> {
+    let package = package(name);
+    let read = |version: String| {
+        let package = package.clone();
+        async move {
+            owner
+                .get_generic_file(&package, &version, "bundle.tar.gz", MAX_BUNDLE_BYTES)
+                .await
+        }
+    };
+    match read(version(commit, digest)).await {
+        Err(GitError::NotFound) => read(commit.to_owned()).await,
+        other => other,
+    }
 }
 
 /// Unpacks the archive beside `dir` and renames it into place, so a reader sees the whole build

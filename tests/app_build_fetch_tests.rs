@@ -187,3 +187,139 @@ mod tempdir {
         }
     }
 }
+
+/// A client whose applications live in `joinedcontext-apps` with their own token (PF-106).
+fn moved_client(server: &MockServer) -> GiteaClient {
+    let uri = server.uri();
+    GiteaClient::from_env(move |name| match name {
+        "JC_GITEA_URL" => Some(uri.clone()),
+        "JC_GITEA_OWNER" => Some("test-owner".to_owned()),
+        "JC_GITEA_REPO" => Some("configuration".to_owned()),
+        "JC_GITEA_TOKEN" => Some("portal-token".to_owned()),
+        "JC_GITEA_APPS_OWNER" => Some("joinedcontext-apps".to_owned()),
+        "JC_GITEA_APPS_TOKEN" => Some("apps-token".to_owned()),
+        _ => None,
+    })
+    .expect("config")
+    .expect("configured")
+}
+
+fn served(cache: &std::path::Path, named: &str) -> Option<Vec<u8>> {
+    std::fs::read(
+        cache
+            .join("air-quality")
+            .join(named.trim_start_matches("sha256:"))
+            .join("index.html"),
+    )
+    .ok()
+}
+
+/// T-3026: a build published before the App's repository moved to the applications'
+/// organization stays with the configuration's organization, the registry having no transfer;
+/// the replica reads it there and serves it, so the move unserves nothing.
+#[tokio::test]
+async fn a_build_published_before_the_move_is_still_served() {
+    use wiremock::matchers::header;
+    let bytes = bundle(b"<!doctype html><title>before the move</title>");
+    let named = digest(&bytes);
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(
+            r"^/api/packages/joinedcontext-apps/generic/app-air-quality/.*",
+        ))
+        .respond_with(ResponseTemplate::new(404))
+        .expect(2)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(BUNDLE))
+        .and(header("authorization", "token portal-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(bytes))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let cache = tempdir::Dir::new("fetch-moved");
+
+    fetch_missing(&moved_client(&server), cache.path(), &mirror_naming(&named)).await;
+
+    assert_eq!(
+        served(cache.path(), &named).expect("the build is served"),
+        b"<!doctype html><title>before the move</title>"
+    );
+}
+
+/// T-3026: the fallback serves only the build `status.build` names: another bundle under the
+/// same version in the old organization is refused by its digest and installs nothing.
+#[tokio::test]
+async fn the_old_organizations_package_is_held_to_the_named_digest() {
+    let named = digest(&bundle(b"<html>the named build</html>"));
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(
+            r"^/api/packages/joinedcontext-apps/.*",
+        ))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(BUNDLE))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(bundle(b"<html>another</html>")))
+        .mount(&server)
+        .await;
+    let cache = tempdir::Dir::new("fetch-moved-mismatch");
+
+    fetch_missing(&moved_client(&server), cache.path(), &mirror_naming(&named)).await;
+
+    assert!(served(cache.path(), &named).is_none());
+}
+
+/// T-3026: a build the applications' organization holds is read there alone, and a forge that
+/// fails there (not a 404) is not answered from the old organization either.
+#[tokio::test]
+async fn the_applications_organization_comes_first_and_only_a_missing_package_falls_back() {
+    let bytes = bundle(b"<html>rebuilt after the move</html>");
+    let named = digest(&bytes);
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(BUNDLE.replace("test-owner", "joinedcontext-apps")))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(bytes))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(BUNDLE))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(bundle(b"<html>old</html>")))
+        .expect(0)
+        .mount(&server)
+        .await;
+    let cache = tempdir::Dir::new("fetch-apps-first");
+    fetch_missing(&moved_client(&server), cache.path(), &mirror_naming(&named)).await;
+    assert_eq!(
+        served(cache.path(), &named).expect("served"),
+        b"<html>rebuilt after the move</html>"
+    );
+
+    let failing = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(
+            r"^/api/packages/joinedcontext-apps/.*",
+        ))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&failing)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(BUNDLE))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(bundle(b"<html>old</html>")))
+        .expect(0)
+        .mount(&failing)
+        .await;
+    let other = tempdir::Dir::new("fetch-apps-failing");
+    let named_old = digest(&bundle(b"<html>old</html>"));
+    fetch_missing(
+        &moved_client(&failing),
+        other.path(),
+        &mirror_naming(&named_old),
+    )
+    .await;
+    assert!(served(other.path(), &named_old).is_none());
+}
