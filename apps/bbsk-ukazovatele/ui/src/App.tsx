@@ -26,7 +26,7 @@ import {
 import type { DesignTokens, JcEndpoint, RichRow } from "@joinedcontext/sdk";
 import { DistrictChart } from "./DistrictChart";
 import { DistrictMap } from "./DistrictMap";
-import { choropleth, districtsOf } from "./districts";
+import { choropleth, districtsOf, rangeOf } from "./districts";
 import type { District } from "./districts";
 import { byKey, districtBars, isWhole, toIndicator, unitAsContracted } from "./indicators";
 import type { Body, Indicator, State } from "./indicators";
@@ -266,6 +266,9 @@ function BodySection({ body, s }: { body: Body; s: Strings }) {
           body={body}
           marked={shapes && group.key === mapped?.key ? marked : undefined}
           onMark={shapes && group.key === mapped?.key ? setMarked : undefined}
+          // Under a map every chart takes its scale: the mapped indicator the map's own range, the
+          // others their range, which is the map's the moment that indicator is picked (T-3005).
+          ramp={shapes && (group.key === mapped?.key ? shapes.ramp : rangeOf(districtBars(group.rows).map((bar) => bar.value)))}
         />
       ))}
     </section>
@@ -287,6 +290,7 @@ function Group({
   body,
   marked,
   onMark,
+  ramp,
 }: {
   groupKey: string;
   rows: Indicator[];
@@ -294,6 +298,7 @@ function Group({
   body: Body;
   marked?: string | null;
   onMark?: (territory: string) => void;
+  ramp?: [number, number] | null;
 }) {
   const headingId = `group-${body}-${groupKey}`;
   const title = s.indicator[groupKey]?.title ?? groupKey;
@@ -311,6 +316,7 @@ function Group({
           s={s}
           marked={marked}
           onMark={onMark}
+          ramp={ramp}
         />
       )}
       <Grid columns={4}>

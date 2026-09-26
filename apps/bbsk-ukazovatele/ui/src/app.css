@@ -74,7 +74,7 @@ main {
   display: block;
   height: 100%;
   width: calc(var(--share, 0) * 100%);
-  background: var(--body);
+  background: var(--bar, var(--body));
   border-radius: var(--jc-radius-sm, 4px);
 }
 

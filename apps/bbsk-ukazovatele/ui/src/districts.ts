@@ -73,8 +73,20 @@ export function choropleth(
     const value = feature.properties?.value;
     return typeof value === "number" ? [value] : [];
   });
-  return {
-    features,
-    ramp: values.length ? [Math.min(...values), Math.max(...values)] : null,
-  };
+  return { features, ramp: rangeOf(values) };
+}
+
+/** The lowest and highest of `values`; `null` for none. */
+export function rangeOf(values: number[]): [number, number] | null {
+  return values.length ? [Math.min(...values), Math.max(...values)] : null;
+}
+
+/**
+ * A value's colour as the map fills its district (T-3005): straight from `low` to `high` in sRGB
+ * over `ramp`, one value alone at the low end, so a bar and its district are one colour. The
+ * tokens are any CSS colour, so the mix is CSS's own rather than parsed here.
+ */
+export function rampColor(value: number, ramp: [number, number], colors: { low: string; high: string }): string {
+  const t = ramp[1] > ramp[0] ? Math.min(1, Math.max(0, (value - ramp[0]) / (ramp[1] - ramp[0]))) : 0;
+  return `color-mix(in srgb, ${colors.low}, ${colors.high} ${Math.round(t * 1000) / 10}%)`;
 }
