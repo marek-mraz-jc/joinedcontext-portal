@@ -181,13 +181,13 @@ describe("relationship editor", () => {
     const withRelationship = source();
 
     await user.click(screen.getByRole("button", { name: "Remove the relationship users" }));
-    const dialog = screen.getByRole("dialog", { name: "Remove the relationship users?" });
+    const dialog = screen.getByRole("alertdialog", { name: "Remove the relationship users?" });
     expect(within(dialog).getByText("Both ends leave the model: School.users and User.school.")).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(source()).toBe(withRelationship);
 
     await user.click(screen.getByRole("button", { name: "Remove the relationship users" }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remove" }));
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove" }));
     expect(relationships(parseModel(source()))).toEqual([]);
     expect(screen.getByText("School has no relationship yet.")).toBeInTheDocument();
   });

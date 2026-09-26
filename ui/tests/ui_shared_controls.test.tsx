@@ -97,7 +97,7 @@ describe("ConfirmDialog", () => {
 
   it("the_confirm_dialog_focuses_cancel", async () => {
     open();
-    const dialog = screen.getByRole("dialog");
+    const dialog = screen.getByRole("alertdialog");
     // Not the destructive button: a dialog that arrives under a key already going down must not
     // destroy anything.
     await waitFor(() => expect(screen.getByTestId("confirm-cancel")).toHaveFocus());
@@ -106,7 +106,7 @@ describe("ConfirmDialog", () => {
 
   it("names_what_is_destroyed_and_says_the_verb_not_ok", () => {
     open();
-    const dialog = screen.getByRole("dialog");
+    const dialog = screen.getByRole("alertdialog");
     expect(dialog).toHaveAccessibleName("Discard the copy air-quality?");
     expect(dialog).toHaveAccessibleDescription(/the project is not touched/);
     const accept = screen.getByTestId("confirm-accept");
@@ -117,7 +117,7 @@ describe("ConfirmDialog", () => {
   // T-2813: both read as their catalogue keys, `app.cancel` on screen and `app.close` to a reader.
   it("its_cancel_and_close_buttons_say_words_not_keys", () => {
     open();
-    const dialog = screen.getByRole("dialog");
+    const dialog = screen.getByRole("alertdialog");
     expect(screen.getByTestId("confirm-cancel")).toHaveTextContent(en.app.cancel);
     expect(within(dialog).getByRole("button", { name: en.app.close })).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: /^app\./ })).toBeNull();
@@ -138,6 +138,37 @@ describe("ConfirmDialog", () => {
     await userEvent.keyboard("{Escape}");
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  // T-3023: an "are you sure" is a question that needs an answer (WAI-ARIA alertdialog), not an
+  // ordinary dialog; with nothing under its sentence it shows no empty band either.
+  it("is_announced_as_an_alert_and_shows_no_empty_body", () => {
+    open();
+    const dialog = screen.getByRole("alertdialog");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const [header, footer] = Array.from(dialog.children);
+    expect(dialog.children).toHaveLength(2);
+    expect(header).toHaveTextContent("Discard the copy air-quality?");
+    expect(within(footer as HTMLElement).getByTestId("confirm-accept")).toBeInTheDocument();
+  });
+
+  it("keeps_the_body_it_is_given", () => {
+    open({ children: <p>Three files go with it.</p> });
+    expect(within(screen.getByRole("alertdialog")).getByText("Three files go with it.")).toBeInTheDocument();
+  });
+
+  it("a_click_beside_it_answers_nothing_and_leaves_it_open", async () => {
+    const { onConfirm, onOpenChange } = open();
+    // Beside it is the overlay that dims the page: the one thing under the pointer there.
+    const dialog = screen.getByRole("alertdialog");
+    const overlay = Array.from(document.querySelectorAll<HTMLElement>("[data-state='open']")).find(
+      (element) => element !== dialog && !element.contains(dialog),
+    );
+    expect(overlay).toBeDefined();
+    await userEvent.click(overlay as HTMLElement);
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   });
 
   it("while_it_runs_neither_button_can_be_pressed_again", () => {

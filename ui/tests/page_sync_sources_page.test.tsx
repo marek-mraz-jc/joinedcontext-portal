@@ -159,7 +159,7 @@ describe("the sync sources page", () => {
     renderSync({ rows: 1 });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: en.syncSources.detach }));
-    const dialog = await screen.findByRole("dialog", { name: en.syncSources.detach });
+    const dialog = await screen.findByRole("alertdialog", { name: en.syncSources.detach });
     expect(
       within(dialog).getByText(en.syncSources.detachConfirm.replace("{name}", "upstream-0")),
     ).toBeInTheDocument();

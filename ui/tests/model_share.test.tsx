@@ -144,7 +144,7 @@ describe("sharing a model with the organization (DM-77)", () => {
     const { sent, answer } = world({});
     await renderRoute({ path: "/projects/helsinki/models/air", answer });
     await userEvent.click(await screen.findByRole("button", { name: en.models.share.action }));
-    const dialog = await screen.findByRole("dialog", { name: "Share air with the organization?" });
+    const dialog = await screen.findByRole("alertdialog", { name: "Share air with the organization?" });
     expect(sent).toEqual([]);
     await userEvent.click(within(dialog).getByRole("button", { name: en.models.share.confirm }));
     expect(await screen.findByText("chg-org-00000009")).toBeInTheDocument();
@@ -160,7 +160,7 @@ describe("sharing a model with the organization (DM-77)", () => {
     );
     await renderRoute({ path: "/projects/helsinki/models/air", answer: world({ share: refusal }).answer });
     await userEvent.click(await screen.findByRole("button", { name: en.models.share.action }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("alertdialog");
     await userEvent.click(within(dialog).getByRole("button", { name: en.models.share.confirm }));
     expect(await screen.findByRole("alert")).toHaveTextContent("shared from project 'espoo'");
   });

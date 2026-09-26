@@ -30,6 +30,9 @@ export interface ConfirmDialogProps {
  * destructive button says the verb, never "OK", so it reads the same in the dialog as in the menu
  * item that opened it.
  *
+ * It is an `alertdialog` (T-3023): announced as a question that needs an answer, and a click
+ * beside it does not answer it; Escape, Cancel and the close control do.
+ *
  * It is a courtesy, not a control: whatever the person may not do, the server still refuses.
  */
 export function ConfirmDialog({
@@ -62,6 +65,7 @@ export function ConfirmDialog({
       title={title}
       description={description}
       size="sm"
+      role="alertdialog"
       closeLabel={t("app.close")}
       footer={
         <div className="flex items-center justify-end gap-2">

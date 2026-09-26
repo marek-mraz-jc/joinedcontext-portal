@@ -111,12 +111,12 @@ describe("the workspaces page", () => {
 
     discard.focus();
     await userEvent.keyboard("{Enter}");
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("alertdialog");
     // The dialog names what is destroyed, rather than asking "are you sure?".
     expect(dialog).toHaveTextContent("ws-air-quality");
 
     await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(calls().filter((call) => call.startsWith("DELETE"))).toEqual([]);
   });
 
