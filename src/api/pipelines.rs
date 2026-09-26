@@ -286,7 +286,12 @@ pub async fn metrics_for(
         ApiError::Unavailable("the pipeline runner did not answer".into())
     })?;
 
-    Ok(scrape(&body, name, now_rfc3339()))
+    // The counters of this project's stream only: the runner may serve other projects (T-3003).
+    let stream = crate::reconciler::streams::stream_id(project, name);
+    Ok(PipelineMetrics {
+        pipeline: name.to_owned(),
+        ..scrape(&body, &stream, now_rfc3339())
+    })
 }
 
 fn now_rfc3339() -> String {

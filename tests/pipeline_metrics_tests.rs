@@ -19,10 +19,15 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const RUNNER_BODY: &str = concat!(
     "# TYPE input_received counter\n",
-    "input_received{label=\"mqtt\",stream=\"aq-mqtt-ingest\"} 128401\n",
-    "output_sent{label=\"gw\",stream=\"aq-mqtt-ingest\"} 128390\n",
-    "output_error{label=\"gw\",stream=\"aq-mqtt-ingest\"} 2\n",
-    "input_received{label=\"mqtt\",stream=\"parking-feed\"} 9\n",
+    "input_received{label=\"mqtt\",stream=\"ovzdusie.aq-mqtt-ingest\"} 128401\n",
+    "output_sent{label=\"gw\",stream=\"ovzdusie.aq-mqtt-ingest\"} 128390\n",
+    "output_error{label=\"gw\",stream=\"ovzdusie.aq-mqtt-ingest\"} 2\n",
+    "input_received{label=\"mqtt\",stream=\"ovzdusie.parking-feed\"} 9\n",
+    // Another project's pipeline of the same name on the shared runner (T-3003), and a stream
+    // left under the bare name: neither is this pipeline's.
+    "input_received{label=\"mqtt\",stream=\"praha.aq-mqtt-ingest\"} 77\n",
+    "output_error{label=\"gw\",stream=\"praha.aq-mqtt-ingest\"} 40\n",
+    "input_received{label=\"mqtt\",stream=\"aq-mqtt-ingest\"} 5\n",
 );
 
 fn session_cookie(config: &Config) -> String {

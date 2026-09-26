@@ -2223,13 +2223,15 @@ fn writing_verdict(
     now: std::time::Instant,
 ) -> Option<(&'static str, String)> {
     let body = body?;
-    if let Some(said) = failing(body, pipeline) {
+    // The runner may serve several projects; only this project's stream is read (T-3003).
+    let stream = super::streams::stream_id(project, pipeline);
+    if let Some(said) = failing(body, &stream) {
         return Some(("NothingWritten", said));
     }
     if bento.is_some_and(super::stall::writes_through_processors) {
         return None;
     }
-    let metrics = crate::api::pipelines::scrape(body, pipeline, String::new());
+    let metrics = crate::api::pipelines::scrape(body, &stream, String::new());
     stalls
         .observe(project, pipeline, &metrics, now)
         .map(|said| ("Stalled", said))
@@ -2240,8 +2242,8 @@ fn writing_verdict(
 /// Errors and nothing sent is a stream that runs and never lands: a source that refuses the
 /// runner's token, a mapping that throws on every message. Errors beside writes are the ordinary
 /// weather of a stream — a page that failed and was retried — and say nothing on their own.
-fn failing(metrics: &str, pipeline: &str) -> Option<String> {
-    let counters = crate::api::pipelines::scrape(metrics, pipeline, String::new());
+fn failing(metrics: &str, stream: &str) -> Option<String> {
+    let counters = crate::api::pipelines::scrape(metrics, stream, String::new());
     let errors = counters.errors?;
     if errors == 0 || counters.sent.unwrap_or(0) > 0 {
         return None;
@@ -3080,6 +3082,45 @@ output_error{stream="kpi"} 6
         assert_eq!(stream_phases(&mirror).len(), 3);
     }
 
+    /// T-3003: on a runner several projects share, a pipeline is judged by its own project's
+    /// stream only: praha's failing `air-quality`, or a stream still under the bare name, never
+    /// says helsinki's is writing nothing or stalled.
+    #[test]
+    fn another_projects_stream_of_one_name_is_never_read_as_this_ones() {
+        use crate::reconciler::stall::{StallWatch, WINDOW};
+        let failing_as = |stream: &str, received: u64| {
+            format!(
+                "input_received{{label=\"input\",stream=\"{stream}\"}} {received}\n\
+                 output_sent{{label=\"output\",stream=\"{stream}\"}} 0\n\
+                 output_error{{label=\"output\",stream=\"{stream}\"}} 5\n"
+            )
+        };
+        let start = std::time::Instant::now();
+        for stream in ["praha.air-quality", "air-quality"] {
+            let stalls = StallWatch::default();
+            for (received, at) in [(12, start), (24, start + WINDOW)] {
+                let body = failing_as(stream, received);
+                assert_eq!(
+                    writing_verdict(&stalls, ("helsinki", "air-quality"), Some(&body), None, at),
+                    None,
+                    "{stream}"
+                );
+            }
+        }
+        let own = failing_as("helsinki.air-quality", 12);
+        assert_eq!(
+            writing_verdict(
+                &StallWatch::default(),
+                ("helsinki", "air-quality"),
+                Some(&own),
+                None,
+                start
+            )
+            .map(|(reason, _)| reason),
+            Some("NothingWritten")
+        );
+    }
+
     /// T-2979: a stream whose author's last processor drops every message writes through its
     /// processors (the vehicles reaper deletes with an `http` one) and is not watched for a
     /// stall; its processors' errors still say NothingWritten, and a stream that writes through
@@ -3092,9 +3133,9 @@ output_error{stream="kpi"} 6
             "pipeline:\n  processors:\n    - mapping: root = if this.stale { deleted() }\n";
         let took = |received: u64, errors: u64| {
             format!(
-                "input_received{{label=\"input\",stream=\"p\"}} {received}\n\
-                 output_sent{{label=\"output\",stream=\"p\"}} 0\n\
-                 processor_error{{label=\"processor_1\",stream=\"p\"}} {errors}\n"
+                "input_received{{label=\"input\",stream=\"hel.p\"}} {received}\n\
+                 output_sent{{label=\"output\",stream=\"hel.p\"}} 0\n\
+                 processor_error{{label=\"processor_1\",stream=\"hel.p\"}} {errors}\n"
             )
         };
         let start = std::time::Instant::now();

@@ -709,8 +709,11 @@ mod pass_edges {
         let (reason, message) = condition(&mirror, "helsinki", "vehicles");
         assert_eq!(reason, "SecretUnresolved", "{message}");
         assert!(message.contains("no-such"), "{message}");
-        assert_eq!(calls(&runner, "PUT", "/streams/vehicles").await, 0);
-        assert_eq!(calls(&runner, "POST", "/streams/vehicles").await, 0);
+        assert_eq!(calls(&runner, "PUT", "/streams/helsinki.vehicles").await, 0);
+        assert_eq!(
+            calls(&runner, "POST", "/streams/helsinki.vehicles").await,
+            0
+        );
         assert_eq!(
             calls(&cluster, "PATCH", "/secrets/pipeline-secrets").await,
             0,
@@ -833,8 +836,11 @@ mod pass_edges {
             let (reason, message) = condition(&mirror, "helsinki", "vehicles");
             assert_eq!(reason, "SecretUnresolved", "{refused_write:?}: {message}");
             assert!(!message.contains(PASSWORD), "{message}");
-            assert_eq!(calls(&runner, "PUT", "/streams/vehicles").await, 0);
-            assert_eq!(calls(&runner, "POST", "/streams/vehicles").await, 0);
+            assert_eq!(calls(&runner, "PUT", "/streams/helsinki.vehicles").await, 0);
+            assert_eq!(
+                calls(&runner, "POST", "/streams/helsinki.vehicles").await,
+                0
+            );
         }
     }
 

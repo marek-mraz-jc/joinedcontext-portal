@@ -90,6 +90,16 @@ pub struct StreamDeployer {
     /// it) and the compiled model of each space: with both, every stream into a space that
     /// names a model carries the validation stage (PL-60, PL-61).
     validation: Option<(String, Arc<crate::pipeline_validation::ModelSchemas>)>,
+    /// The projects whose streams under a bare pipeline name, the id before T-3003, this
+    /// Portal has already deleted from the runner.
+    unprefixed_cleared: Mutex<HashSet<String>>,
+}
+
+/// The runner's id of one project's stream (T-3003, PL-47). Project and pipeline names are DNS
+/// labels with no dot, so on a runner several projects share two projects' pipelines of one
+/// name are two streams, and a project cannot replace, stop or read another's by its name.
+pub fn stream_id(project: &str, name: &str) -> String {
+    format!("{project}.{name}")
 }
 
 /// The rendered config as one number, so two passes can tell an unchanged stream apart.
@@ -114,6 +124,7 @@ impl StreamDeployer {
             rendered: Mutex::new(HashMap::new()),
             backoff: Mutex::new(HashMap::new()),
             validation: None,
+            unprefixed_cleared: Mutex::new(HashSet::new()),
         }
     }
 
@@ -236,6 +247,12 @@ impl StreamDeployer {
             // scheduled at all, and the condition on each says why.
             let beyond = crate::quotas::beyond(mirror, &ns, "residentPipelines");
             let page = mirror.list(&ns, "Pipeline", &crate::store::ListOptions::default());
+            let names: Vec<&str> = page
+                .items
+                .iter()
+                .map(|e| e.metadata.name.as_str())
+                .collect();
+            self.delete_unprefixed(&ns, &names).await;
             for envelope in page.items {
                 let name = envelope.metadata.name.clone();
                 // A pipeline whose credential did not resolve is not started: a stream that
@@ -631,7 +648,7 @@ impl StreamDeployer {
             }
             unchanged = match running.as_ref().and_then(Option::as_ref) {
                 None => true,
-                Some(streams) => match streams.get(name) {
+                Some(streams) => match streams.get(&stream_id(ns, name)) {
                     None => false,
                     Some(true) => true,
                     Some(false) => {
@@ -686,7 +703,7 @@ impl StreamDeployer {
         };
         let Ok(response) = self
             .http
-            .get(format!("{runner}/streams/{name}"))
+            .get(format!("{runner}/streams/{}", stream_id(project, name)))
             .send()
             .await
         else {
@@ -766,13 +783,13 @@ impl StreamDeployer {
         StreamOutcome::Error(said)
     }
 
-    /// DELETE {runner}/streams/{name} for pipelines that were deployed last run and are gone or disabled now.
+    /// DELETE {runner}/streams/{project}.{name} for pipelines that were deployed last run and are gone or disabled now.
     pub async fn retire(&self, project: &str, names: &[String]) {
         let Some(runner) = self.runner_for(project) else {
             return;
         };
         for name in names {
-            let url = format!("{runner}/streams/{name}");
+            let url = format!("{runner}/streams/{}", stream_id(project, name));
             match self.http.delete(&url).send().await {
                 Ok(resp) => {
                     if !resp.status().is_success()
@@ -804,6 +821,54 @@ impl StreamDeployer {
             if let Ok(mut backoff) = self.backoff.lock() {
                 backoff.remove(&(project.to_string(), name.clone()));
             }
+        }
+    }
+
+    /// Deletes, once per project, the streams the runner still holds under one of the project's
+    /// bare pipeline names (or its sweep's), the ids before [`stream_id`] (T-3003): left running,
+    /// such a stream keeps writing beside the project's own. Streams under any other id, a
+    /// test harness or another project's, are not touched. A runner that gives no list is
+    /// asked again on the next pass.
+    async fn delete_unprefixed(&self, project: &str, pipelines: &[&str]) {
+        let cleared = self
+            .unprefixed_cleared
+            .lock()
+            .map(|cleared| cleared.contains(project))
+            .unwrap_or(false);
+        if cleared {
+            return;
+        }
+        let (Some(runner), Some(held)) = (self.runner_for(project), self.running(project).await)
+        else {
+            return;
+        };
+        for name in pipelines {
+            for bare in [name.to_string(), crate::pipeline_expiry::sweep_name(name)] {
+                if !held.contains_key(&bare) {
+                    continue;
+                }
+                match self
+                    .http
+                    .delete(format!("{runner}/streams/{bare}"))
+                    .send()
+                    .await
+                {
+                    Ok(resp) if resp.status().is_success() || resp.status().as_u16() == 404 => {
+                        tracing::info!(project = %project, stream = %bare, "deleted the stream under its bare pipeline name");
+                    }
+                    Ok(resp) => {
+                        tracing::warn!(project = %project, stream = %bare, status = %resp.status(), "the runner kept the stream under its bare pipeline name; asking again next pass");
+                        return;
+                    }
+                    Err(err) => {
+                        tracing::warn!(project = %project, stream = %bare, error = %err, "the runner kept the stream under its bare pipeline name; asking again next pass");
+                        return;
+                    }
+                }
+            }
+        }
+        if let Ok(mut cleared) = self.unprefixed_cleared.lock() {
+            cleared.insert(project.to_owned());
         }
     }
 
@@ -844,7 +909,7 @@ impl StreamDeployer {
                 "`{project}` is not a project name"
             )));
         };
-        let url = format!("{runner}/streams/{name}");
+        let url = format!("{runner}/streams/{}", stream_id(project, name));
 
         let mut response = self
             .http
@@ -2486,7 +2551,7 @@ output:
     async fn an_expiry_that_does_not_validate_sends_no_sweep() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
             .await;
@@ -2528,7 +2593,10 @@ output:
     #[tokio::test]
     async fn an_expiring_pipeline_runs_its_sweep_and_loses_it_with_the_expiry() {
         let server = wiremock::MockServer::start().await;
-        for path in ["/streams/citybikes-free", "/streams/citybikes-free.expiry"] {
+        for path in [
+            "/streams/helsinki.citybikes-free",
+            "/streams/helsinki.citybikes-free.expiry",
+        ] {
             wiremock::Mock::given(wiremock::matchers::method("PUT"))
                 .and(wiremock::matchers::path(path))
                 .respond_with(wiremock::ResponseTemplate::new(200))
@@ -2536,7 +2604,9 @@ output:
                 .await;
         }
         wiremock::Mock::given(wiremock::matchers::method("DELETE"))
-            .and(wiremock::matchers::path("/streams/citybikes-free.expiry"))
+            .and(wiremock::matchers::path(
+                "/streams/helsinki.citybikes-free.expiry",
+            ))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .expect(1)
             .mount(&server)
@@ -2560,7 +2630,8 @@ output:
         let sweep = sent
             .iter()
             .find(|r| {
-                r.method.as_str() == "PUT" && r.url.path() == "/streams/citybikes-free.expiry"
+                r.method.as_str() == "PUT"
+                    && r.url.path() == "/streams/helsinki.citybikes-free.expiry"
             })
             .expect("the sweep was sent");
         let body: Value = serde_json::from_slice(&sweep.body).expect("json");
@@ -2593,7 +2664,7 @@ output:
     async fn put_success_is_live_and_refusal_is_error() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
             .await;
@@ -2608,7 +2679,7 @@ output:
 
         let server_err = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(
                 wiremock::ResponseTemplate::new(400).set_body_string("lint error in line 3"),
             )
@@ -2632,7 +2703,7 @@ output:
     async fn the_runner_receives_the_space_segment_where_the_mapping_reads_jc_space() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
             .await;
@@ -2704,7 +2775,7 @@ output:
     async fn a_stream_into_a_modelled_space_validates_before_it_splits_into_batches() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
             .await;
@@ -2817,7 +2888,7 @@ output:
         // reported a 2xx for the batch. The space it writes stayed empty (T-2445).
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/kpi-pipe"))
+            .and(wiremock::matchers::path("/streams/helsinki.kpi-pipe"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
             .await;
@@ -2898,12 +2969,12 @@ output:
     async fn put_404_falls_back_to_post() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(404))
             .mount(&server)
             .await;
         wiremock::Mock::given(wiremock::matchers::method("POST"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
             .await;
@@ -2921,19 +2992,19 @@ output:
     async fn a_runner_that_restarted_gets_its_unchanged_streams_again() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .expect(2)
             .mount(&server)
             .await;
-        // The runner lists the stream after the first PUT, then restarts and lists nothing.
+        // The runner lists the stream to the first pass (the bare-name check, T-3003) and the
+        // second, then restarts and lists nothing.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/streams"))
-            .respond_with(
-                wiremock::ResponseTemplate::new(200)
-                    .set_body_json(serde_json::json!({ "citybikes-free": { "active": true } })),
-            )
-            .up_to_n_times(1)
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({ "helsinki.citybikes-free": { "active": true } }),
+            ))
+            .up_to_n_times(2)
             .mount(&server)
             .await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -2959,7 +3030,7 @@ output:
     async fn a_stream_the_runner_reports_inactive_is_sent_again() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .expect(3)
             .mount(&server)
@@ -2968,7 +3039,7 @@ output:
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/streams"))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
-                serde_json::json!({ "citybikes-free": { "active": false, "uptime": 1800.0 } }),
+                serde_json::json!({ "helsinki.citybikes-free": { "active": false, "uptime": 1800.0 } }),
             ))
             .mount(&server)
             .await;
@@ -3002,20 +3073,19 @@ output:
         serde_json::from_slice(&put.body).expect("a JSON stream")
     }
 
-    /// A runner whose `GET /streams/citybikes-free` answers `held`, and which counts every PUT.
+    /// A runner whose `GET /streams/helsinki.citybikes-free` answers `held`, and which counts every PUT.
     async fn runner_holding(held: serde_json::Value, puts: u64) -> wiremock::MockServer {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(held))
             .mount(&server)
             .await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/streams"))
-            .respond_with(
-                wiremock::ResponseTemplate::new(200)
-                    .set_body_json(serde_json::json!({ "citybikes-free": { "active": true } })),
-            )
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({ "helsinki.citybikes-free": { "active": true } }),
+            ))
             .mount(&server)
             .await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
@@ -3175,7 +3245,7 @@ output:
     async fn a_stream_the_runner_reports_active_is_left_alone() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .expect(1)
             .mount(&server)
@@ -3183,7 +3253,7 @@ output:
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/streams"))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
-                serde_json::json!({ "citybikes-free": { "active": true, "uptime": 1320.0 } }),
+                serde_json::json!({ "helsinki.citybikes-free": { "active": true, "uptime": 1320.0 } }),
             ))
             .mount(&server)
             .await;
@@ -3204,15 +3274,15 @@ output:
     async fn a_listing_without_the_active_flag_is_taken_at_its_word() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .expect(1)
             .mount(&server)
             .await;
         for body in [
-            serde_json::json!({ "citybikes-free": {} }),
-            serde_json::json!({ "citybikes-free": { "uptime": 1320.0 } }),
-            serde_json::json!({ "citybikes-free": { "active": "yes" } }),
+            serde_json::json!({ "helsinki.citybikes-free": {} }),
+            serde_json::json!({ "helsinki.citybikes-free": { "uptime": 1320.0 } }),
+            serde_json::json!({ "helsinki.citybikes-free": { "active": "yes" } }),
         ] {
             wiremock::Mock::given(wiremock::matchers::method("GET"))
                 .and(wiremock::matchers::path("/streams"))
@@ -3262,7 +3332,7 @@ output:
     async fn an_unchanged_render_is_not_put_again_and_a_change_is() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .expect(2)
             .mount(&server)
@@ -3293,12 +3363,12 @@ output:
     async fn retire_deletes_what_disappeared() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
             .await;
         wiremock::Mock::given(wiremock::matchers::method("DELETE"))
-            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .expect(1)
             .mount(&server)
@@ -3316,6 +3386,166 @@ output:
             .converge(&empty_mirror, &Bentos::new(), &Default::default())
             .await;
         assert!(outcomes_empty.is_empty());
+    }
+
+    /// [`helsinki_test_mirror`] with the same DataSource, Endpoint and Pipeline in praha too:
+    /// two projects holding a pipeline of one name, as air-quality is on dev (T-3003).
+    fn two_project_mirror() -> Mirror {
+        let mirror = helsinki_test_mirror();
+        for kind in ["DataSource", "Endpoint", "Pipeline"] {
+            for mut envelope in mirror
+                .list("helsinki", kind, &crate::store::ListOptions::default())
+                .items
+            {
+                envelope.metadata.namespace = Some("praha".to_owned());
+                mirror.upsert(envelope);
+            }
+        }
+        mirror
+    }
+
+    /// T-3003, PL-47: one runner, two projects, one pipeline name: two streams, and retiring
+    /// one project's pipeline deletes only its own.
+    #[tokio::test]
+    async fn two_projects_with_one_pipeline_name_run_two_streams_and_retire_one() {
+        let server = wiremock::MockServer::start().await;
+        for project in ["helsinki", "praha"] {
+            wiremock::Mock::given(wiremock::matchers::method("PUT"))
+                .and(wiremock::matchers::path(format!(
+                    "/streams/{project}.citybikes-free"
+                )))
+                .respond_with(wiremock::ResponseTemplate::new(200))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        wiremock::Mock::given(wiremock::matchers::method("DELETE"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let deployer = StreamDeployer::new(server.uri());
+        let mirror = two_project_mirror();
+        let outcomes = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        assert_eq!(outcomes.len(), 2, "{outcomes:?}");
+        assert!(outcomes.iter().all(|(_, _, o)| *o == StreamOutcome::Live));
+
+        let pipeline = mirror
+            .get("helsinki", "Pipeline", "citybikes-free")
+            .expect("helsinki's pipeline");
+        mirror.remove(&pipeline.key());
+        let outcomes = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+        assert_eq!(outcomes[0].0, "praha");
+        let deleted: Vec<String> = server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter(|r| r.method.as_str() == "DELETE")
+            .map(|r| r.url.path().to_owned())
+            .collect();
+        assert_eq!(deleted, ["/streams/helsinki.citybikes-free"]);
+    }
+
+    /// T-3003: a stream the runner still holds under a project's bare pipeline name, or its
+    /// sweep's, is deleted once; a stream under any other id is not touched.
+    #[tokio::test]
+    async fn the_bare_name_streams_are_deleted_once_and_nothing_else_is() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/streams"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "citybikes-free": { "active": true },
+                    "citybikes-free.expiry": { "active": true },
+                    "pipeline-test-abc": { "active": true },
+                    "someone-else": { "active": true },
+                })),
+            )
+            .mount(&server)
+            .await;
+        for bare in ["/streams/citybikes-free", "/streams/citybikes-free.expiry"] {
+            wiremock::Mock::given(wiremock::matchers::method("DELETE"))
+                .and(wiremock::matchers::path(bare))
+                .respond_with(wiremock::ResponseTemplate::new(200))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let deployer = StreamDeployer::new(server.uri());
+        let mirror = helsinki_test_mirror();
+        for _ in 0..2 {
+            let outcomes = deployer
+                .converge(&mirror, &Bentos::new(), &Default::default())
+                .await;
+            assert_eq!(outcomes[0].2, StreamOutcome::Live);
+        }
+        let deleted: Vec<String> = server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter(|r| r.method.as_str() == "DELETE")
+            .map(|r| r.url.path().to_owned())
+            .collect();
+        assert_eq!(
+            deleted,
+            ["/streams/citybikes-free", "/streams/citybikes-free.expiry"]
+        );
+    }
+
+    /// T-3003: a runner that gives no list is asked again on the next pass, so its bare streams
+    /// are still deleted once it answers.
+    #[tokio::test]
+    async fn a_runner_without_a_list_is_asked_again_for_the_bare_names() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/streams"))
+            .respond_with(wiremock::ResponseTemplate::new(503))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/streams"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "citybikes-free": { "active": true } })),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("DELETE"))
+            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let deployer = StreamDeployer::new(server.uri());
+        let mirror = helsinki_test_mirror();
+        for _ in 0..3 {
+            deployer
+                .converge(&mirror, &Bentos::new(), &Default::default())
+                .await;
+        }
     }
 
     #[test]
