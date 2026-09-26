@@ -10,6 +10,10 @@
 //! `spec.access[]` subject a group or user role mapping, a role or mapping made in the console
 //! is removed and reported, a subject the realm does not know yet is a warning, and the audience
 //! mappers name `app-{name}` and the slug of every Endpoint the App reads, nothing else.
+//!
+//! Two credentials (T-3022): the login client `portal-api` writes the App's client and roles
+//! and reads who holds each role; `portal-reconciler` looks up every group and user and writes
+//! or removes every mapping. A refused member credential fails the roles, never the login.
 
 use std::sync::Arc;
 
@@ -20,7 +24,7 @@ use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
-use wiremock::matchers::{method, path, path_regex, query_param};
+use wiremock::matchers::{body_string_contains, method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const REALM: &str = "/admin/realms/bb";
@@ -756,4 +760,213 @@ async fn a_realm_that_fails_on_the_roles_still_gets_the_audiences() {
         created[0]["config"]["included.custom.audience"],
         "ep-air-1234"
     );
+}
+
+/// A realm where `portal-api` and `portal-reconciler` each get a token of their own, so every
+/// call shows which credential made it.
+async fn realm_of_two() -> MockServer {
+    let keycloak = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/realms/bb/protocol/openid-connect/token"))
+        .and(body_string_contains("client_id=portal-reconciler"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "access_token": "members-token", "expires_in": 60 })),
+        )
+        .with_priority(1)
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/realms/bb/protocol/openid-connect/token"))
+        .and(body_string_contains("client_id=portal-api"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "access_token": "clients-token", "expires_in": 60 })),
+        )
+        .mount(&keycloak)
+        .await;
+    keycloak
+}
+
+fn sync_of_two(keycloak: &MockServer) -> AppClientSync {
+    sync(keycloak).with_members(
+        "portal-reconciler".to_owned(),
+        "portal-reconciler-credential".to_owned(),
+    )
+}
+
+/// Every admin call the run made, as `METHOD path` and the bearer token it carried.
+async fn calls_by_token(keycloak: &MockServer) -> Vec<(String, String)> {
+    keycloak
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.url.path().starts_with(REALM))
+        .map(|r| {
+            let bearer = r
+                .headers
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default()
+                .trim_start_matches("Bearer ")
+                .to_owned();
+            (format!("{} {}", r.method.as_str(), r.url.path()), bearer)
+        })
+        .collect()
+}
+
+/// The alerts App's role `viewer` is held by the console group `editors` and the user eve; the
+/// App gives it to the group `stewards` and to petra.
+async fn viewer_held_by_others(keycloak: &MockServer) {
+    client_in_place(keycloak).await;
+    answer(
+        keycloak,
+        "/clients/uuid-a/roles",
+        json!([{ "id": "r-viewer", "name": "viewer" }]),
+    )
+    .await;
+    answer(
+        keycloak,
+        "/clients/uuid-a/roles/viewer/groups",
+        json!([{ "id": "g-editors", "name": "editors" }]),
+    )
+    .await;
+    answer(
+        keycloak,
+        "/clients/uuid-a/roles/viewer/users",
+        json!([{ "id": "u-eve", "username": "eve", "email": "eve@hel.fi" }]),
+    )
+    .await;
+    answer(
+        keycloak,
+        "/groups",
+        json!([{ "id": "g-stewards", "name": "stewards" }]),
+    )
+    .await;
+    answer(
+        keycloak,
+        "/users",
+        json!([{ "id": "u-petra", "username": "petra", "email": "petra@hel.fi" }]),
+    )
+    .await;
+    answer(
+        keycloak,
+        "/clients/uuid-a/protocol-mappers/models",
+        json!([mapper("m-1", "app-alerts")]),
+    )
+    .await;
+    writes_succeed(keycloak).await;
+}
+
+fn alerts_for_stewards_and_petra() -> ResourceEnvelope {
+    alerts(json!({
+        "roles": [{ "name": "viewer" }],
+        "access": [{ "role": "viewer", "subjects": [{ "group": "stewards" }, { "user": "petra@hel.fi" }] }],
+    }))
+}
+
+/// AP-113, T-3022: the holder reads run as `portal-api` (it holds `query-users`, read-only);
+/// every lookup of a group or user and every mapping written or removed runs as
+/// `portal-reconciler`, which alone holds `manage-users`.
+#[tokio::test]
+async fn role_holders_are_read_by_the_login_client_and_mapped_by_the_reconciler() {
+    let keycloak = realm_of_two().await;
+    viewer_held_by_others(&keycloak).await;
+
+    let run = sync_of_two(&keycloak)
+        .converge(&mirror_with(vec![alerts_for_stewards_and_petra()]))
+        .await;
+
+    let outcome = &run.outcomes[0];
+    assert_eq!(outcome.error, None, "{outcome:?}");
+    let calls = calls_by_token(&keycloak).await;
+    // `METHOD /path` under the realm: the tokens every such call carried.
+    let by = |at: &str| -> Vec<&str> {
+        let (verb, at) = at.split_once(' ').expect("METHOD /path");
+        calls
+            .iter()
+            .filter(|(call, _)| *call == format!("{verb} {REALM}{at}"))
+            .map(|(_, token)| token.as_str())
+            .collect()
+    };
+    for members_call in [
+        "GET /groups",
+        "GET /users",
+        "DELETE /groups/g-editors/role-mappings/clients/uuid-a",
+        "DELETE /users/u-eve/role-mappings/clients/uuid-a",
+        "POST /groups/g-stewards/role-mappings/clients/uuid-a",
+        "POST /users/u-petra/role-mappings/clients/uuid-a",
+    ] {
+        assert_eq!(
+            by(members_call),
+            vec!["members-token"],
+            "{members_call}: {calls:?}"
+        );
+    }
+    for clients_call in [
+        "GET /clients/uuid-a/roles",
+        "GET /clients/uuid-a/roles/viewer/groups",
+        "GET /clients/uuid-a/roles/viewer/users",
+        "GET /clients/uuid-a/client-secret",
+    ] {
+        assert_eq!(
+            by(clients_call),
+            vec!["clients-token"],
+            "{clients_call}: {calls:?}"
+        );
+    }
+    let members_paths: Vec<&String> = calls
+        .iter()
+        .filter(|(_, token)| token == "members-token")
+        .map(|(call, _)| call)
+        .collect();
+    assert!(
+        members_paths
+            .iter()
+            .all(|call| call.contains("/groups") || call.contains("/users")),
+        "the member credential touches no client: {members_paths:?}"
+    );
+    assert_eq!(run.secrets.get("alerts").map(|s| s.expose()), Some("kept"));
+}
+
+/// T-3022: a member credential the realm refuses fails the App's roles with the client named,
+/// writes no mapping, and keeps the App's login and audiences.
+#[tokio::test]
+async fn a_refused_member_credential_fails_the_roles_and_keeps_the_login() {
+    let keycloak = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/realms/bb/protocol/openid-connect/token"))
+        .and(body_string_contains("client_id=portal-reconciler"))
+        .respond_with(ResponseTemplate::new(401))
+        .with_priority(1)
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/realms/bb/protocol/openid-connect/token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "access_token": "clients-token", "expires_in": 60 })),
+        )
+        .mount(&keycloak)
+        .await;
+    viewer_held_by_others(&keycloak).await;
+
+    let run = sync_of_two(&keycloak)
+        .converge(&mirror_with(vec![alerts_for_stewards_and_petra()]))
+        .await;
+
+    let error = run.outcomes[0].error.as_deref().unwrap_or_default();
+    assert!(error.starts_with("roles of app-alerts"), "{error}");
+    assert!(error.contains("portal-reconciler"), "{error}");
+    assert!(error.contains("401"), "{error}");
+    assert!(
+        !error.contains("portal-reconciler-credential"),
+        "no secret in an outcome: {error}"
+    );
+    assert!(
+        wrote(&keycloak).await.is_empty(),
+        "no mapping, no client write"
+    );
+    assert_eq!(run.secrets.get("alerts").map(|s| s.expose()), Some("kept"));
 }
