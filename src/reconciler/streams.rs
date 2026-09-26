@@ -1286,10 +1286,11 @@ fn endpoint_input(
     }
     let source_url = endpoint_source_url(source_slug, &query)?;
 
+    // Each tick is one run of the pipeline's log (PL-62).
     let input = serde_json::json!({
         "generate": {
             "interval": interval,
-            "mapping": "root = \"\""
+            "mapping": format!("root = \"\"\n{}", crate::pipeline_log::TICK)
         }
     });
 
@@ -2010,6 +2011,12 @@ mod tests {
         .expect("rendered endpoint stream");
 
         assert_eq!(rendered["input"]["generate"]["interval"], "15m");
+        // Each tick is its own run, as on a DataSource's clock; without the stamp every pass of
+        // an hour lands in that hour's one run (PL-62, T-3002).
+        assert_eq!(
+            rendered["input"]["generate"]["mapping"],
+            format!("root = \"\"\n{}", crate::pipeline_log::TICK)
+        );
         let http = &rendered["pipeline"]["processors"][0]["try"][0]["http"];
         assert_eq!(
             http["url"],
