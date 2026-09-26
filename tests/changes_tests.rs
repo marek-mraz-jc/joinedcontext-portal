@@ -1110,6 +1110,134 @@ spec:
     assert_eq!(change.status.lane, Lane::Green);
 }
 
+/// T-3015: rejecting the Change that publishes an application ends the run that proposed it, so
+/// the catalogue no longer shows it waiting for an approval nothing can give; the reason reaches
+/// the run. Another run whose manifest names it but whose Change is another is left waiting.
+#[tokio::test]
+async fn rejecting_an_applications_change_ends_the_run_that_proposed_it() {
+    use joinedcontext_portal::agents::run::AgentRun;
+    use wiremock::matchers::path_regex;
+
+    let server = MockServer::start().await;
+    let base_url = server.uri().parse().expect("valid mock server url");
+    let client =
+        GiteaClient::new(base_url, "test-owner", "test-repo", "token-xyz").expect("client");
+    let config = Config::for_tests();
+    let state = AppState::new(config.clone(), None).with_gitea(Arc::new(client));
+    let run = |id: &str, status: &str| -> AgentRun {
+        serde_json::from_value(json!({
+            "id": id, "project": "ovzdusie", "appName": "city-bikes", "endpointName": "bikes",
+            "endpointSlug": "bikes", "profile": "app-builder", "kind": "application",
+            "unattended": false, "appClass": "ui", "visibility": "project", "prompt": "p",
+            "promptDigest": "d", "dataNeeds": [], "allowsWrite": false,
+            "branch": format!("agent/app-city-bikes/{id}"), "pathPrefix": "", "status": status,
+            "ticketHash": "", "steps": 0, "tokensUsed": 0, "createdBy": "demo.steward",
+            "createdAt": "2026-09-26T06:00:00Z", "expiresAt": "2099-09-26T06:00:00Z"
+        }))
+        .expect("a run")
+    };
+    let proposer = run("run-proposer", "awaiting_approval");
+    let bystander = run("run-bystander", "awaiting_approval");
+    for (waiting, number) in [(&proposer, 4), (&bystander, 12)] {
+        state.agents.create_run(waiting).await.expect("a run");
+        state
+            .agents
+            .set_merge_request(&waiting.id, number)
+            .await
+            .expect("its change");
+    }
+    let app = server::app(state.clone());
+
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls/4"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "number": 4,
+            "html_url": "https://gitea.example.sk/pulls/4",
+            "state": "open",
+            "title": "create App city-bikes",
+            "head": { "ref": "portal/create-app-city-bikes-44444444" },
+            "base": { "ref": "main" },
+            "created_at": "2026-09-26T09:14:22Z",
+            "user": { "login": "portal", "full_name": "Portal", "email": "portal@example.sk" },
+            "mergeable": true,
+            "merged": false
+        })))
+        .mount(&server)
+        .await;
+    let app_yaml = |run_id: &str| {
+        format!(
+            r#"apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: city-bikes
+  namespace: ovzdusie
+  annotations:
+    joinedcontext.com/agent-run: {run_id}
+spec:
+  kind: static
+  visibility: project
+"#
+        )
+    };
+    Mock::given(method("GET"))
+        .and(path_regex(
+            r"^/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/.*city-bikes.*",
+        ))
+        .and(query_param("ref", "portal/create-app-city-bikes-44444444"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-1",
+            "content": encode_b64(&app_yaml("run-proposer"))
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls/4/reviews"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls/4"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&server)
+        .await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/projects/ovzdusie/changes/chg-00000004/reject")
+                .header(header::COOKIE, approver_cookies(&config))
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"reason":"validator test App"}"#))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    let ended = state
+        .agents
+        .get_run("run-proposer")
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(ended.status, "cancelled");
+    let why = ended.error.expect("a reason");
+    assert!(
+        why.contains("chg-00000004 was rejected by jana.approver@banskabystrica.sk")
+            && why.contains("validator test App"),
+        "{why}"
+    );
+    let untouched = state
+        .agents
+        .get_run("run-bystander")
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(untouched.status, "awaiting_approval");
+}
+
 #[tokio::test]
 async fn reject_answers_202_rejected_and_requests_changes_without_merge() {
     let server = MockServer::start().await;

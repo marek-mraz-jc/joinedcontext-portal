@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import {
+  catalogueLinkOf,
   catalogueUrl,
   endpointUrl,
   EndpointLink,
@@ -22,6 +23,8 @@ import {
   servedRepresentations,
 } from "../src/components/endpoints/links";
 import { ExportButton } from "../src/components/export/ExportButton";
+import { createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
+import { EndpointPage } from "../src/pages/endpoints/EndpointPage";
 
 function wrap(node: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -92,9 +95,51 @@ describe("the endpoint link pill", () => {
   });
 
   it("a_catalogue_address_escapes_the_name_it_is_given", () => {
-    expect(catalogueUrl("air quality/../admin")).toBe(
-      `https://data.${window.location.host}/dataset/air%20quality%2F..%2Fadmin`,
+    expect(catalogueUrl("https://data.city.example", "air quality/../admin")).toBe(
+      "https://data.city.example/dataset/air%20quality%2F..%2Fadmin",
     );
+  });
+
+  // T-3018: the address is the CkanInstance's own site, never `data.` put in front of the
+  // Portal's host, and only an https site jc-core would accept becomes a link.
+  it("a_catalogue_address_is_the_instance_site_and_https_only", () => {
+    expect(catalogueUrl("https://data.city.example/", "air")).toBe("https://data.city.example/dataset/air");
+    expect(catalogueUrl("https://city.example/open-data//", "air")).toBe(
+      "https://city.example/open-data/dataset/air",
+    );
+    for (const refused of [
+      "http://data.city.example",
+      "javascript:alert(1)",
+      "data.city.example",
+      "https://data.city.example/?q=1",
+      "https://data.city.example/#top",
+      "",
+    ]) {
+      expect(catalogueUrl(refused, "air"), refused).toBeUndefined();
+    }
+  });
+
+  it("a_catalogue_link_is_only_for_an_endpoint_that_publishes_and_whose_instance_is_known", () => {
+    const sites = new Map([["banskabystrica/bb-open-data", "https://data.city.example"]]);
+    const link = catalogueLinkOf(sites);
+    const endpoint = (spec: Record<string, unknown>) => ({
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "Endpoint",
+      metadata: { name: "public-air", namespace: "banskabystrica" },
+      spec,
+    });
+    const published = endpoint({ publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "bb-open-data" } } } });
+    expect(link("banskabystrica", published)).toBe("https://data.city.example/dataset/public-air");
+    // The dataset name the Endpoint gives, when it gives one; a plain-string reference too.
+    expect(
+      link("banskabystrica", endpoint({ publish: { ckan: { instanceRef: "bb-open-data", name: "ovzdusie" } } })),
+    ).toBe("https://data.city.example/dataset/ovzdusie");
+    expect(link("banskabystrica", endpoint({}))).toBeUndefined();
+    // Another project's instance of the same name is not this one.
+    expect(link("helsinki", published)).toBeUndefined();
+    expect(
+      link("banskabystrica", endpoint({ publish: { ckan: { instanceRef: { name: "unknown" } } } })),
+    ).toBeUndefined();
   });
 });
 
@@ -173,5 +218,73 @@ describe("the export trigger", () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+/**
+ * T-3018: the Endpoint page's Publication section links the dataset on its CkanInstance's own
+ * site, and names it without a link while that site is unknown, never `data.` + the Portal's host.
+ */
+describe("the endpoint page's catalogue entry", () => {
+  const PROJECT = "banskabystrica";
+  const NAME = "public-air";
+  const endpoint = {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Endpoint",
+    metadata: { name: NAME, namespace: PROJECT },
+    spec: {
+      contextSpaceRef: "ovzdusie",
+      slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa",
+      audience: "public",
+      enabledRepresentations: ["ngsi-ld"],
+      publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "bb-open-data" }, name: "ovzdusie-bb" } },
+    },
+  };
+  const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
+
+  function show(catalogues: { status: number; items?: unknown[] }) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const path = new URL(input instanceof Request ? input.url : String(input), window.location.origin).pathname;
+        const json = (body: unknown, status = 200) =>
+          Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
+        if (path.endsWith(`/endpoints/${NAME}`)) return json(endpoint);
+        if (path.endsWith("/ckaninstances")) {
+          return catalogues.status === 200
+            ? json(list(catalogues.items ?? []))
+            : json({ title: "Forbidden", status: catalogues.status }, catalogues.status);
+        }
+        if (path.endsWith("/permissions/me")) return json({ project: PROJECT, bootstrap: false, grants: [] });
+        return json(list([]));
+      }),
+    );
+    const rootRoute = createRootRoute({ component: () => <EndpointPage project={PROJECT} name={NAME} /> });
+    const router = createRouter({ routeTree: rootRoute });
+    wrap(<RouterProvider router={router} />);
+  }
+
+  it("links the dataset on the site of the catalogue the endpoint names", async () => {
+    show({
+      status: 200,
+      items: [
+        {
+          apiVersion: "joinedcontext.com/v1alpha1",
+          kind: "CkanInstance",
+          metadata: { name: "bb-open-data", namespace: PROJECT },
+          spec: { url: "https://data.city.example", secretRef: { name: "ckan-token" } },
+        },
+      ],
+    });
+    expect(await screen.findByRole("link", { name: "ovzdusie-bb" })).toHaveAttribute(
+      "href",
+      "https://data.city.example/dataset/ovzdusie-bb",
+    );
+  });
+
+  it("names the dataset without a link when the catalogue cannot be read", async () => {
+    show({ status: 403 });
+    expect(await screen.findByText("ovzdusie-bb")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "ovzdusie-bb" })).not.toBeInTheDocument();
   });
 });

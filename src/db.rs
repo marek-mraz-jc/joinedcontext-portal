@@ -541,6 +541,19 @@ pub async fn list_expired_agent_runs(
     .await
 }
 
+/// Every run in `status`, in every project, oldest first.
+pub async fn list_agent_runs_in_status(
+    pool: &PgPool,
+    status: &str,
+) -> Result<Vec<AgentRun>, sqlx::Error> {
+    sqlx::query_as::<_, AgentRun>(AssertSqlSafe(format!(
+        "SELECT {AGENT_RUN_COLUMNS} FROM agent_runs WHERE status = $1 ORDER BY created_at ASC"
+    )))
+    .bind(status)
+    .fetch_all(pool)
+    .await
+}
+
 /// Moves a run to another state. `started_at` is stamped by the first state after `queued` and
 /// `finished_at` by the state the run stops in, so neither is ever moved twice.
 pub async fn update_agent_run_status(

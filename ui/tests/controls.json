@@ -857,6 +857,7 @@
         "Checkbox": 2
       },
       "tests": [
+        "part_endpoint_links.test.tsx",
         "part_operation_groups.test.tsx"
       ]
     },
