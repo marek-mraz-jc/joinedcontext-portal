@@ -121,11 +121,6 @@ enum Family {
     LatencyNs,
 }
 
-/// Folds every series of one stream into the counters the view shows. Series of the same family
-/// are summed (a stream may have several inputs or outputs); the latency takes the slowest
-/// output rather than a sum, which would mean nothing.
-/// The runner registers each stream under the pipeline's own name, so the pipeline name is
-/// also the `stream` label to select on.
 /// What one component of a stream counted, as its own label reports it (T-1125).
 #[derive(Debug, Default, Clone, PartialEq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -138,15 +133,20 @@ pub struct NodeCounters {
     pub errors: Option<u64>,
 }
 
-pub(crate) fn scrape(body: &str, pipeline: &str, scraped_at: String) -> PipelineMetrics {
+/// Folds every series of one stream into the counters the view shows. Series of the same family
+/// are summed (a stream may have several inputs or outputs); the latency takes the slowest
+/// output rather than a sum, which would mean nothing. `stream` is the runner's id of the
+/// stream, [`crate::reconciler::streams::stream_id`]: the project-qualified id is the `stream`
+/// label to select on (T-3002).
+pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMetrics {
     let mut metrics = PipelineMetrics {
-        pipeline: pipeline.to_string(),
+        pipeline: stream.to_string(),
         scraped_at,
         ..PipelineMetrics::default()
     };
 
     for sample in body.lines().filter_map(parse_line) {
-        if label(sample.labels, "stream") != Some(pipeline) {
+        if label(sample.labels, "stream") != Some(stream) {
             continue;
         }
         let Some(family) = family(sample.name) else {
@@ -286,7 +286,14 @@ pub async fn metrics_for(
         ApiError::Unavailable("the pipeline runner did not answer".into())
     })?;
 
-    Ok(scrape(&body, name, now_rfc3339()))
+    // The runner knows the stream by its project-qualified id; the answer names the pipeline.
+    let mut metrics = scrape(
+        &body,
+        &crate::reconciler::streams::stream_id(project, name),
+        now_rfc3339(),
+    );
+    metrics.pipeline = name.to_owned();
+    Ok(metrics)
 }
 
 fn now_rfc3339() -> String {
