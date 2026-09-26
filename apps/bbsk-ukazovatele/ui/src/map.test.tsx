@@ -8,10 +8,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
-import { JcProvider } from "@joinedcontext/sdk";
+import { JcProvider, mapColors } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import region from "./fixtures/bbsk-kpi.json";
 import city from "./fixtures/banskabystrica-kpi.json";
+import { rampColor } from "./districts";
 
 type Collection = { features: Array<{ id: string; properties: Record<string, unknown> }> };
 const drawn: Collection[] = [];
@@ -155,6 +156,33 @@ describe("the district map", () => {
     expect(screen.getByRole("application", { name: /Mapa okresov/ })).toBeTruthy();
   });
 
+  it("colours each bar as the map colours its district, never in the legend's 'not measured' colour", async () => {
+    show(() => answer(DISTRICTS));
+    const panel = await screen.findByRole("region", { name: "Mapa okresov" });
+    fireEvent.change(within(panel).getByRole("combobox", { name: /Ukazovateľ na mape/ }), {
+      target: { value: "obyvatelstvo-stav" },
+    });
+    const chart = document.getElementById("chart-bbsk-obyvatelstvo-stav")!.closest("figure")!;
+    const barOf = (name: RegExp) =>
+      (within(chart).getByRole("button", { name }).closest("li")!.querySelector(".bar") as HTMLElement).style.getPropertyValue(
+        "--bar",
+      );
+    const { low, high, point } = mapColors();
+    // The map's range is 57517 (Brezno) to 106000 (Banská Bystrica): the ends of the scale, and
+    // Zvolen's 65001 the same share of the way the map's fill puts it.
+    await waitFor(() => expect(barOf(/Brezno/)).toBe(rampColor(57517, [57517, 106000], { low, high })));
+    expect(barOf(/Brezno/)).toBe(`color-mix(in srgb, ${low}, ${high} 0%)`);
+    expect(barOf(/Banská Bystrica/)).toBe(`color-mix(in srgb, ${low}, ${high} 100%)`);
+    expect(barOf(/Zvolen/)).toBe(rampColor(65001, [57517, 106000], { low, high }));
+    // Every chart under the map is on the scale, the unmapped ones over their own range.
+    const bars = [...document.querySelectorAll<HTMLElement>(".body-bbsk .bar")];
+    expect(bars.length).toBeGreaterThan(3);
+    for (const bar of bars) {
+      expect(bar.style.getPropertyValue("--bar")).toMatch(/^color-mix\(in srgb, /);
+      expect(bar.style.getPropertyValue("--bar")).not.toContain(point);
+    }
+  });
+
   it("marks a district's bar when the district is clicked, and the district when its name is", async () => {
     show(() => answer(DISTRICTS));
     const panel = await screen.findByRole("region", { name: "Mapa okresov" });
@@ -190,6 +218,10 @@ describe("without the district outlines", () => {
     expect(asked.some((path) => path.includes(REGISTER_SLUG))).toBe(false);
     // The charts stay, their names plain text rather than a choice with nothing to choose on.
     expect(document.querySelector("button.bar-label")).toBeNull();
+    // With no map there is no scale to match: the bars keep the body's colour.
+    const bars = [...document.querySelectorAll<HTMLElement>(".bar")];
+    expect(bars.length).toBeGreaterThan(0);
+    expect(bars.every((bar) => bar.style.getPropertyValue("--bar") === "")).toBe(true);
   });
 
   it("says the outlines could not be read and keeps every indicator on screen", async () => {

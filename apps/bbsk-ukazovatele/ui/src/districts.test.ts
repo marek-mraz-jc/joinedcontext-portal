@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { toRichRow } from "@joinedcontext/sdk";
-import { choropleth, districtsOf, territoryOf } from "./districts";
+import { choropleth, districtsOf, rampColor, rangeOf, territoryOf } from "./districts";
 import { LOCALES } from "./locales";
 
 const SQUARE = {
@@ -98,5 +98,27 @@ describe("the map of one indicator", () => {
   it("has no range when no district is measured", () => {
     expect(choropleth(districts, []).ramp).toBeNull();
     expect(choropleth([], [{ territory: "okres-brezno", value: 1 }])).toEqual({ features: [], ramp: null });
+  });
+});
+
+describe("a value's colour on the map's scale", () => {
+  const colors = { low: "#0284c7", high: "#ea580c" };
+
+  it("runs from low at the range's bottom to high at its top, as the map's linear fill", () => {
+    expect(rampColor(10, [10, 30], colors)).toBe("color-mix(in srgb, #0284c7, #ea580c 0%)");
+    expect(rampColor(20, [10, 30], colors)).toBe("color-mix(in srgb, #0284c7, #ea580c 50%)");
+    expect(rampColor(30, [10, 30], colors)).toBe("color-mix(in srgb, #0284c7, #ea580c 100%)");
+    expect(rampColor(0.33, [0.3, 0.7], colors)).toBe("color-mix(in srgb, #0284c7, #ea580c 7.5%)");
+  });
+
+  it("holds a value outside the range at its end, and one value alone at the low end", () => {
+    expect(rampColor(-5, [10, 30], colors)).toBe("color-mix(in srgb, #0284c7, #ea580c 0%)");
+    expect(rampColor(99, [10, 30], colors)).toBe("color-mix(in srgb, #0284c7, #ea580c 100%)");
+    expect(rampColor(4, [4, 4], colors)).toBe("color-mix(in srgb, #0284c7, #ea580c 0%)");
+  });
+
+  it("has a range only where there is a value", () => {
+    expect(rangeOf([])).toBeNull();
+    expect(rangeOf([3, -1, 2])).toEqual([-1, 3]);
   });
 });
