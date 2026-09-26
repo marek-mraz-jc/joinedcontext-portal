@@ -1,5 +1,9 @@
 import type { JSX } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { clsx } from "clsx";
+import { api, queryKeys, unwrap } from "../../api/client";
+import { asManifests, refName } from "../../api/manifest";
+import type { Manifest } from "../../api/manifest";
 import { Icon, safeHref } from "../ui";
 
 /**
@@ -60,9 +64,73 @@ export function hubUrl(): string {
   return `${window.location.origin}/api/mcp`;
 }
 
-/** The open-data catalogue entry of an endpoint: the catalogue lives at `data.{host}`. */
-export function catalogueUrl(endpointName: string): string {
-  return `https://data.${window.location.host}/dataset/${encodeURIComponent(endpointName)}`;
+/**
+ * A dataset's page on the site of a `CkanInstance`: `{spec.url}/dataset/{name}`, the address the
+ * catalogue API builds too (EP-82). `undefined` for a base that is not an https URL: jc-core
+ * refuses any other `spec.url`, and a link is never built from what it would refuse (T-3018).
+ */
+export function catalogueUrl(instanceUrl: string, dataset: string): string | undefined {
+  let base: URL;
+  try {
+    base = new URL(instanceUrl);
+  } catch {
+    return undefined;
+  }
+  if (base.protocol !== "https:" || base.search || base.hash) {
+    return undefined;
+  }
+  return `${base.href.replace(/\/+$/, "")}/dataset/${encodeURIComponent(dataset)}`;
+}
+
+/**
+ * The catalogue page of each Endpoint that publishes one (EP-62, EP-82): the dataset its
+ * `spec.publish.ckan` names (its own name when that names none) on the site of the `CkanInstance`
+ * its `instanceRef` names in the Endpoint's `project`. `undefined` for an Endpoint that publishes
+ * nowhere, while the project's catalogues load, and for a catalogue this person cannot read: the
+ * link is the instance's own URL or none, never a host guessed from the Portal's (T-3018).
+ */
+export function useCatalogueLinks(
+  projects: string[],
+): (project: string, endpoint: Manifest) => string | undefined {
+  const unique = [...new Set(projects.filter(Boolean))].sort();
+  const lists = useQueries({
+    queries: unique.map((project) => ({
+      queryKey: queryKeys.list(project, "ckaninstances"),
+      retry: false,
+      queryFn: async () =>
+        unwrap(
+          await api.GET("/api/v1/projects/{project}/{plural}", {
+            params: { path: { project, plural: "ckaninstances" } },
+          }),
+        ),
+    })),
+  });
+  const sites = new Map<string, string>();
+  unique.forEach((project, index) => {
+    for (const instance of asManifests(lists[index]?.data?.items ?? [])) {
+      const url = (instance.spec as { url?: unknown }).url;
+      if (typeof url === "string") {
+        sites.set(`${project}/${instance.metadata.name}`, url);
+      }
+    }
+  });
+  return catalogueLinkOf(sites);
+}
+
+/** What `useCatalogueLinks` answers, given the sites it resolved per `{project}/{instance}`. */
+export function catalogueLinkOf(
+  sites: Map<string, string>,
+): (project: string, endpoint: Manifest) => string | undefined {
+  return (project, endpoint) => {
+    const publish = (endpoint.spec as { publish?: { ckan?: { instanceRef?: unknown; name?: unknown } } })
+      .publish?.ckan;
+    if (!publish) {
+      return undefined;
+    }
+    const site = sites.get(`${project}/${refName(publish.instanceRef)}`);
+    const dataset = typeof publish.name === "string" && publish.name ? publish.name : endpoint.metadata.name;
+    return site ? catalogueUrl(site, dataset) : undefined;
+  };
 }
 
 const LINK_PRIMARY =
