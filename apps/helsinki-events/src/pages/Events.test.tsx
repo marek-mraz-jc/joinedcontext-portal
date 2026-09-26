@@ -149,6 +149,32 @@ describe("the events page", () => {
     expect(within(legend).getAllByRole("listitem").map((item) => item.textContent)).toEqual(registers.yAxis.data);
   });
 
+  // T-3029: a register of events that opened long ago still has a bar on every day they run.
+  it("charts a long-running event on each day and lists it for a clicked day", async () => {
+    const running = {
+      ...EVENTS[0],
+      id: "urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-town",
+      name: "Children's Town",
+      startDate: "2001-01-01T08:00:00Z",
+      endDate: "2050-12-31T20:00:00Z",
+    } as Row;
+    events([running]);
+    await waitFor(() => expect(optionOf("Events per day, next 30 days").series[0].data).toHaveLength(30));
+    expect(optionOf("Events per day, next 30 days").series[0].data.every((count: number) => count === 1)).toBe(true);
+    await clickBar("Events per day, next 30 days", "2030-10-25");
+    expect(listed()).toEqual(["Children's Town"]);
+  });
+
+  it("says the 30 days hold no event instead of drawing an empty axis", async () => {
+    // Upcoming by its end, but it only starts after the window.
+    const later = { ...EVENTS[0], startDate: "2030-12-01T10:00:00Z", endDate: "2030-12-01T12:00:00Z" } as Row;
+    events([later]);
+    await waitFor(() => expect(listed()).toHaveLength(1));
+    const figure = screen.getByText("Events per day, next 30 days").closest("figure") as HTMLElement;
+    expect(within(figure).getByText("No event takes place on these 30 days.")).toBeInTheDocument();
+    expect(within(figure).queryByRole("img")).toBeNull();
+  });
+
   it("puts one feature per located event on the map, coloured by its register", async () => {
     events();
     await waitFor(() => expect(maps.length).toBeGreaterThan(0));
@@ -229,8 +255,9 @@ describe("the events page", () => {
     expect(await screen.findByText("No upcoming events.")).toBeInTheDocument();
     const registers = screen.getByText("Events by register").closest("figure") as HTMLElement;
     expect(within(registers).getByText("No event matches.")).toBeInTheDocument();
-    // The days still show, every one of them empty.
-    await waitFor(() => expect(optionOf("Events per day, next 30 days").series[0].data.every((n: number) => n === 0)).toBe(true));
+    // No axis of 30 empty days: the card says so (T-3029).
+    const days = screen.getByText("Events per day, next 30 days").closest("figure") as HTMLElement;
+    expect(within(days).getByText("No event takes place on these 30 days.")).toBeInTheDocument();
   });
 
   it("says the events could not be read, with the status, and reads them again on Retry", async () => {
