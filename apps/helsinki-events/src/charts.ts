@@ -15,8 +15,12 @@ export function dayLabel(day: string, locale = "en-GB"): string {
   return new Date(`${day}T12:00:00Z`).toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: ZONE });
 }
 
-/** Events starting on each day, one bar per day with its `YYYY-MM-DD` as the category a click selects. */
-export function perDayOption(series: Array<{ day: string; count: number }>, tokens?: DesignTokens): Record<string, unknown> {
+/**
+ * Events taking place on each day, one bar per day with its `YYYY-MM-DD` as the category a click
+ * selects; `null` when no day has one, so the card says so instead of drawing an empty axis.
+ */
+export function perDayOption(series: Array<{ day: string; count: number }>, tokens?: DesignTokens): Record<string, unknown> | null {
+  if (series.every((point) => point.count === 0)) return null;
   const t = tokens ?? currentTokens();
   return {
     color: t.chart.palette,

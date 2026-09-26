@@ -125,7 +125,7 @@ export function Events() {
           title="Events per day, next 30 days"
           option={error ? null : perDayChart}
           loading={waiting}
-          empty={UNREAD}
+          empty={error ? UNREAD : "No event takes place on these 30 days."}
           onSelect={(picked) => setDay(picked === day ? null : picked)}
         />
         <ChartCard

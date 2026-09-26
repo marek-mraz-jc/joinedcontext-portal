@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Row } from "@joinedcontext/sdk";
-import { byRegister, filterEvents, inputDay, located, perDay, registerOf, sourceOf, upcomingQuery, when } from "./events";
+import { perDayOption } from "./charts";
+import { byRegister, filterEvents, inputDay, located, onDay, perDay, registerOf, sourceOf, upcomingQuery, when } from "./events";
 import { EVENTS as SENT } from "./fixtures/events";
 
 // The rows as the SDK hands them to the page: a language map already read in English.
@@ -71,6 +72,42 @@ describe("the events", () => {
     // 5 November falls inside the 30 days; the 2020 event does not.
     expect(series.reduce((sum, point) => sum + point.count, 0)).toBe(5);
     expect(perDay([], new Date("2030-10-19T21:00:00Z"), 0)).toEqual([]);
+  });
+
+  // T-3029: the live register is mostly long-running events that opened years ago.
+  it("counts an event on every day it takes place, not only the day it started", () => {
+    const running = bare("urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-town", {
+      startDate: "2001-01-01T08:00:00Z",
+      endDate: "2050-12-31T20:00:00Z",
+    });
+    const series = perDay([running, ...EVENTS], new Date("2030-10-19T21:00:00Z"));
+    expect(series.every((point) => point.count >= 1)).toBe(true);
+    // The one-day events still count on their own day only.
+    expect(series.slice(0, 4).map((point) => point.count)).toEqual([3, 1, 2, 2]);
+    // Ends on the 21st in Helsinki (00:30 local on the 21st), so two days, not three.
+    const closing = bare("x", { startDate: "2020-01-01T10:00:00Z", endDate: "2030-10-20T21:30:00Z" });
+    expect(perDay([closing], new Date("2030-10-19T21:00:00Z"), 3).map((point) => point.count)).toEqual([1, 1, 0]);
+    // One date only lasts that day; no date or an end before the start is on no day.
+    const once = bare("x", { endDate: "2030-10-21T10:00:00Z" });
+    const backwards = bare("x", { startDate: "2030-10-22T10:00:00Z", endDate: "2030-10-20T10:00:00Z" });
+    expect(perDay([once, backwards, bare("x")], new Date("2030-10-19T21:00:00Z"), 3).map((point) => point.count)).toEqual([0, 1, 0]);
+  });
+
+  it("picks the events taking place on a day, long-running ones included", () => {
+    const running = bare("urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-town", {
+      startDate: "2001-01-01T08:00:00Z",
+      endDate: "2050-12-31T20:00:00Z",
+    });
+    expect(onDay(running, "2030-10-22")).toBe(true);
+    expect(onDay(running, "2051-01-01")).toBe(false);
+    expect(ids(filterEvents([running, ...EVENTS], { day: "2030-10-22" }))).toEqual(["helsinki-town", "espoo_le-agn5"]);
+  });
+
+  it("draws no per-day chart when no day of the window has an event, so the card can say so", () => {
+    const empty = perDay([], new Date("2030-10-19T21:00:00Z"));
+    expect(perDayOption(empty)).toBeNull();
+    expect(perDayOption([])).toBeNull();
+    expect(perDayOption(perDay(EVENTS, new Date("2030-10-19T21:00:00Z")))).not.toBeNull();
   });
 
   it("counts per register, most first and ties by name", () => {

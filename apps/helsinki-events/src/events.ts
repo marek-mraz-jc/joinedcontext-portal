@@ -65,7 +65,7 @@ export interface Filter {
 /**
  * The events a reader asked for, soonest first: overlapping [from, to] (an open side is no limit,
  * an event with no dates is kept), holding every word of `query` in its name, place or
- * description ignoring case and accents, starting on `day` and published by `register` when set.
+ * description ignoring case and accents, taking place on `day` and published by `register` when set.
  */
 export function filterEvents(rows: Row[], { from = null, to = null, query = "", day = null, register = null }: Filter = {}): Row[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
@@ -76,7 +76,7 @@ export function filterEvents(rows: Row[], { from = null, to = null, query = "", 
       const last = dateOf(row, "endDate") ?? start(row);
       if (from && last && last < from) return false;
       if (to && first && first > to) return false;
-      if (day && (first === null || dayOf(first) !== day)) return false;
+      if (day && !onDay(row, day)) return false;
       if (register && registerOf(row) !== register) return false;
       const haystack = fold(`${textOf(row, "name")} ${textOf(row, "address")} ${textOf(row, "description")}`);
       return words.every((word) => haystack.includes(word));
@@ -96,7 +96,29 @@ export function inputDay(value: string, endOfDay = false): Date | null {
   return Number.isNaN(day.getTime()) ? null : day;
 }
 
-/** How many events start on each of the `days` Helsinki days from `from`'s, day by day, empty days included. */
+/**
+ * The first and last Helsinki days an event takes place, as `YYYY-MM-DD`: a missing date is the
+ * other one, so a one-sided event lasts one day; `null` when it has neither.
+ */
+function daysOf(row: Row): { first: string; last: string } | null {
+  const start = dateOf(row, "startDate");
+  const end = dateOf(row, "endDate");
+  const first = start ?? end;
+  const last = end ?? start;
+  return first && last ? { first: dayOf(first), last: dayOf(last) } : null;
+}
+
+/** Whether the event takes place on `day` (`YYYY-MM-DD` in Helsinki): it has started by then and not yet ended. */
+export function onDay(row: Row, day: string): boolean {
+  const span = daysOf(row);
+  return span !== null && span.first <= day && day <= span.last;
+}
+
+/**
+ * How many events take place on each of the `days` Helsinki days from `from`'s, empty days
+ * included: a festival running all month counts on every one of them, not only on the day it
+ * opened (T-3029).
+ */
 export function perDay(rows: Row[], from: Date, days = 30): Array<{ day: string; count: number }> {
   // Calendar arithmetic on the Helsinki date, so a change of clock (25 h, 23 h) neither drops nor repeats a day.
   const [year, month, date] = dayOf(from).split("-").map(Number);
@@ -105,9 +127,11 @@ export function perDay(rows: Row[], from: Date, days = 30): Array<{ day: string;
     counts.set(new Date(Date.UTC(year, month - 1, date + offset)).toISOString().slice(0, 10), 0);
   }
   for (const row of rows) {
-    const start = dateOf(row, "startDate");
-    const day = start && dayOf(start);
-    if (day && counts.has(day)) counts.set(day, (counts.get(day) ?? 0) + 1);
+    const span = daysOf(row);
+    if (span === null) continue;
+    for (const [day, count] of counts) {
+      if (span.first <= day && day <= span.last) counts.set(day, count + 1);
+    }
   }
   return [...counts].map(([day, count]) => ({ day, count }));
 }

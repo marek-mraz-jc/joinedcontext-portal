@@ -26,6 +26,9 @@ export async function serve(page: Page): Promise<Served> {
   });
   const served: Served = { outside: [], missing: [], problems: [] };
   page.on("pageerror", (error) => served.problems.push(error.message));
+  // The page opens on today in Helsinki and charts the next 30 days: the day the fixtures fall on,
+  // so both charts have bars to draw (T-3029). Only the date is fixed; timers still run.
+  await page.clock.setFixedTime(new Date("2030-10-20T06:00:00Z"));
 
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
