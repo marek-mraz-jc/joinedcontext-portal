@@ -122,8 +122,14 @@ pub fn style_url_at(base: &str, project: &str) -> String {
 /// preview document may connect to (SDK-16).
 pub fn route_prefix(config: &Config, project: &str) -> Option<String> {
     config.basemap.as_ref()?;
-    let base = config.public_base_url.as_str().trim_end_matches('/');
-    Some(format!("{base}/api/v1/projects/{project}/basemap/"))
+    Some(route_prefix_at(config.public_base_url.as_str(), project))
+}
+
+/// The route prefix of `project` under the Portal's public `base`, for a caller that knows the
+/// basemap is configured.
+pub fn route_prefix_at(base: &str, project: &str) -> String {
+    let base = base.trim_end_matches('/');
+    format!("{base}/api/v1/projects/{project}/basemap/")
 }
 
 #[utoipa::path(
