@@ -111,6 +111,57 @@ fn config_hash(config: &Value) -> u64 {
     hasher.finish()
 }
 
+/// Whether the runner's answer holds `rendered`. Bento answers a stream's config with every
+/// `${VAR}` replaced from the runner's environment (checked against the pinned 1.21.1, T-3006), so
+/// an exact comparison never held for a stream carrying its credential or the gateway's address,
+/// and every restarted Portal sent every stream again, which restarts it and fires its first tick
+/// out of schedule. Here a `${VAR}` or `${VAR:default}` matches whatever the runner filled in, and
+/// every other character, key and item must be the same; `${! … }` is Bento's per-message
+/// interpolation, which the runner keeps as written.
+///
+/// ponytail: a render that changed only the name of a variable reads as held; the runner is rolled
+/// when its environment changes (`joinedcontext.com/pipeline-secrets`), which re-sends it anyway.
+fn held_as_rendered(rendered: &Value, held: &Value) -> bool {
+    match (rendered, held) {
+        (Value::String(rendered), Value::String(held)) => interpolated(rendered, held),
+        (Value::Array(rendered), Value::Array(held)) => {
+            rendered.len() == held.len()
+                && rendered
+                    .iter()
+                    .zip(held)
+                    .all(|(rendered, held)| held_as_rendered(rendered, held))
+        }
+        (Value::Object(rendered), Value::Object(held)) => {
+            rendered.len() == held.len()
+                && rendered.iter().all(|(key, rendered)| {
+                    held.get(key)
+                        .is_some_and(|held| held_as_rendered(rendered, held))
+                })
+        }
+        (rendered, held) => rendered == held,
+    }
+}
+
+/// Whether `held` is `rendered` with each environment reference replaced by some value.
+fn interpolated(rendered: &str, held: &str) -> bool {
+    static REFERENCE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"\$\{[A-Za-z_][A-Za-z0-9_]*(?::[^}]*)?\}").expect("a valid pattern")
+    });
+    if !REFERENCE.is_match(rendered) {
+        return rendered == held;
+    }
+    let mut pattern = String::from("^");
+    let mut from = 0;
+    for reference in REFERENCE.find_iter(rendered) {
+        pattern.push_str(&regex::escape(&rendered[from..reference.start()]));
+        pattern.push_str("(?s:.*)");
+        from = reference.end();
+    }
+    pattern.push_str(&regex::escape(&rendered[from..]));
+    pattern.push('$');
+    regex::Regex::new(&pattern).is_ok_and(|pattern| pattern.is_match(held))
+}
+
 impl StreamDeployer {
     /// Creates a new deployer targeting the specified runner URL template (may contain `{project}`).
     pub fn new(runner_url: impl Into<String>) -> Self {
@@ -664,9 +715,10 @@ impl StreamDeployer {
             };
         } else if stored.is_none() {
             // No hash means this Portal has not sent the stream since it started. The runner
-            // answers a stream's config exactly as it was sent, so a stream it runs as rendered
-            // is adopted rather than PUT again: every restart used to PUT every stream, and a
-            // stream the runner cannot stop made each of those PUTs wait out the timeout (T-2891).
+            // answers a stream's config as it was sent, its environment filled in, so a stream it
+            // runs as rendered is adopted rather than PUT again: every restart used to PUT every
+            // stream, a PUT restarts the stream and fires its first tick (T-3006), and a stream
+            // the runner cannot stop made each of those PUTs wait out the timeout (T-2891).
             unchanged = self.holds_as_rendered(ns, name, &stream_json).await;
         }
         let outcome = if unchanged {
@@ -714,7 +766,9 @@ impl StreamDeployer {
         };
         let alive = held.get("active").and_then(Value::as_bool).unwrap_or(true)
             || input_ends_by_itself(&stream_json["input"]);
-        let same = held.get("config") == Some(stream_json);
+        let same = held
+            .get("config")
+            .is_some_and(|config| held_as_rendered(stream_json, config));
         if same && alive {
             tracing::info!(
                 project = %project,
@@ -3055,6 +3109,67 @@ output:
         }
     }
 
+    /// `rendered` as Bento answers it: every `${VAR}` filled in from the runner's environment,
+    /// `${! … }` kept, the way the pinned 1.21.1 answers `GET /streams/{id}` (T-3006).
+    fn as_the_runner_answers(rendered: &serde_json::Value) -> serde_json::Value {
+        let reference =
+            regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::[^}]*)?\}").expect("a regex");
+        let text = serde_json::to_string(rendered).expect("JSON");
+        serde_json::from_str(&reference.replace_all(&text, "value-of-$1")).expect("JSON")
+    }
+
+    /// T-3006: the runner's answer holds a render when only its environment references differ.
+    #[test]
+    fn a_config_is_held_as_rendered_up_to_the_runners_environment() {
+        let rendered = serde_json::json!({
+            "url": "${JC_GATEWAY_URL}/api/endpoint/abc/upsert",
+            "oauth2": { "client_secret": "${JC_CLIENT_SECRET}", "scopes": ["${SCOPE:openid}"] },
+            "mapping": "meta x = \"${! error() }\"",
+            "drop_on": [400, 413],
+        });
+        let held = serde_json::json!({
+            "url": "http://gateway.test/api/endpoint/abc/upsert",
+            "oauth2": { "client_secret": "s3cr3t\nwith a line", "scopes": [""] },
+            "mapping": "meta x = \"${! error() }\"",
+            "drop_on": [400, 413],
+        });
+        assert!(held_as_rendered(&rendered, &held));
+        assert!(held_as_rendered(&rendered, &rendered));
+
+        for (pointer, other) in [
+            // Another endpoint behind the same variable, a per-message interpolation the runner
+            // would have kept, another item, one more key.
+            (
+                "/url",
+                serde_json::json!("http://gateway.test/api/endpoint/xyz/upsert"),
+            ),
+            ("/mapping", serde_json::json!("meta x = \"boom\"")),
+            ("/drop_on", serde_json::json!([400, 422])),
+            ("/drop_on", serde_json::json!([400, 413, 422])),
+            (
+                "/oauth2",
+                serde_json::json!({ "client_secret": "s", "scopes": [""], "extra": 1 }),
+            ),
+            ("/oauth2/scopes", serde_json::json!("openid")),
+        ] {
+            let mut changed = held.clone();
+            *changed.pointer_mut(pointer).expect("a member") = other;
+            assert!(
+                !held_as_rendered(&rendered, &changed),
+                "{pointer}: {changed}"
+            );
+        }
+        // The regex metacharacters of a literal are literal.
+        assert!(!held_as_rendered(
+            &serde_json::json!("a.c${V}"),
+            &serde_json::json!("abcx")
+        ));
+        assert!(held_as_rendered(
+            &serde_json::json!("a.c${V}"),
+            &serde_json::json!("a.cx")
+        ));
+    }
+
     /// What one converge PUT to a runner that accepts everything: the rendered stream as sent.
     async fn rendered_citybikes() -> serde_json::Value {
         let server = wiremock::MockServer::start().await;
@@ -3102,21 +3217,26 @@ output:
     }
 
     /// T-2891: a Portal that restarted has no hashes, and the runner answers each stream's config
-    /// as it was sent. A stream it runs exactly as rendered is adopted, not PUT again, on the first
+    /// as it was sent, its environment filled in (T-3006). A stream it runs as rendered is adopted, not PUT again, on the first
     /// pass and on the passes after it; one it holds with another config, or holds stopped, is sent.
     #[tokio::test]
     async fn a_restarted_portal_adopts_the_stream_the_runner_runs_as_rendered() {
         let rendered = rendered_citybikes().await;
         let mirror = helsinki_test_mirror();
 
-        let same =
-            runner_holding(serde_json::json!({ "active": true, "config": rendered }), 0).await;
-        let restarted = StreamDeployer::new(same.uri());
-        for _ in 0..2 {
-            let outcomes = restarted
-                .converge(&mirror, &Bentos::new(), &Default::default())
-                .await;
-            assert_eq!(outcomes[0].2, StreamOutcome::Live, "{outcomes:?}");
+        // The runner answers with its environment filled in (T-3006); the render as sent is
+        // adopted too.
+        assert!(rendered.to_string().contains("${JC_GATEWAY_URL}"));
+        for config in [as_the_runner_answers(&rendered), rendered.clone()] {
+            let same =
+                runner_holding(serde_json::json!({ "active": true, "config": config }), 0).await;
+            let restarted = StreamDeployer::new(same.uri());
+            for _ in 0..2 {
+                let outcomes = restarted
+                    .converge(&mirror, &Bentos::new(), &Default::default())
+                    .await;
+                assert_eq!(outcomes[0].2, StreamOutcome::Live, "{outcomes:?}");
+            }
         }
 
         let mut changed = rendered.clone();
