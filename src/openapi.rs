@@ -71,6 +71,8 @@ use crate::tools::model_tools::{
         crate::api::branding::get_branding,
         crate::api::branding::get_asset,
         crate::auth::oidc::me,
+        crate::auth::oidc::sso_check,
+        crate::auth::oidc::sso_check_done,
         crate::auth::oidc::logout,
         crate::api::projects::list_projects,
         crate::api::projects::open_project,

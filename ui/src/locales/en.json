@@ -2243,9 +2243,9 @@
       "fullscreenExit": "Leave full screen",
       "fullscreenUnavailable": "This browser does not offer full screen here.",
       "fullscreenFailed": "The browser did not switch to full screen: {reason}",
-      "silentTitle": "The app has not answered.",
-      "silentBody": "If it stays empty, its sign-in has probably run out. Sign in again in this window, or open the app in a window of its own.",
-      "silentDismiss": "Hide this message"
+      "signedOutTitle": "Your sign-in has ended.",
+      "signedOutBody": "The app cannot sign you in inside the Portal. Sign in again, and it opens here.",
+      "signedOutDismiss": "Hide this message"
     },
     "retire": {
       "title": "Retire {name}",

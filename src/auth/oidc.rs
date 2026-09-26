@@ -86,6 +86,8 @@ pub struct OidcClient {
     client: PortalClient,
     http: reqwest::Client,
     end_session_endpoint: Option<Url>,
+    /// Where the silent sign-in check of a framed App asks the realm (AP-122, T-3034).
+    authorization_endpoint: Url,
     /// The Portal's own client-credentials token and when to stop using it.
     service: tokio::sync::Mutex<Option<(String, std::time::Instant)>>,
 }
@@ -142,6 +144,7 @@ impl OidcClient {
             .end_session_endpoint
             .as_ref()
             .and_then(|raw| Url::parse(raw).ok());
+        let authorization_endpoint = metadata.authorization_endpoint().url().clone();
 
         let redirect = RedirectUrl::new(redirect_uri.to_string())
             .map_err(|e| OidcError::Url(e.to_string()))?;
@@ -156,8 +159,37 @@ impl OidcClient {
             client,
             http,
             end_session_endpoint,
+            authorization_endpoint,
             service: tokio::sync::Mutex::new(None),
         })
+    }
+
+    /// The realm's authorization request of the silent sign-in check (AP-122, T-3034).
+    ///
+    /// `prompt=none` never shows a page: the realm answers at once, to the Portal's own
+    /// [`SSO_CHECK_DONE`], `#error=login_required` when the person must sign in and `#code=…` when
+    /// the realm session lives. The fragment keeps the answer out of every request and log. The
+    /// PKCE verifier is dropped here, so a code the realm hands out can never be redeemed by
+    /// anyone: the check learns the session's state and nothing else.
+    pub fn sso_check_url(&self, public_base: &Url) -> Url {
+        let (challenge, _never_redeemed) = PkceCodeChallenge::new_random_sha256();
+        let mut url = self.authorization_endpoint.clone();
+        url.query_pairs_mut()
+            .append_pair("client_id", SSO_CHECK_CLIENT)
+            .append_pair(
+                "redirect_uri",
+                &format!(
+                    "{}{SSO_CHECK_DONE}",
+                    public_base.as_str().trim_end_matches('/')
+                ),
+            )
+            .append_pair("response_type", "code")
+            .append_pair("response_mode", "fragment")
+            .append_pair("scope", "openid")
+            .append_pair("prompt", "none")
+            .append_pair("code_challenge", challenge.as_str())
+            .append_pair("code_challenge_method", "S256");
+        url
     }
 
     /// A token of the Portal's own client (client credentials), for a service that answers the
@@ -391,6 +423,59 @@ pub async fn login(
     let jar = jar.add(secure_cookie(FLOW_COOKIE, value, FLOW_TTL_SECS));
 
     Ok((jar, Redirect::to(auth_url.as_str())).into_response())
+}
+
+/// The realm's public browser client the silent check asks as: PKCE, any path of the Portal's
+/// host (`portal-ui` in the deployment's `components/portal/keycloak-clients.yaml`).
+pub const SSO_CHECK_CLIENT: &str = "portal-ui";
+
+/// The Portal page the silent check lands on; its answer is in the fragment.
+pub const SSO_CHECK_DONE: &str = "/api/v1/auth/sso-check/done";
+
+/// `GET /api/v1/auth/sso-check` — asks the realm, without showing anything, whether the person's
+/// realm session lives (AP-122, T-3034).
+///
+/// The Open page loads it in a hidden frame of its own origin when a framed App stays silent, and
+/// reads the answer off the frame's address once it lands on [`SSO_CHECK_DONE`]: only a realm that
+/// says the person must sign in brings the sign-in offer, never the App's silence alone.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/sso-check",
+    tag = "auth",
+    responses(
+        (status = 303, description = "Redirect to the realm's authorization endpoint with prompt=none"),
+        (status = 503, description = "No identity provider is configured",
+         body = crate::error::ProblemDetails)
+    )
+)]
+pub async fn sso_check(State(state): State<AppState>) -> Result<Response, ApiError> {
+    let client = oidc(&state)?;
+    let url = client.sso_check_url(&state.config.public_base_url);
+    Ok((
+        [(axum::http::header::CACHE_CONTROL, "no-store")],
+        Redirect::to(url.as_str()),
+    )
+        .into_response())
+}
+
+/// `GET /api/v1/auth/sso-check/done` — the empty page the silent check lands on (T-3034). The
+/// answer is in its fragment, which the browser never sends, so the page carries nothing and runs
+/// nothing: the Open page reads the frame's address itself.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/sso-check/done",
+    tag = "auth",
+    responses((status = 200, description = "An empty HTML page", content_type = "text/html"))
+)]
+pub async fn sso_check_done() -> Response {
+    (
+        [
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+        ],
+        "<!doctype html><meta charset=\"utf-8\"><title>Sign-in check</title>",
+    )
+        .into_response()
 }
 
 /// `GET /api/v1/auth/callback` — validates state and nonce, exchanges the code, mints the session.
@@ -765,6 +850,8 @@ pub fn router() -> Router<AppState> {
         .route("/auth/login", get(login))
         .route("/auth/callback", get(callback))
         .route("/auth/me", get(me))
+        .route("/auth/sso-check", get(sso_check))
+        .route("/auth/sso-check/done", get(sso_check_done))
         .route("/auth/logout", post(logout))
 }
 

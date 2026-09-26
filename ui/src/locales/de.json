@@ -2243,9 +2243,9 @@
       "fullscreenExit": "Vollbild verlassen",
       "fullscreenUnavailable": "Dieser Browser bietet hier kein Vollbild an.",
       "fullscreenFailed": "Der Browser hat nicht in den Vollbildmodus gewechselt: {reason}",
-      "silentTitle": "Die App hat nicht geantwortet.",
-      "silentBody": "Bleibt sie leer, ist ihre Anmeldung wahrscheinlich abgelaufen. Melden Sie sich in diesem Fenster erneut an oder öffnen Sie die App in einem eigenen Fenster.",
-      "silentDismiss": "Diese Meldung ausblenden"
+      "signedOutTitle": "Ihre Anmeldung ist abgelaufen.",
+      "signedOutBody": "Die App kann Sie im Portal nicht anmelden. Melden Sie sich erneut an, dann öffnet sie sich hier.",
+      "signedOutDismiss": "Diese Meldung ausblenden"
     },
     "retire": {
       "title": "{name} außer Betrieb nehmen",

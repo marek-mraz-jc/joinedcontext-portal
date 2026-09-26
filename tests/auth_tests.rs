@@ -1905,3 +1905,105 @@ async fn an_authorization_code_replayed_after_it_bought_a_session_buys_nothing()
     let (status, _) = me_with(app, &[("cookie", session_cookie)]).await;
     assert_eq!(status, StatusCode::OK);
 }
+
+/// T-3034, AP-122: the silent sign-in check asks the realm with `prompt=none` for the public
+/// `portal-ui` client and lands on the Portal's own empty page, the answer in the fragment. It
+/// sets no cookie and keeps no verifier: nothing the realm answers can ever be redeemed.
+#[tokio::test]
+async fn the_sso_check_asks_the_realm_silently_and_keeps_nothing() {
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/auth/sso-check")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+    assert!(
+        set_cookie_values(&response).is_empty(),
+        "a check starts no flow: {:?}",
+        set_cookie_values(&response)
+    );
+    let location: url::Url = response.headers()[header::LOCATION]
+        .to_str()
+        .unwrap()
+        .parse()
+        .expect("a URL");
+    assert_eq!(
+        location.as_str().split('?').next(),
+        Some(format!("{}/protocol/openid-connect/auth", issuer_of(&realm)).as_str())
+    );
+    let query: std::collections::BTreeMap<String, String> =
+        location.query_pairs().into_owned().collect();
+    assert_eq!(query["client_id"], "portal-ui");
+    assert_eq!(query["prompt"], "none");
+    assert_eq!(query["response_mode"], "fragment");
+    assert_eq!(query["response_type"], "code");
+    assert_eq!(query["scope"], "openid");
+    assert_eq!(query["code_challenge_method"], "S256");
+    assert_eq!(query["code_challenge"].len(), 43, "an S256 challenge");
+    assert_eq!(
+        query["redirect_uri"],
+        "https://portal.test/api/v1/auth/sso-check/done"
+    );
+    assert!(!query.contains_key("client_secret"));
+
+    // Every check is a fresh challenge: no verifier is kept to pair a code with.
+    let again = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/auth/sso-check")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let other = again.headers()[header::LOCATION]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    assert!(!other.contains(&query["code_challenge"]), "{other}");
+
+    let done = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/auth/sso-check/done")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(done.status(), StatusCode::OK);
+    assert_eq!(done.headers()[header::CACHE_CONTROL], "no-store");
+    assert!(done.headers()[header::CONTENT_TYPE]
+        .to_str()
+        .unwrap()
+        .starts_with("text/html"));
+    let body = done.into_body().collect().await.unwrap().to_bytes();
+    let page = String::from_utf8_lossy(&body);
+    assert!(!page.contains("<script"), "the page runs nothing: {page}");
+}
+
+#[tokio::test]
+async fn the_sso_check_without_a_configured_realm_is_unavailable() {
+    let app = server::app(AppState::new(Config::for_tests(), None));
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/auth/sso-check")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+}

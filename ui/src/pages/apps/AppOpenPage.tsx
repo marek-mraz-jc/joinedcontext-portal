@@ -64,19 +64,62 @@ export function appFrameOrigin(src: string, portalOrigin: string = window.locati
 /** How long the Open page waits after the frame's load for the App to say it is up (T-2941). */
 export const FRAME_ANSWER_MS = 8000;
 
+/** How long the silent sign-in check may take before its answer counts as unreadable (T-3034). */
+export const SSO_CHECK_MS = 6000;
+
+/** The Portal's silent sign-in check: the realm with `prompt=none`, landing on the page below. */
+export const SSO_CHECK_PATH = "/api/v1/auth/sso-check";
+const SSO_CHECK_DONE = "/api/v1/auth/sso-check/done";
+
+/** The realm's answers that mean the person has to sign in where the realm may show its form. */
+const SIGN_IN_NEEDED = new Set(["login_required", "interaction_required", "consent_required", "account_selection_required"]);
+
 /**
- * Whether the framed App has gone silent (AP-122, T-2941). An App built with the SDK posts
- * `{kind: "jc-ready"}` once it is mounted; a frame the browser refused (the realm's sign-in form,
- * which may not be framed) fires its `load` all the same and says nothing. Only a message from
- * this frame's own window and the App's origin counts. An App built before the SDK sent the
- * message, or without the SDK, stays silent too, so what this drives never covers the frame.
+ * What the realm answered the silent check (AP-122, T-3034), read off the address its frame landed
+ * on: `null` while it has not landed on the Portal's page, `"unknown"` for an answer that says
+ * neither. Only the error decides; a code, when the session lives, is never read out.
  */
-function useFrameSilence(address: string) {
+export function ssoAnswer(href: string | undefined): "signedIn" | "signedOut" | "unknown" | null {
+  if (!href) return null;
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+  if (url.origin !== window.location.origin || url.pathname !== SSO_CHECK_DONE) return null;
+  const answer = new URLSearchParams(url.hash.slice(1));
+  const error = answer.get("error");
+  if (error) return SIGN_IN_NEEDED.has(error) ? "signedOut" : "unknown";
+  return answer.has("code") ? "signedIn" : "unknown";
+}
+
+/** The address a frame of the Portal's own origin is on; `undefined` while it is on another. */
+function frameAddress(frame: HTMLIFrameElement): string | undefined {
+  try {
+    return frame.contentWindow?.location.href;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether the framed App needs its person to sign in again (AP-122, T-2941, T-3034). An App built
+ * with the SDK posts `{kind: "jc-ready"}` once it is mounted, and then nothing is asked. A silent
+ * App proves nothing: one built before the SDK sent the message, or without the SDK, renders all
+ * the same. So silence starts a silent check of the realm session in a hidden frame of the
+ * Portal's own origin, and only a realm that says the person must sign in brings the offer; a
+ * live session, an answer that cannot be read, and a check that does not land in time do not.
+ * Only a `jc-ready` from this frame's own window and the App's origin counts.
+ */
+function useSignInNeeded(address: string) {
   const frame = useRef<HTMLIFrameElement>(null);
   const answered = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  // The address the silence was seen on: a new address is a new visit, silent until it is not.
-  const [silentOn, setSilentOn] = useState<string | null>(null);
+  const checkTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The address each state was seen on: a new address is a new visit.
+  const [checkingOn, setCheckingOn] = useState<string | null>(null);
+  const [signedOutOn, setSignedOutOn] = useState<string | null>(null);
   useEffect(() => {
     answered.current = false;
     const expected = appFrameOrigin(address);
@@ -87,12 +130,15 @@ function useFrameSilence(address: string) {
       if (typeof data !== "object" || data === null || (data as { kind?: unknown }).kind !== "jc-ready") return;
       answered.current = true;
       clearTimeout(timer.current);
-      setSilentOn(null);
+      clearTimeout(checkTimer.current);
+      setCheckingOn(null);
+      setSignedOutOn(null);
     };
     window.addEventListener("message", listen);
     return () => {
       window.removeEventListener("message", listen);
       clearTimeout(timer.current);
+      clearTimeout(checkTimer.current);
     };
   }, [address]);
   // The App's script may answer before its document's `load`; an answer counts for the whole visit.
@@ -100,10 +146,31 @@ function useFrameSilence(address: string) {
     clearTimeout(timer.current);
     if (answered.current) return;
     timer.current = setTimeout(() => {
-      if (!answered.current) setSilentOn(address);
+      if (answered.current) return;
+      setCheckingOn(address);
+      clearTimeout(checkTimer.current);
+      checkTimer.current = setTimeout(() => setCheckingOn(null), SSO_CHECK_MS);
     }, FRAME_ANSWER_MS);
   };
-  return [frame, { silent: silentOn === address, onLoad, dismiss: () => setSilentOn(null) }] as const;
+  // Every load of the check frame is read; a load on the realm's side (another origin) is not
+  // an answer, and the timer ends a check that never lands.
+  const onCheckLoad = (event: { currentTarget: HTMLIFrameElement }) => {
+    const answer = ssoAnswer(frameAddress(event.currentTarget));
+    if (answer === null) return;
+    clearTimeout(checkTimer.current);
+    setCheckingOn(null);
+    if (answer === "signedOut" && !answered.current) setSignedOutOn(address);
+  };
+  return [
+    frame,
+    {
+      signedOut: signedOutOn === address,
+      checking: checkingOn === address,
+      onLoad,
+      onCheckLoad,
+      dismiss: () => setSignedOutOn(null),
+    },
+  ] as const;
 }
 
 /** The one App manifest, shared with every page that reads it. */
@@ -188,7 +255,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   const [frameArea, fullscreen] = useFullscreen();
   const [fullscreenFailed, setFullscreenFailed] = useState<string | null>(null);
   const address = appAddress(name, appsOrigin);
-  const [frame, silence] = useFrameSilence(address);
+  const [frame, session] = useSignInNeeded(address);
   const signInAgain = () => {
     signIn(`${window.location.pathname}${window.location.search}`);
   };
@@ -292,29 +359,43 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
           {t("apps.openPage.fullscreenFailed", { reason: fullscreenFailed })}
         </p>
       ) : null}
-      {/* Above the frame, never over it: an App that renders without saying so stays usable. */}
+      {/* Above the frame, never over it: the App stays where it is while the person signs in. */}
       <div role="status" aria-live="polite">
-        {silence.silent ? (
+        {session.signedOut ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border bg-surface-muted px-3 py-2 sm:px-4">
             <p className="min-w-0 flex-1 text-caption text-fg">
-              <span className="font-semibold">{t("apps.openPage.silentTitle")}</span> {t("apps.openPage.silentBody")}
+              <span className="font-semibold">{t("apps.openPage.signedOutTitle")}</span> {t("apps.openPage.signedOutBody")}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
               <Button size="sm" variant="primary" onClick={signInAgain}>
                 {t("apps.openPage.signInAgain")}
               </Button>
               {/* "Open in new window" is the bar's own link just above: one control, one name. */}
-              <Button size="sm" variant="ghost" onClick={silence.dismiss}>
-                {t("apps.openPage.silentDismiss")}
+              <Button size="sm" variant="ghost" onClick={session.dismiss}>
+                {t("apps.openPage.signedOutDismiss")}
               </Button>
             </div>
           </div>
         ) : null}
       </div>
       <div ref={frameArea} data-testid="app-frame-area" className="flex min-h-0 flex-1 flex-col bg-surface">
+        {/* The silent sign-in check (T-3034): the Portal's own origin, no script, gone once read. */}
+        {session.checking ? (
+          <iframe
+            hidden
+            aria-hidden="true"
+            tabIndex={-1}
+            title={t("apps.openPage.signedOutTitle")}
+            data-testid="app-sso-check"
+            src={SSO_CHECK_PATH}
+            sandbox="allow-same-origin"
+            referrerPolicy="no-referrer"
+            onLoad={session.onCheckLoad}
+          />
+        ) : null}
         <iframe
           ref={frame}
-          onLoad={silence.onLoad}
+          onLoad={session.onLoad}
           src={address}
           title={t("apps.openPage.frameTitle", { title })}
           sandbox={appFrameSandbox(address)}

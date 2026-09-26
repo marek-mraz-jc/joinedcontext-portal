@@ -21,6 +21,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/auth/login", "signing in"),
 ("POST", "/auth/logout", "signing out"),
 ("GET", "/auth/me", "who is signed in"),
+("GET", "/auth/sso-check", "whether the realm session lives, asked silently for a framed App (T-3034)"),
+("GET", "/auth/sso-check/done", "the empty page that silent check lands on (T-3034)"),
 ("GET", "/blueprints", "the organisation's gallery, not a project's data; jc_flow_start runs one by name"),
 ("GET", "/branding", "the instance's look, not a project's data"),
 ("GET", "/branding/{asset}", "the instance's look, not a project's data"),
