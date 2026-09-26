@@ -25,7 +25,7 @@ use jc_core::kinds::service_account::{keycloak_client_id, KubernetesBinding};
 use jc_core::kinds::ServiceAccountSpec;
 use serde_json::{json, Value};
 
-use super::app_clients::{drift, managed, Admin, ClientOutcome};
+use super::app_clients::{audience_mapper, drift, managed, Admin, ClientOutcome};
 use super::groups::{MANAGED_BY, MANAGED_VALUE};
 use crate::store::{ListOptions, Mirror};
 
@@ -394,7 +394,16 @@ impl WorkloadClientSync {
         };
         if let Err(err) = self
             .admin
-            .converge_audiences(token, &uuid, audiences, "the account", &mut outcome)
+            .converge_mappers(
+                token,
+                &uuid,
+                &audiences
+                    .iter()
+                    .map(|a| audience_mapper(a))
+                    .collect::<Vec<_>>(),
+                "the account",
+                &mut outcome,
+            )
             .await
         {
             outcome.error = Some(format!("audiences of {id}: {err}"));

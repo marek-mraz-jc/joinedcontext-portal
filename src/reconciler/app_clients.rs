@@ -236,15 +236,42 @@ pub fn audience_mapper(audience: &str) -> Value {
     })
 }
 
-/// Whether a mapper held on an App's client is one the App asks for: the audience mapper of one
-/// of its `audiences` (T-2857). Everything else is removed, whatever its type or name.
-fn allowed_mapper(mapper: &Value, audiences: &[String]) -> bool {
-    mapper["protocolMapper"] == "oidc-audience-mapper"
-        && mapper["name"].as_str().is_some_and(|name| {
-            audiences
-                .iter()
-                .any(|audience| name == format!("{AUDIENCE_MAPPER}{audience}"))
-        })
+/// The `groups` mapper every platform client carries (deployment components/keycloak, "Identity,
+/// never permission"): the person's group names, short, in the access, ID and userinfo tokens.
+/// An App's client carries the same one, so the gateway can check a person's projects on a
+/// project-bound Endpoint the App reads (AP-113, T-3033). It grants nothing by itself.
+pub fn groups_mapper() -> Value {
+    json!({
+        "name": "groups",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-group-membership-mapper",
+        "consentRequired": false,
+        "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+        },
+    })
+}
+
+/// The mappers an App's client carries: the audience of `app-{name}` and of every Endpoint it
+/// reads, and the `groups` mapper (AP-113).
+pub fn app_mappers(audiences: &[String]) -> Vec<Value> {
+    audiences
+        .iter()
+        .map(|audience| audience_mapper(audience))
+        .chain(std::iter::once(groups_mapper()))
+        .collect()
+}
+
+/// Whether a mapper held on a client is one of the `wanted` ones, by type and name (T-2857).
+/// Everything else is removed, whatever its type or name.
+fn allowed_mapper(mapper: &Value, wanted: &[Value]) -> bool {
+    wanted.iter().any(|want| {
+        mapper["protocolMapper"] == want["protocolMapper"] && mapper["name"] == want["name"]
+    })
 }
 
 /// A mapper as a report names it: its type and name, never its config (a claim value can be
@@ -449,20 +476,21 @@ impl Admin {
         Ok(found.as_array().and_then(|list| list.first()).cloned())
     }
 
-    /// The client's audience mappers brought to `audiences`: a missing one is added, a changed
-    /// one written back, and one this platform wrote for an audience no longer named removed.
-    /// `owner` names what decides the audiences in the drift report, "the App" or "the account".
-    pub(crate) async fn converge_audiences(
+    /// The client's mappers brought to exactly `wanted` ([`audience_mapper`]s, and an App's
+    /// [`groups_mapper`]): a missing one is added, a changed one written back, and every other
+    /// mapper removed. `owner` names what decides them in the drift report, "the App" or "the
+    /// account".
+    pub(crate) async fn converge_mappers(
         &self,
         token: &str,
         uuid: &str,
-        audiences: &[String],
+        wanted: &[Value],
         owner: &str,
         outcome: &mut ClientOutcome,
     ) -> Result<(), String> {
         use reqwest::Method;
         let client = format!("/clients/{uuid}");
-        // The client's mappers are the audiences its owner names and nothing else (T-2857): FGAP bounds
+        // The client's mappers are the ones its owner names and nothing else (T-2857): FGAP bounds
         // which clients may be managed, never what a mapper writes into a token, so a hardcoded
         // claim, role or audience added by hand or through a leaked credential would mint tokens
         // its owner never asked for. Every other mapper goes first, so a foreign one that took one
@@ -472,7 +500,7 @@ impl Admin {
             .await?;
         let (ours, others): (Vec<&Value>, Vec<&Value>) = mappers
             .iter()
-            .partition(|mapper| allowed_mapper(mapper, audiences));
+            .partition(|mapper| allowed_mapper(mapper, wanted));
         for mapper in others {
             let Some(id) = mapper["id"].as_str() else {
                 return Err(format!(
@@ -503,15 +531,14 @@ impl Admin {
                 outcome.removed_mappers.push(label);
             }
         }
-        for audience in audiences {
-            let want = audience_mapper(audience);
+        for want in wanted {
             match ours.iter().find(|m| m["name"] == want["name"]) {
                 None => {
                     self.send(
                         token,
                         Method::POST,
                         &format!("{client}/protocol-mappers/models"),
-                        Some(&want),
+                        Some(want),
                     )
                     .await?;
                 }
@@ -534,9 +561,13 @@ impl Admin {
                             Some(&body),
                         )
                         .await?;
-                        outcome.drift.push(format!(
-                            "the audience mapper for {audience} was changed; it was written back"
-                        ));
+                        let name = want["name"].as_str().unwrap_or_default();
+                        outcome.drift.push(match name.strip_prefix(AUDIENCE_MAPPER) {
+                            Some(audience) => format!(
+                                "the audience mapper for {audience} was changed; it was written back"
+                            ),
+                            None => format!("the {name} mapper was changed; it was written back"),
+                        });
                     }
                 }
             }
@@ -1016,7 +1047,13 @@ impl AppClientSync {
                 };
                 let reach = self
                     .admin
-                    .converge_audiences(token, &uuid, audiences, "the App", &mut outcome)
+                    .converge_mappers(
+                        token,
+                        &uuid,
+                        &app_mappers(audiences),
+                        "the App",
+                        &mut outcome,
+                    )
                     .await;
                 [
                     grants.err().map(|err| format!("roles of {id}: {err}")),
