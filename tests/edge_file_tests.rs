@@ -7,12 +7,17 @@ use serde_json::{json, Value};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
+use std::collections::BTreeMap;
+
 use jc_core::kinds::OrganizationLimits;
 use joinedcontext_portal::apps::kube::KubeClient;
+use joinedcontext_portal::apps::reconciler::Settings;
 use joinedcontext_portal::reconciler::app_clients::ClientSecret;
 use joinedcontext_portal::reconciler::edge_file::{
-    compose, EdgeApp, EdgeFile, EdgeLimits, EdgeOutcome, Upstream, COMPOSED_BY,
+    compose, edge_apps, EdgeApp, EdgeFile, EdgeLimits, EdgeOutcome, Upstream, COMPOSED_BY,
 };
+use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+use joinedcontext_portal::store::Mirror;
 
 const NS: &str = "apisix";
 const BASE_PATH: &str = "/api/v1/namespaces/apisix/configmaps/apisix-standalone-base";
@@ -58,6 +63,7 @@ fn apps() -> Vec<EdgeApp> {
         public: false,
         upstream: Upstream::Pod {
             namespace: "jc-helsinki-apps".into(),
+            csp: "default-src 'self'; frame-ancestors https://portal.city.example".into(),
         },
         secret: ClientSecret::from(CLIENT_SECRET.to_owned()),
         slugs: vec!["k4y7pq2mzt6vhx3nbwrs5cjd8f".into()],
@@ -294,4 +300,120 @@ async fn a_lowered_organization_rate_is_written_on_the_next_run() {
         .find(|pc| pc["id"] == "app-air-quality")
         .expect("the App's chain");
     assert_eq!(own["plugins"]["limit-count"]["count"], 60);
+}
+
+/// A published App of `class` in `helsinki`, declaring `connect_src`.
+fn published(name: &str, class: &str, connect_src: Value) -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: "App".into(),
+        metadata: ObjectMeta {
+            name: name.into(),
+            namespace: Some("helsinki".into()),
+            ..Default::default()
+        },
+        spec: json!({
+            "kind": class,
+            "source": { "path": "./src" },
+            "build": { "rust": "1.90", "node": "22" },
+            "visibility": "project",
+            "lifecycle": "published",
+            "csp": { "connectSrc": connect_src },
+            "dataNeeds": [{
+                "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki-all" },
+                "types": ["AirQualityObserved"],
+                "operations": ["queryEntity"],
+                "representations": ["ngsi-ld"]
+            }],
+            "limits": { "requestsPerMinute": 600, "maxFileRows": 20000 }
+        }),
+        status: None,
+    }
+}
+
+fn pod_settings(basemap_base: Option<&str>) -> Settings {
+    Settings {
+        host: "portal.city.example".into(),
+        apex: "city.example".into(),
+        gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
+        namespace: "jc".into(),
+        release: Some("jc".into()),
+        service_account: Some("portal".into()),
+        org_domain: "city.example".into(),
+        apisix_namespace: NS.into(),
+        image_repository: None,
+        pull_secret: None,
+        basemap_base: basemap_base.map(str::to_owned),
+    }
+}
+
+/// A pod App's page gets the policy its manifest allows, which the App's own server never sends
+/// (AP-12, AR-2, T-3011): only its own host, its declared https origin and the project's basemap,
+/// framed by the Portal alone. A static App's host writes its own, so its route carries none.
+#[test]
+fn a_pod_app_route_carries_the_policy_of_its_manifest() {
+    let mirror = Mirror::new();
+    mirror.upsert(published(
+        "air-quality",
+        "ui-rust",
+        json!([
+            "https://api.example.fi",
+            "https://evil.example; script-src 'unsafe-inline'"
+        ]),
+    ));
+    mirror.upsert(published("praha-mesto", "ui", json!([])));
+    let secrets: BTreeMap<String, ClientSecret> = ["air-quality", "praha-mesto"]
+        .into_iter()
+        .map(|name| (name.to_owned(), ClientSecret::from(format!("s-{name}"))))
+        .collect();
+
+    let (apps, skipped) = edge_apps(
+        &mirror,
+        &secrets,
+        &pod_settings(Some("https://portal.city.example/")),
+    );
+    assert!(skipped.is_empty(), "{skipped:?}");
+    let upstream = |name: &str| {
+        apps.iter()
+            .find(|app| app.name == name)
+            .unwrap_or_else(|| panic!("{name} is routed"))
+            .upstream
+            .clone()
+    };
+    assert_eq!(upstream("praha-mesto"), Upstream::Static);
+    let Upstream::Pod { namespace, csp } = upstream("air-quality") else {
+        panic!("air-quality runs in a pod");
+    };
+    assert_eq!(namespace, "jc-helsinki-apps");
+    for directive in [
+        "script-src 'self';",
+        "object-src 'none';",
+        "base-uri 'self';",
+        "connect-src 'self' https://api.example.fi \
+         https://portal.city.example/api/v1/projects/helsinki/basemap/;",
+        "img-src 'self' data: blob: https://portal.city.example/api/v1/projects/helsinki/basemap/;",
+    ] {
+        assert!(csp.contains(directive), "{directive} in {csp}");
+    }
+    assert!(
+        csp.ends_with("frame-ancestors https://portal.city.example"),
+        "{csp}"
+    );
+    assert!(!csp.contains("evil.example"), "{csp}");
+    assert_eq!(csp.matches("script-src").count(), 1, "{csp}");
+
+    // Without a basemap nothing of the Portal but its frame is named.
+    let (apps, _) = edge_apps(&mirror, &secrets, &pod_settings(None));
+    let air = apps
+        .iter()
+        .find(|app| app.name == "air-quality")
+        .expect("routed");
+    let Upstream::Pod { csp, .. } = &air.upstream else {
+        panic!("air-quality runs in a pod");
+    };
+    assert!(
+        csp.contains("connect-src 'self' https://api.example.fi;"),
+        "{csp}"
+    );
+    assert!(!csp.contains("basemap"), "{csp}");
 }

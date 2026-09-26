@@ -161,8 +161,10 @@ fn apply_limits(document: &mut Value, limits: &EdgeLimits) {
 /// Where an App's own route sends its requests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Upstream {
-    /// A `ui-rust` App: its Service `app-{name}` in this namespace.
-    Pod { namespace: String },
+    /// A `ui-rust` App: its Service `app-{name}` in this namespace, and the App's AP-12
+    /// Content-Security-Policy, which its route sets because the App's server sends none of the
+    /// platform's (a static App's host writes the policy itself).
+    Pod { namespace: String, csp: String },
     /// A `static` App: the Portal's static host, the upstream of `portal-ui`.
     Static,
 }
@@ -269,12 +271,13 @@ fn rewrite_uri(plugins: &mut Value, from: String, to: String) {
     plugins["proxy-rewrite"]["regex_uri"] = json!([from, to]);
 }
 
-/// Only the App's own origin and the Portal frame an App (AP-122, OPS-34): the App route adds
-/// `frame-ancestors 'self'` plus the Portal's host and drops `X-Frame-Options`, whose
-/// `SAMEORIGIN` would refuse the Portal. The header is added beside the App's own policy, never
-/// over it: a browser enforces both, so the App's `connect-src` and the rest stay as its
-/// upstream sent them.
-fn framed_by_portal(plugins: &mut Value, host: &str) {
+/// Only the App's own origin and the Portal frame an App (AP-122, OPS-34): the App route drops
+/// `X-Frame-Options`, whose `SAMEORIGIN` would refuse the Portal. A static App's route adds
+/// `frame-ancestors 'self'` plus the Portal's host beside the policy the static host writes: a
+/// browser enforces both, so that policy's `connect-src` and the rest stay as sent. A pod App's
+/// route sets `policy`, its whole AP-12 policy, `frame-ancestors` included, in place of anything
+/// the App's server sends: the manifest decides what the page loads, not the App's code (T-3011).
+fn framed_by_portal(plugins: &mut Value, host: &str, policy: Option<&str>) {
     if !plugins["response-rewrite"].is_object() {
         plugins["response-rewrite"] = json!({});
     }
@@ -286,11 +289,24 @@ fn framed_by_portal(plugins: &mut Value, host: &str) {
     if let Some(set) = headers.get_mut("set").and_then(Value::as_object_mut) {
         set.retain(|name, _| !name.eq_ignore_ascii_case("x-frame-options"));
     }
-    // No scheme: APISIX refuses an `add` entry with a second `:` (its pattern is
-    // `^[^:]+:[^:]*[^/]$`) and drops the whole plugin config, so every App route answered 503.
-    // A source without a scheme takes the App page's own, https.
-    let policy = format!("Content-Security-Policy: frame-ancestors 'self' portal.{host}");
-    push(headers, "add", json!(policy));
+    match policy {
+        // `set`, not `add`: an `add` entry may hold one `:` only, and the policy's `https:`,
+        // `data:` and `blob:` sources need more. APISIX sets after it adds, so the one policy
+        // this route sends is this one.
+        Some(policy) => {
+            if !headers["set"].is_object() {
+                headers["set"] = json!({});
+            }
+            headers["set"]["Content-Security-Policy"] = json!(policy);
+        }
+        // No scheme: APISIX refuses an `add` entry with a second `:` (its pattern is
+        // `^[^:]+:[^:]*[^/]$`) and drops the whole plugin config, so every App route answered
+        // 503. A source without a scheme takes the App page's own, https.
+        None => {
+            let policy = format!("Content-Security-Policy: frame-ancestors 'self' portal.{host}");
+            push(headers, "add", json!(policy));
+        }
+    }
     push(headers, "remove", json!("X-Frame-Options"));
 }
 
@@ -345,7 +361,11 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         }
 
         let mut plugins = surface_plugins.clone();
-        framed_by_portal(&mut plugins, &apex);
+        let policy = match &app.upstream {
+            Upstream::Pod { csp, .. } => Some(csp.as_str()),
+            Upstream::Static => None,
+        };
+        framed_by_portal(&mut plugins, &apex, policy);
         plugins["openid-connect"] = login(
             &template,
             &host,
@@ -397,7 +417,7 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         }
 
         let upstream_id = match &app.upstream {
-            Upstream::Pod { namespace } => {
+            Upstream::Pod { namespace, .. } => {
                 let mut nodes = Map::new();
                 nodes.insert(
                     format!("app-{name}.{namespace}.svc.cluster.local:{APP_PORT}"),
@@ -525,7 +545,10 @@ pub fn edge_apps(
         // Read through jc-core, so `ui-rust` and the old `fullstack` both reach the pod (AP-124).
         let upstream = match spec.class {
             jc_core::kinds::AppClass::UiRust => match settings.apps_namespace(&project) {
-                Ok(namespace) => Upstream::Pod { namespace },
+                Ok(namespace) => Upstream::Pod {
+                    namespace,
+                    csp: pod_policy(&spec, settings, &project),
+                },
                 Err(err) => {
                     skipped.push((name, err.to_string()));
                     continue;
@@ -546,6 +569,17 @@ pub fn edge_apps(
         });
     }
     (apps, skipped)
+}
+
+/// A pod App's AP-12 policy, as the static host writes it for a static App with the same
+/// manifest: framed by the Portal's host, and the project's basemap route when one is configured.
+fn pod_policy(spec: &jc_core::kinds::AppSpec, settings: &Settings, project: &str) -> String {
+    let portal = format!("https://{}", settings.host);
+    let basemap = settings
+        .basemap_base
+        .as_deref()
+        .map(|base| crate::api::basemap::route_prefix_at(base, project));
+    crate::apps::static_host::content_security_policy(spec, Some(&portal), basemap.as_deref())
 }
 
 /// What one run did to the served file.
@@ -737,6 +771,19 @@ routes:
 #END
 "#;
 
+    /// A pod App's policy as `edge_apps` computes it, with a declared source and the basemap.
+    const POD_POLICY: &str = "default-src 'self'; base-uri 'self'; object-src 'none'; \
+        script-src 'self'; connect-src 'self' https://api.example.fi \
+        https://portal.city.example/api/v1/projects/helsinki/basemap/; \
+        frame-ancestors https://portal.city.example";
+
+    fn pod(namespace: &str) -> Upstream {
+        Upstream::Pod {
+            namespace: namespace.into(),
+            csp: POD_POLICY.into(),
+        }
+    }
+
     fn app(name: &str, public: bool, upstream: Upstream) -> EdgeApp {
         EdgeApp {
             name: name.into(),
@@ -767,13 +814,7 @@ routes:
     fn each_app_gets_its_own_login_route_and_endpoint_route() {
         let composed = compose(
             BASE,
-            &[app(
-                "air-quality",
-                false,
-                Upstream::Pod {
-                    namespace: "jc-helsinki-apps".into(),
-                },
-            )],
+            &[app("air-quality", false, pod("jc-helsinki-apps"))],
             &EdgeLimits::default(),
         )
         .expect("composes");
@@ -907,38 +948,45 @@ routes:
             BASE,
             &[
                 app("hsl-transport", true, Upstream::Static),
-                app(
-                    "air-quality",
-                    false,
-                    Upstream::Pod {
-                        namespace: "jc-helsinki-apps".into(),
-                    },
-                ),
+                app("air-quality", false, pod("jc-helsinki-apps")),
             ],
             &EdgeLimits::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
-        for id in ["app-hsl-transport", "app-air-quality"] {
-            let headers = &by_id(&file, "plugin_configs", id).expect("plugins")["plugins"]
-                ["response-rewrite"]["headers"];
-            assert_eq!(
-                headers["set"],
-                json!({ "X-Content-Type-Options": "nosniff" }),
-                "{id}"
-            );
-            assert_eq!(
-                headers["add"],
-                json!(["Content-Security-Policy: frame-ancestors 'self' portal.city.example"]),
-                "{id}"
-            );
-            // APISIX's schema for `response-rewrite.headers.add`: one `:` and no trailing `/`.
-            for entry in headers["add"].as_array().expect("add") {
-                let entry = entry.as_str().expect("a string");
-                assert_eq!(entry.matches(':').count(), 1, "{id}: {entry}");
-                assert!(!entry.ends_with('/'), "{id}: {entry}");
-            }
-            assert_eq!(headers["remove"], json!(["X-Frame-Options"]), "{id}");
+        let headers = |id: &str| {
+            by_id(&file, "plugin_configs", id).expect("plugins")["plugins"]["response-rewrite"]
+                ["headers"]
+                .clone()
+        };
+        // A static App: its host writes the policy, the route adds who may frame it.
+        let static_app = headers("app-hsl-transport");
+        assert_eq!(
+            static_app["set"],
+            json!({ "X-Content-Type-Options": "nosniff" })
+        );
+        assert_eq!(
+            static_app["add"],
+            json!(["Content-Security-Policy: frame-ancestors 'self' portal.city.example"])
+        );
+        // APISIX's schema for `response-rewrite.headers.add`: one `:` and no trailing `/`.
+        for entry in static_app["add"].as_array().expect("add") {
+            let entry = entry.as_str().expect("a string");
+            assert_eq!(entry.matches(':').count(), 1, "{entry}");
+            assert!(!entry.ends_with('/'), "{entry}");
+        }
+        // A pod App: the route sets its whole policy, and adds none that would be overwritten.
+        let pod_app = headers("app-air-quality");
+        assert_eq!(
+            pod_app["set"],
+            json!({
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": POD_POLICY,
+            })
+        );
+        assert!(pod_app.get("add").is_none(), "{pod_app}");
+        for headers in [static_app, pod_app] {
+            assert_eq!(headers["remove"], json!(["X-Frame-Options"]), "{headers}");
         }
         // The endpoint route answers JSON and is framed by nobody; the fallback keeps SAMEORIGIN.
         let endpoint = &by_id(&file, "plugin_configs", "app-air-quality-endpoint")
