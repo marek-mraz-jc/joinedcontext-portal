@@ -1944,10 +1944,13 @@ pub(crate) fn is_candidate_manifest(path: &str) -> bool {
         return clean.ends_with("/blueprint.yaml");
     }
     // Roles and their bindings live beside the projects (T-0525): the Portal reads them for
-    // its own checks and compiles them for the forge (T-0527).
+    // its own checks and compiles them for the forge (T-0527). The groups they and the Apps name
+    // are org-level manifests of their own (PF-62), which the reconciler writes into the realm
+    // (PF-63); left out here, no Group reached the mirror (T-3031).
     // The builder profiles are organization-level too (AG-26): `agentprofiles/{name}.yaml`.
     clean.starts_with("projects/")
         || clean.starts_with("users/roles/")
+        || clean.starts_with("users/groups/")
         || clean.starts_with("users/assignments/")
         || clean.starts_with("agentprofiles/")
 }
@@ -2576,6 +2579,10 @@ output_error{stream="kpi"} 6
         assert!(!is_candidate_manifest("README.md"));
         assert!(!is_candidate_manifest("portal/theme.yaml"));
         assert!(!is_candidate_manifest("users/groups.yaml"));
+        assert!(is_candidate_manifest(
+            "users/groups/helsinki-alerts-viewer.yaml"
+        ));
+        assert!(!is_candidate_manifest("users/groups/README.md"));
         assert!(is_candidate_manifest("users/roles/steward.yaml"));
         assert!(is_candidate_manifest("users/assignments/stewards.yaml"));
         assert!(is_candidate_manifest("agentprofiles/app-builder.yaml"));

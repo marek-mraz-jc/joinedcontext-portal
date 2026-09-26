@@ -527,3 +527,77 @@ async fn get_sync_status_requires_session_and_answers_status_when_authenticated(
     assert!(status.revision.is_none());
     assert!(status.last_error.is_none());
 }
+
+/// PF-62, PF-63, AP-118 (T-3031): a `Group` lives at `users/groups/{name}.yaml`, and a sync
+/// loads it into the mirror. The staging filter once left that directory out, so no Group ever
+/// reached the mirror: the realm's groups were never written and an App's default groups gave
+/// nobody its roles (helsinki-alerts' demo stewards and viewers were refused).
+#[tokio::test]
+async fn sync_loads_the_groups_of_users_groups_into_the_mirror() {
+    let server = MockServer::start().await;
+    let base_url = server.uri().parse().unwrap();
+    let client =
+        Arc::new(GiteaClient::new(base_url, "test-owner", "test-repo", "token-xyz").unwrap());
+    let mirror = Arc::new(Mirror::new());
+    let syncer = Syncer::new(Arc::clone(&client), Arc::clone(&mirror));
+
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "default_branch": "main"
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches/main"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "name": "main",
+            "commit": { "id": "rev-groups" }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/test-owner/test-repo/git/trees/rev-groups",
+        ))
+        .and(query_param("recursive", "true"))
+        .and(query_param("per_page", "1000"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "tree-groups",
+            "truncated": false,
+            "tree": [
+                { "path": "users/groups/helsinki-alerts-steward.yaml", "type": "blob" },
+                { "path": "users/groups/README.md", "type": "blob" },
+            ]
+        })))
+        .mount(&server)
+        .await;
+
+    // The seed's own file (deployment components/gitea/apps/helsinki-alerts/grants/).
+    let group = "apiVersion: joinedcontext.com/v1alpha1\nkind: Group\nmetadata:\n  name: helsinki-alerts-steward\n  namespace: org\n  annotations:\n    joinedcontext.com/app: helsinki/helsinki-alerts\nspec:\n  description: The stewards of helsinki-alerts, its default group (AP-118).\n  members:\n  - user: demo.steward@hel.fi\n";
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/test-owner/test-repo/contents/users/groups/helsinki-alerts-steward.yaml",
+        ))
+        .and(query_param("ref", "rev-groups"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-group",
+            "content": STANDARD.encode(group.as_bytes())
+        })))
+        .mount(&server)
+        .await;
+
+    let count = syncer.sync_once().await.expect("the sync loads the group");
+
+    assert_eq!(
+        count, 1,
+        "the Group and nothing else; the README is no manifest"
+    );
+    let held = mirror
+        .get("org", "Group", "helsinki-alerts-steward")
+        .expect("the Group is in the mirror");
+    assert_eq!(
+        held.spec["members"],
+        json!([{ "user": "demo.steward@hel.fi" }])
+    );
+}
