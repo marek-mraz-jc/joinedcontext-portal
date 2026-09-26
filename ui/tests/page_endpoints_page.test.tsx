@@ -131,7 +131,9 @@ describe("the endpoints page", () => {
     await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
     const section = (await screen.findByRole("heading", { name: en.endpoints.hub.title })).closest("section");
     expect(section).not.toBeNull();
-    const hub = `${window.location.origin}/api/mcp`;
+    // On the platform host the gateway names as the hub's resource (the harness's branding domain),
+    // not the Portal's own: an MCP client refuses metadata naming another URL (RFC 9728, T-3019).
+    const hub = "https://portal.hel.fi/api/mcp";
     expect(within(section as HTMLElement).getByText(hub)).toBeInTheDocument();
     expect(within(section as HTMLElement).getByText(en.endpoints.hub.lead)).toBeInTheDocument();
     await userEvent.click(within(section as HTMLElement).getByRole("button", { name: en.endpoints.copyUrl }));

@@ -16,9 +16,11 @@ import {
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
+  representationUrl,
   servedRepresentations,
   useCatalogueLinks,
 } from "../../components/endpoints/links";
+import { useBranding } from "../../branding";
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
@@ -412,11 +414,12 @@ function Representations({
   representations: string[];
 }): JSX.Element {
   const { t } = useTranslation();
+  const { domain } = useBranding();
   const named = representations.slice(0, 2);
   const rest = representations.length - named.length;
   const link = (rep: string) =>
     slug && REPRESENTATION_PATHS[rep] ? (
-      <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>{rep}</EndpointLink>
+      <EndpointLink href={representationUrl(slug, rep, domain)}>{rep}</EndpointLink>
     ) : (
       <Badge mono>{rep}</Badge>
     );

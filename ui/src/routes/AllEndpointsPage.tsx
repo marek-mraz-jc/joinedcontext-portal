@@ -9,9 +9,11 @@ import {
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
+  representationUrl,
   servedRepresentations,
   useCatalogueLinks,
 } from "../components/endpoints/links";
+import { useBranding } from "../branding";
 import { SharedWithBadge, spaceOf } from "../components/endpoints/sharing";
 import {
   Alert,
@@ -40,6 +42,7 @@ const COLUMNS = 5;
  */
 export function AllEndpointsPage(): JSX.Element {
   const { t, i18n } = useTranslation();
+  const { domain } = useBranding();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const endpoints = useQuery({
     queryKey: queryKeys.allEndpoints(),
@@ -188,7 +191,7 @@ export function AllEndpointsPage(): JSX.Element {
                       {servedRepresentations(spec).map((rep) => (
                         <li key={rep}>
                           {slug && REPRESENTATION_PATHS[rep] ? (
-                            <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>
+                            <EndpointLink href={representationUrl(slug, rep, domain)}>
                               {rep}
                             </EndpointLink>
                           ) : (

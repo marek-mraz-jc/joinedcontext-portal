@@ -32,9 +32,11 @@ import {
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
+  representationUrl,
   servedRepresentations,
   hubUrl,
 } from "../components/endpoints/links";
+import { useBranding } from "../branding";
 import {
   admits,
   referenceManifest,
@@ -435,6 +437,7 @@ function EndpointRowActions({
 /** Endpoints of one project: who may call them, in which representations, and their public URL. */
 export function EndpointsPage({ project, edit }: { project: string; edit?: string }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const { domain } = useBranding();
   const queryClient = useQueryClient();
   const permissions = usePermissions(project);
   const usage = useProjectUsage(project);
@@ -1210,7 +1213,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                   {servedRepresentations(spec).map((rep) => (
                     <li key={rep}>
                       {slug && REPRESENTATION_PATHS[rep] ? (
-                        <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>
+                        <EndpointLink href={representationUrl(slug, rep, domain)}>
                           {rep}
                         </EndpointLink>
                       ) : (
@@ -1269,8 +1272,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             <p className="mt-1 text-body text-fg-muted">{t("endpoints.hub.lead")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <code className="break-all font-mono text-caption">{hubUrl()}</code>
-            <CopyUrlButton url={hubUrl()} />
+            <code className="break-all font-mono text-caption">{hubUrl(domain)}</code>
+            <CopyUrlButton url={hubUrl(domain)} />
           </div>
         </section>
       ) : null}
@@ -1350,7 +1353,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                         {servedRepresentations(spec).map((rep) => (
                           <li key={rep}>
                             {slug && REPRESENTATION_PATHS[rep] ? (
-                              <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>
+                              <EndpointLink href={representationUrl(slug, rep, domain)}>
                                 {rep}
                               </EndpointLink>
                             ) : (
