@@ -682,6 +682,13 @@ impl StreamDeployer {
             .map(|rendered| rendered.get(&key).copied())
             .unwrap_or(None);
         let mut unchanged = stored == Some(hash);
+        // Why the stream is sent, when it is: a PUT restarts it and fires a clock's first tick
+        // out of schedule, so every one is logged with its reason (T-3007).
+        let mut why = if stored.is_some() {
+            "its render changed"
+        } else {
+            "this Portal has not sent it and the runner does not run it as rendered"
+        };
         // A runner that restarted holds no streams, so an unchanged render it no longer runs is
         // sent again; a runner that does not answer the list keeps the hash's word. A stream the
         // runner holds but reports inactive is sent again too, unless its input is one that ends
@@ -697,9 +704,13 @@ impl StreamDeployer {
             unchanged = match running.as_ref().and_then(Option::as_ref) {
                 None => true,
                 Some(streams) => match streams.get(&stream_id(ns, name)) {
-                    None => false,
+                    None => {
+                        why = "the runner does not hold it";
+                        false
+                    }
                     Some(true) => true,
                     Some(false) => {
+                        why = "the runner holds it but it is not running";
                         let finished = input_ends_by_itself(&stream_json["input"]);
                         if !finished {
                             tracing::warn!(
@@ -726,6 +737,12 @@ impl StreamDeployer {
         } else if let Some(waiting) = self.waiting(&key, hash) {
             waiting
         } else {
+            tracing::info!(
+                project = %ns,
+                pipeline = %name,
+                render = format_args!("{hash:016x}"),
+                "sending the stream to the runner, which restarts it: {why}"
+            );
             match self.deploy_stream(ns, name, &stream_json).await {
                 Ok(outcome) => outcome,
                 Err(reason) => self.back_off(key.clone(), hash, reason),
@@ -841,6 +858,11 @@ impl StreamDeployer {
         };
         for name in names {
             let url = format!("{runner}/streams/{}", stream_id(project, name));
+            tracing::info!(
+                project = %project,
+                pipeline = %name,
+                "removing the stream from the runner: it was live on the last pass and is not now"
+            );
             match self.http.delete(&url).send().await {
                 Ok(resp) => {
                     if !resp.status().is_success()
