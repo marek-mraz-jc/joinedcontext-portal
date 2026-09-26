@@ -127,7 +127,10 @@ application, then repairs; the section THIS CALL of the user message says what t
 - Unless THIS CALL asks for a first version without tests: a test beside every page, component
   and function you add or change (`*.test.tsx`,
   `*.test.ts`), written like the template's tests: vitest, @testing-library/react,
-  `stubClient` or `fakeContext` from `@joinedcontext/sdk/testing`.
+  `stubClient` or `fakeContext` from `@joinedcontext/sdk/testing`. A page that reads data shows
+  its loading state first, so the first query after `render` awaits:
+  `await screen.findByRole(…)` (or `findByText`), then `getBy…` for the rest. A `getBy…` right
+  after `render` reads the loading state and fails the build lane's test gate.
 - A row is named on screen with `displayName(row)`, never its `id`; a value is shown with `format`,
   so a missing number reads `—`, never `NaN`. A map colours by the data's own range (`extent`).
 - Types and attribute names exactly as `src/jc-types.ts` and the samples spell them; import the
@@ -258,6 +261,10 @@ mod tests {
         // The rules that keep a project a preview are still there (SDK-11, SDK-12).
         assert!(system.contains("Never `src/main.tsx`"));
         assert!(system.contains("a test beside every page"));
+        // A page that loads shows its loading state first; a test that reads the page right
+        // after `render` fails the build lane's gate (SDK-24, T-3016: alerts-desk).
+        assert!(system.contains("the first query after `render` awaits"));
+        assert!(system.contains("`await screen.findByRole(…)`"));
     }
 
     /// `n` writable stylesheets of `each` bytes: counted by SDK-11, and nothing a transpile reads.
