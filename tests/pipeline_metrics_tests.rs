@@ -17,12 +17,16 @@ use tower::ServiceExt;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// One runner for every project (T-3002): another project's pipeline of the same name, and the
+/// stream a Portal before T-3002 kept under the bare name, are not this pipeline's counters.
 const RUNNER_BODY: &str = concat!(
     "# TYPE input_received counter\n",
-    "input_received{label=\"mqtt\",stream=\"aq-mqtt-ingest\"} 128401\n",
-    "output_sent{label=\"gw\",stream=\"aq-mqtt-ingest\"} 128390\n",
-    "output_error{label=\"gw\",stream=\"aq-mqtt-ingest\"} 2\n",
-    "input_received{label=\"mqtt\",stream=\"parking-feed\"} 9\n",
+    "input_received{label=\"mqtt\",stream=\"ovzdusie.aq-mqtt-ingest\"} 128401\n",
+    "output_sent{label=\"gw\",stream=\"ovzdusie.aq-mqtt-ingest\"} 128390\n",
+    "output_error{label=\"gw\",stream=\"ovzdusie.aq-mqtt-ingest\"} 2\n",
+    "input_received{label=\"mqtt\",stream=\"praha.aq-mqtt-ingest\"} 5000\n",
+    "input_received{label=\"mqtt\",stream=\"aq-mqtt-ingest\"} 700\n",
+    "input_received{label=\"mqtt\",stream=\"ovzdusie.parking-feed\"} 9\n",
 );
 
 fn session_cookie(config: &Config) -> String {

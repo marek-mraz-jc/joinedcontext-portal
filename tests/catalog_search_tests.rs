@@ -20,9 +20,9 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const RUNNER_BODY: &str = concat!(
     "# TYPE input_received counter\n",
-    "input_received{label=\"http\",stream=\"hsl-bikes\"} 1200\n",
-    "output_sent{label=\"gw\",stream=\"hsl-bikes\"} 1190\n",
-    "output_error{label=\"gw\",stream=\"hsl-bikes\"} 10\n",
+    "input_received{label=\"http\",stream=\"helsinki.hsl-bikes\"} 1200\n",
+    "output_sent{label=\"gw\",stream=\"helsinki.hsl-bikes\"} 1190\n",
+    "output_error{label=\"gw\",stream=\"helsinki.hsl-bikes\"} 10\n",
 );
 
 fn session_cookie(config: &Config) -> String {

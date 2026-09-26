@@ -2223,13 +2223,14 @@ fn writing_verdict(
     now: std::time::Instant,
 ) -> Option<(&'static str, String)> {
     let body = body?;
-    if let Some(said) = failing(body, pipeline) {
+    let stream = super::streams::stream_id(project, pipeline);
+    if let Some(said) = failing(body, &stream) {
         return Some(("NothingWritten", said));
     }
     if bento.is_some_and(super::stall::writes_through_processors) {
         return None;
     }
-    let metrics = crate::api::pipelines::scrape(body, pipeline, String::new());
+    let metrics = crate::api::pipelines::scrape(body, &stream, String::new());
     stalls
         .observe(project, pipeline, &metrics, now)
         .map(|said| ("Stalled", said))
@@ -2240,8 +2241,8 @@ fn writing_verdict(
 /// Errors and nothing sent is a stream that runs and never lands: a source that refuses the
 /// runner's token, a mapping that throws on every message. Errors beside writes are the ordinary
 /// weather of a stream — a page that failed and was retried — and say nothing on their own.
-fn failing(metrics: &str, pipeline: &str) -> Option<String> {
-    let counters = crate::api::pipelines::scrape(metrics, pipeline, String::new());
+fn failing(metrics: &str, stream: &str) -> Option<String> {
+    let counters = crate::api::pipelines::scrape(metrics, stream, String::new());
     let errors = counters.errors?;
     if errors == 0 || counters.sent.unwrap_or(0) > 0 {
         return None;
@@ -3092,9 +3093,9 @@ output_error{stream="kpi"} 6
             "pipeline:\n  processors:\n    - mapping: root = if this.stale { deleted() }\n";
         let took = |received: u64, errors: u64| {
             format!(
-                "input_received{{label=\"input\",stream=\"p\"}} {received}\n\
-                 output_sent{{label=\"output\",stream=\"p\"}} 0\n\
-                 processor_error{{label=\"processor_1\",stream=\"p\"}} {errors}\n"
+                "input_received{{label=\"input\",stream=\"hel.p\"}} {received}\n\
+                 output_sent{{label=\"output\",stream=\"hel.p\"}} 0\n\
+                 processor_error{{label=\"processor_1\",stream=\"hel.p\"}} {errors}\n"
             )
         };
         let start = std::time::Instant::now();

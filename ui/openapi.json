@@ -13992,7 +13992,7 @@
       },
       "NodeCounters": {
         "type": "object",
-        "description": "Folds every series of one stream into the counters the view shows. Series of the same family\nare summed (a stream may have several inputs or outputs); the latency takes the slowest\noutput rather than a sum, which would mean nothing.\nThe runner registers each stream under the pipeline's own name, so the pipeline name is\nalso the `stream` label to select on.\nWhat one component of a stream counted, as its own label reports it (T-1125).",
+        "description": "What one component of a stream counted, as its own label reports it (T-1125).",
         "properties": {
           "errors": {
             "type": [
