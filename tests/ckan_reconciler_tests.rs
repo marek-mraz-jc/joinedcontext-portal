@@ -134,8 +134,14 @@ fn an_endpoint_becomes_a_dataset_with_the_sheet_it_declares() {
     let mut api = InMemoryCkan::new().with_token(TOKEN);
     let target = target("helsinki-bikes", "public", with_sheet());
 
-    let published = publish_with(&mut api, &target, &record(), Some(&answer(ROWS)), &settings())
-        .expect("the endpoint publishes");
+    let published = publish_with(
+        &mut api,
+        &target,
+        &record(),
+        Some(&answer(ROWS)),
+        &settings(),
+    )
+    .expect("the endpoint publishes");
     let Publication::Published {
         dataset,
         outcome,
@@ -205,11 +211,25 @@ fn the_sheet_follows_the_endpoints_answer_when_an_entity_is_gone() {
         .with_organization("hel-fi")
         .with_token(TOKEN);
     let target = target("helsinki-bikes", "public", with_sheet());
-    publish_with(&mut api, &target, &record(), Some(&answer(ROWS)), &settings()).expect("the first run");
+    publish_with(
+        &mut api,
+        &target,
+        &record(),
+        Some(&answer(ROWS)),
+        &settings(),
+    )
+    .expect("the first run");
 
-    let fewer = "id,type,name,available\nurn:ngsi-ld:BikeStation:hel.fi:bikes:2,BikeStation,Kamppi,4\n";
-    let second = publish_with(&mut api, &target, &record(), Some(&answer(fewer)), &settings())
-        .expect("the second run");
+    let fewer =
+        "id,type,name,available\nurn:ngsi-ld:BikeStation:hel.fi:bikes:2,BikeStation,Kamppi,4\n";
+    let second = publish_with(
+        &mut api,
+        &target,
+        &record(),
+        Some(&answer(fewer)),
+        &settings(),
+    )
+    .expect("the second run");
     let Publication::Published { rows, .. } = second else {
         panic!("a publication");
     };
@@ -223,8 +243,14 @@ fn the_token_is_in_nothing_a_run_writes_or_reports() {
     // EP-67: the token travels in the Authorization header of the transport and nowhere else.
     let mut api = InMemoryCkan::new().with_token(TOKEN);
     let target = target("helsinki-bikes", "public", with_sheet());
-    let published =
-        publish_with(&mut api, &target, &record(), Some(&answer(ROWS)), &settings()).expect("it publishes");
+    let published = publish_with(
+        &mut api,
+        &target,
+        &record(),
+        Some(&answer(ROWS)),
+        &settings(),
+    )
+    .expect("it publishes");
 
     let written = api
         .calls()
@@ -319,7 +345,14 @@ fn withdrawing_removes_the_dataset_and_can_be_repeated() {
         .with_organization("hel-fi")
         .with_token(TOKEN);
     let target = target("helsinki-bikes", "public", with_sheet());
-    publish_with(&mut api, &target, &record(), Some(&answer(ROWS)), &settings()).expect("it publishes");
+    publish_with(
+        &mut api,
+        &target,
+        &record(),
+        Some(&answer(ROWS)),
+        &settings(),
+    )
+    .expect("it publishes");
     assert!(api.package("helsinki-bikes").is_some());
 
     let gone = joinedcontext_portal::reconciler::ckan::withdraw_one(&mut api, &target)
