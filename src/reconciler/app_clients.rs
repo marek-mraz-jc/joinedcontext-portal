@@ -385,7 +385,8 @@ impl Admin {
             .map_err(|err| err.to_string())?;
         if !response.status().is_success() {
             return Err(format!(
-                "the realm refused the reconciler's client: {}",
+                "the realm refused the reconciler's client {}: {}",
+                self.client_id,
                 response.status()
             ));
         }
@@ -547,6 +548,10 @@ impl Admin {
 /// The realm's app clients, as the reconciler's own client may write them.
 pub struct AppClientSync {
     admin: Admin,
+    /// The credential that looks up groups and users and writes their role mappings
+    /// (`portal-reconciler`: `manage-users`, `query-groups`). `admin` only reads who holds a role
+    /// (T-3022); without it every call runs as `admin`, which then needs both grants.
+    members: Option<Admin>,
     /// The apex the apps are served on.
     host: String,
     /// Where a run records the `app-*` clients it may not write, for the write doors (AP-114).
@@ -570,9 +575,21 @@ impl AppClientSync {
     ) -> Option<Self> {
         Some(Self {
             admin: Admin::new(issuer, client_id, client_secret)?,
+            members: None,
             host,
             foreign: None,
         })
+    }
+
+    /// Looks up the App's groups and users and writes their role mappings as this client, in
+    /// the same realm, instead of the client that manages the App clients (T-3022).
+    pub fn with_members(mut self, client_id: String, client_secret: String) -> Self {
+        self.members = Admin::new(&self.admin.issuer, client_id, client_secret);
+        self
+    }
+
+    fn members(&self) -> &Admin {
+        self.members.as_ref().unwrap_or(&self.admin)
     }
 
     /// The id of the realm's group of this name; `None` while there is none.
@@ -584,7 +601,7 @@ impl AppClientSync {
     ) -> Result<Option<String>, String> {
         if index.groups.is_none() {
             let groups: Vec<KcNamed> = self
-                .admin
+                .members()
                 .get(token, "/groups?briefRepresentation=true&max=1000")
                 .await?;
             index.groups = Some(groups.into_iter().map(|g| (g.name, g.id)).collect());
@@ -612,7 +629,7 @@ impl AppClientSync {
             "username"
         };
         let found: Vec<KcUserRef> = self
-            .admin
+            .members()
             .get(
                 token,
                 &format!(
@@ -628,9 +645,14 @@ impl AppClientSync {
 
     /// The App's roles and who holds each, brought to the manifest (AP-113).
     /// What the realm held and the manifest does not say goes, and is reported as drift.
+    ///
+    /// `token` is the App-client manager's: it writes the client's roles and reads who holds
+    /// each. `members` is the member credential's: every group or user lookup and every mapping
+    /// written or removed carries it.
     async fn converge_grants(
         &self,
         token: &str,
+        members: &str,
         uuid: &str,
         spec: &AppSpec,
         index: &mut RealmIndex,
@@ -693,9 +715,9 @@ impl AppClientSync {
                 .await?;
             for group in &groups {
                 if !subjects.contains(&Holder::Group(group.name.clone())) {
-                    self.admin
+                    self.members()
                         .send(
-                            token,
+                            members,
                             Method::DELETE,
                             &format!("/groups/{}/role-mappings/clients/{uuid}", group.id),
                             Some(&mapping),
@@ -712,9 +734,9 @@ impl AppClientSync {
                     .iter()
                     .any(|holder| matches!(holder, Holder::User(u) if user.is(u)));
                 if !named {
-                    self.admin
+                    self.members()
                         .send(
-                            token,
+                            members,
                             Method::DELETE,
                             &format!("/users/{}/role-mappings/clients/{uuid}", user.id),
                             Some(&mapping),
@@ -732,20 +754,20 @@ impl AppClientSync {
                         if groups.iter().any(|g| &g.name == group) {
                             continue;
                         }
-                        ("groups", self.group_id(token, index, group).await?)
+                        ("groups", self.group_id(members, index, group).await?)
                     }
                     Holder::User(user) => {
                         if users.iter().any(|u| u.is(user)) {
                             continue;
                         }
-                        ("users", self.user_id(token, index, user).await?)
+                        ("users", self.user_id(members, index, user).await?)
                     }
                 };
                 match id {
                     Some(id) => {
-                        self.admin
+                        self.members()
                             .send(
-                                token,
+                                members,
                                 Method::POST,
                                 &format!("/{path}/{id}/role-mappings/clients/{uuid}"),
                                 Some(&mapping),
@@ -794,6 +816,12 @@ impl AppClientSync {
             }
         };
 
+        // A refused member credential fails each App's roles, never its client or audiences.
+        let members = match self.members.as_ref() {
+            Some(members) => members.token().await,
+            None => Ok(token.clone()),
+        };
+
         let apps = published(mirror);
         let wanted: BTreeSet<String> = apps.iter().map(|app| client_id(&app.name)).collect();
         let mut index = RealmIndex::default();
@@ -810,7 +838,9 @@ impl AppClientSync {
                     .map(|endpoint| endpoint.slug)
                 }))
                 .collect();
-            let (outcome, secret) = self.converge_one(&token, app, &audiences, &mut index).await;
+            let (outcome, secret) = self
+                .converge_one(&token, members.as_deref(), app, &audiences, &mut index)
+                .await;
             if let Some(secret) = secret {
                 run.secrets.insert(app.name.clone(), secret);
             }
@@ -894,6 +924,7 @@ impl AppClientSync {
     async fn converge_one(
         &self,
         token: &str,
+        members: Result<&str, &String>,
         app: &PublishedApp,
         audiences: &[String],
         index: &mut RealmIndex,
@@ -976,9 +1007,13 @@ impl AppClientSync {
         // endpoint, and every read the App made was a 401 (T-2965).
         let failed: Vec<String> = match &app.spec {
             Some(spec) => {
-                let grants = self
-                    .converge_grants(token, &uuid, spec, index, &mut outcome)
-                    .await;
+                let grants = match members {
+                    Ok(members) => {
+                        self.converge_grants(token, members, &uuid, spec, index, &mut outcome)
+                            .await
+                    }
+                    Err(err) => Err(err.clone()),
+                };
                 let reach = self
                     .admin
                     .converge_audiences(token, &uuid, audiences, "the App", &mut outcome)
