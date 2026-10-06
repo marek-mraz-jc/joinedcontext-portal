@@ -36,6 +36,8 @@ const REGISTERS: Record<string, string> = {
   helsinki: "City of Helsinki",
   espoo_le: "City of Espoo",
   kulke: "Culture centres",
+  hkm: "Helsinki City Museum",
+  elo: "Economic Development Division",
 };
 
 /**
