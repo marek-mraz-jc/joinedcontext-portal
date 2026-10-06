@@ -24,11 +24,17 @@ function app(name: string, lifecycle: string) {
   };
 }
 
-async function stub(page: Page): Promise<void> {
+// `realm` is what the realm answers the silent sign-in check (T-3034), in the fragment of the
+// Portal's landing page: an error when the person must sign in, a code when the session lives.
+async function stub(page: Page, realm = "error=login_required"): Promise<void> {
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body: unknown, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    // The page reads only the address the check lands on; the landing page's body is never read.
+    if (path === "/api/v1/auth/sso-check") {
+      return route.fulfill({ status: 303, headers: { location: `/api/v1/auth/sso-check/done#${realm}` } });
+    }
     if (path.endsWith("/auth/me")) return json(IDENTITY);
     if (path === "/api/v1/projects") {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
@@ -101,19 +107,20 @@ test.describe("an App inside the Portal (AP-122)", () => {
     });
   }
 
-  // T-2941: the stub App carries no SDK, so it never says it is up; 8 s after its load the page
-  // offers the sign-in above the frame, readable in both themes, and names each control once.
+  // T-2941, T-3034: the stub App carries no SDK, so it never says it is up; 8 s after its load the
+  // page asks the realm silently, and the realm's "sign in" brings the offer above the frame,
+  // readable in both themes, with each control named once.
   for (const colorScheme of ["light", "dark"] as const) {
-    test(`offers the sign-in above a silent App's frame (${colorScheme})`, async ({ page }) => {
+    test(`offers the sign-in above a silent App's frame when the realm says so (${colorScheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme });
       await page.clock.install();
       await stub(page);
       await page.goto("/projects/helsinki/apps/city-bikes/open?lang=en");
       await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
-      await expect(page.getByText("The app has not answered.")).toHaveCount(0);
+      await expect(page.getByText("Your sign-in has ended.")).toHaveCount(0);
 
       await page.clock.runFor(8_000);
-      const status = page.getByRole("status").filter({ hasText: "The app has not answered." });
+      const status = page.getByRole("status").filter({ hasText: "Your sign-in has ended." });
       await expect(status).toBeVisible();
       await expect(status.getByRole("button", { name: "Sign in again" })).toBeVisible();
       await expect(page.getByRole("link", { name: /Open in new window/ })).toHaveCount(1);
@@ -121,9 +128,23 @@ test.describe("an App inside the Portal (AP-122)", () => {
       expect(await axeViolations(page)).toEqual([]);
 
       await status.getByRole("button", { name: "Hide this message" }).click();
-      await expect(page.getByText("The app has not answered.")).toHaveCount(0);
+      await expect(page.getByText("Your sign-in has ended.")).toHaveCount(0);
     });
   }
+
+  test("a silent App whose realm session lives brings no sign-in offer", async ({ page }) => {
+    await page.clock.install();
+    await stub(page, "code=never-redeemed&state=x");
+    await page.goto("/projects/helsinki/apps/city-bikes/open?lang=en");
+    await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
+
+    const landed = page.waitForRequest((request) => request.url().includes("/api/v1/auth/sso-check/done"));
+    await page.clock.runFor(8_000);
+    await landed;
+    // The check frame lands, is read and goes away; nothing is claimed.
+    await expect(page.getByTestId("app-sso-check")).toHaveCount(0);
+    await expect(page.getByText("Your sign-in has ended.")).toHaveCount(0);
+  });
 
   test("a retired App shows its state and no frame", async ({ page }) => {
     await stub(page);

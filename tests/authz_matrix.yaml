@@ -45,6 +45,14 @@ routes:
   - route: GET /auth/me
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /auth/sso-check
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+    note: "a redirect to the realm with prompt=none; the realm answers who is signed in (T-3034)"
+  - route: GET /auth/sso-check/done
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+    note: "the landing page of the silent check; its answer is in the fragment (T-3034)"
   - route: GET /blueprints
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
