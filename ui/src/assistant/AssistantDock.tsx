@@ -674,9 +674,13 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
                 // screen under the header, as on full screen. In the row it squeezed the page to
                 // no width, and the page's positioned controls painted through it (T-2854).
                 "fixed inset-x-0 bottom-0 top-14 z-40 flex flex-col gap-2 bg-surface p-3",
-                // Computed: the viewport's height less the 14 header it sticks under.
-                "md:sticky md:inset-auto md:top-14 md:z-auto md:h-[calc(100vh-3.5rem)] md:shrink-0 md:border-l md:border-border",
-                building ? "md:w-160" : "md:w-96",
+                // Computed: the viewport's height less the 14 header it sticks under. Beside the
+                // 16 rem sidebar the page keeps at least 40 rem: the chat docks from xl, the
+                // builder (40 rem itself) from 2xl; at 768 px the docked builder left the page
+                // one letter wide (T-3145).
+                building
+                  ? "2xl:sticky 2xl:inset-auto 2xl:top-14 2xl:z-auto 2xl:h-[calc(100vh-3.5rem)] 2xl:shrink-0 2xl:border-l 2xl:border-border 2xl:w-160"
+                  : "xl:sticky xl:inset-auto xl:top-14 xl:z-auto xl:h-[calc(100vh-3.5rem)] xl:shrink-0 xl:border-l xl:border-border xl:w-96",
               )
       }
     >
