@@ -578,7 +578,8 @@
       "deletedAt": "gelöscht {at}",
       "restore": "Zurücklegen",
       "restoreOne": "{name} zurücklegen",
-      "restoreRefused": "{name} wurde nicht zurückgelegt: {reason}"
+      "restoreRefused": "{name} wurde nicht zurückgelegt: {reason}",
+      "liveChanged": "{count, plural, one {# Entität wurde} other {# Entitäten wurden}} geändert ({attrs}); so gezeigt, wie sie jetzt sind."
     },
     "api": {
       "lead": "Wie ein Programm {type} liest: über einen Endpoint dieses Raums, mit eigenem Token, und die Webhooks, die ihm sagen, wenn sich etwas ändert.",

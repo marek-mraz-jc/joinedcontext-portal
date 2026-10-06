@@ -76,14 +76,14 @@ impl SubscriptionSync {
     }
 
     /// The id a manifest's subscription carries in the broker.
-    fn urn(&self, space: &str, name: &str) -> String {
+    pub(crate) fn urn(&self, space: &str, name: &str) -> String {
         format!(
             "urn:ngsi-ld:Subscription:{}:{space}:{name}",
             self.org_domain
         )
     }
 
-    async fn token(&self) -> Result<String, String> {
+    pub(crate) async fn token(&self) -> Result<String, String> {
         super::realm::token(
             &self.http,
             &self.issuer,
@@ -254,7 +254,13 @@ impl SubscriptionSync {
     }
 
     /// Creates the subscription, or patches the one that is already there.
-    async fn write(&self, token: &str, space: &str, id: &str, body: &Value) -> Result<(), String> {
+    pub(crate) async fn write(
+        &self,
+        token: &str,
+        space: &str,
+        id: &str,
+        body: &Value,
+    ) -> Result<(), String> {
         let created = self
             .http
             .post(format!("{}/cs/{space}/ngsi-ld/v1/subscriptions", self.base))

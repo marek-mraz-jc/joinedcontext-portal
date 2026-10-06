@@ -141,6 +141,7 @@ use crate::tools::model_tools::{
         crate::api::entity_trash::list_trash,
         crate::api::entity_trash::keep,
         crate::api::entity_trash::forget,
+        crate::api::live::watch,
         crate::api::service_accounts::list_keys,
         crate::api::service_accounts::create_key,
         crate::api::service_accounts::rotate_key,
