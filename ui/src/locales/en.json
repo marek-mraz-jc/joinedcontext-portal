@@ -634,6 +634,43 @@
       "cut": "The first {count} on screen; narrow the filter for the rest.",
       "ask": "Ask the assistant",
       "noEndpoint": "No Endpoint serves this space, so nothing can be written."
+    },
+    "import": {
+      "open": "Import rows",
+      "title": "Import rows into {type}",
+      "lead": "Choose a CSV, Excel, JSON or XML file, say which column feeds which field, and the valid rows are created through the gateway as you. An entity that already exists is never overwritten.",
+      "choose": "Choose a file",
+      "empty": "The file holds no rows under its header.",
+      "unreadable": "The file could not be read: {reason}",
+      "read": "{name}: {rows, plural, one {# row} other {# rows}}, {columns, plural, one {# column} other {# columns}}.",
+      "mapping": "Which field each column feeds",
+      "column": "Column",
+      "field": "Field",
+      "sample": "First values",
+      "skip": "Do not import",
+      "id": "id (the entity's URN or its last part)",
+      "required": "{name} (required)",
+      "missing": "No column feeds the required {names}: every row will be refused.",
+      "checked": "{valid, plural, one {# row is ready} other {# rows are ready}}, {refused, plural, =0 {none refused} one {# refused} other {# refused}}.",
+      "refusedList": "Rows that will not be created",
+      "row": "Row {row}:",
+      "more": "and {count} more in the download",
+      "back": "Choose another file",
+      "create": "{count, plural, =0 {Nothing to create} one {Create # row} other {Create # rows}}",
+      "writing": "Created {sent} of {total}…",
+      "done": "{created, plural, =0 {No row was created} one {# row created} other {# rows created}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
+      "downloadRefused": "Download the refused rows (CSV)",
+      "close": "Close"
+    },
+    "export": {
+      "label": "Export:",
+      "endpoint": "Export through",
+      "none": "No Endpoint of this space serves CSV, Excel or JSON, so there is nothing to export through.",
+      "format": {
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "json": "JSON"
+      }
     }
   },
   "endpoints": {

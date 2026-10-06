@@ -634,6 +634,43 @@
       "cut": "Die ersten {count} auf dem Bildschirm; schränken Sie den Filter für den Rest ein.",
       "ask": "Den Assistenten fragen",
       "noEndpoint": "Kein Endpoint bedient diesen Raum, daher kann nichts geschrieben werden."
+    },
+    "import": {
+      "open": "Zeilen importieren",
+      "title": "Zeilen in {type} importieren",
+      "lead": "Wählen Sie eine CSV-, Excel-, JSON- oder XML-Datei, legen Sie fest, welche Spalte welches Feld füllt, und die gültigen Zeilen werden in Ihrem Namen über das Gateway angelegt. Eine vorhandene Entität wird nie überschrieben.",
+      "choose": "Datei wählen",
+      "empty": "Die Datei enthält unter ihrer Kopfzeile keine Zeilen.",
+      "unreadable": "Die Datei lässt sich nicht lesen: {reason}",
+      "read": "{name}: {rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}}.",
+      "mapping": "Welches Feld jede Spalte füllt",
+      "column": "Spalte",
+      "field": "Feld",
+      "sample": "Erste Werte",
+      "skip": "Nicht importieren",
+      "id": "id (die URN der Entität oder ihr letzter Teil)",
+      "required": "{name} (Pflicht)",
+      "missing": "Keine Spalte füllt die Pflichtfelder {names}: jede Zeile wird abgelehnt.",
+      "checked": "{valid, plural, one {# Zeile ist bereit} other {# Zeilen sind bereit}}, {refused, plural, =0 {keine abgelehnt} one {# abgelehnt} other {# abgelehnt}}.",
+      "refusedList": "Zeilen, die nicht angelegt werden",
+      "row": "Zeile {row}:",
+      "more": "und {count} weitere in der Datei zum Herunterladen",
+      "back": "Andere Datei wählen",
+      "create": "{count, plural, =0 {Nichts anzulegen} one {# Zeile anlegen} other {# Zeilen anlegen}}",
+      "writing": "{sent} von {total} angelegt…",
+      "done": "{created, plural, =0 {Keine Zeile angelegt} one {# Zeile angelegt} other {# Zeilen angelegt}}, {refused, plural, =0 {keine abgelehnt.} one {# abgelehnt.} other {# abgelehnt.}}",
+      "downloadRefused": "Abgelehnte Zeilen herunterladen (CSV)",
+      "close": "Schließen"
+    },
+    "export": {
+      "label": "Export:",
+      "endpoint": "Exportieren über",
+      "none": "Kein Endpoint dieses Raums liefert CSV, Excel oder JSON, daher gibt es nichts, worüber exportiert werden kann.",
+      "format": {
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "json": "JSON"
+      }
     }
   },
   "endpoints": {

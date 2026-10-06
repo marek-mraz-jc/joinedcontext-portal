@@ -53,6 +53,9 @@ import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
 import { SharePanel } from "./PublicView";
+import { ExportLinks, ImportRowsDialog } from "./ImportRows";
+import { importSlotsOf } from "./importRows";
+import { useOrgDomain } from "../../api/projects";
 import { AiFieldPanel } from "./AiField";
 import { SpaceQuality } from "./SpaceQuality";
 import {
@@ -348,6 +351,12 @@ function SpaceData({
   );
   const [adding, setAdding] = useState(false);
   const [proposed, setProposed] = useState<Change | null>(null);
+  // Import and export of the type (T-3109): rows created through the gateway with this session.
+  const orgDomain = useOrgDomain(project);
+  const importSlots = useMemo(() => importSlotsOf(modelSource, type), [modelSource, type]);
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState(0);
+  const queryClient = useQueryClient();
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -447,6 +456,32 @@ function SpaceData({
           onChange={setView}
         />
       ) : null}
+      {probe.isSuccess && view !== "api" ? (
+        <div className="flex flex-wrap items-end gap-3">
+          {importSlots.length > 0 ? (
+            <Button variant="secondary" onClick={() => setImporting(true)}>
+              {t("spaces.import.open")}
+            </Button>
+          ) : null}
+          <ExportLinks
+            endpoints={endpoints}
+            type={type}
+            q={view === "grid" ? undefined : q}
+            attrs={slots.map((slot) => slot.name)}
+          />
+          <ImportRowsDialog
+            open={importing}
+            onOpenChange={setImporting}
+            target={{ type, orgDomain, space }}
+            slots={importSlots}
+            send={originTransport()}
+            onImported={() => {
+              setImported((n) => n + 1);
+              void queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
+            }}
+          />
+        </div>
+      ) : null}
       {probe.isSuccess ? (
         <TrashPanel
           project={project}
@@ -493,7 +528,8 @@ function SpaceData({
       ) : null}
       {probe.isSuccess && config && view === "grid" ? (
         <PortalEntityGrid
-          key={`${space}-${type}`}
+          // A new key after an import reads the type again from its first page.
+          key={`${space}-${type}-${imported}`}
           project={project}
           config={config}
           source={source}

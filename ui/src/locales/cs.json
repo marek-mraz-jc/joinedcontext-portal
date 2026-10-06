@@ -634,6 +634,43 @@
       "cut": "Prvních {count} na obrazovce; zužte filtr pro ostatní.",
       "ask": "Zeptat se asistenta",
       "noEndpoint": "Tento prostor neobsluhuje žádný endpoint, takže nelze nic zapsat."
+    },
+    "import": {
+      "open": "Importovat řádky",
+      "title": "Import řádků do {type}",
+      "lead": "Vyberte soubor CSV, Excel, JSON nebo XML, určete, který sloupec plní které pole, a platné řádky se vytvoří přes bránu pod vaším jménem. Existující entita se nikdy nepřepíše.",
+      "choose": "Vybrat soubor",
+      "empty": "Soubor nemá pod hlavičkou žádné řádky.",
+      "unreadable": "Soubor nelze přečíst: {reason}",
+      "read": "{name}: {rows, plural, one {# řádek} few {# řádky} other {# řádků}}, {columns, plural, one {# sloupec} few {# sloupce} other {# sloupců}}.",
+      "mapping": "Které pole plní každý sloupec",
+      "column": "Sloupec",
+      "field": "Pole",
+      "sample": "První hodnoty",
+      "skip": "Neimportovat",
+      "id": "id (URN entity nebo jeho poslední část)",
+      "required": "{name} (povinné)",
+      "missing": "Žádný sloupec neplní povinné {names}: každý řádek bude odmítnut.",
+      "checked": "{valid, plural, one {# řádek je připraven} few {# řádky jsou připraveny} other {# řádků je připraveno}}, {refused, plural, =0 {žádný odmítnut} one {# odmítnut} few {# odmítnuty} other {# odmítnuto}}.",
+      "refusedList": "Řádky, které se nevytvoří",
+      "row": "Řádek {row}:",
+      "more": "a dalších {count} ve staženém souboru",
+      "back": "Vybrat jiný soubor",
+      "create": "{count, plural, =0 {Není co vytvořit} one {Vytvořit # řádek} few {Vytvořit # řádky} other {Vytvořit # řádků}}",
+      "writing": "Vytvořeno {sent} z {total}…",
+      "done": "{created, plural, =0 {Nevytvořil se žádný řádek} one {Vytvořen # řádek} few {Vytvořeny # řádky} other {Vytvořeno # řádků}}, {refused, plural, =0 {žádný odmítnut.} one {# odmítnut.} few {# odmítnuty.} other {# odmítnuto.}}",
+      "downloadRefused": "Stáhnout odmítnuté řádky (CSV)",
+      "close": "Zavřít"
+    },
+    "export": {
+      "label": "Export:",
+      "endpoint": "Exportovat přes",
+      "none": "Žádný endpoint tohoto prostoru neposkytuje CSV, Excel ani JSON, takže není přes co exportovat.",
+      "format": {
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "json": "JSON"
+      }
     }
   },
   "endpoints": {

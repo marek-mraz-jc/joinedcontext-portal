@@ -634,6 +634,43 @@
       "cut": "Prvých {count} na obrazovke; zúžte filter pre ostatné.",
       "ask": "Opýtať sa asistenta",
       "noEndpoint": "Tento priestor neobsluhuje žiadny endpoint, takže nič nemožno zapísať."
+    },
+    "import": {
+      "open": "Importovať riadky",
+      "title": "Import riadkov do {type}",
+      "lead": "Vyberte súbor CSV, Excel, JSON alebo XML, určte, ktorý stĺpec plní ktoré pole, a platné riadky sa vytvoria cez bránu pod vaším menom. Existujúca entita sa nikdy neprepíše.",
+      "choose": "Vybrať súbor",
+      "empty": "Súbor nemá pod hlavičkou žiadne riadky.",
+      "unreadable": "Súbor sa nedá prečítať: {reason}",
+      "read": "{name}: {rows, plural, one {# riadok} few {# riadky} other {# riadkov}}, {columns, plural, one {# stĺpec} few {# stĺpce} other {# stĺpcov}}.",
+      "mapping": "Ktoré pole plní každý stĺpec",
+      "column": "Stĺpec",
+      "field": "Pole",
+      "sample": "Prvé hodnoty",
+      "skip": "Neimportovať",
+      "id": "id (URN entity alebo jeho posledná časť)",
+      "required": "{name} (povinné)",
+      "missing": "Žiadny stĺpec neplní povinné {names}: každý riadok bude odmietnutý.",
+      "checked": "{valid, plural, one {# riadok je pripravený} few {# riadky sú pripravené} other {# riadkov je pripravených}}, {refused, plural, =0 {žiadny odmietnutý} one {# odmietnutý} few {# odmietnuté} other {# odmietnutých}}.",
+      "refusedList": "Riadky, ktoré sa nevytvoria",
+      "row": "Riadok {row}:",
+      "more": "a ďalších {count} v stiahnutom súbore",
+      "back": "Vybrať iný súbor",
+      "create": "{count, plural, =0 {Nie je čo vytvoriť} one {Vytvoriť # riadok} few {Vytvoriť # riadky} other {Vytvoriť # riadkov}}",
+      "writing": "Vytvorených {sent} z {total}…",
+      "done": "{created, plural, =0 {Nevytvoril sa žiadny riadok} one {Vytvorený # riadok} few {Vytvorené # riadky} other {Vytvorených # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} one {# odmietnutý.} few {# odmietnuté.} other {# odmietnutých.}}",
+      "downloadRefused": "Stiahnuť odmietnuté riadky (CSV)",
+      "close": "Zavrieť"
+    },
+    "export": {
+      "label": "Export:",
+      "endpoint": "Exportovať cez",
+      "none": "Žiadny endpoint tohto priestoru neposkytuje CSV, Excel ani JSON, takže nie je cez čo exportovať.",
+      "format": {
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "json": "JSON"
+      }
     }
   },
   "endpoints": {
