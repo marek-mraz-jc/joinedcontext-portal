@@ -656,7 +656,7 @@
     },
     "src/pages/apps/AppsCatalog.tsx": {
       "controls": {
-        "Button": 6
+        "Button": 5
       },
       "tests": [
         "apps_catalog.test.tsx"
@@ -822,6 +822,14 @@
       },
       "tests": [
         "catalogue_publish.test.tsx"
+      ]
+    },
+    "src/pages/ckan/CkanAccessPanel.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "ckan_access_panel.test.tsx"
       ]
     },
     "src/pages/ckan/CkanPage.tsx": {
@@ -1222,7 +1230,7 @@
     },
     "src/routes/AllEndpointsPage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 3
       },
       "tests": [
         "page_all_endpoints_page.test.tsx"

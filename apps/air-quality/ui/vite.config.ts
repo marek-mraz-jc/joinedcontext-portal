@@ -17,6 +17,9 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
+    // The attribution test reads the stylesheet itself (`index.css?raw`), which vitest empties
+    // unless the file is processed (T-3045).
+    css: { include: [/index\.css/] },
     include: ["tests/**/*.test.tsx"],
   },
 });
