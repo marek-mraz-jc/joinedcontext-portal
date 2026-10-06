@@ -8017,6 +8017,83 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/live": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Watch A Type Of A Space",
+        "description": "Server-sent `changed` events naming the entities and attributes of one type that changed, never their values (API/01 §32). The view reads the rows again with the caller's session.",
+        "operationId": "watch",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "The NGSI-LD type the view shows.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The event stream",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "400": {
+            "description": "No NGSI-LD type name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/quality": {
       "get": {
         "tags": [
@@ -8181,10 +8258,21 @@
           }
         ],
         "requestBody": {
+          "description": "The entity as the person read it, normalized.",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/KeepRequest"
+              },
+              "example": {
+                "entity": {
+                  "id": "urn:ngsi-ld:BikeHireDockingStation:hel.fi:bikes:7",
+                  "name": {
+                    "type": "Property",
+                    "value": "Station 7"
+                  },
+                  "type": "BikeHireDockingStation"
+                }
               }
             }
           },

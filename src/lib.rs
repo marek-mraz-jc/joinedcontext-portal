@@ -19,6 +19,7 @@ pub mod entity_trash;
 pub mod error;
 pub mod git;
 pub mod groups;
+pub mod live;
 pub mod mcp;
 pub mod openapi;
 pub mod ops;

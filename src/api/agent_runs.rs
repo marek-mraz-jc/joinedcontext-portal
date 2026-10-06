@@ -1603,7 +1603,7 @@ pub async fn call_function(
         input.clone(),
         &query,
         &user.0.identity,
-        caller_token(&state, &headers),
+        Caller::Person(caller_token(&state, &headers)),
     )
     .await;
     let Invocation {
@@ -1763,7 +1763,7 @@ pub(crate) async fn invoke_function(
     input: serde_json::Value,
     query: &BTreeMap<String, String>,
     identity: &crate::auth::session::Identity,
-    caller_token: Option<String>,
+    caller: Caller,
 ) -> Result<Invocation, InvokeError> {
     let files: BTreeMap<String, String> = run
         .files
@@ -1818,22 +1818,59 @@ pub(crate) async fn invoke_function(
         format!("{}{entry}", transpile::APP),
         request,
         config,
-        caller_token,
+        caller,
     )
     .await
+}
+
+/// The document `jc-functions` runs: the files, the entry, the request, the SDK's configuration
+/// and the caller's credential; a run's own call also names the proxy route (ADR-N-038 decision 6).
+fn invocation_body(
+    modules: BTreeMap<String, String>,
+    entry: String,
+    request: serde_json::Value,
+    config: serde_json::Value,
+    caller: Caller,
+) -> serde_json::Value {
+    let (token, via_proxy) = match caller {
+        Caller::Person(token) => (token, false),
+        Caller::Run(credential) => (Some(credential), true),
+    };
+    let mut invocation = serde_json::json!({
+        "files": modules,
+        "entry": entry,
+        "request": request,
+        "config": config,
+        "token": token,
+    });
+    if via_proxy {
+        invocation["via"] = serde_json::json!("proxy");
+    }
+    invocation
+}
+
+/// Whose credential a function's data calls carry.
+pub(crate) enum Caller {
+    /// The person's own access token, or none for a session that carries none: the function then
+    /// calls its endpoint anonymously.
+    Person(Option<String>),
+    /// The run's data credential from the agent proxy: the editing agent's own call, which reads
+    /// through the proxy as the run (ADR-N-038 decision 6).
+    Run(String),
 }
 
 /// Sends one invocation to `jc-functions` with the Portal's audience-bound token: `modules` by
 /// import name, the `entry` whose default export runs, the request, the SDK's configuration and
 /// the caller's own token, which is the only credential the function's data calls carry
-/// (SDK-18, SDK-23, AP-84). The preview and the published route share it.
+/// (SDK-18, SDK-23, AP-84). The preview and the published route share it; the editing agent's
+/// own call sends the run's data credential through the agent proxy instead ([`Caller::Run`]).
 pub(crate) async fn invoke(
     state: &AppState,
     mut modules: BTreeMap<String, String>,
     entry: String,
     request: serde_json::Value,
     config: serde_json::Value,
-    caller_token: Option<String>,
+    caller: Caller,
 ) -> Result<Invocation, InvokeError> {
     let runtime = state.config.functions_url.as_deref().ok_or_else(|| {
         InvokeError::Unavailable(
@@ -1856,13 +1893,7 @@ pub(crate) async fn invoke(
         .await
         .map_err(|err| InvokeError::Unavailable(format!("no token for jc-functions: {err}")))?;
     modules.insert("@joinedcontext/sdk/server".to_owned(), server);
-    let invocation = serde_json::json!({
-        "files": modules,
-        "entry": entry,
-        "request": request,
-        "config": config,
-        "token": caller_token,
-    });
+    let invocation = invocation_body(modules, entry, request, config, caller);
 
     let started = std::time::Instant::now();
     let answer = functions_http()
@@ -3164,5 +3195,41 @@ mod conversation_profile_tests {
             status: None,
         });
         assert_eq!(conversation_profile(&mirror), "chat");
+    }
+}
+
+#[cfg(test)]
+mod invocation_tests {
+    use super::{invocation_body, Caller};
+    use std::collections::BTreeMap;
+
+    fn body(caller: Caller) -> serde_json::Value {
+        invocation_body(
+            BTreeMap::from([(
+                "@app/functions/summary.ts".to_owned(),
+                "export default () => ({})".to_owned(),
+            )]),
+            "@app/functions/summary.ts".to_owned(),
+            serde_json::json!({ "method": "POST" }),
+            serde_json::json!({ "slug": "k7m2qz4tv6xh3n5jb2ryd3wcfa" }),
+            caller,
+        )
+    }
+
+    /// ADR-N-038 decision 6: the editing agent's own call carries the run's data credential and
+    /// names the proxy route; a person's call carries their own token, or none, and goes to the
+    /// gateway as before.
+    #[test]
+    fn a_runs_own_call_names_the_proxy_and_a_persons_call_does_not() {
+        let run = body(Caller::Run("jcd_run-1.secret".to_owned()));
+        assert_eq!(run["token"], "jcd_run-1.secret");
+        assert_eq!(run["via"], "proxy");
+
+        let person = body(Caller::Person(Some("persons-token".to_owned())));
+        assert_eq!(person["token"], "persons-token");
+        assert!(person.get("via").is_none());
+        let anonymous = body(Caller::Person(None));
+        assert!(anonymous["token"].is_null());
+        assert!(anonymous.get("via").is_none());
     }
 }

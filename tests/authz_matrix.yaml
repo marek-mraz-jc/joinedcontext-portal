@@ -106,6 +106,11 @@ routes:
   - route: POST /mcp
     rule: "mcp-dispatch"
     expect: [401, 401, 401, 401, 401, 401, 401, allow]
+  - route: POST /live-notify/{key}
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    body: {"data": []}
+    note: "the gateway's delivery: the key is the credential, and the fixture's key is none this Portal made (API/01 §32)"
   - route: GET /metrics
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]
@@ -221,6 +226,10 @@ routes:
   - route: GET /projects/{project}/spaces/{space}/usage
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/spaces/{space}/live
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    query: "type=AirQualityObserved"
   - route: GET /projects/{project}/spaces/{space}/trash
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
