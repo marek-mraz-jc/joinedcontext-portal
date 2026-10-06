@@ -17,6 +17,7 @@ exclude = [
   "apps/bbsk-mosty",
   "apps/praha-mapa",
   "apps/praha-data",
+  "apps/praha-odpad",
   "apps/banskabystrica-zaznamy",
   "apps/bbsk-zaznamy",
   "apps/helsinki-alerts",
