@@ -2693,7 +2693,17 @@
     "skipped": "übersprungen (nicht bearbeitbar, außerhalb der Seite oder kein zulässiger Wert)",
     "pasteTooLarge": "Der kopierte Bereich ist zu groß zum Einfügen; fügen Sie höchstens 5000 Zellen auf einmal ein.",
     "loaded": "geladen",
-    "of": "von"
+    "of": "von",
+    "mustBeInteger": "muss eine ganze Zahl sein",
+    "mustBeNumber": "muss eine Zahl sein",
+    "mustBeBoolean": "muss true oder false sein",
+    "mustBeDate": "muss ein Datum sein",
+    "mustBeUri": "muss eine Webadresse sein",
+    "atLeast": "muss mindestens",
+    "atMost": "muss höchstens",
+    "patternMismatch": "hat nicht die Form, die dieses Attribut verlangt",
+    "required": "ist erforderlich",
+    "toCorrect": "vor dem Anwenden zu korrigieren"
   },
   "explore": {
     "title": "Daten erkunden",

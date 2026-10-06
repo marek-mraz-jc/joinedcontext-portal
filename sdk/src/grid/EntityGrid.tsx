@@ -21,6 +21,8 @@ import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
 import { RowDetail } from "./RowDetail";
 import { parseClipboard, planPaste } from "./paste";
+import { problemOf } from "./rules";
+import type { ValueRule } from "./rules";
 import "./grid.css";
 
 export interface EntityGridProps extends UseEntityGridOptions {
@@ -55,6 +57,11 @@ export interface EntityGridProps extends UseEntityGridOptions {
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
   empty?: React.ReactNode;
+  /**
+   * Each attribute's rule as its model states it (range, bounds, pattern, required), by name: a
+   * pending value that breaks it is marked at its cell and holds Apply back (T-3097).
+   */
+  rules?: Record<string, ValueRule>;
   className?: string;
   classNames?: Partial<Record<"root" | "table" | "header" | "row" | "cell" | "pager", string>>;
 }
@@ -83,6 +90,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     basemap,
     mapBounds,
     empty: emptySlot,
+    rules,
     className,
     classNames,
     ...hookOptions
@@ -149,6 +157,17 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   // What the last paste did, said once in a status line (T-3097).
   const [pasteNote, setPasteNote] = useState<string | null>(null);
   const [refused, setRefused] = useState<Refusal[]>([]);
+  // What the pending values break of their model's rules, by `id\u0000attr` (T-3097).
+  const ruleProblems = useMemo(() => {
+    const found = new Map<string, string>();
+    for (const [id, attrs] of Object.entries(state.edits)) {
+      for (const [attr, value] of Object.entries(attrs)) {
+        const problem = problemOf(rules?.[attr], value, labels);
+        if (problem) found.set(`${id}\u0000${attr}`, problem);
+      }
+    }
+    return found;
+  }, [state.edits, rules, labels]);
   const refusedOf = useMemo(() => new Map(refused.map((one) => [one.id, one.detail])), [refused]);
   // A refusal that names its attribute belongs on that cell too, beside the value (DM-70).
   const refusedCell = useMemo(
@@ -395,11 +414,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           />
         );
       }
+      const key = `${row.id}\u0000${column.attr}` as const;
       return (
         <EditableCell
           label={`${labels.edit} ${column.label}`}
           value={pending === undefined ? shown : String(pending)}
           changed={pending !== undefined}
+          invalid={ruleProblems.get(key) ?? refusedCell.get(key)}
           kind={typeof own === "number" ? "number" : "text"}
           onChange={(next) => {
             // Back to the endpoint's own value is not a change: it leaves the pending list.
@@ -410,7 +431,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     return <>{text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
+  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -574,7 +595,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       {editing && pendingChanges.length > 0 && (
         <div className="jc-grid-pending" role="status">
           <span>{`${pendingChanges.length} ${labels.pending}`}</span>
-          <button type="button" onClick={() => setOpen(true)}>
+          {ruleProblems.size > 0 && <span className="jc-grid-to-correct">{`${ruleProblems.size} ${labels.toCorrect}`}</span>}
+          <button type="button" disabled={ruleProblems.size > 0} onClick={() => setOpen(true)}>
             {labels.review}
           </button>
           <button type="button" onClick={() => { clearEdits(); setRefused([]); }}>
@@ -1096,23 +1118,36 @@ function EditableCell({
   value,
   changed,
   kind,
+  invalid,
   onChange,
 }: {
   label: string;
   value: string;
   changed: boolean;
   kind: "text" | "number";
+  /** Why the value cannot be sent as it is: its model's rule, or the gateway's refusal. */
+  invalid?: string;
   onChange: (next: string) => void;
 }): React.JSX.Element {
+  const messageId = React.useId();
   return (
-    <input
-      aria-label={label}
-      className={`jc-grid-cell-input${changed ? " jc-grid-cell-changed" : ""}`}
-      data-changed={changed ? "true" : undefined}
-      type={kind}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <>
+      <input
+        aria-label={label}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={invalid ? messageId : undefined}
+        className={`jc-grid-cell-input${changed ? " jc-grid-cell-changed" : ""}${invalid ? " jc-grid-cell-invalid" : ""}`}
+        data-changed={changed ? "true" : undefined}
+        type={kind}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {invalid && (
+        <span id={messageId} className="jc-grid-cell-message">
+          {invalid}
+        </span>
+      )}
+    </>
   );
 }
 

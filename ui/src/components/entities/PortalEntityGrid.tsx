@@ -140,6 +140,16 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     pasteTooLarge: t("entityGrid.pasteTooLarge"),
     loaded: t("entityGrid.loaded"),
     of: t("entityGrid.of"),
+    mustBeInteger: t("entityGrid.mustBeInteger"),
+    mustBeNumber: t("entityGrid.mustBeNumber"),
+    mustBeBoolean: t("entityGrid.mustBeBoolean"),
+    mustBeDate: t("entityGrid.mustBeDate"),
+    mustBeUri: t("entityGrid.mustBeUri"),
+    atLeast: t("entityGrid.atLeast"),
+    atMost: t("entityGrid.atMost"),
+    patternMismatch: t("entityGrid.patternMismatch"),
+    required: t("entityGrid.required"),
+    toCorrect: t("entityGrid.toCorrect"),
   };
 }
 

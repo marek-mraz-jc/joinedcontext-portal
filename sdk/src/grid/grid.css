@@ -658,3 +658,15 @@
   padding: 0;
   border: none;
 }
+
+/* A value its model's rule refuses, said beside the input (T-3097). */
+.jc-grid-cell-invalid {
+  border-color: var(--jc-color-danger, #b42318);
+}
+
+.jc-grid-cell-message,
+.jc-grid-to-correct {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--jc-color-danger, #b42318);
+}

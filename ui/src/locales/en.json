@@ -2693,7 +2693,17 @@
     "skipped": "skipped (not editable, off the page or not a listed value)",
     "pasteTooLarge": "The copied range is too large to paste; paste at most 5000 cells at once.",
     "loaded": "loaded",
-    "of": "of"
+    "of": "of",
+    "mustBeInteger": "must be a whole number",
+    "mustBeNumber": "must be a number",
+    "mustBeBoolean": "must be true or false",
+    "mustBeDate": "must be a date",
+    "mustBeUri": "must be a web address",
+    "atLeast": "must be at least",
+    "atMost": "must be at most",
+    "patternMismatch": "does not have the form this attribute requires",
+    "required": "is required",
+    "toCorrect": "to correct before applying"
   },
   "explore": {
     "title": "Explore data",

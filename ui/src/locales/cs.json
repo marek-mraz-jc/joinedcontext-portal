@@ -2693,7 +2693,17 @@
     "skipped": "vynecháno (nelze upravit, mimo stránku nebo není v seznamu hodnot)",
     "pasteTooLarge": "Zkopírovaný rozsah je pro vložení příliš velký; vložte najednou nejvýše 5000 buněk.",
     "loaded": "načteno",
-    "of": "z"
+    "of": "z",
+    "mustBeInteger": "musí být celé číslo",
+    "mustBeNumber": "musí být číslo",
+    "mustBeBoolean": "musí být true nebo false",
+    "mustBeDate": "musí být datum",
+    "mustBeUri": "musí být webová adresa",
+    "atLeast": "musí být alespoň",
+    "atMost": "musí být nejvýše",
+    "patternMismatch": "nemá tvar, který tento atribut vyžaduje",
+    "required": "je povinné",
+    "toCorrect": "je třeba opravit před použitím"
   },
   "explore": {
     "title": "Procházet data",

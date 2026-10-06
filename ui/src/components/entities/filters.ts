@@ -5,7 +5,7 @@
  * YAML view cannot disagree about what a pipeline reads (PL-42).
  */
 import { useQuery } from "@tanstack/react-query";
-import type { EnumOption, RelationEnd } from "@joinedcontext/sdk";
+import type { EnumOption, RelationEnd, ValueRule } from "@joinedcontext/sdk";
 import { ApiError, readCsrfToken } from "../../api/client";
 import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
@@ -137,6 +137,45 @@ export function enumsOfModel(
         description: value.description,
       }));
     }
+  }
+  return found;
+}
+
+/** What a LinkML range asks of a typed value, for the grid's check at the cell. */
+const KIND_OF_RANGE: Record<string, ValueRule["kind"]> = {
+  integer: "integer",
+  float: "number",
+  double: "number",
+  decimal: "number",
+  boolean: "boolean",
+  datetime: "datetime",
+  date: "date",
+  uri: "uri",
+  string: "string",
+};
+
+/**
+ * The rule of every slot of one class that states one (T-3097): its range, bounds, pattern and
+ * whether it is required, by slot name, so the grid marks a pending value that breaks it at its
+ * cell. `{}` without a model or a type.
+ */
+export function rulesOfModel(model: Manifest | string | undefined, type: string | undefined): Record<string, ValueRule> {
+  const source = typeof model === "string" ? model : inlineSource(model);
+  if (!type || source === undefined) {
+    return {};
+  }
+  const parsed = parseModel(source);
+  const cls = parsed.classes.find((c) => c.name === type);
+  const found: Record<string, ValueRule> = {};
+  for (const slot of cls ? classSlots(parsed, cls) : []) {
+    const rule: ValueRule = {};
+    const kind = slot.range === undefined ? undefined : KIND_OF_RANGE[slot.range];
+    if (kind !== undefined) rule.kind = kind;
+    if (slot.minimum_value !== undefined) rule.minimum = slot.minimum_value;
+    if (slot.maximum_value !== undefined) rule.maximum = slot.maximum_value;
+    if (slot.pattern !== undefined) rule.pattern = slot.pattern;
+    if (slot.required) rule.required = true;
+    if (Object.keys(rule).length > 0) found[slot.name] = rule;
   }
   return found;
 }

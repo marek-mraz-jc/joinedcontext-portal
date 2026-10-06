@@ -93,6 +93,17 @@ export interface GridLabels {
   /** A scrolling grid's footer (T-3097): "120 of 10 400 loaded". */
   loaded: string;
   of: string;
+  /** What a typed value breaks of its model's rule (T-3097), and the count to correct first. */
+  mustBeInteger: string;
+  mustBeNumber: string;
+  mustBeBoolean: string;
+  mustBeDate: string;
+  mustBeUri: string;
+  atLeast: string;
+  atMost: string;
+  patternMismatch: string;
+  required: string;
+  toCorrect: string;
 }
 
 /**
@@ -166,6 +177,16 @@ export const DEFAULT_LABELS: GridLabels = {
   pasteTooLarge: "The copied range is too large to paste; paste at most 5000 cells at once.",
   loaded: "loaded",
   of: "of",
+  mustBeInteger: "must be a whole number",
+  mustBeNumber: "must be a number",
+  mustBeBoolean: "must be true or false",
+  mustBeDate: "must be a date",
+  mustBeUri: "must be a web address",
+  atLeast: "must be at least",
+  atMost: "must be at most",
+  patternMismatch: "does not have the form this attribute requires",
+  required: "is required",
+  toCorrect: "to correct before applying",
 };
 
 export interface VisibleColumn {

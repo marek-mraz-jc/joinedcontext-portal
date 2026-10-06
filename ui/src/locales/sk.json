@@ -2693,7 +2693,17 @@
     "skipped": "vynechaných (nedajú sa upraviť, sú mimo strany alebo nie sú v zozname hodnôt)",
     "pasteTooLarge": "Skopírovaný rozsah je na vloženie príliš veľký; vložte naraz najviac 5000 buniek.",
     "loaded": "načítaných",
-    "of": "z"
+    "of": "z",
+    "mustBeInteger": "musí byť celé číslo",
+    "mustBeNumber": "musí byť číslo",
+    "mustBeBoolean": "musí byť true alebo false",
+    "mustBeDate": "musí byť dátum",
+    "mustBeUri": "musí byť webová adresa",
+    "atLeast": "musí byť aspoň",
+    "atMost": "musí byť najviac",
+    "patternMismatch": "nemá tvar, ktorý tento atribút vyžaduje",
+    "required": "je povinné",
+    "toCorrect": "treba opraviť pred použitím"
   },
   "explore": {
     "title": "Prehliadať dáta",
