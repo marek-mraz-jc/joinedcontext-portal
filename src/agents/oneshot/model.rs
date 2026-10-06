@@ -358,6 +358,7 @@ impl Driver {
         tools: &[ToolSpec],
         budget: u32,
     ) -> Result<ToolAnswer, CallError> {
+        let messages = &cache_marked(messages);
         if self.provider == "anthropic" {
             let tools_json = tools
                 .iter()
@@ -1023,6 +1024,32 @@ fn usage_at(answer: &Value, pointer: &str) -> u64 {
 
 /// Anthropic takes alternating roles: two turns of one role in a row are one turn with the
 /// content blocks joined (a string is one text block).
+/// The messages with the first user message, a loop's opening, marked for the provider's prompt
+/// cache (T-3073): one `cache_control` breakpoint on a text block, the shape Anthropic and
+/// OpenRouter (Gemini as well, which uses the last breakpoint) read. Every call of a turn sends
+/// the tools, the rules and that opening byte for byte, so each later call reads them from the
+/// cache instead of paying for them again; what a step adds always follows the breakpoint.
+pub(super) fn cache_marked(messages: &[Value]) -> Vec<Value> {
+    let mut marked = messages.to_vec();
+    if let Some(opening) = marked
+        .iter_mut()
+        .find(|message| message.get("role").and_then(Value::as_str) == Some("user"))
+    {
+        if let Some(text) = opening
+            .get("content")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        {
+            opening["content"] = json!([{
+                "type": "text",
+                "text": text,
+                "cache_control": { "type": "ephemeral" }
+            }]);
+        }
+    }
+    marked
+}
+
 pub(super) fn merge_anthropic_messages(messages: &[Value]) -> Vec<Value> {
     let blocks = |content: &Value| -> Vec<Value> {
         match content {
