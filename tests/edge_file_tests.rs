@@ -336,6 +336,7 @@ fn pod_settings(basemap_base: Option<&str>) -> Settings {
         host: "portal.city.example".into(),
         apex: "city.example".into(),
         gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
+        service_url: Some("http://portal.joinedcontext.svc.cluster.local:8080".into()),
         namespace: "jc".into(),
         release: Some("jc".into()),
         service_account: Some("portal".into()),

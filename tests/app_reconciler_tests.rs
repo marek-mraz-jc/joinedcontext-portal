@@ -20,6 +20,7 @@ fn settings() -> Settings {
         host: "bb.example.com".into(),
         apex: "bb.example.com".into(),
         gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
+        service_url: Some("http://portal.joinedcontext.svc.cluster.local:8080".into()),
         namespace: "joinedcontext".into(),
         org_domain: "banskabystrica.sk".into(),
         apisix_namespace: "apisix".into(),
@@ -235,10 +236,8 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
 
     // Out: the Linkerd control plane, DNS, and the gateway's pods for the endpoint, on the
     // gateway's port and the mesh's inbound port; nothing on the internet (AP-134).
-    let egress = policy["spec"]["egress"]
-        .as_array()
-        .expect("three holes out");
-    assert_eq!(egress.len(), 3);
+    let egress = policy["spec"]["egress"].as_array().expect("four holes out");
+    assert_eq!(egress.len(), 4);
     assert!(
         !policy.to_string().contains("0.0.0.0/0"),
         "no App pod reaches every address"
@@ -272,6 +271,20 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
             { "protocol": "TCP", "port": 4143 },
         ])
     );
+    assert_eq!(
+        egress[3],
+        json!({
+            "to": [{
+                "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "joinedcontext" } },
+                "podSelector": { "matchLabels": { "app.kubernetes.io/name": "portal-portal" } },
+            }],
+            "ports": [
+                { "protocol": "TCP", "port": 8080 },
+                { "protocol": "TCP", "port": 4143 },
+            ],
+        }),
+        "the Portal's pods for JC_ME_URL, on its port and the mesh's, nothing else of it"
+    );
 }
 
 /// AP-134: a declared destination is one more hole, on its own ports, with every private range
@@ -299,7 +312,7 @@ fn a_declared_destination_is_the_only_way_out_and_never_a_private_range() {
         .as_array()
         .expect("egress")
         .iter()
-        .skip(3)
+        .skip(4)
         .collect();
     assert_eq!(
         declared,
@@ -339,6 +352,78 @@ fn a_pod_app_without_a_gateway_is_refused() {
             "{gateway_url:?}: {err}"
         );
     }
+}
+
+/// AP-109, AP-134: the caller's roles are asked on the Portal's Service in the cluster, so
+/// without one a pod-backed App is refused rather than told the public host its NetworkPolicy
+/// never admits, where every person would read as holding no role.
+#[test]
+fn a_pod_app_without_a_portal_service_is_refused() {
+    for service_url in [
+        None,
+        Some("not a url".to_owned()),
+        Some("http://portal:8080".to_owned()),
+    ] {
+        let err = render(
+            &app(json!({})),
+            Some(APP_IMAGE),
+            &generate_slug(),
+            &Settings {
+                service_url: service_url.clone(),
+                ..settings()
+            },
+        )
+        .expect_err("no Portal Service, no pod");
+        assert!(
+            err.to_string().contains("JC_PORTAL_SERVICE_URL"),
+            "{service_url:?}: {err}"
+        );
+    }
+}
+
+/// T-3037: the host `JC_ME_URL` names is one the pod's NetworkPolicy lets it reach. The public
+/// host was not, so every pod App with roles read its steward as role-less.
+#[test]
+fn the_network_policy_admits_the_portal_that_jc_me_url_names() {
+    let rendered = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("the app renders");
+    let workload = rendered.workload.expect("a pod");
+    let me = env(container(&workload.deployment, "app"), "JC_ME_URL")["value"]
+        .as_str()
+        .expect("JC_ME_URL")
+        .to_owned();
+    assert_eq!(
+        me,
+        "http://portal.joinedcontext.svc.cluster.local:8080/api/v1/projects/ovzdusie/apps/air-quality-today/me"
+    );
+    let url: url::Url = me.parse().expect("a URL");
+    let namespace = url
+        .host_str()
+        .and_then(|host| host.split('.').nth(1))
+        .expect("a namespace");
+    let port = url.port_or_known_default().expect("a port");
+    let admitted = workload.network_policy["spec"]["egress"]
+        .as_array()
+        .expect("egress")
+        .iter()
+        .any(|rule| {
+            rule["to"].as_array().is_some_and(|peers| {
+                peers.iter().any(|peer| {
+                    peer["namespaceSelector"]["matchLabels"]["kubernetes.io/metadata.name"]
+                        == namespace
+                        && peer["podSelector"]["matchLabels"]["app.kubernetes.io/name"]
+                            == "portal-portal"
+                })
+            }) && rule["ports"]
+                .as_array()
+                .is_some_and(|ports| ports.iter().any(|p| p["port"] == port))
+        });
+    assert!(admitted, "{me} is outside {}", workload.network_policy);
 }
 
 #[test]
@@ -914,7 +999,7 @@ fn a_fullstack_pod_pulls_with_the_secret_and_runs_the_binary_as_a_numeric_user()
     assert_eq!(binary["command"], json!(["/app"]));
     assert_eq!(
         env(binary, "JC_ME_URL")["value"],
-        "https://bb.example.com/api/v1/projects/ovzdusie/apps/air-quality-today/me"
+        "http://portal.joinedcontext.svc.cluster.local:8080/api/v1/projects/ovzdusie/apps/air-quality-today/me"
     );
 
     let without = render(

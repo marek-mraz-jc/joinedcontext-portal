@@ -34,6 +34,8 @@ interface Stub {
   status?: number;
   /** The origin the Portal serves Apps from, as `/api/v1/branding` names it. */
   appsOrigin?: string;
+  /** The forge addresses `GET …/build` gives this person (T-3039); none by default. */
+  links?: { repositoryUrl?: string | null; configurationUrl?: string | null };
 }
 
 function manifest(name: string, { lifecycle = "published", build = { commit: COMMIT } }: Stub) {
@@ -62,7 +64,14 @@ function renderAt(path: string, stub: Stub = {}) {
       if (url.pathname.endsWith("/auth/me")) return json({ subject: "s1", username: "steward", roles: [] });
       const build = /\/apps\/([^/]+)\/build$/.exec(url.pathname);
       if (build) {
-        return json({ repositoryUrl: null, packageUrl: null, run: stub.run ?? null, rebuild: { allowed: false } });
+        return json({
+          repositoryUrl: null,
+          configurationUrl: null,
+          ...stub.links,
+          packageUrl: null,
+          run: stub.run ?? null,
+          rebuild: { allowed: false },
+        });
       }
       const app = /\/apps\/([^/]+)$/.exec(url.pathname);
       if (app) {
@@ -228,6 +237,30 @@ describe("AppOpenPage", () => {
     expect(link.getAttribute("href")).toBe("/apps/city-bikes/");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  it("links the App's whole source and the project's configuration in new tabs when the API gives them (T-3039)", async () => {
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`, {
+      links: {
+        repositoryUrl: "https://forge.example/user/oauth2/keycloak?redirect_to=%2Fjc-apps%2Fhelsinki_city-bikes",
+        configurationUrl: "https://forge.example/user/oauth2/keycloak?redirect_to=%2Fjc%2Fhelsinki",
+      },
+    });
+    const source = await screen.findByRole("link", { name: new RegExp(`^${en.apps.sourceCode}`) });
+    expect(source).toHaveAttribute("href", "https://forge.example/user/oauth2/keycloak?redirect_to=%2Fjc-apps%2Fhelsinki_city-bikes");
+    expect(source).toHaveAttribute("target", "_blank");
+    const configuration = screen.getByRole("link", { name: new RegExp(`^${en.apps.projectConfiguration}`) });
+    expect(configuration).toHaveAttribute("href", "https://forge.example/user/oauth2/keycloak?redirect_to=%2Fjc%2Fhelsinki");
+    expect(configuration).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("offers no forge link the API left out, nor one of another scheme (T-3039)", async () => {
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`, {
+      links: { repositoryUrl: "javascript:alert(1)", configurationUrl: "https://forge.example/jc/helsinki" },
+    });
+    // The configuration link arriving is the build's answer read; the source link never comes.
+    await screen.findByRole("link", { name: new RegExp(`^${en.apps.projectConfiguration}`) });
+    expect(screen.queryByText(en.apps.sourceCode)).toBeNull();
   });
 
   it("escapes a name into the address instead of leaving the apps path", async () => {

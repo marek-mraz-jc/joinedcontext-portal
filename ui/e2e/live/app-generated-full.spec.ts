@@ -64,21 +64,33 @@ test("a prompt becomes a React + functions application that opens, reads and ans
     await page.getByRole("button", { name: "Generate the app" }).click();
     await page.waitForURL(new RegExp(`/projects/${PROJECT}/apps/${NAME}`), { timeout: 60_000 });
 
-    // 2. The first version, with the server's summary in the tiles (SDK-13, SDK-23).
+    // 2. The first version: the preview draws a number read from the data, the run waits for the
+    // person, and the server's summary function answered (SDK-13, SDK-23). Waited on
+    // what the person sees, never a class name the model happens to choose: `.stat-value` failed
+    // a working app that drew 457 stations in its own tiles (T-3044).
     const preview = page.frameLocator("iframe").first();
-    const counted = preview.locator(".stat-value").filter({ hasText: /[1-9]/ });
-    await expect(counted.first()).toBeVisible({ timeout: 600_000 });
+    const waiting = page.getByText("Waiting for you", { exact: true });
+    await expect(preview.getByText(/^\s*[1-9][\d,.\s]*$/).first()).toBeVisible({ timeout: 600_000 });
+    await expect(waiting).toBeVisible({ timeout: 600_000 });
+    await expect(page.getByText(/^function:summary/).first()).toBeVisible();
     test.info().annotations.push({
       type: "first version",
       description: `${Math.round((Date.now() - started) / 1000)} s after Generate`,
     });
     await expect(page.getByText(/No sample of .* could be read/)).toHaveCount(0);
 
-    // 3. One follow-up lands as a commit on the run's branch (AP-76).
+    // 3. One follow-up lands as a new tested version on the run's branch (AP-76). The map already
+    // drew an `svg`, so the chart is proven by a version past the first, not by the element.
+    const versions = page.getByText(/^Version \d+: all \d+ tests pass\.$/);
+    const tested = async (): Promise<number> =>
+      Math.max(0, ...(await versions.allInnerTexts()).map((text) => Number(/^Version (\d+)/.exec(text)?.[1] ?? 0)));
+    const before = await tested();
     const composer = page.getByPlaceholder("Tell the assistant what to build or change…");
     await composer.fill("Add a chart of stations by free slots.");
     await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(preview.locator("svg, canvas").first()).toBeVisible({ timeout: 600_000 });
+    await expect.poll(tested, { timeout: 600_000, intervals: [5_000] }).toBeGreaterThan(before);
+    await expect(waiting).toBeVisible({ timeout: 120_000 });
+    await expect(preview.locator("svg, canvas").first()).toBeVisible();
 
     // 4. Publish opens the merge request and proposes the App with its source (AP-77).
     await page.getByRole("button", { name: "Publish this app" }).click();

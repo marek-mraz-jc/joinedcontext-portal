@@ -4,7 +4,8 @@ import { clsx } from "clsx";
 import { useFormRoute } from "./forms/FormRoute";
 import { safeHref } from "./ui";
 
-const STYLE = "focus-ring text-primary-soft-fg underline-offset-2 hover:underline";
+/** How a record link looks; a card whose link goes elsewhere (an App opens itself) wears the same. */
+export const RECORD_LINK_STYLE = "focus-ring text-primary-soft-fg underline-offset-2 hover:underline";
 
 /** Kinds with a page of their own (the router's DETAIL_PAGES); every other kind opens on its edit form. */
 const DETAIL = new Set(["spaces", "endpoints", "apps"]);
@@ -26,7 +27,7 @@ export function RecordLink({
   className?: string;
   children?: ReactNode;
 }): React.JSX.Element {
-  const style = clsx(STYLE, className);
+  const style = clsx(RECORD_LINK_STYLE, className);
   return DETAIL.has(plural) ? (
     <Link data-row-link="" to="/projects/$project/$plural/$name" params={{ project, plural, name }} className={style}>
       {children ?? name}
@@ -61,7 +62,7 @@ export function FormRecordLink({
     <a
       data-row-link=""
       href={safeHref(route.editHref(name))}
-      className={clsx(STYLE, className)}
+      className={clsx(RECORD_LINK_STYLE, className)}
       onClick={(event) => {
         if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
           return;

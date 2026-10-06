@@ -1313,7 +1313,30 @@ async fn ask_the_data_with(
     answers: &[&str],
     data: impl wiremock::Respond + 'static,
 ) -> (Vec<AgentRunEvent>, Vec<Value>, Vec<String>) {
+    ask_the_data_listing(endpoints, answers, data, 0).await
+}
+
+/// [`ask_the_data_with`], with the endpoint's first `list_failures` `tools/list` calls answered by
+/// the proxy's 409 for a run it holds no primary endpoint of yet (T-3044).
+async fn ask_the_data_listing(
+    endpoints: Value,
+    answers: &[&str],
+    data: impl wiremock::Respond + 'static,
+    list_failures: u64,
+) -> (Vec<AgentRunEvent>, Vec<Value>, Vec<String>) {
     let proxy = MockServer::start().await;
+    if list_failures > 0 {
+        Mock::given(method("POST"))
+            .and(path("/v1/data/mcp"))
+            .and(wiremock::matchers::body_string_contains("tools/list"))
+            .respond_with(ResponseTemplate::new(409).set_body_json(json!({
+                "status": 409, "title": "Conflict",
+                "detail": "this run reads no endpoint yet: open one in the conversation first"
+            })))
+            .up_to_n_times(list_failures)
+            .mount(&proxy)
+            .await;
+    }
     common::route_to_no_path(&proxy).await;
     for answer in answers {
         Mock::given(method("POST"))
@@ -1407,6 +1430,48 @@ async fn ask_the_data_with(
 const QUERY_ANSWER: &str = "Let me read the stations.\n```json\n{\"tool\":\"query_endpoint\",\"endpoint\":\"helsinki-all\",\"name\":\"query_entities\",\"arguments\":{\"type\":\"BikeHireDockingStation\",\"q\":\"availableBikeNumber==0\"}}\n```";
 const WRITE_ANSWER: &str = "```json\n{\"tool\":\"query_endpoint\",\"endpoint\":\"helsinki-all\",\"name\":\"upsert_entity\",\"arguments\":{}}\n```";
 const DATA_PROSE: &str = "One station has no bikes right now: Kaivopuisto.";
+
+/// The endpoint's tool list failed when the conversation began; the query asks for it again
+/// and reads the data, rather than telling the person the endpoint offers nothing (T-3044).
+#[tokio::test]
+async fn a_tool_list_that_failed_at_the_start_is_asked_again_before_a_query_is_refused() {
+    let (events, _, _) = ask_the_data_listing(
+        json!(["helsinki-all"]),
+        &[QUERY_ANSWER, DATA_PROSE],
+        data_answer("[{\"id\":\"urn:ngsi-ld:BikeHireDockingStation:hel.fi:helsinki:kaivopuisto\",\"name\":\"Kaivopuisto\"}]"),
+        1,
+    )
+    .await;
+
+    let step = events
+        .iter()
+        .find(|e| e.kind == "tool" && e.payload["tool"] == "query_endpoint")
+        .expect("a query step");
+    assert_eq!(step.payload["status"], "ok", "{}", step.payload);
+}
+
+/// An endpoint that never lists its tools is one that could not be read just now, which is what
+/// the model is told; never that it offers no read tool (T-3044).
+#[tokio::test]
+async fn an_endpoint_that_cannot_list_its_tools_is_reported_unreadable_not_empty() {
+    let (events, _, _) = ask_the_data_listing(
+        json!(["helsinki-all"]),
+        &[QUERY_ANSWER, DATA_PROSE],
+        data_answer("[]"),
+        u64::MAX,
+    )
+    .await;
+
+    let step = events
+        .iter()
+        .find(|e| e.kind == "tool" && e.payload["tool"] == "query_endpoint")
+        .expect("a query step");
+    assert_eq!(step.payload["status"], "failed", "{}", step.payload);
+    let error = step.payload["error"].as_str().unwrap_or_default();
+    assert!(error.contains("could not be read just now"), "{error}");
+    assert!(error.contains("409"), "{error}");
+    assert!(!error.contains("offers you no read tool"), "{error}");
+}
 
 #[tokio::test]
 async fn a_question_about_the_data_is_answered_from_the_endpoints_the_person_chose() {

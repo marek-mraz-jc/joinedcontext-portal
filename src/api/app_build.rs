@@ -18,6 +18,7 @@ use crate::agents::repository;
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{GitError, GiteaClient, WorkflowRun};
+use crate::permissions::ORG_NAMESPACE;
 use crate::state::AppState;
 
 /// The workflow every application repository carries (AP-100).
@@ -27,8 +28,12 @@ const WORKFLOW_FILE: &str = "build.yml";
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AppBuild {
-    /// The repository's page; `null` for an App not built on the forge.
+    /// The App's own repository (its whole source, T-3039); `null` for an App not built on the
+    /// forge.
     pub repository_url: Option<String>,
+    /// The project's configuration repository, the one its Changes merge into; `null` for a
+    /// caller the forge does not let read it (AP-103, PF-87, T-3039).
+    pub configuration_url: Option<String>,
     /// The newest workflow run, `null` before the first.
     pub run: Option<WorkflowRun>,
     /// The package of `status.build.commit`, `null` while the App has no build.
@@ -82,6 +87,28 @@ fn app_of(
     ))
 }
 
+/// The project's configuration repository, for a caller the forge lets read it (PF-87, T-3039):
+/// in layout 2 a person the project's bindings place in its readers, in layout 1 a person with a
+/// binding at the organization, and an organization administrator in both.
+fn configuration_url(state: &AppState, user: &CurrentUser, project: &str) -> Option<String> {
+    let identity = &user.0.identity;
+    let forge = state.forge_for(project)?;
+    let organization = crate::permissions::for_request(state, identity, ORG_NAMESPACE);
+    let reads = organization.administers_organization()
+        || if state.mirror.repository_of(project).is_some() {
+            let readers =
+                crate::permissions::project_members(&state.mirror, project, chrono::Utc::now())
+                    .readers;
+            [Some(identity.username.as_str()), identity.email.as_deref()]
+                .into_iter()
+                .flatten()
+                .any(|who| readers.contains(&who.trim().to_ascii_lowercase()))
+        } else {
+            organization.may_read_project()
+        };
+    reads.then(|| forge.repository_page_url())
+}
+
 /// Why this person may not rebuild, or `None` when they may.
 fn rebuild_refusal(state: &AppState, user: &CurrentUser, project: &str) -> Option<String> {
     (!crate::permissions::for_request(state, &user.0.identity, project).may("App", Verb::Propose))
@@ -114,9 +141,11 @@ pub async fn build(
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Json<AppBuild>, ApiError> {
     let (app, repo) = app_of(&state, &user, &project, &name)?;
+    let configuration_url = configuration_url(&state, &user, &project);
     let Some(repo) = repo else {
         return Ok(Json(AppBuild {
             repository_url: None,
+            configuration_url,
             run: None,
             package_url: None,
             rebuild: Rebuild {
@@ -148,7 +177,10 @@ pub async fn build(
         });
     let refusal = rebuild_refusal(&state, &user, &project);
     Ok(Json(AppBuild {
+        // The applications' organization reads every App's repository to every signed-in
+        // person (PF-79, T-3030), and a caller who reached this line may read the App.
         repository_url: Some(repo.repository_page_url()),
+        configuration_url,
         run,
         package_url,
         rebuild: Rebuild {

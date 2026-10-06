@@ -126,15 +126,15 @@ describe("the card headers that still carried a loose pair", () => {
     expect(within(header).getByRole("button", { name: MENU })).toBeInTheDocument();
   });
 
-  it("keeps one Open in the app card's open and every other action in its one menu (T-2618)", async () => {
+  it("keeps no Open button on the app card and every action in its one menu (T-2618, T-3038)", async () => {
     await renderRoute({ path: `/projects/${PROJECT}/apps`, answer });
     const card = (await screen.findByRole("heading", { name: "Air map" })).closest(
       "li",
     ) as HTMLElement;
 
     expect(
-      within(card).getByRole("button", { name: new RegExp(`^${en.apps.openAction}`) }),
-    ).toBeInTheDocument();
+      within(card).queryByRole("button", { name: new RegExp(`^${en.apps.openAction}`) }),
+    ).toBeNull();
     expect(within(card).queryByRole("button", { name: en.apps.previewAction })).toBeNull();
     expect(within(card).queryByRole("button", { name: en.resourceEdit.button })).toBeNull();
     const menu = await openMenu(card);

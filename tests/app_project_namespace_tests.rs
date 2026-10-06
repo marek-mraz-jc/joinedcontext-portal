@@ -27,6 +27,7 @@ fn settings() -> Settings {
         host: "bb.example.com".into(),
         apex: "bb.example.com".into(),
         gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
+        service_url: Some("http://portal.joinedcontext.svc.cluster.local:8080".into()),
         namespace: "joinedcontext".into(),
         org_domain: "banskabystrica.sk".into(),
         apisix_namespace: "apisix".into(),
