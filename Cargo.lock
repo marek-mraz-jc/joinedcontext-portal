@@ -613,6 +613,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 
 [[package]]
+name = "context-gateway"
+version = "0.1.0"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?tag=jc-core-v0.7.74#7992419bf59e836d671b22ebb079aba3e6160f42"
+dependencies = [
+ "arc-swap",
+ "argon2",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "jc-core",
+ "jcctl",
+ "jsonschema",
+ "jsonwebtoken",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "regex",
+ "reqwest",
+ "ring",
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tower",
+ "tower-http 0.6.11",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "cookie"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2197,6 +2232,7 @@ name = "jc-core"
 version = "0.1.0"
 source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?tag=jc-core-v0.7.74#7992419bf59e836d671b22ebb079aba3e6160f42"
 dependencies = [
+ "axum",
  "chrono",
  "regex",
  "schemars 0.8.22",
@@ -2204,6 +2240,8 @@ dependencies = [
  "serde_json",
  "serde_norway",
  "thiserror 2.0.20",
+ "tracing",
+ "tracing-subscriber",
  "zeroize",
 ]
 
@@ -2342,6 +2380,7 @@ dependencies = [
  "axum-extra",
  "base64 0.23.1",
  "chrono",
+ "context-gateway",
  "flate2",
  "futures-util",
  "hickory-resolver",
@@ -4100,6 +4139,7 @@ version = "0.23.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -5187,6 +5227,7 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
  "url",
 ]
 
