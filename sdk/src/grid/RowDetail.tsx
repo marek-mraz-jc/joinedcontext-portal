@@ -1,6 +1,5 @@
 import React, { useEffect, useId, useRef } from "react";
 import type { RichRow } from "./model";
-import { cellText } from "./model";
 import type { VisibleColumn } from "./useEntityGrid";
 
 export interface RowDetailLabels {
@@ -11,6 +10,8 @@ export interface RowDetailLabels {
 
 export interface RowDetailProps {
   row: RichRow;
+  /** What the row is called: its primary field, else its name, else its id. */
+  name: string;
   /** The grid's columns: their attributes come first, in the grid's order and with its labels. */
   columns: VisibleColumn[];
   /** How one attribute's value is drawn, the grid's own cell renderer, editors included. */
@@ -25,20 +26,23 @@ export interface RowDetailProps {
  * as in its cell and joins the same pending list. Named by the row's name, never only its id; the
  * heading takes focus when it opens and Escape closes it.
  */
-export function RowDetail({ row, columns, renderValue, labels, onClose }: RowDetailProps): React.JSX.Element {
+export function RowDetail({ row, name, columns, renderValue, labels, onClose }: RowDetailProps): React.JSX.Element {
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     heading.current?.focus();
   }, [row.id]);
 
-  const shown = columns.filter((column) => column.attr !== null && column.meta === null);
+  // Unpinned copies: in the panel the primary attribute is a value or an editor like the rest, not
+  // the button that opened the panel.
+  const shown = columns
+    .filter((column) => column.attr !== null && column.meta === null)
+    .map((column) => ({ ...column, pinned: false }));
   const named = new Set(shown.map((column) => column.attr));
   const rest: VisibleColumn[] = Object.keys(row.cells)
     .filter((attr) => !named.has(attr))
     .sort()
     .map((attr) => ({ key: attr, attr, meta: null, label: attr, pinned: false }));
-  const name = cellText(row.cells.name) || cellText(row.cells.title);
 
   return (
     <aside
@@ -54,13 +58,13 @@ export function RowDetail({ row, columns, renderValue, labels, onClose }: RowDet
     >
       <div className="jc-grid-detail-head">
         <h3 id={headingId} ref={heading} tabIndex={-1}>
-          {`${labels.rowDetail}: ${name || row.id}`}
+          {`${labels.rowDetail}: ${name}`}
         </h3>
         <button type="button" onClick={onClose}>
           {labels.close}
         </button>
       </div>
-      {name ? <p className="jc-grid-detail-id">{row.id}</p> : null}
+      {name !== row.id ? <p className="jc-grid-detail-id">{row.id}</p> : null}
       <dl className="jc-grid-detail-list">
         {[...shown, ...rest].map((column) => (
           <div key={column.key} className="jc-grid-detail-item">

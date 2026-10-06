@@ -165,7 +165,8 @@ export function ExplorePage({
     const parsed = parseGridConfig({
       source: { kind: "endpoint", slug },
       type: query.type,
-      columns: (query.attrs ?? []).map((attr) => ({ attr })),
+      // `name`, the Smart Data Models label, is the primary field: first, pinned, opening the row.
+      columns: (query.attrs ?? []).map((attr) => ({ attr, ...(attr === "name" ? { pinned: true } : {}) })),
       filters: { preset: { q: query.q, attrs: query.attrs, scopeQ: query.scopeQ } },
       pageSize: PAGE_SIZE,
       history: { enabled: true },

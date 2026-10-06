@@ -124,6 +124,20 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   // The row whose detail panel is open, by id, so a new page closes it rather than showing a row
   // that is no longer listed (T-3097).
   const [detailId, setDetailId] = useState<string | null>(null);
+  // The primary column is the first one when it is an attribute: the config pinned it (T-3097).
+  const primaryKey = columns[0]?.attr !== null && columns[0]?.pinned ? columns[0].key : null;
+  const isPrimary = useCallback(
+    (column: VisibleColumn): boolean => column.key === primaryKey && column.pinned && column.meta === null,
+    [primaryKey],
+  );
+  /** What a row is called: its primary field, else its name or title, else its id. */
+  const rowName = useCallback(
+    (row: RichRow): string => {
+      const primary = primaryKey ? cellText(row.cells[primaryKey]) : "";
+      return primary || cellText(row.cells.name) || cellText(row.cells.title) || row.id;
+    },
+    [primaryKey],
+  );
   const tableRef = useRef<HTMLTableElement>(null);
   // What the last paste did, said once in a status line (T-3097).
   const [pasteNote, setPasteNote] = useState<string | null>(null);
@@ -253,20 +267,22 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     if (column.attr === null && renderers?.[column.key]) {
       return renderers[column.key](cell, row);
     }
-    // Without a host's own, the identifier opens the row's detail panel (T-3097).
-    if (column.key === "id") {
-      const name = cellText(row.cells.name) || text;
+    // The primary field, or the identifier where the config names none, opens the row's detail
+    // panel (T-3097): the person reads the row by its name and opens it from there.
+    if (column.key === "id" || isPrimary(column)) {
+      const name = rowName(row);
       return (
         <button
           type="button"
           className="jc-grid-open"
           aria-label={`${labels.openRow}: ${name}`}
+          title={row.id}
           onClick={(e) => {
             e.stopPropagation();
             setDetailId(row.id);
           }}
         >
-          {text}
+          {column.key === "id" ? text : text || row.id}
         </button>
       );
     }
@@ -387,7 +403,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     return <>{text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
+  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -709,6 +725,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       {detailRow && (
         <RowDetail
           row={detailRow}
+          name={rowName(detailRow)}
           columns={columns}
           renderValue={renderCellContent}
           labels={{ rowDetail: labels.rowDetail, close: labels.close }}

@@ -257,8 +257,12 @@ function buildColumns(
 ): VisibleColumn[] {
   const cols: VisibleColumn[] = [];
 
-  // id column (pinned)
-  cols.push({ key: "id", attr: null, meta: null, label: labels.id, pinned: true });
+  // The primary field (T-3097, ADR-N-042): the first column the config pins takes the identifier's
+  // place as the row's first, pinned column, and its value opens the row; without one the id does.
+  const primary = config.columns.find((c) => c.pinned)?.attr;
+  if (primary === undefined) {
+    cols.push({ key: "id", attr: null, meta: null, label: labels.id, pinned: true });
+  }
 
   // entity timestamps
   if (config.entityTimestamps) {
@@ -268,10 +272,11 @@ function buildColumns(
 
   // The model's relationship ends are columns even on a page where no entity holds one yet: an
   // empty end is what a person comes to fill, and a computed end is never in a row at all.
-  const attrList =
+  const listed =
     config.columns.length > 0
       ? config.columns.map((c) => c.attr)
       : [...new Set([...attributesOf(rows), ...Object.keys(relations)])];
+  const attrList = primary === undefined ? listed : [primary, ...listed.filter((attr) => attr !== primary)];
   const colMap = new Map<string, GridColumn>();
   for (const c of config.columns) {
     colMap.set(c.attr, c);
@@ -280,7 +285,8 @@ function buildColumns(
   for (const attr of attrList) {
     const gridCol = colMap.get(attr);
     const label = gridCol?.label ?? attr;
-    const pinned = gridCol?.pinned ?? false;
+    // Only the primary is pinned: a second sticky column would sit over the first at the left edge.
+    const pinned = attr === primary;
     const symbol = unitSymbol(unitOfColumn(rows, attr));
     cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned });
 

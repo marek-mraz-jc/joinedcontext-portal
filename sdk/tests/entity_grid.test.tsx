@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource } from "../src/grid/source";
@@ -244,6 +244,37 @@ describe("EntityGrid", () => {
     expect(screen.getByText("2 not applied yet")).toBeInTheDocument();
     expect(screen.getByDisplayValue("8")).toBeInTheDocument();
     expect(screen.getByDisplayValue("4")).toBeInTheDocument();
+  });
+
+  // T-3097, ADR-N-042: a pinned column is the primary field. It takes the identifier's place as the
+  // first column, its value opens the row (the id on hover and in the panel), and in the panel it is
+  // edited like any other attribute.
+  it("puts a pinned primary field first, opens the row from it and edits it in the panel", async () => {
+    const primary = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "availableBikeNumber", label: "Bikes" },
+        { attr: "name", label: "Name", pinned: true },
+      ],
+      pageSize: 10,
+      mode: "edit",
+      editableAttrs: ["name", "availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(<EntityGrid config={primary} source={source} />);
+    const open = await screen.findByRole("button", { name: "Open: Kamppi" });
+    const headers = screen.getAllByRole("columnheader").map((th) => th.textContent ?? "");
+    expect(headers[0]).toMatch(/^Name/);
+    expect(headers.some((h) => h.startsWith("ID"))).toBe(false);
+    expect(open).toHaveAttribute("title", "urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001");
+    expect(open.closest("td")).toHaveClass("jc-grid-pinned");
+
+    fireEvent.click(open);
+    const panel = screen.getByRole("complementary", { name: "Details: Kamppi" });
+    expect(within(panel).getByText("urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001")).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /^Open/ })).toBeNull();
+    expect(within(panel).getAllByRole("textbox").length).toBeGreaterThan(0);
   });
 
   it("has role grid with aria-rowcount and headers with aria-colindex", async () => {
