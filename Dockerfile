@@ -46,6 +46,7 @@ COPY apps/banskabystrica-ovzdusie/ui/package.json apps/banskabystrica-ovzdusie/u
 COPY apps/banskabystrica-mapa/ui/package.json apps/banskabystrica-mapa/ui/pnpm-lock.yaml ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/package.json apps/banskabystrica-data/ui/pnpm-lock.yaml ./apps/banskabystrica-data/ui/
 COPY apps/banskabystrica-skoly/ui/package.json apps/banskabystrica-skoly/ui/pnpm-lock.yaml ./apps/banskabystrica-skoly/ui/
+COPY apps/bbsk-mapa/ui/package.json apps/bbsk-mapa/ui/pnpm-lock.yaml ./apps/bbsk-mapa/ui/
 COPY apps/praha-mesto/ui/package.json apps/praha-mesto/ui/pnpm-lock.yaml ./apps/praha-mesto/ui/
 RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile \
@@ -54,6 +55,7 @@ RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-data/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-skoly/ui && pnpm install --frozen-lockfile \
+    && cd ../../bbsk-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
 COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
@@ -62,6 +64,7 @@ COPY apps/banskabystrica-ovzdusie/ui/ ./apps/banskabystrica-ovzdusie/ui/
 COPY apps/banskabystrica-mapa/ui/ ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/ ./apps/banskabystrica-data/ui/
 COPY apps/banskabystrica-skoly/ui/ ./apps/banskabystrica-skoly/ui/
+COPY apps/bbsk-mapa/ui/ ./apps/bbsk-mapa/ui/
 COPY apps/praha-mesto/ui/ ./apps/praha-mesto/ui/
 COPY scripts/app-integrity.mjs ./scripts/
 RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
@@ -82,6 +85,9 @@ RUN cd apps/banskabystrica-data/ui && pnpm build \
 RUN cd apps/banskabystrica-skoly/ui && pnpm build \
     && cp -r dist /srv/apps/banskabystrica-skoly \
     && node /work/scripts/app-integrity.mjs /srv/apps/banskabystrica-skoly
+RUN cd apps/bbsk-mapa/ui && pnpm build \
+    && cp -r dist /srv/apps/bbsk-mapa \
+    && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-mapa
 RUN cd apps/praha-mesto/ui && pnpm build \
     && cp -r dist /srv/apps/praha-mesto \
     && node /work/scripts/app-integrity.mjs /srv/apps/praha-mesto
