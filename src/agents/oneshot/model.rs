@@ -443,11 +443,14 @@ impl Driver {
                 .collect::<Vec<_>>();
             let mut full_messages = vec![json!({ "role": "system", "content": system })];
             full_messages.extend_from_slice(messages);
+            // Several calls per answer (T-3075): the loop runs all of them and answers them in
+            // one next call, so independent reads cost one round trip.
             let body = json!({
                 "model": self.model,
                 "max_tokens": budget,
                 "messages": full_messages,
                 "tools": tools_json,
+                "parallel_tool_calls": true,
             });
             let answer = self
                 .post_llm("/v1/llm/chat/completions", &body, budget)
