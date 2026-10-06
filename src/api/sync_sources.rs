@@ -287,6 +287,7 @@ pub(crate) async fn detach_for(
             // Never: removing the thing that keeps a project aligned with a standard is a
             // decision a person makes (CC-70).
             auto_merge: false,
+            line: None,
         },
     )
     .await?;
