@@ -1207,6 +1207,15 @@
         "data_views.test.tsx"
       ]
     },
+    "src/pages/spaces/PublicView.tsx": {
+      "controls": {
+        "Button": 2,
+        "Checkbox": 1
+      },
+      "tests": [
+        "public_view.test.tsx"
+      ]
+    },
     "src/pages/spaces/SpaceComplete.tsx": {
       "controls": {
         "Button": 3

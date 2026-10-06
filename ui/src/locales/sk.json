@@ -608,6 +608,19 @@
       "webhooksLead": "NGSI-LD subscription na {type}, ktorá zavolá URL, keď sa entita zmení, navrhnutá ako zmena.",
       "noWebhook": "Tento typ zatiaľ nesleduje žiadny webhook.",
       "newWebhook": "Nový webhook pre tento typ"
+    },
+    "share": {
+      "title": "Zverejniť tento typ ako verejný odkaz",
+      "lead": "Verejný endpoint, ktorý ukazuje {type} a len atribúty, ktoré necháte zaškrtnuté, čitateľný kýmkoľvek bez prihlásenia. Navrhne sa ako zmena a posúdi ako každý endpoint; odstránenie endpointu odkaz zruší.",
+      "name": "Názov endpointu",
+      "nameHint": "Malé písmená, číslice a pomlčky, najviac 63.",
+      "shown": "Atribúty, ktoré odkaz ukazuje",
+      "publish": "Navrhnúť verejný odkaz",
+      "link": "Po zlúčení a nasadení zmeny je odkaz {url}",
+      "notPublished": "Tento pohľad nie je zverejnený alebo už nie je.",
+      "types": "Typy",
+      "first": "Prvých {count} entít.",
+      "count": "{count, plural, one {# entita} few {# entity} other {# entít}}."
     }
   },
   "endpoints": {

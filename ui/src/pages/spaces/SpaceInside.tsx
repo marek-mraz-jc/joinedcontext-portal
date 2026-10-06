@@ -52,6 +52,7 @@ import type { LiveChange } from "./DataViews";
 import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
+import { SharePanel } from "./PublicView";
 import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
@@ -465,6 +466,7 @@ function SpaceData({
       {probe.isSuccess && view === "api" ? (
         <div {...tabPanelProps("space-data-view", view)}>
           <TypeApi project={project} space={space} type={type} endpoints={endpoints} />
+          <SharePanel key={type} project={project} space={space} type={type} attributes={slots.map((slot) => slot.name)} />
         </div>
       ) : null}
       {probe.isSuccess && view !== "grid" && view !== "api" ? (
