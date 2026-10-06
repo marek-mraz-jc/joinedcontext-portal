@@ -1075,6 +1075,7 @@
         "nameHint": "Malé písmená, číslice a pomlčky; pomenúva ukazovateľ aj jeho pipeline.",
         "typeHint": "Typ entity, ktorého hodnoty sa agregujú; modeluje ho priestor endpointu.",
         "attributeHint": "Číselný atribút toho typu, ktorý agregácia číta.",
+        "attributePick": "Číselné atribúty, ktoré model daného typu uvádza; vyberte ten, ktorý agregácia číta.",
         "aggregateHint": "Ako sa hodnoty jedného obdobia zlúčia do jedného čísla.",
         "periodHint": "Ako často sa ukazovateľ počíta, ako trvanie, napríklad 15m alebo 1h."
       },

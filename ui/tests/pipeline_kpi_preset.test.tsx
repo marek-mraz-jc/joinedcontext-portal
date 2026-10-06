@@ -63,7 +63,23 @@ const ENDPOINT_PAGE = [
   { id: "urn:ngsi-ld:BikeHireDockingStation:hel.fi:h:1", type: "BikeHireDockingStation", availableBikeNumber: { type: "Property", value: 12.5 } },
 ];
 
-function mockFetch(testResponse?: { status: number; body: unknown }, endpointStatus = 200) {
+/** The project's own space and model, for the attribute picker (T-3088). */
+const BIKES_LINKML = [
+  "id: https://hel.fi/models/bikes",
+  "name: bikes",
+  "classes:",
+  "  BikeHireDockingStation:",
+  "    slots: [availableBikeNumber, totalSlotNumber, name]",
+  "slots:",
+  "  availableBikeNumber: {range: integer}",
+  "  totalSlotNumber: {range: integer}",
+  "  name: {range: string}",
+  "",
+].join("\n");
+const SPACES = [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: "helsinki", namespace: "helsinki" }, spec: { dataModelRef: { kind: "DataModel", name: "bikes" } } }];
+const PROJECT_MODELS = [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "DataModel", metadata: { name: "bikes", namespace: "helsinki" }, spec: { linkml: BIKES_LINKML } }];
+
+function mockFetch(testResponse?: { status: number; body: unknown }, endpointStatus = 200, modelled = false) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const method = init?.method ?? (input instanceof Request ? input.method : "GET");
@@ -76,6 +92,12 @@ function mockFetch(testResponse?: { status: number; body: unknown }, endpointSta
       );
     if (url.includes("/api/v1/organization/datamodels")) {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: MODELS, smartDataModels: [] });
+    }
+    if (modelled && url.includes("/api/v1/projects/helsinki/spaces")) {
+      return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: SPACES });
+    }
+    if (modelled && url.includes("/api/v1/projects/helsinki/datamodels")) {
+      return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: PROJECT_MODELS });
     }
     if (url.includes("/api/endpoint/")) {
       return endpointStatus === 200
@@ -237,6 +259,27 @@ describe("PipelineStudio KPI preset", () => {
     const valueEl = await screen.findByTestId("studio-kpi-value");
     expect(valueEl).toHaveTextContent("12.5");
     expect(onVerdict).toHaveBeenCalledWith(true, expect.stringContaining("availableBikeNumber"));
+  });
+
+  it("offers the numbers the space's model lists as the attribute, not a text box", async () => {
+    mockFetch(undefined, 200, true);
+    const { onChange } = renderStudio();
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.studio.preset.title), "kpi");
+    await userEvent.selectOptions(await screen.findByLabelText(en.pipelines.studio.kpi.endpoint), "helsinki-all");
+    const attribute = await waitFor(() => {
+      const control = screen.getByLabelText(en.pipelines.studio.kpi.attribute);
+      expect(control.tagName).toBe("SELECT");
+      return control as HTMLSelectElement;
+    });
+    const offered = [...attribute.options].map((option) => option.value).filter(Boolean);
+    expect(offered).toContain("totalSlotNumber");
+    expect(offered).toContain("availableBikeNumber");
+    expect(offered).not.toContain("name");
+    expect(attribute).toHaveAccessibleDescription(en.pipelines.studio.kpi.attributePick);
+    await userEvent.selectOptions(attribute, "totalSlotNumber");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: expect.objectContaining({ query: expect.objectContaining({ attrs: ["totalSlotNumber"] }) }) }),
+    );
   });
 
   it("says the endpoint's refusal in words and asks the runner nothing", async () => {

@@ -1075,6 +1075,7 @@
         "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche; benennt den Indikator und seine Pipeline.",
         "typeHint": "Der Entitätstyp, dessen Werte aggregiert werden; der Space des Endpoints modelliert ihn.",
         "attributeHint": "Das numerische Attribut dieses Typs, das die Aggregation liest.",
+        "attributePick": "Die numerischen Attribute, die das Modell dieses Typs nennt; wählen Sie das, das die Aggregation liest.",
         "aggregateHint": "Wie die Werte eines Zeitraums zu einer Zahl werden.",
         "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h."
       },

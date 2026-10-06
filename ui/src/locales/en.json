@@ -1067,6 +1067,7 @@
         "nameHint": "Lower-case letters, digits and hyphens; it names the indicator and its pipeline.",
         "typeHint": "The entity type whose values are aggregated, one the endpoint's space models.",
         "attributeHint": "The numeric attribute of that type the aggregate reads.",
+        "attributePick": "The numeric attributes the model of that type lists; pick the one the aggregate reads.",
         "aggregateHint": "How the values of one period become one number.",
         "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h."
       },

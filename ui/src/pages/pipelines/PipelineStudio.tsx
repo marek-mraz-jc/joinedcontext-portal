@@ -167,6 +167,9 @@ export function sourceKindOf(form: PipelineForm | undefined): SourceKind {
   return "none";
 }
 
+/** The LinkML ranges an aggregate can add up. */
+const NUMERIC_RANGES = ["integer", "float", "double", "decimal"];
+
 /** The attributes of one class of an inline LinkML model, `[]` when the model is not inline. */
 export function attributesOf(model: Manifest | undefined, type: string | undefined): string[] {
   return filterSlotsOf(model, type).map((slot) => slot.name);
@@ -506,6 +509,17 @@ export function PipelineStudio({
   const types = model ? entityTypesOf(model) : [];
   const type = draft?.source?.query?.type as string | undefined;
   const slots: FilterSlot[] = filterSlotsOf(useModelSource(project, model), type);
+  // The KPI reads a number of the type its endpoint's space models: offered by name, never typed
+  // when the model says which there are (T-3088).
+  const kpiSpaceManifest = (() => {
+    const ep = endpoints.find((e) => e.metadata.name === kpiEndpoint);
+    const name = ep ? spaceOf(ep) : undefined;
+    return spaceList.find((s) => s.metadata.name === name);
+  })();
+  const kpiModel = modelList.find((m) => m.metadata.name === refName(kpiSpaceManifest?.spec.dataModelRef));
+  const kpiNumbers = filterSlotsOf(useModelSource(project, kpiModel), kpiType)
+    .filter((slot) => NUMERIC_RANGES.includes(slot.range ?? ""))
+    .map((slot) => slot.name);
   if (slots.length === 0) {
     // No inline model: the sample's own keys are the attributes there are.
     for (const row of sample ?? []) {
@@ -736,23 +750,54 @@ export function PipelineStudio({
                 }}
               />
             </Field>
-            <Field id="studio-kpi-attribute" label={t("pipelines.studio.kpi.attribute")} description={t("pipelines.studio.kpi.attributeHint")}>
-              <Input
-                id="studio-kpi-attribute"
-                value={kpiAttribute}
-                onChange={(event) => {
-                  const nextAttr = event.target.value;
-                  setKpiAttribute(nextAttr);
-                  emitKpi({
-                    endpointName: kpiEndpoint,
-                    type: kpiType,
-                    attribute: nextAttr,
-                    aggregate: kpiAggregate,
-                    period: kpiPeriod,
-                    name: kpiName,
-                  });
-                }}
-              />
+            <Field
+              id="studio-kpi-attribute"
+              label={t("pipelines.studio.kpi.attribute")}
+              description={t(kpiNumbers.length > 0 ? "pipelines.studio.kpi.attributePick" : "pipelines.studio.kpi.attributeHint")}
+            >
+              {kpiNumbers.length > 0 ? (
+                <Select
+                  id="studio-kpi-attribute"
+                  value={kpiAttribute}
+                  onChange={(event) => {
+                    const nextAttr = event.target.value;
+                    setKpiAttribute(nextAttr);
+                    emitKpi({
+                      endpointName: kpiEndpoint,
+                      type: kpiType,
+                      attribute: nextAttr,
+                      aggregate: kpiAggregate,
+                      period: kpiPeriod,
+                      name: kpiName,
+                    });
+                  }}
+                >
+                  <option value="">—</option>
+                  {/* A name the model no longer lists stays visible rather than silently replaced. */}
+                  {[...new Set([...(kpiAttribute && !kpiNumbers.includes(kpiAttribute) ? [kpiAttribute] : []), ...kpiNumbers])].map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Input
+                  id="studio-kpi-attribute"
+                  value={kpiAttribute}
+                  onChange={(event) => {
+                    const nextAttr = event.target.value;
+                    setKpiAttribute(nextAttr);
+                    emitKpi({
+                      endpointName: kpiEndpoint,
+                      type: kpiType,
+                      attribute: nextAttr,
+                      aggregate: kpiAggregate,
+                      period: kpiPeriod,
+                      name: kpiName,
+                    });
+                  }}
+                />
+              )}
             </Field>
             <Field id="studio-kpi-agg" label={t("pipelines.studio.kpi.aggregate")} description={t("pipelines.studio.kpi.aggregateHint")}>
               <Select
