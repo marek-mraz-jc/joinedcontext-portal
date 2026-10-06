@@ -46,13 +46,17 @@ COPY apps/banskabystrica-ovzdusie/ui/package.json apps/banskabystrica-ovzdusie/u
 COPY apps/banskabystrica-mapa/ui/package.json apps/banskabystrica-mapa/ui/pnpm-lock.yaml ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/package.json apps/banskabystrica-data/ui/pnpm-lock.yaml ./apps/banskabystrica-data/ui/
 COPY apps/praha-mesto/ui/package.json apps/praha-mesto/ui/pnpm-lock.yaml ./apps/praha-mesto/ui/
+COPY apps/zilina-mapa/ui/package.json apps/zilina-mapa/ui/pnpm-lock.yaml ./apps/zilina-mapa/ui/
+COPY apps/zilina-ukazovatele/ui/package.json apps/zilina-ukazovatele/ui/pnpm-lock.yaml ./apps/zilina-ukazovatele/ui/
 RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-zaznamy/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-ovzdusie/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-data/ui && pnpm install --frozen-lockfile \
-    && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile
+    && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile \
+    && cd ../../zilina-mapa/ui && pnpm install --frozen-lockfile \
+    && cd ../../zilina-ukazovatele/ui && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
 COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
 COPY apps/banskabystrica-zaznamy/ui/ ./apps/banskabystrica-zaznamy/ui/
@@ -60,6 +64,8 @@ COPY apps/banskabystrica-ovzdusie/ui/ ./apps/banskabystrica-ovzdusie/ui/
 COPY apps/banskabystrica-mapa/ui/ ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/ ./apps/banskabystrica-data/ui/
 COPY apps/praha-mesto/ui/ ./apps/praha-mesto/ui/
+COPY apps/zilina-mapa/ui/ ./apps/zilina-mapa/ui/
+COPY apps/zilina-ukazovatele/ui/ ./apps/zilina-ukazovatele/ui/
 COPY scripts/app-integrity.mjs ./scripts/
 RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
     && mkdir -p /srv/apps && cp -r dist /srv/apps/bbsk-ukazovatele \
@@ -79,6 +85,12 @@ RUN cd apps/banskabystrica-data/ui && pnpm build \
 RUN cd apps/praha-mesto/ui && pnpm build \
     && cp -r dist /srv/apps/praha-mesto \
     && node /work/scripts/app-integrity.mjs /srv/apps/praha-mesto
+RUN cd apps/zilina-mapa/ui && pnpm build \
+    && cp -r dist /srv/apps/zilina-mapa \
+    && node /work/scripts/app-integrity.mjs /srv/apps/zilina-mapa
+RUN cd apps/zilina-ukazovatele/ui && pnpm build \
+    && cp -r dist /srv/apps/zilina-ukazovatele \
+    && node /work/scripts/app-integrity.mjs /srv/apps/zilina-ukazovatele
 
 FROM rust:1.97-slim-bookworm AS build
 WORKDIR /src
