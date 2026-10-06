@@ -1,10 +1,11 @@
 //! Assistant evals (T-2733; AG-87, AG-91, TS-26): one scripted conversation per workflow of
-//! `Testing/07-workflow-coverage.md`, in `tests/assistant_evals/<workflow>.yaml`.
+//! `Testing/07-workflow-coverage.md`, in `tests/assistant_evals/<workflow>.yaml`, and for a
+//! workflow with cases one conversation cannot cover, more in `<workflow>--<case>.yaml` (T-2742).
 //!
 //! - The guard: every workflow of the matrix has its conversation, every call a conversation
 //!   expects is a tool the conversation has, and a step left to a person says why.
 //! - The refusal: a viewer, who may not propose an App, is refused the conversation itself.
-//! - The replay: a recording (`recordings/<workflow>.json`) is the event log of one live run on
+//! - The replay: a recording (`recordings/<file>.json`) is the event log of one live run on
 //!   dev, written by `ui/e2e/live/assistant-evals.spec.ts` and never by hand, with the tools'
 //!   outputs left out. The model's answers are rebuilt from it — the router's pick from the
 //!   `path` event, one tool fence per `tool` and `question` event, the last `thought` as the
@@ -46,6 +47,17 @@ const PROJECT: &str = "helsinki";
 /// run yet. It only ever falls: the commit that adds a recording lowers it.
 const UNRECORDED_ON_2026_09_25: usize = 23;
 
+/// Case conversations (`<workflow>--<case>.yaml`) missing a recording on 2026-10-06, when the
+/// first ones were written (T-2742). It only ever falls, like the count above.
+const UNRECORDED_CASES_ON_2026_10_06: usize = 5;
+
+/// What separates a workflow from its case in a conversation's file name.
+const CASE: &str = "--";
+
+/// The workflow a conversation file belongs to: its name, or the part before [`CASE`].
+fn workflow_of(file: &str) -> &str {
+    file.split_once(CASE).map_or(file, |(workflow, _)| workflow)
+}
 /// The conversation's own tools beside the registry's operations (`oneshot::conversation`).
 const CONVERSATION_TOOLS: [&str; 6] = [
     "change_resource",
@@ -142,8 +154,8 @@ fn conversations() -> BTreeMap<String, Conversation> {
             .unwrap_or_default();
         assert_eq!(
             conversation.workflow,
-            stem,
-            "{}: the file is named after its workflow",
+            workflow_of(stem),
+            "{}: the file is named after its workflow, or its workflow{CASE}its case",
             path.display()
         );
         found.insert(stem.to_owned(), conversation);
@@ -545,6 +557,11 @@ fn carries(got: &Value, want: &Value) -> bool {
         (Value::Object(got), Value::Object(want)) => want
             .iter()
             .all(|(key, value)| got.get(key).is_some_and(|g| carries(g, value))),
+        // An expected list is matched item by item: each one some item of the call's carries
+        // (T-2742: one relationship among a call's operations).
+        (Value::Array(got), Value::Array(want)) => {
+            want.iter().all(|w| got.iter().any(|g| carries(g, w)))
+        }
         _ => got == want,
     }
 }
@@ -572,13 +589,14 @@ fn every_workflow_has_its_conversation_and_every_expected_call_is_a_tool() {
         .iter()
         .filter(|w| !conversations.contains_key(*w))
         .collect();
+    // A case goes beside its workflow's one conversation, never instead of it.
     assert!(
         missing.is_empty(),
         "workflows with no conversation: {missing:?}"
     );
     for (name, conversation) in &conversations {
         assert!(
-            workflows.contains(name),
+            workflows.iter().any(|w| w == workflow_of(name)),
             "{name}.yaml names no workflow of the matrix"
         );
         assert!(
@@ -617,6 +635,33 @@ fn every_workflow_has_its_conversation_and_every_expected_call_is_a_tool() {
             other => panic!("{name}: outcome {other} is change, form, answer or person-only"),
         }
     }
+}
+
+/// T-2742: a case file belongs to its workflow, and an expected list is matched item by item.
+#[test]
+fn a_case_belongs_to_its_workflow_and_a_list_matches_by_its_items() {
+    assert_eq!(workflow_of("datamodel"), "datamodel");
+    assert_eq!(workflow_of("datamodel--one-to-many"), "datamodel");
+    let call = json!({ "kind": "DataModel", "operations": [
+        { "op": "addSlot", "name": "x" },
+        { "op": "addRelationship", "from": "CityDistrict", "to": "PointOfInterest", "cardinality": "one-to-many" }
+    ] });
+    assert!(carries(
+        &call,
+        &json!({ "operations": [{ "op": "addRelationship", "cardinality": "one-to-many" }] })
+    ));
+    assert!(!carries(
+        &call,
+        &json!({ "operations": [{ "op": "addRelationship", "cardinality": "many-to-many" }] })
+    ));
+    assert!(!carries(
+        &json!({ "operations": [] }),
+        &json!({ "operations": [{ "op": "addRelationship" }] })
+    ));
+    assert!(
+        carries(&call, &json!({ "operations": [] })),
+        "an empty list asks for nothing"
+    );
 }
 
 fn recorded(kind: &str, payload: Value) -> Recorded {
@@ -750,14 +795,18 @@ async fn a_viewer_is_refused_every_conversation() {
 
 #[tokio::test]
 async fn every_recorded_conversation_did_on_dev_and_still_does_what_it_expects() {
-    let mut unrecorded = 0;
+    let (mut unrecorded, mut unrecorded_cases) = (0, 0);
     for (name, conversation) in conversations() {
         let Some(recorded) = recording(&name) else {
-            unrecorded += 1;
+            if name.contains(CASE) {
+                unrecorded_cases += 1;
+            } else {
+                unrecorded += 1;
+            }
             continue;
         };
         assert_eq!(
-            recorded.workflow, name,
+            recorded.workflow, conversation.workflow,
             "recordings/{name}.json is another workflow's"
         );
         assert!(
@@ -805,5 +854,9 @@ async fn every_recorded_conversation_did_on_dev_and_still_does_what_it_expects()
     assert!(
         unrecorded <= UNRECORDED_ON_2026_09_25,
         "{unrecorded} conversations have no recording, more than the {UNRECORDED_ON_2026_09_25} of 2026-09-25"
+    );
+    assert!(
+        unrecorded_cases <= UNRECORDED_CASES_ON_2026_10_06,
+        "{unrecorded_cases} case conversations have no recording, more than the {UNRECORDED_CASES_ON_2026_10_06} of 2026-10-06"
     );
 }
