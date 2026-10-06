@@ -5253,6 +5253,34 @@
       "requests": "Fragen",
       "tokensIn": "Gelesene Tokens",
       "tokensOut": "Geschriebene Tokens"
+    },
+    "chat": {
+      "ask": "Fragen",
+      "askOf": "{name} fragen",
+      "asYou": "Der Assistent antwortet Ihnen als Sie selbst: Er liest die internen Quellen und die Endpoints, die Sie lesen dürfen.",
+      "asVisitor": "Der Assistent antwortet Ihnen genau wie einem Besucher der Website: nur öffentliche Quellen und öffentliche Endpoints. Jede Frage zählt gegen sein Budget.",
+      "connectors": "Live-Daten, die der Assistent lesen darf",
+      "conversation": "Unterhaltung",
+      "you": "Sie",
+      "assistant": "Assistent",
+      "thinking": "Ich suche…",
+      "reading": "Lese {name}…",
+      "toolFailed": "Nicht lesbar: {names}. Die Antwort geht ohne sie weiter.",
+      "script": "Skript, das der Assistent ausgeführt hat",
+      "sources": "Quellen",
+      "question": "Ihre Frage",
+      "send": "Senden",
+      "failed": "Die Antwort konnte nicht geladen werden. Bitte erneut versuchen."
+    },
+    "embed": {
+      "title": "Einbetten",
+      "of": "{name} einbetten",
+      "intro": "Fügen Sie diesen Rahmen in eine Seite einer Website ein, auf der der Assistent platziert ist.",
+      "snippet": "Code zum Einfügen",
+      "copy": "Code kopieren",
+      "copied": "Kopiert",
+      "origins": "Die Adresse der Website muss zu den erlaubten Ursprüngen des Assistenten gehören; auf jeder anderen Website bleibt der Rahmen leer.",
+      "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben."
     }
   }
 }

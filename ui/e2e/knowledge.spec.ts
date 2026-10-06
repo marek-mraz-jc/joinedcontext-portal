@@ -48,6 +48,15 @@ const page = (id: number, url: string, extra: Record<string, unknown> = {}) => (
   fetchedAt: "2026-10-06T03:01:00Z", children: 0, documents: 0, passages: 5, ...extra,
 });
 
+// T-3058: one answer as jc-assistant streams it, with a passage and a tool cited.
+const ANSWER = [
+  'event: conversation\ndata: {"id":"6f1c0e9e-3b1a-4d7e-9b51-2c4f8f2a7c11"}',
+  'event: tool\ndata: {"name":"query_entities","endpoint":"helsinki-weather","status":"done"}',
+  'event: answer\ndata: {"text":"The roads are icy at Kamppi [1], -3 °C [2]."}',
+  'event: citations\ndata: [{"n":1,"url":"https://www.hel.fi/en/roads"},{"n":2,"tool":"query_entities","endpoint":"helsinki-weather"}]',
+  'event: done\ndata: {"tokens":700}',
+].join("\n\n") + "\n\n";
+
 async function stubApi(p: Page, verbs: string[] = ["read", "propose"]): Promise<{ writes: { path: string; body: unknown }[] }> {
   const writes: { path: string; body: unknown }[] = [];
   await p.route("**/api/v1/**", async (route) => {
@@ -60,7 +69,17 @@ async function stubApi(p: Page, verbs: string[] = ["read", "propose"]): Promise<
     if (url.pathname.endsWith("/permissions/me")) return json(grants(verbs));
     if (request.method() !== "GET") {
       writes.push({ path: url.pathname, body: request.postDataJSON() as unknown });
+      if (url.pathname.endsWith("/chat")) {
+        return route.fulfill({ status: 200, contentType: "text/event-stream", body: ANSWER });
+      }
       return json({ pages: 2, documents: 0, passagesRemoved: 12 });
+    }
+    if (url.pathname === "/api/v1/projects/helsinki/assistantdeployments") {
+      return json({
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "List",
+        items: [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "AssistantDeployment", metadata: { name: "staff", namespace: "helsinki" }, spec: { publicId: "helsinki-staff", channel: "internal", sources: ["hel-web"], connectors: [{ endpoint: "helsinki-weather", tools: ["query_entities"] }] } }],
+      });
     }
     if (url.pathname === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [{ name: "helsinki" }] });
     if (url.pathname === `${base}/sources`) return json(SOURCES);
@@ -119,5 +138,23 @@ test.describe("the knowledge sources", () => {
     await expect(exclude).toHaveAccessibleDescription("Disabled: your role does not permit 'propose' on 'KnowledgeSource' in this project");
     await exclude.click({ force: true });
     expect(writes).toEqual([]);
+  });
+
+  test("asks a staff assistant by keyboard and reads its answer with the sources, with no axe violations (T-3058)", async ({ page: p }) => {
+    const { writes } = await stubApi(p);
+    await p.goto("/projects/helsinki/knowledge?lang=en");
+    await p.getByRole("button", { name: "Ask staff" }).click();
+    const dialog = p.getByRole("dialog", { name: "Ask staff" });
+    await expect(dialog.getByText(/answers you as yourself/)).toBeVisible();
+    await dialog.getByRole("textbox", { name: "Your question" }).fill("Are the roads icy?");
+    await dialog.getByRole("textbox", { name: "Your question" }).press("Enter");
+    await expect(dialog.getByText("The roads are icy at Kamppi [1], -3 °C [2].")).toBeVisible();
+    await expect(dialog.getByRole("list", { name: "Sources" }).getByRole("link", { name: /hel\.fi\/en\/roads/ })).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "Your question" })).toBeFocused();
+    expect(writes).toEqual([
+      { path: "/api/v1/projects/helsinki/knowledge/deployments/staff/chat", body: { message: "Are the roads icy?", history: [], connectors: ["helsinki-weather"] } },
+    ]);
+    await expect(p.getByRole("button", { name: "Embed staff" })).toHaveCount(0);
+    expect(await axeViolations(p)).toEqual([]);
   });
 });

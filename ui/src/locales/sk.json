@@ -5253,6 +5253,34 @@
       "requests": "Otázky",
       "tokensIn": "Prečítané tokeny",
       "tokensOut": "Napísané tokeny"
+    },
+    "chat": {
+      "ask": "Opýtať sa",
+      "askOf": "Opýtať sa {name}",
+      "asYou": "Asistent vám odpovedá ako vám: číta interné zdroje a Endpointy, ktoré smiete čítať vy.",
+      "asVisitor": "Asistent vám odpovedá presne tak, ako návštevníkovi stránky: iba verejné zdroje a verejné Endpointy. Každá otázka sa počíta do jeho rozpočtu.",
+      "connectors": "Živé dáta, ktoré smie asistent čítať",
+      "conversation": "Rozhovor",
+      "you": "Vy",
+      "assistant": "Asistent",
+      "thinking": "Hľadám…",
+      "reading": "Čítam {name}…",
+      "toolFailed": "Nepodarilo sa prečítať: {names}. Odpoveď pokračuje bez toho.",
+      "script": "Skript, ktorý asistent spustil",
+      "sources": "Zdroje",
+      "question": "Vaša otázka",
+      "send": "Odoslať",
+      "failed": "Odpoveď sa nepodarilo načítať. Skúste znova."
+    },
+    "embed": {
+      "title": "Vložiť",
+      "of": "Vložiť {name}",
+      "intro": "Vložte tento rámec do stránky webu, na ktorom je asistent umiestnený.",
+      "snippet": "Kód na vloženie",
+      "copy": "Kopírovať kód",
+      "copied": "Skopírované",
+      "origins": "Adresa webu musí byť medzi povolenými pôvodmi asistenta; rámec na inom webe zostane prázdny.",
+      "noDomain": "Tento Portál nepozná svoju doménu, preto nevie napísať adresu stránky asistenta."
     }
   }
 }

@@ -5253,6 +5253,34 @@
       "requests": "Questions",
       "tokensIn": "Tokens read",
       "tokensOut": "Tokens written"
+    },
+    "chat": {
+      "ask": "Ask",
+      "askOf": "Ask {name}",
+      "asYou": "The assistant answers you as yourself: it reads the internal sources and the Endpoints you may read.",
+      "asVisitor": "The assistant answers you exactly as it answers a visitor of the site: public sources and public Endpoints only. Each question counts against its budget.",
+      "connectors": "Live data the assistant may read",
+      "conversation": "Conversation",
+      "you": "You",
+      "assistant": "Assistant",
+      "thinking": "Looking it up…",
+      "reading": "Reading {name}…",
+      "toolFailed": "Could not read: {names}. The answer goes on without it.",
+      "script": "Script the assistant ran",
+      "sources": "Sources",
+      "question": "Your question",
+      "send": "Send",
+      "failed": "The answer could not be loaded. Try again."
+    },
+    "embed": {
+      "title": "Embed",
+      "of": "Embed {name}",
+      "intro": "Paste this frame into a page of a site the assistant is placed on.",
+      "snippet": "Code to paste",
+      "copy": "Copy the code",
+      "copied": "Copied",
+      "origins": "The site's address must be one of the assistant's allowed origins; any other site's frame stays empty.",
+      "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page."
     }
   }
 }

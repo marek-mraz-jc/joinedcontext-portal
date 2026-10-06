@@ -1,6 +1,7 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
-// src/pages/knowledge/KnowledgePage.tsx, src/pages/knowledge/SourcePage.tsx and
-// src/pages/knowledge/knowledge.ts through the pages they belong to; each was confirmed by
+// src/pages/knowledge/KnowledgePage.tsx, src/pages/knowledge/SourcePage.tsx,
+// src/pages/knowledge/AssistantChat.tsx and src/pages/knowledge/knowledge.ts through the pages
+// they belong to; each was confirmed by
 // making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,9 +10,10 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { bytesText, timeText } from "../src/pages/knowledge/knowledge";
+import { bytesText, embedSnippet, readEvents, timeText } from "../src/pages/knowledge/knowledge";
 import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
+import { EmbedSnippet } from "../src/pages/knowledge/AssistantChat";
 import { ApiError } from "../src/api/client";
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../src/schemas/knowledge";
 
@@ -95,7 +97,18 @@ const page = (id: number, url: string, extra: Record<string, unknown> = {}) => (
 interface Stub {
   verbs?: string[];
   sources?: { code: number; body: unknown };
+  chat?: { code: number; body: string };
 }
+
+const ANSWER = [
+  'event: conversation\ndata: {"id":"6f1c0e9e-3b1a-4d7e-9b51-2c4f8f2a7c11"}',
+  'event: tool\ndata: {"name":"query_entities","endpoint":"ovzdusie-verejne","status":"started"}',
+  'event: tool\ndata: {"name":"query_entities","endpoint":"ovzdusie-verejne","status":"done"}',
+  'event: script\ndata: {"code":"return data.length;","output":"4"}',
+  'event: answer\ndata: {"text":"Štyri stanice merajú ovzdušie [1], NO2 je 21 [2]."}',
+  'event: citations\ndata: [{"n":1,"url":"https://www.banskabystrica.sk/ovzdusie"},{"n":2,"tool":"query_entities","endpoint":"ovzdusie-verejne"}]',
+  'event: done\ndata: {"tokens":900}',
+].join("\n\n") + "\n\n";
 
 function renderAt(path: string, stub: Stub = {}) {
   const writes: { path: string; body: unknown }[] = [];
@@ -111,10 +124,17 @@ function renderAt(path: string, stub: Stub = {}) {
       );
     const base = "/api/v1/projects/banskabystrica/knowledge";
     if (url.pathname.endsWith("/auth/me")) return json(IDENTITY);
-    if (url.pathname.endsWith("/branding")) return json({ instanceName: "joinedcontext", languages: { default: "en", offered: ["en"] } });
+    if (url.pathname.endsWith("/branding")) return json({ instanceName: "joinedcontext", domain: "dev.example", languages: { default: "en", offered: ["en"] } });
     if (url.pathname.endsWith("/permissions/me")) return json(grants(stub.verbs ?? ["read", "propose"]));
     if (request.method !== "GET") {
       writes.push({ path: url.pathname, body: request.body ? await request.json() : null });
+      if (url.pathname.endsWith("/chat")) {
+        const chat = stub.chat ?? { code: 200, body: ANSWER };
+        return new Response(chat.body, {
+          status: chat.code,
+          headers: { "Content-Type": chat.code >= 400 ? "application/problem+json" : "text/event-stream" },
+        });
+      }
       if (url.pathname.endsWith("/recrawl")) return json({ job: 7 }, 202);
       return json({ pages: 2, documents: 1, passagesRemoved: 30 });
     }
@@ -276,6 +296,122 @@ describe("one source's pages and documents (T-3057, AG-113)", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Pages" }));
     await userEvent.click(await screen.findByRole("button", { name: "Links of https://www.banskabystrica.sk/" }));
     expect(await within(await screen.findByRole("dialog")).findByText("Document")).toBeInTheDocument();
+  });
+});
+
+describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("streams the answer with its sources and script, and sends the conversation back with the connectors switched", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge");
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Ask obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Ask obcania" });
+    expect(within(dialog).getByText(/exactly as it answers a visitor/)).toBeInTheDocument();
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Your question" }), "Kde sú stanice?{Enter}");
+    expect(await within(dialog).findByText("Štyri stanice merajú ovzdušie [1], NO2 je 21 [2].")).toBeInTheDocument();
+    const sources = within(dialog).getByRole("list", { name: "Sources" });
+    expect(within(sources).getByRole("link", { name: /https:\/\/www\.banskabystrica\.sk\/ovzdusie/ })).toHaveAttribute(
+      "href",
+      "https://www.banskabystrica.sk/ovzdusie",
+    );
+    expect(within(sources).getByText("query_entities · ovzdusie-verejne")).toBeInTheDocument();
+    expect(within(dialog).getByText("Script the assistant ran")).toBeInTheDocument();
+    expect(writes).toEqual([
+      {
+        path: "/api/v1/projects/banskabystrica/knowledge/deployments/obcania/chat",
+        body: { message: "Kde sú stanice?", history: [], connectors: ["ovzdusie-verejne"] },
+      },
+    ]);
+
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: "ovzdusie-verejne" }));
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Your question" }), "A dnes?{Enter}");
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1].body).toEqual({
+      conversation: "6f1c0e9e-3b1a-4d7e-9b51-2c4f8f2a7c11",
+      message: "A dnes?",
+      history: [
+        { role: "user", text: "Kde sú stanice?" },
+        { role: "assistant", text: "Štyri stanice merajú ovzdušie [1], NO2 je 21 [2]." },
+      ],
+      connectors: [],
+    });
+  });
+
+  it("says a refusal in the Portal's words and keeps the question box usable", async () => {
+    renderAt("/projects/banskabystrica/knowledge", {
+      chat: {
+        code: 409,
+        body: JSON.stringify({ status: 409, title: "Conflict", detail: "This assistant has no budget yet: an administrator sets budget.tokensPerDay on it before anyone can ask." }),
+      },
+    });
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Ask obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Ask obcania" });
+    const box = within(dialog).getByRole("textbox", { name: "Your question" });
+    await userEvent.type(box, "Ahoj{Enter}");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("an administrator sets budget.tokensPerDay");
+    expect(within(dialog).getByRole("button", { name: "Send" })).toBeDisabled();
+    await userEvent.type(box, "Znova");
+    expect(within(dialog).getByRole("button", { name: "Send" })).toBeEnabled();
+  });
+
+  it("gives the frame to paste for a public assistant", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Embed obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Embed obcania" });
+    expect(within(dialog).getByText(/https:\/\/assistant\.dev\.example\/d\/bb-obcania\/widget/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/allowed origins/)).toBeInTheDocument();
+  });
+});
+
+describe("the chat's stream and snippet", () => {
+  it("reads whole events, keeps a part still arriving, and skips a broken one", () => {
+    const first = readEvents('event: conversation\r\ndata: {"id":"c1"}\r\n\r\nevent: answer\ndata: {"te');
+    expect(first.events).toEqual([{ name: "conversation", id: "c1" }]);
+    const second = readEvents(`${first.rest}xt":"Hello"}\n\nevent: tool\ndata: not json\n\nevent: done\ndata: {"tokens":3}\n\n`);
+    expect(second.events).toEqual([
+      { name: "answer", text: "Hello" },
+      { name: "done", tokens: 3 },
+    ]);
+    expect(second.rest).toBe("");
+  });
+
+  it("keeps only http links among the citations and ignores an unknown event", () => {
+    const { events } = readEvents(
+      'event: citations\ndata: [{"n":1,"url":"javascript:alert(1)"},{"n":2,"url":"https://a.example/"},{"x":3}]\n\nevent: surprise\ndata: {}\n\n',
+    );
+    expect(events).toEqual([
+      {
+        name: "citations",
+        citations: [
+          { n: 1, url: undefined, tool: undefined, endpoint: undefined },
+          { n: 2, url: "https://a.example/", tool: undefined, endpoint: undefined },
+        ],
+      },
+    ]);
+  });
+
+  it("writes no address when the Portal does not know its domain", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EmbedSnippet publicId="bb-obcania" title="obcania" />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/does not know its domain/)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("writes the frame with its title escaped", () => {
+    expect(embedSnippet("dev.example", "bb-obcania", 'A "quoted" <title> & more')).toBe(
+      '<iframe src="https://assistant.dev.example/d/bb-obcania/widget" title="A &quot;quoted&quot; &lt;title> &amp; more" width="400" height="600" loading="lazy"></iframe>',
+    );
   });
 });
 

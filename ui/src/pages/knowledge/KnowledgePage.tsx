@@ -23,6 +23,7 @@ import {
 import type { BadgeTone } from "../../components/ui";
 import { knowledgeKeys, listSources, listUsage, recrawl, timeText } from "./knowledge";
 import type { KnowledgeSourceRow } from "./knowledge";
+import { AssistantChat, EmbedSnippet } from "./AssistantChat";
 
 /** The sentence an `ApiError` carries, or the generic one. */
 export function reasonOf(error: unknown, fallback: string): string {
@@ -209,6 +210,8 @@ function Assistants({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [usageOf, setUsageOf] = useState<string | null>(null);
+  const [chatWith, setChatWith] = useState<DeploymentItem | null>(null);
+  const [embedOf, setEmbedOf] = useState<DeploymentItem | null>(null);
   const list = useQuery({
     queryKey: queryKeys.list(project, "assistantdeployments"),
     queryFn: async () =>
@@ -264,14 +267,34 @@ function Assistants({ project }: { project: string }): JSX.Element {
                 <TableCell>{(item.spec.sources ?? []).join(", ") || "—"}</TableCell>
                 <TableCell>{(item.spec.connectors ?? []).map((c) => c.endpoint).join(", ") || "—"}</TableCell>
                 <TableCell align="right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t("knowledge.assistants.usageOf", { name: item.metadata.name })}
-                    onClick={() => setUsageOf(item.metadata.name)}
-                  >
-                    {t("knowledge.assistants.usage")}
-                  </Button>
+                  <div className="flex flex-wrap justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={t("knowledge.chat.askOf", { name: item.metadata.name })}
+                      onClick={() => setChatWith(item)}
+                    >
+                      {t("knowledge.chat.ask")}
+                    </Button>
+                    {item.spec.channel && item.spec.channel !== "internal" && item.spec.publicId ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t("knowledge.embed.of", { name: item.metadata.name })}
+                        onClick={() => setEmbedOf(item)}
+                      >
+                        {t("knowledge.embed.title")}
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={t("knowledge.assistants.usageOf", { name: item.metadata.name })}
+                      onClick={() => setUsageOf(item.metadata.name)}
+                    >
+                      {t("knowledge.assistants.usage")}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -285,6 +308,31 @@ function Assistants({ project }: { project: string }): JSX.Element {
         closeLabel={t("app.close")}
       >
         {usageOf ? <Usage project={project} deployment={usageOf} /> : null}
+      </Dialog>
+      <Dialog
+        open={chatWith !== null}
+        onOpenChange={(open) => (open ? undefined : setChatWith(null))}
+        title={t("knowledge.chat.askOf", { name: chatWith?.metadata.name ?? "" })}
+        description={chatWith?.spec.channel === "internal" ? t("knowledge.chat.asYou") : t("knowledge.chat.asVisitor")}
+        closeLabel={t("app.close")}
+        size="lg"
+      >
+        {chatWith ? (
+          <AssistantChat
+            key={chatWith.metadata.name}
+            project={project}
+            deployment={chatWith.metadata.name}
+            connectors={(chatWith.spec.connectors ?? []).map((c) => c.endpoint)}
+          />
+        ) : null}
+      </Dialog>
+      <Dialog
+        open={embedOf !== null}
+        onOpenChange={(open) => (open ? undefined : setEmbedOf(null))}
+        title={t("knowledge.embed.of", { name: embedOf?.metadata.name ?? "" })}
+        closeLabel={t("app.close")}
+      >
+        {embedOf?.spec.publicId ? <EmbedSnippet publicId={embedOf.spec.publicId} title={embedOf.metadata.name} /> : null}
       </Dialog>
     </section>
   );

@@ -1,6 +1,7 @@
 // The knowledge assistant's administration routes (API/01 §34, T-3057): what a project's
 // sources hold once crawled. The answers are jc-assistant's; the shapes below are API/05 §3.
-import { api, unwrap } from "../../api/client";
+import { api, ApiError, readCsrfToken, unwrap } from "../../api/client";
+import type { ProblemDetails } from "../../api/client";
 
 export interface SourceJob {
   state: "queued" | "running" | "done" | "failed";
@@ -211,4 +212,150 @@ export function timeText(iso: string | null | undefined, language: string): stri
   return Number.isNaN(at.getTime())
     ? "—"
     : new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(at);
+}
+
+/** One turn of a chat, as API/05 §1.1 sends it back. */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+export interface Citation {
+  n: number;
+  url?: string;
+  tool?: string;
+  endpoint?: string;
+}
+
+/** The events of API/05 §1.3, as the chat panel reads them. */
+export type ChatEvent =
+  | { name: "conversation"; id: string }
+  | { name: "tool"; tool: string; endpoint?: string; status: "started" | "done" | "failed" }
+  | { name: "script"; code: string; output?: string; error?: string }
+  | { name: "answer"; text: string }
+  | { name: "citations"; citations: Citation[] }
+  | { name: "error"; detail: string }
+  | { name: "done"; tokens: number };
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+/** One event block's name and data as a `ChatEvent`; `null` for one this panel does not show. */
+function chatEvent(name: string, data: unknown): ChatEvent | null {
+  const d = (data ?? {}) as Record<string, unknown>;
+  switch (name) {
+    case "conversation":
+      return { name, id: text(d.id) };
+    case "tool": {
+      const status = d.status === "done" || d.status === "failed" ? d.status : "started";
+      return { name, tool: text(d.name), endpoint: typeof d.endpoint === "string" ? d.endpoint : undefined, status };
+    }
+    case "script":
+      return {
+        name,
+        code: text(d.code),
+        output: typeof d.output === "string" ? d.output : undefined,
+        error: typeof d.error === "string" ? d.error : undefined,
+      };
+    case "answer":
+      return { name, text: text(d.text) };
+    case "citations":
+      return {
+        name,
+        citations: (Array.isArray(data) ? data : [])
+          .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null && typeof c.n === "number")
+          .map((c) => ({
+            n: c.n as number,
+            url: typeof c.url === "string" && /^https?:\/\//.test(c.url) ? c.url : undefined,
+            tool: typeof c.tool === "string" ? c.tool : undefined,
+            endpoint: typeof c.endpoint === "string" ? c.endpoint : undefined,
+          })),
+      };
+    case "error":
+      return { name, detail: text(d.detail) };
+    case "done":
+      return { name, tokens: typeof d.tokens === "number" ? d.tokens : 0 };
+    default:
+      return null;
+  }
+}
+
+/**
+ * The complete Server-Sent Events in `buffer`, and what is left of an event still arriving. A
+ * block whose data is not JSON is skipped: the stream goes on.
+ */
+export function readEvents(buffer: string): { events: ChatEvent[]; rest: string } {
+  const events: ChatEvent[] = [];
+  const blocks = buffer.replace(/\r\n/g, "\n").split("\n\n");
+  const rest = blocks.pop() ?? "";
+  for (const block of blocks) {
+    let name = "";
+    let data = "";
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event:")) name = line.slice(6).trim();
+      else if (line.startsWith("data:")) data += line.slice(5).trim();
+    }
+    if (!name) continue;
+    try {
+      const event = chatEvent(name, JSON.parse(data));
+      if (event) events.push(event);
+    } catch {
+      // A malformed block is skipped; the next one may be whole.
+    }
+  }
+  return { events, rest };
+}
+
+export interface ChatQuestion {
+  conversation?: string;
+  message: string;
+  history: ChatTurn[];
+  connectors?: string[];
+}
+
+/**
+ * Asks `deployment` as the signed-in person (API/01 §34, AG-115) and hands each event to
+ * `onEvent` as it arrives. A refusal before the stream starts throws an `ApiError` with the
+ * Portal's sentence.
+ */
+export async function askAssistant(
+  project: string,
+  deployment: string,
+  question: ChatQuestion,
+  onEvent: (event: ChatEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "text/event-stream" };
+  const csrf = readCsrfToken();
+  if (csrf) headers["x-csrf-token"] = csrf;
+  const response = await globalThis.fetch(
+    new Request(
+      `${window.location.origin}/api/v1/projects/${encodeURIComponent(project)}/knowledge/deployments/${encodeURIComponent(deployment)}/chat`,
+      { method: "POST", credentials: "same-origin", headers, body: JSON.stringify(question), signal },
+    ),
+  );
+  if (!response.ok || !response.body) {
+    const problem = (await response.json().catch(() => null)) as ProblemDetails | null;
+    const detail = typeof problem?.detail === "string" ? problem.detail : `HTTP ${response.status}`;
+    throw new ApiError(response.status, detail, problem ?? undefined, response.headers.get("x-request-id") ?? undefined);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const { events, rest } = readEvents(buffer);
+    buffer = rest;
+    events.forEach(onEvent);
+  }
+  readEvents(`${buffer}${decoder.decode()}\n\n`).events.forEach(onEvent);
+}
+
+/** The iframe a site pastes to place a public assistant (API/05 §1.6). */
+export function embedSnippet(domain: string, publicId: string, title: string): string {
+  const escapedTitle = title.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return `<iframe src="https://assistant.${domain}/d/${publicId}/widget" title="${escapedTitle}" width="400" height="600" loading="lazy"></iframe>`;
 }
