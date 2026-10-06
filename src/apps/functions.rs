@@ -110,7 +110,7 @@ pub(super) async fn call(
         "@app/entry.js".to_owned(),
         request,
         config,
-        token,
+        crate::api::agent_runs::Caller::Person(token),
     )
     .await
     {
