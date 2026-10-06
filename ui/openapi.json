@@ -16096,6 +16096,7 @@
           "branch",
           "pathPrefix",
           "status",
+          "kind",
           "ticketHash",
           "maxTokens",
           "allowedHosts",
@@ -16137,6 +16138,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "The run's kind: whose daily model budget its calls count against (AG-97)."
           },
           "maxEgressBytesPerRun": {
             "type": "integer",
