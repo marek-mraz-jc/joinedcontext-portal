@@ -112,6 +112,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-cer
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 COPY --from=template /opt/template/ /opt/template/
+# The browser of the browser checks (T-2827): Chromium's headless shell at the build the
+# template's Playwright pins, with the libraries it links, installed at image build. A build only
+# starts it while its checks run, inside the App's own build pod, and it loads the bundle alone.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN /opt/template/node_modules/.bin/playwright install --with-deps --only-shell chromium \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -n "$(find /opt/ms-playwright -name chrome-headless-shell -type f)"
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
 # `jcctl validate --project`, the check every project repository's merge requests run on this

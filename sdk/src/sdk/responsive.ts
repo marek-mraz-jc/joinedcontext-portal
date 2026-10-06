@@ -40,13 +40,26 @@ export const LIVE_BLOCKS = `${BLOCKS}, article, aside, figure, form, table`;
  * Pairs of visible blocks, neither inside the other, whose boxes intersect by more than a pixel.
  * A block that is not drawn (the content of a closed `<details>`, `visibility: hidden`) is not
  * counted: Chromium still lays it out when asked for its box, wherever it would stand (T-2981).
+ * Neither is one clipped to nothing, as text kept for a screen reader is: a chart's table of
+ * values has the size of its rows, since a table never shrinks to its `width: 1px` (T-2827).
  */
 export async function overlaps(page: Page, blocks: string = BLOCKS): Promise<string[]> {
   return page.evaluate((selector) => {
     const name = (el: Element) =>
       `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${(el.textContent ?? "").trim().slice(0, 30)}"`;
+    const nothing = /^rect\(\s*0(px)?,?\s+0(px)?,?\s+0(px)?,?\s+0(px)?\s*\)$/;
+    const clippedAway = (el: Element) => {
+      for (let at: Element | null = el; at; at = at.parentElement) {
+        const style = getComputedStyle(at);
+        if (style.position === "absolute" || style.position === "fixed") {
+          if (nothing.test(style.clip)) return true;
+        }
+        if (style.clipPath === "inset(50%)") return true;
+      }
+      return false;
+    };
     const boxes = [...document.querySelectorAll(selector)]
-      .filter((el) => el.checkVisibility({ visibilityProperty: true }))
+      .filter((el) => el.checkVisibility({ visibilityProperty: true }) && !clippedAway(el))
       .map((el) => ({ el, box: el.getBoundingClientRect() }))
       .filter(({ box }) => box.width > 0 && box.height > 0);
     const found: string[] = [];

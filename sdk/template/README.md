@@ -11,8 +11,9 @@ value, a form submit, a scheduled fetch) goes into `functions/`, which the Porta
 | `pnpm dev`   | Vite's dev server with hot reload                                            |
 | `pnpm test`  | vitest with testing-library, for `src/**/*.test.tsx` and `functions/**/*.test.ts` |
 | `pnpm build` | typechecks (`tsc -b`) and bundles into `dist/`                               |
+| `pnpm exec playwright test` | after `pnpm build`: every page of `dist/` at 375, 768, 1440 and 2560 px, served from `src/fixtures.ts` |
 
-The build lane runs the same tests and build on every push to `main`, with the packages its
+The build lane runs the same tests, build and browser checks on every push to `main`, with the packages its
 runner image holds, pinned in `package.json` and `pnpm-lock.yaml` of the Portal release: it
 installs nothing, and a `package.json` naming a package the template does not carry fails the
 build. On your own machine, `pnpm install` needs the SDK of the same release: run `pnpm pack` in
