@@ -216,6 +216,36 @@ describe("EntityGrid", () => {
     expect(screen.getByRole("grid")).toHaveFocus();
   });
 
+  // T-3097: a range pasted from a spreadsheet lands on the editable cells from the active one and
+  // says what it skipped; nothing is pending outside edit mode.
+  it("pastes a copied range from the active cell into editable cells and says what it skipped", async () => {
+    const editable = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "name", label: "Name" },
+        { attr: "availableBikeNumber", label: "Bikes" },
+      ],
+      pageSize: 10,
+      mode: "edit",
+      editableAttrs: ["availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(<EntityGrid config={editable} source={source} />);
+    await screen.findByText("Kamppi");
+    const grid = screen.getByRole("grid");
+    grid.focus();
+    // id, name, bikes: two to the right is the bikes column of the first row.
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    fireEvent.paste(grid, { clipboardData: { getData: () => "8\tignored\n4\n" } });
+
+    expect(screen.getByText("2 cells pasted, 1 skipped (not editable, off the page or not a listed value)")).toBeInTheDocument();
+    expect(screen.getByText("2 not applied yet")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("8")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("4")).toBeInTheDocument();
+  });
+
   it("has role grid with aria-rowcount and headers with aria-colindex", async () => {
     render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
     await waitFor(() => {

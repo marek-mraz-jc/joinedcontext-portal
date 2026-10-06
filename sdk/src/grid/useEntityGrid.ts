@@ -86,6 +86,10 @@ export interface GridLabels {
   openRow: string;
   rowDetail: string;
   close: string;
+  /** What a paste of a range did (T-3097): cells it set, cells it left, and a range too large. */
+  pasted: string;
+  skipped: string;
+  pasteTooLarge: string;
 }
 
 /**
@@ -154,6 +158,9 @@ export const DEFAULT_LABELS: GridLabels = {
   openRow: "Open",
   rowDetail: "Details",
   close: "Close",
+  pasted: "cells pasted",
+  skipped: "skipped (not editable, off the page or not a listed value)",
+  pasteTooLarge: "The copied range is too large to paste; paste at most 5000 cells at once.",
 };
 
 export interface VisibleColumn {
@@ -202,6 +209,8 @@ export interface EntityGrid {
   filterColumns: FilterColumn[];
   /** One cell a person changed; `undefined` gives the endpoint's own value back. */
   setEdit(id: string, attr: string, value: unknown | undefined): void;
+  /** Several pending values set or cleared in one step (a paste, an apply that clears what landed). */
+  setEdits(changes: readonly { id: string; attr: string; value: unknown | undefined }[]): void;
   /** Forgets every edit that has not been applied. */
   clearEdits(): void;
   /** What applying would send: one entry per entity, with what each cell held before. */
@@ -692,19 +701,27 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
    * One cell a person changed. A value equal to what the endpoint answered is not a change, so
    * typing a value back removes it from the pending list rather than sending it again.
    */
-  const setEdit = useCallback(
-    (id: string, attr: string, value: unknown | undefined) => {
+  /**
+   * Sets or clears several pending values in one step. Each call builds on the edits as they are
+   * now, so two calls in one event would keep only the second: a paste or an apply that clears
+   * what landed goes through here with every change at once (T-3097).
+   */
+  const setEdits = useCallback(
+    (changes: readonly { id: string; attr: string; value: unknown | undefined }[]) => {
+      if (changes.length === 0) return;
       const next: Record<string, Record<string, unknown>> = { ...edits };
-      const forEntity = { ...(next[id] ?? {}) };
-      if (value === undefined) {
-        delete forEntity[attr];
-      } else {
-        forEntity[attr] = value;
-      }
-      if (Object.keys(forEntity).length === 0) {
-        delete next[id];
-      } else {
-        next[id] = forEntity;
+      for (const { id, attr, value } of changes) {
+        const forEntity = { ...(next[id] ?? {}) };
+        if (value === undefined) {
+          delete forEntity[attr];
+        } else {
+          forEntity[attr] = value;
+        }
+        if (Object.keys(forEntity).length === 0) {
+          delete next[id];
+        } else {
+          next[id] = forEntity;
+        }
       }
       if (onStateChange) {
         onStateChange({ offset, activeCell, selected, shown, sort, filters, filterText, edits: next });
@@ -714,6 +731,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       }
     },
     [edits, offset, activeCell, selected, shown, sort, filters, filterText, onStateChange, controlledState],
+  );
+
+  const setEdit = useCallback(
+    (id: string, attr: string, value: unknown | undefined) => setEdits([{ id, attr, value }]),
+    [setEdits],
   );
 
   const clearEdits = useCallback(() => {
@@ -877,6 +899,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     setArea,
     setActive,
     setEdit,
+    setEdits,
     clearEdits,
     pendingChanges,
     setOffset,

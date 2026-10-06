@@ -135,6 +135,9 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     openRow: t("entityGrid.openRow"),
     rowDetail: t("entityGrid.rowDetail"),
     close: t("entityGrid.close"),
+    pasted: t("entityGrid.pasted"),
+    skipped: t("entityGrid.skipped"),
+    pasteTooLarge: t("entityGrid.pasteTooLarge"),
   };
 }
 
