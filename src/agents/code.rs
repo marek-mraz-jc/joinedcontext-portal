@@ -203,8 +203,152 @@ src/App.tsx
     )
 });
 
+/// How a file goes into a model's prompt (T-3076).
+#[derive(Debug, PartialEq, Eq)]
+pub enum Shown {
+    /// The whole text: the application's own files, and every file it changed.
+    Whole,
+    /// The exports of a template component the application has not changed: what it is used
+    /// by, read whole on demand.
+    Outline(String),
+    /// Its name only: an unchanged template test, the components' stylesheet, or a file the model
+    /// may not write (the README, the build and e2e set-up), which no request needs to see.
+    Named,
+}
+
+/// How `path` goes into a prompt, given the template it was copied from (T-3076). Of ~200 KB
+/// of template (~50k tokens) the model needs the components' exports and the files an
+/// application writes: what it changed and its pages, `App.tsx`, `i18n.ts` and types stay
+/// whole, an unchanged component is shown by its exports, and an unchanged test, the
+/// components' stylesheet or a file it may not write by name.
+pub fn shown(path: &str, content: &str, template: &BTreeMap<String, String>) -> Shown {
+    if template.get(path).map(String::as_str) != Some(content) {
+        return Shown::Whole;
+    }
+    if path.contains(".test.") || path == "src/components/components.css" || !writable(path) {
+        return Shown::Named;
+    }
+    if path.starts_with("src/components/") && (path.ends_with(".tsx") || path.ends_with(".ts")) {
+        return Shown::Outline(outline(content));
+    }
+    Shown::Whole
+}
+
+/// The exports of a TypeScript module: each `export` line with the comment above it, a
+/// function's parameters until its body opens, and an exported interface or type whole.
+pub fn outline(text: &str) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut out: Vec<&str> = Vec::new();
+    let mut comment: Vec<&str> = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("/**") || trimmed.starts_with('*') || trimmed.starts_with("//") {
+            comment.push(line);
+            i += 1;
+            continue;
+        }
+        if line.starts_with("export ") {
+            out.append(&mut comment);
+            let block = line.starts_with("export interface ")
+                || (line.starts_with("export type ") && line.trim_end().ends_with('{'));
+            let opens_body = |l: &str| {
+                let l = l.trim_end();
+                l.ends_with('{') && !l.ends_with("({") && !l.ends_with("<{")
+            };
+            // An interface to its closing brace; a signature until its body opens.
+            let mut end = i;
+            let limit = (i + 40).min(lines.len() - 1);
+            if block {
+                while end < limit && !lines[end].starts_with('}') {
+                    end += 1;
+                }
+            } else if !opens_body(line) && !line.trim_end().ends_with(';') {
+                while end < limit
+                    && !opens_body(lines[end])
+                    && !lines[end].trim_end().ends_with(';')
+                {
+                    end += 1;
+                }
+            }
+            out.extend(&lines[i..=end]);
+            i = end + 1;
+            continue;
+        }
+        comment.clear();
+        i += 1;
+    }
+    out.join("\n")
+}
+
 #[cfg(test)]
 mod tests {
+    /// T-3076: what of the template a prompt carries, file by file.
+    #[test]
+    fn an_unchanged_template_is_shown_by_its_exports_and_a_changed_file_whole() {
+        let template = preview::template_files();
+        let form = "src/components/EntityForm.tsx";
+        let Shown::Outline(outlined) = shown(form, &template[form], &template) else {
+            panic!("an unchanged component is outlined");
+        };
+        assert!(
+            outlined.len() * 4 < template[form].len(),
+            "{} of {}",
+            outlined.len(),
+            template[form].len()
+        );
+        assert!(
+            outlined.contains("export function EntityForm"),
+            "{outlined}"
+        );
+        assert_eq!(shown(form, "changed", &template), Shown::Whole);
+        assert_eq!(
+            shown("src/App.tsx", &template["src/App.tsx"], &template),
+            Shown::Whole
+        );
+        assert_eq!(
+            shown("src/i18n.ts", &template["src/i18n.ts"], &template),
+            Shown::Whole
+        );
+        let test = "src/components/EntityForm.test.tsx";
+        assert_eq!(shown(test, &template[test], &template), Shown::Named);
+        assert_eq!(
+            shown(
+                "src/components/components.css",
+                &template["src/components/components.css"],
+                &template
+            ),
+            Shown::Named
+        );
+        assert_eq!(shown("src/pages/Bikes.tsx", "x", &template), Shown::Whole);
+        assert_eq!(
+            shown("README.md", &template["README.md"], &template),
+            Shown::Named
+        );
+        // The whole template, as a prompt carries it: about a tenth of its bytes.
+        let (whole, carried): (usize, usize) = template
+            .iter()
+            .filter(|(path, _)| writable(path))
+            .map(|(path, content)| match shown(path, content, &template) {
+                Shown::Whole => (content.len(), content.len()),
+                Shown::Outline(text) => (content.len(), text.len()),
+                Shown::Named => (content.len(), path.len()),
+            })
+            .fold((0, 0), |(a, b), (c, d)| (a + c, b + d));
+        assert!(carried * 3 < whole, "{carried} of {whole} bytes");
+    }
+
+    #[test]
+    fn an_outline_keeps_comments_signatures_and_interfaces() {
+        let text = "import x from \"y\";\n/** The props. */\nexport interface Props {\n  a: string;\n}\n// hidden\nconst inner = 1;\n/** Draws it. */\nexport function Thing({\n  a,\n}: Props) {\n  return a;\n}\nexport const N = 3;\n";
+        assert_eq!(
+            outline(text),
+            "/** The props. */\nexport interface Props {\n  a: string;\n}\n/** Draws it. */\nexport function Thing({\n  a,\n}: Props) {\nexport const N = 3;"
+        );
+        assert_eq!(outline(""), "");
+    }
+
     use super::*;
 
     #[test]

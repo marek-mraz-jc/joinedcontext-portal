@@ -2731,6 +2731,18 @@
       "step": "Krok",
       "took": "Trvání"
     },
+    "cost": {
+      "title": "Kolik běh stál",
+      "calls": "Volání modelu",
+      "input": "Vstupní tokeny",
+      "cached": "Z mezipaměti",
+      "cachedValue": "{tokens} ({share} %)",
+      "output": "Výstupní tokeny",
+      "cost": "Cena",
+      "unpriced": "poskytovatel ji neuvedl",
+      "partlyPriced": "Poskytovatel uvedl cenu {priced} z {calls} volání; ostatní v ní nejsou.",
+      "models": "Modely: {models}"
+    },
     "conversation": {
       "details": "{count, plural, one {Podrobnosti (# řádek)} few {Podrobnosti (# řádky)} other {Podrobnosti (# řádků)}}",
       "title": "Rozhovor",

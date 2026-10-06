@@ -649,14 +649,32 @@ impl Driver {
         pack.push_str("\n\nWhat `@joinedcontext/sdk` exports:\n```ts\n");
         pack.push_str(code::SDK_EXPORTS.trim());
         pack.push_str("\n```\n\n## THE FILES OF THE PROJECT\n\n");
+        // The template's components the application has not changed go by their exports and
+        // its unchanged tests by name (T-3076): they are used, not rewritten.
+        let template = crate::agents::preview::template_files();
         let types = files.get_key_value(code::TYPES);
+        let mut named = Vec::new();
         for (path, content) in files
             .iter()
             .filter(|(path, _)| path.as_str() != code::TYPES)
             .chain(types)
         {
             let fence = path.rsplit('.').next().unwrap_or("text");
-            pack.push_str(&format!("### {path}\n```{fence}\n{content}\n```\n"));
+            match code::shown(path, content, &template) {
+                code::Shown::Whole => {
+                    pack.push_str(&format!("### {path}\n```{fence}\n{content}\n```\n"))
+                }
+                code::Shown::Outline(exports) => pack.push_str(&format!(
+                    "### {path} (an unchanged template component, its exports: use it as it is)\n```{fence}\n{exports}\n```\n"
+                )),
+                code::Shown::Named => named.push(path.as_str()),
+            }
+        }
+        if !named.is_empty() {
+            pack.push_str(&format!(
+                "Unchanged template tests and styles, not shown and left as they are: {}\n",
+                named.join(", ")
+            ));
         }
         // The example of the request's kind, for writing and completing; a repair stays on its problems.
         if matches!(fix, None | Some(Fix::Complete)) {
@@ -1255,6 +1273,37 @@ fn repair_instruction(request: &str, found: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-3076: the first code call over the template carries the SDK, the components by their
+    /// exports and the application's own files: within 25k tokens (~24.3k measured), where the
+    /// whole template alone was ~50k. It is one call a run; the per-step base is the editing
+    /// opening (edit_loop, within 15k).
+    #[tokio::test]
+    async fn the_first_code_call_over_the_template_stays_within_25k_tokens() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.prompt = "A map and a table of the city bike stations".into();
+        let template = crate::agents::preview::template_files();
+        let samples = json!({ "BikeHireDockingStation": [
+            { "id": "urn:ngsi-ld:BikeHireDockingStation:hel.fi:bikes:001", "name": "Kaivopuisto",
+              "availableBikeNumber": 7, "location": { "type": "Point", "coordinates": [24.95, 60.16] } }
+        ] });
+        let prompt = driver.prompt.clone();
+        let pack = driver
+            .code_pack(&samples, &template, &[], &prompt, None)
+            .await;
+        let tokens = (code::SYSTEM.len() + pack.len()) / 4;
+        assert!(tokens <= 25_000, "{tokens} tokens");
+        assert!(
+            pack.contains("export function EntityMap"),
+            "the components are named by their exports"
+        );
+        assert!(
+            !pack.contains("### src/components/EntityForm.test.tsx"),
+            "no template test is carried"
+        );
+        assert!(pack.contains("Unchanged template tests and styles"));
+    }
 
     /// What the one model call a verification makes looks like, for a version of the first run
     /// or of an instruction.

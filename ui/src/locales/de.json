@@ -2731,6 +2731,18 @@
       "step": "Schritt",
       "took": "Dauer"
     },
+    "cost": {
+      "title": "Was der Lauf gekostet hat",
+      "calls": "Modellaufrufe",
+      "input": "Eingabe-Token",
+      "cached": "Aus dem Cache",
+      "cachedValue": "{tokens} ({share} %)",
+      "output": "Ausgabe-Token",
+      "cost": "Kosten",
+      "unpriced": "vom Anbieter nicht gemeldet",
+      "partlyPriced": "Der Anbieter hat die Kosten von {priced} von {calls} Aufrufen gemeldet; die übrigen sind nicht enthalten.",
+      "models": "Modelle: {models}"
+    },
     "conversation": {
       "details": "{count, plural, one {Details (# Zeile)} other {Details (# Zeilen)}}",
       "title": "Gespräch",

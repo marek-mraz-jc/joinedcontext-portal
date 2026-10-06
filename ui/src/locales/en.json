@@ -2731,6 +2731,18 @@
       "step": "Step",
       "took": "Took"
     },
+    "cost": {
+      "title": "What the run cost",
+      "calls": "Model calls",
+      "input": "Input tokens",
+      "cached": "Read from the cache",
+      "cachedValue": "{tokens} ({share} %)",
+      "output": "Output tokens",
+      "cost": "Cost",
+      "unpriced": "not reported by the provider",
+      "partlyPriced": "The provider reported the cost of {priced} of {calls} calls; the others are not in it.",
+      "models": "Models: {models}"
+    },
     "conversation": {
       "details": "{count, plural, one {Details (# line)} other {Details (# lines)}}",
       "title": "Conversation",
