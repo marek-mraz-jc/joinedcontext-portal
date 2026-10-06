@@ -23,11 +23,21 @@ test("a steward asks from the assistant page, gets an answer, and finds the conv
     await expect(page.getByRole("heading", { level: 1, name: "Assistant" })).toBeVisible({ timeout: 60_000 });
 
     await ask(page, QUESTION);
-    const answer = page.getByRole("listitem").filter({ hasText: "Assistant" }).last();
+    // The assistant's turn in the dock's conversation, never the sidebar's "Assistant" link, which
+    // matched at once and sent the journey off the page before the question was even posted. A
+    // half-written answer is hidden from the accessibility tree, so this waits for the finished one.
+    const answer = page
+      .getByRole("list", { name: "Conversation" })
+      .getByRole("listitem")
+      .filter({ hasText: /^Assistant/ })
+      .last();
     await expect(answer).toBeVisible({ timeout: 300_000 });
     await expect(answer).not.toContainText(/cannot|not allowed|forbidden|does not grant|The answer failed/i);
+    await expect(page.getByRole("alert")).toHaveCount(0);
 
     await page.goto(`/projects/${PROJECT}/assistant?lang=en`, { waitUntil: "load" });
+    // A journey's run is a test run, which the page lists only on request (AG-93).
+    await page.getByRole("checkbox", { name: "Show test runs" }).check();
     const table = page.getByRole("table", { name: "Assistant" });
     await expect(table.getByRole("row").filter({ hasText: `journey ${SUFFIX}` })).toHaveCount(1, { timeout: 60_000 });
   } finally {
