@@ -2,8 +2,8 @@ import { useCallback, useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import type { GridState } from "@joinedcontext/sdk";
-import { originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
+import type { GridState, RichRow } from "@joinedcontext/sdk";
+import { attributesOf, matchesQ, originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
@@ -28,10 +28,12 @@ import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
 import { ViewBar } from "../../components/entities/ViewBar";
+import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
+import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
-import { parseModel } from "../models/linkml";
+import { classSlots, parseModel } from "../models/linkml";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
@@ -332,8 +334,14 @@ function SpaceData({
   const [view, setView] = useState<DataView | null>(null);
   const [gridView, setGridView] = useState<Pick<GridState, "filterText" | "sort">>({ filterText: null, sort: null });
   const [asked, setAsked] = useState<{ q?: string; idPattern?: string }>({});
+  // What the view hides, colours and groups by (T-3099), and the group the grid is narrowed to.
+  const [extras, setExtras] = useState<ViewExtras>({});
+  const [group, setGroup] = useState<string | null>(null);
+  const [seen, setSeen] = useState<string[]>([]);
   const applyView = useCallback((next: DataView | null) => {
     setView(next);
+    setExtras({ hidden: next?.config.hidden, colour: next?.config.colour, group: next?.config.group });
+    setGroup(null);
     const first = next?.config.sort?.[0];
     setGridView({
       filterText: next?.config.q ?? null,
@@ -350,10 +358,35 @@ function SpaceData({
   const current = useMemo<ViewConfig>(
     () => ({
       ...(view?.config ?? {}),
+      ...extras,
       q: asked.q,
       sort: gridView.sort ? [{ attr: gridView.sort.attr, desc: gridView.sort.dir === "desc" }] : [],
     }),
-    [view, asked.q, gridView.sort],
+    [view, extras, asked.q, gridView.sort],
+  );
+  // The attributes a view can hide: the model's slots of the type and whatever the rows carry.
+  const onRows = useCallback((rows: RichRow[]) => {
+    setSeen((before) => {
+      const next = [...new Set([...before, ...attributesOf(rows)])];
+      return next.length === before.length ? before : next;
+    });
+  }, []);
+  const attributes = useMemo(() => {
+    const cls = modelSource === undefined ? undefined : parseModel(modelSource).classes.find((c) => c.name === type);
+    const declared = cls && modelSource !== undefined ? classSlots(parseModel(modelSource), cls).map((slot) => slot.name) : [];
+    return [...new Set([...declared, ...seen])].sort();
+  }, [modelSource, type, seen]);
+  // The first colour rule a row matches marks it, with the rule as the reason a screen reader hears.
+  const rowTone = useCallback(
+    (row: RichRow) => {
+      const rule = (extras.colour ?? []).find((each) => each.when.trim() !== "" && matchesQ(row, each.when) === true);
+      return rule ? { tone: rule.colour, label: t("spaces.views.toneLabel", { when: rule.when }) } : undefined;
+    },
+    [extras.colour, t],
+  );
+  const groupQuery = useMemo(
+    () => (extras.group && group !== null ? { q: groupTerm(extras.group, group) } : undefined),
+    [extras.group, group],
   );
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
@@ -398,6 +431,7 @@ function SpaceData({
           onChange={(event) => {
             setChosen(event.target.value);
             applyView(null);
+            setSeen([]);
           }}
         >
           {types.map((each) => (
@@ -459,6 +493,20 @@ function SpaceData({
         />
       ) : null}
       {probe.isSuccess && config ? (
+        <ViewOptions attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+      ) : null}
+      {probe.isSuccess && config && extras.group && enums[extras.group] ? (
+        <GroupCounts
+          source={source}
+          type={type}
+          attr={extras.group}
+          options={enums[extras.group]}
+          q={asked.q}
+          chosen={group}
+          onChoose={setGroup}
+        />
+      ) : null}
+      {probe.isSuccess && config ? (
         <PortalEntityGrid
           // A view applied is a fresh grid: nothing typed under the last one carries over.
           key={`${space}-${type}-${view?.id ?? ""}`}
@@ -474,6 +522,10 @@ function SpaceData({
           view={view ? gridView : undefined}
           onGridState={onGridState}
           onQuery={setAsked}
+          onRows={onRows}
+          hidden={extras.hidden}
+          rowTone={rowTone}
+          query={groupQuery}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
       ) : null}

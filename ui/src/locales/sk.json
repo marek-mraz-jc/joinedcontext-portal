@@ -552,7 +552,32 @@
       "conflict": "Medzitým tento pohľad uložil niekto iný ({detail}). Načítajte jeho verziu a uložte znova.",
       "reload": "Znovu načítať pohľady",
       "unavailable": "Uložené pohľady sa teraz nedajú načítať; tabuľka funguje ďalej.",
-      "idNotKept": "Filter na identifikátor sa v uloženom pohľade nezachová."
+      "idNotKept": "Filter na identifikátor sa v uloženom pohľade nezachová.",
+      "options": "Polia, farby a zoskupenie",
+      "fields": "Zobrazené polia",
+      "noFields": "Pre tento typ zatiaľ nie sú známe žiadne atribúty.",
+      "colours": "Farby riadkov",
+      "coloursHelp": "Riadok dostane farbu prvého pravidla, ktorému vyhovuje, a pravidlo ako popis.",
+      "when": "Keď (NGSI-LD q)",
+      "whenUnreadable": "Toto pravidlo sa na stránke nedá overiť: použite výrazy ako a==1 alebo name~=\"^K\", spojené ; alebo |, bez zátvoriek.",
+      "tone": "Farba",
+      "tones": {
+        "neutral": "Sivá",
+        "info": "Modrá",
+        "success": "Zelená",
+        "warning": "Jantárová",
+        "danger": "Červená"
+      },
+      "removeRule": "Odstrániť pravidlo {n}",
+      "addRule": "Pridať pravidlo farby",
+      "group": "Zoskupiť podľa",
+      "groupHelp": "Atribút s pevným zoznamom hodnôt; každú skupinu spočíta priestor.",
+      "noGroup": "Bez zoskupenia",
+      "countUnknown": "počet neznámy",
+      "groupsOf": "Skupiny podľa {attr}",
+      "allGroups": "Všetky",
+      "groupsCut": "Spočítaných je prvých {shown} z {total} hodnôt.",
+      "toneLabel": "Označené: {when}"
     }
   },
   "endpoints": {

@@ -1,0 +1,192 @@
+/**
+ * What a view shows beyond its filter and order (API/01 §30, T-3099): the attributes it hides, the
+ * colour rules that mark rows, and the enum attribute it groups by, with each group's count read
+ * from the space itself.
+ */
+import { useId } from "react";
+import type { JSX } from "react";
+import { useTranslation } from "react-i18next";
+import { useQueries } from "@tanstack/react-query";
+import { andQ, parseQ } from "@joinedcontext/sdk";
+import type { EntitySource, EnumOption } from "@joinedcontext/sdk";
+import type { ViewConfig } from "../../api/dataViews";
+import { Button, Checkbox, Field, Input, Select } from "../ui";
+
+export const TONES = ["neutral", "info", "success", "warning", "danger"] as const;
+export type ViewExtras = Pick<ViewConfig, "hidden" | "colour" | "group">;
+type ColourRule = NonNullable<ViewConfig["colour"]>[number];
+
+/** Groups counted at most: an enum longer than this is a list to filter, not to count. */
+export const MAX_GROUPS = 50;
+
+export interface ViewOptionsProps {
+  /** Every attribute the type has, as the grid and the model know them. */
+  attributes: string[];
+  /** The enum attributes and their values: what a view can group by. */
+  enums: Record<string, EnumOption[]>;
+  value: ViewExtras;
+  onChange: (next: ViewExtras) => void;
+}
+
+export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsProps): JSX.Element {
+  const { t } = useTranslation();
+  const id = useId();
+  const hidden = new Set(value.hidden ?? []);
+  const colour = value.colour ?? [];
+  const setColour = (next: ColourRule[]) => onChange({ ...value, colour: next });
+
+  return (
+    <details className="rounded-md border border-border p-3">
+      <summary className="cursor-pointer text-body font-semibold">{t("spaces.views.options")}</summary>
+      <div className="mt-3 grid gap-4 md:grid-cols-3">
+        <fieldset className="flex flex-col gap-1">
+          <legend className="text-body font-semibold">{t("spaces.views.fields")}</legend>
+          {attributes.length === 0 ? <p className="text-caption text-fg-muted">{t("spaces.views.noFields")}</p> : null}
+          {attributes.map((attr) => (
+            <Checkbox
+              key={attr}
+              label={attr}
+              checked={!hidden.has(attr)}
+              onChange={(e) => {
+                const next = new Set(hidden);
+                if (e.target.checked) next.delete(attr);
+                else next.add(attr);
+                onChange({ ...value, hidden: [...next].sort() });
+              }}
+            />
+          ))}
+        </fieldset>
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-body font-semibold">{t("spaces.views.colours")}</legend>
+          <p className="text-caption text-fg-muted">{t("spaces.views.coloursHelp")}</p>
+          {colour.map((rule, index) => {
+            const unreadable = rule.when.trim() !== "" && parseQ(rule.when) === null;
+            return (
+              <div key={index} className="flex flex-col gap-1 rounded-md border border-border p-2">
+                <Field
+                  id={`${id}-when-${index}`}
+                  label={t("spaces.views.when")}
+                  errors={unreadable ? [t("spaces.views.whenUnreadable")] : undefined}
+                >
+                  <Input
+                    id={`${id}-when-${index}`}
+                    value={rule.when}
+                    placeholder="availableBikeNumber==0"
+                    onChange={(e) => setColour(colour.map((r, at) => (at === index ? { ...r, when: e.target.value } : r)))}
+                  />
+                </Field>
+                <Field id={`${id}-tone-${index}`} label={t("spaces.views.tone")}>
+                  <Select
+                    id={`${id}-tone-${index}`}
+                    value={rule.colour}
+                    onChange={(e) => setColour(colour.map((r, at) => (at === index ? { ...r, colour: e.target.value } : r)))}
+                  >
+                    {TONES.map((tone) => (
+                      <option key={tone} value={tone}>
+                        {t(`spaces.views.tones.${tone}`)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Button size="sm" variant="ghost" className="w-fit" onClick={() => setColour(colour.filter((_, at) => at !== index))}>
+                  {t("spaces.views.removeRule", { n: index + 1 })}
+                </Button>
+              </div>
+            );
+          })}
+          <Button
+            size="sm"
+            className="w-fit"
+            disabled={colour.length >= 20}
+            onClick={() => setColour([...colour, { when: "", colour: "warning" }])}
+          >
+            {t("spaces.views.addRule")}
+          </Button>
+        </fieldset>
+
+        <Field id={`${id}-group`} label={t("spaces.views.group")} help={t("spaces.views.groupHelp")}>
+          <Select
+            id={`${id}-group`}
+            value={value.group ?? ""}
+            onChange={(e) => onChange({ ...value, group: e.target.value || undefined })}
+          >
+            <option value="">{t("spaces.views.noGroup")}</option>
+            {Object.keys(enums).map((attr) => (
+              <option key={attr} value={attr}>
+                {attr}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+    </details>
+  );
+}
+
+/** The query that narrows the grid to one group: the enum attribute equal to one value. */
+export function groupTerm(attr: string, value: string): string {
+  return `${attr}==${JSON.stringify(value)}`;
+}
+
+export interface GroupCountsProps {
+  source: EntitySource;
+  type: string;
+  attr: string;
+  options: EnumOption[];
+  /** The view's own query, which every count is narrowed by. */
+  q?: string;
+  /** The group the grid is narrowed to, if any. */
+  chosen: string | null;
+  onChoose: (value: string | null) => void;
+}
+
+/**
+ * One count per value of the grouping attribute, each the space's own `count=true` answer read
+ * with the person's session: the counts narrow as their grants do and are never the page's tally.
+ */
+export function GroupCounts({ source, type, attr, options, q, chosen, onChoose }: GroupCountsProps): JSX.Element {
+  const { t } = useTranslation();
+  const shown = options.slice(0, MAX_GROUPS);
+  const counts = useQueries({
+    queries: shown.map((option) => ({
+      queryKey: ["group-count", type, attr, option.value, q ?? ""],
+      retry: false,
+      staleTime: 30_000,
+      queryFn: async () => (await source.query({ type, q: andQ(q, groupTerm(attr, option.value)) }, { offset: 0, limit: 1 })).total ?? null,
+    })),
+  });
+  const countText = (index: number) => {
+    const count = counts[index];
+    if (count.isPending) return "…";
+    if (count.isError || count.data === null || count.data === undefined) return t("spaces.views.countUnknown");
+    return String(count.data);
+  };
+
+  return (
+    <nav aria-label={t("spaces.views.groupsOf", { attr })} className="flex flex-col gap-1">
+      <ul className="flex flex-wrap gap-2">
+        <li>
+          <Button size="sm" variant={chosen === null ? "primary" : "secondary"} aria-pressed={chosen === null} onClick={() => onChoose(null)}>
+            {t("spaces.views.allGroups")}
+          </Button>
+        </li>
+        {shown.map((option, index) => (
+          <li key={option.value}>
+            <Button
+              size="sm"
+              variant={chosen === option.value ? "primary" : "secondary"}
+              aria-pressed={chosen === option.value}
+              onClick={() => onChoose(option.value)}
+            >
+              {`${option.title ?? option.value} (${countText(index)})`}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {options.length > MAX_GROUPS ? (
+        <p className="text-caption text-fg-muted">{t("spaces.views.groupsCut", { shown: MAX_GROUPS, total: options.length })}</p>
+      ) : null}
+    </nav>
+  );
+}

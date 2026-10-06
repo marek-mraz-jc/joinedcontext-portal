@@ -67,6 +67,12 @@ export interface EntityGridProps extends UseEntityGridOptions {
    * pending value that breaks it is marked at its cell and holds Apply back (T-3097).
    */
   rules?: Record<string, ValueRule>;
+  /**
+   * The tone a row is marked with and why, as a view's colour rules decide it (API/01 §30): drawn
+   * as a swatch in the row's first cell that names the reason, so the colour is never the only
+   * way the row says it.
+   */
+  rowTone?: (row: RichRow) => { tone: string; label: string } | undefined;
   className?: string;
   classNames?: Partial<Record<"root" | "table" | "header" | "row" | "cell" | "pager", string>>;
 }
@@ -97,6 +103,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     mapBounds,
     empty: emptySlot,
     rules,
+    rowTone,
     className,
     classNames,
     ...hookOptions
@@ -745,10 +752,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             )}
             {shownRows.map((row, shownIndex) => {
               const rowIndex = shownFrom + shownIndex;
+              const tone = rowTone?.(row);
               return (
               <tr
                 key={row.id}
-                className={`jc-grid-tr${classNames?.row ? ` ${classNames.row}` : ""}`}
+                className={`jc-grid-tr${tone ? ` jc-grid-tr--${tone.tone}` : ""}${classNames?.row ? ` ${classNames.row}` : ""}`}
                 // A refused update stays visible on its own row, not only in the panel the person
                 // may have closed: the value there is still theirs and still unapplied.
                 data-refused={refusedOf.has(row.id) ? "true" : undefined}
@@ -768,6 +776,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                       unitHover(cellOf(row, col).cell, col.meta)
                     }
                   >
+                    {colIndex === 0 && tone ? (
+                      <span className={`jc-grid-tone jc-grid-tone--${tone.tone}`} role="img" aria-label={tone.label} title={tone.label} />
+                    ) : null}
                     {renderCellContent(row, col)}
                   </td>
                 ))}

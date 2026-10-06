@@ -552,7 +552,32 @@
       "conflict": "Jemand hat diese Ansicht inzwischen gespeichert ({detail}). Laden Sie deren Fassung und speichern Sie erneut.",
       "reload": "Ansichten neu laden",
       "unavailable": "Gespeicherte Ansichten können gerade nicht geladen werden; die Tabelle funktioniert weiter.",
-      "idNotKept": "Ein Filter auf den Bezeichner wird in einer gespeicherten Ansicht nicht behalten."
+      "idNotKept": "Ein Filter auf den Bezeichner wird in einer gespeicherten Ansicht nicht behalten.",
+      "options": "Felder, Farben und Gruppierung",
+      "fields": "Angezeigte Felder",
+      "noFields": "Für diesen Typ sind noch keine Attribute bekannt.",
+      "colours": "Zeilenfarben",
+      "coloursHelp": "Eine Zeile erhält die Farbe der ersten Regel, auf die sie passt, mit der Regel als Beschriftung.",
+      "when": "Wenn (NGSI-LD q)",
+      "whenUnreadable": "Diese Regel kann auf der Seite nicht geprüft werden: Verwenden Sie Ausdrücke wie a==1 oder name~=\"^K\", verbunden mit ; oder |, ohne Klammern.",
+      "tone": "Farbe",
+      "tones": {
+        "neutral": "Grau",
+        "info": "Blau",
+        "success": "Grün",
+        "warning": "Bernstein",
+        "danger": "Rot"
+      },
+      "removeRule": "Regel {n} entfernen",
+      "addRule": "Farbregel hinzufügen",
+      "group": "Gruppieren nach",
+      "groupHelp": "Ein Attribut mit fester Werteliste; jede Gruppe zählt der Raum.",
+      "noGroup": "Keine Gruppierung",
+      "countUnknown": "Anzahl unbekannt",
+      "groupsOf": "Gruppen nach {attr}",
+      "allGroups": "Alle",
+      "groupsCut": "Gezählt werden die ersten {shown} von {total} Werten.",
+      "toneLabel": "Markiert: {when}"
     }
   },
   "endpoints": {

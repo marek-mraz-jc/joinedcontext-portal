@@ -530,6 +530,36 @@ describe("the space's own data", () => {
     });
   });
 
+  it("marks the rows a view's colour rule matches, and hides the fields it hides (T-3099)", async () => {
+    const rows = [
+      { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1", type: "AirQualityObserved", pm10: { type: "Property", value: 52 }, no2: { type: "Property", value: 9 } },
+      { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:2", type: "AirQualityObserved", pm10: { type: "Property", value: 12 }, no2: { type: "Property", value: 7 } },
+    ];
+    const view = {
+      id: "7f1c2a9e-4b1d-4a57-9a0e-2f6d1c3b8e02",
+      type: "AirQualityObserved",
+      kind: "grid",
+      mode: "personal",
+      title: "Dusty",
+      owner: "jana.kovacova",
+      config: { hidden: ["no2"], colour: [{ when: "pm10>50", colour: "danger" }] },
+      version: 1,
+      createdAt: "2026-10-06T19:00:00Z",
+      updatedAt: "2026-10-06T19:00:00Z",
+    };
+    renderInside({ status: 200, count: 1 }, { status: 200, rows }, { views: [view] });
+
+    const picker = await screen.findByLabelText(en.spaces.views.view);
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+    expect(await screen.findByRole("columnheader", { name: /no2/ })).toBeInTheDocument();
+    await userEvent.selectOptions(picker, view.id);
+
+    const marked = await screen.findAllByRole("img", { name: en.spaces.views.toneLabel.replace("{when}", "pm10>50") });
+    expect(marked).toHaveLength(1);
+    expect(marked[0].closest("tr")).toHaveTextContent("52");
+    expect(screen.queryByRole("columnheader", { name: /no2/ })).toBeNull();
+  });
+
   it("says nothing has been written to an empty space", async () => {
     renderInside({ status: 200, count: 0 }, { status: 200, rows: [] });
 

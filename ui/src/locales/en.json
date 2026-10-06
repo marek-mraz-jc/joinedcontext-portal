@@ -552,7 +552,32 @@
       "conflict": "Someone saved this view meanwhile ({detail}). Reload to see their version, then save again.",
       "reload": "Reload views",
       "unavailable": "Saved views cannot be loaded now; the grid still works.",
-      "idNotKept": "A filter on the identifier is not kept in a saved view."
+      "idNotKept": "A filter on the identifier is not kept in a saved view.",
+      "options": "Fields, colours and grouping",
+      "fields": "Fields shown",
+      "noFields": "No attributes are known yet for this type.",
+      "colours": "Row colours",
+      "coloursHelp": "A row takes the colour of the first rule it matches, with the rule as its label.",
+      "when": "When (NGSI-LD q)",
+      "whenUnreadable": "This rule cannot be checked on the page: use terms like a==1 or name~=\"^K\", joined by ; or |, without parentheses.",
+      "tone": "Colour",
+      "tones": {
+        "neutral": "Grey",
+        "info": "Blue",
+        "success": "Green",
+        "warning": "Amber",
+        "danger": "Red"
+      },
+      "removeRule": "Remove rule {n}",
+      "addRule": "Add a colour rule",
+      "group": "Group by",
+      "groupHelp": "An attribute with a fixed list of values; each group is counted by the space.",
+      "noGroup": "No grouping",
+      "countUnknown": "count unknown",
+      "groupsOf": "Groups by {attr}",
+      "allGroups": "All",
+      "groupsCut": "The first {shown} of {total} values are counted.",
+      "toneLabel": "Marked: {when}"
     }
   },
   "endpoints": {

@@ -41,6 +41,22 @@ const config = configResult.config!;
 const onePerPage = { ...config, pageSize: 1 };
 
 describe("EntityGrid", () => {
+  it("leaves out the attributes a view hides, and marks a row with its tone and the reason", async () => {
+    render(
+      <EntityGrid
+        config={config}
+        source={fixtureSource(bikeEntities)}
+        hidden={["availableBikeNumber"]}
+        rowTone={(row) => (row.id === bikeEntities[0].id ? { tone: "danger", label: "No bikes left" } : undefined)}
+      />,
+    );
+    await waitFor(() => expect(screen.getAllByRole("row").length).toBeGreaterThan(1));
+    expect(screen.queryByRole("columnheader", { name: /availableBikeNumber/ })).toBeNull();
+    const marked = screen.getAllByRole("img", { name: "No bikes left" });
+    expect(marked).toHaveLength(1);
+    expect(marked[0].closest("tr")).toHaveClass("jc-grid-tr--danger");
+  });
+
   it("tells the host the query its filters ask, as it changes, for a saved view to keep", async () => {
     const onQuery = vi.fn();
     const { rerender } = render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} onQuery={onQuery} />);
