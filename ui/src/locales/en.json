@@ -608,6 +608,32 @@
       "webhooksLead": "An NGSI-LD subscription on {type} that calls a URL when an entity changes, proposed as a Change.",
       "noWebhook": "No webhook watches this type yet.",
       "newWebhook": "New webhook for this type"
+    },
+    "share": {
+      "title": "Publish this type as a public link",
+      "lead": "A public Endpoint that shows {type} and only the attributes you leave ticked, read by anyone without signing in. It is proposed as a Change and reviewed like every Endpoint; deleting the Endpoint takes the link down.",
+      "name": "Endpoint name",
+      "nameHint": "Lowercase letters, digits and dashes, at most 63.",
+      "shown": "Attributes the link shows",
+      "publish": "Propose the public link",
+      "link": "Once the Change is merged and applied, the link is {url}",
+      "notPublished": "This view is not published, or not any more.",
+      "types": "Types",
+      "first": "The first {count} entities.",
+      "count": "{count, plural, one {# entity} other {# entities}}."
+    },
+    "ai": {
+      "title": "Fill an attribute with AI",
+      "lead": "A prompt answered for each entity on screen, from its own attributes. The assistant prepares the values; you review them and apply, with your rights, and the model calls count against your daily budget.",
+      "attribute": "Attribute to fill",
+      "attributeHint": "An attribute name: a letter, then letters, digits or _, at most 64.",
+      "endpoint": "Through Endpoint",
+      "prompt": "Prompt",
+      "promptHint": "What to answer for each entity, at most {count} characters, e.g. Summarise the description in one sentence.",
+      "budget": "{rows, plural, one {# entity} other {# entities}}, about {tokens} tokens.",
+      "cut": "The first {count} on screen; narrow the filter for the rest.",
+      "ask": "Ask the assistant",
+      "noEndpoint": "No Endpoint serves this space, so nothing can be written."
     }
   },
   "endpoints": {

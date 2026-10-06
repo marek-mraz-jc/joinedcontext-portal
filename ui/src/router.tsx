@@ -33,6 +33,7 @@ import { CkanPage } from "./pages/ckan/CkanPage";
 import { CataloguePage } from "./pages/catalogue/CataloguePage";
 import { DatasetPage } from "./pages/catalogue/DatasetPage";
 import { parseCatalogueSearch } from "./pages/catalogue/search";
+import { PublicViewPage } from "./pages/spaces/PublicView";
 import { useAuth } from "./auth/AuthProvider";
 import { Button } from "./components/ui";
 import { ImportPage } from "./pages/import/ImportPage";
@@ -245,6 +246,16 @@ const catalogueDatasetRoute = createRoute({
     return (
       <CatalogueFrame>{() => <DatasetPage name={name} />}</CatalogueFrame>
     );
+  },
+});
+
+/** A data view published as a public link (T-3108, API/01 §33): read-only, no sign-in. */
+const publicViewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/v/$slug",
+  component: function PublicViewRoute() {
+    const { slug } = publicViewRoute.useParams();
+    return <PublicFrame>{<PublicViewPage slug={slug} />}</PublicFrame>;
   },
 });
 
@@ -978,6 +989,7 @@ export const routeTree = rootRoute.addChildren([
   loginRoute,
   catalogueRoute,
   catalogueDatasetRoute,
+  publicViewRoute,
   ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,
