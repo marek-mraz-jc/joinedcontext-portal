@@ -221,6 +221,17 @@ routes:
   - route: GET /projects/{project}/spaces/{space}/usage
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/spaces/{space}/trash
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/spaces/{space}/trash
+    rule: "space-read"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    body: {"entity": {"id": "urn:ngsi-ld:AirQualityObserved:x:1", "type": "AirQualityObserved"}}
+  - route: DELETE /projects/{project}/spaces/{space}/trash/{id}
+    rule: "space-read"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the caller's own copy only; the fixture holds none, so a caller the rule allows meets 404 after the space check passed"
   - route: GET /projects/{project}/agent-runs
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

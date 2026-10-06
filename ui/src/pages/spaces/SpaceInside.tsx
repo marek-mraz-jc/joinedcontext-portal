@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
+import type { RichRow } from "@joinedcontext/sdk";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
@@ -24,7 +25,8 @@ import { useBranding } from "../../branding";
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { enumsOfModel, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
+import { EntityFilters } from "../../components/entities/EntityFilters";
+import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
@@ -34,7 +36,10 @@ import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
+import { CalendarView, deleteRow, GalleryView, KanbanView, TimelineView, TrashPanel, trashKey, useViewRows } from "./DataViews";
+import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
+import { TypeApi } from "./TypeApi";
 import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
@@ -53,6 +58,8 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
+  Tabs,
+  tabPanelProps,
   Term,
 } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
@@ -316,6 +323,10 @@ function SpaceData({
   );
   const relations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
   const rules = useMemo(() => rulesOfModel(modelSource, type), [modelSource, type]);
+  const slots = useMemo(() => filterSlotsOf(modelSource, type), [modelSource, type]);
+  // The grid, or a view over the same rows (ADR-N-042 §3.2): the other views share one filter.
+  const [view, setView] = useState<DataView>("grid");
+  const [q, setQ] = useState<string | undefined>(undefined);
   // A field is a slot of the type's class: offered only when the space's model declares the type.
   const ownClass = useMemo(
     () => modelSource !== undefined && parseModel(modelSource).classes.some((c) => c.name === type),
@@ -412,7 +423,51 @@ function SpaceData({
           </ul>
         </div>
       ) : null}
-      {probe.isSuccess && config ? (
+      {probe.isSuccess ? (
+        <Tabs
+          id="space-data-view"
+          label={t("spaces.views.label")}
+          variant="pill"
+          tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
+          value={view}
+          onChange={setView}
+        />
+      ) : null}
+      {probe.isSuccess ? (
+        <TrashPanel
+          project={project}
+          space={space}
+          restore={async (entity) => {
+            const answer = await originTransport()({
+              method: "POST",
+              path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`,
+              body: entity,
+            });
+            if (answer.status < 200 || answer.status >= 300) {
+              const detail = (answer.body as { detail?: unknown; title?: unknown } | undefined) ?? {};
+              throw new Error(String(detail.detail ?? detail.title ?? `HTTP ${answer.status}`));
+            }
+          }}
+        />
+      ) : null}
+      {probe.isSuccess && view === "api" ? (
+        <div {...tabPanelProps("space-data-view", view)}>
+          <TypeApi project={project} space={space} type={type} endpoints={endpoints} />
+        </div>
+      ) : null}
+      {probe.isSuccess && view !== "grid" && view !== "api" ? (
+        <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
+          <EntityFilters
+            id="space-view-filter"
+            types={[type]}
+            slots={slots}
+            value={{ type, q }}
+            onChange={(next) => setQ(next.q)}
+          />
+          <OtherView project={project} source={source} space={space} type={type} q={q} view={view} enums={enums} />
+        </div>
+      ) : null}
+      {probe.isSuccess && config && view === "grid" ? (
         <PortalEntityGrid
           key={`${space}-${type}`}
           project={project}
@@ -428,6 +483,61 @@ function SpaceData({
       ) : null}
     </div>
   );
+}
+
+/** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
+const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline", "api"] as const;
+type DataView = (typeof DATA_VIEWS)[number];
+
+/** One view other than the grid, over one page of the filtered type. */
+function OtherView({
+  project,
+  source,
+  space,
+  type,
+  q,
+  view,
+  enums,
+}: {
+  project: string;
+  source: ReturnType<typeof sourceFor>;
+  space: string;
+  type: string;
+  q: string | undefined;
+  view: Exclude<DataView, "grid" | "api">;
+  /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
+  enums: Record<string, EnumChoice[]>;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const rows = useViewRows(source, space, type, q);
+  // A delete keeps the person's copy, then reads the page and the trash again (T-3107).
+  const onDelete = async (row: RichRow) => {
+    await deleteRow(project, space, source, row);
+    await queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
+    await queryClient.invalidateQueries({ queryKey: trashKey(project, space) });
+  };
+  if (rows.isPending) return <p role="status">{t("app.loading")}</p>;
+  if (rows.isError) {
+    return (
+      <Alert role="alert" tone="danger">
+        {rows.error instanceof Error ? rows.error.message : t("app.error.generic")}
+      </Alert>
+    );
+  }
+  if (rows.data.rows.length === 0) {
+    return <p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>;
+  }
+  switch (view) {
+    case "gallery":
+      return <GalleryView rows={rows.data.rows} source={source} onDelete={onDelete} />;
+    case "kanban":
+      return <KanbanView rows={rows.data.rows} source={source} enums={enums} onDelete={onDelete} />;
+    case "calendar":
+      return <CalendarView rows={rows.data.rows} source={source} onDelete={onDelete} />;
+    case "timeline":
+      return <TimelineView rows={rows.data.rows} source={source} onDelete={onDelete} />;
+  }
 }
 
 /**
