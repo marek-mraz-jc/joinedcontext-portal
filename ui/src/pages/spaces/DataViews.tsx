@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { cellText } from "@joinedcontext/sdk";
 import type { EntitySource, RichRow } from "@joinedcontext/sdk";
-import { Button, Card, Checkbox, Dialog, ExternalLink, Field, Select } from "../../components/ui";
+import { Alert, Button, Card, Checkbox, Dialog, ExternalLink, Field, Select } from "../../components/ui";
 import { safeHref } from "../../components/ui/safeHref";
 
 /** How many entities a card, board or calendar view reads: one page, said when it is cut. */
@@ -192,6 +192,172 @@ export function GalleryView({ rows }: { rows: RichRow[] }): JSX.Element {
           );
         })}
       </ul>
+      <RowDialog row={open} onClose={() => setOpen(null)} />
+    </div>
+  );
+}
+
+/** One option of an enum slot, as the model titles it (UI-86). */
+export interface EnumChoice {
+  value: string;
+  title?: string;
+}
+
+/**
+ * The cards of a board, by column: one per permissible value in the model's order, and the rows
+ * whose value is none of them (absent, or a value the model no longer lists) under `""`.
+ */
+export function columnsOf(
+  rows: RichRow[],
+  attr: string,
+  values: EnumChoice[],
+  moved: Record<string, string> = {},
+): Map<string, RichRow[]> {
+  const columns = new Map<string, RichRow[]>(values.map((choice) => [choice.value, []]));
+  columns.set("", []);
+  for (const row of rows) {
+    const value = moved[row.id] ?? cellText(row.cells[attr]).trim();
+    (columns.get(value) ?? (columns.get("") as RichRow[])).push(row);
+  }
+  return columns;
+}
+
+/**
+ * A board (T-3101): columns are the values of one enum attribute of the model, each with how many
+ * cards it holds. Dragging a card, or choosing its column from the card itself (the keyboard and
+ * screen-reader way to the same move), writes the attribute through the space surface with the
+ * person's session; the Endpoint's Policy decides, and a refused move goes back with its words.
+ */
+export function KanbanView({
+  rows,
+  source,
+  enums,
+}: {
+  rows: RichRow[];
+  source: EntitySource;
+  enums: Record<string, EnumChoice[]>;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const attrs = Object.keys(enums).sort();
+  const [chosen, setChosen] = useState("");
+  const attr = attrs.includes(chosen) ? chosen : (attrs[0] ?? "");
+  const [moved, setMoved] = useState<Record<string, string>>({});
+  const [refused, setRefused] = useState<string | null>(null);
+  const [open, setOpen] = useState<RichRow | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+
+  if (attrs.length === 0) {
+    return <p className="text-body text-fg-muted">{t("spaces.views.noEnum")}</p>;
+  }
+  const values = enums[attr];
+  const columns = columnsOf(rows, attr, values, moved);
+  const titleOf = (value: string) =>
+    value === "" ? t("spaces.views.noValue") : (values.find((choice) => choice.value === value)?.title ?? value);
+
+  const move = async (row: RichRow, to: string) => {
+    const from = moved[row.id] ?? cellText(row.cells[attr]).trim();
+    if (to === from || to === "") return;
+    setRefused(null);
+    setMoved((now) => ({ ...now, [row.id]: to }));
+    try {
+      if (!source.patch) throw new Error(t("spaces.views.readOnly"));
+      await source.patch(row.id, { [attr]: { type: "Property", value: to } });
+    } catch (error) {
+      setMoved((now) => {
+        const { [row.id]: _gone, ...rest } = now;
+        void _gone;
+        return rest;
+      });
+      setRefused(
+        t("spaces.views.moveRefused", {
+          name: primaryOf(row),
+          reason: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="view-kanban">
+      <Field id="kanban-attr" label={t("spaces.views.groupBy")} className="w-fit">
+        <Select id="kanban-attr" value={attr} onChange={(event) => setChosen(event.target.value)}>
+          {attrs.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {refused ? (
+        <Alert role="alert" tone="danger">
+          {refused}
+        </Alert>
+      ) : null}
+      <Truncated count={rows.length} />
+      <div className="flex gap-3 overflow-x-auto pb-2" role="group" aria-label={t("spaces.views.board", { attr })}>
+        {[...columns].map(([value, cards]) =>
+          value === "" && cards.length === 0 ? null : (
+            <section
+              key={value || "none"}
+              aria-label={t("spaces.views.column", { title: titleOf(value), count: cards.length })}
+              className="flex w-64 shrink-0 flex-col gap-2 rounded-lg border border-border bg-surface-subtle p-2"
+              data-testid={`kanban-column-${value || "none"}`}
+              onDragOver={(event) => {
+                if (dragging && value !== "") event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const row = rows.find((candidate) => candidate.id === dragging);
+                setDragging(null);
+                if (row) void move(row, value);
+              }}
+            >
+              <h3 className="flex items-center justify-between text-caption font-semibold text-fg">
+                <span>{titleOf(value)}</span>
+                <span className="tabular-nums text-fg-muted">{cards.length}</span>
+              </h3>
+              <ul className="flex flex-col gap-2">
+                {cards.map((row) => (
+                  <li
+                    key={row.id}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData("text/plain", row.id);
+                      setDragging(row.id);
+                    }}
+                    onDragEnd={() => setDragging(null)}
+                  >
+                    <Card className="flex flex-col gap-1 p-2">
+                      <Button
+                        variant="ghost"
+                        className="justify-start px-0 text-left font-semibold [overflow-wrap:anywhere]"
+                        onClick={() => setOpen(row)}
+                      >
+                        {primaryOf(row)}
+                      </Button>
+                      <label className="flex items-center gap-1 text-caption text-fg-muted">
+                        <span className="shrink-0">{t("spaces.views.moveTo")}</span>
+                        <Select
+                          aria-label={t("spaces.views.moveCard", { name: primaryOf(row) })}
+                          value={value}
+                          onChange={(event) => void move(row, event.target.value)}
+                        >
+                          {value === "" ? <option value="">{t("spaces.views.noValue")}</option> : null}
+                          {values.map((choice) => (
+                            <option key={choice.value} value={choice.value}>
+                              {choice.title ?? choice.value}
+                            </option>
+                          ))}
+                        </Select>
+                      </label>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
+        )}
+      </div>
       <RowDialog row={open} onClose={() => setOpen(null)} />
     </div>
   );

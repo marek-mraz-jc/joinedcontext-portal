@@ -31,7 +31,8 @@ import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
-import { GalleryView, useViewRows } from "./DataViews";
+import { GalleryView, KanbanView, useViewRows } from "./DataViews";
+import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { SpaceQuality } from "./SpaceQuality";
 import {
@@ -409,7 +410,7 @@ function SpaceData({
             value={{ type, q }}
             onChange={(next) => setQ(next.q)}
           />
-          <OtherView source={source} space={space} type={type} q={q} view={view} />
+          <OtherView source={source} space={space} type={type} q={q} view={view} enums={enums} />
         </div>
       ) : null}
       {probe.isSuccess && config && view === "grid" ? (
@@ -431,7 +432,7 @@ function SpaceData({
 }
 
 /** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
-const DATA_VIEWS = ["grid", "gallery"] as const;
+const DATA_VIEWS = ["grid", "gallery", "kanban"] as const;
 type DataView = (typeof DATA_VIEWS)[number];
 
 /** One view other than the grid, over one page of the filtered type. */
@@ -441,12 +442,15 @@ function OtherView({
   type,
   q,
   view,
+  enums,
 }: {
   source: ReturnType<typeof sourceFor>;
   space: string;
   type: string;
   q: string | undefined;
   view: Exclude<DataView, "grid">;
+  /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
+  enums: Record<string, EnumChoice[]>;
 }): JSX.Element {
   const { t } = useTranslation();
   const rows = useViewRows(source, space, type, q);
@@ -464,6 +468,8 @@ function OtherView({
   switch (view) {
     case "gallery":
       return <GalleryView rows={rows.data.rows} />;
+    case "kanban":
+      return <KanbanView rows={rows.data.rows} source={source} enums={enums} />;
   }
 }
 

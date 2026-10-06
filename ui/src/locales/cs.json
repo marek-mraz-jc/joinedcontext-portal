@@ -483,7 +483,16 @@
       "noImage": "Bez obrázku",
       "fields": "Pole na kartě (nejvýše {count})",
       "fieldsFull": "Karta zobrazí nejvýše {count} polí; nejdřív jedno odškrtněte.",
-      "openImage": "Otevřít obrázek"
+      "openImage": "Otevřít obrázek",
+      "noEnum": "Model nedává tomuto typu atribut s pevným seznamem hodnot, takže není z čeho udělat sloupce.",
+      "noValue": "Bez hodnoty",
+      "readOnly": "tento pohled nemůže zapisovat",
+      "moveRefused": "{name} se nepřesunul: {reason}",
+      "groupBy": "Sloupce podle",
+      "board": "Nástěnka podle {attr}",
+      "column": "{title}, {count, plural, one {# karta} few {# karty} other {# karet}}",
+      "moveTo": "Přesunout do",
+      "moveCard": "Přesunout {name} do"
     }
   },
   "endpoints": {

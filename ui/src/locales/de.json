@@ -483,7 +483,16 @@
       "noImage": "Kein Bild",
       "fields": "Felder auf der Karte (höchstens {count})",
       "fieldsFull": "Eine Karte zeigt höchstens {count} Felder; entfernen Sie zuerst eines.",
-      "openImage": "Bild öffnen"
+      "openImage": "Bild öffnen",
+      "noEnum": "Das Modell gibt diesem Typ kein Attribut mit einer festen Werteliste, daher gibt es nichts, woraus Spalten werden könnten.",
+      "noValue": "Kein Wert",
+      "readOnly": "diese Ansicht kann nicht schreiben",
+      "moveRefused": "{name} wurde nicht verschoben: {reason}",
+      "groupBy": "Spalten nach",
+      "board": "Board nach {attr}",
+      "column": "{title}, {count, plural, one {# Karte} other {# Karten}}",
+      "moveTo": "Verschieben nach",
+      "moveCard": "{name} verschieben nach"
     }
   },
   "endpoints": {

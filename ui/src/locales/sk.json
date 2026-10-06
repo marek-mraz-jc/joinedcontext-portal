@@ -483,7 +483,16 @@
       "noImage": "Bez obrázka",
       "fields": "Polia na karte (najviac {count})",
       "fieldsFull": "Karta zobrazí najviac {count} polí; najprv jedno odznačte.",
-      "openImage": "Otvoriť obrázok"
+      "openImage": "Otvoriť obrázok",
+      "noEnum": "Model nedáva tomuto typu atribút s pevným zoznamom hodnôt, takže nie je z čoho urobiť stĺpce.",
+      "noValue": "Bez hodnoty",
+      "readOnly": "tento pohľad nemôže zapisovať",
+      "moveRefused": "{name} sa nepresunul: {reason}",
+      "groupBy": "Stĺpce podľa",
+      "board": "Nástenka podľa {attr}",
+      "column": "{title}, {count, plural, one {# karta} few {# karty} other {# kariet}}",
+      "moveTo": "Presunúť do",
+      "moveCard": "Presunúť {name} do"
     }
   },
   "endpoints": {

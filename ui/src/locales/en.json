@@ -483,7 +483,16 @@
       "noImage": "No image",
       "fields": "Fields on the card (up to {count})",
       "fieldsFull": "A card shows at most {count} fields; untick one first.",
-      "openImage": "Open the image"
+      "openImage": "Open the image",
+      "noEnum": "The model gives this type no attribute with a fixed list of values, so there is nothing to make columns of.",
+      "noValue": "No value",
+      "readOnly": "this view cannot write",
+      "moveRefused": "{name} was not moved: {reason}",
+      "groupBy": "Columns by",
+      "board": "Board by {attr}",
+      "column": "{title}, {count, plural, one {# card} other {# cards}}",
+      "moveTo": "Move to",
+      "moveCard": "Move {name} to"
     }
   },
   "endpoints": {
