@@ -85,7 +85,9 @@ export function totals(schools: School[]): Totals {
 export function tenth(values: (number | null)[], side: "high" | "low"): number | null {
   const known = values.filter((v): v is number => v !== null).sort((a, b) => a - b);
   if (known.length < 10) return null;
-  const at = side === "high" ? Math.ceil(known.length * 0.9) - 1 : Math.floor(known.length * 0.1);
+  // A tenth is ceil(n / 10) values, never fewer; the threshold is the innermost of them.
+  const size = Math.ceil(known.length / 10);
+  const at = side === "high" ? known.length - size : size - 1;
   return known[at];
 }
 

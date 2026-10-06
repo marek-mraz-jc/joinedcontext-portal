@@ -35,7 +35,15 @@ describe("the city's tenth", () => {
   it("is the value the highest or lowest tenth starts at, and nothing for fewer than ten schools", () => {
     const ratios = schools.map((one) => one.pupilsPerTeacher);
     const high = tenth(ratios, "high")!;
+    // Eleven schools publish both counts: a tenth of them is two (ceil(11 / 10)).
     expect(ratios.filter((r) => r !== null && r >= high)).toHaveLength(2);
+    const budgets = schools.map((one) => one.budgetPerPupil);
+    const low = tenth(budgets, "low")!;
+    expect(budgets.filter((b) => b !== null && b <= low)).toHaveLength(2);
+    // Exactly ten known values: a tenth is one.
+    const ten = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    expect(tenth(ten, "high")).toBe(10);
+    expect(tenth(ten, "low")).toBe(1);
     expect(tenth(ratios.slice(0, 9), "high")).toBeNull();
   });
 });
