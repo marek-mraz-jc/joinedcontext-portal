@@ -20,6 +20,8 @@ export const ACTIVITY_KINDS = [
   "federation.forward",
   "federation.error",
   "catalogue.published",
+  "person.changed",
+  "model.key",
 ] as const;
 
 export const ACTIVITY_SOURCES = [

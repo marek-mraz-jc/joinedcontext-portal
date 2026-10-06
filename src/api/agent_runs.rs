@@ -366,6 +366,8 @@ pub struct RunContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
     pub status: String,
+    /// The run's kind: whose daily model budget its calls count against (AG-97).
+    pub kind: String,
     pub ticket_hash: String,
     pub max_tokens: u64,
     pub allowed_hosts: Vec<String>,

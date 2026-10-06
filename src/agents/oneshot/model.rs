@@ -11,11 +11,17 @@ const RETRY_AFTER_MAX_MS: u64 = 5000;
 /// `stepsPerRun` counts the run's model calls and `maxTokensPerRun` its tokens. Anything else
 /// the proxy or the provider says with a 429 is `None`, a busy service.
 fn run_limit_reached(body: &str) -> Option<String> {
-    let detail = serde_json::from_str::<Value>(body)
-        .ok()?
-        .get("detail")?
-        .as_str()?
-        .to_owned();
+    let problem = serde_json::from_str::<Value>(body).ok()?;
+    let detail = problem.get("detail")?.as_str()?.to_owned();
+    // A daily budget (AG-97) is said by the proxy in words for the person: whose budget, and
+    // when it starts again. Asked again it is refused again.
+    if problem
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|kind| kind.ends_with("/daily-budget"))
+    {
+        return Some(detail);
+    }
     let limit = if detail.contains("stepsPerRun") || detail.starts_with("step limit") {
         "its step limit (the agent profile's stepsPerRun, one step a model call)"
     } else if detail.contains("token budget") {
@@ -1136,6 +1142,22 @@ mod tests {
     //! it keeps when an endpoint fails.
 
     use super::*;
+
+    /// T-3065, AG-97: the proxy's daily-budget refusal is shown as the proxy said it and is not
+    /// asked again; a 429 that is neither a profile limit nor a budget is left to the retry.
+    #[test]
+    fn a_daily_budget_is_said_as_the_proxy_said_it() {
+        let budget = r#"{"type":"https://joinedcontext.com/errors/daily-budget","title":"Daily Budget Spent","status":429,"detail":"Today's model budget for the assistant is spent. It starts again at 00:00 UTC; an administrator can raise it."}"#;
+        assert_eq!(
+            run_limit_reached(budget).as_deref(),
+            Some("Today's model budget for the assistant is spent. It starts again at 00:00 UTC; an administrator can raise it.")
+        );
+        let steps = r#"{"type":"https://joinedcontext.com/errors/too-many-requests","status":429,"detail":"step limit exceeded (stepsPerRun)"}"#;
+        assert!(run_limit_reached(steps).is_some_and(|said| said.contains("stepsPerRun")));
+        let busy = r#"{"error":{"message":"Rate limit exceeded","code":429}}"#;
+        assert_eq!(run_limit_reached(busy), None);
+    }
+
     use crate::state::AppState;
     use std::collections::BTreeMap;
     use wiremock::matchers::{method, path, query_param};

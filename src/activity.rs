@@ -38,6 +38,7 @@ pub const KINDS: &[&str] = &[
     "federation.error",
     "catalogue.published",
     "person.changed",
+    "model.key",
 ];
 
 /// Which component said so.

@@ -63,6 +63,7 @@ pub async fn internal_get_run(
         path_prefix,
         repository,
         status: run.status,
+        kind: run.kind,
         ticket_hash: run.ticket_hash,
         max_tokens: profile.max_tokens_per_run,
         allowed_hosts: profile.allowed_hosts,
