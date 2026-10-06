@@ -49,6 +49,7 @@ COPY apps/banskabystrica-skoly/ui/package.json apps/banskabystrica-skoly/ui/pnpm
 COPY apps/bbsk-mapa/ui/package.json apps/bbsk-mapa/ui/pnpm-lock.yaml ./apps/bbsk-mapa/ui/
 COPY apps/bbsk-data/ui/package.json apps/bbsk-data/ui/pnpm-lock.yaml ./apps/bbsk-data/ui/
 COPY apps/bbsk-mosty/ui/package.json apps/bbsk-mosty/ui/pnpm-lock.yaml ./apps/bbsk-mosty/ui/
+COPY apps/praha-mapa/ui/package.json apps/praha-mapa/ui/pnpm-lock.yaml ./apps/praha-mapa/ui/
 COPY apps/praha-mesto/ui/package.json apps/praha-mesto/ui/pnpm-lock.yaml ./apps/praha-mesto/ui/
 RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile \
@@ -60,6 +61,7 @@ RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../../bbsk-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../bbsk-data/ui && pnpm install --frozen-lockfile \
     && cd ../../bbsk-mosty/ui && pnpm install --frozen-lockfile \
+    && cd ../../praha-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
 COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
@@ -71,6 +73,7 @@ COPY apps/banskabystrica-skoly/ui/ ./apps/banskabystrica-skoly/ui/
 COPY apps/bbsk-mapa/ui/ ./apps/bbsk-mapa/ui/
 COPY apps/bbsk-data/ui/ ./apps/bbsk-data/ui/
 COPY apps/bbsk-mosty/ui/ ./apps/bbsk-mosty/ui/
+COPY apps/praha-mapa/ui/ ./apps/praha-mapa/ui/
 COPY apps/praha-mesto/ui/ ./apps/praha-mesto/ui/
 COPY scripts/app-integrity.mjs ./scripts/
 RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
@@ -100,6 +103,9 @@ RUN cd apps/bbsk-data/ui && pnpm build \
 RUN cd apps/bbsk-mosty/ui && pnpm build \
     && cp -r dist /srv/apps/bbsk-mosty \
     && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-mosty
+RUN cd apps/praha-mapa/ui && pnpm build \
+    && cp -r dist /srv/apps/praha-mapa \
+    && node /work/scripts/app-integrity.mjs /srv/apps/praha-mapa
 RUN cd apps/praha-mesto/ui && pnpm build \
     && cp -r dist /srv/apps/praha-mesto \
     && node /work/scripts/app-integrity.mjs /srv/apps/praha-mesto
