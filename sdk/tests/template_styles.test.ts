@@ -85,3 +85,16 @@ describe("the stylesheets a generated application loads", () => {
     expect(main).not.toContain("index.css");
   });
 });
+
+/**
+ * T-3045: axe on dev found `link-in-text-block` (serious) on every published map App. MapLibre
+ * writes its attribution itself, a link told apart from the line around it by colour alone; the
+ * Portal underlines it in its own index.css (T-1493), which an App never loads. jsdom draws no
+ * map, so what is held is the rule in the stylesheet every App does load.
+ */
+describe("the map's own attribution in an App", () => {
+  it("underlines its link, because colour is not the only way to tell it from the text", () => {
+    const css = readFileSync(join(__dirname, "..", "src", "sdk", "style.css"), "utf8");
+    expect(css).toMatch(/\.maplibregl-ctrl-attrib a\s*\{[^}]*text-decoration:\s*underline/);
+  });
+});

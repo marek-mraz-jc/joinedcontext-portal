@@ -27,6 +27,7 @@ main { background: var(--jc-color-surface); }
 input[type="search"] { width: 100%; max-width: 24rem; padding: 0.5rem; font: inherit; margin-block: 0.25rem 0.5rem; border: 1px solid var(--jc-color-line); border-radius: 8px; }
 input[type="search"]:focus-visible { outline: 3px solid var(--jc-color-accent); outline-offset: 1px; }
 .scroll { overflow-x: auto; }
+.scroll:focus-visible { outline: 3px solid var(--jc-color-accent); outline-offset: 1px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--jc-color-line); text-align: left; }
 thead th { color: var(--jc-color-accent); }
