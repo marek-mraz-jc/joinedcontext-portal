@@ -531,10 +531,12 @@ impl Driver {
         }
     }
 
-    /// One model call on the run's counters (AG-44) and as a `usage` event with its input and
-    /// output tokens (SDK-20, API/04 §4).
+    /// One model call on the run's counters (AG-44) and as a `usage` event (SDK-20, API/04 §4),
+    /// when the proxy did not count it already: see [`own_count`].
     async fn record_call(&self, answer: &ToolAnswer, input: u64, step: u32) -> Result<(), String> {
-        let tokens = answer.usage_tokens.max(input + answer.output_tokens);
+        let Some(tokens) = own_count(answer, input) else {
+            return Ok(());
+        };
         if let Err(err) = self
             .state
             .agents
@@ -738,6 +740,16 @@ impl Driver {
         }
         (out, true)
     }
+}
+
+/// What the loop counts of one call itself (T-3072, API/04 §4). `jc-agent-proxy` writes the
+/// `usage` frame and counts the tokens of every call it relays whose provider reported usage, so
+/// such a call is the proxy's to count and counting it here too doubled the run's `tokensUsed`.
+/// A provider that reported nothing gets nothing counted by the proxy; the loop counts that call
+/// once, by `input`, the bytes it sent read as tokens.
+fn own_count(answer: &ToolAnswer, input: u64) -> Option<u64> {
+    let reported = answer.usage_tokens + answer.input_tokens + answer.output_tokens > 0;
+    (!reported).then_some(input)
 }
 
 #[cfg(test)]
@@ -961,6 +973,78 @@ mod tests {
             .await;
     }
 
+    /// The same stub for a provider that reports no usage at all.
+    async fn model_listing_forever_unreported(server: &wiremock::MockServer) {
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "tool_use", "id": "t", "name": "list_files", "input": {} }],
+            })))
+            .mount(server)
+            .await;
+    }
+
+    async fn usage_frames(driver: &Driver) -> Vec<Value> {
+        driver
+            .state
+            .agents
+            .events_since(&driver.run_id, 0)
+            .await
+            .expect("events")
+            .into_iter()
+            .filter(|event| event.kind == "usage")
+            .map(|event| event.payload)
+            .collect()
+    }
+
+    /// T-3072: the proxy writes the usage frame and counts the tokens of every call it relays,
+    /// so a call whose provider reported usage is counted there alone; the loop counts only a
+    /// call the provider said nothing about, which the proxy counted nothing for.
+    #[test]
+    fn a_call_is_counted_by_the_loop_only_when_the_provider_reported_no_usage() {
+        let reported = ToolAnswer {
+            usage_tokens: 1_030,
+            input_tokens: 1_000,
+            output_tokens: 30,
+            ..ToolAnswer::default()
+        };
+        assert_eq!(own_count(&reported, 1_000), None);
+        let only_total = ToolAnswer {
+            usage_tokens: 900,
+            ..ToolAnswer::default()
+        };
+        assert_eq!(own_count(&only_total, 225), None);
+        assert_eq!(own_count(&ToolAnswer::default(), 2_500), Some(2_500));
+    }
+
+    #[tokio::test]
+    async fn a_provider_that_reports_no_usage_gets_one_estimated_frame_per_call() {
+        let server = wiremock::MockServer::start().await;
+        model_listing_forever_unreported(&server).await;
+        let driver = edit_driver(&server).await;
+        let mut files = BTreeMap::from([("src/App.tsx".to_owned(), "app".to_owned())]);
+        driver
+            .edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut Vec::new(),
+                "add a form",
+                None,
+            )
+            .await
+            .expect("the turn ends");
+        let calls = server.received_requests().await.expect("recorded").len();
+        let frames = usage_frames(&driver).await;
+        assert_eq!(frames.len(), calls);
+        assert!(
+            frames
+                .iter()
+                .all(|frame| frame["inputTokens"].as_u64() > Some(0)
+                    && frame["tokensThisStep"] == frame["inputTokens"]),
+            "{frames:?}"
+        );
+    }
+
     async fn edit_driver(server: &wiremock::MockServer) -> Driver {
         let state = AppState::new(crate::config::Config::for_tests(), None);
         let mut driver = Driver::for_tests(state, "helsinki");
@@ -1016,18 +1100,8 @@ mod tests {
             "{said:?}"
         );
         assert!(conversation[0].1.contains("12 model calls"));
-        let usage: Vec<_> = driver
-            .state
-            .agents
-            .events_since(&driver.run_id, 0)
-            .await
-            .expect("events")
-            .into_iter()
-            .filter(|event| event.kind == "usage")
-            .collect();
-        assert_eq!(usage.len(), EDIT_CALLS as usize);
-        assert_eq!(usage[0].payload["inputTokens"], 1_000);
-        assert_eq!(usage[0].payload["outputTokens"], 30);
+        // Every call reported its usage, so each is the proxy's frame and count alone (T-3072).
+        assert_eq!(usage_frames(&driver).await, Vec::<Value>::new());
     }
 
     /// T-2467: the input ceiling ends a turn whose calls each resend a large context.
