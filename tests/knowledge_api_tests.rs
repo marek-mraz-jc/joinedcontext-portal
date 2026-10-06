@@ -51,13 +51,29 @@ async fn realm() -> MockServer {
 struct Rig {
     state: AppState,
     assistant: MockServer,
-    _realm: MockServer,
+    _realm: Option<MockServer>,
 }
 
 async fn rig() -> Rig {
     let realm = realm().await;
-    let assistant = MockServer::start().await;
     let issuer = format!("{}/realms/helsinki", realm.uri());
+    rig_on(issuer, Some(realm)).await
+}
+
+/// The rig on the process's signing realm, so a person can call with a bearer of their own.
+async fn rig_on_signing_realm() -> Rig {
+    Mock::given(method("POST"))
+        .and(path("/realms/banskabystrica/protocol/openid-connect/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "the-portals-own-token", "token_type": "Bearer", "expires_in": 300
+        })))
+        .mount(common::REALM.server)
+        .await;
+    rig_on(common::REALM.issuer.clone(), None).await
+}
+
+async fn rig_on(issuer: String, realm: Option<MockServer>) -> Rig {
+    let assistant = MockServer::start().await;
     let mut config = Config::from_vars(|key| {
         match key {
             "JC_OIDC_ISSUER" => Some(issuer.as_str()),
@@ -102,6 +118,42 @@ async fn rig() -> Rig {
         assistant,
         _realm: realm,
     }
+}
+
+/// One request with the person's own bearer, as a script or the edge in front sends it.
+async fn send_as_bearer(
+    state: &AppState,
+    token: &str,
+    uri: &str,
+    body: Value,
+) -> (u16, String, String) {
+    use axum::body::Body;
+    use axum::http::{header as h, Request};
+    use tower::ServiceExt;
+    let response = joinedcontext_portal::server::app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header(h::AUTHORIZATION, format!("Bearer {token}"))
+                .header(h::CONTENT_TYPE, "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let status = response.status().as_u16();
+    let kind = response
+        .headers()
+        .get(h::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_owned();
+    let bytes = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .expect("body")
+        .to_bytes();
+    (status, kind, String::from_utf8_lossy(&bytes).into_owned())
 }
 
 fn admin() -> Identity {
@@ -189,6 +241,11 @@ async fn nobody_without_the_permission_reaches_the_assistant() {
             "POST",
             "/api/v1/projects/helsinki/knowledge/sources/web/recrawl",
             None,
+        ),
+        (
+            "POST",
+            "/api/v1/projects/helsinki/knowledge/deployments/public/chat",
+            Some(json!({"message": "Ahoj"})),
         ),
     ] {
         let answer = common::send(&r.state, stranger.clone(), http, uri, body).await;
@@ -366,4 +423,145 @@ async fn the_assistants_answers_reach_the_caller_as_the_portals() {
     .await;
     assert_eq!(none.status, 503);
     assert!(none.text.contains("JC_PORTAL_KNOWLEDGE_URL"));
+}
+
+const CHAT: &str = "/api/v1/projects/helsinki/knowledge/deployments/public/chat";
+const EVENTS: &str = "event: conversation\ndata: {\"id\":\"6f1c0e9e-3b1a-4d7e-9b51-2c4f8f2a7c11\"}\n\nevent: answer\ndata: {\"text\":\"Dobrý deň [1]\"}\n\nevent: done\ndata: {\"tokens\":12}\n\n";
+
+/// API/05 §1.7, AG-115: the question goes to the assistant with the Portal's token, the
+/// person's name and the person's own token, and the events come back as they were sent.
+#[tokio::test]
+async fn a_question_reaches_the_assistant_as_the_person_and_its_events_come_back() {
+    let r = rig_on_signing_realm().await;
+    let person =
+        common::REALM.person_token_of("portal-api", "portal-api", "anna", &["portal-approver"]);
+    Mock::given(method("POST"))
+        .and(path(format!("{ASSISTANT_PATH}/deployments/public/chat")))
+        .and(header("authorization", "Bearer the-portals-own-token"))
+        .and(header("x-jc-person", "anna@hel.fi"))
+        .and(header("x-jc-person-token", person.as_str()))
+        .and(body_json(json!({"message": "Kde sú stanice?", "history": [{"role": "user", "text": "Ahoj"}], "connectors": []})))
+        .respond_with(ResponseTemplate::new(200).insert_header("content-type", "text/event-stream").set_body_string(EVENTS))
+        .expect(1)
+        .mount(&r.assistant)
+        .await;
+    let (status, kind, text) = send_as_bearer(
+        &r.state,
+        &person,
+        CHAT,
+        json!({"message": "Kde sú stanice?", "history": [{"role": "user", "text": "Ahoj"}], "connectors": []}),
+    )
+    .await;
+    assert_eq!(status, 200, "{text}");
+    assert_eq!(kind, "text/event-stream");
+    assert_eq!(text, EVENTS);
+}
+
+/// AG-115: a Portal cookie session holds no access token, so none is passed on; the assistant
+/// then offers no connector that needs one.
+#[tokio::test]
+async fn a_cookie_session_passes_no_token_on() {
+    let r = rig().await;
+    Mock::given(method("POST"))
+        .and(path(format!("{ASSISTANT_PATH}/deployments/public/chat")))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/event-stream")
+                .set_body_string(EVENTS),
+        )
+        .mount(&r.assistant)
+        .await;
+    let answer = common::send(
+        &r.state,
+        admin(),
+        "POST",
+        CHAT,
+        Some(json!({"message": "Ahoj"})),
+    )
+    .await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    let received = r.assistant.received_requests().await.unwrap_or_default();
+    assert_eq!(received.len(), 1);
+    assert!(received[0].headers.get("x-jc-person-token").is_none());
+    assert_eq!(
+        received[0]
+            .headers
+            .get("x-jc-person")
+            .map(|v| v.to_str().unwrap_or_default()),
+        Some("anna")
+    );
+}
+
+/// AG-98, AG-115: a body outside API/05 §1.1 or an unknown deployment never reaches the
+/// assistant; its refusals reach the person in the Portal's words.
+#[tokio::test]
+async fn the_chat_refuses_before_the_assistant_is_asked_and_relays_its_refusals() {
+    let r = rig().await;
+    for (uri, body) in [
+        (CHAT, json!({"message": "Ahoj", "secret": "x"})),
+        (CHAT, json!({"history": []})),
+        (
+            "/api/v1/projects/helsinki/knowledge/deployments/nikde/chat",
+            json!({"message": "Ahoj"}),
+        ),
+        (
+            "/api/v1/projects/helsinki/knowledge/deployments/NIKDE/chat",
+            json!({"message": "Ahoj"}),
+        ),
+    ] {
+        let answer = common::send(&r.state, admin(), "POST", uri, Some(body.clone())).await;
+        assert!(
+            answer.status.is_client_error(),
+            "{uri} {body}: {} {}",
+            answer.status,
+            answer.text
+        );
+    }
+    let huge = "a".repeat(70 * 1024);
+    let answer = common::send(
+        &r.state,
+        admin(),
+        "POST",
+        CHAT,
+        Some(json!({"message": huge})),
+    )
+    .await;
+    assert_eq!(answer.status, 413);
+    assert_eq!(asked(&r.assistant).await, 0);
+
+    Mock::given(method("POST"))
+        .and(path(format!("{ASSISTANT_PATH}/deployments/public/chat")))
+        .respond_with(ResponseTemplate::new(409).set_body_json(
+            json!({"status": 409, "detail": "This assistant has no budget yet: an administrator sets budget.tokensPerDay on it before anyone can ask."}),
+        ))
+        .up_to_n_times(1)
+        .mount(&r.assistant)
+        .await;
+    let no_budget = common::send(
+        &r.state,
+        admin(),
+        "POST",
+        CHAT,
+        Some(json!({"message": "Ahoj"})),
+    )
+    .await;
+    assert_eq!(no_budget.status, 409);
+    assert!(no_budget.text.contains("budget.tokensPerDay"));
+    Mock::given(method("POST"))
+        .and(path(format!("{ASSISTANT_PATH}/deployments/public/chat")))
+        .respond_with(ResponseTemplate::new(429).set_body_json(
+            json!({"status": 429, "detail": "The assistant is answering many questions. Ask again in a moment."}),
+        ))
+        .mount(&r.assistant)
+        .await;
+    let busy = common::send(
+        &r.state,
+        admin(),
+        "POST",
+        CHAT,
+        Some(json!({"message": "Ahoj"})),
+    )
+    .await;
+    assert_eq!(busy.status, 429);
+    assert!(busy.text.contains("Ask again in a moment"));
 }

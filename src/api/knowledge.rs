@@ -5,8 +5,10 @@
 
 use std::time::Duration;
 
-use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::body::Body;
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use jc_core::kinds::assistant::{KnowledgeSourceSpec, SourceType};
@@ -56,6 +58,37 @@ pub struct InclusionRequest {
     /// `false` excludes: their passages go at once and the choice holds over later crawls.
     pub included: bool,
 }
+
+/// One turn of what the person's chat holds (API/05 §1.1).
+#[derive(Debug, Deserialize, serde::Serialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ChatTurn {
+    /// `user` or `assistant`.
+    pub role: String,
+    pub text: String,
+}
+
+/// A question to an assistant (API/05 §1.1); `jc-assistant` holds every bound.
+#[derive(Debug, Deserialize, serde::Serialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ChatRequest {
+    /// The id the first answer gave, to continue its conversation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation: Option<String>,
+    /// 1 to 4,000 characters.
+    pub message: String,
+    /// At most 6 earlier turns.
+    #[serde(default)]
+    pub history: Vec<ChatTurn>,
+    /// The connectors switched on; none sent leaves every one on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connectors: Option<Vec<String>>,
+}
+
+/// The largest question body (API/05 §1.1).
+const MAX_CHAT_BODY: usize = 64 * 1024;
+/// The longest an answer may take: six model calls and their tools (AG-107).
+const CHAT_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Read access to the project's sources, or not there at all (R20).
 fn readable(state: &AppState, user: &CurrentUser, project: &str) -> Result<(), ApiError> {
@@ -526,6 +559,135 @@ pub async fn deployment_usage(
     Ok(Json(body))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat",
+    summary = "Ask an Assistant",
+    description = "One question to the project's AssistantDeployment as the signed-in person, answered as the Server-Sent Events of API/05 §1.3. An internal deployment reads its internal passages and the organization's Endpoints with the person's own token, which the Portal passes on and keeps no copy of; any other channel answers as it answers a visitor (API/05 §1.7, AG-115).",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("deployment" = String, Path, description = "AssistantDeployment name"),
+    ),
+    request_body(
+        content = ChatRequest,
+        description = "API/05 §1.1: the question, the last turns the chat holds, the connectors switched on.",
+        content_type = "application/json",
+        example = json!({
+            "message": "Where are the air quality stations?",
+            "history": [{ "role": "user", "text": "Hello" }, { "role": "assistant", "text": "Hello! Ask me about the city's data." }],
+            "connectors": ["helsinki-weather"]
+        })
+    ),
+    responses(
+        (status = 200, description = "The answer, as Server-Sent Events", content_type = "text/event-stream", body = String),
+        (status = 400, description = "The question breaks a bound of API/05 §1.1", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project or deployment the caller may read", body = crate::error::ProblemDetails),
+        (status = 409, description = "The deployment has no budget yet", body = crate::error::ProblemDetails),
+        (status = 429, description = "The deployment's per-minute limit is reached", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn chat(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, deployment)): Path<(String, String)>,
+    headers: HeaderMap,
+    Json(question): Json<ChatRequest>,
+) -> Result<Response, ApiError> {
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    if !(is_dns1123(&project)
+        && effective.may_read_project()
+        && effective.may_read("AssistantDeployment"))
+    {
+        return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    named("deployment", &deployment)?;
+    if state
+        .mirror
+        .get(&project, "AssistantDeployment", &deployment)
+        .is_none()
+    {
+        return Err(ApiError::NotFound(format!(
+            "deployment '{deployment}' not found"
+        )));
+    }
+    let base = state.config.knowledge_url.as_deref().ok_or_else(|| {
+        ApiError::Unavailable(
+            "this Portal has no knowledge assistant address (JC_PORTAL_KNOWLEDGE_URL)".into(),
+        )
+    })?;
+    let oidc = state.oidc.as_ref().ok_or_else(|| {
+        ApiError::Unavailable("this Portal has no Keycloak client to ask the assistant with".into())
+    })?;
+    let token = oidc.service_token().await.map_err(|err| {
+        ApiError::Unavailable(format!("no token for the knowledge assistant: {err}"))
+    })?;
+    let mut request = http()
+        .post(format!(
+            "{base}/internal/v1/projects/{project}/knowledge/deployments/{deployment}/chat"
+        ))
+        .bearer_auth(token)
+        .header("x-jc-person", &user.0.identity.username)
+        .timeout(CHAT_TIMEOUT)
+        .json(&question);
+    // The person's own token, for an internal deployment's connectors (AG-115): passed on,
+    // never kept or logged here.
+    if let Some(person) =
+        crate::agents::identity::persons_token(&headers, state.config.trust_edge_token)
+    {
+        request = request.header("x-jc-person-token", person);
+    }
+    let answer = request.send().await.map_err(|err| {
+        tracing::warn!(error = %err.without_url(), "the knowledge assistant did not answer");
+        ApiError::Unavailable("the knowledge assistant did not answer; try again shortly".into())
+    })?;
+    let status = answer.status().as_u16();
+    if !(200..300).contains(&status) {
+        let body: Value = answer.json().await.unwrap_or(Value::Null);
+        let detail = body
+            .get("detail")
+            .and_then(Value::as_str)
+            .unwrap_or("no reason given")
+            .to_owned();
+        return Err(match status {
+            400 => ApiError::BadRequest(detail),
+            404 => ApiError::NotFound(detail),
+            409 => ApiError::Conflict(detail),
+            429 => ApiError::TooManyRequests(detail),
+            401 | 403 => {
+                tracing::error!("the knowledge assistant refused the Portal's own token");
+                ApiError::Unavailable(
+                    "the knowledge assistant does not accept this Portal's token".into(),
+                )
+            }
+            _ => ApiError::Unavailable(format!("the knowledge assistant answered {status}")),
+        });
+    }
+    // The events as they come, so the person sees each tool and the answer when it is there.
+    let events = futures_util::stream::unfold(Some(answer), |answer| async move {
+        let mut answer = answer?;
+        match answer.chunk().await {
+            Ok(Some(bytes)) => Some((Ok::<_, std::io::Error>(bytes), Some(answer))),
+            Ok(None) => None,
+            Err(err) => {
+                tracing::warn!(error = %err.without_url(), "the assistant's answer broke off");
+                Some((Err(std::io::Error::other("the answer broke off")), None))
+            }
+        }
+    });
+    Ok((
+        [
+            (header::CONTENT_TYPE, "text/event-stream"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        [("x-accel-buffering", "no")],
+        Body::from_stream(events),
+    )
+        .into_response())
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/projects/{project}/knowledge/sources", get(list_sources))
@@ -556,5 +718,9 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/knowledge/deployments/{deployment}/usage",
             get(deployment_usage),
+        )
+        .route(
+            "/projects/{project}/knowledge/deployments/{deployment}/chat",
+            post(chat).layer(DefaultBodyLimit::max(MAX_CHAT_BODY)),
         )
 }

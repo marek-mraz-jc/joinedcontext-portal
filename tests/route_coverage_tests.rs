@@ -139,6 +139,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/knowledge/sources/{source}/inclusion", "an administrator's include or exclude of crawled pages and documents: runtime state of jc-assistant, not configuration (API/01 §34, AG-113)"),
 ("POST", "/projects/{project}/knowledge/sources/{source}/recrawl", "queues a crawl now in jc-assistant's queue (API/01 §34)"),
 ("GET", "/projects/{project}/knowledge/deployments/{deployment}/usage", "an assistant deployment's requests and tokens per day, from jc-assistant's store (API/01 §34)"),
+("POST", "/projects/{project}/knowledge/deployments/{deployment}/chat", "one question to an assistant as the signed-in person, answered by jc-assistant as events: a conversation, not configuration (API/01 §34, AG-115)"),
 ("GET", "/projects/{project}/spaces/{space}/trash", "the caller's own copies of what they deleted from a data view: a person's record in the Portal's database, not a manifest (API/01 §31, T-3107)"),
 ("POST", "/projects/{project}/spaces/{space}/trash", "keeps the caller's copy of an entity they are about to delete through the gateway: the delete itself is their gateway write (API/01 §31)"),
 ("DELETE", "/projects/{project}/spaces/{space}/trash/{id}", "forgets one of the caller's copies after a restore or a refused delete (API/01 §31)"),

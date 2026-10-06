@@ -149,6 +149,7 @@ use crate::tools::model_tools::{
         crate::api::knowledge::set_inclusion,
         crate::api::knowledge::recrawl,
         crate::api::knowledge::deployment_usage,
+        crate::api::knowledge::chat,
         crate::api::live::watch,
         crate::api::service_accounts::list_keys,
         crate::api::service_accounts::create_key,
@@ -212,6 +213,8 @@ use crate::tools::model_tools::{
     ),
     components(schemas(
         crate::api::knowledge::InclusionRequest,
+        crate::api::knowledge::ChatRequest,
+        crate::api::knowledge::ChatTurn,
         crate::api::validation::ValidationHealth,
         crate::api::organization_limits::OrganizationLimits,
         crate::api::organization_limits::LimitEntry,

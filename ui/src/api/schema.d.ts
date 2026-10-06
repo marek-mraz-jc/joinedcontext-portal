@@ -1597,6 +1597,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask an Assistant
+         * @description One question to the project's AssistantDeployment as the signed-in person, answered as the Server-Sent Events of API/05 §1.3. An internal deployment reads its internal passages and the organization's Endpoints with the person's own token, which the Portal passes on and keeps no copy of; any other channel answers as it answers a visitor (API/05 §1.7, AG-115).
+         */
+        post: operations["chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/knowledge/deployments/{deployment}/usage": {
         parameters: {
             query?: never;
@@ -3253,6 +3273,23 @@ export interface components {
         ChangeSummary: {
             key: string;
             params: Record<string, never>;
+        };
+        /** @description A question to an assistant (API/05 §1.1); `jc-assistant` holds every bound. */
+        ChatRequest: {
+            /** @description The connectors switched on; none sent leaves every one on. */
+            connectors?: string[] | null;
+            /** @description The id the first answer gave, to continue its conversation. */
+            conversation?: string | null;
+            /** @description At most 6 earlier turns. */
+            history?: components["schemas"]["ChatTurn"][];
+            /** @description 1 to 4,000 characters. */
+            message: string;
+        };
+        /** @description One turn of what the person's chat holds (API/05 §1.1). */
+        ChatTurn: {
+            /** @description `user` or `assistant`. */
+            role: string;
+            text: string;
         };
         CheckHealth: {
             check: string;
@@ -9966,6 +10003,117 @@ export interface operations {
                 };
             };
             /** @description No repository configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description AssistantDeployment name */
+                deployment: string;
+            };
+            cookie?: never;
+        };
+        /** @description API/05 §1.1: the question, the last turns the chat holds, the connectors switched on. */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "connectors": [
+                 *         "helsinki-weather"
+                 *       ],
+                 *       "history": [
+                 *         {
+                 *           "role": "user",
+                 *           "text": "Hello"
+                 *         },
+                 *         {
+                 *           "role": "assistant",
+                 *           "text": "Hello! Ask me about the city's data."
+                 *         }
+                 *       ],
+                 *       "message": "Where are the air quality stations?"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description The answer, as Server-Sent Events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description The question breaks a bound of API/05 §1.1 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or deployment the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The deployment has no budget yet */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The deployment's per-minute limit is reached */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
             503: {
                 headers: {
                     [name: string]: unknown;
