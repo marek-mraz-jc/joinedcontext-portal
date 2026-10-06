@@ -142,6 +142,15 @@ else
   rm -rf "$OUT/functions" "$OUT/.gitea"
 fi
 [ -s "$OUT/index.html" ] || fail "the bundle has no index.html"
+# Every page of the bundle at 375, 768, 1440 and 2560 px, by the App's own e2e/ suite on the
+# image's Chromium (T-2827): a red width fails the build, the log names the width, the check and
+# the element, and the report with its screenshots goes up with the build.
+echo "== browser checks"
+rm -f "$WORK/report.tar.gz"
+untrusted node "$LANE/lane.mjs" browser-checks "$APP" "$OUT" "$WORK/report" || fail "the browser checks fail (T-2827)"
+if [ -d "$WORK/report" ]; then
+  pack "$WORK/report" "$WORK/report.tar" && gzip -n "$WORK/report.tar" || fail "cannot pack the browser checks' report"
+fi
 echo "== functions"
 untrusted node "$LANE/lane.mjs" functions "$APP" "$OUT" || fail "functions/*.ts do not bundle"
 

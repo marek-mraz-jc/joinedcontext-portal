@@ -134,6 +134,10 @@ application, then repairs; the section THIS CALL of the user message says what t
   the page shows in more than one place (a tile and a table row, a chart label) is queried
   inside its region, `within(screen.getByRole("table")).getByText(…)`, or with `getAllBy…`: a
   bare `getByText` of it fails with "Found multiple elements".
+- `src/fixtures.ts` is what the build's browser check serves every page from, at four widths
+  (T-2827): keep `ROWS` holding a few rows of every type the application reads, with the types
+  and attribute names of `src/jc-types.ts` and invented values. Never copy the five entities of
+  the user message into it: the repository is read by more people than the data's audience.
 - A row is named on screen with `displayName(row)`, never its `id`; a value is shown with `format`,
   so a missing number reads `—`, never `NaN`. A map colours by the data's own range (`extent`).
 - Types and attribute names exactly as `src/jc-types.ts` and the samples spell them; import the
@@ -264,6 +268,9 @@ mod tests {
         // The rules that keep a project a preview are still there (SDK-11, SDK-12).
         assert!(system.contains("Never `src/main.tsx`"));
         assert!(system.contains("a test beside every page"));
+        // T-2827: the browser check's rows are the model's to keep true, and invented.
+        assert!(system.contains("`src/fixtures.ts`"));
+        assert!(system.contains("Never copy the five entities"));
         // A page that loads shows its loading state first; a test that reads the page right
         // after `render` fails the build lane's gate (SDK-24, T-3016: alerts-desk).
         assert!(system.contains("the first query after `render` awaits"));
