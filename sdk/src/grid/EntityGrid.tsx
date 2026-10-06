@@ -19,6 +19,8 @@ import type { EnumOption } from "../enums";
 import { objectsOf, pointingAt, searchTargets } from "../relations";
 import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
+import { RowDetail } from "./RowDetail";
+import { parseClipboard, planPaste } from "./paste";
 import "./grid.css";
 
 export interface EntityGridProps extends UseEntityGridOptions {
@@ -87,7 +89,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   } = props;
 
   const grid = useEntityGrid(hookOptions);
-  const { rows, columns, loading, error, labels, state, cellOf, toggleMeta, setOffset, setSort, setFilter, setFilterText, filterColumns, askedQuery, setEdit, clearEdits, pendingChanges, reload, getGridProps, getHeaderProps, getRowProps, getCellProps } = grid;
+  const { rows, columns, loading, error, labels, state, cellOf, toggleMeta, setOffset, setSort, setFilter, setFilterText, filterColumns, askedQuery, setEdit, clearEdits, pendingChanges, reload, setEdits, getGridProps, getHeaderProps, getRowProps, getCellProps } = grid;
 
   // A column offers a filter when it holds something `q` can ask about and the config allows it:
   // `filters.allowed` is the list a dashboard narrows its grid to.
@@ -119,6 +121,12 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const [observed, setObserved] = useState<Observed>("keep");
   const [applying, setApplying] = useState(false);
   const [history, setHistory] = useState<{ attr: string; id: string; heading: string } | null>(null);
+  // The row whose detail panel is open, by id, so a new page closes it rather than showing a row
+  // that is no longer listed (T-3097).
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  // What the last paste did, said once in a status line (T-3097).
+  const [pasteNote, setPasteNote] = useState<string | null>(null);
   const [refused, setRefused] = useState<Refusal[]>([]);
   const refusedOf = useMemo(() => new Map(refused.map((one) => [one.id, one.detail])), [refused]);
   // A refusal that names its attribute belongs on that cell too, beside the value (DM-70).
@@ -202,11 +210,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         observed,
         fallback: labels.error,
       });
-      for (const id of result.applied) {
-        for (const attr of Object.keys(state.edits[id] ?? {})) {
-          setEdit(id, attr, undefined);
-        }
-      }
+      // Every applied value leaves the pending list in one step: one call per value would keep
+      // all but the last pending.
+      setEdits(
+        result.applied.flatMap((id) =>
+          Object.keys(state.edits[id] ?? {}).map((attr) => ({ id, attr, value: undefined })),
+        ),
+      );
       setRefused(result.refused);
       if (result.refused.length === 0) {
         setOpen(false);
@@ -215,7 +225,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     } finally {
       setApplying(false);
     }
-  }, [hookOptions.source, pendingChanges, observed, labels.error, state.edits, setEdit, reload]);
+  }, [hookOptions.source, pendingChanges, observed, labels.error, state.edits, setEdits, reload]);
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -242,6 +252,23 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     // The identifier column carries no attribute, so a host addresses it by its key.
     if (column.attr === null && renderers?.[column.key]) {
       return renderers[column.key](cell, row);
+    }
+    // Without a host's own, the identifier opens the row's detail panel (T-3097).
+    if (column.key === "id") {
+      const name = cellText(row.cells.name) || text;
+      return (
+        <button
+          type="button"
+          className="jc-grid-open"
+          aria-label={`${labels.openRow}: ${name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDetailId(row.id);
+          }}
+        >
+          {text}
+        </button>
+      );
     }
     if (cell && !Array.isArray(cell) && renderers?.[cell.kind]) {
       return renderers[cell.kind](cell, row);
@@ -360,7 +387,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     return <>{text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
+  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -395,12 +422,101 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const mapAttr = mapConfig?.enabled ? mapAttrOf(rows, mapConfig.attr) : null;
   const mapPosition = mapConfig?.position ?? "right";
   const activeRowId = rows[state.activeCell?.row ?? -1]?.id ?? null;
+  const detailRow = detailId === null ? undefined : rows.find((row) => row.id === detailId);
+
+  // The table is the grid's one tab stop. Enter or F2 goes into the active cell's own control (its
+  // input, list or picker), Escape comes back to the grid, and the active cell is kept in view.
+  const gridProps = getGridProps() as Record<string, unknown> & { onKeyDown: (e: React.KeyboardEvent) => void };
+  const activeCellId = gridProps["aria-activedescendant"] as string | undefined;
+  React.useEffect(() => {
+    if (!activeCellId) return;
+    document.getElementById(activeCellId)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [activeCellId]);
+  const onGridKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTableElement>) => {
+      const onGrid = e.target === e.currentTarget;
+      if (!onGrid && e.key === "Escape") {
+        e.preventDefault();
+        e.currentTarget.focus();
+        return;
+      }
+      if (onGrid && (e.key === "Enter" || e.key === "F2") && activeCellId) {
+        const control = document
+          .getElementById(activeCellId)
+          ?.querySelector<HTMLElement>("input, select, textarea, button");
+        if (control) {
+          e.preventDefault();
+          control.focus();
+          return;
+        }
+      }
+      gridProps.onKeyDown(e);
+    },
+    [activeCellId, gridProps],
+  );
+
+  /**
+   * A range copied from a spreadsheet, laid over the grid from the active cell in edit mode
+   * (T-3097). Only editable, typed cells of listed rows take a value, an enum only a value it lists;
+   * every other cell is skipped and counted. What lands is pending like any edit.
+   */
+  const onGridPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTableElement>) => {
+      if (!editing || e.target !== e.currentTarget) return;
+      const text = e.clipboardData.getData("text/plain");
+      if (!text) return;
+      e.preventDefault();
+      const start = state.activeCell ?? { row: 0, col: 0 };
+      const plan = planPaste(parseClipboard(text), (r, c) => {
+        const row = rows[start.row + r];
+        const column = columns[start.col + c];
+        if (!row || !column || !editable(column) || column.attr === null) {
+          return { id: row?.id, attr: undefined, current: null };
+        }
+        const cell = row.cells[column.attr];
+        const one = Array.isArray(cell) ? cell[0] : cell;
+        // A geometry is drawn on the map and a relationship picked: neither is typed over.
+        if (one?.kind === "geo" || one?.kind === "relationship" || relations?.[column.attr]) {
+          return { id: row.id, attr: column.attr, current: null };
+        }
+        const pending = state.edits[row.id]?.[column.attr];
+        const stored = one?.value === undefined || one?.value === null ? "" : String(one.value);
+        const options = hookOptions.enums?.[column.attr];
+        return {
+          id: row.id,
+          attr: column.attr,
+          current: pending === undefined ? stored : String(pending),
+          allowed: options && options.length > 0 ? options.map((option) => option.value) : undefined,
+        };
+      });
+      if (plan.tooLarge) {
+        setPasteNote(labels.pasteTooLarge);
+        return;
+      }
+      setEdits(
+        plan.edits.map((edit) => {
+          const cell = rows.find((row) => row.id === edit.id)?.cells[edit.attr];
+          const one = Array.isArray(cell) ? cell[0] : cell;
+          const stored = one?.value === undefined || one?.value === null ? "" : String(one.value);
+          return { id: edit.id, attr: edit.attr, value: edit.text === stored ? undefined : coerce(edit.text, stored) };
+        }),
+      );
+      setPasteNote(`${plan.edits.length} ${labels.pasted}${plan.skipped > 0 ? `, ${plan.skipped} ${labels.skipped}` : ""}`);
+    },
+    [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, setEdits],
+  );
 
   const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}`;
 
   return (
     <div className={rootClass} data-density={hookOptions.config.density}>
       {toolbar && <div className="jc-grid-toolbar">{toolbar}</div>}
+
+      {pasteNote && (
+        <p className="jc-grid-paste-note" role="status">
+          {pasteNote}
+        </p>
+      )}
 
       {editing && pendingChanges.length > 0 && (
         <div className="jc-grid-pending" role="status">
@@ -416,8 +532,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
       <div className="jc-grid-scroll">
         <table
+          ref={tableRef}
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
-          {...getGridProps()}
+          {...gridProps}
+          onKeyDown={onGridKeyDown}
+          onPaste={onGridPaste}
         >
           <thead className={`jc-grid-thead${classNames?.header ? ` ${classNames.header}` : ""}`}>
             <tr>
@@ -586,6 +705,19 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       {loading && <div className="jc-grid-loading">{labels.loading}</div>}
 
       {error && <div className="jc-grid-error">{labels.error}: {error}</div>}
+
+      {detailRow && (
+        <RowDetail
+          row={detailRow}
+          columns={columns}
+          renderValue={renderCellContent}
+          labels={{ rowDetail: labels.rowDetail, close: labels.close }}
+          onClose={() => {
+            setDetailId(null);
+            tableRef.current?.focus();
+          }}
+        />
+      )}
 
       {history && (
         <EntityHistory

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ResolvedGridConfig, GridColumn } from "./config";
 import type { GeoArea } from "./geoarea";
 import { areaQuery } from "./geoarea";
@@ -82,6 +82,14 @@ export interface GridLabels {
   relationFailed: string;
   /** Said after a computed end's list when the page's read reached its limit. */
   relationMore: string;
+  /** The row's detail panel (T-3097): the identifier opens it, the panel's name, and closing it. */
+  openRow: string;
+  rowDetail: string;
+  close: string;
+  /** What a paste of a range did (T-3097): cells it set, cells it left, and a range too large. */
+  pasted: string;
+  skipped: string;
+  pasteTooLarge: string;
 }
 
 /**
@@ -147,6 +155,12 @@ export const DEFAULT_LABELS: GridLabels = {
   relationRemove: "Remove",
   relationFailed: "The search failed",
   relationMore: "and more",
+  openRow: "Open",
+  rowDetail: "Details",
+  close: "Close",
+  pasted: "cells pasted",
+  skipped: "skipped (not editable, off the page or not a listed value)",
+  pasteTooLarge: "The copied range is too large to paste; paste at most 5000 cells at once.",
 };
 
 export interface VisibleColumn {
@@ -195,6 +209,8 @@ export interface EntityGrid {
   filterColumns: FilterColumn[];
   /** One cell a person changed; `undefined` gives the endpoint's own value back. */
   setEdit(id: string, attr: string, value: unknown | undefined): void;
+  /** Several pending values set or cleared in one step (a paste, an apply that clears what landed). */
+  setEdits(changes: readonly { id: string; attr: string; value: unknown | undefined }[]): void;
   /** Forgets every edit that has not been applied. */
   clearEdits(): void;
   /** What applying would send: one entry per entity, with what each cell held before. */
@@ -685,19 +701,27 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
    * One cell a person changed. A value equal to what the endpoint answered is not a change, so
    * typing a value back removes it from the pending list rather than sending it again.
    */
-  const setEdit = useCallback(
-    (id: string, attr: string, value: unknown | undefined) => {
+  /**
+   * Sets or clears several pending values in one step. Each call builds on the edits as they are
+   * now, so two calls in one event would keep only the second: a paste or an apply that clears
+   * what landed goes through here with every change at once (T-3097).
+   */
+  const setEdits = useCallback(
+    (changes: readonly { id: string; attr: string; value: unknown | undefined }[]) => {
+      if (changes.length === 0) return;
       const next: Record<string, Record<string, unknown>> = { ...edits };
-      const forEntity = { ...(next[id] ?? {}) };
-      if (value === undefined) {
-        delete forEntity[attr];
-      } else {
-        forEntity[attr] = value;
-      }
-      if (Object.keys(forEntity).length === 0) {
-        delete next[id];
-      } else {
-        next[id] = forEntity;
+      for (const { id, attr, value } of changes) {
+        const forEntity = { ...(next[id] ?? {}) };
+        if (value === undefined) {
+          delete forEntity[attr];
+        } else {
+          forEntity[attr] = value;
+        }
+        if (Object.keys(forEntity).length === 0) {
+          delete next[id];
+        } else {
+          next[id] = forEntity;
+        }
       }
       if (onStateChange) {
         onStateChange({ offset, activeCell, selected, shown, sort, filters, filterText, edits: next });
@@ -707,6 +731,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       }
     },
     [edits, offset, activeCell, selected, shown, sort, filters, filterText, onStateChange, controlledState],
+  );
+
+  const setEdit = useCallback(
+    (id: string, attr: string, value: unknown | undefined) => setEdits([{ id, attr, value }]),
+    [setEdits],
   );
 
   const clearEdits = useCallback(() => {
@@ -734,8 +763,12 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     [filters, edits, activeCell, selected, shown, sort, onStateChange, controlledState],
   );
 
+  // The grid's own id prefix, so every cell has an id the grid can name as its active descendant.
+  const gridId = useId();
+  const cellId = useCallback((row: number, col: number) => `${gridId}-r${row}-c${col}`, [gridId]);
+
   const moveActive = useCallback(
-    (key: string): boolean => {
+    (key: string, toEdge = false): boolean => {
       const maxRow = sortedRows.length - 1;
       const maxCol = columns.length - 1;
       let { row, col } = activeCell ?? { row: 0, col: 0 };
@@ -758,10 +791,13 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           else return false;
           break;
         case "Home":
+          // Ctrl+Home is the grid's first cell, Home the row's (WAI-ARIA grid pattern).
           col = 0;
+          if (toEdge) row = 0;
           break;
         case "End":
           col = maxCol;
+          if (toEdge) row = maxRow;
           break;
         case "PageUp":
           row = Math.max(0, row - Math.max(1, sortedRows.length));
@@ -788,8 +824,13 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const getGridProps = useCallback((): Record<string, unknown> => {
     return {
       role: "grid",
-      "aria-rowcount": rows.length + 1,
+      // Every row of the set the grid pages through, and the header: a screen reader then says
+      // "row 12 of 340" on page two, not "row 2 of 11". Unknown is -1 (WAI-ARIA).
+      "aria-rowcount": total !== undefined ? total + 1 : -1,
       "aria-colcount": columns.length,
+      // Focus stays on the grid and the active cell is its active descendant, so the keys work
+      // from one tab stop and the cell is announced as it moves (UI-70).
+      "aria-activedescendant": activeCell && sortedRows.length > 0 ? cellId(activeCell.row, activeCell.col) : undefined,
       tabIndex: 0,
       onKeyDown: (e: React.KeyboardEvent) => {
         // Inside a cell's own input or picker the keys are that control's: an arrow moves the
@@ -798,12 +839,12 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
         if (target !== e.currentTarget && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) {
           return;
         }
-        if (moveActive(e.key)) {
+        if (moveActive(e.key, e.ctrlKey || e.metaKey)) {
           e.preventDefault();
         }
       },
     };
-  }, [rows.length, columns.length, moveActive]);
+  }, [total, columns.length, moveActive, activeCell, sortedRows.length, cellId]);
 
   const getHeaderProps = useCallback(
     (_column: VisibleColumn, index: number): Record<string, unknown> => {
@@ -819,23 +860,25 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     (_row: RichRow, index: number): Record<string, unknown> => {
       return {
         role: "row",
-        "aria-rowindex": index + 2,
+        // The row's place in the whole set: the page's offset, then the header row.
+        "aria-rowindex": offset + index + 2,
       };
     },
-    [],
+    [offset],
   );
 
   const getCellProps = useCallback(
     (_row: RichRow, rowIndex: number, _column: VisibleColumn, colIndex: number): Record<string, unknown> => {
       const isActive = activeCell?.row === rowIndex && activeCell?.col === colIndex;
       return {
+        id: cellId(rowIndex, colIndex),
         role: "gridcell",
         "aria-colindex": colIndex + 1,
         "aria-selected": isActive,
         "data-active": isActive ? "" : undefined,
       };
     },
-    [activeCell],
+    [activeCell, cellId],
   );
 
   return {
@@ -856,6 +899,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     setArea,
     setActive,
     setEdit,
+    setEdits,
     clearEdits,
     pendingChanges,
     setOffset,

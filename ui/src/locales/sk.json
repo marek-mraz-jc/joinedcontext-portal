@@ -2686,7 +2686,12 @@
         "circle": "Kruh",
         "freehand": "Voľnou rukou"
       }
-    }
+    },
+    "openRow": "Otvoriť",
+    "rowDetail": "Podrobnosti",
+    "pasted": "buniek vložených",
+    "skipped": "vynechaných (nedajú sa upraviť, sú mimo strany alebo nie sú v zozname hodnôt)",
+    "pasteTooLarge": "Skopírovaný rozsah je na vloženie príliš veľký; vložte naraz najviac 5000 buniek."
   },
   "explore": {
     "title": "Prehliadať dáta",

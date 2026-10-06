@@ -141,6 +141,111 @@ describe("EntityGrid", () => {
     fireEvent.keyDown(grid, { key: "PageDown" });
   });
 
+  // T-3097, UI-70: one tab stop, the active cell announced as the grid's active descendant, its
+  // place counted in the whole set, Ctrl+End to the last cell, Enter into the cell's own editor and
+  // Escape back to the grid.
+  it("names the active cell to assistive technology and moves into and out of its editor", async () => {
+    const editable = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "name", label: "Name" },
+        { attr: "availableBikeNumber", label: "Bikes" },
+      ],
+      pageSize: 1,
+      mode: "edit",
+      editableAttrs: ["availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(<EntityGrid config={editable} source={source} />);
+    await screen.findByText("Kamppi");
+    const grid = screen.getByRole("grid");
+    expect(grid).toHaveAttribute("aria-rowcount", "3");
+    grid.focus();
+
+    fireEvent.keyDown(grid, { key: "End", ctrlKey: true });
+    const active = grid.getAttribute("aria-activedescendant");
+    expect(active).toBeTruthy();
+    const cell = document.getElementById(active!)!;
+    expect(cell).toHaveAttribute("role", "gridcell");
+    expect(cell).toHaveAttribute("data-active");
+
+    fireEvent.keyDown(grid, { key: "Enter" });
+    const input = cell.querySelector("input")!;
+    expect(input).toHaveFocus();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(grid).toHaveFocus();
+
+    // Page two counts from the whole set: the row is the second of two, after the header.
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    await screen.findByText("Kallio");
+    expect(screen.getByText("Kallio").closest("[role=row]")).toHaveAttribute("aria-rowindex", "3");
+  });
+
+  // T-3097: the identifier opens the row whole, every attribute with the grid's own editors, and
+  // Escape goes back to the grid.
+  it("opens a row's detail panel from its identifier, edits there, and closes back to the grid", async () => {
+    const two = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "name", label: "Name" },
+        { attr: "availableBikeNumber", label: "Bikes" },
+      ],
+      pageSize: 10,
+      mode: "edit",
+      editableAttrs: ["availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(<EntityGrid config={two} source={source} />);
+    await screen.findByText("Kamppi");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open: Kamppi" }));
+    const panel = screen.getByRole("complementary", { name: "Details: Kamppi" });
+    expect(screen.getByRole("heading", { name: "Details: Kamppi" })).toHaveFocus();
+    // The grid's columns, then what the entity carries beyond them.
+    const terms = Array.from(panel.querySelectorAll("dt")).map((dt) => dt.textContent);
+    expect(terms).toEqual(["Name", "Bikes", "location", "refDevice"]);
+
+    const bikes = panel.querySelector<HTMLInputElement>("dd input")!;
+    fireEvent.change(bikes, { target: { value: "7" } });
+    expect(screen.getByText("1 not applied yet")).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole("heading", { name: "Details: Kamppi" }), { key: "Escape" });
+    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(screen.getByRole("grid")).toHaveFocus();
+  });
+
+  // T-3097: a range pasted from a spreadsheet lands on the editable cells from the active one and
+  // says what it skipped; nothing is pending outside edit mode.
+  it("pastes a copied range from the active cell into editable cells and says what it skipped", async () => {
+    const editable = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "name", label: "Name" },
+        { attr: "availableBikeNumber", label: "Bikes" },
+      ],
+      pageSize: 10,
+      mode: "edit",
+      editableAttrs: ["availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(<EntityGrid config={editable} source={source} />);
+    await screen.findByText("Kamppi");
+    const grid = screen.getByRole("grid");
+    grid.focus();
+    // id, name, bikes: two to the right is the bikes column of the first row.
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    fireEvent.paste(grid, { clipboardData: { getData: () => "8\tignored\n4\n" } });
+
+    expect(screen.getByText("2 cells pasted, 1 skipped (not editable, off the page or not a listed value)")).toBeInTheDocument();
+    expect(screen.getByText("2 not applied yet")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("8")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("4")).toBeInTheDocument();
+  });
+
   it("has role grid with aria-rowcount and headers with aria-colindex", async () => {
     render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
     await waitFor(() => {

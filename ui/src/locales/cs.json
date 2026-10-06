@@ -2686,7 +2686,12 @@
         "circle": "Kruh",
         "freehand": "Volnou rukou"
       }
-    }
+    },
+    "openRow": "Otevřít",
+    "rowDetail": "Podrobnosti",
+    "pasted": "buněk vloženo",
+    "skipped": "vynecháno (nelze upravit, mimo stránku nebo není v seznamu hodnot)",
+    "pasteTooLarge": "Zkopírovaný rozsah je pro vložení příliš velký; vložte najednou nejvýše 5000 buněk."
   },
   "explore": {
     "title": "Procházet data",
