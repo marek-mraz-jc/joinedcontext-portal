@@ -69,6 +69,8 @@ export { andQ, opsForKind, queryFromFilters } from "../grid/filters";
 export type { ColumnFilter, FilterKind, FilterOp } from "../grid/filters";
 export { applyChanges, attrsBody, MAX_ENTITIES } from "../grid/apply";
 export type { ApplyResult, AttributeChange, EntityChange, Observed } from "../grid/apply";
+export { problemOf } from "../grid/rules";
+export type { RuleLabels, ValueRule } from "../grid/rules";
 export { asCsv, EntityHistory, MAX_POINTS } from "../grid/EntityHistory";
 export type { HistoryLabels } from "../grid/EntityHistory";
 // The host's own transport, for a page that renders the grid itself (T-1439).

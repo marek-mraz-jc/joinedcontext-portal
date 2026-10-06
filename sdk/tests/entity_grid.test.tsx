@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource } from "../src/grid/source";
@@ -244,6 +244,68 @@ describe("EntityGrid", () => {
     expect(screen.getByText("2 not applied yet")).toBeInTheDocument();
     expect(screen.getByDisplayValue("8")).toBeInTheDocument();
     expect(screen.getByDisplayValue("4")).toBeInTheDocument();
+  });
+
+  // T-3097, ADR-N-042: a pinned column is the primary field. It takes the identifier's place as the
+  // first column, its value opens the row (the id on hover and in the panel), and in the panel it is
+  // edited like any other attribute.
+  it("puts a pinned primary field first, opens the row from it and edits it in the panel", async () => {
+    const primary = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "availableBikeNumber", label: "Bikes" },
+        { attr: "name", label: "Name", pinned: true },
+      ],
+      pageSize: 10,
+      mode: "edit",
+      editableAttrs: ["name", "availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(<EntityGrid config={primary} source={source} />);
+    const open = await screen.findByRole("button", { name: "Open: Kamppi" });
+    const headers = screen.getAllByRole("columnheader").map((th) => th.textContent ?? "");
+    expect(headers[0]).toMatch(/^Name/);
+    expect(headers.some((h) => h.startsWith("ID"))).toBe(false);
+    expect(open).toHaveAttribute("title", "urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001");
+    expect(open.closest("td")).toHaveClass("jc-grid-pinned");
+
+    fireEvent.click(open);
+    const panel = screen.getByRole("complementary", { name: "Details: Kamppi" });
+    expect(within(panel).getByText("urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001")).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /^Open/ })).toBeNull();
+    expect(within(panel).getAllByRole("textbox").length).toBeGreaterThan(0);
+  });
+
+  // T-3097: a scrolling grid draws the rows in sight and loads the next page as the person nears
+  // the end; the footer counts what is loaded of the whole set, and the rows keep their places.
+  it("scrolls through more rows than a page, drawing only a window and loading as it goes", async () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({
+      id: `urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:${String(i).padStart(3, "0")}`,
+      type: "BikeHireDockingStation",
+      name: { type: "Property", value: `Station ${i}` },
+    }));
+    const scrolling = parseGridConfig({
+      source: { kind: "fixture", name: "many" },
+      type: "BikeHireDockingStation",
+      columns: [{ attr: "name", label: "Name" }],
+      pageSize: 50,
+    }).config!;
+    const { container } = render(<EntityGrid config={scrolling} source={fixtureSource(many)} virtual />);
+    await screen.findByText("Station 0");
+    expect(screen.getByText("50 of 120 loaded")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+    const drawn = () => container.querySelectorAll("tbody tr:not(.jc-grid-spacer)");
+    expect(drawn().length).toBeLessThanOrEqual(50);
+
+    const box = container.querySelector<HTMLDivElement>(".jc-grid-scroll")!;
+    box.scrollTop = 30 * 36;
+    fireEvent.scroll(box);
+    await screen.findByText("100 of 120 loaded");
+    // The window moved: the first drawn row is twenty rows in, and says so to a screen reader.
+    expect(screen.queryByText("Station 0")).toBeNull();
+    expect(drawn()[0]).toHaveAttribute("aria-rowindex", "22");
+    expect(drawn().length).toBeLessThan(100);
   });
 
   it("has role grid with aria-rowcount and headers with aria-colindex", async () => {

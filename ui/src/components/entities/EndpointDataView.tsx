@@ -76,7 +76,9 @@ export function EndpointDataView({
     }
     const columns = type.attributes
       .filter((attribute) => !hidden.includes(attribute))
-      .map((attribute) => ({ attr: attribute }));
+      // `name` is the label attribute of the Smart Data Models: the primary field, first and pinned,
+      // and what opens a row (T-3097).
+      .map((attribute) => ({ attr: attribute, ...(attribute === "name" ? { pinned: true } : {}) }));
     return (
       parseGridConfig({
         source: { kind: "endpoint", slug },

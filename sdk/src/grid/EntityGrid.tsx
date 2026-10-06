@@ -21,6 +21,8 @@ import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
 import { RowDetail } from "./RowDetail";
 import { parseClipboard, planPaste } from "./paste";
+import { problemOf } from "./rules";
+import type { ValueRule } from "./rules";
 import "./grid.css";
 
 export interface EntityGridProps extends UseEntityGridOptions {
@@ -55,6 +57,11 @@ export interface EntityGridProps extends UseEntityGridOptions {
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
   empty?: React.ReactNode;
+  /**
+   * Each attribute's rule as its model states it (range, bounds, pattern, required), by name: a
+   * pending value that breaks it is marked at its cell and holds Apply back (T-3097).
+   */
+  rules?: Record<string, ValueRule>;
   className?: string;
   classNames?: Partial<Record<"root" | "table" | "header" | "row" | "cell" | "pager", string>>;
 }
@@ -83,6 +90,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     basemap,
     mapBounds,
     empty: emptySlot,
+    rules,
     className,
     classNames,
     ...hookOptions
@@ -124,10 +132,42 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   // The row whose detail panel is open, by id, so a new page closes it rather than showing a row
   // that is no longer listed (T-3097).
   const [detailId, setDetailId] = useState<string | null>(null);
+  // The primary column is the first one when it is an attribute: the config pinned it (T-3097).
+  const primaryKey = columns[0]?.attr !== null && columns[0]?.pinned ? columns[0].key : null;
+  const isPrimary = useCallback(
+    (column: VisibleColumn): boolean => column.key === primaryKey && column.pinned && column.meta === null,
+    [primaryKey],
+  );
+  /** What a row is called: its primary field, else its name or title, else its id. */
+  const rowName = useCallback(
+    (row: RichRow): string => {
+      const primary = primaryKey ? cellText(row.cells[primaryKey]) : "";
+      return primary || cellText(row.cells.name) || cellText(row.cells.title) || row.id;
+    },
+    [primaryKey],
+  );
   const tableRef = useRef<HTMLTableElement>(null);
+  // Scrolling instead of pages (T-3097): the rows in sight, between two spacers that stand for the
+  // rest, so ten thousand rows cost the DOM a screenful.
+  const virtual = hookOptions.virtual === true;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowHeight = useRef(FALLBACK_ROW_HEIGHT);
+  const [windowStart, setWindowStart] = useState(0);
+  const [windowSize, setWindowSize] = useState(FALLBACK_VIEWPORT_ROWS);
   // What the last paste did, said once in a status line (T-3097).
   const [pasteNote, setPasteNote] = useState<string | null>(null);
   const [refused, setRefused] = useState<Refusal[]>([]);
+  // What the pending values break of their model's rules, by `id\u0000attr` (T-3097).
+  const ruleProblems = useMemo(() => {
+    const found = new Map<string, string>();
+    for (const [id, attrs] of Object.entries(state.edits)) {
+      for (const [attr, value] of Object.entries(attrs)) {
+        const problem = problemOf(rules?.[attr], value, labels);
+        if (problem) found.set(`${id}\u0000${attr}`, problem);
+      }
+    }
+    return found;
+  }, [state.edits, rules, labels]);
   const refusedOf = useMemo(() => new Map(refused.map((one) => [one.id, one.detail])), [refused]);
   // A refusal that names its attribute belongs on that cell too, beside the value (DM-70).
   const refusedCell = useMemo(
@@ -253,20 +293,22 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     if (column.attr === null && renderers?.[column.key]) {
       return renderers[column.key](cell, row);
     }
-    // Without a host's own, the identifier opens the row's detail panel (T-3097).
-    if (column.key === "id") {
-      const name = cellText(row.cells.name) || text;
+    // The primary field, or the identifier where the config names none, opens the row's detail
+    // panel (T-3097): the person reads the row by its name and opens it from there.
+    if (column.key === "id" || isPrimary(column)) {
+      const name = rowName(row);
       return (
         <button
           type="button"
           className="jc-grid-open"
           aria-label={`${labels.openRow}: ${name}`}
+          title={row.id}
           onClick={(e) => {
             e.stopPropagation();
             setDetailId(row.id);
           }}
         >
-          {text}
+          {column.key === "id" ? text : text || row.id}
         </button>
       );
     }
@@ -372,11 +414,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           />
         );
       }
+      const key = `${row.id}\u0000${column.attr}` as const;
       return (
         <EditableCell
           label={`${labels.edit} ${column.label}`}
           value={pending === undefined ? shown : String(pending)}
           changed={pending !== undefined}
+          invalid={ruleProblems.get(key) ?? refusedCell.get(key)}
           kind={typeof own === "number" ? "number" : "text"}
           onChange={(next) => {
             // Back to the endpoint's own value is not a change: it leaves the pending list.
@@ -387,7 +431,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     return <>{text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
+  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -506,7 +550,37 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, setEdits],
   );
 
-  const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}`;
+  /** The window of rows in sight, read off the scroll position; past its end the next page loads. */
+  const onScroll = useCallback(() => {
+    const box = scrollRef.current;
+    if (!virtual || !box) return;
+    const first = box.querySelector<HTMLTableRowElement>("tbody tr:not(.jc-grid-spacer)");
+    if (first && first.offsetHeight > 0) rowHeight.current = first.offsetHeight;
+    const height = rowHeight.current;
+    const inSight = box.clientHeight > 0 ? Math.ceil(box.clientHeight / height) : FALLBACK_VIEWPORT_ROWS;
+    const start = Math.max(0, Math.floor(box.scrollTop / height) - OVERSCAN);
+    setWindowStart(start);
+    setWindowSize(inSight + 2 * OVERSCAN);
+    if (grid.more && start + inSight + 2 * OVERSCAN >= rows.length - OVERSCAN) {
+      grid.loadMore();
+    }
+  }, [virtual, grid, rows.length]);
+  // A key that moves the active cell out of the window scrolls to it; the scroll moves the window.
+  React.useEffect(() => {
+    const row = state.activeCell?.row;
+    const box = scrollRef.current;
+    if (!virtual || row === undefined || !box) return;
+    if (row < windowStart || row >= windowStart + windowSize) {
+      box.scrollTop = row * rowHeight.current;
+      onScroll();
+    }
+  }, [virtual, state.activeCell?.row, windowStart, windowSize, onScroll]);
+  const shownFrom = virtual ? Math.min(windowStart, Math.max(0, rows.length - 1)) : 0;
+  const shownRows = virtual ? rows.slice(shownFrom, shownFrom + windowSize) : rows;
+  const spacerAbove = virtual ? shownFrom * rowHeight.current : 0;
+  const spacerBelow = virtual ? Math.max(0, rows.length - shownFrom - shownRows.length) * rowHeight.current : 0;
+
+  const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}${virtual ? " jc-grid--virtual" : ""}`;
 
   return (
     <div className={rootClass} data-density={hookOptions.config.density}>
@@ -521,7 +595,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       {editing && pendingChanges.length > 0 && (
         <div className="jc-grid-pending" role="status">
           <span>{`${pendingChanges.length} ${labels.pending}`}</span>
-          <button type="button" onClick={() => setOpen(true)}>
+          {ruleProblems.size > 0 && <span className="jc-grid-to-correct">{`${ruleProblems.size} ${labels.toCorrect}`}</span>}
+          <button type="button" disabled={ruleProblems.size > 0} onClick={() => setOpen(true)}>
             {labels.review}
           </button>
           <button type="button" onClick={() => { clearEdits(); setRefused([]); }}>
@@ -530,7 +605,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </div>
       )}
 
-      <div className="jc-grid-scroll">
+      <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
         <table
           ref={tableRef}
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
@@ -638,7 +713,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             )}
           </thead>
           <tbody className={`jc-grid-tbody${classNames?.row ? ` ${classNames.row}` : ""}`}>
-            {rows.map((row, rowIndex) => (
+            {spacerAbove > 0 && (
+              <tr className="jc-grid-spacer" aria-hidden="true">
+                <td colSpan={columns.length} style={{ height: spacerAbove }} />
+              </tr>
+            )}
+            {shownRows.map((row, shownIndex) => {
+              const rowIndex = shownFrom + shownIndex;
+              return (
               <tr
                 key={row.id}
                 className={`jc-grid-tr${classNames?.row ? ` ${classNames.row}` : ""}`}
@@ -665,7 +747,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                   </td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
+            {spacerBelow > 0 && (
+              <tr className="jc-grid-spacer" aria-hidden="true">
+                <td colSpan={columns.length} style={{ height: spacerBelow }} />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -709,6 +797,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       {detailRow && (
         <RowDetail
           row={detailRow}
+          name={rowName(detailRow)}
           columns={columns}
           renderValue={renderCellContent}
           labels={{ rowDetail: labels.rowDetail, close: labels.close }}
@@ -831,6 +920,16 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </div>
       )}
 
+      {virtual ? (
+        <div className={`jc-grid-pager${classNames?.pager ? ` ${classNames.pager}` : ""}`} role="status">
+          <span className="jc-grid-total">
+            {grid.total !== undefined
+              ? `${rows.length} ${labels.of} ${grid.total} ${labels.loaded}`
+              : `${rows.length} ${labels.loaded}`}
+          </span>
+          {grid.loadingMore && <span className="jc-grid-loading-more">{labels.loading}</span>}
+        </div>
+      ) : (
       <div className={`jc-grid-pager${classNames?.pager ? ` ${classNames.pager}` : ""}`}>
         <button
           type="button"
@@ -854,9 +953,16 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           {labels.next}
         </button>
       </div>
+      )}
     </div>
   );
 }
+
+/** A row's height until one is measured, and the rows drawn when the box has no height yet. */
+const FALLBACK_ROW_HEIGHT = 36;
+const FALLBACK_VIEWPORT_ROWS = 30;
+/** Rows drawn beyond the window on each side, so a scroll shows rows rather than blank space. */
+const OVERSCAN = 10;
 
 /** The query as a person reads and copies it: the `q`, and the id pattern when one is asked. */
 function queryText(asked: { q?: string; idPattern?: string }): string {
@@ -1012,23 +1118,36 @@ function EditableCell({
   value,
   changed,
   kind,
+  invalid,
   onChange,
 }: {
   label: string;
   value: string;
   changed: boolean;
   kind: "text" | "number";
+  /** Why the value cannot be sent as it is: its model's rule, or the gateway's refusal. */
+  invalid?: string;
   onChange: (next: string) => void;
 }): React.JSX.Element {
+  const messageId = React.useId();
   return (
-    <input
-      aria-label={label}
-      className={`jc-grid-cell-input${changed ? " jc-grid-cell-changed" : ""}`}
-      data-changed={changed ? "true" : undefined}
-      type={kind}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <>
+      <input
+        aria-label={label}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={invalid ? messageId : undefined}
+        className={`jc-grid-cell-input${changed ? " jc-grid-cell-changed" : ""}${invalid ? " jc-grid-cell-invalid" : ""}`}
+        data-changed={changed ? "true" : undefined}
+        type={kind}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {invalid && (
+        <span id={messageId} className="jc-grid-cell-message">
+          {invalid}
+        </span>
+      )}
+    </>
   );
 }
 

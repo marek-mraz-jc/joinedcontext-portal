@@ -24,7 +24,7 @@ import { useBranding } from "../../branding";
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { enumsOfModel, relationsOfModel, useModelSource } from "../../components/entities/filters";
+import { enumsOfModel, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
@@ -311,6 +311,7 @@ function SpaceData({
     [modelSource, type, i18n.language],
   );
   const relations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
+  const rules = useMemo(() => rulesOfModel(modelSource, type), [modelSource, type]);
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -334,7 +335,7 @@ function SpaceData({
       parseGridConfig({
         source: { kind: "space", space },
         type,
-        pageSize: 25,
+        pageSize: 100,
         mode: "view",
         history: { enabled: true },
       }).config ?? null
@@ -387,8 +388,11 @@ function SpaceData({
           project={project}
           config={config}
           source={source}
+          // The whole type by scrolling, a window drawn at a time (T-3097).
+          virtual
           enums={enums}
           relations={relations}
+          rules={rules}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
       ) : null}

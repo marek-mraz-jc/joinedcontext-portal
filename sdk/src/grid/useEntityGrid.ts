@@ -90,6 +90,20 @@ export interface GridLabels {
   pasted: string;
   skipped: string;
   pasteTooLarge: string;
+  /** A scrolling grid's footer (T-3097): "120 of 10 400 loaded". */
+  loaded: string;
+  of: string;
+  /** What a typed value breaks of its model's rule (T-3097), and the count to correct first. */
+  mustBeInteger: string;
+  mustBeNumber: string;
+  mustBeBoolean: string;
+  mustBeDate: string;
+  mustBeUri: string;
+  atLeast: string;
+  atMost: string;
+  patternMismatch: string;
+  required: string;
+  toCorrect: string;
 }
 
 /**
@@ -161,6 +175,18 @@ export const DEFAULT_LABELS: GridLabels = {
   pasted: "cells pasted",
   skipped: "skipped (not editable, off the page or not a listed value)",
   pasteTooLarge: "The copied range is too large to paste; paste at most 5000 cells at once.",
+  loaded: "loaded",
+  of: "of",
+  mustBeInteger: "must be a whole number",
+  mustBeNumber: "must be a number",
+  mustBeBoolean: "must be true or false",
+  mustBeDate: "must be a date",
+  mustBeUri: "must be a web address",
+  atLeast: "must be at least",
+  atMost: "must be at most",
+  patternMismatch: "does not have the form this attribute requires",
+  required: "is required",
+  toCorrect: "to correct before applying",
 };
 
 export interface VisibleColumn {
@@ -189,9 +215,21 @@ export interface UseEntityGridOptions {
    * of the entities pointing back (UI-84, DM-67).
    */
   relations?: Record<string, RelationEnd>;
+  /**
+   * Scroll instead of pages (T-3097): the grid starts from the first page and appends the next as
+   * the person nears the end, up to `MAX_VIRTUAL_ROWS`; the view draws only the rows in sight.
+   */
+  virtual?: boolean;
 }
 
+/** Rows one scrolling grid holds at most; past it the grid says to narrow the filter. */
+export const MAX_VIRTUAL_ROWS = 50_000;
+
 export interface EntityGrid {
+  /** In scrolling mode: whether the source holds more rows than are loaded, and asking for them. */
+  more: boolean;
+  loadingMore: boolean;
+  loadMore(): void;
   rows: RichRow[];
   columns: VisibleColumn[];
   total?: number;
@@ -257,8 +295,12 @@ function buildColumns(
 ): VisibleColumn[] {
   const cols: VisibleColumn[] = [];
 
-  // id column (pinned)
-  cols.push({ key: "id", attr: null, meta: null, label: labels.id, pinned: true });
+  // The primary field (T-3097, ADR-N-042): the first column the config pins takes the identifier's
+  // place as the row's first, pinned column, and its value opens the row; without one the id does.
+  const primary = config.columns.find((c) => c.pinned)?.attr;
+  if (primary === undefined) {
+    cols.push({ key: "id", attr: null, meta: null, label: labels.id, pinned: true });
+  }
 
   // entity timestamps
   if (config.entityTimestamps) {
@@ -268,10 +310,11 @@ function buildColumns(
 
   // The model's relationship ends are columns even on a page where no entity holds one yet: an
   // empty end is what a person comes to fill, and a computed end is never in a row at all.
-  const attrList =
+  const listed =
     config.columns.length > 0
       ? config.columns.map((c) => c.attr)
       : [...new Set([...attributesOf(rows), ...Object.keys(relations)])];
+  const attrList = primary === undefined ? listed : [primary, ...listed.filter((attr) => attr !== primary)];
   const colMap = new Map<string, GridColumn>();
   for (const c of config.columns) {
     colMap.set(c.attr, c);
@@ -280,7 +323,8 @@ function buildColumns(
   for (const attr of attrList) {
     const gridCol = colMap.get(attr);
     const label = gridCol?.label ?? attr;
-    const pinned = gridCol?.pinned ?? false;
+    // Only the primary is pinned: a second sticky column would sit over the first at the left edge.
+    const pinned = attr === primary;
     const symbol = unitSymbol(unitOfColumn(rows, attr));
     cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned });
 
@@ -291,6 +335,14 @@ function buildColumns(
   }
 
   return cols;
+}
+
+/**
+ * Whether the source holds rows past the `loaded` ones: its total says so when it gives one,
+ * otherwise a full last page does.
+ */
+function hasMore(loaded: number, total: number | undefined, lastPage: number, pageSize: number): boolean {
+  return total !== undefined ? loaded < total : lastPage === pageSize;
 }
 
 /**
@@ -394,7 +446,7 @@ export function filterKindOf(
 }
 
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
-  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations } = options;
+  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false } = options;
   const labels = useMemo(() => mergeLabels(DEFAULT_LABELS, labelsPartial), [labelsPartial]);
 
   // Internal state (uncontrolled)
@@ -437,6 +489,8 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
 
   const [rows, setRows] = useState<RichRow[]>([]);
   const [total, setTotal] = useState<number | undefined>(undefined);
+  const [more, setMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
@@ -534,11 +588,13 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     const gridQuery = JSON.parse(gridQueryKey) as GridQuery;
 
     source
-      .query(gridQuery, { offset, limit: config.pageSize })
+      // A scrolling grid starts over from the first row whenever the question changes.
+      .query(gridQuery, { offset: virtual ? 0 : offset, limit: config.pageSize })
       .then((page) => {
         if (cancelledRef.current || nonceRef.current !== nonce) return;
         setRows(page.rows);
         setTotal(page.total);
+        setMore(hasMore(page.rows.length, page.total, page.rows.length, config.pageSize));
         setLoading(false);
       })
       .catch((err) => {
@@ -546,7 +602,37 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
         setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
       });
-  }, [source, config.pageSize, offset, gridQueryKey]);
+  }, [source, config.pageSize, offset, gridQueryKey, virtual]);
+
+  /**
+   * The next page of a scrolling grid, appended to what is loaded. An answer to an older question
+   * is dropped, and an entity already loaded is not listed twice when the set moved under the read.
+   */
+  const loadMore = useCallback(() => {
+    if (!virtual || !more || loadingMore || loading) return;
+    const nonce = nonceRef.current;
+    const from = rows.length;
+    setLoadingMore(true);
+    source
+      .query(JSON.parse(gridQueryKey) as GridQuery, { offset: from, limit: config.pageSize })
+      .then((page) => {
+        if (nonceRef.current !== nonce) return;
+        setRows((loaded) => {
+          const seen = new Set(loaded.map((row) => row.id));
+          const next = [...loaded, ...page.rows.filter((row) => !seen.has(row.id))].slice(0, MAX_VIRTUAL_ROWS);
+          setMore(next.length < MAX_VIRTUAL_ROWS && hasMore(next.length, page.total, page.rows.length, config.pageSize));
+          return next;
+        });
+        if (page.total !== undefined) setTotal(page.total);
+      })
+      .catch((err) => {
+        if (nonceRef.current !== nonce) return;
+        setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (nonceRef.current === nonce) setLoadingMore(false);
+      });
+  }, [virtual, more, loadingMore, loading, rows.length, source, gridQueryKey, config.pageSize]);
 
   useEffect(() => {
     fetchData();
@@ -882,6 +968,9 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   );
 
   return {
+    more: virtual && more,
+    loadingMore,
+    loadMore,
     rows: sortedRows,
     columns,
     total,

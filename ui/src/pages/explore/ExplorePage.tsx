@@ -10,7 +10,7 @@ import { asManifests, localized, refName } from "../../api/manifest";
 import { AccessPanel, deniedAttributes, useAccess } from "../../components/entities/AccessPanel";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, relationsOfModel, useModelSource } from "../../components/entities/filters";
+import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select } from "../../components/ui";
 import { writesOf } from "../access/EffectivePermissions";
@@ -114,6 +114,7 @@ export function ExplorePage({
   const slots = useMemo(() => filterSlotsOf(modelSource, query.type), [modelSource, query.type]);
   // An enum slot is edited and filtered in the grid by picking its values (UI-86).
   const enums = useMemo(() => enumsOfModel(modelSource, query.type, locale), [modelSource, query.type, locale]);
+  const rules = useMemo(() => rulesOfModel(modelSource, query.type), [modelSource, query.type]);
   // A relationship end is picked from the target's entities the person can read (UI-84).
   const relations = useMemo(() => relationsOfModel(modelSource, query.type), [modelSource, query.type]);
   const access = useAccess(slug);
@@ -165,7 +166,8 @@ export function ExplorePage({
     const parsed = parseGridConfig({
       source: { kind: "endpoint", slug },
       type: query.type,
-      columns: (query.attrs ?? []).map((attr) => ({ attr })),
+      // `name`, the Smart Data Models label, is the primary field: first, pinned, opening the row.
+      columns: (query.attrs ?? []).map((attr) => ({ attr, ...(attr === "name" ? { pinned: true } : {}) })),
       filters: { preset: { q: query.q, attrs: query.attrs, scopeQ: query.scopeQ } },
       pageSize: PAGE_SIZE,
       history: { enabled: true },
@@ -333,8 +335,11 @@ export function ExplorePage({
           key={`${slug}-${query.type}-${generation}`}
           project={project}
           config={config}
+          // Scroll through every matching entity, a window drawn at a time (T-3097).
+          virtual
           enums={enums}
           relations={relations}
+          rules={rules}
           onOpenRelationship={setSelected}
           onRows={onRows}
           renderers={renderers}

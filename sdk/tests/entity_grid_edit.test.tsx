@@ -106,6 +106,28 @@ describe("edit mode", () => {
     await waitFor(() => expect(screen.queryByText(`1 ${DEFAULT_LABELS.pending}`)).toBeNull());
   });
 
+  it("marks a value its model refuses at the cell and holds Apply until it is corrected", async () => {
+    const { written, source } = writable();
+    render(
+      <EntityGrid config={configOf()} source={source} rules={{ availableBikeNumber: { kind: "integer", minimum: 0 } }} />,
+    );
+    await waitFor(() => expect(screen.getByDisplayValue("5")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByDisplayValue("5"), { target: { value: "-1" } });
+    const cell = screen.getByDisplayValue("-1");
+    // The reason sits beside the input and is what a screen reader hears with it.
+    expect(cell).toHaveAttribute("aria-invalid", "true");
+    expect(cell).toHaveAccessibleDescription(`${DEFAULT_LABELS.atLeast} 0`);
+    expect(screen.getByText(`1 ${DEFAULT_LABELS.toCorrect}`)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: DEFAULT_LABELS.review })).toBeDisabled();
+
+    fireEvent.change(cell, { target: { value: "2" } });
+    expect(screen.getByDisplayValue("2")).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText(`1 ${DEFAULT_LABELS.toCorrect}`)).toBeNull();
+    expect(screen.getByRole("button", { name: DEFAULT_LABELS.review })).toBeEnabled();
+    expect(written).toHaveLength(0);
+  });
+
   it("dates the corrected values to now when the person says they were observed now", async () => {
     const { written, source } = writable();
     render(<EntityGrid config={configOf()} source={source} />);
