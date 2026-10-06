@@ -4443,6 +4443,8 @@ export interface components {
              */
             endpointSlugs: string[];
             id: string;
+            /** @description The run's kind: whose daily model budget its calls count against (AG-97). */
+            kind: string;
             /**
              * Format: int64
              * @description The profile's `egress.maxBytesPerRun`: what the run may read from the allow-listed hosts

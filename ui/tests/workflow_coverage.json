@@ -1097,6 +1097,16 @@
           "POST /api/v1/projects/{project}/apps/{name}/rebuild"
         ]
       },
+      "rename-shapes": {
+        "live": {
+          "spec": "apps-samples.spec.ts",
+          "test": "the rename of old App shapes is offered only while one is left, and a viewer may not propose it"
+        },
+        "personOnly": "a person proposes the one Change that renames a project's old App shapes from the Apps page notice, in their own name (AP-124)",
+        "routes": [
+          "POST /api/v1/projects/{project}/apps/rename-shapes"
+        ]
+      },
       "open-signed-in": {
         "live": {
           "spec": "apps-samples.spec.ts",

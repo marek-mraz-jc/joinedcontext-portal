@@ -14,7 +14,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { STEWARD, VIEWER, goSignedIn, signIn } from "./portal";
+import { STEWARD, VIEWER, csrf, goSignedIn, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 /** The origin the apps are served on; the Portal's own host sends `/apps/*` there with a 308. */
@@ -196,6 +196,36 @@ test("a steward of the alerts adds one through the form and removes it", async (
         { headers: { "x-csrf-token": await appsCsrf(steward.context).catch(() => "") } },
       );
     }
+    await steward.context.close();
+  }
+});
+
+// AP-124 (T-2940): the rename of old App shapes is a step a person takes on the Apps page. Nothing
+// is proposed here: a viewer is refused before anything is read, and the steward's call answers 409
+// while no App is written in an old shape; with one left, the notice names it and is only read.
+test("the rename of old App shapes is offered only while one is left, and a viewer may not propose it", async ({
+  browser,
+}) => {
+  const rename = `/api/v1/projects/${PROJECT}/apps/rename-shapes`;
+  const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/apps?lang=en`);
+  try {
+    const refused = await viewer.page.request.post(rename, { headers: { "x-csrf-token": await csrf(viewer.context) } });
+    expect(refused.status(), "a viewer may not propose an App").toBe(403);
+  } finally {
+    await viewer.context.close();
+  }
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+  try {
+    const { page, context } = steward;
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const offer = page.getByRole("button", { name: "Propose the rename" });
+    if ((await offer.count()) === 0) {
+      const nothing = await page.request.post(rename, { headers: { "x-csrf-token": await csrf(context) } });
+      expect(nothing.status(), "no App carries an old shape, so there is nothing to propose").toBe(409);
+    } else {
+      await expect(page.getByText(/ becomes ui/).first()).toBeVisible();
+    }
+  } finally {
     await steward.context.close();
   }
 });

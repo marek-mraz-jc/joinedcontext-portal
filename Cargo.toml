@@ -111,6 +111,10 @@ tower = { version = "0.5", features = ["util"] }
 wiremock = "0.6"
 # A paused clock, so a timeout test proves the bound without waiting it out.
 tokio = { version = "1", features = ["test-util"] }
+# The gateway's own policy decision and endpoint roles, so the app-variant matrix asserts what the
+# gateway decides on the grants the Portal renders, not a copy of its rules (T-2705). Same tag as
+# jc-core, for the reason given above.
+context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", tag = "jc-core-v0.7.74", version = "0.1.0" }
 
 # ponytail: line tables only, no full debuginfo — several agents compile on one machine
 [profile.dev]

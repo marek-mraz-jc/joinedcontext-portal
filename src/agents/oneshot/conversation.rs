@@ -233,9 +233,13 @@ impl Driver {
                 .collect();
             let data = data_query::section(&chosen, &tools, &self.openable_endpoints(&chosen));
             let whole = turn_pack(&base, path, &data, &offered);
+            // The pack before the turn's own part is the same from one turn to the next and goes
+            // as its own block, marked for the provider's cache (T-3079).
+            let sent = for_path(&whole, path);
+            let (stable, own) = sent.split_at(turn_starts(&sent));
             let user = format!(
-                "{}{}",
-                for_path(&whole, path),
+                "{stable}{}{own}{}",
+                super::model::CACHE_BREAK,
                 data_query::results_section(&results)
             );
             let answer = tokio::time::timeout(
@@ -969,11 +973,10 @@ a removal of its binding with change_resource.
             pack.push_str("\n```\n");
         }
         self.looking_at(&mut pack);
-        if !conversation.is_empty() {
+        if let Some(((asked, answered), earlier)) = conversation.split_last() {
             pack.push_str("\n## THE CONVERSATION SO FAR\n\n");
-            for (asked, answered) in conversation {
-                pack.push_str(&format!("Person: {asked}\nYou: {answered}\n\n"));
-            }
+            pack.push_str(&earlier_turns(earlier));
+            pack.push_str(&format!("Person: {asked}\nYou: {answered}\n\n"));
         }
 
         pack.push_str(&format!("\n## THIS TURN\n\nPerson: {text}\n"));
@@ -1714,6 +1717,54 @@ const PLAYBOOKS: &[(&str, &str, &[Option<Path>])] = &[
         &[],
     ),
 ];
+
+/// How much of the turns before the last one a turn sends, about 750 tokens (T-3079).
+const EARLIER_TURNS_CHARS: usize = 3_000;
+/// How much of one earlier question and of its answer goes into that.
+const EARLIER_ASKED: usize = 200;
+const EARLIER_ANSWERED: usize = 300;
+
+/// The turns before the last one, short (T-3079): each question and answer cut to its start,
+/// the newest that fit under [`EARLIER_TURNS_CHARS`], and how many are left out. The last
+/// exchange always goes whole beside it, so a follow-up reads what it follows.
+fn earlier_turns(turns: &[(String, String)]) -> String {
+    let short = |text: &str, max: usize| {
+        let cut: String = text.chars().take(max).collect();
+        if cut.len() < text.len() {
+            format!("{} …", cut.trim_end())
+        } else {
+            cut
+        }
+    };
+    let lines: Vec<String> = turns
+        .iter()
+        .map(|(asked, answered)| {
+            format!(
+                "Person: {}\nYou: {}\n\n",
+                short(asked, EARLIER_ASKED),
+                short(answered, EARLIER_ANSWERED)
+            )
+        })
+        .collect();
+    let mut kept = 0;
+    let mut size = 0;
+    for line in lines.iter().rev() {
+        if size + line.len() > EARLIER_TURNS_CHARS {
+            break;
+        }
+        size += line.len();
+        kept += 1;
+    }
+    let left_out = lines.len() - kept;
+    let mut out = String::new();
+    if left_out > 0 {
+        out.push_str(&format!("({left_out} earlier turns left out)\n\n"));
+    }
+    for line in &lines[left_out..] {
+        out.push_str(line);
+    }
+    out
+}
 
 /// The pack as the path sends it: its own playbooks whole, every other one folded to a line that
 /// names it, and nothing for a playbook the run may not use (it is not in the pack to begin with).
@@ -2590,6 +2641,73 @@ mod tests {
             eprintln!("BUDGET {path:?} {tokens}");
             assert!(tokens < 4000, "{path:?}: {tokens} tokens\n{user}");
         }
+    }
+
+    /// T-3079: ten long turns in, a turn's own part (what follows the cached pack) holds the
+    /// last exchange whole and the earlier ones as short lines, within 8k tokens.
+    #[test]
+    fn a_long_conversation_sends_the_last_exchange_whole_and_the_rest_short() {
+        let driver = everything();
+        let conversation: Vec<(String, String)> = (0..10)
+            .map(|n| {
+                (
+                    format!("question {n} {}", "q".repeat(600)),
+                    format!("answer {n} {}", "a".repeat(6_000)),
+                )
+            })
+            .collect();
+        let pack = driver.conversation_pack(&conversation, "and now?", None);
+        let own = &pack[turn_starts(&pack)..];
+        assert!(own.len() / 4 <= 8_000, "{} tokens", own.len() / 4);
+        assert!(own.contains(&conversation[9].1), "the last answer is whole");
+        assert!(
+            own.contains("answer 8 ") && !own.contains(&format!("answer 8 {}", "a".repeat(1_000))),
+            "an earlier one is short"
+        );
+        assert!(own.contains("THIS TURN") && own.contains("and now?"));
+        // A short conversation is all there.
+        let short = driver.conversation_pack(&conversation[9..], "and now?", None);
+        assert!(short.contains(&conversation[9].1));
+    }
+
+    /// T-3079: every turn sends the pack before the turn's own part as one block marked for the
+    /// provider's cache, the same bytes from one turn to the next.
+    #[tokio::test]
+    async fn every_turn_sends_the_same_cache_marked_pack_first() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer};
+        let model = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(completion("Twelve."))
+            .mount(&model)
+            .await;
+        let (mut driver, _) = chatting_with(&model.uri(), std::time::Duration::from_secs(5));
+        driver.provider = "openrouter".into();
+        let mut conversation = Vec::new();
+        driver
+            .turn(&mut conversation, "how many bikes are free?".into())
+            .await;
+        driver
+            .turn(&mut conversation, "and in Kallio?".into())
+            .await;
+        let bodies: Vec<Value> = model
+            .received_requests()
+            .await
+            .expect("recorded")
+            .iter()
+            .map(|request| serde_json::from_slice(&request.body).expect("JSON"))
+            .collect();
+        assert_eq!(bodies.len(), 2);
+        let block = |body: &Value, at: usize| body["messages"][1]["content"][at].clone();
+        assert_eq!(
+            block(&bodies[0], 0)["cache_control"],
+            json!({ "type": "ephemeral" })
+        );
+        assert_eq!(block(&bodies[0], 0)["text"], block(&bodies[1], 0)["text"]);
+        assert!(block(&bodies[1], 1)["text"]
+            .as_str()
+            .is_some_and(|own| own.contains("and in Kallio?")));
+        assert!(!bodies[1].to_string().contains("jc-cache-break"));
     }
 
     /// A driver whose model is the stub at `base`, answering within `timeout`.
