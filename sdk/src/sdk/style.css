@@ -12,6 +12,13 @@
   src: url("./fonts/inter-latin-wght-normal.woff2") format("woff2");
 }
 
+/* An App's text is in the platform's face unless the App names its own (T-3124): an App built
+   without the template's shell set no font at all, and its whole page fell back to the browser's
+   serif. The App's own stylesheet loads after this one, so its choice still wins. */
+body {
+  font-family: var(--jc-font-body, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif);
+}
+
 /* MapLibre's attribution is a link inside a line of text, told apart by colour alone
    (axe link-in-text-block, T-3045); the element is the library's DOM, so it is dressed here. */
 .maplibregl-ctrl-attrib a {
