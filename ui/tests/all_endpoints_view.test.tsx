@@ -162,6 +162,37 @@ describe("all endpoints view", () => {
     expect(paths).not.toContain("/api/v1/projects/helsinki/ckaninstances");
   });
 
+  // PF-61, PF-107 (T-3046): a public Endpoint of any project carries the project page's own
+  // actions, a non-public one none; the catalogues are asked for only when the administrator
+  // opens their list, and each opens onto its Access panel.
+  it("offers edit and delete on a public endpoint of any project, and the catalogues' access when asked", async () => {
+    const MAY = { project: "x", bootstrap: false, grants: [{ rule: { kinds: ["Endpoint"], verbs: ["read", "propose", "delete"] } }] };
+    responses["/api/v1/projects/banskabystrica/permissions/me"] = MAY;
+    responses["/api/v1/projects/helsinki/permissions/me"] = MAY;
+    renderAt();
+    const table = await screen.findByRole("table", { name: "All endpoints" });
+    await waitFor(() => {
+      expect(within(table).getAllByRole("row")).toHaveLength(4);
+    });
+    const bikes = within(table).getByText("helsinki-bikes").closest("tr") as HTMLTableRowElement;
+    expect(within(bikes).getByRole("button", { name: "Edit helsinki/helsinki-bikes" })).toBeInTheDocument();
+    expect(within(bikes).getByRole("button", { name: "Remove helsinki/helsinki-bikes" })).toBeInTheDocument();
+    const events = within(table).getByText("helsinki-events").closest("tr") as HTMLTableRowElement;
+    expect(within(events).queryByRole("button", { name: /Edit/ })).toBeNull();
+    expect(within(events).queryByRole("button", { name: /Remove/ })).toBeNull();
+
+    const show = screen.getByRole("button", { name: en.allEndpoints.ckan.show });
+    expect(show).toHaveAttribute("aria-expanded", "false");
+    show.click();
+    const instance = await screen.findByText("banskabystrica / bb-open-data");
+    expect(screen.getByRole("button", { name: en.allEndpoints.ckan.hide })).toHaveAttribute("aria-expanded", "true");
+    (instance.closest("details") as HTMLDetailsElement).open = true;
+    instance.closest("details")?.dispatchEvent(new Event("toggle"));
+    expect(await screen.findByRole("heading", { name: "Access to bb-open-data" })).toBeInTheDocument();
+    const paths = fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname);
+    expect(paths).toContain("/api/v1/projects/helsinki/ckaninstances");
+  });
+
   // PF-61, T-2877, UI-75: anyone but an administrator is told the page is for administrators,
   // and the list is never asked for.
   it("tells a person who does not administer the organization whose page it is, asking for no list", async () => {

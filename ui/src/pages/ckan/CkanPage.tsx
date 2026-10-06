@@ -10,6 +10,7 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { RecordLink } from "../../components/RecordLink";
+import { CkanAccessPanel } from "./CkanAccessPanel";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 import {
@@ -122,6 +123,21 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
         onSubmit={(draft) => create.mutate(draft)}
         submitting={create.isPending}
       />
+      {(status.data?.instances ?? []).length > 0 ? (
+        <section aria-labelledby="ckan-access" className="space-y-3">
+          <h2 id="ckan-access" className="text-lg font-semibold">
+            {t("ckan.access.sectionTitle")}
+          </h2>
+          {(status.data?.instances ?? []).map((instance) => (
+            <CkanAccessPanel
+              key={instance.name}
+              project={project}
+              instance={instance.name}
+              known={(status.data?.instances ?? []).map((known) => known.name)}
+            />
+          ))}
+        </section>
+      ) : null}
       <Publications
         publications={status.data?.publications ?? []}
         loading={status.isLoading}

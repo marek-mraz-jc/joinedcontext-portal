@@ -26,6 +26,7 @@ import {
   withGroupMember,
 } from "./groupRoles";
 import type { Place, RoleChoice } from "./groupRoles";
+import { instancesReachedBy } from "../ckan/ckanAccess";
 
 interface GroupSpec {
   description?: string;
@@ -237,6 +238,8 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
         onAdd={(manifest) => propose.mutate({ project: ORG_NAMESPACE, plural: "rolebindings", manifest, create: true })}
         onEdit={(manifest) => propose.mutate({ project: ORG_NAMESPACE, plural: "rolebindings", manifest, create: false })}
       />
+
+      <CkanInstancesReached group={name} bindings={asManifests(bindings.data?.items ?? [])} />
 
       <ApplicationRoles
         group={name}
@@ -652,6 +655,68 @@ function ApplicationRoles({
           </Button>
         </PermissionGuard>
       </form>
+    </section>
+  );
+}
+
+/**
+ * The CKAN instances this group's bindings let it manage (PF-107), so an administrator answers
+ * "what can this group touch" without reading YAML; each links to its project's catalogue page,
+ * where its Access panel changes it.
+ */
+function CkanInstancesReached({ group, bindings }: { group: string; bindings: Manifest[] }): JSX.Element {
+  const { t } = useTranslation();
+  const heading = useId();
+  const projects = useProjects();
+  const roles = useList(ORG_NAMESPACE, "roles");
+  const lists = useQueries({
+    queries: (projects.data ?? []).map((project) => ({
+      queryKey: queryKeys.list(project, "ckaninstances"),
+      queryFn: async () =>
+        unwrap(
+          await api.GET("/api/v1/projects/{project}/{plural}", {
+            params: { path: { project, plural: "ckaninstances" } },
+          }),
+        ),
+    })),
+  });
+  const instances = lists.flatMap((query, index) =>
+    asManifests(query.data?.items ?? []).map((instance) => ({
+      project: (projects.data ?? [])[index] ?? "",
+      name: instance.metadata.name,
+    })),
+  );
+  const reached = instancesReachedBy(group, asManifests(roles.data?.items ?? []), bindings, instances);
+  const loading = projects.isPending || roles.isPending || lists.some((query) => query.isPending);
+  const failed = roles.isError ? roles.error : lists.find((query) => query.isError)?.error;
+  return (
+    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+      <h2 id={heading} className="text-title font-semibold text-fg">
+        {t("access.groupPage.ckanTitle")}
+      </h2>
+      <p className="text-body text-fg-muted">{t("access.groupPage.ckanLead", { group })}</p>
+      {loading ? (
+        <p role="status" className="text-body text-fg-muted">
+          {t("app.loading")}
+        </p>
+      ) : failed ? (
+        <Alert role="alert" tone="danger">
+          {t("form.listFailed", { reason: reasonOf(failed, t("app.error.generic")) })}
+        </Alert>
+      ) : reached.length === 0 ? (
+        <p className="text-body text-fg-muted">{t("access.groupPage.noCkan")}</p>
+      ) : (
+        <ul className="space-y-1">
+          {reached.map((entry) => (
+            <li key={`${entry.project}/${entry.name}/${entry.role}`} className="flex flex-wrap items-center gap-2">
+              <Link to="/projects/$project/ckan" params={{ project: entry.project }} className="underline">
+                {t("access.groupPage.ckanInstance", { project: entry.project, name: entry.name })}
+              </Link>
+              <span className="text-caption text-fg-muted">{t("access.groupPage.ckanVia", { role: entry.role })}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

@@ -1598,7 +1598,12 @@
       "app": "Anwendung",
       "pickApp": "Anwendung wählen",
       "needAppRole": "Wählen Sie zuerst ein Projekt, eine Anwendung und eine ihrer Rollen.",
-      "addAppRole": "Anwendungsrolle vergeben"
+      "addAppRole": "Anwendungsrolle vergeben",
+      "ckanTitle": "Kataloge, die diese Gruppe verwaltet",
+      "ckanLead": "Die CKAN-Kataloge, die die Zuweisungen von {group} ihren Mitgliedern zu ändern erlauben.",
+      "noCkan": "Diese Gruppe verwaltet keinen Katalog.",
+      "ckanInstance": "{project} / {name}",
+      "ckanVia": "über die Rolle {role}"
     }
   },
   "flows": {
@@ -2326,7 +2331,42 @@
         "onReconcile": "aktualisiert, sooft die Konfiguration angewendet wird"
       }
     },
-    "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}"
+    "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}",
+    "access": {
+      "sectionTitle": "Wer welchen Katalog verwaltet",
+      "title": "Zugriff auf {instance}",
+      "lead": "Wer die Einstellungen dieses Katalogs ändern darf. Die Administration immer; alle anderen über die eigene Rolle des Katalogs, die Sie hier einer Gruppe oder einer Person geben. Jeder Schritt ist eine rote Änderung, die die Administration genehmigt.",
+      "denied": "Wer einen Katalog verwaltet, ändert nur eine Administratorin oder ein Administrator, die Rollenzuweisungen genehmigen dürfen.",
+      "nobody": "Dieses Recht hat noch niemand.",
+      "holders": "Wer {instance} verwaltet",
+      "group": "Gruppe {name}",
+      "person": "{name}",
+      "rightOwn": "verwaltet diesen Katalog",
+      "rightVia": "über die Rolle {role}",
+      "binding": "Zuweisung {name}",
+      "removeLast": "die letzte Verwaltung {name} von {instance}",
+      "remove": "{name} aus {instance} entfernen",
+      "removeShort": "Entfernen",
+      "add": "{instance} einer Gruppe oder Person geben",
+      "kind": "Empfänger",
+      "kindGroup": "Eine Gruppe",
+      "kindPerson": "Eine Person",
+      "whichGroup": "Gruppe",
+      "pickGroup": "Gruppe wählen",
+      "email": "E-Mail",
+      "addShort": "Recht geben",
+      "attached": "Endpunkte, die hierhin veröffentlichen",
+      "noneAttached": "Kein Endpunkt veröffentlicht in diesen Katalog.",
+      "refused": {
+        "noInstance": "Wählen Sie zuerst einen Katalog.",
+        "unknownInstance": "Das Projekt hat keinen Katalog {instance}; laden Sie die Seite neu.",
+        "nameTooLong": "Projekt- und Katalogname sind zusammen zu lang für einen Rollennamen (63 Zeichen); der Katalog braucht einen kürzeren Namen.",
+        "noSubject": "Wählen Sie zuerst eine Gruppe oder geben Sie eine E-Mail ein.",
+        "already": "Sie verwalten {instance} bereits.",
+        "absent": "Sie verwalten {instance} nicht über die Rolle dieses Katalogs.",
+        "badEmail": "Geben Sie eine vollständige E-Mail-Adresse ein, etwa jana@example.org."
+      }
+    }
   },
   "mappings": {
     "pair": "Modelle",
@@ -2439,7 +2479,17 @@
       "project": "Projekt",
       "space": "Kontextraum"
     },
-    "emptyHint": "Dies sind alle Endpunkte der Organisation, unabhängig davon, welches Projekt sie veröffentlicht. Veröffentlichen Sie einen aus einem Kontextraum, und er steht hier für die Projekte, die Sie zulassen."
+    "emptyHint": "Dies sind alle Endpunkte der Organisation, unabhängig davon, welches Projekt sie veröffentlicht. Veröffentlichen Sie einen aus einem Kontextraum, und er steht hier für die Projekte, die Sie zulassen.",
+    "edit": "{project}/{name} bearbeiten",
+    "editShort": "Bearbeiten",
+    "ckan": {
+      "title": "CKAN-Kataloge",
+      "lead": "Alle Kataloge aller Projekte. Öffnen Sie einen, um zu sehen, wer ihn verwaltet, und ihn einer Gruppe oder Person zu geben.",
+      "empty": "Kein Projekt hat einen CKAN-Katalog.",
+      "instance": "{project} / {name}",
+      "show": "Alle Kataloge zeigen",
+      "hide": "Kataloge ausblenden"
+    }
   },
   "projects": {
     "loading": "Projekte werden geladen…",
