@@ -525,7 +525,8 @@
         "gallery": "Galerie",
         "kanban": "Kanban",
         "calendar": "Kalender",
-        "timeline": "Zeitleiste"
+        "timeline": "Zeitleiste",
+        "api": "API"
       },
       "truncated": "Die ersten {count} Entitäten werden gezeigt; schränken Sie den Filter ein, um weitere zu sehen.",
       "image": "Bild",
@@ -578,6 +579,34 @@
       "restore": "Zurücklegen",
       "restoreOne": "{name} zurücklegen",
       "restoreRefused": "{name} wurde nicht zurückgelegt: {reason}"
+    },
+    "api": {
+      "lead": "Wie ein Programm {type} liest: über einen Endpoint dieses Raums, mit eigenem Token, und die Webhooks, die ihm sagen, wenn sich etwas ändert.",
+      "noEndpoint": "Noch kein Endpoint bedient diesen Raum, daher kann ihn kein Programm lesen. Legen Sie einen bei den Endpoints des Raums an.",
+      "endpoint": "Über {name}",
+      "call": {
+        "list": "Liste",
+        "count": "Anzahl",
+        "one": "Eine Entität",
+        "history": "Verlauf",
+        "mcp": "MCP",
+        "geojson": "GeoJSON",
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "zip": "ZIP",
+        "ogc-features": "OGC API Features",
+        "sta": "SensorThings"
+      },
+      "try": "Ausprobieren",
+      "index": "Endpoint-Index",
+      "answered": "Der Endpoint antwortete {status}, gelesen mit Ihrer Sitzung:",
+      "tokens": "Ein Token für ein Programm",
+      "tokensLead": "Ein Programm liest mit seinem eigenen ServiceAccount: einem Keycloak-Client mit einer Rolle in diesem Projekt, dessen Tokens die Policy des Endpoints wie Ihre beurteilt. Fügen Sie nie die Sitzung einer Person in ein Programm ein.",
+      "tokensLink": "ServiceAccounts dieses Projekts",
+      "webhooks": "Webhooks",
+      "webhooksLead": "Eine NGSI-LD-Subscription auf {type}, die eine URL aufruft, wenn sich eine Entität ändert, als Change vorgeschlagen.",
+      "noWebhook": "Noch kein Webhook beobachtet diesen Typ.",
+      "newWebhook": "Neuer Webhook für diesen Typ"
     }
   },
   "endpoints": {

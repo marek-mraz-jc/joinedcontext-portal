@@ -525,7 +525,8 @@
         "gallery": "Galerie",
         "kanban": "Nástěnka",
         "calendar": "Kalendář",
-        "timeline": "Časová osa"
+        "timeline": "Časová osa",
+        "api": "API"
       },
       "truncated": "Zobrazuje se prvních {count} entit; zužte filtr, abyste viděli další.",
       "image": "Obrázek",
@@ -578,6 +579,34 @@
       "restore": "Vrátit",
       "restoreOne": "Vrátit {name}",
       "restoreRefused": "{name} se nevrátil: {reason}"
+    },
+    "api": {
+      "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",
+      "noEndpoint": "Tento prostor zatím neobsluhuje žádný endpoint, takže ho žádný program nemůže číst. Vytvořte ho v endpointech prostoru.",
+      "endpoint": "Přes {name}",
+      "call": {
+        "list": "Seznam",
+        "count": "Počet",
+        "one": "Jedna entita",
+        "history": "Historie",
+        "mcp": "MCP",
+        "geojson": "GeoJSON",
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "zip": "ZIP",
+        "ogc-features": "OGC API Features",
+        "sta": "SensorThings"
+      },
+      "try": "Vyzkoušet",
+      "index": "Index endpointu",
+      "answered": "Endpoint odpověděl {status}, čteno s vaší relací:",
+      "tokens": "Token pro program",
+      "tokensLead": "Program čte vlastním ServiceAccountem: klientem Keycloak s rolí v tomto projektu, jehož tokeny posuzuje politika endpointu jako ty vaše. Nikdy nevkládejte relaci osoby do programu.",
+      "tokensLink": "ServiceAccounty tohoto projektu",
+      "webhooks": "Webhooky",
+      "webhooksLead": "NGSI-LD subscription na {type}, která zavolá URL, když se entita změní, navržená jako změna.",
+      "noWebhook": "Tento typ zatím nesleduje žádný webhook.",
+      "newWebhook": "Nový webhook pro tento typ"
     }
   },
   "endpoints": {

@@ -39,6 +39,7 @@ import { ProposeLink } from "../models/ModelsList";
 import { CalendarView, deleteRow, GalleryView, KanbanView, TimelineView, TrashPanel, trashKey, useViewRows } from "./DataViews";
 import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
+import { TypeApi } from "./TypeApi";
 import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
@@ -449,7 +450,12 @@ function SpaceData({
           }}
         />
       ) : null}
-      {probe.isSuccess && view !== "grid" ? (
+      {probe.isSuccess && view === "api" ? (
+        <div {...tabPanelProps("space-data-view", view)}>
+          <TypeApi project={project} space={space} type={type} endpoints={endpoints} />
+        </div>
+      ) : null}
+      {probe.isSuccess && view !== "grid" && view !== "api" ? (
         <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
           <EntityFilters
             id="space-view-filter"
@@ -480,7 +486,7 @@ function SpaceData({
 }
 
 /** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
-const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline"] as const;
+const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline", "api"] as const;
 type DataView = (typeof DATA_VIEWS)[number];
 
 /** One view other than the grid, over one page of the filtered type. */
@@ -498,7 +504,7 @@ function OtherView({
   space: string;
   type: string;
   q: string | undefined;
-  view: Exclude<DataView, "grid">;
+  view: Exclude<DataView, "grid" | "api">;
   /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
   enums: Record<string, EnumChoice[]>;
 }): JSX.Element {

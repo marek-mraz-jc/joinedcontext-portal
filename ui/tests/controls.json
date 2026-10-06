@@ -1233,6 +1233,14 @@
         "space_inside.test.tsx"
       ]
     },
+    "src/pages/spaces/TypeApi.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "type_api.test.tsx"
+      ]
+    },
     "src/pages/sync/SyncSourcesPage.tsx": {
       "controls": {
         "Button": 4

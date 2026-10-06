@@ -525,7 +525,8 @@
         "gallery": "Gallery",
         "kanban": "Board",
         "calendar": "Calendar",
-        "timeline": "Timeline"
+        "timeline": "Timeline",
+        "api": "API"
       },
       "truncated": "The first {count} entities are shown; narrow the filter to see others.",
       "image": "Image",
@@ -578,6 +579,34 @@
       "restore": "Put back",
       "restoreOne": "Put back {name}",
       "restoreRefused": "{name} was not put back: {reason}"
+    },
+    "api": {
+      "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",
+      "noEndpoint": "No Endpoint serves this space yet, so no program can read it. Create one on the space's Endpoints.",
+      "endpoint": "Through {name}",
+      "call": {
+        "list": "List",
+        "count": "Count",
+        "one": "One entity",
+        "history": "History",
+        "mcp": "MCP",
+        "geojson": "GeoJSON",
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "zip": "ZIP",
+        "ogc-features": "OGC API Features",
+        "sta": "SensorThings"
+      },
+      "try": "Try it",
+      "index": "Endpoint index",
+      "answered": "The endpoint answered {status}, read with your session:",
+      "tokens": "A token for a program",
+      "tokensLead": "A program reads with its own ServiceAccount: a Keycloak client with a role in this project, whose tokens the Endpoint's Policy decides like yours. Never paste a person's session into a program.",
+      "tokensLink": "ServiceAccounts of this project",
+      "webhooks": "Webhooks",
+      "webhooksLead": "An NGSI-LD subscription on {type} that calls a URL when an entity changes, proposed as a Change.",
+      "noWebhook": "No webhook watches this type yet.",
+      "newWebhook": "New webhook for this type"
     }
   },
   "endpoints": {
