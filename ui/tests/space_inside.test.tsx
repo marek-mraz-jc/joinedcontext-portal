@@ -8,6 +8,7 @@ import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import {
   entityTypesOf,
+  inTurn,
   parseResultsCount,
   pickReadEndpoint,
   spaceOf,
@@ -427,6 +428,30 @@ describe("space inside view", () => {
     const policyRow = (await screen.findByText("public-air-quality")).closest("tr") as HTMLElement;
     expect(within(policyRow).getByText("role:public")).toBeInTheDocument();
     expect(within(policyRow).getByText("queryEntity, retrieveEntity")).toBeInTheDocument();
+  });
+
+  it("says a type's read met the endpoint's rate limit, with a retry, and not that it is unreadable (T-3161)", async () => {
+    const fetchMock = renderInside({ status: 429 });
+    const table = await screen.findByRole("table", { name: en.spaces.inside.types });
+    const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
+    expect(await within(row).findByText(en.spaces.inside.tooMany)).toBeInTheDocument();
+    const before = fetchMock.mock.calls.length;
+    await userEvent.click(within(row).getByRole("button", { name: en.app.error.retry }));
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it("asks one endpoint one question at a time, so its rate limit is not met at once (T-3161)", async () => {
+    let open = 0;
+    let most = 0;
+    const read = () =>
+      inTurn("slug-a", async () => {
+        open += 1;
+        most = Math.max(most, open);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        open -= 1;
+      });
+    await Promise.all([read(), read(), read(), inTurn("slug-a", () => Promise.reject(new Error("x"))).catch(() => undefined), read()]);
+    expect(most).toBe(1);
   });
 
   it("says a type is not readable anonymously when the gateway refuses", async () => {
