@@ -221,9 +221,11 @@ test.describe("the open-data page", () => {
     await page.goto("/projects/helsinki/ckan?lang=en");
     const access = page.getByRole("region", { name: "Access to hel-fi" });
     await expect(access.getByRole("button", { name: "Give the right" })).not.toHaveAttribute("aria-disabled", "true");
-    await access.getByLabel("Group").focus();
+    // Exact: the form itself is named "Give hel-fi to a group or a person".
+    const group = access.getByLabel("Group", { exact: true });
+    await group.focus();
     await page.keyboard.press("ArrowDown");
-    await expect(access.getByLabel("Group")).toHaveValue("ckan-editors");
+    await expect(group).toHaveValue("ckan-editors");
     await page.keyboard.press("Tab");
     await expect(access.getByRole("button", { name: "Give the right" })).toBeFocused();
     await page.keyboard.press("Enter");
