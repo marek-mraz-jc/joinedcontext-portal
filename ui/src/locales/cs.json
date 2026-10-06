@@ -2703,7 +2703,9 @@
     "atMost": "musí být nejvýše",
     "patternMismatch": "nemá tvar, který tento atribut vyžaduje",
     "required": "je povinné",
-    "toCorrect": "je třeba opravit před použitím"
+    "toCorrect": "je třeba opravit před použitím",
+    "yes": "Ano",
+    "no": "Ne"
   },
   "explore": {
     "title": "Procházet data",

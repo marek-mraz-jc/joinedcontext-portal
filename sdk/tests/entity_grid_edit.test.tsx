@@ -128,6 +128,71 @@ describe("edit mode", () => {
     expect(written).toHaveLength(0);
   });
 
+  it("edits each attribute in the input its model's range asks for and sends the value that range means", async () => {
+    const typed = [
+      {
+        id: "urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001",
+        type: "BikeHireDockingStation",
+        name: { type: "Property", value: "Kamppi" },
+        open: { type: "Property", value: true },
+        since: { type: "Property", value: "2020-05-01" },
+        site: { type: "Property", value: "https://hel.fi/kamppi" },
+      },
+    ];
+    const inner = fixtureSource(typed);
+    const written: { id: string; attrs: Record<string, unknown> }[] = [];
+    const source = { ...inner, patch: async (id: string, attrs: Record<string, unknown>) => void written.push({ id, attrs }) };
+    const config = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "name", label: "Name" },
+        { attr: "open", label: "Open" },
+        { attr: "since", label: "Since" },
+        { attr: "site", label: "Site" },
+        { attr: "capacity", label: "Capacity" },
+      ],
+      mode: "edit",
+      editableAttrs: ["name", "open", "since", "site", "capacity"],
+    }).config!;
+    render(
+      <EntityGrid
+        config={config}
+        source={source}
+        rules={{
+          name: { kind: "string" },
+          open: { kind: "boolean" },
+          since: { kind: "date" },
+          site: { kind: "uri" },
+          capacity: { kind: "integer" },
+        }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByDisplayValue("Kamppi")).toBeInTheDocument());
+
+    expect(screen.getByLabelText(`${DEFAULT_LABELS.edit} Since`)).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText(`${DEFAULT_LABELS.edit} Site`)).toHaveAttribute("type", "url");
+    expect(screen.getByLabelText(`${DEFAULT_LABELS.edit} Capacity`)).toHaveAttribute("type", "number");
+    // A true/false attribute is picked, never typed.
+    const open = screen.getByLabelText(`${DEFAULT_LABELS.edit} Open`);
+    expect(open.tagName).toBe("SELECT");
+    expect(within(open).getAllByRole("option").map((o) => o.textContent)).toEqual([DEFAULT_LABELS.yes, DEFAULT_LABELS.no]);
+
+    fireEvent.change(open, { target: { value: "false" } });
+    // "true" typed into a text attribute is the word, not a boolean.
+    fireEvent.change(screen.getByDisplayValue("Kamppi"), { target: { value: "true" } });
+    // An attribute the entity does not hold yet still gets a number, because its range says so.
+    fireEvent.change(screen.getByLabelText(`${DEFAULT_LABELS.edit} Capacity`), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: DEFAULT_LABELS.review }));
+    fireEvent.click(within(screen.getByRole("region", { name: DEFAULT_LABELS.review })).getByRole("button", { name: DEFAULT_LABELS.apply }));
+
+    await waitFor(() => expect(written).toHaveLength(1));
+    const attrs = written[0].attrs as Record<string, { value: unknown }>;
+    expect(attrs.open.value).toBe(false);
+    expect(attrs.name.value).toBe("true");
+    expect(attrs.capacity.value).toBe(12);
+  });
+
   it("dates the corrected values to now when the person says they were observed now", async () => {
     const { written, source } = writable();
     render(<EntityGrid config={configOf()} source={source} />);

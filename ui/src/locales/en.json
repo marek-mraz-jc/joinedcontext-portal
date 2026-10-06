@@ -2703,7 +2703,9 @@
     "atMost": "must be at most",
     "patternMismatch": "does not have the form this attribute requires",
     "required": "is required",
-    "toCorrect": "to correct before applying"
+    "toCorrect": "to correct before applying",
+    "yes": "Yes",
+    "no": "No"
   },
   "explore": {
     "title": "Explore data",

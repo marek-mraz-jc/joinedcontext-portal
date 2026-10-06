@@ -2703,7 +2703,9 @@
     "atMost": "musí byť najviac",
     "patternMismatch": "nemá tvar, ktorý tento atribút vyžaduje",
     "required": "je povinné",
-    "toCorrect": "treba opraviť pred použitím"
+    "toCorrect": "treba opraviť pred použitím",
+    "yes": "Áno",
+    "no": "Nie"
   },
   "explore": {
     "title": "Prehliadať dáta",

@@ -2703,7 +2703,9 @@
     "atMost": "muss höchstens",
     "patternMismatch": "hat nicht die Form, die dieses Attribut verlangt",
     "required": "ist erforderlich",
-    "toCorrect": "vor dem Anwenden zu korrigieren"
+    "toCorrect": "vor dem Anwenden zu korrigieren",
+    "yes": "Ja",
+    "no": "Nein"
   },
   "explore": {
     "title": "Daten erkunden",
