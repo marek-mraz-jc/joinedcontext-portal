@@ -280,7 +280,7 @@ impl Driver {
                 "stream": true,
                 "messages": [
                     { "role": "system", "content": system },
-                    { "role": "user", "content": user },
+                    { "role": "user", "content": user_content(user) },
                 ],
             });
             return self.post_llm_streamed(&body, budget).await;
@@ -292,7 +292,7 @@ impl Driver {
                     "model": self.model,
                     "max_tokens": budget,
                     "system": system,
-                    "messages": [{ "role": "user", "content": user }],
+                    "messages": [{ "role": "user", "content": user_content(user) }],
                 }),
             )
         } else {
@@ -303,7 +303,7 @@ impl Driver {
                     "max_tokens": budget,
                     "messages": [
                         { "role": "system", "content": system },
-                        { "role": "user", "content": user },
+                        { "role": "user", "content": user_content(user) },
                     ],
                 }),
             )
@@ -1033,6 +1033,23 @@ fn usage_at(answer: &Value, pointer: &str) -> u64 {
 
 /// Anthropic takes alternating roles: two turns of one role in a row are one turn with the
 /// content blocks joined (a string is one text block).
+/// Where a one-message prompt's cached part ends (T-3079): the text before it is the same from
+/// one call to the next, the text after it is the call's own. Never sent: [`user_content`]
+/// turns it into two content blocks.
+pub(super) const CACHE_BREAK: &str = "\u{1}jc-cache-break\u{1}";
+
+/// A user message as sent: a prompt with a [`CACHE_BREAK`] becomes two text blocks, the first
+/// marked for the provider's prompt cache; one without it stays a plain string.
+pub(super) fn user_content(user: &str) -> Value {
+    match user.split_once(CACHE_BREAK) {
+        Some((stable, own)) => json!([
+            { "type": "text", "text": stable, "cache_control": { "type": "ephemeral" } },
+            { "type": "text", "text": own }
+        ]),
+        None => Value::String(user.to_owned()),
+    }
+}
+
 /// The messages with the first user message, a loop's opening, marked for the provider's prompt
 /// cache (T-3073): one `cache_control` breakpoint on a text block, the shape Anthropic and
 /// OpenRouter (Gemini as well, which uses the last breakpoint) read. Every call of a turn sends
