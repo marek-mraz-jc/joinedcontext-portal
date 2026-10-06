@@ -1,6 +1,6 @@
-//! T-2889, API/01 §29: a space's size is the broker's count of its tenant, read with the same
-//! rights as the space, kept for five minutes, and a broker that cannot answer is a reason, never
-//! a zero.
+//! T-2889, T-2996, API/01 §29: a space's size is the broker's NGSI-LD count of its tenant's own
+//! entities, read with the same rights as the space, kept for five minutes, and a broker that
+//! cannot answer is a reason, never a zero.
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
@@ -8,7 +8,7 @@ use axum_extra::extract::cookie::PrivateCookieJar;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tower::ServiceExt;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{header as has_header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use joinedcontext_portal::auth::session::{self, Identity, Session};
@@ -124,14 +124,34 @@ async fn get(state: &AppState, email: &str, uri: &str) -> (StatusCode, Value) {
 
 const AIR: &str = "/api/v1/projects/helsinki/spaces/air/usage";
 
+/// The broker's count query for the tenant `air`: every type, its own entities only, no body.
+fn count_query() -> wiremock::MockBuilder {
+    Mock::given(method("GET"))
+        .and(path("/ngsi-ld/v1/entities"))
+        .and(query_param("local", "true"))
+        .and(query_param("count", "true"))
+        .and(query_param("limit", "0"))
+        .and(has_header("NGSILD-Tenant", "air"))
+}
+
+fn nonexistent_tenant() -> ResponseTemplate {
+    ResponseTemplate::new(404).set_body_json(json!({
+        "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
+        "title": "NonexistentTenant",
+        "status": 404,
+        "detail": "tenant air does not exist"
+    }))
+}
+
 #[tokio::test]
 async fn a_reader_gets_the_brokers_count_and_a_second_read_is_kept() {
     let broker = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path("/q/tenants/air"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(
-            json!({ "tenant": "air", "counts": { "entities": 14232, "subscriptions": 1 } }),
-        ))
+    count_query()
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("NGSILD-Results-Count", "14232")
+                .set_body_json(json!([])),
+        )
         .expect(1)
         .mount(&broker)
         .await;
@@ -150,14 +170,42 @@ async fn a_reader_gets_the_brokers_count_and_a_second_read_is_kept() {
 #[tokio::test]
 async fn a_space_the_broker_has_no_tenant_for_holds_nothing() {
     let broker = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path("/q/tenants/air"))
-        .respond_with(ResponseTemplate::new(404))
+    count_query()
+        .respond_with(nonexistent_tenant())
         .mount(&broker)
         .await;
     let (status, body) = get(&world(Some(broker.uri())), READER, AIR).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["entities"], json!(0));
+}
+
+#[tokio::test]
+async fn a_404_that_is_not_the_brokers_missing_tenant_is_a_reason_and_never_a_zero() {
+    // A proxy or a wrong address answers 404 too; only the broker's NonexistentTenant is empty.
+    let broker = MockServer::start().await;
+    count_query()
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .mount(&broker)
+        .await;
+    let (status, body) = get(&world(Some(broker.uri())), READER, AIR).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    assert!(body.to_string().contains("404"), "{body}");
+}
+
+#[tokio::test]
+async fn an_answer_without_a_readable_count_is_a_reason_and_never_a_zero() {
+    for count in [None, Some("many"), Some("-1")] {
+        let broker = MockServer::start().await;
+        let answer = ResponseTemplate::new(200).set_body_json(json!([]));
+        let answer = match count {
+            Some(count) => answer.insert_header("NGSILD-Results-Count", count),
+            None => answer,
+        };
+        count_query().respond_with(answer).mount(&broker).await;
+        let (status, body) = get(&world(Some(broker.uri())), READER, AIR).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{count:?}: {body}");
+        assert!(body.to_string().contains("count"), "{count:?}: {body}");
+    }
 }
 
 #[tokio::test]
@@ -182,8 +230,7 @@ async fn a_space_the_caller_may_not_read_is_404_and_the_broker_is_not_asked() {
 #[tokio::test]
 async fn a_broker_that_cannot_answer_is_a_reason_and_never_a_zero() {
     let broker = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path("/q/tenants/air"))
+    count_query()
         .respond_with(ResponseTemplate::new(500))
         .mount(&broker)
         .await;
