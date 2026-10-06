@@ -26,6 +26,10 @@ const ERROR_WINDOW: usize = 20;
 /// thinks inside the same budget, and 8000 cut a two-file follow-up on dev with nothing applied
 /// (T-3044).
 const EDIT_OUTPUT_BUDGET: u32 = 32_000;
+/// Rounds in a row that end with the same problems before the turn stops (T-3077).
+const NO_PROGRESS_ROUNDS: u32 = 3;
+/// What `preview_errors` answers when the frame reported nothing.
+const NO_PREVIEW_ERRORS: &str = "no errors since the last reload";
 /// Model calls one instruction may make (SDK-20): a request that needs more is asked in steps.
 const EDIT_CALLS: u32 = 12;
 /// Input tokens one instruction may send, over all of its calls (SDK-20).
@@ -411,6 +415,9 @@ impl Driver {
         let mut since_seq = on_screen.map_or(0, |shown| shown.seq);
         let limit = self.steps_per_run.max(1);
         let mut steps = 0u32;
+        // The problems the last round ended with, and how many rounds running ended so.
+        let mut failing = String::new();
+        let mut same_rounds = 0u32;
         loop {
             // The ceilings are checked before the model is asked, never after a call it
             // already made (AG-25, SDK-20); what builds is published with the reason.
@@ -428,6 +435,19 @@ impl Driver {
                     .await;
             }
             let messages = transcript(&self.provider, &opening, &rounds);
+            if let Some(stopped) = self.over_budget(&messages, &tools, spent).await {
+                return self
+                    .finish_turn(
+                        files,
+                        committed,
+                        conversation,
+                        instruction,
+                        &stopped,
+                        dirty,
+                        shown,
+                    )
+                    .await;
+            }
             let answer = self
                 .complete_tools(EDIT_SYSTEM, &messages, &tools, EDIT_OUTPUT_BUDGET)
                 .await
@@ -461,6 +481,7 @@ impl Driver {
                     )
                     .await;
             }
+            let mut ended_with = String::new();
             for call in &answer.calls {
                 steps += 1;
                 let started = Instant::now();
@@ -526,12 +547,75 @@ impl Driver {
                     other => (format!("no tool named '{other}'"), false),
                 };
                 self.tool_event(call, &result, ok, started, steps).await?;
+                if (call.name == "check" && !ok)
+                    || (call.name == "preview_errors" && result != NO_PREVIEW_ERRORS)
+                {
+                    ended_with.push_str(&result);
+                    ended_with.push('\n');
+                }
                 round
                     .results
                     .push((call.id.clone(), cap(&result, RESULT_CAP)));
             }
             rounds.push(round);
+            same_rounds = match (ended_with.is_empty(), ended_with == failing) {
+                (true, _) => 0,
+                (false, true) => same_rounds + 1,
+                (false, false) => 1,
+            };
+            failing = ended_with;
+            if same_rounds >= NO_PROGRESS_ROUNDS {
+                let stopped = format!(
+                    "I stopped: {NO_PROGRESS_ROUNDS} tries in a row ended with the same problems, \
+                     so another try would spend your budget on the same fix. What passes the \
+                     check is on screen; tell me what to change. Still failing:\n{}",
+                    cap(failing.trim_end(), 1_500)
+                );
+                return self
+                    .finish_turn(
+                        files,
+                        committed,
+                        conversation,
+                        instruction,
+                        &stopped,
+                        dirty,
+                        shown,
+                    )
+                    .await;
+            }
         }
+    }
+
+    /// The sentence that ends the turn before a call that would take the run past the
+    /// profile's `maxTokensPerRun` (AG-25, T-3077): what the call would send, read as tokens,
+    /// plus its whole output budget, on top of what the run has used. The run's count is the
+    /// proxy's (T-3072); without a run on record, what this turn spent stands for it.
+    async fn over_budget(
+        &self,
+        messages: &[Value],
+        tools: &[ToolSpec],
+        spent: Spent,
+    ) -> Option<String> {
+        let sent = EDIT_SYSTEM.len()
+            + Value::Array(messages.to_vec()).to_string().len()
+            + tools
+                .iter()
+                .map(|tool| tool.description.len() + tool.input_schema.to_string().len())
+                .sum::<usize>();
+        let projected = u64::try_from(sent / 4).unwrap_or(u64::MAX) + u64::from(EDIT_OUTPUT_BUDGET);
+        let used = match self.state.agents.get_run(&self.run_id).await {
+            Ok(Some(run)) => u64::try_from(run.tokens_used).unwrap_or(0),
+            _ => spent.input + spent.output,
+        };
+        (used.saturating_add(projected) > self.max_tokens_per_run).then(|| {
+            format!(
+                "I stopped before asking the model again: the next call needs about {projected} \
+                 tokens and this run has used {used} of its token budget of {}. What passes \
+                 the check is on screen; start a new conversation to go on, or ask an \
+                 administrator to raise the agent profile's maxTokensPerRun.",
+                self.max_tokens_per_run
+            )
+        })
     }
 
     /// One model call on the run's counters (AG-44) and as a `usage` event (SDK-20, API/04 §4),
@@ -736,7 +820,7 @@ impl Driver {
             .map(|event| event.payload.to_string())
             .collect();
         if errors.is_empty() {
-            return ("no errors since the last reload".to_owned(), true);
+            return (NO_PREVIEW_ERRORS.to_owned(), true);
         }
         let skipped = errors.len().saturating_sub(ERROR_WINDOW);
         let mut out = errors[skipped..].join("\n");
@@ -1228,6 +1312,78 @@ mod tests {
             "y".repeat(400).repeat(40).replace("yyyy", "y\n"),
         )]);
         assert!(with_named_lines("src/App.tsx:50: e", &big).len() <= RESULT_CAP);
+    }
+
+    /// A model stub that answers every call with one `check`.
+    async fn model_checking_forever(server: &wiremock::MockServer) {
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "tool_use", "id": "c", "name": "check", "input": {} }],
+                "usage": { "input_tokens": 1_000, "output_tokens": 10 },
+            })))
+            .mount(server)
+            .await;
+    }
+
+    /// T-3077: rounds that end with the same problems are no progress; the third one stops the
+    /// turn with what still fails, instead of spending the instruction's calls on it.
+    #[tokio::test]
+    async fn the_same_problems_three_rounds_running_stop_the_turn_with_what_fails() {
+        let server = wiremock::MockServer::start().await;
+        model_checking_forever(&server).await;
+        let driver = edit_driver(&server).await;
+        let mut files = BTreeMap::from([(
+            "src/App.tsx".to_owned(),
+            "export default function App() { return <div>; }".to_owned(),
+        )]);
+        let mut conversation = Vec::new();
+        driver
+            .edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut conversation,
+                "fix it",
+                None,
+            )
+            .await
+            .expect("the turn ends");
+        let calls = server.received_requests().await.expect("recorded").len();
+        assert_eq!(calls, NO_PROGRESS_ROUNDS as usize);
+        let said = &conversation[0].1;
+        assert!(
+            said.contains("the same problems") && said.contains("src/App.tsx"),
+            "{said}"
+        );
+        assert!(said.contains("tell me what to change"), "{said}");
+    }
+
+    /// T-3077: a call that would take the run past its token budget is never made; the person
+    /// reads why and what to do.
+    #[tokio::test]
+    async fn a_call_past_the_runs_token_budget_is_not_made() {
+        let server = wiremock::MockServer::start().await;
+        model_listing_forever(&server, 1_000).await;
+        let mut driver = edit_driver(&server).await;
+        driver.max_tokens_per_run = u64::from(EDIT_OUTPUT_BUDGET);
+        let mut files = BTreeMap::from([("src/App.tsx".to_owned(), "app".to_owned())]);
+        let mut conversation = Vec::new();
+        driver
+            .edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut conversation,
+                "add a form",
+                None,
+            )
+            .await
+            .expect("the turn ends");
+        assert_eq!(server.received_requests().await.expect("recorded").len(), 0);
+        let said = &conversation[0].1;
+        assert!(
+            said.contains("token budget") && said.contains("new conversation"),
+            "{said}"
+        );
     }
 
     /// T-3072: the proxy writes the usage frame and counts the tokens of every call it relays,

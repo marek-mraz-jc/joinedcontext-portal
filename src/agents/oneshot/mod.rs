@@ -292,6 +292,9 @@ struct Driver {
     /// How many characters of a continued conversation's transcript this run may carry
     /// (AG-68), a share of the profile's own token budget.
     transcript_budget: usize,
+    /// The profile's `model.maxTokensPerRun`, checked before every call of the editing loop
+    /// (AG-25, T-3077).
+    max_tokens_per_run: u64,
     /// The form the person asked from, when they asked from one (T-1611).
     form: FormContext,
     /// The path the conversation is on (AG-89): the one the person picked, the one `choose_path`
@@ -398,6 +401,7 @@ pub fn spawn(
         continues: run.continues.clone(),
         steps_per_run: profile.steps_per_run,
         transcript_budget: transcript_budget(profile.max_tokens_per_run),
+        max_tokens_per_run: profile.max_tokens_per_run,
         form,
         path: std::sync::Mutex::new(path),
         page: std::sync::Mutex::new(page),
@@ -456,6 +460,7 @@ impl Driver {
             continues: None,
             steps_per_run: 30,
             transcript_budget: transcript_budget(400_000),
+            max_tokens_per_run: 2_000_000,
             form: FormContext::default(),
             path: std::sync::Mutex::new(None),
             page: std::sync::Mutex::new(None),
@@ -1327,6 +1332,7 @@ mod tests {
             continues: None,
             steps_per_run: 30,
             transcript_budget: transcript_budget(400_000),
+            max_tokens_per_run: 2_000_000,
             form: FormContext::default(),
             path: std::sync::Mutex::new(None),
             page: std::sync::Mutex::new(None),
