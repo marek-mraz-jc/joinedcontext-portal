@@ -2417,7 +2417,8 @@
         "already": "Sie verwalten {instance} bereits.",
         "absent": "Sie verwalten {instance} nicht über die Rolle dieses Katalogs.",
         "badEmail": "Geben Sie eine vollständige E-Mail-Adresse ein, etwa jana@example.org."
-      }
+      },
+      "hidden": "Wer diesen Katalog verwaltet, sehen die Administratoren der Organisation."
     }
   },
   "mappings": {

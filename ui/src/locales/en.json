@@ -2417,7 +2417,8 @@
         "already": "They already manage {instance}.",
         "absent": "They do not manage {instance} through this catalogue's role.",
         "badEmail": "Type a whole e-mail address, such as jana@example.org."
-      }
+      },
+      "hidden": "Who manages this catalogue is visible to the organization's administrators."
     }
   },
   "mappings": {

@@ -2417,7 +2417,8 @@
         "already": "Katalog {instance} už spravují.",
         "absent": "Katalog {instance} nespravují přes jeho roli.",
         "badEmail": "Napište celou e-mailovou adresu, například jana@example.org."
-      }
+      },
+      "hidden": "Kdo spravuje tento katalog, vidí administrátoři organizace."
     }
   },
   "mappings": {
