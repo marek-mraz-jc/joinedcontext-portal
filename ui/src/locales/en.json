@@ -2289,6 +2289,11 @@
       "amber": "Not checked lately",
       "line": "Checked {when}",
       "lineWithReason": "Checked {when}: {reason}"
+    },
+    "renameShapes": {
+      "notice": "{count, plural, one {# app still uses a shape name the next release refuses.} other {# apps still use shape names the next release refuses.}} One Change, proposed in your name, writes the new names and changes nothing else.",
+      "item": "{name}: {from} becomes {to}",
+      "action": "Propose the rename"
     }
   },
   "appLifecycle": {

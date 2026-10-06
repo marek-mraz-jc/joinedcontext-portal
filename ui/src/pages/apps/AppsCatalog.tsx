@@ -28,6 +28,7 @@ import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
 import { Alert, Button, buttonClass, PageHeader, recordCard, safeHref } from "../../components/ui";
 import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
+import { RenameShapesNotice } from "./RenameShapesNotice";
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 type AppBuild = components["schemas"]["AppBuild"];
@@ -366,6 +367,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
       </div>
 
       {change && <ChangeNotice change={change} project={project} />}
+      <RenameShapesNotice project={project} apps={apps} proposed={change !== null} onProposed={setChange} />
       {waiting > 0 ? (
         <Alert
           tone="info"

@@ -2289,6 +2289,11 @@
       "amber": "Dlouho nekontrolovaná",
       "line": "Zkontrolováno {when}",
       "lineWithReason": "Zkontrolováno {when}: {reason}"
+    },
+    "renameShapes": {
+      "notice": "{count, plural, one {# aplikace ještě používá název tvaru, který další vydání odmítne.} few {# aplikace ještě používají názvy tvarů, které další vydání odmítne.} other {# aplikací ještě používá názvy tvarů, které další vydání odmítne.}} Jedna změna navržená vaším jménem zapíše nové názvy a nic jiného nezmění.",
+      "item": "{name}: z {from} bude {to}",
+      "action": "Navrhnout přejmenování"
     }
   },
   "appLifecycle": {
