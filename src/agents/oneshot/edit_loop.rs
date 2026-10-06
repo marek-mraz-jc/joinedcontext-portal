@@ -34,10 +34,6 @@ const NO_PREVIEW_ERRORS: &str = "no errors since the last reload";
 const EDIT_CALLS: u32 = 12;
 /// Input tokens one instruction may send, over all of its calls (SDK-20).
 const EDIT_INPUT_TOKENS: u64 = 500_000;
-/// Model calls a tool result is sent whole to before it is folded (SDK-20).
-const FOLD_AFTER: usize = 2;
-/// A result or an argument this long or shorter is never folded.
-const FOLD_MIN: usize = 400;
 
 /// The rules of the loop, as the model reads them (SDK-11, SDK-12, SDK-20).
 const EDIT_SYSTEM: &str =
@@ -52,10 +48,10 @@ reported since the last reload; call_function runs one of the application's func
 the request is done, call finish with one plain sentence for the person: what changed, in \
 their words, no file names unless they asked.\n\
 Every model call costs the person time and money, so make each one count: the files shown in \
-the request are current, do not read them again; put several tool calls in one answer when \
-they do not depend on each other, every edit the request needs in one answer, then check \
-once. An earlier tool result may come back folded to its first line: call the tool again \
-only if you need it.";
+the request are as the turn began, do not read them again unless you changed them; put several \
+tool calls in one answer when they do not depend on each other, every edit the request needs \
+in one answer, then check once. Only your last calls come back whole; the earlier ones are one \
+line each: call a tool again only if you need its answer.";
 
 /// The tools of the loop, in the shape both providers read.
 fn tools() -> Vec<ToolSpec> {
@@ -205,61 +201,94 @@ fn read_again(
     }
 }
 
-/// A long text cut to its first line and its size, so a later call knows what it was.
-fn fold(text: &str) -> String {
-    if text.len() <= FOLD_MIN {
-        return text.to_owned();
-    }
-    let first = text.lines().next().unwrap_or_default();
-    format!(
-        "{}\n… (folded, {} bytes; call the tool again if you need it)",
-        cap(first, 200),
-        text.len()
-    )
-}
-
-/// An earlier answer with its long arguments (a file written whole, a large replacement)
-/// folded to their size: the result of the call already says what it did.
-fn folded_answer(answer: &ToolAnswer) -> ToolAnswer {
-    let mut answer = answer.clone();
-    for call in &mut answer.calls {
-        if let Some(object) = call.input.as_object_mut() {
-            for value in object.values_mut() {
-                if let Some(text) = value.as_str().filter(|text| text.len() > FOLD_MIN) {
-                    *value = Value::String(format!("({} bytes, sent earlier)", text.len()));
-                }
-            }
-        }
-    }
-    answer
-}
-
 /// One model call of a turn and what its tool calls answered, by call id.
 struct Round {
     answer: ToolAnswer,
     results: Vec<(String, String)>,
 }
 
-/// What the next call sends: the opening, then every round, the last [`FOLD_AFTER`] whole and
-/// the ones before them folded, so the resent history stays bounded however long the turn
-/// runs (SDK-20).
-fn transcript(provider: &str, opening: &str, rounds: &[Round]) -> Vec<Value> {
-    let mut messages = vec![json!({ "role": "user", "content": opening })];
-    let whole_from = rounds.len().saturating_sub(FOLD_AFTER);
-    for (index, round) in rounds.iter().enumerate() {
-        let whole = index >= whole_from;
-        if whole {
-            messages.push(assistant_turn_message(provider, &round.answer));
-        } else {
-            messages.push(assistant_turn_message(
-                provider,
-                &folded_answer(&round.answer),
+/// How long the running summary of a turn's earlier rounds may grow, about 500 tokens (T-3074).
+const SUMMARY_CHARS: usize = 2_000;
+/// How much of a result's first line one summary line repeats.
+const SUMMARY_LINE: usize = 120;
+
+/// The earlier rounds of a turn as one short text (T-3074): the files changed so far, always,
+/// then one line per tool call (its name, its file, the first line of its result), the newest
+/// that fit. Empty when there is nothing earlier.
+fn summary(rounds: &[Round]) -> String {
+    let mut changed = std::collections::BTreeSet::new();
+    let mut lines = Vec::new();
+    for round in rounds {
+        for call in &round.answer.calls {
+            let path = call.input.get("path").and_then(Value::as_str);
+            if matches!(
+                call.name.as_str(),
+                "edit_file" | "write_file" | "delete_file"
+            ) {
+                if let Some(path) = path {
+                    changed.insert(path.to_owned());
+                }
+            }
+            let first = round
+                .results
+                .iter()
+                .find(|(id, _)| *id == call.id)
+                .and_then(|(_, result)| result.lines().next())
+                .unwrap_or_default();
+            lines.push(format!(
+                "- {}{}: {}\n",
+                call.name,
+                path.map(|path| format!(" {path}")).unwrap_or_default(),
+                cap(first, SUMMARY_LINE)
             ));
         }
-        for (id, result) in &round.results {
-            let content = if whole { result.clone() } else { fold(result) };
-            messages.push(tool_result_message(provider, id, &content));
+    }
+    if lines.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("Earlier in this turn, one line per tool call:\n");
+    if !changed.is_empty() {
+        let names = changed.into_iter().collect::<Vec<_>>().join(", ");
+        out.push_str(&format!(
+            "Files you changed: {}; read_file shows their current text.\n",
+            cap(&names, SUMMARY_CHARS / 4)
+        ));
+    }
+    let mut kept = 0;
+    let mut size = out.len();
+    for line in lines.iter().rev() {
+        if size + line.len() > SUMMARY_CHARS {
+            break;
         }
+        size += line.len();
+        kept += 1;
+    }
+    let left_out = lines.len() - kept;
+    if left_out > 0 {
+        out.push_str(&format!("({left_out} earlier steps left out)\n"));
+    }
+    for line in &lines[left_out..] {
+        out.push_str(line);
+    }
+    out
+}
+
+/// What the next call sends (T-3074, SDK-20): the opening, the same bytes on every call of the
+/// turn and cached by the provider (T-3073); the running summary of the rounds before the last;
+/// and the last round whole, the model's calls and their results. An older result is never
+/// sent again, so what follows the opening stays bounded however long the turn runs.
+fn transcript(provider: &str, opening: &str, rounds: &[Round]) -> Vec<Value> {
+    let mut messages = vec![json!({ "role": "user", "content": opening })];
+    let Some((last, earlier)) = rounds.split_last() else {
+        return messages;
+    };
+    let earlier = summary(earlier);
+    if !earlier.is_empty() {
+        messages.push(json!({ "role": "user", "content": earlier }));
+    }
+    messages.push(assistant_turn_message(provider, &last.answer));
+    for (id, result) in &last.results {
+        messages.push(tool_result_message(provider, id, result));
     }
     messages
 }
@@ -1023,40 +1052,86 @@ mod tests {
             .len()
     }
 
-    /// T-2467: a turn of thirty rounds sends about what a turn of three sends; the rounds before
-    /// the last two travel as a line each, not whole.
+    /// T-3074: after the opening, a call carries the summary of the earlier rounds and the last
+    /// round whole, so a turn of thirty rounds sends what a turn of three sends, and the part
+    /// after the cached opening stays under 10k tokens even when the last round read four big
+    /// files.
     #[test]
-    fn the_resent_history_stays_bounded_however_long_the_turn_runs() {
+    fn a_later_call_sends_the_summary_and_the_last_round_only() {
         let three: Vec<Round> = (0..3).map(round).collect();
         let thirty: Vec<Round> = (0..30).map(round).collect();
-        let growth = sent_bytes(&thirty) - sent_bytes(&three);
-        assert!(growth < 27 * 600, "27 folded rounds added {growth} bytes");
-        let messages = transcript("anthropic", "opening", &thirty);
-        // opening + 30 × (answer, result)
-        assert_eq!(messages.len(), 61);
-        let last = messages[60].to_string();
         assert!(
-            last.contains(&"y".repeat(8_000)),
+            sent_bytes(&thirty) <= sent_bytes(&three) + SUMMARY_CHARS,
+            "{} vs {}",
+            sent_bytes(&thirty),
+            sent_bytes(&three)
+        );
+        let messages = transcript("anthropic", "opening", &thirty);
+        // opening, summary, the last answer, its result
+        assert_eq!(messages.len(), 4);
+        assert!(
+            messages[3].to_string().contains(&"y".repeat(8_000)),
             "the newest result is whole"
         );
-        let old = messages[2].to_string();
-        assert!(old.contains("folded, 8023 bytes"), "{old}");
-        assert!(messages[1]
-            .to_string()
-            .contains("(30000 bytes, sent earlier)"));
-        assert!(messages[59].to_string().contains(&"x".repeat(30_000)));
-        // Every call id keeps its result, folded or not: the provider pairs them.
-        for n in 0..30 {
-            assert!(messages[2 + 2 * n]
-                .to_string()
-                .contains(&format!("\"c{n}\"")));
-        }
+        assert!(messages[2].to_string().contains("\"c29\""));
+        let summary = messages[1].to_string();
+        assert!(
+            summary.contains("write_file src/A.tsx: src/A.tsx: lines 1-900"),
+            "{summary}"
+        );
+        assert!(
+            summary.contains("Files you changed: src/A.tsx"),
+            "{summary}"
+        );
+        assert!(!summary.contains(&"y".repeat(100)) && !summary.contains(&"x".repeat(100)));
+        assert!(summary.len() <= SUMMARY_CHARS + 200, "{}", summary.len());
+
+        let mut wide = round(30);
+        wide.answer.calls = (0..4)
+            .map(|n| ToolCall {
+                id: format!("r{n}"),
+                name: "read_file".into(),
+                input: json!({ "path": format!("src/F{n}.tsx") }),
+            })
+            .collect();
+        wide.results = (0..4)
+            .map(|n| (format!("r{n}"), "z".repeat(RESULT_CAP)))
+            .collect();
+        let mut rounds: Vec<Round> = (0..29).map(round).collect();
+        rounds.push(wide);
+        let after_opening: usize = transcript("anthropic", "opening", &rounds)[1..]
+            .iter()
+            .map(|message| message.to_string().len())
+            .sum();
+        assert!(
+            after_opening / 4 <= 10_000,
+            "{} tokens after the opening",
+            after_opening / 4
+        );
     }
 
+    /// T-3074: the summary keeps what the next step needs: every file changed, and the newest
+    /// steps when the oldest no longer fit.
     #[test]
-    fn a_short_result_is_never_folded() {
-        assert_eq!(fold("src/A.tsx: replaced"), "src/A.tsx: replaced");
-        assert!(fold(&"z".repeat(FOLD_MIN + 1)).contains("folded"));
+    fn the_summary_names_every_changed_file_and_keeps_the_newest_steps() {
+        let mut rounds: Vec<Round> = (0..80).map(round).collect();
+        rounds[0].answer.calls[0].input =
+            json!({ "path": "src/First.tsx", "search": "a", "replace": "b" });
+        rounds[0].answer.calls[0].name = "edit_file".into();
+        rounds[1].answer.calls[0].name = "check".into();
+        rounds[1].results[0].1 = "src/A.tsx:3:1: Unexpected token".into();
+        let said = summary(&rounds);
+        assert!(
+            said.contains("src/First.tsx") && said.contains("src/A.tsx"),
+            "{said}"
+        );
+        assert!(said.contains("earlier steps left out"), "{said}");
+        assert!(
+            said.ends_with("- write_file src/A.tsx: src/A.tsx: lines 1-900\n"),
+            "{said}"
+        );
+        assert!(said.len() <= SUMMARY_CHARS + 200);
+        assert_eq!(summary(&[]), "");
     }
 
     /// T-2467: the model reading a file the request already carries costs one line, until the
