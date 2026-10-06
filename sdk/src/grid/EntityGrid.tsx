@@ -39,6 +39,11 @@ export interface EntityGridProps extends UseEntityGridOptions {
    */
   onRows?: (rows: RichRow[], offset: number) => void;
   /**
+   * The query the person's filters ask the source for, the typed one or the filter row's, each
+   * time it changes: what a host saves as a view's filter (API/01 §30).
+   */
+  onQuery?: (query: { q?: string; idPattern?: string }) => void;
+  /**
    * What is different about a row or a column, and why, in the host's own words: a comparison marks
    * what the other side does not answer (T-1435). Each value is the sentence a person reads on it.
    */
@@ -81,6 +86,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     renderers,
     onOpenRelationship,
     onRows,
+    onQuery,
     marks,
     toolbar,
     mapEngine,
@@ -469,6 +475,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   React.useEffect(() => {
     onRows?.(rows, state.offset);
   }, [rows, state.offset, onRows]);
+
+  const { q: askedQ, idPattern: askedIdPattern } = grid.askedQuery;
+  React.useEffect(() => {
+    onQuery?.({ q: askedQ, idPattern: askedIdPattern });
+  }, [askedQ, askedIdPattern, onQuery]);
 
   // The map is a second view of the same page: it is offered only where the config asked for one
   // AND the rows actually carry a geometry, so a type without one gets no panel and no action.

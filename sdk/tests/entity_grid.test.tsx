@@ -41,6 +41,16 @@ const config = configResult.config!;
 const onePerPage = { ...config, pageSize: 1 };
 
 describe("EntityGrid", () => {
+  it("tells the host the query its filters ask, as it changes, for a saved view to keep", async () => {
+    const onQuery = vi.fn();
+    const { rerender } = render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} onQuery={onQuery} />);
+    await waitFor(() => expect(onQuery).toHaveBeenLastCalledWith({ q: undefined, idPattern: undefined }));
+    rerender(
+      <EntityGrid config={config} source={fixtureSource(bikeEntities)} onQuery={onQuery} state={{ filterText: "availableBikeNumber<3" }} />,
+    );
+    await waitFor(() => expect(onQuery).toHaveBeenLastCalledWith({ q: "availableBikeNumber<3", idPattern: undefined }));
+  });
+
   it("renders value with unit", async () => {
     render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
     await waitFor(() => {

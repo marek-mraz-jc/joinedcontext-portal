@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
+import type { GridState } from "@joinedcontext/sdk";
 import { originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -26,6 +27,8 @@ import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
+import { ViewBar } from "../../components/entities/ViewBar";
+import type { DataView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { parseModel } from "../models/linkml";
@@ -323,6 +326,35 @@ function SpaceData({
   );
   const [adding, setAdding] = useState(false);
   const [proposed, setProposed] = useState<Change | null>(null);
+
+  // The saved view applied, and what of the grid a view keeps: the typed query and the order
+  // (API/01 §30). The filter row's query arrives through `onQuery`.
+  const [view, setView] = useState<DataView | null>(null);
+  const [gridView, setGridView] = useState<Pick<GridState, "filterText" | "sort">>({ filterText: null, sort: null });
+  const [asked, setAsked] = useState<{ q?: string; idPattern?: string }>({});
+  const applyView = useCallback((next: DataView | null) => {
+    setView(next);
+    const first = next?.config.sort?.[0];
+    setGridView({
+      filterText: next?.config.q ?? null,
+      sort: first ? { attr: first.attr, dir: first.desc ? "desc" : "asc" } : null,
+    });
+  }, []);
+  const onGridState = useCallback((next: GridState) => {
+    setGridView((before) =>
+      before.filterText === next.filterText && before.sort?.attr === next.sort?.attr && before.sort?.dir === next.sort?.dir
+        ? before
+        : { filterText: next.filterText, sort: next.sort },
+    );
+  }, []);
+  const current = useMemo<ViewConfig>(
+    () => ({
+      ...(view?.config ?? {}),
+      q: asked.q,
+      sort: gridView.sort ? [{ attr: gridView.sort.attr, desc: gridView.sort.dir === "desc" }] : [],
+    }),
+    [view, asked.q, gridView.sort],
+  );
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -363,7 +395,10 @@ function SpaceData({
         <Select
           id="space-inside-type"
           value={type}
-          onChange={(event) => setChosen(event.target.value)}
+          onChange={(event) => {
+            setChosen(event.target.value);
+            applyView(null);
+          }}
         >
           {types.map((each) => (
             <option key={each} value={each}>
@@ -413,8 +448,20 @@ function SpaceData({
         </div>
       ) : null}
       {probe.isSuccess && config ? (
+        <ViewBar
+          project={project}
+          space={space}
+          type={type}
+          selected={view}
+          onSelect={applyView}
+          current={current}
+          unsaved={asked.idPattern ? t("spaces.views.idNotKept") : undefined}
+        />
+      ) : null}
+      {probe.isSuccess && config ? (
         <PortalEntityGrid
-          key={`${space}-${type}`}
+          // A view applied is a fresh grid: nothing typed under the last one carries over.
+          key={`${space}-${type}-${view?.id ?? ""}`}
           project={project}
           config={config}
           source={source}
@@ -423,6 +470,10 @@ function SpaceData({
           enums={enums}
           relations={relations}
           rules={rules}
+          // Without a saved view the grid keeps the person's own remembered order.
+          view={view ? gridView : undefined}
+          onGridState={onGridState}
+          onQuery={setAsked}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
       ) : null}

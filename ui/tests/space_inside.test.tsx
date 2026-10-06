@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -144,6 +144,8 @@ function renderInside(
     usage?: { status: number; body: unknown };
     /** The model's committed LinkML source, which the space's data reads for its field rules. */
     source?: string;
+    /** The saved data views of the space (API/01 §30). */
+    views?: unknown[];
   } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -184,6 +186,9 @@ function renderInside(
     }
     if (path.endsWith("/spaces/ovzdusie")) {
       return json(seed.space ?? SPACE);
+    }
+    if (path.endsWith("/spaces/ovzdusie/views")) {
+      return json({ items: seed.views ?? [] });
     }
     if (path.endsWith("/datamodels/bb-air-quality/source") && seed.source !== undefined) {
       return Promise.resolve(new Response(seed.source, { status: 200, headers: { "Content-Type": "text/yaml" } }));
@@ -496,6 +501,33 @@ describe("the space's own data", () => {
 
     expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: en.spaces.fields.add })).toBeNull();
+  });
+
+  it("applies a saved view: its query is what the space surface is asked (T-3104)", async () => {
+    const view = {
+      id: "7f1c2a9e-4b1d-4a57-9a0e-2f6d1c3b8e01",
+      type: "AirQualityObserved",
+      kind: "grid",
+      mode: "collaborative",
+      title: "High NO2",
+      owner: "jana.kovacova",
+      config: { q: "no2>40" },
+      version: 1,
+      createdAt: "2026-10-06T19:00:00Z",
+      updatedAt: "2026-10-06T19:00:00Z",
+    };
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, { views: [view] });
+
+    const picker = await screen.findByLabelText(en.spaces.views.view);
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+    await userEvent.selectOptions(picker, view.id);
+
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls
+        .map((call) => urlOf(call[0]))
+        .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+      expect(asked.some((url) => url.searchParams.get("q") === "no2>40")).toBe(true);
+    });
   });
 
   it("says nothing has been written to an empty space", async () => {

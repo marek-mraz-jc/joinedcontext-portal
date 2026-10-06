@@ -517,6 +517,42 @@
         "location": "Poloha",
         "relationship": "Odkaz na jiný typ"
       }
+    },
+    "views": {
+      "view": "Pohled",
+      "none": "Všechny entity (bez uloženého pohledu)",
+      "save": "Uložit pohled",
+      "saveNew": "Uložit jako pohled…",
+      "saveAs": "Uložit jako nový…",
+      "copyOf": "Kopie {title}",
+      "settings": "Přejmenovat nebo sdílet…",
+      "delete": "Smazat pohled",
+      "confirm": "Uložit",
+      "createTitle": "Uložit pohled na {type}",
+      "settingsTitle": "Přejmenovat nebo sdílet pohled",
+      "title": "Název",
+      "titleHelp": "Nejvýše 120 znaků.",
+      "mode": "Kdo ho vidí",
+      "modes": {
+        "personal": "Jen já",
+        "collaborative": "Sdílený",
+        "locked": "Sdílený, zamčený"
+      },
+      "modeHelp": {
+        "personal": "Tento pohled nikdo jiný nevidí.",
+        "collaborative": "Každý, kdo může číst tento prostor, ho vidí a mění.",
+        "locked": "Každý, kdo může číst tento prostor, ho vidí; měnit ho můžete jen vy a správci prostoru."
+      },
+      "dirty": "Tabulka se liší od uloženého pohledu. Uložit pohled změnu ponechá.",
+      "lockedReason": "Tento pohled je zamčený: měnit ho může jen jeho vlastník nebo správce prostoru.",
+      "governReason": "Smazat pohled může jen jeho vlastník nebo správce prostoru.",
+      "deleteTitle": "Smazat pohled {title}?",
+      "deleteHelp": "Smaže se jen pohled; data v prostoru se nezmění.",
+      "failed": "Pohled se nepodařilo uložit",
+      "conflict": "Mezitím tento pohled uložil někdo jiný ({detail}). Načtěte jeho verzi a uložte znovu.",
+      "reload": "Znovu načíst pohledy",
+      "unavailable": "Uložené pohledy se teď nedají načíst; tabulka funguje dál.",
+      "idNotKept": "Filtr na identifikátor se v uloženém pohledu nezachová."
     }
   },
   "endpoints": {

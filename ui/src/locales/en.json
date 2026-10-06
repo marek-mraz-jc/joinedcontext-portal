@@ -517,6 +517,42 @@
         "location": "Location",
         "relationship": "Link to another type"
       }
+    },
+    "views": {
+      "view": "View",
+      "none": "All entities (no saved view)",
+      "save": "Save view",
+      "saveNew": "Save as a view…",
+      "saveAs": "Save as new…",
+      "copyOf": "Copy of {title}",
+      "settings": "Rename or share…",
+      "delete": "Delete view",
+      "confirm": "Save",
+      "createTitle": "Save a view of {type}",
+      "settingsTitle": "Rename or share the view",
+      "title": "Name",
+      "titleHelp": "Up to 120 characters.",
+      "mode": "Who sees it",
+      "modes": {
+        "personal": "Only me",
+        "collaborative": "Shared",
+        "locked": "Shared, locked"
+      },
+      "modeHelp": {
+        "personal": "Nobody else sees this view.",
+        "collaborative": "Everyone who can read this space sees and changes it.",
+        "locked": "Everyone who can read this space sees it; only you and the space's stewards change it."
+      },
+      "dirty": "The grid differs from the saved view. Save view keeps the change.",
+      "lockedReason": "This view is locked: only its owner or a steward of the space changes it.",
+      "governReason": "Only the view's owner or a steward of the space deletes it.",
+      "deleteTitle": "Delete the view {title}?",
+      "deleteHelp": "Only the view is deleted; no data in the space changes.",
+      "failed": "The view could not be saved",
+      "conflict": "Someone saved this view meanwhile ({detail}). Reload to see their version, then save again.",
+      "reload": "Reload views",
+      "unavailable": "Saved views cannot be loaded now; the grid still works.",
+      "idNotKept": "A filter on the identifier is not kept in a saved view."
     }
   },
   "endpoints": {
