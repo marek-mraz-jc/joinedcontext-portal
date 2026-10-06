@@ -69,7 +69,7 @@ test("a prompt becomes a React + functions application that opens, reads and ans
     // what the person sees, never a class name the model happens to choose: `.stat-value` failed
     // a working app that drew 457 stations in its own tiles (T-3044).
     const preview = page.frameLocator("iframe").first();
-    const waiting = page.getByText("Waiting for you", { exact: true });
+    const waiting = page.getByTestId("run-progress").filter({ hasText: "Waiting for you" });
     await expect(preview.getByText(/^\s*[1-9][\d,.\s]*$/).first()).toBeVisible({ timeout: 600_000 });
     await expect(waiting).toBeVisible({ timeout: 600_000 });
     await expect(page.getByText(/^function:summary/).first()).toBeVisible();
@@ -93,8 +93,8 @@ test("a prompt becomes a React + functions application that opens, reads and ans
     await expect(preview.locator("svg, canvas").first()).toBeVisible();
 
     // 4. Publish opens the merge request and proposes the App with its source (AP-77).
+    // Publish opens the merge request at once; the change notice links to its review.
     await page.getByRole("button", { name: "Publish this app" }).click();
-    await page.getByRole("button", { name: "Open the merge request" }).click();
     const notice = page.getByRole("link", { name: /review/i }).first();
     await expect(notice).toBeVisible({ timeout: 120_000 });
     const change = new URL((await notice.getAttribute("href")) ?? "", page.url()).pathname.split("/").pop() ?? "";
