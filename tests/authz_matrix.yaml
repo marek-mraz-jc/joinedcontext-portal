@@ -45,6 +45,12 @@ routes:
   - route: GET /auth/me
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /auth/sso-check
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /auth/sso-check/done
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
   - route: GET /blueprints
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
