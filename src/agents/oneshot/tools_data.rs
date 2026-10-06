@@ -11,32 +11,58 @@ impl Driver {
         futures_util::future::join_all(lists).await
     }
 
-    /// The read tools one endpoint of the conversation offers, from its own `tools/list`.
+    /// The read tools one endpoint of the conversation offers, from its own `tools/list`. One
+    /// that does not answer offers nothing for now, and says why in the log (T-3044).
     pub(super) async fn tools_of(
         &self,
         chosen: &[endpoints::RunEndpoint],
         index: usize,
     ) -> Vec<Value> {
+        self.listed_tools(chosen, index)
+            .await
+            .unwrap_or_else(|reason| {
+                tracing::warn!(
+                    run = %self.run_id,
+                    endpoint = chosen.get(index).map_or("", |e| e.name.as_str()),
+                    %reason,
+                    "an endpoint of the conversation did not list its tools"
+                );
+                Vec::new()
+            })
+    }
+
+    /// One endpoint's `tools/list`, or why it did not answer: the status and the problem's own
+    /// detail, never a header or a token.
+    async fn listed_tools(
+        &self,
+        chosen: &[endpoints::RunEndpoint],
+        index: usize,
+    ) -> Result<Vec<Value>, String> {
         let url = format!(
             "{}/mcp",
             endpoints::data_base(&self.proxy_base, chosen, index)
         );
-        let list = self
+        let response = self
             .http
             .post(&url)
             .bearer_auth(&self.bearer)
             .header("accept", "application/json")
             .json(&json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }))
             .send()
-            .await;
-        match list {
-            Ok(response) if response.status().is_success() => response
-                .json::<Value>()
-                .await
-                .map(|list| data_query::read_only_tools(&list))
-                .unwrap_or_default(),
-            _ => Vec::new(),
+            .await
+            .map_err(|err| format!("the platform could not be reached ({err})"))?;
+        let status = response.status();
+        let body = response.json::<Value>().await.unwrap_or(Value::Null);
+        if !status.is_success() {
+            let detail = body["detail"].as_str().unwrap_or_default();
+            return Err(format!("the platform answered {status} {detail}")
+                .trim_end()
+                .to_owned());
         }
+        if let Some(error) = body.get("error") {
+            return Err(format!("the endpoint answered {error}"));
+        }
+        Ok(data_query::read_only_tools(&body))
     }
 
     /// The project's endpoints the conversation does not read yet and the person may open: an
@@ -152,14 +178,28 @@ impl Driver {
                     .collect::<Vec<_>>()
                     .join(", ")
             )),
-            Some(i) if !data_query::offers(tools.get(i).map_or(&[], Vec::as_slice), &call.name) => {
-                Some(data_query::not_offered(
-                    tools.get(i).map_or(&[], Vec::as_slice),
-                    &call.name,
-                    &call.endpoint,
-                ))
+            Some(i) => {
+                let offered = tools.get(i).map_or(&[][..], Vec::as_slice);
+                if data_query::offers(offered, &call.name) {
+                    None
+                } else if offered.is_empty() {
+                    // An empty list may be one that failed: ask again before telling the model
+                    // the endpoint offers nothing, which it then told the person (T-3044).
+                    match self.listed_tools(chosen, i).await {
+                        Ok(fresh) if data_query::offers(&fresh, &call.name) => None,
+                        Ok(fresh) => {
+                            Some(data_query::not_offered(&fresh, &call.name, &call.endpoint))
+                        }
+                        Err(reason) => Some(format!(
+                            "endpoint '{}' could not be read just now: {reason}. Tell the person \
+                             it could not be read just now; do not say it offers no data",
+                            call.endpoint
+                        )),
+                    }
+                } else {
+                    Some(data_query::not_offered(offered, &call.name, &call.endpoint))
+                }
             }
-            Some(_) => None,
         };
         let millis = || u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         if let Some(reason) = refusal {
