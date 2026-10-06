@@ -31,6 +31,8 @@ export interface FilterSlot {
   values?: string[];
   minimum?: number;
   maximum?: number;
+  /** Computed by the class's formula pipeline (DM-80): shown, never edited in place. */
+  formula?: boolean;
 }
 
 export const OPS = ["==", "!=", ">", ">=", "<", "<=", "~=", "!~="] as const;
@@ -107,6 +109,7 @@ export function filterSlotsOf(
         values: values?.map((v) => v.name),
         minimum: slot?.minimum_value,
         maximum: slot?.maximum_value,
+        ...(slot?.equals_expression !== undefined ? { formula: true } : {}),
       };
     });
 }

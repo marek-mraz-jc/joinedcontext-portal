@@ -94,6 +94,8 @@ export interface LinkmlSlot {
   inlined?: boolean;
   /** The delete rule a relationship's source end carries, as written (DM-66). */
   on_delete?: string;
+  /** The formula that computes the slot from its entity's other slots, as LinkML writes it (DM-80). */
+  equals_expression?: string;
 }
 
 export interface LinkmlClass {
@@ -250,6 +252,7 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     ...(raw.identifier === true ? { identifier: true } : {}),
     inlined: typeof raw.inlined === "boolean" ? raw.inlined : undefined,
     on_delete: text(annotated.on_delete),
+    ...(text(raw.equals_expression) ? { equals_expression: text(raw.equals_expression) } : {}),
   };
 }
 

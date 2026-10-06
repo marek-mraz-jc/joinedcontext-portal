@@ -500,7 +500,8 @@
         "valueTwice": "Ein Auswahlwert steht doppelt in der Liste.",
         "targetMissing": "Wählen Sie den Typ, auf den verwiesen wird.",
         "inverseInvalid": "Nur Buchstaben, Ziffern und _, und ein anderer Name als der des Feldes.",
-        "inverseTaken": "Der Zieltyp hat bereits ein Attribut mit diesem Namen."
+        "inverseTaken": "Der Zieltyp hat bereits ein Attribut mit diesem Namen.",
+        "formulaInvalid": "Die Formel lässt sich nicht berechnen: {reason}"
       },
       "types": {
         "text": "Text",
@@ -515,7 +516,15 @@
         "email": "E-Mail",
         "file": "Dateilink",
         "location": "Standort",
-        "relationship": "Verweis auf einen anderen Typ"
+        "relationship": "Verweis auf einen anderen Typ",
+        "formula": "Formel"
+      },
+      "formula": {
+        "expression": "Formel",
+        "help": "Wird alle fünf Minuten aus den Feldern dieser Entität berechnet und als ihr Wert gespeichert, etwa {example}. Erlaubt sind {slots}, Zahlen, Text in Anführungszeichen, + - * / %, Vergleiche, and, or, not, abs, round, min und max.",
+        "noEndpoint": "Kein Endpoint dieses Raums antwortet nach allen Policies des Raums, daher hat die Pipeline einer Formel keinen Ort zum Lesen und Schreiben. Legen Sie zuerst einen ohne policyRef an.",
+        "noAccount": "Dieses Projekt hat kein ServiceAccount pipelines, das die Pipeline einer Formel ausführt. Legen Sie es zuerst an.",
+        "pipelineRefused": "Das Feld ist vorgeschlagen, seine Pipeline aber nicht: {reason}"
       }
     },
     "views": {
@@ -663,7 +672,7 @@
       "close": "Schließen"
     },
     "export": {
-      "label": "Export:",
+      "label": "Exportieren:",
       "endpoint": "Exportieren über",
       "none": "Kein Endpoint dieses Raums liefert CSV, Excel oder JSON, daher gibt es nichts, worüber exportiert werden kann.",
       "format": {

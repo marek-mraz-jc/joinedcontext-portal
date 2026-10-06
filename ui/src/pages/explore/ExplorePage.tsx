@@ -149,7 +149,9 @@ export function ExplorePage({
     }
     const named = new Set(grants.flatMap((entry) => (Array.isArray(entry.attributes) ? entry.attributes : [])));
     const unlimited = grants.some((entry) => entry.attributes === "*" || entry.attributes === undefined);
+    // A formula field is its pipeline's to write (DM-80): shown, never edited in place.
     return slots
+      .filter((slot) => !slot.formula)
       .map((slot) => slot.name)
       .filter((attr) => !denied[attr] && (unlimited || named.has(attr)));
   }, [access.data, query.type, slots, denied]);

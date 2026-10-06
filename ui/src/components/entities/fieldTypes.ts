@@ -7,6 +7,8 @@ import type { NgsiLdKind, LinkmlModel, LinkmlSlot } from "../../pages/models/lin
 import { classSlots, edit, RANGES, UPSTREAM_ANNOTATION } from "../../pages/models/linkml";
 import type { Applied, Operation } from "../../pages/models/operations";
 import { applyOperations, isName } from "../../pages/models/operations";
+import { checkFormulas, parseFormula, rangeOf } from "./formula";
+import type { ClassSlot } from "./formula";
 
 export const FIELD_TYPES = [
   "text",
@@ -22,6 +24,7 @@ export const FIELD_TYPES = [
   "file",
   "location",
   "relationship",
+  "formula",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -42,6 +45,9 @@ export const FIELD_RANGE: Record<FieldType, { range?: string; kind: NgsiLdKind }
   file: { range: "uri", kind: "Property" },
   location: { kind: "GeoProperty" },
   relationship: { kind: "Relationship" },
+  // Computed from the entity's other slots by the class's formula pipeline (DM-80): its range is
+  // what the formula yields.
+  formula: { range: "float", kind: "Property" },
 };
 
 /** An address with one `@` and a dot after it: the same check the grid makes at the cell. */
@@ -58,6 +64,8 @@ export interface FieldDraft {
   inverse: string;
   /** A relationship to several entities, not one. */
   many: boolean;
+  /** A formula field's `equals_expression` (DM-80). */
+  expression: string;
 }
 
 export const EMPTY_DRAFT: FieldDraft = {
@@ -68,10 +76,11 @@ export const EMPTY_DRAFT: FieldDraft = {
   target: "",
   inverse: "",
   many: false,
+  expression: "",
 };
 
 /** What is wrong with a draft, by the input that must change; empty when it can be proposed. */
-export type DraftProblems = Partial<Record<"name" | "values" | "target" | "inverse", "nameInvalid" | "nameTaken" | "valuesMissing" | "valueInvalid" | "valueTwice" | "targetMissing" | "inverseInvalid" | "inverseTaken">>;
+export type DraftProblems = Partial<Record<"name" | "values" | "target" | "inverse" | "expression", "nameInvalid" | "nameTaken" | "valuesMissing" | "valueInvalid" | "valueTwice" | "targetMissing" | "inverseInvalid" | "inverseTaken" | "formulaInvalid">>;
 
 /** The names a class answers to already: its own slots, inline or listed, and the model's slots. */
 function takenNames(model: LinkmlModel, type: string): Set<string> {
@@ -88,12 +97,42 @@ export function problemsOf(draft: FieldDraft, model: LinkmlModel, type: string):
     else if (draft.values.some((value) => !isValue(value))) problems.values = "valueInvalid";
     else if (new Set(draft.values).size !== draft.values.length) problems.values = "valueTwice";
   }
+  if (draft.type === "formula" && formulaProblem(draft, model, type) !== undefined) problems.expression = "formulaInvalid";
   if (draft.type === "relationship") {
     if (!model.classes.some((c) => c.name === draft.target)) problems.target = "targetMissing";
     if (!isName(draft.inverse) || draft.inverse === draft.name) problems.inverse = "inverseInvalid";
     else if (takenNames(model, draft.target).has(draft.inverse)) problems.inverse = "inverseTaken";
   }
   return problems;
+}
+
+/** The class's slots for the formula checks, with the draft's formula among them (DM-80). */
+export function formulaSlots(draft: FieldDraft, model: LinkmlModel, type: string): ClassSlot[] {
+  const cls = model.classes.find((c) => c.name === type);
+  const own: ClassSlot[] = (cls ? classSlots(model, cls) : []).map((slot) => ({
+    name: slot.name,
+    kind: slot.kind,
+    ...(slot.equals_expression !== undefined ? { equals_expression: slot.equals_expression } : {}),
+  }));
+  return draft.type === "formula" ? [...own, { name: draft.name, kind: "Property", equals_expression: draft.expression }] : own;
+}
+
+/** Why the draft's formula cannot be computed, in the checker's words; `undefined` when it can. */
+export function formulaProblem(draft: FieldDraft, model: LinkmlModel, type: string): string | undefined {
+  if (draft.type !== "formula") return undefined;
+  if (draft.expression.trim() === "") return "the formula is empty";
+  return checkFormulas(formulaSlots(draft, model, type)).problems[draft.name];
+}
+
+/** The model with the slot's `equals_expression` written, beside the operations that added it. */
+export function withFormula(applied: Applied, name: string, expression: string): Applied {
+  if (applied.refused.length > 0) return applied;
+  return {
+    refused: [],
+    source: edit(applied.source, (document) => {
+      document.setIn(["slots", name, "equals_expression"], expression.trim());
+    }),
+  };
 }
 
 /** A choice as it is stored: trimmed text of up to 100 characters, no control characters. */
@@ -131,11 +170,13 @@ export function fieldOperations(draft: FieldDraft, model: LinkmlModel, type: str
     range = name;
     ops.push({ op: "addEnum", name }, ...draft.values.map((value): Operation => ({ op: "addEnumValue", enum: name, value })));
   }
+  if (draft.type === "formula") range = rangeOf(parseFormula(draft.expression));
   const kind = FIELD_RANGE[draft.type].kind;
   ops.push({ op: "addSlot", name: draft.name, class: type, range, ...(kind === "Property" ? {} : { kind }) });
   if (draft.type === "multiSelect") ops.push({ op: "setSlot", name: draft.name, field: "multivalued", value: true });
   if (draft.type === "email") ops.push({ op: "setSlot", name: draft.name, field: "pattern", value: EMAIL_PATTERN });
-  if (draft.required) ops.push({ op: "setSlot", name: draft.name, field: "required", value: true });
+  // A formula has a value when what it reads has one; required would refuse every entity without.
+  if (draft.required && draft.type !== "formula") ops.push({ op: "setSlot", name: draft.name, field: "required", value: true });
   return ops;
 }
 

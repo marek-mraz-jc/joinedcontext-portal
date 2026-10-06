@@ -500,7 +500,8 @@
         "valueTwice": "A choice is listed twice.",
         "targetMissing": "Pick the type it points to.",
         "inverseInvalid": "Use letters, digits and _ only, and a name other than the field's.",
-        "inverseTaken": "The target type already has an attribute of this name."
+        "inverseTaken": "The target type already has an attribute of this name.",
+        "formulaInvalid": "The formula cannot be computed: {reason}"
       },
       "types": {
         "text": "Text",
@@ -515,7 +516,15 @@
         "email": "E-mail",
         "file": "File link",
         "location": "Location",
-        "relationship": "Link to another type"
+        "relationship": "Link to another type",
+        "formula": "Formula"
+      },
+      "formula": {
+        "expression": "Formula",
+        "help": "Computed from this entity's slots, every five minutes, and stored as its value: for example {example}. You may use {slots}, numbers, quoted text, + - * / %, comparisons, and, or, not, abs, round, min and max.",
+        "noEndpoint": "No Endpoint of this space answers by every Policy of the space, so a formula's pipeline has nowhere to read and write. Add one without policyRef first.",
+        "noAccount": "This project has no pipelines ServiceAccount, which runs a formula's pipeline. Add it first.",
+        "pipelineRefused": "The field is proposed, but its pipeline was not: {reason}"
       }
     },
     "views": {

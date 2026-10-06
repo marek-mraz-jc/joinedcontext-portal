@@ -352,7 +352,8 @@ function SpaceData({
     [modelSource, type],
   );
   const [adding, setAdding] = useState(false);
-  const [proposed, setProposed] = useState<Change | null>(null);
+  // Every Change the field dialog proposed: a formula field is two (DM-80).
+  const [proposed, setProposed] = useState<Change[]>([]);
   // Import and export of the type (T-3109): rows created through the gateway with this session.
   const orgDomain = useOrgDomain(project);
   const importSlots = useMemo(() => importSlotsOf(modelSource, type), [modelSource, type]);
@@ -421,10 +422,18 @@ function SpaceData({
             source={modelSource}
             type={type}
             open={adding}
-            onOpenChange={setAdding}
-            onProposed={setProposed}
+            onOpenChange={(next) => {
+              if (next) setProposed([]);
+              setAdding(next);
+            }}
+            onProposed={(change) => setProposed((before) => [...before, change])}
+            space={space}
+            endpoints={endpoints}
+            orgDomain={orgDomain}
           />
-          {proposed ? <ChangeNotice change={proposed} project={project} /> : null}
+          {proposed.map((change) => (
+            <ChangeNotice key={change.metadata.name} change={change} project={project} />
+          ))}
         </div>
       ) : null}
 

@@ -10,7 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { AddFieldDialog } from "../src/components/entities/AddFieldDialog";
-import { EMPTY_DRAFT, fieldOperations, problemsOf, suggestedSlots } from "../src/components/entities/fieldTypes";
+import { EMPTY_DRAFT, fieldOperations, formulaProblem, problemsOf, suggestedSlots, withFormula } from "../src/components/entities/fieldTypes";
 import { parseModel } from "../src/pages/models/linkml";
 import { applyOperations } from "../src/pages/models/operations";
 
@@ -102,6 +102,23 @@ describe("field types", () => {
     );
   });
 
+  it("makes a formula field a slot carrying its equals_expression and the range its value has (DM-80)", () => {
+    const draft = { ...EMPTY_DRAFT, name: "title", type: "formula" as const, expression: "{name} + ' station'", required: true };
+    expect(problemsOf(draft, model, TYPE)).toEqual({});
+    const result = withFormula(applyOperations(STATIONS, fieldOperations(draft, model, TYPE)), draft.name, draft.expression);
+    const slot = parseModel(result.source).slots.find((s) => s.name === "title");
+    // Required means nothing for a value a pipeline computes, so it is not written.
+    expect(slot).toMatchObject({ range: "string", equals_expression: "{name} + ' station'", required: false });
+  });
+
+  it("refuses a formula reading what the class does not have, or itself", () => {
+    const draft = (expression: string) => ({ ...EMPTY_DRAFT, name: "spare", type: "formula" as const, expression });
+    expect(problemsOf(draft("{capacity} - 1"), model, TYPE).expression).toBe("formulaInvalid");
+    expect(formulaProblem(draft("{capacity} - 1"), model, TYPE)).toBe("{capacity} is not a slot of this class");
+    expect(formulaProblem(draft("{spare} + 1"), model, TYPE)).toBe("a cycle: spare → spare");
+    expect(formulaProblem(draft(""), model, TYPE)).toBe("the formula is empty");
+  });
+
   it("suggests the official attributes the type lacks and a field can hold", () => {
     expect(suggestedSlots(parseModel(OFFICIAL), model, TYPE).map((s) => s.name)).toEqual(["availableBikeNumber", "status", "location"]);
   });
@@ -183,6 +200,97 @@ describe("AddFieldDialog", () => {
     await userEvent.selectOptions(within(dialog).getByLabelText(en.spaces.fields.type), "integer");
     await userEvent.click(within(dialog).getByRole("button", { name: en.spaces.fields.propose }));
     expect(await within(dialog).findByText("the model changed since it was read")).toBeInTheDocument();
+  });
+
+  function mountFormula(answer: (path: string, method: string) => Response, endpoints: unknown[]) {
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(new URL(String(input), window.location.origin), init);
+      const url = new URL(request.url);
+      sent.push({ method: request.method, path: url.pathname + url.search, body: request.method === "GET" ? "" : await request.clone().text() });
+      return official(url.pathname) ?? answer(url.pathname, request.method);
+    }) as typeof fetch;
+    const onProposed = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <AddFieldDialog
+            project="hel"
+            modelName="stations"
+            source={STATIONS}
+            type={TYPE}
+            open
+            onOpenChange={() => {}}
+            onProposed={onProposed}
+            space="bikes"
+            endpoints={endpoints as never[]}
+            orgDomain="hel.fi"
+          />
+        </QueryClientProvider>
+      </I18nextProvider>,
+    );
+    return onProposed;
+  }
+
+  async function fillFormula(expression: string) {
+    const dialog = screen.getByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(new RegExp(en.spaces.fields.name)), "title");
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.spaces.fields.type), "formula");
+    await userEvent.type(within(dialog).getByLabelText(new RegExp(en.spaces.fields.formula.expression)), expression.replace(/[{[]/g, "$&$&"));
+    await userEvent.click(within(dialog).getByRole("button", { name: en.spaces.fields.propose }));
+    return dialog;
+  }
+
+  const ENDPOINTS = [
+    { apiVersion: "x", kind: "Endpoint", metadata: { name: "bikes-public" }, spec: { slug: "a", policyRef: "urn:ngsi-ld:Policy:hel.fi:bikes:public" } },
+    { apiVersion: "x", kind: "Endpoint", metadata: { name: "bikes-all" }, spec: { slug: "b" } },
+  ];
+
+  it("proposes a formula field and then the class's pipeline and its Policies through an Endpoint bound to no single Policy", async () => {
+    const onProposed = mountFormula((path, method) => {
+      if (path.endsWith("/serviceaccounts/pipelines")) return respond({ metadata: { name: "pipelines" } });
+      if (method === "PUT") return respond({ metadata: { name: "chg-model" }, status: { phase: "PendingApproval" } }, 202);
+      if (path.endsWith("/import")) return respond({ metadata: { name: "chg-pipeline" }, status: { phase: "PendingApproval" } }, 202);
+      return respond({}, 404);
+    }, ENDPOINTS);
+    await screen.findByText(en.spaces.fields.sdmTitle);
+    await fillFormula("{name} + ' station'");
+
+    await waitFor(() => expect(onProposed).toHaveBeenCalledTimes(2));
+    expect(onProposed.mock.calls.map((call) => (call[0] as { metadata: { name: string } }).metadata.name)).toEqual(["chg-model", "chg-pipeline"]);
+    const model = parseModel(sent.find((r) => r.method === "PUT")!.body);
+    expect(model.slots.find((s) => s.name === "title")?.equals_expression).toBe("{name} + ' station'");
+    const imports = sent.filter((r) => r.path.startsWith("/api/v1/projects/hel/import"));
+    expect(imports.map((r) => r.path)).toEqual(["/api/v1/projects/hel/import?dryRun=All", "/api/v1/projects/hel/import"]);
+    const body = JSON.parse(imports[1].body) as { conflictPolicy: string; manifests: { kind: string; metadata: { name: string }; spec: Record<string, unknown> }[] };
+    expect(body.conflictPolicy).toBe("replace");
+    expect(body.manifests.map((m) => `${m.kind}/${m.metadata.name}`)).toEqual([
+      "Policy/formulas-bikehiredockingstation-read",
+      "Policy/formulas-bikehiredockingstation-write",
+      "Pipeline/formulas-bikehiredockingstation",
+    ]);
+    expect(body.manifests[2].spec).toMatchObject({ targetEndpoint: "urn:ngsi-ld:Endpoint:hel.fi:bikes:bikes-all", source: { endpointRef: { name: "bikes-all" } } });
+  });
+
+  it("proposes nothing when the project has no pipelines account, and says so", async () => {
+    const onProposed = mountFormula(
+      (path) => (path.endsWith("/serviceaccounts/pipelines") ? respond({ title: "Not Found" }, 404) : respond({}, 500)),
+      ENDPOINTS,
+    );
+    await screen.findByText(en.spaces.fields.sdmTitle);
+    const dialog = await fillFormula("{name} + ' station'");
+    expect(await within(dialog).findByText(en.spaces.fields.formula.noAccount)).toBeInTheDocument();
+    expect(onProposed).not.toHaveBeenCalled();
+    expect(sent.some((r) => r.method === "PUT" || r.path.includes("/projects/hel/import"))).toBe(false);
+  });
+
+  it("says why a formula cannot be computed before anything is sent", async () => {
+    mountFormula(() => respond({}, 500), ENDPOINTS);
+    await screen.findByText(en.spaces.fields.sdmTitle);
+    const dialog = await fillFormula("{capacity} * 2");
+    expect(within(dialog).getByLabelText(new RegExp(en.spaces.fields.formula.expression))).toHaveAccessibleDescription(
+      expect.stringContaining("{capacity} is not a slot of this class"),
+    );
+    expect(sent.some((r) => r.path.includes("/serviceaccounts/"))).toBe(false);
   });
 
   it("still offers an own field when the catalogue cannot be reached", async () => {

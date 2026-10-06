@@ -500,7 +500,8 @@
         "valueTwice": "Niektorá možnosť je uvedená dvakrát.",
         "targetMissing": "Vyberte typ, na ktorý odkazuje.",
         "inverseInvalid": "Použite iba písmená, číslice a _ a iný názov než má pole.",
-        "inverseTaken": "Cieľový typ už má atribút s týmto názvom."
+        "inverseTaken": "Cieľový typ už má atribút s týmto názvom.",
+        "formulaInvalid": "Vzorec sa nedá vypočítať: {reason}"
       },
       "types": {
         "text": "Text",
@@ -515,7 +516,15 @@
         "email": "E-mail",
         "file": "Odkaz na súbor",
         "location": "Poloha",
-        "relationship": "Odkaz na iný typ"
+        "relationship": "Odkaz na iný typ",
+        "formula": "Vzorec"
+      },
+      "formula": {
+        "expression": "Vzorec",
+        "help": "Počíta sa z polí tejto entity každých päť minút a ukladá sa ako jej hodnota, napríklad {example}. Môžete použiť {slots}, čísla, text v úvodzovkách, + - * / %, porovnania, and, or, not, abs, round, min a max.",
+        "noEndpoint": "Žiadny endpoint tohto priestoru neodpovedá podľa všetkých politík priestoru, takže kanál vzorca nemá kde čítať a zapisovať. Najprv pridajte endpoint bez policyRef.",
+        "noAccount": "Tento projekt nemá servisný účet pipelines, ktorý spúšťa kanál vzorca. Najprv ho pridajte.",
+        "pipelineRefused": "Pole je navrhnuté, jeho kanál však nie: {reason}"
       }
     },
     "views": {
@@ -663,7 +672,7 @@
       "close": "Zavrieť"
     },
     "export": {
-      "label": "Export:",
+      "label": "Exportovať:",
       "endpoint": "Exportovať cez",
       "none": "Žiadny endpoint tohto priestoru neposkytuje CSV, Excel ani JSON, takže nie je cez čo exportovať.",
       "format": {

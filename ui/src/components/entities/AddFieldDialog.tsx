@@ -9,7 +9,8 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { api, unwrap } from "../../api/client";
 import { writeModelSource } from "../../api/datamodelSource";
-import type { Change } from "../../api/manifest";
+import { isChange } from "../../api/manifest";
+import type { Change, Manifest } from "../../api/manifest";
 import { parseModel } from "../../pages/models/linkml";
 import type { LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
 import { applyOperations } from "../../pages/models/operations";
@@ -17,7 +18,8 @@ import type { Applied } from "../../pages/models/operations";
 import type { Catalogue } from "../../pages/models/SmartDataModelsImport";
 import type { Artifacts } from "../../pages/models/LinkmlPreviewPanel";
 import { Alert, Button, Checkbox, Dialog, Field, Input, Select, Textarea } from "../ui";
-import { EMPTY_DRAFT, FIELD_TYPES, fieldOperations, problemsOf, suggestedSlots, withOfficialSlot } from "./fieldTypes";
+import { EMPTY_DRAFT, FIELD_TYPES, fieldOperations, formulaProblem, formulaSlots, problemsOf, suggestedSlots, withFormula, withOfficialSlot } from "./fieldTypes";
+import { checkFormulas, formulaManifests } from "./formula";
 import type { FieldDraft, FieldType } from "./fieldTypes";
 
 export interface AddFieldDialogProps {
@@ -30,7 +32,13 @@ export interface AddFieldDialogProps {
   type: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called with each Change proposed: the model's, and a formula field's pipeline (DM-80). */
   onProposed: (change: Change) => void;
+  /** The space the type is read in, its Endpoints and the organization's domain: where a formula
+   * field's pipeline reads and writes (DM-80). */
+  space?: string;
+  endpoints?: Manifest[];
+  orgDomain?: string;
 }
 
 /** The official model's class of the same name, or nothing when the catalogue has none. */
@@ -42,7 +50,7 @@ async function officialModel(type: string): Promise<LinkmlModel | null> {
   return artifacts.linkml ? parseModel(artifacts.linkml) : null;
 }
 
-export function AddFieldDialog({ project, modelName, source, type, open, onOpenChange, onProposed }: AddFieldDialogProps): JSX.Element {
+export function AddFieldDialog({ project, modelName, source, type, open, onOpenChange, onProposed, space, endpoints = [], orgDomain }: AddFieldDialogProps): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
   const model = useMemo(() => parseModel(source), [source]);
@@ -100,9 +108,68 @@ export function AddFieldDialog({ project, modelName, source, type, open, onOpenC
     }
   }
 
+  /**
+   * A formula field is two Changes (DM-80): the slot with its `equals_expression`, then the class's
+   * pipeline and its two Policies, compiled over every formula of the class. Neither is proposed
+   * when the project cannot run the pipeline: no `pipelines` ServiceAccount, or no Endpoint of the
+   * space that answers by every Policy of the space (one bound by `policyRef` would ignore its new
+   * Policies).
+   */
+  async function proposeFormula() {
+    setRefusals([]);
+    const through = endpoints.find((endpoint) => !(endpoint.spec as { policyRef?: unknown }).policyRef);
+    if (!space || !orgDomain || !through) {
+      setRefusals([t("spaces.fields.formula.noEndpoint")]);
+      return;
+    }
+    setBusy(true);
+    try {
+      const account = await api.GET("/api/v1/projects/{project}/{plural}/{name}", {
+        params: { path: { project, plural: "serviceaccounts", name: "pipelines" } },
+      });
+      if (account.response.status === 404) {
+        setRefusals([t("spaces.fields.formula.noAccount")]);
+        return;
+      }
+      await unwrap(account);
+      const applied = withFormula(applyOperations(source, fieldOperations(draft, model, type)), draft.name, draft.expression);
+      if (applied.refused.length > 0) {
+        setRefusals(applied.refused.map((r) => r.reason));
+        return;
+      }
+      const answer = await writeModelSource({ project, name: modelName, source: applied.source, dryRun: false });
+      if (answer.kind !== "proposed") {
+        if (answer.kind === "refused") {
+          setRefusals([answer.problem.detail ?? answer.problem.title ?? t("spaces.fields.refusedStatus", { status: answer.status })]);
+        }
+        return;
+      }
+      onProposed(answer.change);
+      const manifests = formulaManifests(
+        { project, space, type, orgDomain, endpoint: through.metadata.name },
+        checkFormulas(formulaSlots(draft, model, type)),
+      );
+      const body = { manifests, conflictPolicy: "replace" as const };
+      try {
+        await unwrap(await api.POST("/api/v1/projects/{project}/import", { params: { path: { project }, query: { dryRun: "All" } }, body }));
+        const pipeline: unknown = await unwrap(await api.POST("/api/v1/projects/{project}/import", { params: { path: { project } }, body }));
+        if (isChange(pipeline)) onProposed(pipeline);
+        close(false);
+      } catch (error) {
+        setRefusals([t("spaces.fields.formula.pipelineRefused", { reason: error instanceof Error ? error.message : String(error) })]);
+      }
+    } catch (error) {
+      setRefusals([error instanceof Error ? error.message : String(error)]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function submit() {
     setTried(true);
-    if (Object.keys(problems).length === 0) void propose(applyOperations(source, fieldOperations(draft, model, type)));
+    if (Object.keys(problems).length > 0) return;
+    if (draft.type === "formula") void proposeFormula();
+    else void propose(applyOperations(source, fieldOperations(draft, model, type)));
   }
 
   const message = (key: string | undefined) => (key ? [t(`spaces.fields.problem.${key}`)] : undefined);
@@ -213,7 +280,25 @@ export function AddFieldDialog({ project, modelName, source, type, open, onOpenC
               <Checkbox label={t("spaces.fields.many")} checked={draft.many} onChange={(e) => set({ many: e.target.checked })} />
             </>
           ) : null}
-          <Checkbox label={t("spaces.fields.required")} checked={draft.required} onChange={(e) => set({ required: e.target.checked })} />
+          {draft.type === "formula" ? (
+            <Field
+              id={`${id}-expression`}
+              label={t("spaces.fields.formula.expression")}
+              required
+              help={t("spaces.fields.formula.help", {
+                example: "{capacity} - {available}",
+                slots: formulaSlots(draft, model, type)
+                  .filter((s) => s.name !== draft.name && s.kind === "Property")
+                  .map((s) => `{${s.name}}`)
+                  .join(", "),
+              })}
+              errors={shown.expression ? [t("spaces.fields.problem.formulaInvalid", { reason: formulaProblem(draft, model, type) ?? "" })] : undefined}
+            >
+              <Textarea id={`${id}-expression`} rows={3} value={draft.expression} spellCheck={false} className="font-mono" onChange={(e) => set({ expression: e.target.value })} />
+            </Field>
+          ) : (
+            <Checkbox label={t("spaces.fields.required")} checked={draft.required} onChange={(e) => set({ required: e.target.checked })} />
+          )}
         </section>
       </div>
     </Dialog>
