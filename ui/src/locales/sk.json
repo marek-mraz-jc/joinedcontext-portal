@@ -2677,7 +2677,9 @@
         "circle": "Kruh",
         "freehand": "Voľnou rukou"
       }
-    }
+    },
+    "openRow": "Otvoriť",
+    "rowDetail": "Podrobnosti"
   },
   "explore": {
     "title": "Prehliadať dáta",

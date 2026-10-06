@@ -2677,7 +2677,9 @@
         "circle": "Circle",
         "freehand": "Freehand"
       }
-    }
+    },
+    "openRow": "Open",
+    "rowDetail": "Details"
   },
   "explore": {
     "title": "Explore data",

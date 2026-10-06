@@ -19,6 +19,7 @@ import type { EnumOption } from "../enums";
 import { objectsOf, pointingAt, searchTargets } from "../relations";
 import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
+import { RowDetail } from "./RowDetail";
 import "./grid.css";
 
 export interface EntityGridProps extends UseEntityGridOptions {
@@ -119,6 +120,10 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const [observed, setObserved] = useState<Observed>("keep");
   const [applying, setApplying] = useState(false);
   const [history, setHistory] = useState<{ attr: string; id: string; heading: string } | null>(null);
+  // The row whose detail panel is open, by id, so a new page closes it rather than showing a row
+  // that is no longer listed (T-3097).
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const [refused, setRefused] = useState<Refusal[]>([]);
   const refusedOf = useMemo(() => new Map(refused.map((one) => [one.id, one.detail])), [refused]);
   // A refusal that names its attribute belongs on that cell too, beside the value (DM-70).
@@ -243,6 +248,23 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     if (column.attr === null && renderers?.[column.key]) {
       return renderers[column.key](cell, row);
     }
+    // Without a host's own, the identifier opens the row's detail panel (T-3097).
+    if (column.key === "id") {
+      const name = cellText(row.cells.name) || text;
+      return (
+        <button
+          type="button"
+          className="jc-grid-open"
+          aria-label={`${labels.openRow}: ${name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDetailId(row.id);
+          }}
+        >
+          {text}
+        </button>
+      );
+    }
     if (cell && !Array.isArray(cell) && renderers?.[cell.kind]) {
       return renderers[cell.kind](cell, row);
     }
@@ -360,7 +382,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     return <>{text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
+  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -395,6 +417,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const mapAttr = mapConfig?.enabled ? mapAttrOf(rows, mapConfig.attr) : null;
   const mapPosition = mapConfig?.position ?? "right";
   const activeRowId = rows[state.activeCell?.row ?? -1]?.id ?? null;
+  const detailRow = detailId === null ? undefined : rows.find((row) => row.id === detailId);
 
   // The table is the grid's one tab stop. Enter or F2 goes into the active cell's own control (its
   // input, list or picker), Escape comes back to the grid, and the active cell is kept in view.
@@ -447,6 +470,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
       <div className="jc-grid-scroll">
         <table
+          ref={tableRef}
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
           {...gridProps}
           onKeyDown={onGridKeyDown}
@@ -618,6 +642,19 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       {loading && <div className="jc-grid-loading">{labels.loading}</div>}
 
       {error && <div className="jc-grid-error">{labels.error}: {error}</div>}
+
+      {detailRow && (
+        <RowDetail
+          row={detailRow}
+          columns={columns}
+          renderValue={renderCellContent}
+          labels={{ rowDetail: labels.rowDetail, close: labels.close }}
+          onClose={() => {
+            setDetailId(null);
+            tableRef.current?.focus();
+          }}
+        />
+      )}
 
       {history && (
         <EntityHistory

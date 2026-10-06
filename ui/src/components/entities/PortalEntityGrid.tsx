@@ -132,6 +132,9 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     relationRemove: t("entityGrid.relationRemove"),
     relationFailed: t("entityGrid.relationFailed"),
     relationMore: t("entityGrid.relationMore"),
+    openRow: t("entityGrid.openRow"),
+    rowDetail: t("entityGrid.rowDetail"),
+    close: t("entityGrid.close"),
   };
 }
 

@@ -2677,7 +2677,9 @@
         "circle": "Kruh",
         "freehand": "Volnou rukou"
       }
-    }
+    },
+    "openRow": "Otevřít",
+    "rowDetail": "Podrobnosti"
   },
   "explore": {
     "title": "Procházet data",

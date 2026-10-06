@@ -182,6 +182,40 @@ describe("EntityGrid", () => {
     expect(screen.getByText("Kallio").closest("[role=row]")).toHaveAttribute("aria-rowindex", "3");
   });
 
+  // T-3097: the identifier opens the row whole, every attribute with the grid's own editors, and
+  // Escape goes back to the grid.
+  it("opens a row's detail panel from its identifier, edits there, and closes back to the grid", async () => {
+    const two = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "name", label: "Name" },
+        { attr: "availableBikeNumber", label: "Bikes" },
+      ],
+      pageSize: 10,
+      mode: "edit",
+      editableAttrs: ["availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(<EntityGrid config={two} source={source} />);
+    await screen.findByText("Kamppi");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open: Kamppi" }));
+    const panel = screen.getByRole("complementary", { name: "Details: Kamppi" });
+    expect(screen.getByRole("heading", { name: "Details: Kamppi" })).toHaveFocus();
+    // The grid's columns, then what the entity carries beyond them.
+    const terms = Array.from(panel.querySelectorAll("dt")).map((dt) => dt.textContent);
+    expect(terms).toEqual(["Name", "Bikes", "location", "refDevice"]);
+
+    const bikes = panel.querySelector<HTMLInputElement>("dd input")!;
+    fireEvent.change(bikes, { target: { value: "7" } });
+    expect(screen.getByText("1 not applied yet")).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole("heading", { name: "Details: Kamppi" }), { key: "Escape" });
+    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(screen.getByRole("grid")).toHaveFocus();
+  });
+
   it("has role grid with aria-rowcount and headers with aria-colindex", async () => {
     render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
     await waitFor(() => {

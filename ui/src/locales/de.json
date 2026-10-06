@@ -2677,7 +2677,9 @@
         "circle": "Kreis",
         "freehand": "Freihand"
       }
-    }
+    },
+    "openRow": "Öffnen",
+    "rowDetail": "Details"
   },
   "explore": {
     "title": "Daten erkunden",

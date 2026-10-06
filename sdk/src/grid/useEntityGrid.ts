@@ -82,6 +82,10 @@ export interface GridLabels {
   relationFailed: string;
   /** Said after a computed end's list when the page's read reached its limit. */
   relationMore: string;
+  /** The row's detail panel (T-3097): the identifier opens it, the panel's name, and closing it. */
+  openRow: string;
+  rowDetail: string;
+  close: string;
 }
 
 /**
@@ -147,6 +151,9 @@ export const DEFAULT_LABELS: GridLabels = {
   relationRemove: "Remove",
   relationFailed: "The search failed",
   relationMore: "and more",
+  openRow: "Open",
+  rowDetail: "Details",
+  close: "Close",
 };
 
 export interface VisibleColumn {
