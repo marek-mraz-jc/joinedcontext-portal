@@ -2476,10 +2476,18 @@ export interface components {
         };
         /** @description Where an application's build is, and whether this person may ask for another (AP-103). */
         AppBuild: {
+            /**
+             * @description The project's configuration repository, the one its Changes merge into; `null` for a
+             *     caller the forge does not let read it (AP-103, PF-87, T-3039).
+             */
+            configurationUrl?: string | null;
             /** @description The package of `status.build.commit`, `null` while the App has no build. */
             packageUrl?: string | null;
             rebuild: components["schemas"]["Rebuild"];
-            /** @description The repository's page; `null` for an App not built on the forge. */
+            /**
+             * @description The App's own repository (its whole source, T-3039); `null` for an App not built on the
+             *     forge.
+             */
             repositoryUrl?: string | null;
             run?: null | components["schemas"]["WorkflowRun"];
         };
@@ -3772,6 +3780,12 @@ export interface components {
         };
         /** @description One page of the application as the frame rendered it. */
         ObservedPage: {
+            /**
+             * Format: int32
+             * @description How many level-1 headings the page shows (SDK-28, T-3060); an SDK older than T-3060
+             *     counts none and sends nothing.
+             */
+            h1?: number | null;
             label: string;
             /** @description The row counts of its tables. */
             rows?: number[];

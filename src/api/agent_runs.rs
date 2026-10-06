@@ -58,6 +58,8 @@ const MAX_OBSERVED_PAGES: usize = 20;
 const MAX_PAGE_LABEL_CHARS: usize = 120;
 const MAX_PAGE_TEXT_CHARS: usize = 20_000;
 const MAX_OBSERVED_ENTRIES: usize = 50;
+/// The most level-1 headings one observed page may count.
+const MAX_OBSERVED_H1: u32 = 50;
 /// How long the workspace's inbox call waits for something new before answering empty. Short
 /// enough to sit inside every proxy's read timeout, long enough that an idle agent is not a
 /// request per second.
@@ -294,6 +296,10 @@ pub struct ObservedPage {
     /// The row counts of its tables.
     #[serde(default)]
     pub rows: Vec<u32>,
+    /// How many level-1 headings the page shows (SDK-28, T-3060); an SDK older than T-3060
+    /// counts none and sends nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub h1: Option<u32>,
 }
 
 /// A request of the frame the bridge answered with an error status.
@@ -1458,6 +1464,9 @@ fn observation_out_of_bounds(request: &PreviewObservationRequest) -> Option<Stri
             return Some(format!(
                 "pages[{index}].rows holds more than {MAX_OBSERVED_ENTRIES} counts"
             ));
+        }
+        if page.h1.is_some_and(|h1| h1 > MAX_OBSERVED_H1) {
+            return Some(format!("pages[{index}].h1 is more than {MAX_OBSERVED_H1}"));
         }
     }
     if request.failed_requests.len() > MAX_OBSERVED_ENTRIES {

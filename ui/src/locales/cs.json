@@ -1598,7 +1598,12 @@
       "app": "Aplikace",
       "pickApp": "Vyberte aplikaci",
       "needAppRole": "Nejprve vyberte projekt, aplikaci a jednu z jejích rolí.",
-      "addAppRole": "Dát roli aplikace"
+      "addAppRole": "Dát roli aplikace",
+      "ckanTitle": "Katalogy, které skupina spravuje",
+      "ckanLead": "Katalogy CKAN, které přiřazení skupiny {group} dovolují jejím členům měnit.",
+      "noCkan": "Tato skupina nespravuje žádný katalog.",
+      "ckanInstance": "{project} / {name}",
+      "ckanVia": "přes roli {role}"
     }
   },
   "flows": {
@@ -2029,7 +2034,9 @@
     "previewAction": "Otevřít náhled",
     "publishAction": "Publikovat",
     "openAction": "Otevřít aplikaci",
-    "history": "Zdroj a historie",
+    "history": "Manifest a historie",
+    "sourceCode": "Zdrojový kód",
+    "projectConfiguration": "Konfigurace projektu",
     "back": "Zpět na aplikace",
     "preview": {
       "title": "Náhled aplikace {name}",
@@ -2326,7 +2333,42 @@
         "onReconcile": "obnovovaná při každém použití konfigurace"
       }
     },
-    "statusFailed": "Stav katalogů tohoto projektu se nepodařilo přečíst, takže níže uvedené může být neúplné: {reason}"
+    "statusFailed": "Stav katalogů tohoto projektu se nepodařilo přečíst, takže níže uvedené může být neúplné: {reason}",
+    "access": {
+      "sectionTitle": "Kdo spravuje který katalog",
+      "title": "Přístup ke katalogu {instance}",
+      "lead": "Kdo smí měnit nastavení tohoto katalogu. Administrátor vždy; kdokoli jiný přes vlastní roli katalogu, kterou zde dáte skupině nebo osobě. Každý krok je červená změna, kterou schvaluje administrátor.",
+      "denied": "Kdo spravuje katalog, mění jen administrátor, který smí schvalovat přiřazení rolí.",
+      "nobody": "Toto právo zatím nikdo nemá.",
+      "holders": "Kdo spravuje {instance}",
+      "group": "Skupina {name}",
+      "person": "{name}",
+      "rightOwn": "spravuje tento katalog",
+      "rightVia": "přes roli {role}",
+      "binding": "přiřazení {name}",
+      "removeLast": "posledního správce {name} katalogu {instance}",
+      "remove": "Odebrat {name} z {instance}",
+      "removeShort": "Odebrat",
+      "add": "Dát {instance} skupině nebo osobě",
+      "kind": "Komu",
+      "kindGroup": "Skupině",
+      "kindPerson": "Osobě",
+      "whichGroup": "Skupina",
+      "pickGroup": "Vyberte skupinu",
+      "email": "E-mail",
+      "addShort": "Dát právo",
+      "attached": "Endpointy, které sem publikují",
+      "noneAttached": "Do tohoto katalogu nepublikuje žádný endpoint.",
+      "refused": {
+        "noInstance": "Nejprve vyberte katalog.",
+        "unknownInstance": "Projekt nemá katalog {instance}; obnovte stránku.",
+        "nameTooLong": "Názvy projektu a katalogu jsou dohromady na název role příliš dlouhé (63 znaků); katalog potřebuje kratší název.",
+        "noSubject": "Nejprve vyberte skupinu nebo napište e-mail.",
+        "already": "Katalog {instance} už spravují.",
+        "absent": "Katalog {instance} nespravují přes jeho roli.",
+        "badEmail": "Napište celou e-mailovou adresu, například jana@example.org."
+      }
+    }
   },
   "mappings": {
     "pair": "Modely",
@@ -2439,7 +2481,17 @@
       "project": "Projekt",
       "space": "Kontextový prostor"
     },
-    "emptyHint": "Toto jsou všechny endpointy organizace, bez ohledu na to, který projekt je zveřejňuje. Zveřejněte jeden z kontextového prostoru a objeví se zde pro projekty, které povolíte."
+    "emptyHint": "Toto jsou všechny endpointy organizace, bez ohledu na to, který projekt je zveřejňuje. Zveřejněte jeden z kontextového prostoru a objeví se zde pro projekty, které povolíte.",
+    "edit": "Upravit {project}/{name}",
+    "editShort": "Upravit",
+    "ckan": {
+      "title": "Katalogy CKAN",
+      "lead": "Všechny katalogy všech projektů. Otevřete katalog a uvidíte, kdo ho spravuje, a můžete ho dát skupině nebo osobě.",
+      "empty": "Žádný projekt nemá katalog CKAN.",
+      "instance": "{project} / {name}",
+      "show": "Zobrazit všechny katalogy",
+      "hide": "Skrýt katalogy"
+    }
   },
   "projects": {
     "loading": "Načítám projekty…",

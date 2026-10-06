@@ -665,6 +665,7 @@ mod pass_edges {
             host: "hel.example".into(),
             apex: "hel.example".into(),
             gateway_url: None,
+            service_url: None,
             namespace: "jc".into(),
             org_domain: "hel.fi".into(),
             apisix_namespace: "apisix".into(),

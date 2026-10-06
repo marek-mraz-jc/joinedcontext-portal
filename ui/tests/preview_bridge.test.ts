@@ -208,7 +208,7 @@ describe("preview observations (SDK-27)", () => {
     kind: "jc-observation",
     version: 2,
     pages: [
-      { label: "Overview", text: "Stations 5", rows: [] },
+      { label: "Overview", text: "Stations 5", rows: [], h1: 1 },
       { label: "Stations", text: "Kaivopuisto 7", rows: [5] },
     ],
     failedRequests: [{ path: "/functions/summary", status: 500 }],
@@ -245,6 +245,9 @@ describe("preview observations (SDK-27)", () => {
       { ...observation, pages: [{ label: "A", text: "x".repeat(20_001), rows: [] }] },
       { ...observation, pages: [{ label: "A", text: "", rows: Array.from({ length: 51 }, () => 1) }] },
       { ...observation, pages: [{ label: "A", text: "", rows: [-1] }] },
+      { ...observation, pages: [{ label: "A", text: "", rows: [], h1: 51 }] },
+      { ...observation, pages: [{ label: "A", text: "", rows: [], h1: 1.5 }] },
+      { ...observation, pages: [{ label: "A", text: "", rows: [], h1: "1" }] },
       { ...observation, failedRequests: [{ path: "/functions/summary", status: 302 }] },
       { ...observation, failedRequests: [{ path: "x".repeat(257), status: 500 }] },
       { ...observation, failedRequests: Array.from({ length: 51 }, () => observation.failedRequests[0]) },

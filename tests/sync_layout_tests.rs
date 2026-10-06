@@ -302,6 +302,7 @@ fn syncer_on_cluster(server: &MockServer, cluster: &MockServer) -> (Syncer, Arc<
         host: "city.example".into(),
         apex: "city.example".into(),
         gateway_url: None,
+        service_url: None,
         namespace: "jc".into(),
         org_domain: "banskabystrica.sk".into(),
         apisix_namespace: "apisix".into(),

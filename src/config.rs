@@ -513,10 +513,45 @@ fn app_settings(
         .unwrap_or_else(|| host.strip_prefix("portal.").unwrap_or(&host).to_owned());
     // Validated with the rest of the configuration where the Portal reads it itself.
     let gateway_url = set("JC_PORTAL_GATEWAY_URL").map(|url| url.trim_end_matches('/').to_owned());
+    // The Portal's own public listener on its Service in the cluster, `http://portal.{namespace}
+    // .svc.cluster.local:8080`: where an App pod asks `JC_ME_URL` for its caller's roles, because
+    // the public host is outside the pod's NetworkPolicy (AP-109, AP-134). Without it no
+    // pod-backed App is rendered, rather than one that reads every person as role-less.
+    let service_url = match set("JC_PORTAL_SERVICE_URL") {
+        None => None,
+        Some(value) => {
+            let parsed: Url = value
+                .parse()
+                .map_err(|e: url::ParseError| ConfigError::Invalid {
+                    var: "JC_PORTAL_SERVICE_URL",
+                    reason: e.to_string(),
+                })?;
+            let in_cluster = matches!(parsed.scheme(), "http" | "https")
+                && parsed.path() == "/"
+                && parsed.query().is_none()
+                && parsed.host_str().is_some_and(|host| {
+                    host.split('.')
+                        .nth(1)
+                        .is_some_and(crate::resource::is_dns1123)
+                });
+            if !in_cluster {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_SERVICE_URL",
+                    reason: format!(
+                        "'{value}' is not the Portal's Service in the cluster, such as \
+                         http://portal.portal.svc.cluster.local:8080 (a scheme, \
+                         {{service}}.{{namespace}} and a port, no path)"
+                    ),
+                });
+            }
+            Some(value.trim_end_matches('/').to_owned())
+        }
+    };
     Ok(Some(crate::apps::reconciler::Settings {
         host,
         apex,
         gateway_url,
+        service_url,
         namespace,
         org_domain,
         apisix_namespace,
@@ -1831,6 +1866,42 @@ mod tests {
             })
             .expect("a Portal without apps is still a Portal");
             assert!(config.app_settings.is_none(), "{missing} was not needed");
+        }
+    }
+
+    /// AP-109, AP-134 (T-3037): an App pod asks its caller's roles on the Portal's Service in the
+    /// cluster; anything that does not name a `{service}.{namespace}` host with no path stops the
+    /// Portal at start, since the pod's NetworkPolicy would admit some other address.
+    #[test]
+    fn app_settings_take_the_portal_service_only_as_an_in_cluster_address() {
+        let with = |value: &'static str| {
+            move |k: &str| match k {
+                "JC_PORTAL_PUBLIC_URL" => Some("https://bb.example.sk".to_string()),
+                "JC_PORTAL_APPS_NAMESPACE" => Some("joinedcontext".to_string()),
+                "JC_PORTAL_ORG_DOMAIN" => Some("banskabystrica.sk".to_string()),
+                "JC_PORTAL_SERVICE_URL" => Some(value.to_string()),
+                _ => None,
+            }
+        };
+        let settings = Config::from_vars(with("http://portal.portal.svc.cluster.local:8080/"))
+            .expect("an in-cluster Service")
+            .app_settings
+            .expect("every part is there");
+        assert_eq!(
+            settings.service_url.as_deref(),
+            Some("http://portal.portal.svc.cluster.local:8080")
+        );
+        for refused in [
+            "not a url",
+            "ftp://portal.portal.svc.cluster.local:8080",
+            "http://portal:8080",
+            "http://portal.portal.svc.cluster.local:8080/api",
+        ] {
+            let err = Config::from_vars(with(refused)).expect_err(refused);
+            assert!(
+                err.to_string().contains("JC_PORTAL_SERVICE_URL"),
+                "{refused}: {err}"
+            );
         }
     }
 

@@ -64,6 +64,9 @@ pub struct Settings {
     /// The context gateway's Service in the cluster (`JC_PORTAL_GATEWAY_URL`), the only address
     /// an App pod reaches its endpoint on (AP-134). `None`: no pod-backed App runs.
     pub gateway_url: Option<String>,
+    /// The Portal's own Service in the cluster (`JC_PORTAL_SERVICE_URL`), where an App pod asks
+    /// `JC_ME_URL` for its caller's roles (AP-109, AP-134). `None`: no pod-backed App runs.
+    pub service_url: Option<String>,
     /// The Portal's own namespace: where the pull Secret is kept and the Portal's
     /// ServiceAccount lives. Apps ran here before each project had its own (AP-116), so it is
     /// also where their old objects are removed from.
@@ -90,16 +93,33 @@ pub struct Settings {
     pub basemap_base: Option<String>,
 }
 
-/// The context gateway as an App pod's NetworkPolicy names it: its namespace, from the
-/// Service's in-cluster host `context-gateway.{namespace}.svc…`, and its port.
+/// A platform Service an App pod calls, as its NetworkPolicy names it: the namespace, from the
+/// Service's in-cluster host `{service}.{namespace}.svc…`, and the port.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Gateway {
+pub struct ClusterService {
     pub namespace: String,
     pub port: u16,
 }
 
+impl ClusterService {
+    /// `None` for anything but `http(s)://{service}.{namespace}…[:port]`.
+    fn parse(url: Option<&str>) -> Option<Self> {
+        let url: url::Url = url?.parse().ok()?;
+        let namespace = url
+            .host_str()?
+            .split('.')
+            .nth(1)
+            .filter(|namespace| crate::resource::is_dns1123(namespace))?
+            .to_owned();
+        let port = url.port_or_known_default()?;
+        Some(Self { namespace, port })
+    }
+}
+
 /// The label the gateway chart puts on its pods.
 const GATEWAY_POD: &str = "context-gateway-gateway";
+/// The label the Portal chart puts on its pods.
+const PORTAL_POD: &str = "portal-portal";
 
 /// The networks a declared destination may never reach, whatever its CIDR says (AP-134): the
 /// private ranges, carrier-grade NAT and link-local (the cloud metadata address), and their IPv6
@@ -159,20 +179,14 @@ fn egress_block(cidr: &str) -> Option<Value> {
 
 impl Settings {
     /// The gateway an App pod calls, from [`Settings::gateway_url`] (AP-134).
-    pub fn gateway(&self) -> Result<Gateway, RenderError> {
-        let url: url::Url = self
-            .gateway_url
-            .as_deref()
-            .and_then(|url| url.parse().ok())
-            .ok_or(RenderError::NoGateway)?;
-        let namespace = url
-            .host_str()
-            .and_then(|host| host.split('.').nth(1))
-            .filter(|namespace| crate::resource::is_dns1123(namespace))
-            .ok_or(RenderError::NoGateway)?
-            .to_owned();
-        let port = url.port_or_known_default().ok_or(RenderError::NoGateway)?;
-        Ok(Gateway { namespace, port })
+    pub fn gateway(&self) -> Result<ClusterService, RenderError> {
+        ClusterService::parse(self.gateway_url.as_deref()).ok_or(RenderError::NoGateway)
+    }
+
+    /// The Portal an App pod asks for its caller's roles, from [`Settings::service_url`]
+    /// (AP-109, AP-134).
+    pub fn portal_service(&self) -> Result<ClusterService, RenderError> {
+        ClusterService::parse(self.service_url.as_deref()).ok_or(RenderError::NoPortalService)
     }
 
     /// `{release}-{project}-apps`, the namespace a project's pod-backed Apps run in (AP-116).
@@ -304,6 +318,10 @@ pub enum RenderError {
     /// inside the cluster (AP-134).
     #[error("no context gateway is configured (JC_PORTAL_GATEWAY_URL, http://context-gateway.<namespace>.svc.cluster.local:8080), so a pod-backed App has no endpoint to call (AP-134)")]
     NoGateway,
+    /// No Service of the Portal is configured, so the pod has no address inside the cluster to
+    /// ask its caller's roles on: the public host is outside its NetworkPolicy (AP-109, AP-134).
+    #[error("no Portal Service is configured (JC_PORTAL_SERVICE_URL, http://portal.<namespace>.svc.cluster.local:8080), so a pod-backed App cannot learn its caller's roles (AP-109, AP-134)")]
+    NoPortalService,
 }
 
 /// Compiles one `App` manifest into its endpoint, its policies and, unless it is `static`, the
@@ -524,6 +542,7 @@ fn render_workload(
 
     let namespace = settings.apps_namespace(project)?;
     let gateway = settings.gateway()?;
+    let portal = settings.portal_service()?;
     let workload_name = format!("app-{name}");
     let labels = json!({
         "app.kubernetes.io/name": workload_name,
@@ -609,9 +628,9 @@ fn render_workload(
             &namespace,
             settings,
             &gateway,
+            &portal,
             &spec.egress,
             &labels,
-            &selector,
         ),
         secret,
     })
@@ -635,8 +654,8 @@ fn object_meta(name: &str, namespace: &str, labels: &Value) -> Value {
 /// - `JC_BASE_PATH` — the path it is served under, `/`: the App is the whole of its host (AP-133).
 /// - `JC_ENDPOINT_URL` — the one Endpoint it may read, on the gateway's Service in the cluster
 ///   (AP-134).
-/// - `JC_ME_URL` — the Portal route that answers the caller's roles in this App, called with the
-///   edge's `X-Access-Token` as the bearer (AP-109).
+/// - `JC_ME_URL` — the Portal route that answers the caller's roles in this App, on the Portal's
+///   Service in the cluster, called with the edge's `X-Access-Token` as the bearer (AP-109, AP-134).
 /// - `JC_ANONYMOUS` — set to `true` for a public app, so its backend treats an absent
 ///   `X-Access-Token` as normal rather than as a bug.
 /// - `JC_APP_CONFIG` — the `#jc-config` object the static host writes for a `ui` App, without
@@ -655,6 +674,7 @@ fn app_container(
 ) -> Value {
     // `render` refuses a pod-backed App before this when there is no gateway to name.
     let gateway = settings.gateway_url.as_deref().unwrap_or_default();
+    let portal = settings.service_url.as_deref().unwrap_or_default();
     let mut env = vec![
         json!({ "name": "JC_BIND_ADDRESS", "value": format!("{APP_ADDRESS}:{APP_PORT}") }),
         // The App is the whole of its own host (AP-133).
@@ -666,12 +686,11 @@ fn app_container(
             "name": "JC_ENDPOINT_URL",
             "value": format!("{gateway}/api/endpoint/{}/", slug.as_str()),
         }),
+        // The Portal's Service in the cluster, for the same reason: the public host is an
+        // address the pod's NetworkPolicy never names, so every caller would read as role-less.
         json!({
             "name": "JC_ME_URL",
-            "value": format!(
-                "https://{}/api/v1/projects/{project}/apps/{name}/me",
-                settings.host
-            ),
+            "value": format!("{portal}/api/v1/projects/{project}/apps/{name}/me"),
         }),
         json!({ "name": "JC_APP_CONFIG", "value": config.to_string() }),
     ];
@@ -711,16 +730,18 @@ fn app_container(
 }
 
 /// Default-deny in both directions: APISIX in; out, DNS, the Linkerd control plane, the
-/// gateway's pods and the destinations `spec.egress` declares, nothing else (AP-134).
+/// gateway's pods, the Portal's pods and the destinations `spec.egress` declares, nothing else
+/// (AP-134).
 fn network_policy(
     name: &str,
     namespace: &str,
     settings: &Settings,
-    gateway: &Gateway,
+    gateway: &ClusterService,
+    portal: &ClusterService,
     declared: &[jc_core::kinds::AppEgress],
     labels: &Value,
-    selector: &Value,
 ) -> Value {
+    let selector = json!({ "app.kubernetes.io/name": name });
     let mut egress = vec![
         // The Linkerd control plane (identity, destination, policy): without it the proxy never
         // learns its inbound policy and the pod never starts.
@@ -752,6 +773,18 @@ fn network_policy(
             }],
             "ports": [
                 { "protocol": "TCP", "port": gateway.port },
+                { "protocol": "TCP", "port": LINKERD_INBOUND },
+            ],
+        }),
+        // `JC_ME_URL`, the caller's roles in this App (AP-109), on the Portal's Service: its pods
+        // on that port and the Linkerd inbound port, nothing else of the Portal.
+        json!({
+            "to": [{
+                "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": portal.namespace } },
+                "podSelector": { "matchLabels": { "app.kubernetes.io/name": PORTAL_POD } },
+            }],
+            "ports": [
+                { "protocol": "TCP", "port": portal.port },
                 { "protocol": "TCP", "port": LINKERD_INBOUND },
             ],
         }),

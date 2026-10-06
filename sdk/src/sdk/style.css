@@ -11,3 +11,9 @@
   font-weight: 100 900;
   src: url("./fonts/inter-latin-wght-normal.woff2") format("woff2");
 }
+
+/* MapLibre's attribution is a link inside a line of text, told apart by colour alone
+   (axe link-in-text-block, T-3045); the element is the library's DOM, so it is dressed here. */
+.maplibregl-ctrl-attrib a {
+  text-decoration: underline;
+}

@@ -84,8 +84,9 @@ const READ_KINDS: [&str; 28] = [
     "Dashboard",
     "Layer",
 ];
-/// What the steward proposes and approves and the approver approves (helsinki-role-steward.yaml).
-const STEWARD_KINDS: [&str; 25] = [
+/// What the steward proposes and approves and the approver approves (helsinki-role-steward.yaml):
+/// every project kind but `CkanInstance`, which the administrator hands out per instance (PF-107).
+const STEWARD_KINDS: [&str; 24] = [
     "ContextSpace",
     "DataModel",
     "Mapping",
@@ -99,7 +100,6 @@ const STEWARD_KINDS: [&str; 25] = [
     "Pipeline",
     "DataSource",
     "App",
-    "CkanInstance",
     "Blueprint",
     "DataSpaceParticipant",
     "DataOffer",
@@ -555,4 +555,75 @@ async fn every_role_meets_every_route_as_the_table_says() {
         misses.len(),
         misses.join("\n  ")
     );
+}
+
+/// PF-107 (T-3046): a `CkanInstance` is changed by the organization administrator and by whoever
+/// holds that instance's own role, on that instance alone; the steward, the approver and the
+/// editor, whose roles name every other project kind, are refused, and so is the holder of one
+/// instance's role on another instance.
+#[tokio::test]
+async fn a_ckan_instance_is_changed_by_the_administrator_and_its_own_role_alone() {
+    let state = fixture().await;
+    let own = format!("ckan-admin-{PROJECT}-{EXISTING}");
+    state
+        .mirror
+        .upsert(envelope("CkanInstance", "second", PROJECT, json!({})));
+    state.mirror.upsert(envelope(
+        "Role",
+        &own,
+        ORG_NAMESPACE,
+        json!({ "rules": [{
+            "kinds": ["CkanInstance"],
+            "verbs": ["propose", "approve", "delete"],
+            "constraints": [{ "field": "metadata.name", "in": [EXISTING] }],
+        }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        &own,
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "ckan-admin@hel.fi" }], "role": own, "scope": { "project": PROJECT } }),
+    ));
+    let manifest = |name: &str| {
+        json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "CkanInstance",
+            "metadata": { "name": name, "namespace": PROJECT },
+            "spec": { "url": "https://data.example.org", "apiTokenRef": { "name": "ckan-token", "key": "apiToken" } },
+        })
+    };
+    let mut misses = Vec::new();
+    for (instance, who, expect) in [
+        (EXISTING, "org-admin", "allow"),
+        (EXISTING, "ckan-admin", "allow"),
+        ("second", "org-admin", "allow"),
+        ("second", "ckan-admin", "403"),
+        (EXISTING, "steward", "403"),
+        (EXISTING, "approver", "403"),
+        (EXISTING, "editor", "403"),
+        (EXISTING, "viewer", "403"),
+    ] {
+        for (method, query) in [
+            ("PUT", "dryRun=All".to_owned()),
+            ("DELETE", format!("confirm={instance}")),
+        ] {
+            let row: Row = serde_json::from_value(json!({
+                "route": format!("{method} /projects/{{project}}/ckaninstances/{{name}}"),
+                "rule": "project-verb:propose:CkanInstance",
+                "expect": [],
+                "body": manifest(instance),
+                "query": query,
+                "values": { "name": instance },
+            }))
+            .expect("a row");
+            let (_, path) = split(&row.route);
+            let status = call(&state, who, method, path, &row).await;
+            if !holds(expect, status, false) {
+                misses.push(format!(
+                    "{method} {instance} as {who}: expected {expect}, answered {status}"
+                ));
+            }
+        }
+    }
+    assert!(misses.is_empty(), "{}", misses.join("\n"));
 }

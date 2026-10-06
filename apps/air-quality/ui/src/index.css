@@ -157,3 +157,9 @@ button {
   fill: currentColor;
   opacity: 0.7;
 }
+
+/* MapLibre's attribution is a link inside a line of text, told apart by colour alone
+   (axe link-in-text-block, T-3045); the element is the library's DOM, so it is dressed here. */
+.maplibregl-ctrl-attrib a {
+  text-decoration: underline;
+}
