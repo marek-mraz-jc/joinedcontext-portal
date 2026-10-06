@@ -41,7 +41,8 @@
       "here": "Prihlásiť sa radšej tu",
       "close": "Teraz nie",
       "notYet": "Ešte nie ste prihlásení. Dokončite prihlásenie na druhej karte a potom pokračujte."
-    }
+    },
+    "listHidden": "Tento zoznam vám v {project} nie je prístupný. Udeliť ho môže ten, kto projekt spravuje."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
