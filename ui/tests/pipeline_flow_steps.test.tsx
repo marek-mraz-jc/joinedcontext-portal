@@ -409,6 +409,20 @@ describe("the canvas and the step's block", () => {
     );
   });
 
+  it("says at the compute node that only a Bloblang step runs today", async () => {
+    render(<Studio initial={{ ...withCompute, compute: { kind: "wasm", module: "m", function: "f" } }} seen={vi.fn()} />);
+    await userEvent.click(screen.getByTestId("flow-node-compute"));
+    expect(screen.getByTestId("flow-compute-not-run")).toHaveTextContent(
+      "The platform does not run a step of this kind yet (Compute module (WebAssembly))",
+    );
+  });
+
+  it("says nothing of the sort for a Bloblang step", async () => {
+    render(<Studio initial={withCompute} seen={vi.fn()} />);
+    await userEvent.click(screen.getByTestId("flow-node-compute"));
+    expect(screen.queryByTestId("flow-compute-not-run")).not.toBeInTheDocument();
+  });
+
   it("shows a second compute step as it is written and removes it from its own button", async () => {
     const seen = vi.fn();
     const initial: PipelineForm = {

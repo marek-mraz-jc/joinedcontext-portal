@@ -1150,6 +1150,7 @@
       "mappingRefHint": "Ein Mapping dieses Projekts; der Schritt wendet es auf jeden Datensatz an.",
       "moduleHint": "Pfad oder Paket des Moduls, das der Schritt ausführt.",
       "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft.",
+      "computeNotRun": "Die Plattform führt einen Schritt dieser Art noch nicht aus ({kind}): Die Pipeline wird angenommen und bleibt Pending, bis sie es tut. Ein Bloblang-Schritt läuft heute.",
       "live": "Live-Zählungen des laufenden Streams seit dem Start seines Runners; ein Test zeigt stattdessen eine Stichprobe.",
       "liveErrors": "{count, plural, one {# Fehler} other {# Fehler}} seit dem Start des Runners"
     },
