@@ -30,6 +30,7 @@ import { Alert, Button, buttonClass, PageHeader, recordCard, safeHref } from "..
 import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
+type AppBuild = components["schemas"]["AppBuild"];
 
 interface DataNeed {
   contextSpaceRef?: string | { name?: string };
@@ -525,6 +526,25 @@ function AppCardLink({ project, app, children }: { project: string; app: Manifes
   );
 }
 
+/**
+ * An App's links into the forge, in the order its card menu lists them (AP-103, T-3039): its
+ * whole source, the project's configuration, its manifest's history, the newest build run and
+ * the package. Each one is there only when the platform has the address for this person.
+ */
+export function forgeLinks(app: Manifest, build: AppBuild | undefined, t: TFunction): RowAction[] {
+  const links: [string, string, string | null | undefined][] = [
+    ["sourceCode", t("apps.sourceCode"), build?.repositoryUrl],
+    ["configuration", t("apps.projectConfiguration"), build?.configurationUrl],
+    ["source", t("apps.history"), app.status?.sourceUrl],
+    ["run", t("apps.latestRun"), build?.run?.url],
+    ["package", t("apps.package"), build?.packageUrl],
+  ];
+  return links.flatMap(([key, label, url]) => {
+    const href = safeHref(url);
+    return href ? [{ key, label, href }] : [];
+  });
+}
+
 /** The tile's icon: every application gets the same mark until a manifest carries its own. */
 function AppIcon(): JSX.Element {
   return (
@@ -669,15 +689,10 @@ function AppCardActions({
     },
   ];
   // AP-24: every iteration with the agent is a commit, and the prompt history lives with the
-  // source; the forge shows it, its runs and its packages (AP-103). Listed only where they exist.
-  const source = safeHref(app.status?.sourceUrl);
-  const runUrl = safeHref(run?.url);
-  const packageUrl = safeHref(build.data?.packageUrl ?? undefined);
-  const forgeActions: RowAction[] = [
-    ...(source ? [{ key: "source", label: t("apps.history"), href: source }] : []),
-    ...(runUrl ? [{ key: "run", label: t("apps.latestRun"), href: runUrl }] : []),
-    ...(packageUrl ? [{ key: "package", label: t("apps.package"), href: packageUrl }] : []),
-  ];
+  // source; the forge shows it, its runs and its packages (AP-103). The App's whole source and
+  // the project's configuration come as the API reads them for this person (T-3039): a link
+  // the forge would refuse them is not offered. Listed only where they exist.
+  const forgeActions: RowAction[] = forgeLinks(app, build.data, t);
   // The App's page (settings, versions, build) now that a click on the card opens the App (T-3038).
   const details: RowAction = {
     key: "details",

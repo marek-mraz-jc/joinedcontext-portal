@@ -231,6 +231,8 @@ async fn an_app_not_built_on_the_forge_has_no_links_and_no_rebuild() {
     assert_eq!(build["repositoryUrl"], Value::Null);
     assert_eq!(build["run"], Value::Null);
     assert_eq!(build["packageUrl"], Value::Null);
+    // jana is bound to the project only, so layout 1's organization repository is not hers.
+    assert_eq!(build["configurationUrl"], Value::Null);
     assert_eq!(build["rebuild"]["allowed"], false);
     assert!(build["rebuild"]["reason"]
         .as_str()
@@ -310,5 +312,81 @@ async fn a_refused_dispatch_says_the_forges_reason_and_no_run_is_no_error() {
         refused.text.contains("Actions are disabled"),
         "{}",
         refused.text
+    );
+}
+
+const BUILD: &str = "/api/v1/projects/helsinki/apps/bikes/build";
+
+fn login(gitea: &MockServer, target: &str) -> Value {
+    json!(format!(
+        "{}/user/oauth2/keycloak?redirect_to={target}",
+        gitea.uri()
+    ))
+}
+
+/// T-3039, PF-87: in layout 1 the configuration repository is the organization's, which the
+/// forge reads to a person bound at the organization and to nobody bound only to the project;
+/// the App's own repository is read by every signed-in person who may read the App (T-3030).
+#[tokio::test]
+async fn in_layout_1_the_configuration_link_is_for_a_person_bound_at_the_organization() {
+    let gitea = forge_with_a_run().await;
+    let state = state_with(&gitea, true);
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "olga-app-reader",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "user": "olga@hel.fi" }],
+            "role": "app-reader",
+            "scope": { "organization": "hel" },
+        }),
+    ));
+
+    let jana = body(&send(&state, person("jana"), "GET", BUILD, None).await.text);
+    assert_eq!(jana["configurationUrl"], Value::Null);
+    assert_eq!(
+        jana["repositoryUrl"],
+        login(&gitea, "%2Ftest-owner%2Fhelsinki_bikes")
+    );
+
+    let olga = body(&send(&state, person("olga"), "GET", BUILD, None).await.text);
+    assert_eq!(
+        olga["configurationUrl"],
+        login(&gitea, "%2Ftest-owner%2Ftest-repo")
+    );
+    assert_eq!(
+        olga["repositoryUrl"],
+        login(&gitea, "%2Ftest-owner%2Fhelsinki_bikes")
+    );
+}
+
+/// T-3039, PF-87, CC-87: in layout 2 the configuration link is the project's own repository,
+/// for every person the project's bindings place in its readers, a read-only one included; the
+/// address follows the platform's record of the repository, so a renamed one moves with it.
+#[tokio::test]
+async fn in_layout_2_the_configuration_link_is_the_projects_own_repository_for_its_readers() {
+    let gitea = forge_with_a_run().await;
+    let state = state_with(&gitea, true);
+    state.mirror.set_layout(2);
+    state
+        .mirror
+        .set_repositories([("helsinki".to_owned(), "helsinki".to_owned())].into());
+
+    for who in ["jana", "vera"] {
+        let build = body(&send(&state, person(who), "GET", BUILD, None).await.text);
+        assert_eq!(
+            build["configurationUrl"],
+            login(&gitea, "%2Ftest-owner%2Fhelsinki"),
+            "{who}"
+        );
+    }
+
+    state
+        .mirror
+        .set_repositories([("helsinki".to_owned(), "helsinki-city".to_owned())].into());
+    let renamed = body(&send(&state, person("vera"), "GET", BUILD, None).await.text);
+    assert_eq!(
+        renamed["configurationUrl"],
+        login(&gitea, "%2Ftest-owner%2Fhelsinki-city")
     );
 }

@@ -324,7 +324,8 @@ describe("apps catalog", () => {
       GREEN,
       {
         bikes: {
-          repositoryUrl: `${FORGE}/helsinki_bikes`,
+          repositoryUrl: `${FORGE}-apps/helsinki_bikes`,
+          configurationUrl: `${FORGE}/helsinki`,
           run: { status: "completed", conclusion: "success", commit: "9f1c2ab", url: `${FORGE}/helsinki_bikes/actions/runs/7` },
           packageUrl: `${FORGE}/-/packages/generic/app-bikes/9f1c2ab`,
           rebuild: { allowed: true },
@@ -334,7 +335,13 @@ describe("apps catalog", () => {
 
     await user.click(within(await cardOf("Bikes")).getByRole("button", { name: more("Bikes") }));
     const link = (label: string) => screen.getByRole("menuitem", { name: label });
+    // The App's whole source and the project's configuration first (T-3039), in that order.
+    const items = screen.getAllByRole("menuitem").map((item) => item.textContent ?? "");
+    expect(items.indexOf(en.apps.sourceCode)).toBe(items.indexOf(en.apps.openPage.details) + 1);
+    expect(items.indexOf(en.apps.projectConfiguration)).toBe(items.indexOf(en.apps.sourceCode) + 1);
     for (const [label, href] of [
+      [en.apps.sourceCode, `${FORGE}-apps/helsinki_bikes`],
+      [en.apps.projectConfiguration, `${FORGE}/helsinki`],
       [en.apps.history, "https://git.example.sk/city/config/src/branch/app/mapa-ovzdusia"],
       [en.apps.latestRun, `${FORGE}/helsinki_bikes/actions/runs/7`],
       [en.apps.package, `${FORGE}/-/packages/generic/app-bikes/9f1c2ab`],
@@ -347,9 +354,12 @@ describe("apps catalog", () => {
     expect(screen.getByRole("menuitem", { name: en.apps.rebuildAction })).not.toHaveAttribute("aria-disabled", "true");
     await user.keyboard("{Escape}");
 
-    // No build of its own on the forge: no run, no package, and Rebuild says why.
+    // No build of its own on the forge: no source repository, no run, no package, and Rebuild
+    // says why; a person the forge would not let read the configuration is not offered it.
     await user.click(within(await cardOf("Noise")).getByRole("button", { name: more("Noise") }));
     expect(await screen.findByRole("menuitem", { name: en.apps.history })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: en.apps.sourceCode })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: en.apps.projectConfiguration })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: en.apps.latestRun })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: en.apps.package })).toBeNull();
     expect(screen.getByRole("menuitem", { name: new RegExp(`^${en.apps.rebuildAction}`) })).toHaveAttribute(
