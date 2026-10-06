@@ -27,10 +27,14 @@ import {
 } from "../../components/ui";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 import type { PipelineForm } from "./PipelineEditor";
+import { endpointUrn } from "./PipelineEditor";
 import {
+  OutputBlock,
   PipelineFlow,
   SourceBlock,
   StepBlock,
+  outputIndexOf,
+  removeOutput,
   removeSource,
   removeStep,
   setComputeKind,
@@ -1067,6 +1071,27 @@ export function PipelineStudio({
                     }
                     onRemove={() => {
                       if (draft) onChange(removeStep(draft, stepIndexOf(selectedNode) ?? -1));
+                      setSelectedNode(null);
+                    }}
+                  />
+                ) : outputIndexOf(selectedNode) !== undefined && draft?.moreOutputs?.[outputIndexOf(selectedNode) ?? -1] ? (
+                  <OutputBlock
+                    // A second output is edited here, in place (T-3088); the first is the form's.
+                    key={selectedNode}
+                    project={project}
+                    output={draft.moreOutputs[outputIndexOf(selectedNode) ?? -1]}
+                    targets={endpoints.map((manifest) => ({ manifest, urn: endpointUrn(orgDomain, manifest) }))}
+                    locale={locale}
+                    onChange={(output) =>
+                      onChange({
+                        ...draft,
+                        moreOutputs: (draft.moreOutputs ?? []).map((was, at) =>
+                          at === outputIndexOf(selectedNode) ? output : was,
+                        ),
+                      })
+                    }
+                    onRemove={() => {
+                      onChange(removeOutput(draft, outputIndexOf(selectedNode) ?? -1));
                       setSelectedNode(null);
                     }}
                   />

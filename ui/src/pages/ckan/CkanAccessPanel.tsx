@@ -16,9 +16,10 @@ import { asUser } from "../apps/RolesAndMembers";
 import type { Subject } from "../apps/RolesAndMembers";
 import { ckanAdminName, grantManifests, holdersOf, RefusedAccess, revokeManifest } from "./ckanAccess";
 
-function useList(project: string, plural: string) {
+function useList(project: string, plural: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.list(project, plural),
+    enabled,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -77,9 +78,13 @@ export function CkanAccessPanel({
   const ids = useId();
   const queryClient = useQueryClient();
   const permissions = usePermissions(ORG_NAMESPACE);
-  const roles = useList(ORG_NAMESPACE, "roles");
-  const bindings = useList(ORG_NAMESPACE, "rolebindings");
-  const groups = useList(ORG_NAMESPACE, "groups");
+  // The holders are the organization's roles and bindings: a person who may not read them is
+  // told who sees the list, rather than shown the 404 the organization answers them (T-3131).
+  const mayRead = permissions.can("Role", "read") && permissions.can("RoleBinding", "read");
+  const hidden = !permissions.isLoading && !mayRead;
+  const roles = useList(ORG_NAMESPACE, "roles", !permissions.isLoading && mayRead);
+  const bindings = useList(ORG_NAMESPACE, "rolebindings", !permissions.isLoading && mayRead);
+  const groups = useList(ORG_NAMESPACE, "groups", !permissions.isLoading && permissions.can("Group", "read"));
   const endpoints = useList(project, "endpoints");
   const [kind, setKind] = useState<"group" | "user">("group");
   const [who, setWho] = useState("");
@@ -163,7 +168,7 @@ export function CkanAccessPanel({
   };
 
   const failure = grant.error ?? revoke.error;
-  const loading = roles.isPending || bindings.isPending;
+  const loading = permissions.isLoading || (mayRead && (roles.isPending || bindings.isPending));
   const listFailed = roles.isError || bindings.isError;
   const busy = grant.isPending || revoke.isPending;
   const heading = `${ids}-heading`;
@@ -191,6 +196,10 @@ export function CkanAccessPanel({
       {loading ? (
         <p role="status" className="text-body text-fg-muted">
           {t("app.loading")}
+        </p>
+      ) : hidden ? (
+        <p className="text-body text-fg-muted" data-testid="ckan-access-hidden">
+          {t("ckan.access.hidden")}
         </p>
       ) : listFailed ? (
         <Alert role="alert" tone="danger">

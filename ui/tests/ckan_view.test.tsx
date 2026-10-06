@@ -69,6 +69,41 @@ const CHANGE = {
   status: { lane: "yellow", phase: "PendingApproval", plan: { create: 1 } },
 };
 
+/** What the reconciler said about the last runs, newest first, as the activity feed lists it. */
+const ACTIVITY = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "ActivityList",
+  items: [
+    {
+      time: "2026-10-06T10:00:00Z",
+      project: "banskabystrica",
+      kind: "catalogue.published",
+      source: "ckan",
+      severity: "error",
+      summary: "Endpoint hluk-public was not published: no CkanInstance 'gone' in this project",
+      details: { reason: "no CkanInstance 'gone' in this project", object: "endpoints/hluk-public" },
+    },
+    {
+      time: "2026-10-06T09:00:00Z",
+      project: "banskabystrica",
+      kind: "catalogue.published",
+      source: "ckan",
+      severity: "info",
+      summary: "Endpoint ovzdusie-public is dataset kvalita-ovzdusia, sheet of 12 rows.",
+      details: { dataset: "kvalita-ovzdusia", object: "endpoints/ovzdusie-public" },
+    },
+    {
+      time: "2026-10-05T09:00:00Z",
+      project: "banskabystrica",
+      kind: "catalogue.published",
+      source: "ckan",
+      severity: "error",
+      summary: "Endpoint ovzdusie-public was not published: catalogue answered 500",
+      details: { reason: "catalogue answered 500", object: "endpoints/ovzdusie-public" },
+    },
+  ],
+};
+
 function renderCkan(status: unknown = STATUS, permissions?: unknown) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
@@ -91,6 +126,9 @@ function renderCkan(status: unknown = STATUS, permissions?: unknown) {
     }
     if (path.endsWith("/ckan/status")) {
       return json(status);
+    }
+    if (path.endsWith("/activity") && new URL(request.url).searchParams.get("kind") === "catalogue.published") {
+      return json(ACTIVITY);
     }
     if (permissions !== undefined && path.endsWith("/permissions/me")) {
       return json(permissions);
@@ -155,6 +193,21 @@ describe("ckan publishing manager", () => {
     );
     expect(within(entry).getByText(/DataStore mirror from CSV/)).toBeInTheDocument();
     expect(within(entry).getByText("published to open-data")).toBeInTheDocument();
+  });
+
+  it("says each publication's phase and what its last run did, a failure in words (T-3091)", async () => {
+    renderCkan();
+    const live = await screen.findByText("ovzdusie-public");
+    const entry = live.closest("li") as HTMLElement;
+    expect(within(entry).getByText(/^Live$/i)).toBeInTheDocument();
+    // The newest event of that endpoint, not the older failure before it.
+    expect(await within(entry).findByTestId("ckan-last-run")).toHaveTextContent(
+      /^Last change .*: Endpoint ovzdusie-public is dataset kvalita-ovzdusia, sheet of 12 rows\.$/,
+    );
+    const missing = (await screen.findByText("hluk-public")).closest("li") as HTMLElement;
+    const failed = await within(missing).findByTestId("ckan-last-run");
+    expect(failed).toHaveTextContent(/^Last run failed .*no CkanInstance 'gone' in this project$/);
+    expect(failed).toHaveClass("text-danger");
   });
 
   it("says how the DataStore mirror is kept in words, not the manifest's values (T-2756)", async () => {

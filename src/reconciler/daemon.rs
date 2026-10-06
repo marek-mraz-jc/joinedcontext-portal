@@ -587,71 +587,16 @@ impl Syncer {
     }
 
     /// One `catalogue.published` per dataset a run wrote or withdrew, and an `error` for every
-    /// Endpoint whose publication did not happen (OPS-48, EP-62).
+    /// Endpoint whose publication did not happen (OPS-48, EP-62). Each names its Endpoint as
+    /// `details.object`, so the endpoint's page and the catalogue page find it (T-3091).
     ///
     /// A publication that changed nothing is not an event: a feed that says "unchanged" once a
     /// minute per dataset is a feed nobody reads.
     async fn say_published(&self, reports: &[super::ckan::Report]) {
-        use super::ckan::Publication;
         if self.activity.is_none() {
             return;
         }
-        let events: Vec<ActivityEvent> = reports
-            .iter()
-            .filter_map(|report| {
-                let (summary, severity, details) = match &report.publication {
-                    Publication::Published {
-                        dataset,
-                        outcome,
-                        rows,
-                    } => {
-                        if matches!(
-                            outcome,
-                            jcctl::publish::ckan::Outcome::Unchanged
-                                | jcctl::publish::ckan::Outcome::NotPublished
-                        ) {
-                            return None;
-                        }
-                        let rows = match rows {
-                            Some(count) => format!(", sheet of {count} rows"),
-                            None => String::new(),
-                        };
-                        (
-                            format!("Endpoint {} is dataset {dataset}{rows}.", report.endpoint),
-                            "info",
-                            serde_json::json!({ "dataset": dataset, "rows": rows }),
-                        )
-                    }
-                    Publication::Withdrawn { dataset } => (
-                        format!(
-                            "Endpoint {} no longer publishes: dataset {dataset} is withdrawn.",
-                            report.endpoint
-                        ),
-                        "info",
-                        serde_json::json!({ "dataset": dataset, "withdrawn": true }),
-                    ),
-                    // The reason is the publisher's own sentence, which names the reference, the
-                    // catalogue or the status and never a credential (EP-67).
-                    Publication::Failed(reason) => (
-                        format!("Endpoint {} was not published: {reason}", report.endpoint),
-                        "error",
-                        serde_json::json!({ "reason": reason }),
-                    ),
-                };
-                Some(ActivityEvent {
-                    time: chrono::Utc::now(),
-                    project: report.project.clone(),
-                    space: None,
-                    kind: "catalogue.published".to_string(),
-                    source: "ckan".to_string(),
-                    summary,
-                    severity: severity.to_string(),
-                    correlation_id: None,
-                    details,
-                })
-            })
-            .collect();
-        self.record(events).await;
+        self.record(published_events(reports)).await;
     }
 
     async fn record(&self, events: Vec<ActivityEvent>) {
@@ -2312,9 +2257,124 @@ fn pipeline_references(
     references
 }
 
+/// The activity a CKAN run is worth (OPS-48, EP-62): one `catalogue.published` per dataset it
+/// wrote or withdrew and an `error` per Endpoint it could not publish, each naming its Endpoint
+/// as `details.object` so the endpoint's page and the catalogue page find it (T-3091). A
+/// publication that changed nothing is not an event.
+fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
+    use super::ckan::Publication;
+    reports
+        .iter()
+        .filter_map(|report| {
+            let (summary, severity, details) = match &report.publication {
+                Publication::Published {
+                    dataset,
+                    outcome,
+                    rows,
+                } => {
+                    if matches!(
+                        outcome,
+                        jcctl::publish::ckan::Outcome::Unchanged
+                            | jcctl::publish::ckan::Outcome::NotPublished
+                    ) {
+                        return None;
+                    }
+                    let rows = match rows {
+                        Some(count) => format!(", sheet of {count} rows"),
+                        None => String::new(),
+                    };
+                    (
+                        format!("Endpoint {} is dataset {dataset}{rows}.", report.endpoint),
+                        "info",
+                        serde_json::json!({ "dataset": dataset, "rows": rows, "object": format!("endpoints/{}", report.endpoint) }),
+                    )
+                }
+                Publication::Withdrawn { dataset } => (
+                    format!(
+                        "Endpoint {} no longer publishes: dataset {dataset} is withdrawn.",
+                        report.endpoint
+                    ),
+                    "info",
+                    serde_json::json!({ "dataset": dataset, "withdrawn": true, "object": format!("endpoints/{}", report.endpoint) }),
+                ),
+                // The reason is the publisher's own sentence, which names the reference, the
+                // catalogue or the status and never a credential (EP-67).
+                Publication::Failed(reason) => (
+                    format!("Endpoint {} was not published: {reason}", report.endpoint),
+                    "error",
+                    serde_json::json!({ "reason": reason, "object": format!("endpoints/{}", report.endpoint) }),
+                ),
+            };
+            Some(ActivityEvent {
+                time: chrono::Utc::now(),
+                project: report.project.clone(),
+                space: None,
+                kind: "catalogue.published".to_string(),
+                source: "ckan".to_string(),
+                summary,
+                severity: severity.to_string(),
+                correlation_id: None,
+                details,
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_catalogue_event_names_its_endpoint_and_an_unchanged_one_is_no_event() {
+        use super::super::ckan::{Publication, Report};
+        let report = |endpoint: &str, publication| Report {
+            project: "helsinki".into(),
+            endpoint: endpoint.into(),
+            publication,
+        };
+        let events = published_events(&[
+            report(
+                "ep-air",
+                Publication::Published {
+                    dataset: "air".into(),
+                    outcome: jcctl::publish::ckan::Outcome::Created,
+                    rows: Some(3),
+                },
+            ),
+            report(
+                "ep-same",
+                Publication::Published {
+                    dataset: "same".into(),
+                    outcome: jcctl::publish::ckan::Outcome::Unchanged,
+                    rows: None,
+                },
+            ),
+            report(
+                "ep-old",
+                Publication::Withdrawn {
+                    dataset: "old".into(),
+                },
+            ),
+            report(
+                "ep-bad",
+                Publication::Failed("catalogue answered 403".into()),
+            ),
+        ]);
+        let objects: Vec<_> = events.iter().map(|event| event.object()).collect();
+        assert_eq!(
+            objects,
+            [
+                Some("endpoints/ep-air"),
+                Some("endpoints/ep-old"),
+                Some("endpoints/ep-bad")
+            ]
+        );
+        assert_eq!(events[2].severity, "error");
+        assert_eq!(events[2].details["reason"], "catalogue answered 403");
+        assert!(events
+            .iter()
+            .all(|event| event.kind == "catalogue.published"));
+    }
 
     const RUNNING_STREAM: &str = r#"
 input_received{stream="aq"} 42

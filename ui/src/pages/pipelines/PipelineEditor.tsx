@@ -44,11 +44,23 @@ export interface PipelineForm {
   processors?: StepForm[];
   targetEndpoint?: string;
   output?: { type?: string; mode?: string };
+  /**
+   * The outputs after the first, in order (PL-52, PL-55): each writes through its own Endpoint.
+   * The runner fans the messages out to all of them, every write one must succeed.
+   */
+  moreOutputs?: OutputForm[];
   allowFeedback?: boolean;
   /** Stale-entity expiry: off unless both are given (PL-64). */
   expiry?: { after?: string; types?: string[] };
   secretRefs?: { name?: string; key?: string; envVar?: string }[];
   quotas?: { maxMemoryMb?: number; cpuMillicores?: number };
+}
+
+/** One output after the first: the Endpoint's URN, the type written and the write mode (PL-55). */
+export interface OutputForm {
+  targetEndpoint?: string;
+  type?: string;
+  mode?: string;
 }
 
 /** One source a pipeline reads: a DataSource, or an Endpoint with a query or a trigger (PL-52). */
@@ -146,6 +158,7 @@ function secondShape(
   base: Spec,
   processors?: StepForm[],
   moreSources?: SourceForm[],
+  moreOutputs?: OutputForm[],
 ): Spec {
   const { source, compute, targetEndpoint, output, ...others } = spec;
   const baseSteps = listOf(base.steps);
@@ -171,7 +184,7 @@ function secondShape(
     steps: steps.length > 0 ? steps : undefined,
     outputs: [
       { targetEndpoint, ...((output as Spec | undefined) ?? {}) },
-      ...listOf(base.outputs).slice(1),
+      ...(moreOutputs ? moreOutputs.map((more) => prune({ ...more }) as Spec) : listOf(base.outputs).slice(1)),
     ],
   }) as Spec;
 }
@@ -180,6 +193,12 @@ function secondShape(
 export function moreSourcesOf(spec: Spec): SourceForm[] | undefined {
   const rest = listOf(spec.sources).slice(1) as Record<string, unknown>[];
   return rest.length > 0 ? rest.map(readSource) : undefined;
+}
+
+/** The outputs after the first, as the form carries them (PL-55). */
+export function moreOutputsOf(spec: Spec): OutputForm[] | undefined {
+  const rest = listOf(spec.outputs).slice(1) as OutputForm[];
+  return rest.length > 0 ? rest.map((output) => ({ ...output })) : undefined;
 }
 
 /** The steps around the first compute step, as the form carries them (PL-52). */
@@ -224,6 +243,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     title,
     source,
     moreSources,
+    moreOutputs,
     compute,
     allowFeedback,
     expiry,
@@ -259,7 +279,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
       ...(title?.trim() ? { title } : {}),
     },
     spec: second
-      ? secondShape(spec, (base?.spec ?? {}) as Spec, processors, sourcesFor(moreSources))
+      ? secondShape(spec, (base?.spec ?? {}) as Spec, processors, sourcesFor(moreSources), moreOutputs)
       : spec,
   };
   return { ...overlay(base, next, OWNED_SPEC), apiVersion: next.apiVersion };
@@ -299,6 +319,7 @@ export function toForm(pipeline: Manifest): PipelineForm {
     name: pipeline.metadata.name,
     processors: processorsOf(pipeline.spec as Spec),
     moreSources: moreSourcesOf(pipeline.spec as Spec),
+    moreOutputs: moreOutputsOf(pipeline.spec as Spec),
     ...(plainTitle(pipeline.metadata.title) ? { title: plainTitle(pipeline.metadata.title) } : {}),
     ...rest,
     class: typeof rest.class === "string" ? rest.class : "auto",

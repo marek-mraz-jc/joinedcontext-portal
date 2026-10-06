@@ -910,7 +910,8 @@
       "key": "Kľúč",
       "known": "Známe tajomstvá"
     },
-    "emptyHint": "Dátový zdroj je miesto, odkiaľ platforma číta: kanál, broker, API. Pridajte jeden a pipeline ho môže načítať do kontextového priestoru."
+    "emptyHint": "Dátový zdroj je miesto, odkiaľ platforma číta: kanál, broker, API. Pridajte jeden a pipeline ho môže načítať do kontextového priestoru.",
+    "newPipeline": "Nová pipeline z tohto zdroja"
   },
   "pipelines": {
     "lead": "Čo prináša dáta: každá pipeline číta zdroj, transformuje ho a zapisuje cez endpoint.",
@@ -1147,6 +1148,10 @@
       "stepSecretHelp": "Prístupový údaj nikdy nie je v pipeline: uveďte premennú z tajomstiev pipeline, ako $'{'VAR'}'.",
       "addSource": "+ Zdroj",
       "removeSource": "Odstrániť zdroj",
+      "addOutput": "+ Výstup",
+      "removeOutput": "Odstrániť výstup",
+      "outputWrites": "Zapisuje cez",
+      "outputWritesHint": "Endpoint, cez ktorý tento výstup zapisuje každú správu, rovnako ako prvý výstup.",
       "sourceReads": "Tento zdroj číta",
       "sourceReadsHint": "Runner zlúči všetky zdroje linky do jedného prúdu pred prvým krokom.",
       "attrsHint": "Oddelené čiarkou; prázdne číta všetky atribúty.",
@@ -1161,6 +1166,7 @@
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
     "noCredential": "Žiadne",
     "expiryRemoves": "Entity, ktoré sa neaktualizovali {window}, sa odstraňujú",
+    "expiryRefused": "Nič sa neodstraňuje: runner odmietol čistenie: {reason}",
     "writesType": "Zapisuje",
     "notWriting": "Nezapisuje nič",
     "rejected": {
@@ -2373,7 +2379,9 @@
       "refreshed": {
         "onChange": "obnovovaná pri zmene entity",
         "onReconcile": "obnovovaná pri každom použití konfigurácie"
-      }
+      },
+      "lastChange": "Posledná zmena {time}: {summary}",
+      "lastFailed": "Posledný beh zlyhal {time}: {summary}"
     },
     "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}",
     "access": {
@@ -2409,7 +2417,8 @@
         "already": "Katalóg {instance} už spravujú.",
         "absent": "Katalóg {instance} nespravujú cez jeho rolu.",
         "badEmail": "Napíšte celú e-mailovú adresu, napríklad jana@example.org."
-      }
+      },
+      "hidden": "Kto spravuje tento katalóg, vidia administrátori organizácie."
     }
   },
   "mappings": {

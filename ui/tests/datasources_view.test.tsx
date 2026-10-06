@@ -155,6 +155,18 @@ describe("data sources view", () => {
     window.history.pushState({}, "", "/projects/banskabystrica/datasources");
   });
 
+  it("starts a pipeline on a source from its row, the editor opening with that source picked", async () => {
+    renderDataSources();
+    const row = (await screen.findByRole("link", { name: SOURCES.items[0].metadata.name })).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.datasources.newPipeline }));
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/banskabystrica/pipelines"));
+    const page = await findFormPage();
+    await waitFor(() =>
+      expect(within(page).getAllByRole("combobox").some((select) => (select as HTMLSelectElement).value.includes(SOURCES.items[0].metadata.name))).toBe(true),
+    );
+  });
+
   it("lists every source with its type, endpoint and the names of its credentials", async () => {
     renderDataSources();
 
@@ -535,6 +547,28 @@ describe("the manifest a data source form describes", () => {
       expect(kafkaOption).not.toBeNull();
       expect(kafkaOption?.textContent).toBe("Kafka");
     });
+  });
+
+  it("drafts a runner input's map as the map it is, as the proposal will carry it", async () => {
+    const fetchMock = renderDataSources();
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
+    const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "http_client");
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), "feed-csv");
+    const headers = await waitFor(() => {
+      const box = dialog.querySelector<HTMLTextAreaElement>("#root_headers");
+      expect(box).not.toBeNull();
+      return box as HTMLTextAreaElement;
+    });
+    await userEvent.type(headers, "Accept: text/csv");
+    // The draft is written after a pause in typing; it is what the proposal takes (T-0769).
+    const drafted = async () => {
+      const puts = fetchMock.mock.calls
+        .map((call) => call[0] as Request)
+        .filter((request) => request.method === "PUT" && request.url.includes("/drafts/"));
+      return puts.length > 0 ? ((await puts[puts.length - 1].clone().json()) as { manifest?: { spec?: { input?: Record<string, unknown> } } }) : undefined;
+    };
+    await waitFor(async () => expect((await drafted())?.manifest?.spec?.input?.headers).toEqual({ Accept: "text/csv" }), { timeout: 4000 });
   });
 
   it("shows an error and does not call the API when a runner form has invalid YAML", async () => {

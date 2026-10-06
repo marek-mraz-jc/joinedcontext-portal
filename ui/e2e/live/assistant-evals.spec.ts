@@ -1,15 +1,16 @@
 /**
  * The assistant evals on dev (T-2733; AG-87, AG-91, TS-26): the conversations of
- * `tests/assistant_evals/<workflow>.yaml`, each started with the real model as demo.steward, its
+ * `tests/assistant_evals/<workflow>.yaml` and of `<workflow>--<case>.yaml` (T-2742), each started with the real model as demo.steward, its
  * questions answered from the conversation's later lines, and the calls it made checked against
  * the conversation's `expect`. A passing run is written to
- * `tests/assistant_evals/recordings/<workflow>.json` — the run's events with the tools' outputs
+ * `tests/assistant_evals/recordings/<file>.json`, named as the conversation's file — the run's events with the tools' outputs
  * left out — which `tests/assistant_evals_tests.rs` replays on every push with no spend.
  *
  * Spend: at most 10 conversations a pass (`EVAL_LIMIT`, capped at 10), those never recorded
  * first, then the oldest recordings. Every title names the assistant, so the hourly sweep leaves
  * the file to the nightly batch, which runs it once and announces it in AI_shared_folder.md
- * before it starts. `EVAL_WORKFLOWS=space,app` picks conversations by name.
+ * before it starts. `EVAL_WORKFLOWS=space,datamodel--one-to-many` picks conversations by workflow
+ * (every file of it) or by file.
  *
  * Nothing is proposed: a change opens a draft for the person, and the drafts of this pass
  * (named `eval-…`) are removed at the end; the run is cancelled once read. The viewer's refusal
@@ -34,6 +35,8 @@ const RUN_MS = 300_000;
 
 type Call = { tool: string; input?: Record<string, unknown> };
 type Conversation = {
+  /** The file's name without `.yaml`: the workflow, or `<workflow>--<case>`. */
+  name: string;
   workflow: string;
   as: string;
   says: string[];
@@ -45,19 +48,19 @@ type Recorded = { kind: string; payload: Record<string, unknown> };
 const conversations: Conversation[] = readdirSync(EVALS)
   .filter((file) => file.endsWith(".yaml"))
   .sort()
-  .map((file) => parse(readFileSync(join(EVALS, file), "utf8")) as Conversation);
+  .map((file) => ({ ...(parse(readFileSync(join(EVALS, file), "utf8")) as Omit<Conversation, "name">), name: file.replace(/\.yaml$/, "") }));
 
-function recordedAt(workflow: string): string {
-  const file = join(RECORDINGS, `${workflow}.json`);
+function recordedAt(name: string): string {
+  const file = join(RECORDINGS, `${name}.json`);
   return existsSync(file) ? ((JSON.parse(readFileSync(file, "utf8")) as { recordedAt: string }).recordedAt ?? "") : "";
 }
 
 /** This pass's conversations: the ones asked for, else the never recorded and then the oldest. */
 function chosen(): Conversation[] {
   const named = (process.env.EVAL_WORKFLOWS ?? "").split(",").map((w) => w.trim()).filter(Boolean);
-  const pool = named.length ? conversations.filter((c) => named.includes(c.workflow)) : conversations;
+  const pool = named.length ? conversations.filter((c) => named.includes(c.workflow) || named.includes(c.name)) : conversations;
   return [...pool]
-    .sort((a, b) => recordedAt(a.workflow).localeCompare(recordedAt(b.workflow)))
+    .sort((a, b) => recordedAt(a.name).localeCompare(recordedAt(b.name)))
     .slice(0, LIMIT);
 }
 
@@ -195,14 +198,14 @@ test("the assistant evals: each conversation calls what it expects, and is recor
         );
         if (missing.length) {
           failed.push(
-            `${conversation.workflow} (run ${run}): expected ${JSON.stringify(missing)}, made ${JSON.stringify(
+            `${conversation.name} (run ${run}): expected ${JSON.stringify(missing)}, made ${JSON.stringify(
               made.map((e) => [e.payload.tool, e.payload.status, e.payload.error]),
             )}`,
           );
           continue;
         }
         writeFileSync(
-          join(RECORDINGS, `${conversation.workflow}.json`),
+          join(RECORDINGS, `${conversation.name}.json`),
           `${JSON.stringify(
             { workflow: conversation.workflow, run, recordedAt: new Date().toISOString(), model, events },
             null,
@@ -230,7 +233,7 @@ test("a viewer is refused every assistant eval conversation", async ({ browser }
         headers: { "x-csrf-token": await csrf(context) },
         data: { message: conversation.refusal.says },
       });
-      expect(answer.status(), `${conversation.workflow}: ${await answer.text()}`).toBe(403);
+      expect(answer.status(), `${conversation.name}: ${await answer.text()}`).toBe(403);
       expect(await answer.text()).toMatch(/propose/i);
     }
   } finally {

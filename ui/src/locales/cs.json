@@ -910,7 +910,8 @@
       "key": "Klíč",
       "known": "Známá tajemství"
     },
-    "emptyHint": "Datový zdroj je místo, odkud platforma čte: kanál, broker, API. Přidejte jeden a pipeline jej může načíst do kontextového prostoru."
+    "emptyHint": "Datový zdroj je místo, odkud platforma čte: kanál, broker, API. Přidejte jeden a pipeline jej může načíst do kontextového prostoru.",
+    "newPipeline": "Nová pipeline z tohoto zdroje"
   },
   "pipelines": {
     "lead": "Co přináší data: každá pipeline čte zdroj, transformuje ho a zapisuje přes endpoint.",
@@ -1147,6 +1148,10 @@
       "stepSecretHelp": "Přístupový údaj nikdy není v pipeline: uveďte proměnnou z tajemství pipeline, jako $'{'VAR'}'.",
       "addSource": "+ Zdroj",
       "removeSource": "Odstranit zdroj",
+      "addOutput": "+ Výstup",
+      "removeOutput": "Odebrat výstup",
+      "outputWrites": "Zapisuje přes",
+      "outputWritesHint": "Endpoint, přes který tento výstup zapisuje každou zprávu, stejně jako první výstup.",
       "sourceReads": "Tento zdroj čte",
       "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem.",
       "attrsHint": "Oddělené čárkou; prázdné čte všechny atributy.",
@@ -1161,6 +1166,7 @@
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
     "noCredential": "Žádné",
     "expiryRemoves": "Entity, které se neaktualizovaly {window}, se odstraňují",
+    "expiryRefused": "Nic se neodstraňuje: runner odmítl úklid: {reason}",
     "writesType": "Zapisuje",
     "notWriting": "Nezapisuje nic",
     "rejected": {
@@ -2373,7 +2379,9 @@
       "refreshed": {
         "onChange": "obnovovaná při změně entity",
         "onReconcile": "obnovovaná při každém použití konfigurace"
-      }
+      },
+      "lastChange": "Poslední změna {time}: {summary}",
+      "lastFailed": "Poslední běh selhal {time}: {summary}"
     },
     "statusFailed": "Stav katalogů tohoto projektu se nepodařilo přečíst, takže níže uvedené může být neúplné: {reason}",
     "access": {
@@ -2409,7 +2417,8 @@
         "already": "Katalog {instance} už spravují.",
         "absent": "Katalog {instance} nespravují přes jeho roli.",
         "badEmail": "Napište celou e-mailovou adresu, například jana@example.org."
-      }
+      },
+      "hidden": "Kdo spravuje tento katalog, vidí administrátoři organizace."
     }
   },
   "mappings": {

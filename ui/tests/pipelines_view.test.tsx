@@ -181,6 +181,21 @@ describe("pipelines view", () => {
     expect(within(await rowOf("aq-mqtt-ingest")).queryByText(/are removed/)).toBeNull();
   });
 
+  it("says in the row that the runner refused the sweep, with its reason", async () => {
+    // The `.expiry` stream failing left the pipeline writing and nothing removed; only the
+    // reconciler's condition knew (PL-64, T-3091).
+    const refused = structuredClone(PIPELINES);
+    refused.items[1].status = {
+      phase: "Live",
+      conditions: [{ type: "ExpirySweep", status: "False", reason: "RunnerRefused", message: "lint: unknown field" }],
+    } as never;
+    renderPipelines(METRICS, 200, refused);
+    expect(within(await rowOf("parking-daily")).getByTestId("pipeline-expiry-refused")).toHaveTextContent(
+      "Nothing is removed: the runner refused the sweep: lint: unknown field",
+    );
+    expect(within(await rowOf("aq-mqtt-ingest")).queryByTestId("pipeline-expiry-refused")).toBeNull();
+  });
+
   it("shows the live counters of a resident stream", async () => {
     renderPipelines();
 
