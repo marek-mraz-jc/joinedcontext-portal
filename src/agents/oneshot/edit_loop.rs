@@ -28,8 +28,43 @@ const ERROR_WINDOW: usize = 20;
 const EDIT_OUTPUT_BUDGET: u32 = 32_000;
 /// Rounds in a row that end with the same problems before the turn stops (T-3077).
 const NO_PROGRESS_ROUNDS: u32 = 3;
+/// The failing tool calls of one turn, by tool and input: how many times in a row each answered
+/// the same failure (T-3135). A check alternating with the same failing `call_function` never
+/// ended two rounds alike, so T-3077's count never saw it, and twelve identical 500s spent the
+/// whole instruction.
+#[derive(Default)]
+struct Repeats(std::collections::HashMap<String, (String, u32)>);
+
+impl Repeats {
+    /// Notes one call's answer and returns how many times in a row this very call has failed
+    /// with this very answer; a success or another answer starts it over.
+    fn note(&mut self, tool: &str, input: &Value, result: &str, ok: bool) -> u32 {
+        let key = format!("{tool} {input}");
+        if ok {
+            self.0.remove(&key);
+            return 0;
+        }
+        let entry = self.0.entry(key).or_insert_with(|| (result.to_owned(), 0));
+        if entry.0 == result {
+            entry.1 += 1;
+        } else {
+            *entry = (result.to_owned(), 1);
+        }
+        entry.1
+    }
+}
+
 /// What `preview_errors` answers when the frame reported nothing.
 const NO_PREVIEW_ERRORS: &str = "no errors since the last reload";
+
+/// What `call_function` answers when the function's data call was refused for want of a
+/// credential: a run's own call carries no person's identity (T-3134), so the function's data path
+/// is proven by its test, and calling it again would only repeat the refusal.
+const FUNCTION_READS_DATA: &str = "status 401\nThe function asked its endpoint for data, and a \
+     call from the run carries no person's identity to read with, so the gateway refused it. This \
+     is not a fault in the function: its data path is proven by its own test over `fakeContext`. \
+     Do not call it again; call a function that computes without reading data, or change its \
+     test.";
 /// Model calls one instruction may make (SDK-20): a request that needs more is asked in steps.
 const EDIT_CALLS: u32 = 12;
 /// Input tokens one instruction may send, over all of its calls (SDK-20).
@@ -465,6 +500,7 @@ impl Driver {
         // The problems the last round ended with, and how many rounds running ended so.
         let mut failing = String::new();
         let mut same_rounds = 0u32;
+        let mut repeats = Repeats::default();
         loop {
             // The ceilings are checked before the model is asked, never after a call it
             // already made (AG-25, SDK-20); what builds is published with the reason.
@@ -594,6 +630,30 @@ impl Driver {
                     other => (format!("no tool named '{other}'"), false),
                 };
                 self.tool_event(call, &result, ok, started, steps).await?;
+                // `check` and `preview_errors` are counted by the rounds below, with their own words.
+                let counted = !matches!(call.name.as_str(), "check" | "preview_errors");
+                if counted
+                    && repeats.note(&call.name, &call.input, &result, ok) >= NO_PROGRESS_ROUNDS
+                {
+                    let stopped = format!(
+                        "I stopped: `{}` failed {NO_PROGRESS_ROUNDS} times in a row with the same \
+                         answer, so another call would only repeat it. What passes the check is \
+                         on screen; tell me what to change. The answer:\n{}",
+                        call.name,
+                        cap(result.trim_end(), 1_500)
+                    );
+                    return self
+                        .finish_turn(
+                            files,
+                            committed,
+                            conversation,
+                            instruction,
+                            &stopped,
+                            dirty,
+                            shown,
+                        )
+                        .await;
+                }
                 if (call.name == "check" && !ok)
                     || (call.name == "preview_errors" && result != NO_PREVIEW_ERRORS)
                 {
@@ -819,6 +879,11 @@ impl Driver {
                     .outcome
                     .get("error")
                     .filter(|error| !error.is_null());
+                // The run's call carries no person's identity (T-3134): a function that reads
+                // data is refused by the gateway, and calling it again changes nothing.
+                if error.is_some_and(crate::api::agent_runs::unauthenticated) {
+                    return (FUNCTION_READS_DATA.to_owned(), false);
+                }
                 let payload = match error {
                     Some(error) => format!("error: {error}"),
                     None => invocation
@@ -1433,6 +1498,89 @@ mod tests {
             })))
             .mount(server)
             .await;
+    }
+
+    /// T-3135: the same call failing with the same answer counts towards the stop; a success or
+    /// a different answer starts it over, and another input is another call.
+    #[test]
+    fn a_call_that_keeps_failing_alike_is_counted_and_any_change_starts_over() {
+        let mut repeats = Repeats::default();
+        let body = json!({ "name": "summary", "body": {} });
+        assert_eq!(
+            repeats.note("call_function", &body, "status 500 boom", false),
+            1
+        );
+        assert_eq!(repeats.note("check", &json!({}), "ok", true), 0);
+        assert_eq!(
+            repeats.note("call_function", &body, "status 500 boom", false),
+            2
+        );
+        assert_eq!(
+            repeats.note(
+                "call_function",
+                &json!({ "name": "other" }),
+                "status 500 boom",
+                false
+            ),
+            1
+        );
+        assert_eq!(
+            repeats.note("call_function", &body, "status 500 bang", false),
+            1,
+            "another answer"
+        );
+        assert_eq!(
+            repeats.note("call_function", &body, "status 500 bang", false),
+            2
+        );
+        assert_eq!(
+            repeats.note("call_function", &body, "status 200", true),
+            0,
+            "a success"
+        );
+        assert_eq!(
+            repeats.note("call_function", &body, "status 500 bang", false),
+            1
+        );
+    }
+
+    /// T-3135: a model that calls the same failing function again and again is stopped at the
+    /// third identical failure with the answer named, not at the instruction's call limit.
+    #[tokio::test]
+    async fn the_same_failing_call_three_times_stops_the_turn_with_its_answer() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "tool_use", "id": "f", "name": "call_function", "input": { "name": "summary", "body": {} } }],
+                "usage": { "input_tokens": 1_000, "output_tokens": 10 },
+            })))
+            .mount(&server)
+            .await;
+        let driver = edit_driver(&server).await;
+        let mut files = BTreeMap::from([(
+            "src/App.tsx".to_owned(),
+            "export default function App() { return <div />; }".to_owned(),
+        )]);
+        let mut conversation = Vec::new();
+        driver
+            .edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut conversation,
+                "test the summary",
+                None,
+            )
+            .await
+            .expect("the turn ends");
+        let calls = server.received_requests().await.expect("recorded").len();
+        assert_eq!(calls, NO_PROGRESS_ROUNDS as usize);
+        let said = &conversation[0].1;
+        assert!(
+            said.contains("`call_function` failed 3 times in a row"),
+            "{said}"
+        );
+        assert!(said.contains("tell me what to change"), "{said}");
     }
 
     /// T-3077: rounds that end with the same problems are no progress; the third one stops the

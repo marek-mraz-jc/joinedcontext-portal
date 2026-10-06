@@ -352,8 +352,9 @@ mod tests {
             kept[0].message
         );
 
-        // Since ADR-N-041 any NGSI-LD URN of the record's type is its id; one of another type is not.
-        let wrong_id = json!({ "id": "urn:ngsi-ld:Device:banskabystrica.sk:ovzdusie:1", "type": "AirQualityObserved" });
+        // An id is any NGSI-LD URN of its type (ADR-N-041, PF-43): one naming another type is wrong.
+        let wrong_id =
+            json!({ "id": "urn:ngsi-ld:Device:hel.fi:x:1", "type": "AirQualityObserved" });
         keep(&state, "ovzdusie", "stations", refused(wrong_id, None)).await;
         let undeclared =
             json!({ "id": "urn:ngsi-ld:Device:banskabystrica.sk:ovzdusie:1", "type": "Device" });

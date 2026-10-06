@@ -295,8 +295,8 @@ export function PipelineStudio({
   // paused one or a runner that does not answer simply paints nothing live.
   const pipelineName = draft?.name ?? "";
   const liveCounters = useQuery({
-    // Its own key: the list row caches the same route under `metrics` with a rate it computes,
-    // and one cache entry holding either shape crashed the other reader (T-3090).
+    // Its own key: the pipelines list caches this route under `"metrics"` with a derived `rate`,
+    // and a shared entry without it crashed that list's row (T-3090).
     queryKey: [...queryKeys.resource(project, "pipelines", pipelineName), "metrics", "nodes"],
     enabled: pipelineName !== "",
     retry: false,

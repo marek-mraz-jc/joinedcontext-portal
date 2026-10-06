@@ -144,6 +144,24 @@ describe("edit mode", () => {
     expect(screen.getByDisplayValue("2")).toBeInTheDocument();
   });
 
+  // T-3097: every applied value leaves the pending list. Clearing them one call at a time kept all
+  // but the last pending, so a grid that applied two entities still offered one of them again.
+  it("forgets every cell that landed when several entities are applied at once", async () => {
+    const { written, source } = writable();
+    render(<EntityGrid config={configOf()} source={source} />);
+    await waitFor(() => expect(screen.getByDisplayValue("5")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByDisplayValue("5"), { target: { value: "4" } });
+    fireEvent.change(screen.getByDisplayValue("3"), { target: { value: "2" } });
+    await waitFor(() => expect(screen.getByText(`2 ${DEFAULT_LABELS.pending}`)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: DEFAULT_LABELS.review }));
+    const panel = screen.getByRole("region", { name: DEFAULT_LABELS.review });
+    fireEvent.click(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply }));
+
+    await waitFor(() => expect(written).toHaveLength(2));
+    await waitFor(() => expect(screen.queryByText(new RegExp(DEFAULT_LABELS.pending))).toBeNull());
+  });
+
   it("forgets a cell typed back to what the endpoint answered", async () => {
     const { written, source } = writable();
     render(<EntityGrid config={configOf()} source={source} />);

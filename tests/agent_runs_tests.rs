@@ -1646,6 +1646,16 @@ async fn a_function_of_the_run_answers_through_jc_functions() {
         .await;
     Mock::given(method("POST"))
         .and(path("/invoke"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "status": 500,
+            "error": { "message": "Authentication Required", "file": "@joinedcontext/sdk/server", "line": 80 },
+            "logs": []
+        })))
+        .up_to_n_times(1)
+        .mount(&runtime)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/invoke"))
         .respond_with(ResponseTemplate::new(429))
         .mount(&runtime)
         .await;
@@ -1736,6 +1746,11 @@ async fn a_function_of_the_run_answers_through_jc_functions() {
         answer,
         json!({ "error": { "message": "boom", "file": "functions/summary.ts", "line": 3 } })
     );
+    // T-3134: the gateway refused the function's data call as unauthenticated: the caller's to
+    // fix, a 401, never the function's 500.
+    let (status, answer) = call(&app, &cookie, Method::POST, &summary, body.clone()).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "{answer}");
+    assert_eq!(answer["error"]["message"], "Authentication Required");
     let (status, _) = call(&app, &cookie, Method::POST, &summary, body.clone()).await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
 
@@ -1753,11 +1768,12 @@ async fn a_function_of_the_run_answers_through_jc_functions() {
         &cookie,
         &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/events"),
         Some(1),
-        3,
+        4,
     )
     .await;
     assert!(
         stream.contains(r#""tool":"function:summary""#)
+            && stream.contains(r#""output":{"logs":[],"status":401}"#)
             && stream.contains(r#""logs":["summary 1 types"]"#)
             && stream.contains(r#""status":201"#)
             && stream.contains(r#""file":"functions/summary.ts""#)
