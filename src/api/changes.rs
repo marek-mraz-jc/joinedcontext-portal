@@ -440,7 +440,14 @@ fn workspace_of(branch: &str) -> Option<String> {
 
 /// The branch prefixes of a change that carries several resources and names none of them:
 /// `blueprints::flow_branch`, `import`'s headless bundle, `projects`' deletion.
-const BUNDLE_PREFIXES: [&str; 4] = ["flow-", "import-", "delete-project-", "remove-person-"];
+// `rename-app-shapes-`: every old-shape App of a project in one Change (AP-124, T-2940).
+const BUNDLE_PREFIXES: [&str; 5] = [
+    "flow-",
+    "import-",
+    "delete-project-",
+    "remove-person-",
+    "rename-app-shapes-",
+];
 
 /// The headline of a bundle: the first manifest among its files that lives in `project`, the
 /// `Project` manifest first when the bundle deletes one. Every file is still approved on its own

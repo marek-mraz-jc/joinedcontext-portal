@@ -275,6 +275,10 @@ routes:
   - route: GET /projects/{project}/apps/{name}/me
     rule: "app-edge"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /projects/{project}/apps/rename-shapes
+    rule: "project-verb:propose:App"
+    expect: [403, 403, 403, allow, 403, allow, 404, 403]
+    note: "the fixture's App carries no old shape name, so a caller the rule admits gets 409: nothing to rename"
   - route: POST /projects/{project}/apps/{name}/rebuild
     rule: "project-verb:propose:App"
     expect: [403, 403, 403, allow, 403, allow, 404, 403]
