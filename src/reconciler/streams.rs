@@ -1134,6 +1134,59 @@ fn percent_encode(val: &str) -> String {
     out
 }
 
+/// Entities one request of an endpoint source reads: the gateway's page (PL-31).
+pub const SOURCE_PAGE: u64 = 1000;
+/// The most entities one run of an endpoint source reads (PL-31, T-3132): a source holding more
+/// fails the read rather than handing the compute a cut list.
+pub const SOURCE_CEILING: u64 = 50_000;
+/// The metadata key a page request reads its offset from.
+const PAGE_OFFSET_META: &str = "jc_page_offset";
+
+/// What turns the first page and the source's stated total into one message per page still to
+/// read (PL-31, T-3132): the first page as `{rows}`, every other page as `{offset}`. A total past
+/// the ceiling, or a full first page whose total the gateway did not state, fails the read: one
+/// page of a larger answer is a cut list, and a compute over it reports wrong numbers as right.
+/// `range` with a step drops its last element in Bento, so pages are counted instead.
+fn pages_mapping() -> String {
+    format!(
+        r#"let total = meta("Ngsild-Results-Count").or(meta("ngsild-results-count")).or("").string()
+let total = if $total == "" {{ if this.length() < {SOURCE_PAGE} {{ this.length() }} else {{ throw("the source answered a full page of {SOURCE_PAGE} and did not say how many entities it holds, so a read of one page would cut the rest off") }} }} else {{ $total.number() }}
+let pages = ($total / {SOURCE_PAGE}).ceil().int64()
+root = if $total > {SOURCE_CEILING} {{ throw("the source holds %d entities, more than the {SOURCE_CEILING} one run reads".format($total.int64())) }} else {{ [{{"rows": this}}].concat(if $pages > 1 {{ range(1, $pages).map_each(page -> {{"offset": page * {SOURCE_PAGE}}}) }} else {{ [] }}) }}"#
+    )
+}
+
+/// The read of an endpoint source, every page of it (PL-31, T-3132): the first page with the
+/// total (`count=true`), then one request per further page, merged back into the one list the
+/// compute reads. `read` is the request of the first page as the source is read.
+fn paged_read(read: &Value, source_url: &str) -> Value {
+    let mut first = read.clone();
+    first["url"] = Value::String(format!("{source_url}&count=true"));
+    first["extract_headers"] =
+        serde_json::json!({ "include_patterns": ["(?i)^ngsild-results-count$"] });
+    let mut page = read.clone();
+    page["url"] = Value::String(format!(
+        "{source_url}&offset=${{! meta(\"{PAGE_OFFSET_META}\") }}"
+    ));
+    serde_json::json!({ "try": [
+        { "http": first },
+        { "mapping": pages_mapping() },
+        { "unarchive": { "format": "json_array" } },
+        { "switch": [
+            {
+                "check": "this.exists(\"offset\")",
+                "processors": [
+                    { "mapping": format!("meta {PAGE_OFFSET_META} = this.offset.string()") },
+                    { "http": page }
+                ]
+            },
+            { "processors": [{ "mapping": "root = this.rows" }] }
+        ] },
+        { "archive": { "format": "json_array" } },
+        { "mapping": "root = this.flatten()" }
+    ] })
+}
+
 /// Builds the Context Gateway entity query URL for an endpoint-sourced pipeline (PL-31).
 ///
 /// Every value is encoded on its own; the commas between ids and between attribute names are
@@ -1170,7 +1223,7 @@ pub fn endpoint_source_url(
         ));
     }
 
-    params.push("limit=1000".to_string());
+    params.push(format!("limit={SOURCE_PAGE}"));
 
     for (name, value) in [
         ("q", &query.q),
@@ -1455,7 +1508,7 @@ fn endpoint_input(
     if !source_is_public {
         read["oauth2"] = pipeline_oauth2(project);
     }
-    let p1 = serde_json::json!({ "try": [{ "http": read }] });
+    let p1 = paged_read(&read, &source_url);
     let p2 = serde_json::json!({
         "mutation": "root = if errored() { deleted() }"
     });
@@ -2154,6 +2207,47 @@ mod tests {
         serde_json::from_value(pipe_json).expect("valid endpoint PipelineSpec")
     }
 
+    /// T-3132, PL-31: the first page states the total, every further page is read from the same
+    /// source with the same credential, and the pages reach the compute as one list.
+    #[test]
+    fn an_endpoint_source_is_read_page_by_page_into_one_list() {
+        let spec =
+            endpoint_pipeline_spec(Some("StatisticalObservation"), vec![], Some("168h"), None);
+        let rendered =
+            render_endpoint_stream(&spec, "bbsk", "bbsk/kpi", "kraj_slug", false, "kpi_slug")
+                .expect("rendered");
+        let read = rendered["pipeline"]["processors"][0]["try"]
+            .as_array()
+            .expect("the read");
+        let first = &read[0]["http"];
+        assert!(
+            first["url"]
+                .as_str()
+                .is_some_and(|url| url.ends_with("&limit=1000&count=true")),
+            "{first}"
+        );
+        assert_eq!(
+            first["extract_headers"]["include_patterns"][0],
+            "(?i)^ngsild-results-count$"
+        );
+        let pages = read[1]["mapping"].as_str().expect("the pages mapping");
+        assert!(
+            pages.contains("50000") && pages.contains("did not say how many"),
+            "{pages}"
+        );
+        assert_eq!(read[2]["unarchive"]["format"], "json_array");
+        let further = &read[3]["switch"][0]["processors"][1]["http"];
+        assert_eq!(
+            further["url"],
+            "${JC_GATEWAY_URL}/api/endpoint/kraj_slug/ngsi-ld/v1/entities?type=StatisticalObservation&attrs=availableBikeNumber&limit=1000&offset=${! meta(\"jc_page_offset\") }"
+        );
+        // A private source: every page with the runner's token, never only the first.
+        assert_eq!(further["oauth2"], first["oauth2"]);
+        assert!(!first["oauth2"].is_null());
+        assert_eq!(read[4]["archive"]["format"], "json_array");
+        assert_eq!(read[5]["mapping"], "root = this.flatten()");
+    }
+
     #[test]
     fn endpoint_source_renders_get_url_with_type_and_attrs() {
         let spec =
@@ -2178,7 +2272,7 @@ mod tests {
         let http = &rendered["pipeline"]["processors"][0]["try"][0]["http"];
         assert_eq!(
             http["url"],
-            "${JC_GATEWAY_URL}/api/endpoint/source_slug_123/ngsi-ld/v1/entities?type=BikeHireDockingStation&attrs=availableBikeNumber&limit=1000"
+            "${JC_GATEWAY_URL}/api/endpoint/source_slug_123/ngsi-ld/v1/entities?type=BikeHireDockingStation&attrs=availableBikeNumber&limit=1000&count=true"
         );
         assert_eq!(http["verb"], "GET");
         assert_eq!(http["headers"]["Accept"], "application/json");
@@ -2409,7 +2503,7 @@ mod tests {
         let http = &rendered["pipeline"]["processors"][0]["try"][0]["http"];
         assert_eq!(
             http["url"],
-            "${JC_GATEWAY_URL}/api/endpoint/source_slug_123/ngsi-ld/v1/entities?id=urn:ngsi-ld:BikeHireDockingStation:hel.fi:h:station-1&attrs=availableBikeNumber&limit=1000"
+            "${JC_GATEWAY_URL}/api/endpoint/source_slug_123/ngsi-ld/v1/entities?id=urn:ngsi-ld:BikeHireDockingStation:hel.fi:h:station-1&attrs=availableBikeNumber&limit=1000&count=true"
         );
         assert!(!http["url"].as_str().unwrap().contains("type="));
     }
