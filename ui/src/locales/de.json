@@ -567,7 +567,17 @@
       "undoNone": "Rückgängig",
       "redoNone": "Wiederholen",
       "nothingToUndo": "Nichts, was Sie hier verschoben haben, ist rückgängig zu machen.",
-      "nothingToRedo": "Nichts Rückgängiggemachtes zu wiederholen."
+      "nothingToRedo": "Nichts Rückgängiggemachtes zu wiederholen.",
+      "delete": "Löschen",
+      "deleteTitle": "{name} löschen?",
+      "deleteLead": "Es verschwindet für alle aus dem Raum; Sie behalten 30 Tage lang eine Kopie in den gelöschten Entitäten dieses Raums und können sie zurücklegen.",
+      "deleteRefused": "{name} wurde nicht gelöscht: {reason}",
+      "trash": "Gelöschte Entitäten ({count})",
+      "trashLead": "Was Sie hier in den letzten 30 Tagen gelöscht haben, nur für Sie aufbewahrt. Zurücklegen legt es mit Ihren Rechten neu an.",
+      "deletedAt": "gelöscht {at}",
+      "restore": "Zurücklegen",
+      "restoreOne": "{name} zurücklegen",
+      "restoreRefused": "{name} wurde nicht zurückgelegt: {reason}"
     }
   },
   "endpoints": {

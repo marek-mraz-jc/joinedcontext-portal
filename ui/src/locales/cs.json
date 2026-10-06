@@ -567,7 +567,17 @@
       "undoNone": "Zpět",
       "redoNone": "Znovu",
       "nothingToUndo": "Nic, co jste tu přesunuli, není k vrácení.",
-      "nothingToRedo": "Nic vráceného k zopakování."
+      "nothingToRedo": "Nic vráceného k zopakování.",
+      "delete": "Smazat",
+      "deleteTitle": "Smazat {name}?",
+      "deleteLead": "Zmizí z prostoru pro všechny; kopii si ponecháte ve smazaných entitách tohoto prostoru 30 dní a můžete ji vrátit.",
+      "deleteRefused": "{name} se nesmazal: {reason}",
+      "trash": "Smazané entity ({count})",
+      "trashLead": "Co jste tu smazali za posledních 30 dní, uložené jen pro vás. Vrácení ji znovu vytvoří s vašimi právy.",
+      "deletedAt": "smazáno {at}",
+      "restore": "Vrátit",
+      "restoreOne": "Vrátit {name}",
+      "restoreRefused": "{name} se nevrátil: {reason}"
     }
   },
   "endpoints": {

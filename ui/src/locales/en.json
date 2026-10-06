@@ -567,7 +567,17 @@
       "undoNone": "Undo",
       "redoNone": "Redo",
       "nothingToUndo": "Nothing you moved here to undo.",
-      "nothingToRedo": "Nothing undone to redo."
+      "nothingToRedo": "Nothing undone to redo.",
+      "delete": "Delete",
+      "deleteTitle": "Delete {name}?",
+      "deleteLead": "It goes from the space for everyone; you keep a copy in this space's deleted entities for 30 days and can put it back.",
+      "deleteRefused": "{name} was not deleted: {reason}",
+      "trash": "Deleted entities ({count})",
+      "trashLead": "What you deleted here in the last 30 days, kept for you alone. Putting one back creates it again with your rights.",
+      "deletedAt": "deleted {at}",
+      "restore": "Put back",
+      "restoreOne": "Put back {name}",
+      "restoreRefused": "{name} was not put back: {reason}"
     }
   },
   "endpoints": {

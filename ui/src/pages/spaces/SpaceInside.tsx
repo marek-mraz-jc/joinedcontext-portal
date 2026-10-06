@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
+import type { RichRow } from "@joinedcontext/sdk";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
@@ -35,7 +36,7 @@ import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
-import { CalendarView, GalleryView, KanbanView, TimelineView, useViewRows } from "./DataViews";
+import { CalendarView, deleteRow, GalleryView, KanbanView, TimelineView, TrashPanel, trashKey, useViewRows } from "./DataViews";
 import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { SpaceQuality } from "./SpaceQuality";
@@ -431,6 +432,23 @@ function SpaceData({
           onChange={setView}
         />
       ) : null}
+      {probe.isSuccess ? (
+        <TrashPanel
+          project={project}
+          space={space}
+          restore={async (entity) => {
+            const answer = await originTransport()({
+              method: "POST",
+              path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`,
+              body: entity,
+            });
+            if (answer.status < 200 || answer.status >= 300) {
+              const detail = (answer.body as { detail?: unknown; title?: unknown } | undefined) ?? {};
+              throw new Error(String(detail.detail ?? detail.title ?? `HTTP ${answer.status}`));
+            }
+          }}
+        />
+      ) : null}
       {probe.isSuccess && view !== "grid" ? (
         <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
           <EntityFilters
@@ -440,7 +458,7 @@ function SpaceData({
             value={{ type, q }}
             onChange={(next) => setQ(next.q)}
           />
-          <OtherView source={source} space={space} type={type} q={q} view={view} enums={enums} />
+          <OtherView project={project} source={source} space={space} type={type} q={q} view={view} enums={enums} />
         </div>
       ) : null}
       {probe.isSuccess && config && view === "grid" ? (
@@ -467,6 +485,7 @@ type DataView = (typeof DATA_VIEWS)[number];
 
 /** One view other than the grid, over one page of the filtered type. */
 function OtherView({
+  project,
   source,
   space,
   type,
@@ -474,6 +493,7 @@ function OtherView({
   view,
   enums,
 }: {
+  project: string;
   source: ReturnType<typeof sourceFor>;
   space: string;
   type: string;
@@ -483,7 +503,14 @@ function OtherView({
   enums: Record<string, EnumChoice[]>;
 }): JSX.Element {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const rows = useViewRows(source, space, type, q);
+  // A delete keeps the person's copy, then reads the page and the trash again (T-3107).
+  const onDelete = async (row: RichRow) => {
+    await deleteRow(project, space, source, row);
+    await queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
+    await queryClient.invalidateQueries({ queryKey: trashKey(project, space) });
+  };
   if (rows.isPending) return <p role="status">{t("app.loading")}</p>;
   if (rows.isError) {
     return (
@@ -497,13 +524,13 @@ function OtherView({
   }
   switch (view) {
     case "gallery":
-      return <GalleryView rows={rows.data.rows} source={source} />;
+      return <GalleryView rows={rows.data.rows} source={source} onDelete={onDelete} />;
     case "kanban":
-      return <KanbanView rows={rows.data.rows} source={source} enums={enums} />;
+      return <KanbanView rows={rows.data.rows} source={source} enums={enums} onDelete={onDelete} />;
     case "calendar":
-      return <CalendarView rows={rows.data.rows} source={source} />;
+      return <CalendarView rows={rows.data.rows} source={source} onDelete={onDelete} />;
     case "timeline":
-      return <TimelineView rows={rows.data.rows} source={source} />;
+      return <TimelineView rows={rows.data.rows} source={source} onDelete={onDelete} />;
   }
 }
 

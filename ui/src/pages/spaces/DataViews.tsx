@@ -6,11 +6,13 @@
  */
 import { useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { cellText, EntityHistory } from "@joinedcontext/sdk";
+import { cellText, EntityHistory, toRichRow } from "@joinedcontext/sdk";
+import { api, unwrap } from "../../api/client";
+import type { components } from "../../api/schema";
 import type { EntitySource, RichRow } from "@joinedcontext/sdk";
-import { Alert, Button, Card, Checkbox, Dialog, ExternalLink, Field, Input, Select } from "../../components/ui";
+import { Alert, Button, Card, Checkbox, ConfirmDialog, Dialog, ExternalLink, Field, Input, Select } from "../../components/ui";
 import { safeHref } from "../../components/ui/safeHref";
 import { gridLabels } from "../../components/entities/PortalEntityGrid";
 
@@ -77,6 +79,7 @@ export function RowDialog({
   onClose,
   source,
   children,
+  onDelete,
 }: {
   row: RichRow | null;
   onClose: () => void;
@@ -84,9 +87,14 @@ export function RowDialog({
   source?: EntitySource;
   /** What the view adds under the attributes: the calendar's reschedule. */
   children?: ReactNode;
+  /** Deletes the row, keeping the person's copy (T-3107); none, no delete is offered. */
+  onDelete?: (row: RichRow) => Promise<void>;
 }): JSX.Element | null {
   const { t, i18n } = useTranslation();
   const [history, setHistory] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [refused, setRefused] = useState<string | null>(null);
   if (!row) return null;
   const attrs = Object.keys(row.cells).sort();
   return (
@@ -139,6 +147,46 @@ export function RowDialog({
         />
       ) : null}
       {children}
+      {refused ? (
+        <Alert role="alert" tone="danger">
+          {refused}
+        </Alert>
+      ) : null}
+      {onDelete ? (
+        <div className="flex justify-end">
+          <Button size="sm" variant="danger" onClick={() => setConfirming(true)}>
+            {t("spaces.views.delete")}
+          </Button>
+          <ConfirmDialog
+            open={confirming}
+            onOpenChange={setConfirming}
+            title={t("spaces.views.deleteTitle", { name: primaryOf(row) })}
+            description={t("spaces.views.deleteLead")}
+            confirmLabel={t("spaces.views.delete")}
+            tone="danger"
+            pending={deleting}
+            onConfirm={async () => {
+              setDeleting(true);
+              setRefused(null);
+              try {
+                await onDelete(row);
+                setConfirming(false);
+                onClose();
+              } catch (error) {
+                setConfirming(false);
+                setRefused(
+                  t("spaces.views.deleteRefused", {
+                    name: primaryOf(row),
+                    reason: error instanceof Error ? error.message : String(error),
+                  }),
+                );
+              } finally {
+                setDeleting(false);
+              }
+            }}
+          />
+        </div>
+      ) : null}
     </Dialog>
   );
 }
@@ -155,7 +203,15 @@ function Truncated({ count }: { count: number }): JSX.Element | null {
  * Cards (T-3100): the image the person chose, the primary field and up to five fields; a click or
  * Enter on a card opens the row.
  */
-export function GalleryView({ rows, source }: { rows: RichRow[]; source?: EntitySource }): JSX.Element {
+export function GalleryView({
+  rows,
+  source,
+  onDelete,
+}: {
+  rows: RichRow[];
+  source?: EntitySource;
+  onDelete?: (row: RichRow) => Promise<void>;
+}): JSX.Element {
   const { t } = useTranslation();
   const images = useMemo(() => linkAttributes(rows), [rows]);
   const attrs = useMemo(() => attributesOf(rows).filter((attr) => attr !== "name"), [rows]);
@@ -237,7 +293,7 @@ export function GalleryView({ rows, source }: { rows: RichRow[]; source?: Entity
           );
         })}
       </ul>
-      <RowDialog row={open} onClose={() => setOpen(null)} source={source} />
+      <RowDialog row={open} onClose={() => setOpen(null)} source={source} onDelete={onDelete} />
     </div>
   );
 }
@@ -391,10 +447,12 @@ export function KanbanView({
   rows,
   source,
   enums,
+  onDelete,
 }: {
   rows: RichRow[];
   source: EntitySource;
   enums: Record<string, EnumChoice[]>;
+  onDelete?: (row: RichRow) => Promise<void>;
 }): JSX.Element {
   const { t } = useTranslation();
   const attrs = Object.keys(enums).sort();
@@ -506,7 +564,7 @@ export function KanbanView({
           ),
         )}
       </div>
-      <RowDialog row={open} onClose={() => setOpen(null)} source={source} />
+      <RowDialog row={open} onClose={() => setOpen(null)} source={source} onDelete={onDelete} />
     </div>
   );
 }
@@ -601,10 +659,12 @@ export function CalendarView({
   rows,
   source,
   today = new Date().toISOString().slice(0, 10),
+  onDelete,
 }: {
   rows: RichRow[];
   source: EntitySource;
   today?: string;
+  onDelete?: (row: RichRow) => Promise<void>;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const keys = useMemo(() => dateKeys(rows), [rows]);
@@ -743,7 +803,7 @@ export function CalendarView({
         })}
       </ol>
       {open ? (
-        <RowDialog row={open} onClose={() => setOpen(null)} source={source}>
+        <RowDialog row={open} onClose={() => setOpen(null)} source={source} onDelete={onDelete}>
           {editable && rescheduled(open, key, dayOf(open, key) ?? "") ? (
             <form
               className="flex flex-wrap items-end gap-2"
@@ -772,7 +832,15 @@ export function CalendarView({
  * from the earliest start to the latest end, in start order; a row missing either date is left out
  * and counted.
  */
-export function TimelineView({ rows, source }: { rows: RichRow[]; source?: EntitySource }): JSX.Element {
+export function TimelineView({
+  rows,
+  source,
+  onDelete,
+}: {
+  rows: RichRow[];
+  source?: EntitySource;
+  onDelete?: (row: RichRow) => Promise<void>;
+}): JSX.Element {
   const { t, i18n } = useTranslation();
   const keys = useMemo(() => dateKeys(rows).filter((key) => !key.endsWith(OBSERVED)), [rows]);
   const [startKey, setStartKey] = useState("");
@@ -852,7 +920,149 @@ export function TimelineView({ rows, source }: { rows: RichRow[]; source?: Entit
           </li>
         ))}
       </ol>
-      <RowDialog row={open} onClose={() => setOpen(null)} source={source} />
+      <RowDialog row={open} onClose={() => setOpen(null)} source={source} onDelete={onDelete} />
     </div>
+  );
+}
+
+/** The members a broker writes itself; a restore sends the entity without them. */
+const SYSTEM = new Set(["createdAt", "modifiedAt", "deletedAt"]);
+
+/** The entity as a create takes it again: the broker's own timestamps left out, at every level. */
+export function writable(entity: Record<string, unknown>): Record<string, unknown> {
+  const strip = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(strip);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .filter(([key]) => !SYSTEM.has(key))
+          .map(([key, inner]) => [key, strip(inner)]),
+      );
+    }
+    return value;
+  };
+  return strip(entity) as Record<string, unknown>;
+}
+
+/**
+ * Deletes one row the way §31 orders it (T-3107): the person's copy kept first, then the delete
+ * through the gateway with their session; a delete the gateway refuses forgets the copy again and
+ * says the gateway's words.
+ */
+export async function deleteRow(project: string, space: string, source: EntitySource, row: RichRow): Promise<void> {
+  if (!source.remove) throw new Error("this view cannot delete");
+  const path = { project, space };
+  const kept = await api.POST("/api/v1/projects/{project}/spaces/{space}/trash", {
+    params: { path },
+    // The schema calls `entity` an object of no known members: an NGSI-LD entity is any.
+    body: { entity: writable(row.raw) as Record<string, never> },
+  });
+  if (!kept.data) {
+    const detail = (kept.error as { detail?: unknown } | undefined)?.detail;
+    throw new Error(typeof detail === "string" ? detail : `HTTP ${kept.response.status}`);
+  }
+  try {
+    await source.remove(row.id);
+  } catch (error) {
+    await api.DELETE("/api/v1/projects/{project}/spaces/{space}/trash/{id}", {
+      params: { path: { ...path, id: kept.data.id } },
+    });
+    throw error;
+  }
+}
+
+/** The key the trash list of one space is cached under. */
+export const trashKey = (project: string, space: string) => ["projects", project, "spaces", space, "trash"];
+
+/**
+ * What the person deleted from this space's views (T-3107, API/01 §31): their own copies for 30
+ * days, each restored with their own create through the gateway, refused like any write.
+ */
+export function TrashPanel({
+  project,
+  space,
+  restore,
+}: {
+  project: string;
+  space: string;
+  /** The create through the gateway: the entity back in the space under its URN. */
+  restore: (entity: Record<string, unknown>) => Promise<void>;
+}): JSX.Element | null {
+  const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
+  const [refused, setRefused] = useState<string | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+  const items = useQuery({
+    queryKey: trashKey(project, space),
+    retry: false,
+    queryFn: async () => {
+      const answer: unknown = await unwrap(
+        await api.GET("/api/v1/projects/{project}/spaces/{space}/trash", {
+          params: { path: { project, space } },
+        }),
+      );
+      // An answer of another shape is no list: the panel stays away rather than break the page.
+      return Array.isArray(answer) ? (answer as components["schemas"]["TrashItem"][]) : [];
+    },
+  });
+  if (!items.data || items.data.length === 0) return null;
+  const date = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" });
+  return (
+    <details className="rounded-lg border border-border p-3" data-testid="view-trash">
+      <summary className="cursor-pointer text-body font-semibold text-fg">
+        {t("spaces.views.trash", { count: items.data.length })}
+      </summary>
+      <p className="mt-1 text-caption text-fg-muted">{t("spaces.views.trashLead")}</p>
+      {refused ? (
+        <Alert role="alert" tone="danger" className="mt-2">
+          {refused}
+        </Alert>
+      ) : null}
+      <ul className="mt-2 flex flex-col gap-2">
+        {items.data.map((item) => {
+          const name = cellText(toRichRow(item.entity as Record<string, unknown>, i18n.language).cells.name) || item.urn;
+          return (
+            <li key={item.id} className="flex flex-wrap items-center justify-between gap-2">
+              <span className="min-w-0 [overflow-wrap:anywhere]">
+                <span className="font-semibold">{name}</span>{" "}
+                <span className="text-caption text-fg-muted">
+                  {t("spaces.views.deletedAt", { at: date.format(new Date(item.deletedAt)) })}
+                </span>
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy !== null}
+                disabledReason={t("app.loading")}
+                aria-label={t("spaces.views.restoreOne", { name })}
+                onClick={async () => {
+                  setRefused(null);
+                  setBusy(item.id);
+                  try {
+                    await restore(item.entity as Record<string, unknown>);
+                    await api.DELETE("/api/v1/projects/{project}/spaces/{space}/trash/{id}", {
+                      params: { path: { project, space, id: item.id } },
+                    });
+                    await queryClient.invalidateQueries({ queryKey: trashKey(project, space) });
+                    await queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
+                  } catch (error) {
+                    setRefused(
+                      t("spaces.views.restoreRefused", {
+                        name,
+                        reason: error instanceof Error ? error.message : String(error),
+                      }),
+                    );
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {t("spaces.views.restore")}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }

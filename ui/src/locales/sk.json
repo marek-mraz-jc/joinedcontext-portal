@@ -567,7 +567,17 @@
       "undoNone": "Späť",
       "redoNone": "Znova",
       "nothingToUndo": "Nič, čo ste tu presunuli, nie je na vrátenie.",
-      "nothingToRedo": "Nič vrátené na zopakovanie."
+      "nothingToRedo": "Nič vrátené na zopakovanie.",
+      "delete": "Odstrániť",
+      "deleteTitle": "Odstrániť {name}?",
+      "deleteLead": "Zmizne z priestoru pre všetkých; kópiu si ponecháte v odstránených entitách tohto priestoru 30 dní a môžete ju vrátiť.",
+      "deleteRefused": "{name} sa neodstránil: {reason}",
+      "trash": "Odstránené entity ({count})",
+      "trashLead": "Čo ste tu odstránili za posledných 30 dní, uložené len pre vás. Vrátenie ju znova vytvorí s vašimi právami.",
+      "deletedAt": "odstránené {at}",
+      "restore": "Vrátiť",
+      "restoreOne": "Vrátiť {name}",
+      "restoreRefused": "{name} sa nevrátil: {reason}"
     }
   },
   "endpoints": {
