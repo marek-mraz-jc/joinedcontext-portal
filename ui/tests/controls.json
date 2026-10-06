@@ -194,6 +194,15 @@
         "drift_modal.test.tsx"
       ]
     },
+    "src/components/entities/AddFieldDialog.tsx": {
+      "controls": {
+        "Button": 3,
+        "Checkbox": 2
+      },
+      "tests": [
+        "add_field.test.tsx"
+      ]
+    },
     "src/components/entities/EndpointDataView.tsx": {
       "controls": {
         "Button": 1
@@ -1189,6 +1198,15 @@
         "slot_unit.test.tsx"
       ]
     },
+    "src/pages/spaces/DataViews.tsx": {
+      "controls": {
+        "Button": 13,
+        "Checkbox": 1
+      },
+      "tests": [
+        "data_views.test.tsx"
+      ]
+    },
     "src/pages/spaces/SpaceComplete.tsx": {
       "controls": {
         "Button": 3
@@ -1207,12 +1225,20 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "endpoint_admits_person.test.ts",
         "part_space_inside.test.tsx",
         "space_inside.test.tsx"
+      ]
+    },
+    "src/pages/spaces/TypeApi.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "type_api.test.tsx"
       ]
     },
     "src/pages/sync/SyncSourcesPage.tsx": {
