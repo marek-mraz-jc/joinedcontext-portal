@@ -2,6 +2,10 @@
  * The person's own copy of real data into a preview (PF-83, API/01 §22): read through the
  * origin's Endpoint, write through the preview's, both on the person's edge session, so each
  * Policy decides as it would for any other call. Bounded per type and in bytes.
+ *
+ * Every entity is written as it was read, ids and relationships included: an entity is its space
+ * and its URN (ADR-N-041), so the copy in the preview's space is another entity under the same
+ * URN, and a relationship between two copied entities still points within the preview.
  */
 
 export const PER_TYPE = 1000;
@@ -17,29 +21,6 @@ export interface CopyResult {
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
-const URN = /^urn:ngsi-ld:([^:]+):([^:]+):([^:]+):(.+)$/;
-
-/**
- * Moves every id of the entity's own organization to the preview's space segment, the way the
- * loader moves the ids a manifest writes. An id of another organization stays as it is.
- */
-export function moveIds<T>(value: T, prefix: string, domain: string): T {
-  if (typeof value === "string") {
-    const m = URN.exec(value);
-    if (m && m[2] === domain && !m[3].startsWith(prefix)) {
-      return `urn:ngsi-ld:${m[1]}:${m[2]}:${prefix}${m[3]}:${m[4]}` as T;
-    }
-    return value;
-  }
-  if (Array.isArray(value)) return value.map((item) => moveIds(item, prefix, domain)) as T;
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, moveIds(item, prefix, domain)]),
-    ) as T;
-  }
-  return value;
-}
-
 async function reason(response: Response): Promise<string> {
   const text = await response.text().catch(() => "");
   try {
@@ -53,7 +34,6 @@ async function reason(response: Response): Promise<string> {
 export async function copyIntoPreview(
   originSlug: string,
   previewSlug: string,
-  prefix: string,
   fetcher: Fetch = (input, init) => fetch(input, { credentials: "same-origin", ...init }),
 ): Promise<CopyResult> {
   const origin = `/api/endpoint/${originSlug}/ngsi-ld/v1`;
@@ -74,11 +54,7 @@ export async function copyIntoPreview(
       if (!page.ok) return { ...result, stopped: await reason(page) };
       const entities = (await page.json()) as { id: string }[];
       if (entities.length === 0) break;
-      const moved = entities.map((entity) => {
-        const domain = URN.exec(entity.id)?.[2] ?? "";
-        return moveIds(entity, prefix, domain);
-      });
-      const body = JSON.stringify(moved);
+      const body = JSON.stringify(entities);
       bytes += body.length;
       if (bytes > MAX_BYTES) return { ...result, stopped: `the copy stops at ${MAX_BYTES / 1024 / 1024} MiB` };
       const written = await fetcher(`${preview}/entityOperations/upsert`, {
@@ -90,10 +66,10 @@ export async function copyIntoPreview(
       if (written.status === 207) {
         const report = (await written.json().catch(() => ({}))) as { errors?: { error?: { detail?: string } }[] };
         const refused = report.errors ?? [];
-        result.copied[type] = (result.copied[type] ?? 0) + moved.length - refused.length;
+        result.copied[type] = (result.copied[type] ?? 0) + entities.length - refused.length;
         if (refused.length > 0) return { ...result, stopped: refused[0].error?.detail ?? "some entities were refused" };
       } else {
-        result.copied[type] = (result.copied[type] ?? 0) + moved.length;
+        result.copied[type] = (result.copied[type] ?? 0) + entities.length;
       }
       if (entities.length < limit) break;
     }

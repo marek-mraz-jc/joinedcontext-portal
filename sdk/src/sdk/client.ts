@@ -84,6 +84,11 @@ export interface DataClient {
     list<T extends Row = Row>(type: string, query?: Query): Promise<T[]>;
     all<T extends Row = Row>(type: string, query?: Query): Promise<T[]>;
     get<T extends Row = Row>(id: string, attrs?: string[], options?: EndpointOption): Promise<T>;
+    /**
+     * Creates one entity through the type's endpoint. `localId` is minted into
+     * `urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}`; a whole `urn:ngsi-ld:{Type}:…` id is kept
+     * as given (ADR-N-041). Answers the id.
+     */
     create(type: string, attrs: Record<string, WriteValue>, localId?: string, options?: EndpointOption): Promise<string>;
     update(id: string, patch: Record<string, WriteValue>, options?: EndpointOption): Promise<void>;
     /** Every language of one LanguageProperty, which a row reduces to one; `{}` when it has none. */
@@ -111,6 +116,13 @@ export interface Client extends DataClient {
 export const FUNCTION_NAME = /^[a-z][a-z0-9-]{0,39}$/;
 const TYPE_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 const LOCAL_ID_RE = /^[A-Za-z0-9._~-]{1,128}$/;
+/** RFC 8141's namespace-specific string, at most 256 characters (ADR-N-041, PF-43). */
+const URN_ID_RE = /^(?=.{1,256}$)(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})(?:[A-Za-z0-9._~!$&'()*+,;=:@/-]|%[0-9A-Fa-f]{2})*$/;
+
+/** The type an NGSI-LD URN names: `urn:ngsi-ld:{Type}:…`, or nothing. */
+function typeOfUrn(id: string): string | undefined {
+  return id.startsWith("urn:ngsi-ld:") ? id.split(":")[2] || undefined : undefined;
+}
 
 export function isEndpointPath(slug: string, path: string): boolean {
   if (path.includes("..") || path.includes("//") || path.includes("\\") || path.includes("#")) {
@@ -202,19 +214,19 @@ export function createClient(config: JcConfig, transport: Transport): Client {
   const accesses = new Map<string, AccessDocument>();
   const known = endpointsOf(config);
 
-  /** The endpoint of an entity id: its type, and its space when several endpoints serve the type. */
+  /**
+   * The endpoint of an entity id: the named one, else the one serving its type. An entity is its
+   * space and its URN (ADR-N-041): the URN never says which space, so a type several endpoints
+   * serve is refused until the call names one, whatever the URN's segments read.
+   */
   const endpointOfId = (id: string, name?: string): JcEndpoint => {
     if (name !== undefined || known.length === 1) {
       return resolveEndpoint(known, undefined, name);
     }
-    const parts = id.split(":");
-    const type = parts[2];
-    const space = parts[4];
-    const serving = known.filter((e) => e.types.includes(type));
-    const inSpace = serving.find((e) => e.space === space) ?? known.find((e) => e.space === space);
-    return inSpace ?? resolveEndpoint(known, type);
+    return resolveEndpoint(known, typeOfUrn(id));
   };
 
+  /** The prefixed id of `localId` in the space of the endpoint `create` writes to (SDK-05). */
   const entityId = (type: string, localId: string, options?: EndpointOption): string => {
     const space = known.length === 1 ? config.space : resolveEndpoint(known, type, options?.endpoint).space || config.space;
     return `urn:ngsi-ld:${type}:${config.orgDomain}:${space}:${localId}`;
@@ -320,11 +332,25 @@ export function createClient(config: JcConfig, transport: Transport): Client {
         throw new ProblemError(0, { title: `Invalid entity type: '${type}'` });
       }
       const lid = localId ?? randomId();
-      if (!LOCAL_ID_RE.test(lid)) {
-        throw new ProblemError(0, { title: `Invalid localId: '${lid}'` });
+      // A whole NGSI-LD URN is kept as given (ADR-N-041 §3.4: the source's own id, or one the app
+      // built from a template); a local id is minted into the prefixed shape.
+      const given = lid.startsWith("urn:ngsi-ld:");
+      if (given && typeOfUrn(lid) !== type) {
+        throw new ProblemError(0, {
+          title: `The id '${lid}' is not a ${type}`,
+          detail: `An id given whole names the type it creates: urn:ngsi-ld:${type}:…`,
+        });
+      }
+      if (given ? !URN_ID_RE.test(lid.slice(`urn:ngsi-ld:${type}:`.length)) : !LOCAL_ID_RE.test(lid)) {
+        throw new ProblemError(0, {
+          title: `Invalid ${given ? "id" : "localId"}: '${lid}'`,
+          detail: given
+            ? "After urn:ngsi-ld:{Type}: an id holds 1 to 256 letters, digits or -._~!$&'()*+,;=:@/ and %-escapes (RFC 8141)."
+            : "A local id holds 1 to 128 letters, digits or -._~; pass a whole urn:ngsi-ld: id to keep another shape.",
+        });
       }
       const { slug } = resolveEndpoint(known, type, options?.endpoint);
-      const id = entityId(type, lid, options);
+      const id = given ? lid : entityId(type, lid, options);
       const body = {
         id,
         type,

@@ -362,7 +362,9 @@ async fn validating_gives_a_verdict_per_record_with_the_rule_each_broke() {
     let records = json!([
         { "id": "urn:ngsi-ld:BikeStation:hel.fi:bikes:01", "type": "BikeStation", "capacity": { "type": "Property", "value": 12 } },
         { "id": "urn:ngsi-ld:BikeStation:hel.fi:bikes:02", "type": "BikeStation", "capacity": { "type": "Property", "value": "x" } },
-        { "id": "urn:ngsi-ld:BikeStation:elsewhere.org:bikes:03", "type": "BikeStation" },
+        // An id must be an NGSI-LD URN of the record's type (PF-43); another organization's prefix
+        // would be an id like any other since ADR-N-041.
+        { "id": "urn:ngsi-ld:Tram:hel.fi:bikes:03", "type": "BikeStation" },
         { "id": "urn:ngsi-ld:Tram:hel.fi:bikes:04", "type": "Tram" }
     ]);
     // A reader may check: the verdict writes nothing and names only the model's rules.

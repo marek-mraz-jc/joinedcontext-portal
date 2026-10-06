@@ -355,7 +355,6 @@ impl Scanner {
             .schemas
             .get(project, space)
             .ok_or_else(|| format!("{project}/{space} names no model any more"))?;
-        let segment = crate::spaces::segment(&self.mirror, project, space);
         let mut tally = Tally::default();
         'classes: for class in schema.classes.keys() {
             let mut offset = 0;
@@ -368,7 +367,7 @@ impl Scanner {
                         break 'classes;
                     }
                     let modified = strip_system(&mut entity);
-                    let problems = schema.check(&entity, &self.org_domain, &segment);
+                    let problems = schema.check(&entity);
                     tally.add(&entity, modified, &problems);
                 }
                 if !full {

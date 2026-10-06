@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { TryItPage } from "../src/pages/workspaces/TryItPage";
-import { copyIntoPreview, moveIds, PER_TYPE } from "../src/pages/workspaces/copyIntoPreview";
+import { copyIntoPreview, PER_TYPE } from "../src/pages/workspaces/copyIntoPreview";
 
 let me = { email: "jana@hel.fi", username: "jana" };
 vi.mock("../src/auth/AuthProvider", () => ({ useAuth: () => ({ identity: me, status: "authenticated" }) }));
@@ -144,17 +144,22 @@ describe("try it", () => {
 });
 
 describe("the copy into a preview", () => {
-  it("moves ids of the entity's own organization to the preview's segment, once", () => {
+  it("writes every entity as it was read, its id and relationships unchanged (ADR-N-041)", async () => {
     const entity = {
       id: "urn:ngsi-ld:Station:hel.fi:helsinki-air:1",
-      refZone: { type: "Relationship", object: ["urn:ngsi-ld:Zone:hel.fi:helsinki-air:z", "urn:ngsi-ld:Zone:other.org:x:z"] },
-      name: { type: "Property", value: "urn is not an id here" },
+      type: "Station",
+      refZone: { type: "Relationship", object: ["urn:ngsi-ld:Zone:hel.fi:helsinki-air:z", "urn:ngsi-ld:Zone:Helsinki-7"] },
     };
-    const moved = moveIds(entity, "ws-a-", "hel.fi");
-    expect(moved.id).toBe("urn:ngsi-ld:Station:hel.fi:ws-a-helsinki-air:1");
-    expect(moved.refZone.object).toEqual(["urn:ngsi-ld:Zone:hel.fi:ws-a-helsinki-air:z", "urn:ngsi-ld:Zone:other.org:x:z"]);
-    expect(moved.name.value).toBe("urn is not an id here");
-    expect(moveIds(moved, "ws-a-", "hel.fi")).toEqual(moved);
+    const written: unknown[] = [];
+    const fetcher = async (input: string, init?: RequestInit): Promise<Response> => {
+      if (input.endsWith("/types")) return new Response(JSON.stringify({ typeList: ["Station"] }), { status: 200 });
+      if (input.includes("/entities?")) return new Response(JSON.stringify([entity]), { status: 200 });
+      written.push(JSON.parse(String(init?.body)));
+      return new Response(null, { status: 204 });
+    };
+    const result = await copyIntoPreview("origin", "preview", fetcher);
+    expect(result).toEqual({ copied: { Station: 1 } });
+    expect(written).toEqual([[entity]]);
   });
 
   it("reads at most the bound per type and writes every page through the preview", async () => {
@@ -170,7 +175,7 @@ describe("the copy into a preview", () => {
       }
       return new Response(null, { status: 204 });
     };
-    const result = await copyIntoPreview("origin", "minted", "ws-a-", fetcher);
+    const result = await copyIntoPreview("origin", "minted", fetcher);
     expect(result).toEqual({ copied: { Station: PER_TYPE } });
     expect(calls.filter((c) => c.startsWith("GET /api/endpoint/origin/ngsi-ld/v1/entities"))).toHaveLength(10);
     expect(calls.filter((c) => c === "POST /api/endpoint/minted/ngsi-ld/v1/entityOperations/upsert")).toHaveLength(10);
@@ -179,7 +184,7 @@ describe("the copy into a preview", () => {
 
   it("stops with the origin's reason when the person may not read, and with nothing written", async () => {
     const calls: string[] = [];
-    const result = await copyIntoPreview("origin", "minted", "ws-a-", async (input, init) => {
+    const result = await copyIntoPreview("origin", "minted", async (input, init) => {
       calls.push(`${init?.method ?? "GET"} ${input}`);
       return json({ title: "Forbidden", status: 403, detail: "no policy grants retrieveOps" }, 403);
     });
@@ -188,7 +193,7 @@ describe("the copy into a preview", () => {
   });
 
   it("copies nothing from an origin that holds nothing", async () => {
-    const result = await copyIntoPreview("origin", "minted", "ws-a-", async (input) =>
+    const result = await copyIntoPreview("origin", "minted", async (input) =>
       input.endsWith("/types") ? json({ typeList: [] }) : json([]),
     );
     expect(result).toEqual({ copied: {} });

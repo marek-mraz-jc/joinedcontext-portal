@@ -41,8 +41,11 @@ from `@joinedcontext/sdk` call the endpoints with the person's own token. An App
 endpoints names each in `dataNeeds`; the client reads a type through the endpoint that serves it,
 and a type two endpoints serve gets a page per endpoint (`sourcesOf` in `src/endpoints.ts`), read
 with `useEntities(type, { endpoint })`, checked with `useAccess(endpoint)` and created with
-`useSave().create(type, attrs, localId, { endpoint })`. A write is offered only where
-`useAccess().can(...)` says the person's grant allows it.
+`useSave().create(type, attrs, localId, { endpoint })`. `localId` becomes
+`urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}`; a whole `urn:ngsi-ld:{Type}:…` id is kept as
+given. An entity is its endpoint's space and its id: with several endpoints serving a type, name
+the endpoint on `get`, `update` and `remove` too, because the id never says which space it is in.
+A write is offered only where `useAccess().can(...)` says the person's grant allows it.
 
 ## Languages
 

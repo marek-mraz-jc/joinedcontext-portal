@@ -63,11 +63,42 @@ describe("an application of several endpoints", () => {
     const id = await client.entities.create("KeyPerformanceIndicator", { name: "bikes" }, "bikes-avg");
     expect(id).toBe("urn:ngsi-ld:KeyPerformanceIndicator:hel.fi:transportation-kpi:bikes-avg");
     expect(calls[0].path).toBe("/api/endpoint/kpis1/ngsi-ld/v1/entities");
-    await client.entities.update("urn:ngsi-ld:Alert:hel.fi:transportation-kpi:a1", { level: "high" });
-    await client.entities.remove("urn:ngsi-ld:Alert:hel.fi:transportation:a2");
+    await client.entities.update("urn:ngsi-ld:Alert:hel.fi:transportation-kpi:a1", { level: "high" }, { endpoint: "transportation-kpis" });
+    await client.entities.remove("urn:ngsi-ld:Alert:hel.fi:transportation:a2", { endpoint: "transportation" });
     await client.entities.get("urn:ngsi-ld:Vehicle:hel.fi:transportation:v1");
     expect(calls.slice(1).map((c) => c.path.split("/")[3])).toEqual(["kpis1", "transport1", "transport1"]);
     expect(client.entityId("Vehicle", "v9")).toBe("urn:ngsi-ld:Vehicle:hel.fi:transportation:v9");
+  });
+
+  // T-3084, ADR-N-041: an entity is its space and its URN; the URN's segments never pick the
+  // endpoint. A type two endpoints serve is refused until the call names one, whatever the URN
+  // reads, and a named endpoint is used even when the URN names another space.
+  it("never picks an endpoint by the space a URN names", async () => {
+    const { calls, transport } = recording();
+    const client = createClient(CONFIG, transport);
+    await expect(client.entities.update("urn:ngsi-ld:Alert:hel.fi:transportation-kpi:a1", { level: "high" })).rejects.toThrow(
+      /pass \{ endpoint/,
+    );
+    await expect(client.entities.remove("urn:ngsi-ld:Alert:hel.fi:transportation:a2")).rejects.toThrow(ProblemError);
+    expect(calls).toHaveLength(0);
+    await client.entities.remove("urn:ngsi-ld:Alert:hel.fi:transportation:a2", { endpoint: "transportation-kpis" });
+    expect(calls[0].path).toContain("/api/endpoint/kpis1/");
+    // A Vehicle is served by one endpoint only: a URN naming the KPI space still goes there.
+    await client.entities.get("urn:ngsi-ld:Vehicle:hel.fi:transportation-kpi:v1");
+    expect(calls[1].path).toContain("/api/endpoint/transport1/");
+  });
+
+  it("keeps a whole URN given to create, and refuses one of another type or shape", async () => {
+    const { calls, transport } = recording();
+    const client = createClient(CONFIG, transport);
+    const kept = await client.entities.create("Vehicle", { name: "tram" }, "urn:ngsi-ld:Vehicle:HSL:1007");
+    expect(kept).toBe("urn:ngsi-ld:Vehicle:HSL:1007");
+    expect(calls[0].body).toMatchObject({ id: "urn:ngsi-ld:Vehicle:HSL:1007", type: "Vehicle" });
+    await expect(client.entities.create("Vehicle", {}, "urn:ngsi-ld:Alert:HSL:1")).rejects.toThrow(/names the type it creates: urn:ngsi-ld:Vehicle:/);
+    await expect(client.entities.create("Vehicle", {}, "urn:ngsi-ld:Vehicle:has space")).rejects.toThrow(/RFC 8141/);
+    await expect(client.entities.create("Vehicle", {}, `urn:ngsi-ld:Vehicle:${"a".repeat(257)}`)).rejects.toThrow(/RFC 8141/);
+    await expect(client.entities.create("Vehicle", {}, "has:colon")).rejects.toThrow(/whole urn:ngsi-ld: id/);
+    expect(calls).toHaveLength(1);
   });
 
   it("merges every endpoint's schema and reads one endpoint's access by name", async () => {
