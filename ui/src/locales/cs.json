@@ -910,7 +910,8 @@
       "key": "Klíč",
       "known": "Známá tajemství"
     },
-    "emptyHint": "Datový zdroj je místo, odkud platforma čte: kanál, broker, API. Přidejte jeden a pipeline jej může načíst do kontextového prostoru."
+    "emptyHint": "Datový zdroj je místo, odkud platforma čte: kanál, broker, API. Přidejte jeden a pipeline jej může načíst do kontextového prostoru.",
+    "newPipeline": "Nová pipeline z tohoto zdroje"
   },
   "pipelines": {
     "lead": "Co přináší data: každá pipeline čte zdroj, transformuje ho a zapisuje přes endpoint.",

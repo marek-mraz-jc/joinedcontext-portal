@@ -910,7 +910,8 @@
       "key": "Schlüssel",
       "known": "Bekannte Secrets"
     },
-    "emptyHint": "Eine Datenquelle ist der Ort, von dem die Plattform abruft: ein Feed, ein Broker, eine API. Fügen Sie eine hinzu, und eine Pipeline kann sie in einen Kontextraum lesen."
+    "emptyHint": "Eine Datenquelle ist der Ort, von dem die Plattform abruft: ein Feed, ein Broker, eine API. Fügen Sie eine hinzu, und eine Pipeline kann sie in einen Kontextraum lesen.",
+    "newPipeline": "Neue Pipeline aus dieser Quelle"
   },
   "pipelines": {
     "lead": "Was Daten hereinbringt: jede Pipeline liest eine Quelle, wandelt sie um und schreibt über einen Endpunkt.",

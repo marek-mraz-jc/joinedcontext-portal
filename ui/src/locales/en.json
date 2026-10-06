@@ -910,7 +910,8 @@
       "records": "{records} records, {bytes} bytes",
       "skipped": "Not fetched: {reason}"
     },
-    "emptyHint": "A data source is where the platform fetches from: a feed, a broker, an API. Add one and a pipeline can read it into a context space."
+    "emptyHint": "A data source is where the platform fetches from: a feed, a broker, an API. Add one and a pipeline can read it into a context space.",
+    "newPipeline": "New pipeline from this source"
   },
   "pipelines": {
     "lead": "What brings data in: each pipeline reads a source, transforms it and writes through an endpoint.",

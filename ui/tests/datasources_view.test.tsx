@@ -155,6 +155,18 @@ describe("data sources view", () => {
     window.history.pushState({}, "", "/projects/banskabystrica/datasources");
   });
 
+  it("starts a pipeline on a source from its row, the editor opening with that source picked", async () => {
+    renderDataSources();
+    const row = (await screen.findByRole("link", { name: SOURCES.items[0].metadata.name })).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.datasources.newPipeline }));
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/banskabystrica/pipelines"));
+    const page = await findFormPage();
+    await waitFor(() =>
+      expect(within(page).getAllByRole("combobox").some((select) => (select as HTMLSelectElement).value.includes(SOURCES.items[0].metadata.name))).toBe(true),
+    );
+  });
+
   it("lists every source with its type, endpoint and the names of its credentials", async () => {
     renderDataSources();
 
