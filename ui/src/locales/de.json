@@ -2316,6 +2316,11 @@
       "amber": "Länger nicht geprüft",
       "line": "Geprüft {when}",
       "lineWithReason": "Geprüft {when}: {reason}"
+    },
+    "renameShapes": {
+      "notice": "{count, plural, one {# App verwendet noch einen Formnamen, den das nächste Release ablehnt.} other {# Apps verwenden noch Formnamen, die das nächste Release ablehnt.}} Eine Änderung in Ihrem Namen schreibt die neuen Namen und ändert sonst nichts.",
+      "item": "{name}: aus {from} wird {to}",
+      "action": "Umbenennung vorschlagen"
     }
   },
   "appLifecycle": {

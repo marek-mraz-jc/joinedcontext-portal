@@ -90,6 +90,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/agent-runs/{id}/publish", "jc_run_publish"),
 ("GET", "/projects/{project}/apps/{name}/build", "links of the App page to the forge's own repository, run and package pages (AP-103); what they show is read in the forge"),
 ("GET", "/projects/{project}/apps/{name}/me", "a fullstack App's backend asks for the caller's roles with the edge token (AP-109); an agent acts as itself, never as a person in an App"),
+("POST", "/projects/{project}/apps/rename-shapes", "a person's one click on the Apps page that renames every old-shape App of a project in one Change (AP-124, T-2940); an agent or MCP client makes the same rewrite through jc_resource_propose, App by App"),
 ("POST", "/projects/{project}/apps/{name}/rebuild", "a person asks the forge to run the App's reviewed build.yml again (AP-103); an agent changes an application by a run, which the workflow builds on merge"),
 ("GET", "/projects/{project}/assistant/access", "what the assistant may reach here; the registry's own listing answers the same question"),
 ("GET", "/projects/{project}/assistant/catalog", "jc_catalog_search"),

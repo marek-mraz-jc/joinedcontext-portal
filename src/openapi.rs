@@ -117,6 +117,7 @@ use crate::tools::model_tools::{
         crate::api::agent_runs::publish_run,
         crate::api::app_build::build,
         crate::api::app_build::rebuild,
+        crate::api::app_shapes::rename_shapes,
         crate::api::app_me::me,
         crate::api::agent_runs::preview,
         crate::api::assistant::start_conversation,
