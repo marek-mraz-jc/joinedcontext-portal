@@ -485,7 +485,7 @@ impl Driver {
                     "check" => {
                         let problems = code::problems(files);
                         if !problems.is_empty() {
-                            (problems.join("\n"), false)
+                            (with_named_lines(&problems.join("\n"), files), false)
                         } else {
                             if dirty {
                                 let next = self
@@ -504,7 +504,10 @@ impl Driver {
                         }
                     }
                     "call_function" => self.call_function_tool(&call.input).await,
-                    "preview_errors" => self.preview_errors_tool(since_seq).await,
+                    "preview_errors" => {
+                        let (said, ok) = self.preview_errors_tool(since_seq).await;
+                        (with_named_lines(&said, files), ok)
+                    }
                     "finish" => {
                         self.tool_event(call, "finished", true, started, steps)
                             .await?;
@@ -742,6 +745,60 @@ impl Driver {
         }
         (out, true)
     }
+}
+
+/// Lines either side of a line a failure names that go with it (T-3075).
+const NAMED_LINES_AROUND: usize = 8;
+
+/// A failure with the lines it names (`src/App.tsx:12`) appended, numbered, so the model fixes
+/// them without a `read_file` round trip first (T-3075). Only the application's own files are
+/// quoted, a window either side of each named line, and the whole stays within [`RESULT_CAP`]:
+/// a window that does not fit is left out, and the file can still be read.
+fn with_named_lines(failure: &str, files: &BTreeMap<String, String>) -> String {
+    let mut out = failure.to_owned();
+    for (path, content) in files.iter().filter(|(path, _)| code::writable(path)) {
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.is_empty() {
+            continue;
+        }
+        let needle = format!("{path}:");
+        let mut named: Vec<usize> = failure
+            .match_indices(&needle)
+            .filter_map(|(at, _)| {
+                let digits: String = failure[at + needle.len()..]
+                    .chars()
+                    .take_while(char::is_ascii_digit)
+                    .collect();
+                digits.parse::<usize>().ok().filter(|line| *line > 0)
+            })
+            .map(|line| line.min(lines.len()))
+            .collect();
+        named.sort_unstable();
+        named.dedup();
+        // Overlapping windows are merged into one range.
+        let mut ranges: Vec<(usize, usize)> = Vec::new();
+        for line in named {
+            let (from, to) = (
+                line.saturating_sub(NAMED_LINES_AROUND).max(1),
+                (line + NAMED_LINES_AROUND).min(lines.len()),
+            );
+            match ranges.last_mut() {
+                Some(last) if from <= last.1 + 1 => last.1 = last.1.max(to),
+                _ => ranges.push((from, to)),
+            }
+        }
+        for (from, to) in ranges {
+            let mut quoted = format!("\n\n=== {path}, lines {from}-{to} ===");
+            for (number, line) in lines[from - 1..to].iter().enumerate() {
+                quoted.push_str(&format!("\n{}: {line}", from + number));
+            }
+            if out.len() + quoted.len() > RESULT_CAP {
+                return out;
+            }
+            out.push_str(&quoted);
+        }
+    }
+    out
 }
 
 /// What the loop counts of one call itself (T-3072, API/04 §4). `jc-agent-proxy` writes the
@@ -1062,6 +1119,7 @@ mod tests {
             bodies[2]["messages"].as_array().map(Vec::len)
                 > bodies[0]["messages"].as_array().map(Vec::len)
         );
+        assert_eq!(bodies[0]["parallel_tool_calls"], json!(true), "T-3075");
         let opening = &bodies[0]["messages"][1]["content"][0];
         assert_eq!(opening["cache_control"], json!({ "type": "ephemeral" }));
         // Stable first: the row types and the files, then the turns before and the request.
@@ -1076,6 +1134,100 @@ mod tests {
             at("Earlier in this conversation") < at("The request:"),
             "{text}"
         );
+    }
+
+    /// T-3075: the reads one answer asks for are all answered, and the next call carries every
+    /// result at once: four files cost one round trip, not four.
+    #[tokio::test]
+    async fn several_reads_in_one_answer_are_answered_in_one_next_call() {
+        let server = wiremock::MockServer::start().await;
+        let reads: Vec<Value> = ["a", "b", "c", "d"]
+            .iter()
+            .map(|name| {
+                json!({ "type": "tool_use", "id": format!("r-{name}"), "name": "read_file",
+                        "input": { "path": format!("src/{name}.tsx") } })
+            })
+            .collect();
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": reads,
+                "usage": { "input_tokens": 1_000, "output_tokens": 30 },
+            })))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "tool_use", "id": "f", "name": "finish",
+                              "input": { "message": "Read them." } }],
+                "usage": { "input_tokens": 1_000, "output_tokens": 10 },
+            })))
+            .mount(&server)
+            .await;
+        let driver = edit_driver(&server).await;
+        // Too big for the opening, so each read really answers the file.
+        let mut files: BTreeMap<String, String> = ["a", "b", "c", "d"]
+            .iter()
+            .map(|name| {
+                (
+                    format!("src/{name}.tsx"),
+                    format!("// {name}\n{}", "x".repeat(OPENING_BYTES / 3)),
+                )
+            })
+            .collect();
+        driver
+            .edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut Vec::new(),
+                "read",
+                None,
+            )
+            .await
+            .expect("the turn ends");
+        let requests = server.received_requests().await.expect("recorded");
+        assert_eq!(requests.len(), 2, "four reads, one round trip");
+        let second: Value = serde_json::from_slice(&requests[1].body).expect("JSON");
+        let results = second.to_string().matches("\"tool_result\"").count();
+        assert_eq!(results, 4, "{second}");
+    }
+
+    /// T-3075: a failure that names a file and a line carries those lines, so the model fixes
+    /// it without a read first; within the result's cap, and nothing of a file it does not name.
+    #[test]
+    fn a_failure_carries_the_lines_it_names() {
+        let app: String = (1..=40).map(|n| format!("line {n}\n")).collect();
+        let files = BTreeMap::from([
+            ("src/App.tsx".to_owned(), app),
+            ("src/Other.tsx".to_owned(), "other".to_owned()),
+        ]);
+        let said = with_named_lines("src/App.tsx:12:3: x is not defined", &files);
+        assert!(
+            said.starts_with("src/App.tsx:12:3: x is not defined"),
+            "{said}"
+        );
+        assert!(said.contains("=== src/App.tsx, lines 4-20 ==="), "{said}");
+        assert!(
+            said.contains("12: line 12")
+                && said.contains("4: line 4")
+                && said.contains("20: line 20"),
+            "{said}"
+        );
+        assert!(
+            !said.contains("21: line 21") && !said.contains("other"),
+            "{said}"
+        );
+        // Nothing named, nothing added; a line past the end is clamped.
+        assert_eq!(with_named_lines("ok", &files), "ok");
+        assert!(with_named_lines("src/App.tsx:99: gone", &files).contains("lines 32-40"));
+        // A huge file stays inside the cap.
+        let big = BTreeMap::from([(
+            "src/App.tsx".to_owned(),
+            "y".repeat(400).repeat(40).replace("yyyy", "y\n"),
+        )]);
+        assert!(with_named_lines("src/App.tsx:50: e", &big).len() <= RESULT_CAP);
     }
 
     /// T-3072: the proxy writes the usage frame and counts the tokens of every call it relays,
