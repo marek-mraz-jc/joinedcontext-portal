@@ -28,6 +28,11 @@
 //   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
 //                                      outputs (JC_DIGEST, JC_COMMIT, JC_SDK_VERSION, JC_BUILT_AT)
 //                                      to JC_PORTAL_URL with JC_LANE_TOKEN
+//   node lane.mjs browser-checks <app-dir> <bundle-dir> <report-dir>
+//                                      runs the App's own Playwright suite over the bundle just
+//                                      built, on the image's Chromium, with the report and its
+//                                      screenshots in <report-dir>; an App with no e2e/ is not
+//                                      checked and says so (T-2827)
 //   node lane.mjs test-project <project.json.gz> <work-dir>
 //                                      a run's sandbox (SDK-38): writes the version's files, links
 //                                      the template, runs vitest as the lane does and prints one
@@ -615,6 +620,35 @@ export function save(from, cache, key) {
   }
 }
 
+/**
+ * The App's browser checks (T-2827, SDK-12, UI-84): its own `e2e/` suite, run by Playwright over
+ * the bundle this build produced. The suite serves `dist/`, so `dist/` is made the bundle, and
+ * whatever the repository held there is never what gets checked. A red check fails the build;
+ * an App without `e2e/` and `playwright.config.ts` is not blocked, and the log says it was not
+ * checked. The report, with the screenshot of every page at every width, lands in `reportDir`.
+ * Returns the suite's exit status.
+ */
+export function browserChecks(appDir, bundleDir, reportDir, run = spawnSync) {
+  if (!existsSync(join(appDir, "playwright.config.ts")) || !existsSync(join(appDir, "e2e"))) {
+    console.log("no browser checks: the App has no e2e/ and playwright.config.ts (T-2827)");
+    return 0;
+  }
+  const dist = join(appDir, "dist");
+  rmSync(dist, { recursive: true, force: true });
+  symlinkSync(resolve(bundleDir), dist);
+  rmSync(reportDir, { recursive: true, force: true });
+  const result = run(join(appDir, "node_modules", ".bin", "playwright"), ["test", "--reporter=line,html"], {
+    cwd: appDir,
+    stdio: "inherit",
+    env: { ...process.env, CI: "true", PLAYWRIGHT_HTML_OUTPUT_DIR: resolve(reportDir), PLAYWRIGHT_HTML_OPEN: "never" },
+  });
+  if (result.error) {
+    console.error(`the browser checks did not start: ${result.error.message}`);
+    return 1;
+  }
+  return result.status ?? 1;
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [command, appDir, outDir] = process.argv.slice(2);
   try {
@@ -659,8 +693,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         if (bundle !== build.digest) throw new Error(`the bundle uploaded is ${bundle}, not the ${build.digest} that was built`);
       }
       await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `sbom-${build.commit}`, readFileSync(join(appDir, "sbom.cdx.json")));
+      // The browser checks' report and screenshots, when the App has them (T-2827).
+      if (existsSync(join(appDir, "report.tar.gz"))) {
+        await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `report-${build.commit}`, readFileSync(join(appDir, "report.tar.gz")));
+      }
       appendFileSync(env.GITHUB_OUTPUT, outputs);
       console.log(`uploaded the build of ${build.commit} as ${build.digest}`);
+    } else if (command === "browser-checks" && appDir && outDir && process.argv[5]) {
+      process.exitCode = browserChecks(resolve(appDir), outDir, process.argv[5]);
     } else if (command === "test-project" && appDir && outDir) {
       // One line the Portal reads from the pod's log, whatever happened (SDK-38).
       const timeoutMs = Number.parseInt(process.env.JC_TEST_TIMEOUT_MS ?? "", 10);
@@ -703,7 +743,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | browser-checks <app-dir> <bundle-dir> <report-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

@@ -259,6 +259,31 @@ test.describe("the check itself", () => {
     expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
   });
 
+  // T-2827: a chart's table of values is kept for a screen reader, clipped to nothing; a table
+  // never shrinks to its 1 px, so its box stood over the card it is in.
+  test("a block clipped away for a screen reader is not counted, a visible one is", async ({ page }) => {
+    const card = `<article style="position:absolute;top:0;left:0;width:300px;height:200px">A card</article>`;
+    const SR = "position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0, 0, 0, 0);white-space:nowrap";
+    await page.setContent(`<!doctype html><html lang="en"><head><title>The check</title></head><body>${card}
+      <table style="${SR};top:20px;left:20px"><tr><th>Category</th><td>closed 7</td><td>open 2</td></tr></table></body></html>`);
+    expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+    await page.setContent(`<!doctype html><html lang="en"><head><title>The check</title></head><body>${card}
+      <table style="position:absolute;top:20px;left:20px"><tr><th>Category</th><td>closed 7</td><td>open 2</td></tr></table></body></html>`);
+    expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([expect.stringMatching(/^overlap: article\. .* × table\./)]);
+  });
+
+  // T-2827: a fixed 900 px table scrolls the page sideways on a phone and fits on a laptop.
+  test("a fixed 900 px table fails at 375 px and passes at 1440 px", async ({ page }) => {
+    const html = `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>The check</title></head>
+      <body style="margin:0"><main><table style="width:900px"><caption>Readings</caption><tr><th scope="col">Station</th><th scope="col">pm25</th></tr><tr><td>Kallio</td><td>9.1</td></tr></table></main></body></html>`;
+    await page.setViewportSize(WIDTHS[0]);
+    await page.setContent(html);
+    expect((await layoutProblems(page, LIVE_BLOCKS)).length).toBeGreaterThan(0);
+    await page.setViewportSize(WIDTHS[2]);
+    await page.setContent(html);
+    expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+  });
+
   test("the same content open is counted", async ({ page }) => {
     await page.setContent(PAGE_WITH(true));
     expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([expect.stringMatching(/^overlap: table\. .* × figure\./)]);

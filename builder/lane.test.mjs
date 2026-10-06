@@ -1,6 +1,6 @@
 // node --test builder/lane.test.mjs (vite from sdk/node_modules for the bundle test)
 import { strict as assert } from "node:assert";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import * as lane from "./lane.mjs";
-import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
+import { appOf, artifactScope, browserChecks, bundleFunctions, cratesOf, functionEntries, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -729,4 +729,55 @@ test("the sandbox says when the tests pass, and when they could not run", { skip
   const dir = mkdtempSync(join(tmpdir(), "jc-sandbox-"));
   writeFileSync(join(dir, "project.json.gz"), "not gzip");
   assert.match(lane.testProject(join(dir, "project.json.gz"), join(dir, "app"), { store }).reason, /could not be read/);
+});
+
+// T-2827: the App's own browser checks run over the bundle this build made, and their verdict is the build's.
+function appWithChecks({ e2e = true } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "lane-browser-"));
+  const app = join(root, "app");
+  const bundle = join(root, "bundle");
+  mkdirSync(app);
+  mkdirSync(bundle);
+  writeFileSync(join(bundle, "index.html"), "<!doctype html>");
+  if (e2e) {
+    mkdirSync(join(app, "e2e"));
+    writeFileSync(join(app, "e2e", "app.spec.ts"), "");
+    writeFileSync(join(app, "playwright.config.ts"), "");
+  }
+  return { root, app, bundle, report: join(root, "report") };
+}
+
+test("an App without e2e/ is not checked, says so and is not blocked", () => {
+  const { app, bundle, report } = appWithChecks({ e2e: false });
+  const calls = [];
+  assert.equal(browserChecks(app, bundle, report, (...args) => calls.push(args)), 0);
+  assert.deepEqual(calls, []);
+  assert.equal(existsSync(join(app, "dist")), false);
+});
+
+test("the checks run the App's Playwright over the bundle just built, never a dist/ the repository holds", () => {
+  const { app, bundle, report } = appWithChecks();
+  mkdirSync(join(app, "dist"));
+  writeFileSync(join(app, "dist", "index.html"), "a stale bundle the repository committed");
+  const calls = [];
+  const status = browserChecks(app, bundle, report, (command, args, options) => {
+    calls.push({ command, args, options });
+    return { status: 0 };
+  });
+  assert.equal(status, 0);
+  assert.ok(lstatSync(join(app, "dist")).isSymbolicLink());
+  assert.equal(readlinkSync(join(app, "dist")), bundle);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, join(app, "node_modules", ".bin", "playwright"));
+  assert.deepEqual(calls[0].args, ["test", "--reporter=line,html"]);
+  assert.equal(calls[0].options.cwd, app);
+  assert.equal(calls[0].options.env.PLAYWRIGHT_HTML_OUTPUT_DIR, report);
+  assert.equal(calls[0].options.env.CI, "true");
+});
+
+test("a red check fails the build, and a browser that does not start fails it too", () => {
+  const { app, bundle, report } = appWithChecks();
+  assert.equal(browserChecks(app, bundle, report, () => ({ status: 1 })), 1);
+  assert.equal(browserChecks(app, bundle, report, () => ({ status: null, error: new Error("spawn playwright ENOENT") })), 1);
+  assert.equal(browserChecks(app, bundle, report, () => ({ status: null, signal: "SIGKILL" })), 1);
 });
