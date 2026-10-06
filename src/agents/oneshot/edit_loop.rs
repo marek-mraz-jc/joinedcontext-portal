@@ -21,8 +21,11 @@ const RESULT_CAP: usize = 8 * 1024;
 const EVENT_CAP: usize = 2 * 1024;
 /// How many `preview_error` events one call returns at most.
 const ERROR_WINDOW: usize = 20;
-/// Output budget of one editing call: an edit is small, the answer is a tool call or a sentence.
-const EDIT_OUTPUT_BUDGET: u32 = 8000;
+/// Output budget of one editing call. Most answers are a tool call or a sentence, and only what
+/// is written is paid for; but one answer carries every edit a request needs, a reasoning model
+/// thinks inside the same budget, and 8000 cut a two-file follow-up on dev with nothing applied
+/// (T-3044).
+const EDIT_OUTPUT_BUDGET: u32 = 32_000;
 /// Model calls one instruction may make (SDK-20): a request that needs more is asked in steps.
 const EDIT_CALLS: u32 = 12;
 /// Input tokens one instruction may send, over all of its calls (SDK-20).
@@ -740,6 +743,17 @@ impl Driver {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-3044: a follow-up on dev ("Add a chart of stations by free slots") was cut at 8000
+    /// output tokens and applied nothing: the system prompt asks for every edit in one answer,
+    /// and a reasoning model spends part of the budget thinking before it writes. One answer
+    /// holds a whole file the model may read, at a dozen tokens a line, and the reasoning.
+    #[test]
+    fn an_edit_answer_holds_a_whole_file_and_the_reasoning_before_it() {
+        const TOKENS_PER_LINE: usize = 12;
+        const REASONING: usize = 8000;
+        assert!(EDIT_OUTPUT_BUDGET as usize >= READ_WINDOW * TOKENS_PER_LINE + REASONING);
+    }
 
     #[test]
     fn a_path_outside_the_application_is_not_a_path() {
