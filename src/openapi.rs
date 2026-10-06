@@ -141,6 +141,14 @@ use crate::tools::model_tools::{
         crate::api::entity_trash::list_trash,
         crate::api::entity_trash::keep,
         crate::api::entity_trash::forget,
+        crate::api::knowledge::list_sources,
+        crate::api::knowledge::list_pages,
+        crate::api::knowledge::list_documents,
+        crate::api::knowledge::list_links,
+        crate::api::knowledge::list_passages,
+        crate::api::knowledge::set_inclusion,
+        crate::api::knowledge::recrawl,
+        crate::api::knowledge::deployment_usage,
         crate::api::live::watch,
         crate::api::service_accounts::list_keys,
         crate::api::service_accounts::create_key,
@@ -203,6 +211,7 @@ use crate::tools::model_tools::{
         crate::mcp::handle_mcp,
     ),
     components(schemas(
+        crate::api::knowledge::InclusionRequest,
         crate::api::validation::ValidationHealth,
         crate::api::organization_limits::OrganizationLimits,
         crate::api::organization_limits::LimitEntry,
@@ -402,7 +411,8 @@ use crate::tools::model_tools::{
         (name = "drafts", description = "Shared manifest drafts every window shares (AG-61, UI-47)"),
         (name = "preferences", description = "The signed-in person's own UI preferences"),
         (name = "access", description = "ServiceAccounts, their API keys and effective grants"),
-        (name = "basemap", description = "Map tiles and styles for application views, proxied so no coordinate leaves the platform (AP-67)")
+        (name = "basemap", description = "Map tiles and styles for application views, proxied so no coordinate leaves the platform (AP-67)"),
+        (name = "knowledge", description = "What the knowledge assistant holds of a project's sources, read and steered (API/01 §34, AG-113)")
     ),
     modifiers(&JcCoreSchemas, &SharedRefusals)
 )]
