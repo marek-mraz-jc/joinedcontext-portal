@@ -80,6 +80,9 @@ routes:
   - route: GET /internal/agent-runs/{id}/diagnostics/{component}/{name}
     rule: "workload:agent-proxy"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/model-key
+    rule: "workload:agent-proxy"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: POST /internal/pipelines/{project}/{name}/outcomes
     rule: "workload:pipeline-runner"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]

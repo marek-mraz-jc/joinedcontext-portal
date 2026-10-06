@@ -35,6 +35,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/internal/agent-runs/events", "the runner's own callback, authenticated as a workload"),
 ("GET", "/internal/agent-runs/{id}", "the runner's own callback, authenticated as a workload"),
 ("GET", "/internal/agent-runs/{id}/diagnostics/{component}/{name}", "the runner's own callback, authenticated as a workload"),
+("POST", "/internal/model-key", "the agent proxy reports the model key's state, authenticated as a workload (AG-96)"),
 ("POST", "/internal/pipelines/{project}/{name}/outcomes", "the pipeline runner's outcome sink posts the records of a batch the gateway took, authenticated as a workload (PL-62)"),
 ("POST", "/internal/pipelines/{project}/{name}/rejected", "the pipeline runner's validation stage posts a refused record, authenticated as a workload (PL-61)"),
 ("GET", "/internal/agent-runs/{id}/inbox", "the runner's own callback, authenticated as a workload"),

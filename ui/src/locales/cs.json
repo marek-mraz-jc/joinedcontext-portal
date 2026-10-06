@@ -468,6 +468,55 @@
         "empty": "Prázdné",
         "untargeted": "Bez cíle"
       }
+    },
+    "fields": {
+      "add": "Přidat pole",
+      "title": "Přidat pole do {type}",
+      "lead": "Pole je atribut DataModelu typu. Přidání navrhne změnu modelu ke schválení; data se nezmění, dokud není sloučena.",
+      "propose": "Navrhnout pole",
+      "refused": "Pole se nepodařilo navrhnout",
+      "refusedStatus": "Portál odpověděl {status}.",
+      "sdmTitle": "Ze Smart Data Modelu",
+      "sdmUnavailable": "Katalog Smart Data Models je nyní nedostupný; vlastní pole můžete definovat i tak.",
+      "sdmNone": "Každý atribut Smart Data Modelu {type}, který pole může nést, už tento typ má.",
+      "sdmNoModel": "Smart Data Model s názvem {type} neexistuje.",
+      "proposeOfficial": "Navrhnout atribut Smart Data Modelu {name}",
+      "ownTitle": "Vlastní pole",
+      "name": "Název",
+      "nameHelp": "Pouze písmena, číslice a _, na začátku písmeno, například capacityLevel.",
+      "type": "Typ",
+      "values": "Možnosti",
+      "valuesHelp": "Jedna na řádek.",
+      "target": "Odkazuje na",
+      "inverse": "Název zpětného odkazu",
+      "inverseHelp": "Atribut cíle, který vypisuje entity {type}, které na něj odkazují.",
+      "many": "Odkazuje na více entit",
+      "required": "Povinné",
+      "problem": {
+        "nameInvalid": "Použijte pouze písmena, číslice a _, na začátku písmeno.",
+        "nameTaken": "Tento typ nebo jeho model už má atribut s tímto názvem.",
+        "valuesMissing": "Zadejte alespoň jednu možnost.",
+        "valueInvalid": "Některá možnost je prázdná, příliš dlouhá (nad 100 znaků) nebo obsahuje řídicí znak.",
+        "valueTwice": "Některá možnost je uvedena dvakrát.",
+        "targetMissing": "Vyberte typ, na který odkazuje.",
+        "inverseInvalid": "Použijte pouze písmena, číslice a _ a jiný název, než má pole.",
+        "inverseTaken": "Cílový typ už má atribut s tímto názvem."
+      },
+      "types": {
+        "text": "Text",
+        "number": "Číslo",
+        "integer": "Celé číslo",
+        "date": "Datum",
+        "datetime": "Datum a čas",
+        "boolean": "Ano / ne",
+        "select": "Výběr",
+        "multiSelect": "Vícenásobný výběr",
+        "url": "Webová adresa",
+        "email": "E-mail",
+        "file": "Odkaz na soubor",
+        "location": "Poloha",
+        "relationship": "Odkaz na jiný typ"
+      }
     }
   },
   "endpoints": {
@@ -2703,7 +2752,9 @@
     "atMost": "musí být nejvýše",
     "patternMismatch": "nemá tvar, který tento atribut vyžaduje",
     "required": "je povinné",
-    "toCorrect": "je třeba opravit před použitím"
+    "toCorrect": "je třeba opravit před použitím",
+    "yes": "Ano",
+    "no": "Ne"
   },
   "explore": {
     "title": "Procházet data",
