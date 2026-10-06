@@ -1,11 +1,9 @@
-//! The kit pass through the real router (T-0571, AP-56…AP-60, AG-53, AG-54, UI-41).
+//! The builder's runs through the real router (T-0571, T-0680, AP-56…AP-60, AG-53, AG-54, UI-41).
 //!
-//! A `static` dashboard is driven by the Portal itself: samples through the proxy, one model
-//! call, SEARCH/REPLACE blocks applied to `spec.json`, a preview document. An application is
-//! code on the App SDK instead; its cases are at the end of this file (T-0680). The proxy is a wiremock
-//! that answers what the driver asks; the cases are the first pass, a repair, a block for a
-//! path the run may not write, a chat message as a second pass, the preview route's gates and
-//! a proxy that does not answer.
+//! Every run that builds writes code on the App SDK: an application (T-0680), a dashboard
+//! (T-3159) and an analysis (T-3160). The spec.json kit this file was named for is retired
+//! (T-0681). The proxy is a wiremock that answers what the driver asks. The conversation cases
+//! are the assistant's own path.
 //!
 //! The application cases drive `src/agents/oneshot/code_pass.rs` end to end (T-1662): the first
 //! version, a refused path, a repair, a second failure, an answer without blocks, an answer cut at
@@ -18,7 +16,6 @@ use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
 use axum_extra::extract::cookie::PrivateCookieJar;
 use http_body_util::BodyExt;
-use joinedcontext_portal::agents::kit;
 use joinedcontext_portal::auth::session::{self, Identity, Session};
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::git::GiteaClient;
@@ -38,17 +35,6 @@ const CSRF: &str = "csrf-token-value";
 const PROJECT: &str = "helsinki";
 const STEWARD: &str = "demo.steward";
 const SLUG: &str = "si6epqkx364lprho5uaigutk274r5grb";
-
-const VALID_SPEC: &str = r#"{
-  "title": "Helsinki city bikes",
-  "sources": [{ "name": "stations", "type": "BikeHireDockingStation", "attrs": ["name", "location", "availableBikeNumber"] }],
-  "filters": [{ "kind": "search", "attrs": ["name"] }],
-  "views": [
-    { "kind": "stats", "items": [{ "label": "Stations", "agg": "count" }] },
-    { "kind": "map", "label": "name", "color": "availableBikeNumber" },
-    { "kind": "table", "columns": ["name", "availableBikeNumber"] }
-  ]
-}"#;
 
 fn answer(prose: &str, blocks: &[(&str, &str, &str)]) -> String {
     let mut text = format!("{prose}\n\n```text\n");
@@ -281,15 +267,6 @@ async fn forge() -> MockServer {
     forge
 }
 
-async fn portal_with(
-    provider: &str,
-    answers: &[String],
-    forge: Option<&MockServer>,
-) -> (axum::Router, String, MockServer) {
-    let (_, app, cookie, proxy) = portal_state_with(provider, answers, forge).await;
-    (app, cookie, proxy)
-}
-
 async fn portal_state_with(
     provider: &str,
     answers: &[String],
@@ -518,10 +495,6 @@ async fn events(app: &axum::Router, cookie: &str, id: &str) -> Vec<(String, Valu
         .collect()
 }
 
-fn kinds(events: &[(String, Value)]) -> Vec<&str> {
-    events.iter().map(|(kind, _)| kind.as_str()).collect()
-}
-
 async fn model_requests(proxy: &MockServer) -> Vec<Value> {
     proxy
         .received_requests()
@@ -531,406 +504,6 @@ async fn model_requests(proxy: &MockServer) -> Vec<Value> {
         .filter(|request| request.url.path().starts_with("/v1/llm/"))
         .map(|request| serde_json::from_slice(&request.body).unwrap_or(Value::Null))
         .collect()
-}
-
-#[tokio::test]
-async fn the_first_pass_writes_the_spec_and_the_preview_is_one_document() {
-    let (app, cookie, proxy) = portal(
-        "anthropic",
-        &[answer(
-            "A dashboard of the city's bike stations: a count, a map coloured by free bikes, a table.",
-            &[("spec.json", "", VALID_SPEC)],
-        )],
-    )
-    .await;
-
-    let created = create_run(&app, &cookie).await;
-    assert_eq!(created["status"], json!("queued"));
-    assert!(
-        created["ticket"].is_null(),
-        "a kit run keeps its ticket (AG-54): {created}"
-    );
-    let id = created["id"].as_str().expect("an id").to_owned();
-
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    // The clock AP-57 is measured on: set by the time the first preview is there, and by the
-    // Portal, not the model.
-    let first_frame = run["firstFrameMs"]
-        .as_i64()
-        .expect("firstFrameMs on a previewing run");
-    assert!((0..60_000).contains(&first_frame), "{first_frame}");
-    // The first version is the first pass's applied specification: never before the frame (AG-66).
-    let first_version = run["firstVersionMs"]
-        .as_i64()
-        .expect("firstVersionMs once the first pass is served");
-    assert!(
-        (first_frame..60_000).contains(&first_version),
-        "{first_frame} {first_version}"
-    );
-    let preview_url = run["previewUrl"]
-        .as_str()
-        .expect("a preview url")
-        .to_owned();
-    assert!(
-        preview_url.starts_with(&format!(
-            "/api/v1/projects/{PROJECT}/agent-runs/{id}/preview?v="
-        )),
-        "{preview_url}"
-    );
-
-    // The model was asked once, through the proxy, with the samples and the prompt in the body
-    // and the run's ticket as the bearer (AP-57, AG-53).
-    let requests = model_requests(&proxy).await;
-    assert_eq!(requests.len(), 1);
-    // The rows were read once the specification stood, with its attributes and its limit.
-    let reads: Vec<String> = proxy
-        .received_requests()
-        .await
-        .unwrap_or_default()
-        .iter()
-        .filter(|r| r.url.path() == "/v1/data/ngsi-ld/v1/entities")
-        .map(|r| r.url.query().unwrap_or_default().to_owned())
-        .collect();
-    assert_eq!(reads.len(), 2, "{reads:?}");
-    assert!(reads[0].contains("limit=5"), "{reads:?}");
-    assert!(
-        reads[1].contains("limit=500")
-            && reads[1].contains("attrs=name%2Clocation%2CavailableBikeNumber"),
-        "{reads:?}"
-    );
-    let body = requests[0].to_string();
-    assert!(body.contains("Kaivopuisto"), "the samples are in the pack");
-    assert!(
-        body.contains("station filtering"),
-        "the prompt is in the pack"
-    );
-    assert!(
-        body.contains("\"system\""),
-        "the anthropic body carries a system field"
-    );
-    assert!(body.contains("ONE-SHOT DASHBOARD SPECIFICATION"));
-    assert!(
-        !body.contains("the-token-only-jc-agent-proxy-has"),
-        "the proxy token never leaves the Portal"
-    );
-
-    let log = events(&app, &cookie, &id).await;
-    let kinds = kinds(&log);
-    for kind in ["status", "thought", "tool", "preview"] {
-        assert!(kinds.contains(&kind), "{kinds:?} lacks {kind}");
-    }
-    let statuses: Vec<&str> = log
-        .iter()
-        .filter(|(kind, _)| kind == "status")
-        .filter_map(|(_, payload)| payload["status"].as_str())
-        .collect();
-    assert_eq!(
-        statuses,
-        [
-            "queued",
-            "starting",
-            "building",
-            "testing",
-            "previewing",
-            "awaiting_approval"
-        ]
-    );
-    let tool = log
-        .iter()
-        .find(|(kind, payload)| kind == "tool" && payload["tool"] == json!("apply_patch"))
-        .expect("the apply_patch tool event");
-    assert_eq!(tool.1["exitCode"], json!(0));
-    assert_eq!(tool.1["applied"][0]["path"], json!("spec.json"));
-    let preview = log
-        .iter()
-        .find(|(kind, _)| kind == "preview")
-        .expect("a preview event");
-    assert_eq!(preview.1["previewUrl"], json!(preview_url));
-    assert!(log.iter().any(|(kind, payload)| kind == "thought"
-        && payload["text"]
-            .as_str()
-            .is_some_and(|t| t.starts_with("A dashboard of the city"))));
-    // The chat never names the model: that is the profile's business, not the person's.
-    assert!(!log.iter().any(|(_, payload)| payload["text"]
-        .as_str()
-        .is_some_and(|t| t.contains("claude-sonnet-5"))));
-
-    // The preview: one document with its own policy, or 503 in a build without the bundle.
-    let (status, headers, bytes) = call(&app, &cookie, Method::GET, &preview_url, None).await;
-    match kit::bundle() {
-        Some(bundle) => {
-            assert_eq!(status, StatusCode::OK);
-            let html = String::from_utf8_lossy(&bytes);
-            assert!(html.contains("<script id=\"kit-spec\" type=\"application/json\">"));
-            assert!(html.contains(&format!("\"slug\":\"{SLUG}\"")));
-            assert!(html.contains("Helsinki city bikes"));
-            // serde_json orders keys, so the row is matched by two of them rather than by shape.
-            assert!(
-                html.contains("\"data\":{\"stations\":[{"),
-                "the rows travel with the document"
-            );
-            assert!(html.contains("\"name\":\"Laivasillankatu\""));
-            let csp = headers[header::CONTENT_SECURITY_POLICY].to_str().unwrap();
-            assert!(csp.contains(&kit::script_hash(&bundle.js)), "{csp}");
-            assert!(html.contains("<script id=\"kit-worker\" type=\"text/plain\">"));
-            assert!(
-                csp.contains(
-                    "connect-src https://portal.example.com https://tiles.openfreemap.org"
-                ),
-                "{csp}"
-            );
-            assert!(
-                !csp.contains("script-src 'self'"),
-                "the Portal's own policy must not replace the document's"
-            );
-            assert_eq!(headers[header::CACHE_CONTROL], "no-store");
-            assert_eq!(headers["x-frame-options"], "SAMEORIGIN");
-        }
-        None => assert_eq!(
-            status,
-            StatusCode::SERVICE_UNAVAILABLE,
-            "{}",
-            String::from_utf8_lossy(&bytes)
-        ),
-    }
-
-    // Without a session the document is not served: it is the run's data, not a public page.
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri(&preview_url)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
-async fn an_answer_that_does_not_validate_is_repaired_once() {
-    let broken = VALID_SPEC.replace("\"availableBikeNumber\" }", "\"nope\" }");
-    let (app, cookie, proxy) = portal(
-        "openai-compatible",
-        &[
-            answer("First try.", &[("spec.json", "", &broken)]),
-            answer(
-                "Fixed the colour attribute.",
-                &[("spec.json", "", VALID_SPEC)],
-            ),
-        ],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-
-    let requests = model_requests(&proxy).await;
-    assert_eq!(requests.len(), 2, "one pass, one repair");
-    let repair = requests[1].to_string();
-    assert!(
-        repair.contains("views[1].color: 'nope' is not among the source's attributes"),
-        "{repair}"
-    );
-    assert!(
-        repair.contains("\"role\":\"system\""),
-        "the openai body carries a system message"
-    );
-    let log = events(&app, &cookie, &id).await;
-    // The person is told a correction is happening, in one sentence; the validator's words stay
-    // in the run's log and never reach the transcript (T-0703, UI-45).
-    let thoughts: Vec<&str> = log
-        .iter()
-        .filter(|(kind, _)| kind == "thought")
-        .filter_map(|(_, payload)| payload["text"].as_str())
-        .collect();
-    assert!(
-        thoughts
-            .iter()
-            .any(|t| t.contains("one detail does not fit yet")),
-        "{thoughts:?}"
-    );
-    assert!(
-        !thoughts
-            .iter()
-            .any(|t| t.contains("is not among the source")),
-        "the validator's words stay out of the transcript: {thoughts:?}"
-    );
-    assert_eq!(log.iter().filter(|(kind, _)| kind == "preview").count(), 1);
-}
-
-#[tokio::test]
-async fn a_block_for_a_foreign_path_is_refused_and_the_spec_still_lands() {
-    let (app, cookie, _proxy) = portal(
-        "anthropic",
-        &[answer(
-            "Done.",
-            &[
-                ("kit/src/App.tsx", "", "export default 1;"),
-                ("../../etc/passwd", "", "x"),
-                ("spec.json", "", VALID_SPEC),
-            ],
-        )],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    // Refused blocks are not a validation problem: the specification is there and valid, so
-    // no repair is asked for and the preview is shown (AP-58).
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    let log = events(&app, &cookie, &id).await;
-    let tool = log
-        .iter()
-        .find(|(kind, payload)| kind == "tool" && payload["tool"] == json!("apply_patch"))
-        .expect("the apply_patch tool event");
-    assert_eq!(
-        tool.1["refused"].as_array().map(Vec::len),
-        Some(2),
-        "{}",
-        tool.1
-    );
-    assert_eq!(tool.1["applied"].as_array().map(Vec::len), Some(1));
-}
-
-#[tokio::test]
-async fn a_message_is_one_more_pass_over_the_same_file() {
-    let (app, cookie, proxy) = portal(
-        "anthropic",
-        &[
-            answer("Built.", &[("spec.json", "", VALID_SPEC)]),
-            answer(
-                "Renamed the dashboard.",
-                &[(
-                    "spec.json",
-                    "{\n  \"title\": \"Helsinki city bikes\",\n  \"sources\": [{ \"name\": \"stations\", \"type\": \"BikeHireDockingStation\", \"attrs\": [\"name\", \"location\", \"availableBikeNumber\"] }],\n",
-                    "{\n  \"title\": \"Kaupunkipyörät\",\n  \"sources\": [{ \"name\": \"stations\", \"type\": \"BikeHireDockingStation\", \"attrs\": [\"name\", \"location\", \"availableBikeNumber\"] }],",
-                )],
-            ),
-        ],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    let first = run["previewUrl"].as_str().unwrap().to_owned();
-
-    let (status, _) = json(
-        &app,
-        &cookie,
-        Method::POST,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/messages"),
-        Some(json!({ "text": "Call it Kaupunkipyörät" })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::NO_CONTENT);
-
-    let mut run = Value::Null;
-    for _ in 0..200 {
-        run = json(
-            &app,
-            &cookie,
-            Method::GET,
-            &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
-            None,
-        )
-        .await
-        .1;
-        if run["previewUrl"] != json!(first) {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
-    assert_ne!(
-        run["previewUrl"],
-        json!(first),
-        "a second pass moves the preview: {run}"
-    );
-    assert_eq!(run["status"], json!("awaiting_approval"));
-
-    let requests = model_requests(&proxy).await;
-    assert_eq!(requests.len(), 2);
-    let second = requests[1].to_string();
-    assert!(second.contains("Call it Kaupunkipyörät"), "{second}");
-    assert!(
-        second.contains("### spec.json"),
-        "the current file is in the pack: {second}"
-    );
-    assert!(
-        !second.contains("### data.json"),
-        "the rows stay out of the prompt: {second}"
-    );
-    assert!(
-        second.contains("Person: Create a live bike"),
-        "the conversation is in the pack"
-    );
-    if kit::bundle().is_some() {
-        let (status, _, bytes) = call(
-            &app,
-            &cookie,
-            Method::GET,
-            run["previewUrl"].as_str().unwrap(),
-            None,
-        )
-        .await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(String::from_utf8_lossy(&bytes).contains("Kaupunkipyörät"));
-    }
-}
-
-#[tokio::test]
-async fn an_empty_answer_is_asked_again_once() {
-    let (app, cookie, proxy) = portal(
-        "anthropic",
-        &[
-            "".to_owned(),
-            answer("Second try.", &[("spec.json", "", VALID_SPEC)]),
-        ],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    assert_eq!(model_requests(&proxy).await.len(), 2);
-}
-
-/// T-1662: two answers without a change end the pass with a plain sentence; the person never
-/// reads the patch protocol the model was told about (T-0785).
-#[tokio::test]
-async fn two_dashboard_answers_without_a_block_are_said_plainly() {
-    let (app, cookie, proxy) = portal(
-        "anthropic",
-        &[
-            "Here is the dashboard.".to_owned(),
-            "Nothing to add.".to_owned(),
-        ],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let said = wait_for_thought(&app, &cookie, &id, "Still not a specification").await;
-    assert_eq!(model_requests(&proxy).await.len(), 2);
-    for protocol in ["SEARCH", "REPLACE", "block"] {
-        assert!(
-            !said.contains(protocol),
-            "the person read the patch protocol: {said}"
-        );
-    }
 }
 
 #[tokio::test]
@@ -997,38 +570,6 @@ async fn a_proxy_that_does_not_answer_fails_the_run_with_the_reason() {
 }
 
 #[tokio::test]
-async fn a_key_short_of_credit_is_asked_again_within_what_it_covers() {
-    let (app, cookie, proxy) = portal("anthropic", &[]).await;
-    Mock::given(method("POST"))
-        .and(path("/v1/llm/messages"))
-        .respond_with(ResponseTemplate::new(402).set_body_json(json!({ "error": {
-            "code": 402,
-            "message": "You requested up to 24000 tokens, but can only afford 20000. To increase, visit https://openrouter.ai/workspaces/default/keys/abc"
-        } })))
-        .up_to_n_times(1)
-        .mount(&proxy)
-        .await;
-    Mock::given(method("POST"))
-        .and(path("/v1/llm/messages"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic(&answer(
-            "Bikes.",
-            &[("spec.json", "", VALID_SPEC)],
-        ))))
-        .up_to_n_times(1)
-        .mount(&proxy)
-        .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    let requests = model_requests(&proxy).await;
-    assert_eq!(requests.len(), 2);
-    assert_eq!(requests[1]["max_tokens"], json!(19000));
-}
-
-#[tokio::test]
 async fn a_key_out_of_credit_fails_the_pass_without_the_providers_links() {
     let (app, cookie, proxy) = portal("anthropic", &[]).await;
     Mock::given(method("POST"))
@@ -1049,523 +590,6 @@ async fn a_key_out_of_credit_fails_the_pass_without_the_providers_links() {
     assert!(error.contains("credit") && error.contains("1200"), "{run}");
     assert!(!error.contains("openrouter.ai"), "{run}");
     assert_eq!(model_requests(&proxy).await.len(), 1);
-}
-
-#[tokio::test]
-async fn every_pass_is_a_commit_on_the_run_branch_when_there_is_a_forge() {
-    let forge = forge().await;
-    let (app, cookie, _proxy) = portal_with(
-        "anthropic",
-        &[answer("Bikes.", &[("spec.json", "", VALID_SPEC)])],
-        Some(&forge),
-    )
-    .await;
-    let created = create_run(&app, &cookie).await;
-    let id = created["id"].as_str().expect("id");
-    wait_for(&app, &cookie, id, &["awaiting_approval", "failed"]).await;
-
-    let events = events(&app, &cookie, id).await;
-    let commit = events
-        .iter()
-        .find(|(kind, _)| kind == "commit")
-        .unwrap_or_else(|| panic!("no commit among {:?}", kinds(&events)));
-    assert_eq!(commit.1["sha"], json!("abc123def456"));
-    let put = forge
-        .received_requests()
-        .await
-        .expect("recording")
-        .into_iter()
-        .find(|r| r.method == "PUT")
-        .expect("the file was written");
-    let body: Value = serde_json::from_slice(&put.body).expect("json");
-    assert!(
-        body["branch"]
-            .as_str()
-            .is_some_and(|b| b.starts_with("agent/app-city-bikes-overview/")),
-        "{body}"
-    );
-    assert_eq!(body["message"], json!("Bikes."));
-}
-
-#[tokio::test]
-async fn an_answer_that_changes_no_file_is_a_reply_not_a_version() {
-    let forge = forge().await;
-    let refusal = "A data model is made in the data-model editor, not in this dashboard.";
-    let (app, cookie, proxy) = portal_with(
-        "anthropic",
-        &[
-            answer("Bikes.", &[("spec.json", "", VALID_SPEC)]),
-            answer(refusal, &[]),
-        ],
-        Some(&forge),
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    let (status, _) = json(
-        &app,
-        &cookie,
-        Method::POST,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/messages"),
-        Some(json!({ "text": "create a new data model" })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::NO_CONTENT);
-
-    let mut seen = Vec::new();
-    for _ in 0..100 {
-        seen = events(&app, &cookie, &id).await;
-        if seen.iter().any(|(_, p)| p["text"] == json!(refusal)) {
-            break;
-        }
-    }
-    let count = |kind: &str| seen.iter().filter(|(k, _)| k == kind).count();
-    assert!(
-        seen.iter().any(|(_, p)| p["text"] == json!(refusal)),
-        "the reply reaches the chat: {:?}",
-        kinds(&seen)
-    );
-    assert_eq!(count("commit"), 1, "{:?}", kinds(&seen));
-    assert_eq!(count("preview"), 1, "{:?}", kinds(&seen));
-    assert_eq!(model_requests(&proxy).await.len(), 2);
-    let run = json(
-        &app,
-        &cookie,
-        Method::GET,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
-        None,
-    )
-    .await
-    .1;
-    assert_eq!(
-        run["previewUrl"],
-        json!(format!(
-            "/api/v1/projects/{PROJECT}/agent-runs/{id}/preview?v=1"
-        ))
-    );
-}
-
-#[tokio::test]
-async fn a_page_beside_the_spec_replaces_the_kit_in_the_preview() {
-    const PAGE: &str = "<!doctype html><html><head><title>3D</title>\
-        <script src=\"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js\"></script>\
-        </head><body><canvas id=\"scene\"></canvas><script>const rows = window.kit.data.stations;</script></body></html>";
-    let (app, cookie, _proxy) = portal(
-        "anthropic",
-        &[answer(
-            "A 3D scene of the stations, one column per station.",
-            &[("spec.json", "", VALID_SPEC), ("index.html", "", PAGE)],
-        )],
-    )
-    .await;
-    let created = create_run(&app, &cookie).await;
-    let id = created["id"].as_str().expect("id");
-    let run = wait_for(&app, &cookie, id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-
-    let (status, headers, body) = call(
-        &app,
-        &cookie,
-        Method::GET,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/preview"),
-        None,
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    let csp = headers
-        .get(header::CONTENT_SECURITY_POLICY)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or_default()
-        .to_owned();
-    assert!(
-        csp.contains("script-src 'unsafe-inline' https://cdn.jsdelivr.net"),
-        "{csp}"
-    );
-    assert!(!csp.contains("sha256"), "the page is not the kit: {csp}");
-    let body = String::from_utf8(body).expect("utf8");
-    assert!(
-        body.contains("<script>window.kit = "),
-        "the rows are inlined"
-    );
-    assert!(
-        body.contains("Laivasillankatu"),
-        "the rows the driver read are in the page"
-    );
-    assert!(
-        body.contains("three.min.js"),
-        "the page is served as written"
-    );
-    assert!(!body.contains("kit-worker"), "the kit itself is not loaded");
-}
-
-#[tokio::test]
-async fn a_cut_answer_is_refused_whole_and_the_chat_says_so() {
-    // The first pass is fine; the message's pass comes back cut, and the preview stays.
-    let (app, cookie, proxy) = portal_with("openai-compatible", &[], None).await;
-    Mock::given(method("POST"))
-        .and(path("/v1/llm/chat/completions"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(openai(&answer("Bikes.", &[("spec.json", "", VALID_SPEC)]))),
-        )
-        .up_to_n_times(1)
-        .mount(&proxy)
-        .await;
-    Mock::given(method("POST"))
-        .and(path("/v1/llm/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(openai_cut(
-            "A 3D scene.\n\n```text\nindex.html\n<<<<<<< SEARCH\n=======\n<!doctype html><html><body><script>const half",
-        )))
-        .mount(&proxy)
-        .await;
-    let created = create_run(&app, &cookie).await;
-    let id = created["id"].as_str().expect("id");
-    wait_for(&app, &cookie, id, &["awaiting_approval", "failed"]).await;
-    let (status, _, _) = call(
-        &app,
-        &cookie,
-        Method::POST,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/messages"),
-        Some(json!({ "text": "Make it 3D." })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::NO_CONTENT, "the message is taken");
-    let mut said = false;
-    for _ in 0..50 {
-        let events = events(&app, &cookie, id).await;
-        said = events.iter().any(|(kind, payload)| {
-            kind == "thought"
-                && payload["text"]
-                    .as_str()
-                    .is_some_and(|t| t.contains("cut at the output budget"))
-        });
-        if said {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-    assert!(said, "the chat names the cut");
-    let run = wait_for(&app, &cookie, id, &["awaiting_approval"]).await;
-    assert_eq!(
-        run["previewUrl"],
-        json!(format!(
-            "/api/v1/projects/{PROJECT}/agent-runs/{id}/preview?v=1"
-        )),
-        "the first preview stands"
-    );
-}
-
-#[tokio::test]
-async fn a_share_request_is_a_proposal_and_a_navigation_not_a_pass() {
-    let (app, cookie, proxy) = portal(
-        "anthropic",
-        &[
-            answer("Built.", &[("spec.json", "", VALID_SPEC)]),
-            concat!(
-                "Drafted the endpoint for the regional transport team, with the maintenance notes hidden.\n\n",
-                "```json\n",
-                "{\"tool\": \"propose_endpoint\", \"contextSpace\": \"helsinki\", \"name\": \"bikes-regional-transport\", ",
-                "\"title\": \"City bikes for the regional transport team\", \"allowedProjects\": [\"regional-transport\"], ",
-                "\"hiddenAttributes\": [\"maintenanceNote\"], \"entityTypes\": [\"BikeHireDockingStation\"]}\n",
-                "```\n"
-            )
-            .to_owned(),
-        ],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    let first = run["previewUrl"].as_str().unwrap().to_owned();
-
-    let (status, _) = json(
-        &app,
-        &cookie,
-        Method::POST,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/messages"),
-        Some(json!({ "text": "Share the bike stations with the regional transport team, but hide the maintenance notes" })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::NO_CONTENT);
-
-    let mut all = Vec::new();
-    for _ in 0..200 {
-        all = events(&app, &cookie, &id).await;
-        if all.iter().any(|(kind, _)| kind == "navigate") {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
-    let tool = all
-        .iter()
-        .find(|(kind, payload)| kind == "tool" && payload["tool"] == json!("propose_endpoint"))
-        .expect("the proposal is a tool step (AG-56)");
-    assert_eq!(tool.1["status"], json!("ok"), "{}", tool.1);
-    assert_eq!(tool.1["output"]["lane"], json!("yellow"));
-    assert_eq!(tool.1["output"]["slug"].as_str().map(str::len), Some(26));
-    assert_eq!(
-        tool.1["output"]["endpoint"]["spec"]["projection"]["hiddenAttributes"],
-        json!(["maintenanceNote"])
-    );
-    assert_eq!(
-        tool.1["output"]["policies"][0]["spec"]["assignee"],
-        json!({ "kind": "group", "id": "regional-transport" })
-    );
-    let navigate = all
-        .iter()
-        .find(|(kind, _)| kind == "navigate")
-        .expect("the form is opened for the person (UI-45)");
-    assert_eq!(
-        navigate.1["route"],
-        json!(format!("/projects/{PROJECT}/endpoints"))
-    );
-    assert_eq!(
-        navigate.1["prefill"]["name"],
-        json!("bikes-regional-transport")
-    );
-    assert_eq!(navigate.1["prefill"]["audience"], json!("project-list"));
-    assert_eq!(
-        navigate.1["prefill"]["hiddenAttributes"],
-        json!(["maintenanceNote"])
-    );
-    assert_eq!(navigate.1["prefill"]["slug"], tool.1["output"]["slug"]);
-    assert!(
-        all.iter().any(|(kind, payload)| kind == "thought"
-            && payload["text"]
-                .as_str()
-                .is_some_and(|t| t.starts_with("Drafted the endpoint for the regional"))),
-        "the sentences before the block are the chat line"
-    );
-
-    let (_, run) = json(
-        &app,
-        &cookie,
-        Method::GET,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
-        None,
-    )
-    .await;
-    assert_eq!(
-        run["previewUrl"],
-        json!(first),
-        "the dashboard did not move: {run}"
-    );
-    assert_eq!(run["status"], json!("awaiting_approval"));
-    assert_eq!(
-        model_requests(&proxy).await.len(),
-        2,
-        "no repair call for a tool answer"
-    );
-}
-
-const EDIT_SPEC: &str = r#"{
-  "title": "Station notes",
-  "sources": [{ "name": "stations", "type": "BikeHireDockingStation", "attrs": ["name", "location", "availableBikeNumber"] }],
-  "views": [
-    { "kind": "table", "columns": ["name", "availableBikeNumber"] },
-    { "kind": "form", "title": "Station", "fields": ["availableBikeNumber"] }
-  ]
-}"#;
-
-/// T-0595 (AP-61, AP-62): an application that may write gets a table and a form, the pack
-/// carries the field schema of the space's model, and the preview inlines the same schema with
-/// the bridge flag; an application that may not write is told to drop the form.
-#[tokio::test]
-async fn an_edit_prompt_gets_a_form_grounded_in_the_field_schema_when_the_app_may_write() {
-    let forge = forge().await;
-    let (app, cookie, proxy) = portal_with(
-        "openai-compatible",
-        &[answer(
-            "A table of the stations and a form to update a station's free bikes.",
-            &[("spec.json", "", EDIT_SPEC)],
-        )],
-        Some(&forge),
-    )
-    .await;
-    let id = create_run_with(
-        &app,
-        &cookie,
-        "Build an app where stewards can update bike station notes",
-        &["queryEntity", "updateAttrs"],
-    )
-    .await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-
-    let requests = model_requests(&proxy).await;
-    assert_eq!(requests.len(), 1);
-    let body = requests[0].to_string();
-    assert!(
-        body.contains("WHEN THE PERSON ASKS TO EDIT, UPDATE OR MANAGE ENTITIES"),
-        "the system prompt pairs a table and a form"
-    );
-    assert!(body.contains("This application MAY write"), "{body}");
-    assert!(
-        body.contains(r#"\"availableBikeNumber\""#) && body.contains(r#"\"minimum\": 0"#),
-        "the field schema of the model is packed: {body}"
-    );
-    assert!(
-        body.contains(r#"\"enum\""#) && body.contains("closed"),
-        "{body}"
-    );
-
-    let preview_url = run["previewUrl"]
-        .as_str()
-        .expect("a preview url")
-        .to_owned();
-    let (status, _, bytes) = call(&app, &cookie, Method::GET, &preview_url, None).await;
-    assert_eq!(status, StatusCode::OK);
-    let html = String::from_utf8(bytes).expect("utf-8");
-    assert!(
-        html.contains("\"bridge\":true"),
-        "a preview writes through the host page (AP-63)"
-    );
-    assert!(
-        html.contains("\"schema\":{\"BikeHireDockingStation\":{\"properties\""),
-        "the form's inputs come from the same schema (AP-61)"
-    );
-    // The kit names the cookie it reads (`jc_csrf`); the session's values never appear.
-    assert!(
-        !html.contains(CSRF) && !html.contains("jcr_"),
-        "no credential is inlined"
-    );
-}
-
-#[tokio::test]
-async fn a_form_in_an_app_that_may_not_write_is_sent_back_for_repair() {
-    let (app, cookie, proxy) = portal(
-        "openai-compatible",
-        &[
-            answer("With a form.", &[("spec.json", "", EDIT_SPEC)]),
-            answer("Without the form.", &[("spec.json", "", VALID_SPEC)]),
-        ],
-    )
-    .await;
-    let id = create_run_with(
-        &app,
-        &cookie,
-        "Build an app where stewards can update bike station notes",
-        &["queryEntity"],
-    )
-    .await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    let requests = model_requests(&proxy).await;
-    assert_eq!(requests.len(), 2, "one pass, one repair");
-    assert!(requests[0]
-        .to_string()
-        .contains("This application may NOT write"));
-    assert!(
-        requests[1].to_string().contains(
-            "views[1]: a form writes through the endpoint and this application may not write"
-        ),
-        "{}",
-        requests[1]
-    );
-}
-
-/// T-0583 (PF-54, PF-55, UI-17): an indicator asked for in the chat is computed from what the
-/// endpoint serves, rendered with its provenance, handed over as a `tool` step for the card,
-/// and written by nobody: the run's files and the preview stay as they were.
-#[tokio::test]
-async fn a_kpi_request_is_computed_from_the_endpoint_and_handed_to_the_person() {
-    let call = "Average free bikes across the stations, as an indicator.\n\n```json\n{\"tool\":\"compute_kpi\",\"name\":\"average-free-bikes\",\"title\":\"Average free bikes\",\"type\":\"BikeHireDockingStation\",\"attribute\":\"availableBikeNumber\",\"agg\":\"avg\",\"unit\":\"C62\"}\n```";
-    let (app, cookie, proxy) = portal(
-        "anthropic",
-        &[
-            answer("A dashboard.", &[("spec.json", "", VALID_SPEC)]),
-            call.to_owned(),
-        ],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-    let before = events(&app, &cookie, &id).await.len();
-
-    let (status, _) = json(
-        &app,
-        &cookie,
-        Method::POST,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/messages"),
-        Some(json!({ "text": "What is the average number of free bikes? Make it a KPI." })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::NO_CONTENT);
-    let log = loop {
-        let log = events(&app, &cookie, &id).await;
-        if log.len() > before
-            && log
-                .iter()
-                .any(|(kind, payload)| kind == "tool" && payload["tool"] == "compute_kpi")
-        {
-            break log;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    };
-    let (_, step) = log
-        .iter()
-        .find(|(kind, payload)| kind == "tool" && payload["tool"] == "compute_kpi")
-        .expect("the kpi step");
-    assert_eq!(step["status"], "ok", "{step}");
-    let output = &step["output"];
-    // The preview rows the proxy serves: 7 and 2 free bikes.
-    assert_eq!(output["value"], 4.5);
-    assert_eq!(output["count"], 2);
-    assert_eq!(output["space"], "helsinki-kpi");
-    assert_eq!(
-        output["formula"],
-        "avg(availableBikeNumber) over BikeHireDockingStation"
-    );
-    assert!(
-        output["endpointSlug"].is_null(),
-        "no indicator endpoint in this mirror"
-    );
-    let entity = &output["entity"];
-    assert_eq!(
-        entity["id"],
-        "urn:ngsi-ld:KeyPerformanceIndicator:hel.fi:helsinki-kpi:average-free-bikes"
-    );
-    assert_eq!(
-        entity["derivedFrom"]["object"],
-        "urn:ngsi-ld:Endpoint:hel.fi:helsinki:helsinki-bikes"
-    );
-    assert_eq!(
-        entity["computedBy"]["object"],
-        format!("urn:ngsi-ld:AgentRun:hel.fi:helsinki:{id}")
-    );
-    assert_eq!(entity["currentValue"]["unitCode"], "C62");
-    // Nothing was written anywhere: no POST reached the proxy's data route, and the
-    // dashboard's preview count did not move.
-    let writes = proxy
-        .received_requests()
-        .await
-        .unwrap_or_default()
-        .iter()
-        .filter(|r| r.method == "POST" && r.url.path().starts_with("/v1/data/"))
-        .count();
-    assert_eq!(writes, 0, "the assistant writes no entity (AG-20)");
-    assert_eq!(log.iter().filter(|(kind, _)| kind == "preview").count(), 1);
-    assert!(log.iter().any(|(kind, payload)| kind == "thought"
-        && payload["text"]
-            .as_str()
-            .is_some_and(|t| t.contains("Average free bikes"))));
 }
 
 #[tokio::test]
@@ -1745,71 +769,6 @@ async fn an_agent_never_approves_a_change_however_it_is_asked() {
             .as_str()
             .is_some_and(|reason| reason.contains("agent profile does not grant")),
         "{tool}"
-    );
-}
-
-#[tokio::test]
-async fn an_unattended_analysis_run_ends_awaiting_approval_with_report_md() {
-    const REPORT_MD: &str =
-        "# Station Bike Analysis\n\nOverall bike availability across stations is 4.8.";
-    let (state, app, cookie, _proxy) = portal_state(
-        "anthropic",
-        &[answer(
-            "Analysis complete with visual dashboard and report.",
-            &[("spec.json", "", VALID_SPEC), ("report.md", "", REPORT_MD)],
-        )],
-    )
-    .await;
-
-    let (status, body) = json(
-        &app,
-        &cookie,
-        Method::POST,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
-        Some(json!({
-            "appName": "city-bikes-analysis",
-            "endpointName": "helsinki-bikes",
-            "appClass": "ui",
-            "visibility": "project",
-            "kind": "analysis",
-            "unattended": true,
-            "prompt": "Analyze station bike availability",
-            "dataNeeds": [{
-                "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" },
-                "types": ["BikeHireDockingStation"],
-                "attrs": ["name", "location", "availableBikeNumber"],
-                "operations": ["queryEntity"]
-            }]
-        })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
-    assert_eq!(body["kind"], json!("analysis"));
-    assert_eq!(body["unattended"], json!(true));
-    let id = body["id"].as_str().expect("an id").to_owned();
-
-    let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
-    assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
-
-    let stored = state
-        .agents
-        .get_run(&id)
-        .await
-        .expect("get_run")
-        .expect("run exists in store");
-    assert_eq!(stored.status, "awaiting_approval");
-    assert!(
-        stored.files.get("spec.json").is_some(),
-        "spec.json must be in files"
-    );
-    assert_eq!(
-        stored
-            .files
-            .get("report.md")
-            .and_then(Value::as_str)
-            .map(str::trim_end),
-        Some(REPORT_MD),
-        "report.md must be in files"
     );
 }
 
@@ -2487,6 +1446,88 @@ async fn a_dashboard_is_code_on_the_sdk_and_only_reads() {
     assert!(
         commits.iter().any(|body| body.contains("src/App.tsx")),
         "{commits:?}"
+    );
+}
+
+/// T-3160, AP-56: an analysis is code on the App SDK like a dashboard: the request is framed as
+/// one read-only page with a written finding, the run writes code and no `spec.json`, ends
+/// waiting for approval with its preview, and is never published.
+#[tokio::test]
+async fn an_analysis_is_code_on_the_sdk_and_is_never_published() {
+    let forge = code_forge().await;
+    let answer = code_answer(
+        "A page with the finding and the stations, with its test.",
+        &stations_app(STATIONS),
+    );
+    let (state, app, cookie, proxy) =
+        portal_state_with("openai-compatible", &[answer], Some(&forge)).await;
+    mount_types(&proxy).await;
+    let (status, body) = json(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(json!({
+            "appName": "city-bikes-analysis",
+            "endpointName": "helsinki-bikes",
+            "appClass": "ui",
+            "kind": "analysis",
+            "visibility": "project",
+            "prompt": "How many bikes are free across the stations?",
+            "dataNeeds": [{
+                "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" },
+                "types": ["BikeHireDockingStation"],
+                "attrs": ["name", "location", "availableBikeNumber"],
+                "operations": ["queryEntity"]
+            }]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert_eq!(body["unattended"], json!(true));
+    let id = body["id"].as_str().expect("a run id").to_owned();
+    let run = wait_for(&app, &cookie, &id, &["awaiting_approval"]).await;
+    assert!(
+        run["previewUrl"]
+            .as_str()
+            .is_some_and(|url| url.ends_with("?v=1")),
+        "{run}"
+    );
+
+    let requests = model_requests(&proxy).await;
+    let user = requests[0]["messages"][1]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        user.contains("THIS IS AN ANALYSIS: one read-only page"),
+        "{user}"
+    );
+    assert!(user.contains("How many bikes are free"), "{user}");
+
+    let files = files_of(&state, &id).await;
+    let paths: Vec<&String> = files.as_object().expect("files").keys().collect();
+    assert!(paths.iter().any(|path| *path == "src/App.tsx"), "{paths:?}");
+    assert!(
+        paths
+            .iter()
+            .all(|path| *path != "spec.json" && *path != "data.json"),
+        "an analysis run wrote a kit file: {paths:?}"
+    );
+
+    let (status, problem) = json(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/publish"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{problem}");
+    assert!(
+        problem
+            .to_string()
+            .contains("an analysis is never published"),
+        "{problem}"
     );
 }
 
@@ -3476,7 +2517,7 @@ async fn preview_errors_and_call_function_answer_the_model_as_tool_results() {
         "the frame's error reaches the model: {}",
         tools[0].2
     );
-    if kit::functions_server().is_some() {
+    if joinedcontext_portal::agents::kit::functions_server().is_some() {
         assert_eq!(tools[1].1, "ok", "{}", tools[1].2);
         assert!(
             tools[1].2.starts_with("status 201") && tools[1].2.contains("summary 1 types"),
@@ -3491,241 +2532,4 @@ async fn preview_errors_and_call_function_answer_the_model_as_tool_results() {
     }
     assert_eq!(tools[2].1, "failed");
     assert!(tools[2].2.contains("no function 'nope'"), "{}", tools[2].2);
-}
-
-// ---- T-2512: what `pass` does with an answer (AG-61, AG-62, AG-76, PF-55) ----
-
-/// The run's log once `until` holds for it, or a panic after ten seconds.
-async fn log_once(
-    app: &axum::Router,
-    cookie: &str,
-    id: &str,
-    until: impl Fn(&[(String, Value)]) -> bool,
-) -> Vec<(String, Value)> {
-    for _ in 0..200 {
-        let log = events(app, cookie, id).await;
-        if until(&log) {
-            return log;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
-    panic!(
-        "the run's log never got there: {:?}",
-        kinds(&events(app, cookie, id).await)
-    );
-}
-
-fn count_tool(log: &[(String, Value)], tool: &str) -> usize {
-    log.iter()
-        .filter(|(kind, payload)| kind == "tool" && payload["tool"] == json!(tool))
-        .count()
-}
-
-/// The dashboard retitled: a block that would change `spec.json` if it were ever applied.
-fn retitled() -> String {
-    answer(
-        "",
-        &[(
-            "spec.json",
-            "  \"title\": \"Helsinki city bikes\",\n",
-            "  \"title\": \"Taken over\",",
-        )],
-    )
-}
-
-/// T-2512, AG-76, EP-72: an answer that is a share call is handed to the endpoint form and is
-/// never also a patch, even when the model put a block beside the call.
-#[tokio::test]
-async fn a_share_tool_call_never_falls_through_to_apply() {
-    let share = format!(
-        "Drafted the endpoint.\n\n```json\n{}\n```\n\n{}",
-        r#"{"tool": "propose_endpoint", "contextSpace": "helsinki", "name": "bikes-regional", "title": "Bikes", "allowedProjects": ["regional-transport"], "entityTypes": ["BikeHireDockingStation"]}"#,
-        retitled()
-    );
-    let (app, cookie, _proxy) = portal(
-        "anthropic",
-        &[answer("Built.", &[("spec.json", "", VALID_SPEC)]), share],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    wait_for(&app, &cookie, &id, &["awaiting_approval"]).await;
-    send_message(
-        &app,
-        &cookie,
-        &id,
-        "share the stations with regional transport",
-    )
-    .await;
-
-    let log = log_once(&app, &cookie, &id, |log| {
-        count_tool(log, "propose_endpoint") == 1
-    })
-    .await;
-    assert_eq!(count_tool(&log, "apply_patch"), 1, "{:?}", kinds(&log));
-    assert_eq!(log.iter().filter(|(kind, _)| kind == "preview").count(), 1);
-    let (_, preview) = json(
-        &app,
-        &cookie,
-        Method::GET,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/preview?v=1"),
-        None,
-    )
-    .await;
-    assert!(!preview.to_string().contains("Taken over"));
-}
-
-/// T-2512, PF-55: an indicator is computed and shown; a block beside the call is never applied.
-#[tokio::test]
-async fn a_kpi_tool_call_never_falls_through_to_apply() {
-    let kpi = format!(
-        "Average free bikes.\n\n```json\n{}\n```\n\n{}",
-        r#"{"tool":"compute_kpi","name":"average-free-bikes","title":"Average free bikes","type":"BikeHireDockingStation","attribute":"availableBikeNumber","agg":"avg","unit":"C62"}"#,
-        retitled()
-    );
-    let (app, cookie, _proxy) = portal(
-        "anthropic",
-        &[answer("Built.", &[("spec.json", "", VALID_SPEC)]), kpi],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    wait_for(&app, &cookie, &id, &["awaiting_approval"]).await;
-    send_message(&app, &cookie, &id, "the average of free bikes as a KPI").await;
-
-    let log = log_once(&app, &cookie, &id, |log| {
-        count_tool(log, "compute_kpi") == 1
-    })
-    .await;
-    assert_eq!(count_tool(&log, "apply_patch"), 1, "{:?}", kinds(&log));
-    assert_eq!(log.iter().filter(|(kind, _)| kind == "preview").count(), 1);
-}
-
-/// T-2512, AG-62: one repair round and no second, even when the model would answer a third time.
-#[tokio::test]
-async fn two_repair_rounds_are_never_attempted_only_one() {
-    let (app, cookie, proxy) = portal(
-        "anthropic",
-        &[
-            "No block.".to_owned(),
-            "Still no block.".to_owned(),
-            answer("A third try.", &[("spec.json", "", VALID_SPEC)]),
-        ],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    wait_for_thought(&app, &cookie, &id, "Still not a specification").await;
-    tokio::time::sleep(Duration::from_millis(300)).await;
-    assert_eq!(model_requests(&proxy).await.len(), 2);
-    let log = events(&app, &cookie, &id).await;
-    assert_eq!(
-        log.iter().filter(|(kind, _)| kind == "preview").count(),
-        0,
-        "{:?}",
-        kinds(&log)
-    );
-}
-
-/// T-2512, AP-60: a block that writes `spec.json` back as it was changes no file, so nothing is
-/// committed or stored and the preview keeps its number.
-#[tokio::test]
-async fn an_answer_that_changes_no_file_is_never_committed_or_stored() {
-    let forge = forge().await;
-    let same = answer(
-        "Kept as it is.",
-        &[(
-            "spec.json",
-            "  \"title\": \"Helsinki city bikes\",\n",
-            "  \"title\": \"Helsinki city bikes\",",
-        )],
-    );
-    let (app, cookie, proxy) = portal_with(
-        "anthropic",
-        &[answer("Bikes.", &[("spec.json", "", VALID_SPEC)]), same],
-        Some(&forge),
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    wait_for(&app, &cookie, &id, &["awaiting_approval"]).await;
-    send_message(&app, &cookie, &id, "keep the title").await;
-
-    let log = log_once(&app, &cookie, &id, |log| {
-        log.iter()
-            .any(|(_, payload)| payload["text"] == json!("Kept as it is."))
-    })
-    .await;
-    assert_eq!(
-        count_tool(&log, "apply_patch"),
-        2,
-        "the block was read: {:?}",
-        kinds(&log)
-    );
-    assert_eq!(
-        log.iter().filter(|(kind, _)| kind == "commit").count(),
-        1,
-        "{:?}",
-        kinds(&log)
-    );
-    assert_eq!(log.iter().filter(|(kind, _)| kind == "preview").count(), 1);
-    assert_eq!(model_requests(&proxy).await.len(), 2);
-    let (_, run) = json(
-        &app,
-        &cookie,
-        Method::GET,
-        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
-        None,
-    )
-    .await;
-    assert!(
-        run["previewUrl"]
-            .as_str()
-            .is_some_and(|url| url.ends_with("?v=1")),
-        "{run}"
-    );
-}
-
-/// T-2546, T-0703, UI-45: a repair that fails again is said in the kit's words; the JSON
-/// parser's own sentence (`unknown field`, `expected one of`, a line and column) stays in the log.
-#[tokio::test]
-async fn errors_from_a_failed_repair_are_shown_in_the_kits_own_words_never_the_serde_error() {
-    let unknown = VALID_SPEC.replacen('{', "{\n  \"lane\": \"green\",", 1);
-    let (app, cookie, _proxy) = portal(
-        "anthropic",
-        &[
-            answer("First.", &[("spec.json", "", &unknown)]),
-            answer("Second.", &[("spec.json", "", &unknown)]),
-        ],
-    )
-    .await;
-    let id = create_run(&app, &cookie).await["id"]
-        .as_str()
-        .expect("a run id")
-        .to_owned();
-    let said = wait_for_thought(&app, &cookie, &id, "Still not a specification").await;
-    for machine in [
-        "unknown field",
-        "expected one of",
-        "line ",
-        "column ",
-        "spec.json:",
-    ] {
-        assert!(
-            !said.contains(machine),
-            "the person read {machine:?}: {said}"
-        );
-    }
-    assert!(
-        said.contains("not a dashboard specification"),
-        "the person reads what happened: {said}"
-    );
 }

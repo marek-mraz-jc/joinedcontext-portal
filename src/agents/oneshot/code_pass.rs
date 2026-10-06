@@ -92,9 +92,12 @@ impl Driver {
 
         let mut conversation: Vec<(String, String)> = Vec::new();
         let mut instruction = self.prompt.clone();
-        // A dashboard is an application that only reads (T-3159): the request is framed so.
+        // A dashboard is an application that only reads (T-3159), and an analysis a page that
+        // answers a question from what it reads (T-3160): the request is framed so.
         if self.kind == "dashboard" {
             instruction = format!("{}\n\n{instruction}", code::DASHBOARD);
+        } else if self.kind == "analysis" {
+            instruction = format!("{}\n\n{instruction}", code::ANALYSIS);
         }
         // No two Apps of the project alike (AP-137): the look differs by construction, the
         // archetype and the layout are compared here, and a twin is advice, not a refusal.

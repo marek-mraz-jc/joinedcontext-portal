@@ -1,12 +1,9 @@
-//! The kit pass: a static application from one model call (Architecture/19 §1.2, AP-56…AP-60,
-//! AG-53, AG-54).
-//!
-//! A `static` run has no workspace. The Portal itself reads a few entities per type through
-//! the proxy, hands the model the prompt, the samples and the kit's schema, and applies the
-//! SEARCH/REPLACE blocks the answer carries to one file, `spec.json`. A valid specification
-//! becomes the preview document a minute after the run was created; every chat message is one
-//! more pass over the same file. The proxy is still the one holding the model key and the
-//! endpoint: the driver speaks to it with the run's ticket, like a workspace would.
+//! The runs the Portal drives itself (Architecture/19 §1.2, AP-56…AP-60, AG-53, AG-54): the
+//! assistant's conversation, and every run that builds, which writes code on the App SDK (an
+//! application, a dashboard and an analysis, ADR-N-022). A `static` run has no workspace: the
+//! Portal reads a few entities per type through the proxy and drives the model itself. The proxy
+//! is still the one holding the model key and the endpoint: the driver speaks to it with the
+//! run's ticket, like a workspace would. The spec.json kit is retired (T-0681).
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -20,7 +17,6 @@ use crate::agents::access::Access;
 use crate::agents::code;
 use crate::agents::endpoints;
 use crate::agents::entity_write;
-use crate::agents::kit;
 use crate::agents::patch;
 use crate::agents::preview;
 use crate::agents::profile::Profile;
@@ -31,7 +27,7 @@ use crate::agents::{
     change, data_query, fields, grant, kpi, kpi_pipeline, model_change, share, verification,
 };
 use crate::auth::session::Identity;
-use crate::git::gitea::{Author, FileWrite, GitError};
+use crate::git::gitea::{Author, GitError};
 use crate::state::AppState;
 use jc_core::kinds::Verb;
 
@@ -48,8 +44,7 @@ mod tools_space;
 
 /// Entities read per type as the model's sample of the data (AP-57).
 const SAMPLES_PER_TYPE: u32 = 5;
-/// Output tokens one pass may spend: a specification is a few hundred, a page of the model's
-/// own (the escape hatch) ten thousand and more. A cut answer is refused whole, below.
+/// Output tokens one conversation turn may spend: prose or one tool call, well under this.
 const OUTPUT_BUDGET: u32 = 24000;
 /// Output tokens one call of a code run may spend: a whole application with its tests is tens
 /// of thousands, and a cut answer is refused whole all the same.
@@ -180,9 +175,6 @@ fn refusal(status: reqwest::StatusCode) -> String {
     }
 }
 
-/// Kit capabilities JSON loaded directly from sdk/kit.json (AP-65).
-pub static KIT_CAPABILITIES: &str = include_str!("../../../sdk/kit.json");
-
 /// The system prompt of a conversation turn: prose or one tool call, never a file (AG-67), in
 /// the Portal's own plain voice (UI-45).
 // The last sentence is T-2756: the audit found the assistant answering with a table of jc_* tools.
@@ -195,10 +187,6 @@ const CONVERSATION_SYSTEM: &str =
      \"successfully\", \"seamless\" or \"powerful\", and no exclamation marks. Say what you can \
      do in the person's words: never a tool name such as jc_resource_propose, never a \
      requirement id such as (AP-44).";
-
-/// The kit pass's system prompt (AP-56): `prompts/kit_system.md`, the kit's schema filled in.
-static SYSTEM: LazyLock<String> =
-    LazyLock::new(|| include_str!("prompts/kit_system.md").replace("{schema}", kit::schema_json()));
 
 /// What a drafting tool of the conversation left: the answer for the person, or what the model
 /// reads back to look at the data again and try once more (AG-76).
@@ -411,7 +399,7 @@ pub fn spawn(
     tokio::spawn(async move {
         let run_id = driver.run_id.clone();
         if let Err(message) = driver.drive().await {
-            tracing::warn!(run_id = %run_id, %message, "the kit pass failed");
+            tracing::warn!(run_id = %run_id, %message, "the run failed");
             driver.fail(&message).await;
         }
     });
@@ -484,79 +472,9 @@ impl Driver {
         if let Ok(index) = self.schema_index().await {
             let _ = self.schema_index.set(index);
         }
-        // An application and a dashboard are code on the App SDK (ADR-N-022, AP-56, T-3159); an
-        // analysis stays on the kit until T-3160 moves it and T-0681 retires the kit.
-        if self.kind == "application" || self.kind == "dashboard" {
-            return self.drive_code(&mut inbox, deadline).await;
-        }
-
-        self.status(AgentRunStatus::Starting).await?;
-        let samples = self.samples(&self.types()).await?;
-        let catalog = self.find(&self.prompt).await?;
-        self.status(AgentRunStatus::Building).await?;
-
-        let mut files: BTreeMap<String, String> = BTreeMap::new();
-        let mut conversation: Vec<(String, String)> = Vec::new();
-        let outcome = self
-            .pass(
-                &samples,
-                &mut files,
-                &conversation,
-                &self.prompt,
-                catalog.as_ref(),
-            )
-            .await?;
-        let Some(prose) = outcome else {
-            return Err("the first pass produced no specification the kit can render".to_owned());
-        };
-        conversation.push((self.prompt.clone(), prose));
-        // The lifecycle has no edge from building to previewing; the validation of the
-        // specification is the run's test, and it says so.
-        self.status(AgentRunStatus::Testing).await?;
-        self.status(AgentRunStatus::Previewing).await?;
-        if self.unattended {
-            self.status(AgentRunStatus::AwaitingApproval).await?;
-        }
-
-        // Every message is one more pass; the run stays `previewing` throughout (AP-60).
-        loop {
-            let event = tokio::select! {
-                event = inbox.recv() => event,
-                () = tokio::time::sleep_until(deadline) => {
-                    self.expire().await;
-                    return Ok(());
-                }
-            };
-            let event = match event {
-                Ok(event) => event,
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(broadcast::error::RecvError::Closed) => return Ok(()),
-            };
-            match event.kind.as_str() {
-                "status" if is_terminal(&event) => return Ok(()),
-                "message" if sent_by_person(&event) => {
-                    let text = event
-                        .payload
-                        .get("text")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_owned();
-                    let catalog = self.find(&text).await?;
-                    match self
-                        .pass(&samples, &mut files, &conversation, &text, catalog.as_ref())
-                        .await
-                    {
-                        Ok(Some(prose)) => conversation.push((text, prose)),
-                        // A pass that failed keeps the last preview; the chat says why.
-                        Ok(None) => {}
-                        Err(message) => {
-                            self.thought(&format!("The pass failed: {message}")).await?
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
+        // Every run that builds is code on the App SDK (ADR-N-022, AP-56): an application, a
+        // dashboard (T-3159) and an analysis (T-3160). The spec.json kit is gone (T-0681).
+        self.drive_code(&mut inbox, deadline).await
     }
     /// `text` without the run's ticket: an upstream that echoes the request back must not put
     /// the bearer into an event or in front of the model (CC-06).
@@ -1231,13 +1149,6 @@ mod tests {
     }
 
     #[test]
-    fn the_system_prompt_carries_the_schema_and_the_one_allowed_path() {
-        assert!(SYSTEM.contains("\"title\""), "the schema is inlined");
-        assert!(SYSTEM.contains("spec.json\n<<<<<<< SEARCH"));
-        assert!(!SYSTEM.contains("{schema}"));
-    }
-
-    #[test]
     fn types_are_listed_once_in_order_and_urls_are_encoded() {
         let driver_types = |needs: Value| {
             let mut types = Vec::new();
@@ -1282,71 +1193,5 @@ mod tests {
             ..event("x")
         };
         assert!(is_terminal(&status));
-    }
-
-    #[tokio::test]
-    async fn pack_contains_every_view_kind_from_capabilities() {
-        let caps: Value = serde_json::from_str(KIT_CAPABILITIES).expect("kit.json is valid JSON");
-        let views = caps["capabilities"]["views"]
-            .as_object()
-            .expect("views is an object");
-        assert!(!views.is_empty(), "views must not be empty");
-
-        let state = AppState::new(crate::config::Config::for_tests(), None);
-        let driver = Driver {
-            state,
-            http: reqwest::Client::new(),
-            run_id: "test-run".into(),
-            project: "test-proj".into(),
-            prompt: "Test prompt".into(),
-            data_needs: json!([]),
-            endpoint_slug: "test-slug".into(),
-            endpoints: Vec::new(),
-            allows_write: false,
-            bearer: "test-bearer".into(),
-            proxy_base: "http://localhost:8080".into(),
-            model: "test-model".into(),
-            provider: "anthropic".into(),
-            ttl: Duration::from_secs(60),
-            answer_timeout: ANSWER_TIMEOUT,
-            passes: AtomicU32::new(0),
-            schema_index: OnceLock::new(),
-            joined: OnceLock::new(),
-            branch: "agent/test".into(),
-            path_prefix: "apps/test/".into(),
-            repository: None,
-            app_name: "test".into(),
-            created_by: "test-user".into(),
-            identity: Identity {
-                client: None,
-                subject: "sub-test-user".into(),
-                username: "test-user".into(),
-                email: None,
-                name: None,
-                roles: vec![],
-                groups: vec![],
-            },
-            access: Access::default(),
-            kind: "application".into(),
-            unattended: false,
-            continues: None,
-            steps_per_run: 30,
-            transcript_budget: transcript_budget(400_000),
-            max_tokens_per_run: 2_000_000,
-            form: FormContext::default(),
-            path: std::sync::Mutex::new(None),
-            page: std::sync::Mutex::new(None),
-            capabilities: std::sync::Mutex::new(None),
-            started: std::time::Instant::now(),
-        };
-        let pack = driver
-            .pack(&json!({}), &BTreeMap::new(), &[], "instruction", None, None)
-            .await;
-        for kind in views.keys() {
-            assert!(
-                pack.contains(kind),
-                "pack missing view kind '{kind}' from kit.json"
-            );
-        }
     }
 }

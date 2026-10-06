@@ -456,7 +456,7 @@ pub(crate) static TOOL_FENCE: LazyLock<regex::Regex> = LazyLock::new(|| {
 });
 
 /// The tool call in a model answer, when the answer is one: a fenced JSON object whose `tool`
-/// is `propose_endpoint`. Anything else is an ordinary answer for the kit.
+/// is `propose_endpoint`. Anything else is an ordinary answer.
 pub fn tool_call(answer: &str) -> Option<Result<ProposeEndpoint, String>> {
     for fence in TOOL_FENCE.captures_iter(answer) {
         let Ok(value) = serde_json::from_str::<Value>(&fence[1]) else {
