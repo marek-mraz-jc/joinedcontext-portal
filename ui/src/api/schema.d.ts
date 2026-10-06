@@ -3780,6 +3780,12 @@ export interface components {
         };
         /** @description One page of the application as the frame rendered it. */
         ObservedPage: {
+            /**
+             * Format: int32
+             * @description How many level-1 headings the page shows (SDK-28, T-3060); an SDK older than T-3060
+             *     counts none and sends nothing.
+             */
+            h1?: number | null;
             label: string;
             /** @description The row counts of its tables. */
             rows?: number[];

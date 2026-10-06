@@ -50,6 +50,7 @@ export const MAX_OBSERVED_PAGES = 20;
 export const MAX_OBSERVED_LABEL = 120;
 export const MAX_OBSERVED_TEXT = 20_000;
 export const MAX_OBSERVED_ROWS = 50;
+export const MAX_OBSERVED_H1 = 50;
 export const MAX_FAILED_REQUESTS = 50;
 export const MAX_FAILED_PATH = 256;
 
@@ -57,6 +58,8 @@ export interface ObservedPage {
   label: string;
   text: string;
   rows: number[];
+  /** The page's level-1 headings, counted; absent from an SDK older than T-3060. */
+  h1?: number;
 }
 
 /** What the frame saw of one preview version, as the run takes it (SDK-27). */
@@ -218,7 +221,7 @@ export function previewObservationOf(data: unknown, fallbackVersion?: number): P
   const pages: ObservedPage[] = [];
   for (const raw of m.pages as unknown[]) {
     const page = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
-    const { label, text, rows } = page;
+    const { label, text, rows, h1 } = page;
     if (
       typeof label !== "string" ||
       label.length > MAX_OBSERVED_LABEL ||
@@ -226,11 +229,12 @@ export function previewObservationOf(data: unknown, fallbackVersion?: number): P
       text.length > MAX_OBSERVED_TEXT ||
       !Array.isArray(rows) ||
       rows.length > MAX_OBSERVED_ROWS ||
-      !rows.every((count) => isCount(count, 0, Number.MAX_SAFE_INTEGER))
+      !rows.every((count) => isCount(count, 0, Number.MAX_SAFE_INTEGER)) ||
+      (h1 !== undefined && !isCount(h1, 0, MAX_OBSERVED_H1))
     ) {
       return null;
     }
-    pages.push({ label, text, rows: rows as number[] });
+    pages.push(h1 === undefined ? { label, text, rows: rows as number[] } : { label, text, rows: rows as number[], h1 });
   }
   const failed = m.failedRequests === undefined ? [] : m.failedRequests;
   if (!Array.isArray(failed) || failed.length > MAX_FAILED_REQUESTS) {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  MAX_H1,
   MAX_LABEL,
   MAX_PAGES,
   MAX_TEXT,
@@ -151,7 +152,7 @@ describe("observe", () => {
     expect(message).toEqual({
       kind: "jc-observation",
       version: 12,
-      pages: [{ label: "Bikes", text: "NaN bikes", rows: [] }],
+      pages: [{ label: "Bikes", text: "NaN bikes", rows: [], h1: 0 }],
       failedRequests: [],
     });
   });
@@ -167,6 +168,17 @@ describe("observe", () => {
     expect(page.label).toHaveLength(MAX_LABEL);
     expect(page.text.length).toBeLessThanOrEqual(MAX_TEXT);
     expect(page.rows).toHaveLength(50);
+  });
+
+  it("counts the level-1 headings of a page and nothing else of them (T-3060)", () => {
+    document.body.innerHTML = "<main><h2>Stations</h2></main>";
+    expect(snapshot(document, "A").h1).toBe(0);
+    document.body.innerHTML = '<header><h1>City bikes</h1></header><main><h2>Stations</h2></main>';
+    expect(snapshot(document, "A").h1).toBe(1);
+    document.body.innerHTML = '<h1>City bikes</h1><div role="heading" aria-level="1">Stations</div>';
+    expect(snapshot(document, "A").h1).toBe(2);
+    document.body.innerHTML = "<h1>x</h1>".repeat(MAX_H1 + 5);
+    expect(snapshot(document, "A").h1).toBe(MAX_H1);
   });
 
   it("reads the version from the preview URL only when it is a positive number", () => {
