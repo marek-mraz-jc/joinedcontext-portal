@@ -2378,7 +2378,9 @@
       "refreshed": {
         "onChange": "aktualisiert, wenn sich eine Entität ändert",
         "onReconcile": "aktualisiert, sooft die Konfiguration angewendet wird"
-      }
+      },
+      "lastChange": "Letzte Änderung {time}: {summary}",
+      "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}"
     },
     "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}",
     "access": {

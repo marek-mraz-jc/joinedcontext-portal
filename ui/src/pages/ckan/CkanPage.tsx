@@ -10,6 +10,7 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { RecordLink } from "../../components/RecordLink";
+import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { CkanAccessPanel } from "./CkanAccessPanel";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
@@ -33,6 +34,7 @@ import {
 
 type CkanStatus = components["schemas"]["CkanStatus"];
 type PublicationStatus = components["schemas"]["PublicationStatus"];
+type ActivityEvent = components["schemas"]["ActivityEvent"];
 
 export function ckanStatusKey(project: string) {
   return ["projects", project, "ckan", "status"] as const;
@@ -51,6 +53,22 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [change, setChange] = useState<Change | null>(null);
+
+  // What the last runs did to each dataset: the reconciler says it in the activity feed, one
+  // event per change or failure, each naming its Endpoint (OPS-48, T-3091). Someone the feed is
+  // closed to sees the publications without it.
+  const lastRuns = useQuery({
+    queryKey: ["projects", project, "activity", "catalogue.published"],
+    retry: false,
+    queryFn: async () => {
+      const page = await unwrap(
+        await api.GET("/api/v1/projects/{project}/activity", {
+          params: { path: { project }, query: { kind: "catalogue.published", limit: 200 } },
+        }),
+      );
+      return lastRunByEndpoint(page.items);
+    },
+  });
 
   const status = useQuery({
     queryKey: ckanStatusKey(project),
@@ -142,6 +160,7 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
         publications={status.data?.publications ?? []}
         loading={status.isLoading}
         failed={status.isError}
+        lastRuns={lastRuns.data}
       />
     </section>
   );
@@ -346,16 +365,31 @@ function Instances({
   );
 }
 
+/** The newest catalogue event of each Endpoint, by name; the feed lists newest first. */
+export function lastRunByEndpoint(events: ActivityEvent[]): Record<string, ActivityEvent> {
+  const found: Record<string, ActivityEvent> = {};
+  for (const event of events) {
+    const object = (event.details as { object?: unknown } | null | undefined)?.object;
+    if (typeof object !== "string" || !object.startsWith("endpoints/")) continue;
+    const endpoint = object.slice("endpoints/".length);
+    if (!found[endpoint] || found[endpoint].time < event.time) found[endpoint] = event;
+  }
+  return found;
+}
+
 function Publications({
   publications,
   loading,
   failed,
+  lastRuns,
 }: {
   publications: PublicationStatus[];
   loading: boolean;
   failed: boolean;
+  lastRuns?: Record<string, ActivityEvent>;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const time = new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" });
   return (
     <section aria-labelledby="ckan-publications" className="space-y-3">
       <h2 id="ckan-publications" className="text-lg font-semibold">
@@ -376,6 +410,7 @@ function Publications({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono font-semibold">{publication.endpoint}</span>
                 <StatusChip publication={publication} />
+                {publication.phase ? <LifecycleBadge kind="phase" value={publication.phase} /> : null}
                 {publication.datasetUrl ? (
                   <ExternalLink
                     href={publication.datasetUrl}
@@ -388,6 +423,22 @@ function Publications({
                   <span className="font-mono">{publication.dataset}</span>
                 )}
               </div>
+              {(() => {
+                const last = lastRuns?.[publication.endpoint];
+                if (!last) return null;
+                const failedRun = last.severity === "error";
+                return (
+                  <p
+                    className={`mt-1 text-sm [overflow-wrap:anywhere] ${failedRun ? "text-danger" : "text-fg-muted"}`}
+                    data-testid="ckan-last-run"
+                  >
+                    {t(failedRun ? "ckan.publications.lastFailed" : "ckan.publications.lastChange", {
+                      time: time.format(new Date(last.time)),
+                      summary: last.summary,
+                    })}
+                  </p>
+                );
+              })()}
               {publication.datastore ? (
                 <p className="mt-1 text-sm">
                   {/* In words: "refreshed onReconcile" was the manifest's value (T-2756). */}

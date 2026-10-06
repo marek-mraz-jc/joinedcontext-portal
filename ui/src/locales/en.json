@@ -2378,7 +2378,9 @@
       "refreshed": {
         "onChange": "refreshed when an entity changes",
         "onReconcile": "refreshed each time the configuration is applied"
-      }
+      },
+      "lastChange": "Last change {time}: {summary}",
+      "lastFailed": "Last run failed {time}: {summary}"
     },
     "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}",
     "access": {

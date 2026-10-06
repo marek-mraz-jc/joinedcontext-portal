@@ -2378,7 +2378,9 @@
       "refreshed": {
         "onChange": "obnovovaná pri zmene entity",
         "onReconcile": "obnovovaná pri každom použití konfigurácie"
-      }
+      },
+      "lastChange": "Posledná zmena {time}: {summary}",
+      "lastFailed": "Posledný beh zlyhal {time}: {summary}"
     },
     "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}",
     "access": {
