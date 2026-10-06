@@ -104,6 +104,9 @@ export interface GridLabels {
   patternMismatch: string;
   required: string;
   toCorrect: string;
+  /** A true/false attribute's two choices in its picker. */
+  yes: string;
+  no: string;
 }
 
 /**
@@ -187,6 +190,8 @@ export const DEFAULT_LABELS: GridLabels = {
   patternMismatch: "does not have the form this attribute requires",
   required: "is required",
   toCorrect: "to correct before applying",
+  yes: "Yes",
+  no: "No",
 };
 
 export interface VisibleColumn {

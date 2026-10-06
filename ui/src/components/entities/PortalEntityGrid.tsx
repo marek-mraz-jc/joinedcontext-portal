@@ -150,6 +150,8 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     patternMismatch: t("entityGrid.patternMismatch"),
     required: t("entityGrid.required"),
     toCorrect: t("entityGrid.toCorrect"),
+    yes: t("entityGrid.yes"),
+    no: t("entityGrid.no"),
   };
 }
 

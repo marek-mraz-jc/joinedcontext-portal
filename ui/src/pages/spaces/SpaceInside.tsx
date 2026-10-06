@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
 import { asManifests, localized, refName } from "../../api/manifest";
-import type { Manifest } from "../../api/manifest";
+import type { Change, Manifest } from "../../api/manifest";
 import { ActivityFeed } from "../../components/ActivityFeed";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import {
@@ -25,6 +25,10 @@ import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharin
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
+import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
+import { ChangeNotice } from "../../components/ChangeNotice";
+import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { parseModel } from "../models/linkml";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
@@ -312,6 +316,13 @@ function SpaceData({
   );
   const relations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
   const rules = useMemo(() => rulesOfModel(modelSource, type), [modelSource, type]);
+  // A field is a slot of the type's class: offered only when the space's model declares the type.
+  const ownClass = useMemo(
+    () => modelSource !== undefined && parseModel(modelSource).classes.some((c) => c.name === type),
+    [modelSource, type],
+  );
+  const [adding, setAdding] = useState(false);
+  const [proposed, setProposed] = useState<Change | null>(null);
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -361,6 +372,25 @@ function SpaceData({
           ))}
         </Select>
       </Field>
+      {model && modelSource !== undefined && ownClass ? (
+        <div className="flex flex-col gap-2">
+          <PermissionGuard project={project} kind="DataModel" verb="propose">
+            <Button className="w-fit" onClick={() => setAdding(true)}>
+              {t("spaces.fields.add")}
+            </Button>
+          </PermissionGuard>
+          <AddFieldDialog
+            project={project}
+            modelName={model.metadata.name}
+            source={modelSource}
+            type={type}
+            open={adding}
+            onOpenChange={setAdding}
+            onProposed={setProposed}
+          />
+          {proposed ? <ChangeNotice change={proposed} project={project} /> : null}
+        </div>
+      ) : null}
 
       {probe.isPending ? <p role="status">{t("app.loading")}</p> : null}
       {probe.isError ? (

@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -141,6 +142,8 @@ function renderInside(
     models?: unknown;
     endpoints?: unknown;
     usage?: { status: number; body: unknown };
+    /** The model's committed LinkML source, which the space's data reads for its field rules. */
+    source?: string;
   } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -181,6 +184,9 @@ function renderInside(
     }
     if (path.endsWith("/spaces/ovzdusie")) {
       return json(seed.space ?? SPACE);
+    }
+    if (path.endsWith("/datamodels/bb-air-quality/source") && seed.source !== undefined) {
+      return Promise.resolve(new Response(seed.source, { status: 200, headers: { "Content-Type": "text/yaml" } }));
     }
     if (path.endsWith("/datamodels")) {
       return json(seed.models ?? MODELS);
@@ -473,6 +479,23 @@ describe("the space's own data", () => {
     const links = screen.getAllByRole("link", { name: "public-air" });
     expect(links[0]).toHaveAttribute("href", `${window.location.origin}/api/endpoint/${SLUG}`);
     expect(screen.queryByText(en.spaces.inside.dataEmpty)).toBeNull();
+  });
+
+  it("offers to add a field to a type its model declares, as a model change (T-3098)", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      source: "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float }\n",
+    });
+
+    const add = await screen.findByRole("button", { name: en.spaces.fields.add });
+    await userEvent.click(add);
+    expect(await screen.findByRole("dialog", { name: en.spaces.fields.title.replace("{type}", "AirQualityObserved") })).toBeInTheDocument();
+  });
+
+  it("offers no field to add while the model's source does not declare the type", async () => {
+    renderInside({ status: 200, count: 1 });
+
+    expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.spaces.fields.add })).toBeNull();
   });
 
   it("says nothing has been written to an empty space", async () => {

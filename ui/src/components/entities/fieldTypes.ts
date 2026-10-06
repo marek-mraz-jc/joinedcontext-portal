@@ -1,0 +1,200 @@
+/**
+ * The field types a data view offers (T-3098, ADR-N-042 §3.1): each one a LinkML range and an
+ * NGSI-LD kind, so adding a field is a DataModel Change made of the model editor's own operations,
+ * never a column bolted onto a table.
+ */
+import type { NgsiLdKind, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
+import { classSlots, edit, RANGES, UPSTREAM_ANNOTATION } from "../../pages/models/linkml";
+import type { Applied, Operation } from "../../pages/models/operations";
+import { applyOperations, isName } from "../../pages/models/operations";
+
+export const FIELD_TYPES = [
+  "text",
+  "number",
+  "integer",
+  "date",
+  "datetime",
+  "boolean",
+  "select",
+  "multiSelect",
+  "url",
+  "email",
+  "file",
+  "location",
+  "relationship",
+] as const;
+
+export type FieldType = (typeof FIELD_TYPES)[number];
+
+/** What a field type is in the model: its range (a select's is its own enum) and its NGSI-LD kind. */
+export const FIELD_RANGE: Record<FieldType, { range?: string; kind: NgsiLdKind }> = {
+  text: { range: "string", kind: "Property" },
+  number: { range: "float", kind: "Property" },
+  integer: { range: "integer", kind: "Property" },
+  date: { range: "date", kind: "Property" },
+  datetime: { range: "datetime", kind: "Property" },
+  boolean: { range: "boolean", kind: "Property" },
+  select: { kind: "Property" },
+  multiSelect: { kind: "Property" },
+  url: { range: "uri", kind: "Property" },
+  email: { range: "string", kind: "Property" },
+  // A link to a file the space keeps elsewhere: its address, typed as one.
+  file: { range: "uri", kind: "Property" },
+  location: { kind: "GeoProperty" },
+  relationship: { kind: "Relationship" },
+};
+
+/** An address with one `@` and a dot after it: the same check the grid makes at the cell. */
+export const EMAIL_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
+
+export interface FieldDraft {
+  name: string;
+  type: FieldType;
+  required: boolean;
+  /** A select's choices, one per value. */
+  values: string[];
+  /** A relationship's target class and the name of the slot there that points back. */
+  target: string;
+  inverse: string;
+  /** A relationship to several entities, not one. */
+  many: boolean;
+}
+
+export const EMPTY_DRAFT: FieldDraft = {
+  name: "",
+  type: "text",
+  required: false,
+  values: [],
+  target: "",
+  inverse: "",
+  many: false,
+};
+
+/** What is wrong with a draft, by the input that must change; empty when it can be proposed. */
+export type DraftProblems = Partial<Record<"name" | "values" | "target" | "inverse", "nameInvalid" | "nameTaken" | "valuesMissing" | "valueInvalid" | "valueTwice" | "targetMissing" | "inverseInvalid" | "inverseTaken">>;
+
+/** The names a class answers to already: its own slots, inline or listed, and the model's slots. */
+function takenNames(model: LinkmlModel, type: string): Set<string> {
+  const cls = model.classes.find((c) => c.name === type);
+  return new Set([...(cls ? classSlots(model, cls).map((s) => s.name) : []), ...model.slots.map((s) => s.name)]);
+}
+
+export function problemsOf(draft: FieldDraft, model: LinkmlModel, type: string): DraftProblems {
+  const problems: DraftProblems = {};
+  if (!isName(draft.name)) problems.name = "nameInvalid";
+  else if (takenNames(model, type).has(draft.name)) problems.name = "nameTaken";
+  if (draft.type === "select" || draft.type === "multiSelect") {
+    if (draft.values.length === 0) problems.values = "valuesMissing";
+    else if (draft.values.some((value) => !isValue(value))) problems.values = "valueInvalid";
+    else if (new Set(draft.values).size !== draft.values.length) problems.values = "valueTwice";
+  }
+  if (draft.type === "relationship") {
+    if (!model.classes.some((c) => c.name === draft.target)) problems.target = "targetMissing";
+    if (!isName(draft.inverse) || draft.inverse === draft.name) problems.inverse = "inverseInvalid";
+    else if (takenNames(model, draft.target).has(draft.inverse)) problems.inverse = "inverseTaken";
+  }
+  return problems;
+}
+
+/** A choice as it is stored: trimmed text of up to 100 characters, no control characters. */
+function isValue(value: string): boolean {
+  // eslint-disable-next-line no-control-regex
+  return value !== "" && value === value.trim() && value.length <= 100 && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
+/** `capacityLevel` → `CapacityLevel`: the enum a select field brings is named after it. */
+function enumNameOf(type: string, field: string): string {
+  return `${type}${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+}
+
+/** The model operations one checked draft is: what the Change proposes. */
+export function fieldOperations(draft: FieldDraft, model: LinkmlModel, type: string): Operation[] {
+  if (draft.type === "relationship") {
+    return [
+      {
+        op: "addRelationship",
+        from: type,
+        to: draft.target,
+        name: draft.name,
+        inverse: draft.inverse,
+        // The field holds one target or several; the other end lists every entity pointing at it.
+        cardinality: draft.many ? "many-to-many" : "many-to-one",
+        required: draft.required || undefined,
+      },
+    ];
+  }
+  const ops: Operation[] = [];
+  let range = FIELD_RANGE[draft.type].range;
+  if (draft.type === "select" || draft.type === "multiSelect") {
+    let name = enumNameOf(type, draft.name);
+    while (model.enums.some((e) => e.name === name)) name = `${name}_`;
+    range = name;
+    ops.push({ op: "addEnum", name }, ...draft.values.map((value): Operation => ({ op: "addEnumValue", enum: name, value })));
+  }
+  const kind = FIELD_RANGE[draft.type].kind;
+  ops.push({ op: "addSlot", name: draft.name, class: type, range, ...(kind === "Property" ? {} : { kind }) });
+  if (draft.type === "multiSelect") ops.push({ op: "setSlot", name: draft.name, field: "multivalued", value: true });
+  if (draft.type === "email") ops.push({ op: "setSlot", name: draft.name, field: "pattern", value: EMAIL_PATTERN });
+  if (draft.required) ops.push({ op: "setSlot", name: draft.name, field: "required", value: true });
+  return ops;
+}
+
+/**
+ * A Smart Data Model attribute offered first (T-3098): a slot of the official model's class of the
+ * same name, which the type does not have yet and whose range a field can hold (a standard range,
+ * one of that model's enums, or a geometry). Relationships to other official types are left to the
+ * model editor, where the target class is added with them.
+ */
+export function suggestedSlots(official: LinkmlModel, model: LinkmlModel, type: string): LinkmlSlot[] {
+  const cls = official.classes.find((c) => c.name === type);
+  if (!cls) return [];
+  const taken = takenNames(model, type);
+  return classSlots(official, cls).filter(
+    (slot) =>
+      !taken.has(slot.name) &&
+      isName(slot.name) &&
+      (slot.kind === "GeoProperty" ||
+        (slot.kind !== "Relationship" &&
+          (slot.range === undefined ||
+            (RANGES as readonly string[]).includes(slot.range) ||
+            official.enums.some((e) => e.name === slot.range)))),
+  );
+}
+
+/**
+ * The model with one official slot copied into the type: its enum, range, kind and multiplicity by
+ * the model editor's operations, then its IRI and description as a citation of where it comes from
+ * (`upstream_source`, DM-58), so the reserved Smart Data Models IRI is accepted as the standard's
+ * own term and its meaning stays the upstream's.
+ */
+export function withOfficialSlot(source: string, slot: LinkmlSlot, official: LinkmlModel, model: LinkmlModel, type: string): Applied {
+  const ops: Operation[] = [];
+  let range = slot.kind === "GeoProperty" ? undefined : slot.range;
+  const officialEnum = official.enums.find((e) => e.name === slot.range);
+  if (officialEnum) {
+    if (!model.enums.some((e) => e.name === officialEnum.name)) {
+      ops.push(
+        { op: "addEnum", name: officialEnum.name },
+        ...officialEnum.permissible_values.map(
+          (value): Operation => ({ op: "addEnumValue", enum: officialEnum.name, value: value.name, description: value.description }),
+        ),
+      );
+    }
+    range = officialEnum.name;
+  }
+  ops.push({ op: "addSlot", name: slot.name, class: type, range, ...(slot.kind === "Property" ? {} : { kind: slot.kind }) });
+  if (slot.multivalued) ops.push({ op: "setSlot", name: slot.name, field: "multivalued", value: true });
+  const applied = applyOperations(source, ops);
+  if (applied.refused.length > 0) return applied;
+  const upstream = slot.upstream ?? official.id;
+  return {
+    refused: [],
+    source: edit(applied.source, (document) => {
+      if (upstream) {
+        document.setIn(["slots", slot.name, "annotations", UPSTREAM_ANNOTATION], upstream);
+        if (slot.slot_uri) document.setIn(["slots", slot.name, "slot_uri"], slot.slot_uri);
+      }
+      if (slot.description) document.setIn(["slots", slot.name, "description"], slot.description);
+    }),
+  };
+}
