@@ -469,6 +469,55 @@
         "untargeted": "Bez cieľa"
       }
     },
+    "fields": {
+      "add": "Pridať pole",
+      "title": "Pridať pole do {type}",
+      "lead": "Pole je atribút DataModelu typu. Pridanie navrhne zmenu modelu na posúdenie; dáta sa nezmenia, kým nie je zlúčená.",
+      "propose": "Navrhnúť pole",
+      "refused": "Pole sa nepodarilo navrhnúť",
+      "refusedStatus": "Portál odpovedal {status}.",
+      "sdmTitle": "Zo Smart Data Modelu",
+      "sdmUnavailable": "Katalóg Smart Data Models je teraz nedostupný; vlastné pole môžete definovať aj tak.",
+      "sdmNone": "Každý atribút Smart Data Modelu {type}, ktorý pole môže niesť, už tento typ má.",
+      "sdmNoModel": "Smart Data Model s názvom {type} neexistuje.",
+      "proposeOfficial": "Navrhnúť atribút Smart Data Modelu {name}",
+      "ownTitle": "Vlastné pole",
+      "name": "Názov",
+      "nameHelp": "Iba písmená, číslice a _, na začiatku písmeno, napríklad capacityLevel.",
+      "type": "Typ",
+      "values": "Možnosti",
+      "valuesHelp": "Jedna na riadok.",
+      "target": "Odkazuje na",
+      "inverse": "Názov spätného odkazu",
+      "inverseHelp": "Atribút cieľa, ktorý vypisuje entity {type}, ktoré naň odkazujú.",
+      "many": "Odkazuje na viac entít",
+      "required": "Povinné",
+      "problem": {
+        "nameInvalid": "Použite iba písmená, číslice a _, na začiatku písmeno.",
+        "nameTaken": "Tento typ alebo jeho model už má atribút s týmto názvom.",
+        "valuesMissing": "Zadajte aspoň jednu možnosť.",
+        "valueInvalid": "Niektorá možnosť je prázdna, príliš dlhá (nad 100 znakov) alebo obsahuje riadiaci znak.",
+        "valueTwice": "Niektorá možnosť je uvedená dvakrát.",
+        "targetMissing": "Vyberte typ, na ktorý odkazuje.",
+        "inverseInvalid": "Použite iba písmená, číslice a _ a iný názov než má pole.",
+        "inverseTaken": "Cieľový typ už má atribút s týmto názvom."
+      },
+      "types": {
+        "text": "Text",
+        "number": "Číslo",
+        "integer": "Celé číslo",
+        "date": "Dátum",
+        "datetime": "Dátum a čas",
+        "boolean": "Áno / nie",
+        "select": "Výber",
+        "multiSelect": "Viacnásobný výber",
+        "url": "Webová adresa",
+        "email": "E-mail",
+        "file": "Odkaz na súbor",
+        "location": "Poloha",
+        "relationship": "Odkaz na iný typ"
+      }
+    },
     "views": {
       "label": "Ako zobraziť entity",
       "kind": {
@@ -2746,7 +2795,9 @@
     "atMost": "musí byť najviac",
     "patternMismatch": "nemá tvar, ktorý tento atribút vyžaduje",
     "required": "je povinné",
-    "toCorrect": "treba opraviť pred použitím"
+    "toCorrect": "treba opraviť pred použitím",
+    "yes": "Áno",
+    "no": "Nie"
   },
   "explore": {
     "title": "Prehliadať dáta",

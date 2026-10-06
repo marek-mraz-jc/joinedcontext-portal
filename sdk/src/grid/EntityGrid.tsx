@@ -401,7 +401,17 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       // is what the value is measured in and is kept, never typed over.
       const own = one?.kind === "relationship" ? one.object : one?.value;
       const shown = own === undefined || own === null ? "" : String(own);
-      const options = one?.kind === "relationship" ? undefined : hookOptions.enums?.[column.attr];
+      const rule = rules?.[column.attr];
+      const options =
+        one?.kind === "relationship"
+          ? undefined
+          : (hookOptions.enums?.[column.attr] ??
+            (rule?.kind === "boolean"
+              ? [
+                  { value: "true", title: labels.yes },
+                  { value: "false", title: labels.no },
+                ]
+              : undefined));
       if (options && options.length > 0) {
         return (
           <EnumCell
@@ -410,7 +420,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             options={options}
             changed={pending !== undefined}
             notInList={labels.notInList}
-            onChange={(next) => setEdit(row.id, column.attr!, next === shown ? undefined : next)}
+            onChange={(next) => setEdit(row.id, column.attr!, next === shown ? undefined : coerce(next, shown, rule))}
           />
         );
       }
@@ -421,17 +431,17 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           value={pending === undefined ? shown : String(pending)}
           changed={pending !== undefined}
           invalid={ruleProblems.get(key) ?? refusedCell.get(key)}
-          kind={typeof own === "number" ? "number" : "text"}
+          kind={inputKindOf(rule, own)}
           onChange={(next) => {
             // Back to the endpoint's own value is not a change: it leaves the pending list.
-            setEdit(row.id, column.attr!, next === shown ? undefined : coerce(next, shown));
+            setEdit(row.id, column.attr!, next === shown ? undefined : coerce(next, shown, rule));
           }}
         />
       );
     }
 
     return <>{text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems]);
+  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -542,12 +552,16 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           const cell = rows.find((row) => row.id === edit.id)?.cells[edit.attr];
           const one = Array.isArray(cell) ? cell[0] : cell;
           const stored = one?.value === undefined || one?.value === null ? "" : String(one.value);
-          return { id: edit.id, attr: edit.attr, value: edit.text === stored ? undefined : coerce(edit.text, stored) };
+          return {
+            id: edit.id,
+            attr: edit.attr,
+            value: edit.text === stored ? undefined : coerce(edit.text, stored, rules?.[edit.attr]),
+          };
         }),
       );
       setPasteNote(`${plan.edits.length} ${labels.pasted}${plan.skipped > 0 ? `, ${plan.skipped} ${labels.skipped}` : ""}`);
     },
-    [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, setEdits],
+    [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, setEdits, rules],
   );
 
   /** The window of rows in sight, read off the scroll position; past its end the next page loads. */
@@ -1061,7 +1075,25 @@ function FilterCell({
  * A value typed into a cell, in the shape the cell had: a column of numbers stays numbers, so the
  * endpoint is not sent a string where it stored a measurement.
  */
-function coerce(next: string, before: string): unknown {
+/**
+ * The typed text as the value it is sent as. With the attribute's rule the model decides: a number
+ * slot sends a number, a boolean one `true`/`false`, a text, date or address slot the text as typed
+ * (so "007" or "true" in a name stays text). Text the rule refuses is kept as typed, for the cell
+ * to say why. Without a rule the stored value's shape is the guide.
+ */
+function coerce(next: string, before: string, rule?: ValueRule): unknown {
+  switch (rule?.kind) {
+    case "integer":
+    case "number":
+      return next.trim() !== "" && Number.isFinite(Number(next)) ? Number(next) : next;
+    case "boolean":
+      return next === "true" ? true : next === "false" ? false : next;
+    case "string":
+    case "date":
+    case "datetime":
+    case "uri":
+      return next;
+  }
   if (before !== "" && Number.isFinite(Number(before)) && Number.isFinite(Number(next))) {
     return Number(next);
   }
@@ -1112,6 +1144,26 @@ function EnumCell({
   );
 }
 
+/** The input a value is typed in: the model's range first, else the stored value's shape. */
+function inputKindOf(rule: ValueRule | undefined, own: unknown): CellInputKind {
+  switch (rule?.kind) {
+    case "integer":
+    case "number":
+      return "number";
+    case "date":
+      return "date";
+    case "uri":
+      return "url";
+    case "string":
+    case "datetime":
+      // A datetime is typed as ISO text: the browser's datetime-local drops the zone NGSI-LD keeps.
+      return "text";
+  }
+  return typeof own === "number" ? "number" : "text";
+}
+
+type CellInputKind = "text" | "number" | "date" | "url";
+
 /** One cell a person may correct: an input that says what it belongs to, marked while pending. */
 function EditableCell({
   label,
@@ -1124,7 +1176,7 @@ function EditableCell({
   label: string;
   value: string;
   changed: boolean;
-  kind: "text" | "number";
+  kind: CellInputKind;
   /** Why the value cannot be sent as it is: its model's rule, or the gateway's refusal. */
   invalid?: string;
   onChange: (next: string) => void;

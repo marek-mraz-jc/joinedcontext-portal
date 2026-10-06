@@ -194,6 +194,15 @@
         "drift_modal.test.tsx"
       ]
     },
+    "src/components/entities/AddFieldDialog.tsx": {
+      "controls": {
+        "Button": 3,
+        "Checkbox": 2
+      },
+      "tests": [
+        "add_field.test.tsx"
+      ]
+    },
     "src/components/entities/EndpointDataView.tsx": {
       "controls": {
         "Button": 1
@@ -1216,7 +1225,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "endpoint_admits_person.test.ts",
