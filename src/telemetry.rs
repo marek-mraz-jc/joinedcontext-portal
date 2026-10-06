@@ -73,6 +73,12 @@ const RUNS_FINISHED: &str = "jc_agent_runs_finished_total";
 /// Tool steps the assistant took, by tool and outcome.
 const TOOL_STEPS: &str = "jc_agent_tool_steps_total";
 
+/// Whether the model key works, as the agent proxy last reported it: 1 or 0 (AG-96).
+const MODEL_KEY_VALID: &str = "jc_model_key_valid";
+/// The key's limit and what is left of it, in the provider's credits (AG-96).
+const MODEL_KEY_LIMIT: &str = "jc_model_key_limit";
+const MODEL_KEY_REMAINING: &str = "jc_model_key_remaining";
+
 /// The paths that describe the process rather than the traffic.
 const UNCOUNTED: &[&str] = &["/metrics", "/api/v1/health"];
 
@@ -126,6 +132,12 @@ fn handle() -> &'static PrometheusHandle {
         metrics::describe_counter!(MODEL_TOKENS, "model tokens, by run kind and part");
         metrics::describe_counter!(RUNS_FINISHED, "agent runs ended, by kind and status");
         metrics::describe_counter!(TOOL_STEPS, "assistant tool steps, by tool and outcome");
+        metrics::describe_gauge!(MODEL_KEY_VALID, "1 when the model key works, 0 when not");
+        metrics::describe_gauge!(
+            MODEL_KEY_LIMIT,
+            "the model key's limit, in provider credits"
+        );
+        metrics::describe_gauge!(MODEL_KEY_REMAINING, "the model key's credit left");
         handle
     })
 }
@@ -205,6 +217,18 @@ pub fn model_call(kind: &str, usage: &serde_json::Value) {
         if let Some(tokens) = number(key).filter(|tokens| *tokens > 0) {
             metrics::counter!(MODEL_TOKENS, "kind" => kind, "part" => part).increment(tokens);
         }
+    }
+}
+
+/// The model key's state as the proxy reported it (AG-96). A figure the provider did not give
+/// leaves its gauge as it was; a key without a limit has none to compare with.
+pub fn model_key(valid: bool, limit: Option<f64>, remaining: Option<f64>) {
+    metrics::gauge!(MODEL_KEY_VALID).set(if valid { 1.0 } else { 0.0 });
+    if let Some(limit) = limit {
+        metrics::gauge!(MODEL_KEY_LIMIT).set(limit);
+    }
+    if let Some(remaining) = remaining {
+        metrics::gauge!(MODEL_KEY_REMAINING).set(remaining);
     }
 }
 
@@ -352,5 +376,22 @@ mod agent_series_tests {
         }
         assert!(!text.contains("secret/model-name") && !text.contains("rm -rf"));
         assert!(!text.contains("made-up-kind"));
+    }
+
+    /// T-3065, AG-96: the model key's gauges exist under the names the alerts read; a figure the
+    /// provider did not give leaves its gauge as it was.
+    #[test]
+    fn the_model_key_gauges_follow_the_last_report() {
+        super::install();
+        super::model_key(true, Some(10.0), Some(7.5));
+        super::model_key(false, None, None);
+        let text = super::handle().render();
+        for series in [
+            "jc_model_key_valid 0",
+            "jc_model_key_limit 10",
+            "jc_model_key_remaining 7.5",
+        ] {
+            assert!(text.contains(series), "{series} in\n{text}");
+        }
     }
 }

@@ -13,6 +13,7 @@ use crate::state::AppState;
 
 pub mod agent_runs;
 pub mod domain_verifications;
+pub mod model_key;
 pub mod pipeline_rejected;
 pub mod pipeline_tests;
 pub mod previews;
@@ -24,6 +25,7 @@ pub fn router() -> Router<AppState> {
         .merge(pipeline_rejected::router())
         .merge(previews::router())
         .merge(domain_verifications::router())
+        .merge(model_key::router())
 }
 
 /// A JSON body the gateway polls every ten seconds: its `ETag` is a SHA-256 over the body, and a
