@@ -1198,6 +1198,14 @@
         "slot_unit.test.tsx"
       ]
     },
+    "src/pages/spaces/AiField.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "ai_field.test.tsx"
+      ]
+    },
     "src/pages/spaces/DataViews.tsx": {
       "controls": {
         "Button": 13,
@@ -1205,6 +1213,15 @@
       },
       "tests": [
         "data_views.test.tsx"
+      ]
+    },
+    "src/pages/spaces/PublicView.tsx": {
+      "controls": {
+        "Button": 2,
+        "Checkbox": 1
+      },
+      "tests": [
+        "public_view.test.tsx"
       ]
     },
     "src/pages/spaces/SpaceComplete.tsx": {
