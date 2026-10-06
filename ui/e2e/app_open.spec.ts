@@ -30,6 +30,11 @@ async function stub(page: Page): Promise<void> {
     const json = (body: unknown, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (path.endsWith("/auth/me")) return json(IDENTITY);
+    // The silent realm check (T-3034): the realm says the person must sign in.
+    if (path === "/api/v1/auth/sso-check") {
+      return route.fulfill({ status: 303, headers: { location: "/api/v1/auth/sso-check/done#error=login_required" } });
+    }
+    if (path === "/api/v1/auth/sso-check/done") return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html>" });
     if (path === "/api/v1/projects") {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
     }
@@ -101,8 +106,9 @@ test.describe("an App inside the Portal (AP-122)", () => {
     });
   }
 
-  // T-2941: the stub App carries no SDK, so it never says it is up; 8 s after its load the page
-  // offers the sign-in above the frame, readable in both themes, and names each control once.
+  // T-2941, T-3034: the stub App carries no SDK, so it never says it is up; 8 s after its load the
+  // page asks the realm silently, and the realm's login_required brings the sign-in offer above
+  // the frame, readable in both themes, naming each control once.
   for (const colorScheme of ["light", "dark"] as const) {
     test(`offers the sign-in above a silent App's frame (${colorScheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme });
@@ -110,10 +116,10 @@ test.describe("an App inside the Portal (AP-122)", () => {
       await stub(page);
       await page.goto("/projects/helsinki/apps/city-bikes/open?lang=en");
       await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
-      await expect(page.getByText("The app has not answered.")).toHaveCount(0);
+      await expect(page.getByText("Your sign-in has ended.")).toHaveCount(0);
 
       await page.clock.runFor(8_000);
-      const status = page.getByRole("status").filter({ hasText: "The app has not answered." });
+      const status = page.getByRole("status").filter({ hasText: "Your sign-in has ended." });
       await expect(status).toBeVisible();
       await expect(status.getByRole("button", { name: "Sign in again" })).toBeVisible();
       await expect(page.getByRole("link", { name: /Open in new window/ })).toHaveCount(1);
@@ -121,7 +127,7 @@ test.describe("an App inside the Portal (AP-122)", () => {
       expect(await axeViolations(page)).toEqual([]);
 
       await status.getByRole("button", { name: "Hide this message" }).click();
-      await expect(page.getByText("The app has not answered.")).toHaveCount(0);
+      await expect(page.getByText("Your sign-in has ended.")).toHaveCount(0);
     });
   }
 
