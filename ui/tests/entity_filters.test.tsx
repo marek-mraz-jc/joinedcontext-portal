@@ -212,7 +212,7 @@ describe("data explorer (UI-33)", () => {
     // The whole type first: two rows and the broker's count.
     expect(await screen.findByText(ROWS[1].id)).toBeInTheDocument();
     // The endpoint's own count, as the grid's footer says it (R22).
-    expect(screen.getByText(`2 ${en.entityGrid.matching}`)).toBeInTheDocument();
+    expect(screen.getByText(`2 ${en.entityGrid.of} 2 ${en.entityGrid.loaded}`)).toBeInTheDocument();
 
     // A row from the model: pm10 is a float, so the value is a number input and > is offered.
     await userEvent.click(screen.getByRole("button", { name: en.entities.addFilter }));
@@ -226,7 +226,7 @@ describe("data explorer (UI-33)", () => {
     expect(last.pathname).toContain("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/");
     expect(last.searchParams.get("q")).toBe("pm10>20");
     expect(last.searchParams.get("count")).toBe("true");
-    expect(screen.getByText(`1 ${en.entityGrid.matching}`)).toBeInTheDocument();
+    expect(screen.getByText(`1 ${en.entityGrid.of} 1 ${en.entityGrid.loaded}`)).toBeInTheDocument();
 
     // A q typed by hand outside the simple grammar shows as text, no rows.
     await userEvent.clear(screen.getByLabelText(en.entities.q));
