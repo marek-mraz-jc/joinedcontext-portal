@@ -37,11 +37,11 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
 
   return (
     <details className="rounded-md border border-border p-3">
-      <summary className="cursor-pointer text-body font-semibold">{t("spaces.views.options")}</summary>
+      <summary className="cursor-pointer text-body font-semibold">{t("spaces.saved.options")}</summary>
       <div className="mt-3 grid gap-4 md:grid-cols-3">
         <fieldset className="flex flex-col gap-1">
-          <legend className="text-body font-semibold">{t("spaces.views.fields")}</legend>
-          {attributes.length === 0 ? <p className="text-caption text-fg-muted">{t("spaces.views.noFields")}</p> : null}
+          <legend className="text-body font-semibold">{t("spaces.saved.fields")}</legend>
+          {attributes.length === 0 ? <p className="text-caption text-fg-muted">{t("spaces.saved.noFields")}</p> : null}
           {attributes.map((attr) => (
             <Checkbox
               key={attr}
@@ -58,16 +58,16 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-body font-semibold">{t("spaces.views.colours")}</legend>
-          <p className="text-caption text-fg-muted">{t("spaces.views.coloursHelp")}</p>
+          <legend className="text-body font-semibold">{t("spaces.saved.colours")}</legend>
+          <p className="text-caption text-fg-muted">{t("spaces.saved.coloursHelp")}</p>
           {colour.map((rule, index) => {
             const unreadable = rule.when.trim() !== "" && parseQ(rule.when) === null;
             return (
               <div key={index} className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <Field
                   id={`${id}-when-${index}`}
-                  label={t("spaces.views.when")}
-                  errors={unreadable ? [t("spaces.views.whenUnreadable")] : undefined}
+                  label={t("spaces.saved.when")}
+                  errors={unreadable ? [t("spaces.saved.whenUnreadable")] : undefined}
                 >
                   <Input
                     id={`${id}-when-${index}`}
@@ -76,7 +76,7 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
                     onChange={(e) => setColour(colour.map((r, at) => (at === index ? { ...r, when: e.target.value } : r)))}
                   />
                 </Field>
-                <Field id={`${id}-tone-${index}`} label={t("spaces.views.tone")}>
+                <Field id={`${id}-tone-${index}`} label={t("spaces.saved.tone")}>
                   <Select
                     id={`${id}-tone-${index}`}
                     value={rule.colour}
@@ -84,13 +84,13 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
                   >
                     {TONES.map((tone) => (
                       <option key={tone} value={tone}>
-                        {t(`spaces.views.tones.${tone}`)}
+                        {t(`spaces.saved.tones.${tone}`)}
                       </option>
                     ))}
                   </Select>
                 </Field>
                 <Button size="sm" variant="ghost" className="w-fit" onClick={() => setColour(colour.filter((_, at) => at !== index))}>
-                  {t("spaces.views.removeRule", { n: index + 1 })}
+                  {t("spaces.saved.removeRule", { n: index + 1 })}
                 </Button>
               </div>
             );
@@ -101,17 +101,17 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
             disabled={colour.length >= 20}
             onClick={() => setColour([...colour, { when: "", colour: "warning" }])}
           >
-            {t("spaces.views.addRule")}
+            {t("spaces.saved.addRule")}
           </Button>
         </fieldset>
 
-        <Field id={`${id}-group`} label={t("spaces.views.group")} help={t("spaces.views.groupHelp")}>
+        <Field id={`${id}-group`} label={t("spaces.saved.group")} help={t("spaces.saved.groupHelp")}>
           <Select
             id={`${id}-group`}
             value={value.group ?? ""}
             onChange={(e) => onChange({ ...value, group: e.target.value || undefined })}
           >
-            <option value="">{t("spaces.views.noGroup")}</option>
+            <option value="">{t("spaces.saved.noGroup")}</option>
             {Object.keys(enums).map((attr) => (
               <option key={attr} value={attr}>
                 {attr}
@@ -159,16 +159,16 @@ export function GroupCounts({ source, type, attr, options, q, chosen, onChoose }
   const countText = (index: number) => {
     const count = counts[index];
     if (count.isPending) return "…";
-    if (count.isError || count.data === null || count.data === undefined) return t("spaces.views.countUnknown");
+    if (count.isError || count.data === null || count.data === undefined) return t("spaces.saved.countUnknown");
     return String(count.data);
   };
 
   return (
-    <nav aria-label={t("spaces.views.groupsOf", { attr })} className="flex flex-col gap-1">
+    <nav aria-label={t("spaces.saved.groupsOf", { attr })} className="flex flex-col gap-1">
       <ul className="flex flex-wrap gap-2">
         <li>
           <Button size="sm" variant={chosen === null ? "primary" : "secondary"} aria-pressed={chosen === null} onClick={() => onChoose(null)}>
-            {t("spaces.views.allGroups")}
+            {t("spaces.saved.allGroups")}
           </Button>
         </li>
         {shown.map((option, index) => (
@@ -185,7 +185,7 @@ export function GroupCounts({ source, type, attr, options, q, chosen, onChoose }
         ))}
       </ul>
       {options.length > MAX_GROUPS ? (
-        <p className="text-caption text-fg-muted">{t("spaces.views.groupsCut", { shown: MAX_GROUPS, total: options.length })}</p>
+        <p className="text-caption text-fg-muted">{t("spaces.saved.groupsCut", { shown: MAX_GROUPS, total: options.length })}</p>
       ) : null}
     </nav>
   );

@@ -343,6 +343,17 @@
           "DELETE /api/v1/projects/{project}/{plural}/{name}"
         ]
       },
+      "trash": {
+        "live": {
+          "spec": "space-trash.spec.ts",
+          "test": "a person keeps a copy of what they delete and forgets it again"
+        },
+        "personOnly": "a person's own copies of the entities they delete from a data view, kept for them for 30 days; nobody else, an assistant included, reads or restores another's trash (API/01 §31)",
+        "routes": [
+          "POST /api/v1/projects/{project}/spaces/{space}/trash",
+          "DELETE /api/v1/projects/{project}/spaces/{space}/trash/{id}"
+        ]
+      },
       "refused-no-permission": {
         "live": {
           "spec": "viewer-refused.spec.ts",

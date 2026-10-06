@@ -11,7 +11,7 @@ import en from "../src/locales/en.json";
 import { GroupCounts, groupTerm, ViewOptions } from "../src/components/entities/ViewOptions";
 import type { ViewExtras } from "../src/components/entities/ViewOptions";
 
-const L = en.spaces.views;
+const L = en.spaces.saved;
 const STATUS = [
   { value: "working", title: "Working" },
   { value: "outOfService", title: "Out of service" },

@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import type { GridState, RichRow } from "@joinedcontext/sdk";
 import { attributesOf, matchesQ, originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
+import type { GridState, RichRow } from "@joinedcontext/sdk";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
@@ -25,12 +25,13 @@ import { useBranding } from "../../branding";
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { enumsOfModel, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
+import { EntityFilters } from "../../components/entities/EntityFilters";
+import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
 import { ViewBar } from "../../components/entities/ViewBar";
 import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
 import type { ViewExtras } from "../../components/entities/ViewOptions";
-import type { DataView, ViewConfig } from "../../api/dataViews";
+import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { classSlots, parseModel } from "../models/linkml";
@@ -39,7 +40,10 @@ import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
+import { CalendarView, deleteRow, GalleryView, KanbanView, TimelineView, TrashPanel, trashKey, useViewRows } from "./DataViews";
+import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
+import { TypeApi } from "./TypeApi";
 import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
@@ -58,6 +62,8 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
+  Tabs,
+  tabPanelProps,
   Term,
 } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
@@ -321,6 +327,10 @@ function SpaceData({
   );
   const relations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
   const rules = useMemo(() => rulesOfModel(modelSource, type), [modelSource, type]);
+  const slots = useMemo(() => filterSlotsOf(modelSource, type), [modelSource, type]);
+  // The grid, or a view over the same rows (ADR-N-042 §3.2): the other views share one filter.
+  const [view, setView] = useState<DataView>("grid");
+  const [q, setQ] = useState<string | undefined>(undefined);
   // A field is a slot of the type's class: offered only when the space's model declares the type.
   const ownClass = useMemo(
     () => modelSource !== undefined && parseModel(modelSource).classes.some((c) => c.name === type),
@@ -331,15 +341,18 @@ function SpaceData({
 
   // The saved view applied, and what of the grid a view keeps: the typed query and the order
   // (API/01 §30). The filter row's query arrives through `onQuery`.
-  const [view, setView] = useState<DataView | null>(null);
+  const [saved, setSaved] = useState<SavedView | null>(null);
   const [gridView, setGridView] = useState<Pick<GridState, "filterText" | "sort">>({ filterText: null, sort: null });
   const [asked, setAsked] = useState<{ q?: string; idPattern?: string }>({});
   // What the view hides, colours and groups by (T-3099), and the group the grid is narrowed to.
   const [extras, setExtras] = useState<ViewExtras>({});
   const [group, setGroup] = useState<string | null>(null);
   const [seen, setSeen] = useState<string[]>([]);
-  const applyView = useCallback((next: DataView | null) => {
-    setView(next);
+  const applyView = useCallback((next: SavedView | null) => {
+    setSaved(next);
+    // A saved view opens as the kind it was saved as, with its filter for the views beside the grid.
+    if (next && (DATA_VIEWS as readonly string[]).includes(next.kind)) setView(next.kind as DataView);
+    setQ(next?.config.q ?? undefined);
     setExtras({ hidden: next?.config.hidden, colour: next?.config.colour, group: next?.config.group });
     setGroup(null);
     const first = next?.config.sort?.[0];
@@ -357,12 +370,12 @@ function SpaceData({
   }, []);
   const current = useMemo<ViewConfig>(
     () => ({
-      ...(view?.config ?? {}),
+      ...(saved?.config ?? {}),
       ...extras,
-      q: asked.q,
+      q: view === "grid" ? asked.q : q,
       sort: gridView.sort ? [{ attr: gridView.sort.attr, desc: gridView.sort.dir === "desc" }] : [],
     }),
-    [view, extras, asked.q, gridView.sort],
+    [saved, extras, view, asked.q, q, gridView.sort],
   );
   // The attributes a view can hide: the model's slots of the type and whatever the rows carry.
   const onRows = useCallback((rows: RichRow[]) => {
@@ -380,7 +393,7 @@ function SpaceData({
   const rowTone = useCallback(
     (row: RichRow) => {
       const rule = (extras.colour ?? []).find((each) => each.when.trim() !== "" && matchesQ(row, each.when) === true);
-      return rule ? { tone: rule.colour, label: t("spaces.views.toneLabel", { when: rule.when }) } : undefined;
+      return rule ? { tone: rule.colour, label: t("spaces.saved.toneLabel", { when: rule.when }) } : undefined;
     },
     [extras.colour, t],
   );
@@ -481,21 +494,49 @@ function SpaceData({
           </ul>
         </div>
       ) : null}
-      {probe.isSuccess && config ? (
+      {probe.isSuccess ? (
+        <Tabs
+          id="space-data-view"
+          label={t("spaces.views.label")}
+          variant="pill"
+          tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
+          value={view}
+          onChange={setView}
+        />
+      ) : null}
+      {probe.isSuccess ? (
+        <TrashPanel
+          project={project}
+          space={space}
+          restore={async (entity) => {
+            const answer = await originTransport()({
+              method: "POST",
+              path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`,
+              body: entity,
+            });
+            if (answer.status < 200 || answer.status >= 300) {
+              const detail = (answer.body as { detail?: unknown; title?: unknown } | undefined) ?? {};
+              throw new Error(String(detail.detail ?? detail.title ?? `HTTP ${answer.status}`));
+            }
+          }}
+        />
+      ) : null}
+      {probe.isSuccess && config && view !== "api" ? (
         <ViewBar
           project={project}
           space={space}
           type={type}
-          selected={view}
+          kind={view}
+          selected={saved}
           onSelect={applyView}
           current={current}
-          unsaved={asked.idPattern ? t("spaces.views.idNotKept") : undefined}
+          unsaved={view === "grid" && asked.idPattern ? t("spaces.saved.idNotKept") : undefined}
         />
       ) : null}
-      {probe.isSuccess && config ? (
+      {probe.isSuccess && config && view === "grid" ? (
         <ViewOptions attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
       ) : null}
-      {probe.isSuccess && config && extras.group && enums[extras.group] ? (
+      {probe.isSuccess && config && view === "grid" && extras.group && enums[extras.group] ? (
         <GroupCounts
           source={source}
           type={type}
@@ -506,10 +547,27 @@ function SpaceData({
           onChoose={setGroup}
         />
       ) : null}
-      {probe.isSuccess && config ? (
+      {probe.isSuccess && view === "api" ? (
+        <div {...tabPanelProps("space-data-view", view)}>
+          <TypeApi project={project} space={space} type={type} endpoints={endpoints} />
+        </div>
+      ) : null}
+      {probe.isSuccess && view !== "grid" && view !== "api" ? (
+        <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
+          <EntityFilters
+            id="space-view-filter"
+            types={[type]}
+            slots={slots}
+            value={{ type, q }}
+            onChange={(next) => setQ(next.q)}
+          />
+          <OtherView project={project} source={source} space={space} type={type} q={q} view={view} enums={enums} />
+        </div>
+      ) : null}
+      {probe.isSuccess && config && view === "grid" ? (
         <PortalEntityGrid
           // A view applied is a fresh grid: nothing typed under the last one carries over.
-          key={`${space}-${type}-${view?.id ?? ""}`}
+          key={`${space}-${type}-${saved?.id ?? ""}`}
           project={project}
           config={config}
           source={source}
@@ -519,7 +577,7 @@ function SpaceData({
           relations={relations}
           rules={rules}
           // Without a saved view the grid keeps the person's own remembered order.
-          view={view ? gridView : undefined}
+          view={saved ? gridView : undefined}
           onGridState={onGridState}
           onQuery={setAsked}
           onRows={onRows}
@@ -531,6 +589,61 @@ function SpaceData({
       ) : null}
     </div>
   );
+}
+
+/** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
+const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline", "api"] as const;
+type DataView = (typeof DATA_VIEWS)[number];
+
+/** One view other than the grid, over one page of the filtered type. */
+function OtherView({
+  project,
+  source,
+  space,
+  type,
+  q,
+  view,
+  enums,
+}: {
+  project: string;
+  source: ReturnType<typeof sourceFor>;
+  space: string;
+  type: string;
+  q: string | undefined;
+  view: Exclude<DataView, "grid" | "api">;
+  /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
+  enums: Record<string, EnumChoice[]>;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const rows = useViewRows(source, space, type, q);
+  // A delete keeps the person's copy, then reads the page and the trash again (T-3107).
+  const onDelete = async (row: RichRow) => {
+    await deleteRow(project, space, source, row);
+    await queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
+    await queryClient.invalidateQueries({ queryKey: trashKey(project, space) });
+  };
+  if (rows.isPending) return <p role="status">{t("app.loading")}</p>;
+  if (rows.isError) {
+    return (
+      <Alert role="alert" tone="danger">
+        {rows.error instanceof Error ? rows.error.message : t("app.error.generic")}
+      </Alert>
+    );
+  }
+  if (rows.data.rows.length === 0) {
+    return <p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>;
+  }
+  switch (view) {
+    case "gallery":
+      return <GalleryView rows={rows.data.rows} source={source} onDelete={onDelete} />;
+    case "kanban":
+      return <KanbanView rows={rows.data.rows} source={source} enums={enums} onDelete={onDelete} />;
+    case "calendar":
+      return <CalendarView rows={rows.data.rows} source={source} onDelete={onDelete} />;
+    case "timeline":
+      return <TimelineView rows={rows.data.rows} source={source} onDelete={onDelete} />;
+  }
 }
 
 /**

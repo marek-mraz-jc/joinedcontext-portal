@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../api/client";
 import { createView, dataViewsKey, deleteView, listViews, sameConfig, updateView, VIEW_MODES } from "../../api/dataViews";
-import type { DataView, ViewConfig, ViewMode } from "../../api/dataViews";
+import type { DataView, ViewConfig, ViewKind, ViewMode } from "../../api/dataViews";
 import { useIdentity } from "../../auth/AuthProvider";
 import { usePermissions } from "../../api/permissions";
 import { Alert, Button, ConfirmDialog, Dialog, Field, Input, RadioGroup, Select } from "../ui";
@@ -18,6 +18,8 @@ export interface ViewBarProps {
   project: string;
   space: string;
   type: string;
+  /** How the rows are shown now (grid, gallery, board, …): what a view saves as its kind. */
+  kind: ViewKind;
   /** The view applied now, or none for the grid as it opens. */
   selected: DataView | null;
   onSelect: (view: DataView | null) => void;
@@ -29,7 +31,7 @@ export interface ViewBarProps {
 
 type Editing = { action: "create" | "settings"; title: string; mode: ViewMode } | null;
 
-export function ViewBar({ project, space, type, selected, onSelect, current, unsaved }: ViewBarProps): JSX.Element {
+export function ViewBar({ project, space, type, kind, selected, onSelect, current, unsaved }: ViewBarProps): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
   const client = useQueryClient();
@@ -51,12 +53,12 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
   const steward = can("ContextSpace", "update");
   const governs = selected !== null && (owner || steward);
   const changes = selected !== null && (selected.mode !== "locked" || governs);
-  const dirty = selected !== null && !sameConfig(selected.config, current);
+  const dirty = selected !== null && (selected.kind !== kind || !sameConfig(selected.config, current));
 
   const refresh = () => client.invalidateQueries({ queryKey: dataViewsKey(project, space) });
   const failed = (error: unknown) => {
     if (error instanceof ApiError && error.status === 409) {
-      setProblem(t("spaces.views.conflict", { detail: error.message }));
+      setProblem(t("spaces.saved.conflict", { detail: error.message }));
     } else {
       setProblem(error instanceof Error ? error.message : String(error));
     }
@@ -65,9 +67,9 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
   const save = useMutation({
     mutationFn: async (next: { title: string; mode: ViewMode; config: ViewConfig; asNew: boolean }) =>
       next.asNew || selected === null
-        ? createView(project, space, { type, kind: "grid", mode: next.mode, title: next.title, config: next.config })
+        ? createView(project, space, { type, kind, mode: next.mode, title: next.title, config: next.config })
         : updateView(project, space, selected.id, {
-            kind: selected.kind,
+            kind,
             mode: next.mode,
             title: next.title,
             config: next.config,
@@ -96,12 +98,12 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
     },
   });
 
-  const modeLabel = (mode: string) => t(`spaces.views.modes.${mode}`);
+  const modeLabel = (mode: string) => t(`spaces.saved.modes.${mode}`);
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-end gap-2">
-        <Field id={`${id}-view`} label={t("spaces.views.view")} className="w-full sm:w-auto">
+        <Field id={`${id}-view`} label={t("spaces.saved.view")} className="w-full sm:w-auto">
           <Select
             id={`${id}-view`}
             value={selected?.id ?? ""}
@@ -110,7 +112,7 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
               onSelect(ofType.find((view) => view.id === e.target.value) ?? null);
             }}
           >
-            <option value="">{t("spaces.views.none")}</option>
+            <option value="">{t("spaces.saved.none")}</option>
             {ofType.map((view) => (
               <option key={view.id} value={view.id}>
                 {`${view.title} · ${modeLabel(view.mode)}`}
@@ -122,43 +124,43 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
           <Button
             variant="primary"
             disabled={!dirty || !changes || save.isPending}
-            disabledReason={!changes ? t("spaces.views.lockedReason") : undefined}
+            disabledReason={!changes ? t("spaces.saved.lockedReason") : undefined}
             onClick={() => save.mutate({ title: selected.title, mode: selected.mode as ViewMode, config: current, asNew: false })}
           >
-            {t("spaces.views.save")}
+            {t("spaces.saved.save")}
           </Button>
         ) : null}
-        <Button onClick={() => setEditing({ action: "create", title: selected ? t("spaces.views.copyOf", { title: selected.title }) : "", mode: "personal" })}>
-          {selected ? t("spaces.views.saveAs") : t("spaces.views.saveNew")}
+        <Button onClick={() => setEditing({ action: "create", title: selected ? t("spaces.saved.copyOf", { title: selected.title }) : "", mode: "personal" })}>
+          {selected ? t("spaces.saved.saveAs") : t("spaces.saved.saveNew")}
         </Button>
         {selected !== null ? (
           <>
             <Button
               disabled={!changes}
-              disabledReason={!changes ? t("spaces.views.lockedReason") : undefined}
+              disabledReason={!changes ? t("spaces.saved.lockedReason") : undefined}
               onClick={() => setEditing({ action: "settings", title: selected.title, mode: selected.mode as ViewMode })}
             >
-              {t("spaces.views.settings")}
+              {t("spaces.saved.settings")}
             </Button>
             <Button
               variant="danger"
               disabled={!governs}
-              disabledReason={!governs ? t("spaces.views.governReason") : undefined}
+              disabledReason={!governs ? t("spaces.saved.governReason") : undefined}
               onClick={() => setDeleting(true)}
             >
-              {t("spaces.views.delete")}
+              {t("spaces.saved.delete")}
             </Button>
           </>
         ) : null}
       </div>
-      {views.isError ? <p className="text-body text-fg-muted">{t("spaces.views.unavailable")}</p> : null}
-      {selected !== null && dirty ? <p className="text-caption text-fg-muted">{t("spaces.views.dirty")}</p> : null}
+      {views.isError ? <p className="text-body text-fg-muted">{t("spaces.saved.unavailable")}</p> : null}
+      {selected !== null && dirty ? <p className="text-caption text-fg-muted">{t("spaces.saved.dirty")}</p> : null}
       {unsaved ? <p className="text-caption text-fg-muted">{unsaved}</p> : null}
       {problem ? (
-        <Alert tone="danger" title={t("spaces.views.failed")}>
+        <Alert tone="danger" title={t("spaces.saved.failed")}>
           <p>{problem}</p>
           <Button size="sm" onClick={() => void refresh().then(() => setProblem(null))}>
-            {t("spaces.views.reload")}
+            {t("spaces.saved.reload")}
           </Button>
         </Alert>
       ) : null}
@@ -166,7 +168,7 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
       <Dialog
         open={editing !== null}
         onOpenChange={(open) => !open && setEditing(null)}
-        title={editing?.action === "settings" ? t("spaces.views.settingsTitle") : t("spaces.views.createTitle", { type })}
+        title={editing?.action === "settings" ? t("spaces.saved.settingsTitle") : t("spaces.saved.createTitle", { type })}
         closeLabel={t("app.close")}
         footer={
           <>
@@ -185,14 +187,14 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
                 })
               }
             >
-              {t("spaces.views.confirm")}
+              {t("spaces.saved.confirm")}
             </Button>
           </>
         }
       >
         {editing ? (
           <div className="flex flex-col gap-3">
-            <Field id={`${id}-title`} label={t("spaces.views.title")} required help={t("spaces.views.titleHelp")}>
+            <Field id={`${id}-title`} label={t("spaces.saved.title")} required help={t("spaces.saved.titleHelp")}>
               <Input
                 id={`${id}-title`}
                 value={editing.title}
@@ -202,13 +204,13 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
             </Field>
             <RadioGroup<ViewMode>
               name={`${id}-mode`}
-              legend={t("spaces.views.mode")}
+              legend={t("spaces.saved.mode")}
               value={editing.mode}
               onChange={(mode) => setEditing({ ...editing, mode })}
               options={VIEW_MODES.map((mode) => ({
                 value: mode,
                 label: modeLabel(mode),
-                description: t(`spaces.views.modeHelp.${mode}`),
+                description: t(`spaces.saved.modeHelp.${mode}`),
                 // Who sees a view is its owner's or a steward's to change.
                 disabled: editing.action === "settings" && !governs && mode !== selected?.mode,
               }))}
@@ -220,9 +222,9 @@ export function ViewBar({ project, space, type, selected, onSelect, current, uns
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
-        title={t("spaces.views.deleteTitle", { title: selected?.title ?? "" })}
-        description={t("spaces.views.deleteHelp")}
-        confirmLabel={t("spaces.views.delete")}
+        title={t("spaces.saved.deleteTitle", { title: selected?.title ?? "" })}
+        description={t("spaces.saved.deleteHelp")}
+        confirmLabel={t("spaces.saved.delete")}
         pending={remove.isPending}
         onConfirm={() => selected && remove.mutate(selected)}
       />

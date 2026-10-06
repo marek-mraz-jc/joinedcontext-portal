@@ -1,5 +1,5 @@
-import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -476,6 +476,17 @@ describe("the space's own data", () => {
     expect(surface.every((url) => url.searchParams.get("type") === "AirQualityObserved")).toBe(true);
   });
 
+  it("shows the same entities as cards, read through the space surface (T-3100)", async () => {
+    const fetchMock = renderInside({ status: 200, count: 1 });
+    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
+    const gallery = await screen.findByTestId("view-gallery");
+    expect(within(gallery).getByRole("button", { name: SPACE_ROWS[0].id })).toBeInTheDocument();
+    const reads = fetchMock.mock.calls
+      .map((call) => urlOf(call[0]))
+      .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+    expect(reads.some((url) => url.searchParams.get("limit") === "500")).toBe(true);
+  });
+
   it("points at the endpoints when the surface answers this person nothing", async () => {
     renderInside({ status: 200, count: 1 }, { status: 404 });
 
@@ -518,7 +529,7 @@ describe("the space's own data", () => {
     };
     const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, { views: [view] });
 
-    const picker = await screen.findByLabelText(en.spaces.views.view);
+    const picker = await screen.findByLabelText(en.spaces.saved.view);
     await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
     await userEvent.selectOptions(picker, view.id);
 
@@ -549,12 +560,12 @@ describe("the space's own data", () => {
     };
     renderInside({ status: 200, count: 1 }, { status: 200, rows }, { views: [view] });
 
-    const picker = await screen.findByLabelText(en.spaces.views.view);
+    const picker = await screen.findByLabelText(en.spaces.saved.view);
     await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
     expect(await screen.findByRole("columnheader", { name: /no2/ })).toBeInTheDocument();
     await userEvent.selectOptions(picker, view.id);
 
-    const marked = await screen.findAllByRole("img", { name: en.spaces.views.toneLabel.replace("{when}", "pm10>50") });
+    const marked = await screen.findAllByRole("img", { name: en.spaces.saved.toneLabel.replace("{when}", "pm10>50") });
     expect(marked).toHaveLength(1);
     expect(marked[0].closest("tr")).toHaveTextContent("52");
     expect(screen.queryByRole("columnheader", { name: /no2/ })).toBeNull();

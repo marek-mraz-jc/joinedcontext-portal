@@ -13,7 +13,7 @@ import { ViewBar } from "../src/components/entities/ViewBar";
 import type { DataView, ViewConfig } from "../src/api/dataViews";
 import { sameConfig } from "../src/api/dataViews";
 
-const L = en.spaces.views;
+const L = en.spaces.saved;
 const VIEWS = "/api/v1/projects/hel/spaces/bikes/views";
 
 function viewOf(over: Partial<DataView>): DataView {
@@ -75,7 +75,7 @@ describe("ViewBar", () => {
     render(
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <ViewBar project="hel" space="bikes" type="BikeHireDockingStation" selected={props.selected} onSelect={onSelect} current={props.current} />
+          <ViewBar project="hel" space="bikes" type="BikeHireDockingStation" kind="grid" selected={props.selected} onSelect={onSelect} current={props.current} />
         </QueryClientProvider>
       </I18nextProvider>,
     );
