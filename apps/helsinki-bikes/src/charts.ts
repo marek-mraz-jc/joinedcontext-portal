@@ -4,6 +4,9 @@ import { colorRamp } from "./components/EntityMap";
 import { BANDS, histogram, ranked } from "./stations";
 
 const GRID = { containLabel: true, left: 8, right: 24, top: 24, bottom: 8 };
+/** `containLabel` makes room for the axes' labels only: a bar's own value label ("100 %"),
+ * drawn right of a full bar, needs the margin itself or is cut (T-3127). */
+const RANKED_GRID = { ...GRID, right: 52 };
 
 /** Stations by bikes available now, one bar per band, coloured along the map's ramp (T-2924). */
 export function histogramOption(rows: Row[], tokens?: DesignTokens): Record<string, unknown> {
@@ -36,7 +39,7 @@ export function rankedOption(rows: Row[], order: "fullest" | "emptiest", n = 10,
   return {
     color: t.chart.palette,
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-    grid: GRID,
+    grid: RANKED_GRID,
     xAxis: { type: "value", min: 0, max: 100, axisLabel: { formatter: "{value} %" } },
     yAxis: { type: "category", inverse: true, data: top.map((station) => station.name) },
     series: [

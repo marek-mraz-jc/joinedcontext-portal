@@ -4,6 +4,18 @@ import { StatTiles } from "../components/StatTiles";
 import { ALERT } from "../alerts";
 import type { Summary } from "../../functions/summary";
 
+/** A code of the feed in words: `ROAD_WORK` reads "Road work", `traffic` reads "Traffic". */
+export function inWords(code: string): string {
+  const words = code.replace(/_/g, " ").trim().toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** A day as a person reads it; the text as it came when it is no date. */
+export function issuedOn(value: string | undefined): string {
+  const at = value ? new Date(value) : null;
+  return at && !Number.isNaN(at.getTime()) ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(at) : (value ?? "");
+}
+
 function Counts({ label, counts }: { label: string; counts: Record<string, number> }) {
   return (
     <div>
@@ -13,7 +25,7 @@ function Counts({ label, counts }: { label: string; counts: Record<string, numbe
           .sort(([, a], [, b]) => b - a)
           .map(([key, count]) => (
             <li key={key}>
-              {key}: {count}
+              {inWords(key)}: {count}
             </li>
           ))}
       </ul>
@@ -37,12 +49,12 @@ export function Overview() {
           <>
             <p>
               {summary.data.oldestOpen
-                ? `Oldest open alert: ${summary.data.oldestOpen.name ?? summary.data.oldestOpen.id}, issued ${summary.data.oldestOpen.dateIssued}`
+                ? `Oldest open alert: ${summary.data.oldestOpen.name ?? summary.data.oldestOpen.id}, issued ${issuedOn(summary.data.oldestOpen.dateIssued)}`
                 : "No alert is open."}
             </p>
             <Grid columns={2}>
               <Counts label="By category" counts={summary.data.byCategory} />
-              <Counts label="By subCategory" counts={summary.data.bySubCategory} />
+              <Counts label="By kind" counts={summary.data.bySubCategory} />
             </Grid>
             {summary.data.ownRecords !== undefined && <p>Alerts stewards added: {summary.data.ownRecords}</p>}
           </>

@@ -98,3 +98,14 @@ describe("the map's own attribution in an App", () => {
     expect(css).toMatch(/\.maplibregl-ctrl-attrib a\s*\{[^}]*text-decoration:\s*underline/);
   });
 });
+
+// T-3124: an App built without the template's `.jc-shell` set no font and rendered in the
+// browser's serif; the SDK stylesheet every App imports gives the page the platform's face, with
+// a sans-serif fallback, and the App's own stylesheet (loaded after) can still name another.
+describe("the SDK stylesheet", () => {
+  it("gives every App's page the platform's typeface with a sans-serif fallback", () => {
+    const css = readFileSync(join(__dirname, "..", "src", "sdk", "style.css"), "utf8");
+    const body = /(^|\n)body\s*\{([^}]*)\}/.exec(css)?.[2] ?? "";
+    expect(body).toMatch(/font-family:\s*var\(--jc-font-body,\s*"Inter",[^;]*sans-serif\)/);
+  });
+});

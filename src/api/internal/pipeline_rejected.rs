@@ -88,9 +88,7 @@ pub(crate) async fn keep(
     let problems = target_space(state, project, &pipeline.spec)
         .and_then(|space| {
             let schema = state.model_schemas.get(project, &space)?;
-            let segment = crate::spaces::segment(&state.mirror, project, &space);
-            let domain = state.config.org_domain.clone().unwrap_or_default();
-            Some(schema.check(&refused.record, &domain, &segment))
+            Some(schema.check(&refused.record))
         })
         .unwrap_or_default();
     let step = refused.step.as_ref().and_then(|step| match step {

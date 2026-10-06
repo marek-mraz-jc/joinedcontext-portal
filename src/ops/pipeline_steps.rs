@@ -423,14 +423,12 @@ pub fn operations() -> Vec<Operation> {
                         (pipeline, draft) => Some(candidate(state, project, pipeline, draft).await?.0),
                     };
                     let (space, schema) = target(state, project, input.space, pipeline.as_ref())?;
-                    let segment = crate::spaces::segment(&state.mirror, project, &space);
-                    let domain = state.config.org_domain.clone().unwrap_or_default();
                     let verdicts: Vec<RecordVerdict> = input
                         .records
                         .iter()
                         .enumerate()
                         .map(|(index, record)| {
-                            let problems = schema.check(record, &domain, &segment);
+                            let problems = schema.check(record);
                             RecordVerdict {
                                 index,
                                 ok: problems.is_empty(),

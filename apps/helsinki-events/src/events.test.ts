@@ -31,6 +31,10 @@ describe("the events", () => {
       "Culture centres",
       "City of Helsinki",
     ]);
+    // T-3128: the two registers dev's feed carried as bare codes, named by their Linked Events
+    // publishers (ahjo:u4804001020 Kaupunginmuseo, ahjo:u021200 Elinkeino-osasto).
+    expect(registerOf(bare("urn:ngsi-ld:Event:hel.fi:helsinki:hkm-23821"))).toBe("Helsinki City Museum");
+    expect(registerOf(bare("urn:ngsi-ld:Event:hel.fi:helsinki:elo-004090b6"))).toBe("Economic Development Division");
     expect(registerOf(bare("urn:ngsi-ld:Event:hel.fi:helsinki:vantaa-12"))).toBe("vantaa");
     expect(registerOf(bare("urn:ngsi-ld:Event:hel.fi:helsinki:12"))).toBe("Other");
     expect(registerOf(bare("urn:ngsi-ld:Event:hel.fi:helsinki:-12"))).toBe("Other");

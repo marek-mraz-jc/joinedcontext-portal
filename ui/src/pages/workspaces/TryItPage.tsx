@@ -56,7 +56,7 @@ export function TryItPage({ project, name }: { project: string; name: string }):
   const copy = useMutation({
     mutationFn: async (endpoint: { name: string; slug: string; originSlug: string }) => ({
       name: endpoint.name,
-      result: await copyIntoPreview(endpoint.originSlug, endpoint.slug, preview.data?.prefix ?? ""),
+      result: await copyIntoPreview(endpoint.originSlug, endpoint.slug),
     }),
     onSuccess: ({ name: endpoint, result }) => setCopies((held) => ({ ...held, [endpoint]: result })),
     onError: (err: Error) => setError(err.message),

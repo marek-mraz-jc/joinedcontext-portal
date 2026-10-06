@@ -221,8 +221,9 @@ export function format(value: Cell, kind: Column = "text"): string {
 }
 
 /**
- * What a row is called on screen: its `name`, else its `title`, else the local id at the end of
- * its URN (`urn:ngsi-ld:{Type}:{domain}:{space}:{localId}`), never the whole URN.
+ * What a row is called on screen: its `name`, else its `title`, else the last segment of its URN
+ * (the local id of `urn:ngsi-ld:{Type}:{domain}:{space}:{localId}`, `Helsinki-001` of
+ * `urn:ngsi-ld:WeatherObserved:Helsinki-001`), never the whole URN.
  */
 export function displayName(row: Row): string {
   for (const attr of ["name", "title"]) {
