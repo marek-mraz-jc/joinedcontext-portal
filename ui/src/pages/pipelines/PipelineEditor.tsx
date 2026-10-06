@@ -497,6 +497,17 @@ export function PipelineEditorDialog({
   // The mapping is `compute.bloblang` in the form (PL-41); left empty it stays in `bento.yaml`
   // beside the manifest in the forge (Architecture/08 §3), so the dialog links there too.
   const bentoUrl = editing?.status?.sourceUrl?.replace(/pipeline\.yaml$/, "bento.yaml");
+  const bentoFileLink = safeHref(bentoUrl) ? (
+    <a
+      href={safeHref(bentoUrl)}
+      target="_blank"
+      rel="noreferrer"
+      className={buttonClass("ghost", "sm", "text-primary-soft-fg")}
+    >
+      {t("pipelines.bloblangFile")}
+      <Icon name="external" className="size-3.5" />
+    </a>
+  ) : undefined;
 
   return (
     <ResourceFormDialog<PipelineForm>
@@ -539,6 +550,17 @@ export function PipelineEditorDialog({
           onRetry={() => void endpoints.refetch()}
         />
       ) : null}
+      {editing && !draft?.compute?.kind && !(draft?.processors ?? []).length ? (
+        // An existing pipeline with no compute step keeps its mapping in `bento.yaml` (PL-41):
+        // the empty mapping box below is not an empty pipeline, and the page says so (T-3088).
+        <Alert
+          tone="info"
+          data-testid="pipeline-mapping-in-bento"
+          actions={bentoFileLink}
+        >
+          {t("pipelines.bentoMapping")}
+        </Alert>
+      ) : null}
       <PipelineWorkbench
         project={project}
         draft={draft}
@@ -572,22 +594,7 @@ export function PipelineEditorDialog({
         </details>
       </PipelineWorkbench>
       {draft?.compute?.kind === "bloblang" ? (
-        <Alert
-          tone="info"
-          actions={
-            safeHref(bentoUrl) ? (
-              <a
-                href={safeHref(bentoUrl)}
-                target="_blank"
-                rel="noreferrer"
-                className={buttonClass("ghost", "sm", "text-primary-soft-fg")}
-              >
-                {t("pipelines.bloblangFile")}
-                <Icon name="external" className="size-3.5" />
-              </a>
-            ) : undefined
-          }
-        >
+        <Alert tone="info" actions={bentoFileLink}>
           {t("pipelines.bloblangHint")}
         </Alert>
       ) : null}

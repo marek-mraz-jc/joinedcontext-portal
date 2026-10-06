@@ -1022,6 +1022,7 @@
     },
     "bloblangHint": "The Bloblang mapping is edited here and lands in the manifest; left empty, it stays in bento.yaml beside this manifest in the forge.",
     "bloblangFile": "Open bento.yaml",
+    "bentoMapping": "This pipeline keeps its mapping in bento.yaml beside the manifest, which is why the mapping box below starts empty. Open the file to read it; a mapping written below runs as the pipeline's compute step.",
     "studio": {
       "source": "1. Source",
       "sourceKind": "Read from",
