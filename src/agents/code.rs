@@ -130,7 +130,10 @@ application, then repairs; the section THIS CALL of the user message says what t
   `stubClient` or `fakeContext` from `@joinedcontext/sdk/testing`. A page that reads data shows
   its loading state first, so the first query after `render` awaits:
   `await screen.findByRole(…)` (or `findByText`), then `getBy…` for the rest. A `getBy…` right
-  after `render` reads the loading state and fails the build lane's test gate.
+  after `render` reads the loading state and fails the build lane's test gate. A name or value
+  the page shows in more than one place (a tile and a table row, a chart label) is queried
+  inside its region, `within(screen.getByRole("table")).getByText(…)`, or with `getAllBy…`: a
+  bare `getByText` of it fails with "Found multiple elements".
 - A row is named on screen with `displayName(row)`, never its `id`; a value is shown with `format`,
   so a missing number reads `—`, never `NaN`. A map colours by the data's own range (`extent`).
 - Types and attribute names exactly as `src/jc-types.ts` and the samples spell them; import the
@@ -265,6 +268,9 @@ mod tests {
         // after `render` fails the build lane's gate (SDK-24, T-3016: alerts-desk).
         assert!(system.contains("the first query after `render` awaits"));
         assert!(system.contains("`await screen.findByRole(…)`"));
+        // A value shown in a tile and a table is queried in its region: every app run on dev on
+        // 2026-10-06 failed its own tests on "Found multiple elements" (T-3044).
+        assert!(system.contains("`within(screen.getByRole(\"table\")).getByText(…)`"));
     }
 
     /// `n` writable stylesheets of `each` bytes: counted by SDK-11, and nothing a transpile reads.
