@@ -18,12 +18,16 @@ const CONFIG = {
   endpoints: [
     { name: "bbsk-kpi", slug: "7u4ns3cdg2mqlx5gmxhk7rqai6pmokdj", space: "bbsk-kpi", types: ["KeyPerformanceIndicator"] },
     { name: "mesto-kpi", slug: "qfhhh5no5wz4lk3rfjisdtx3chiyfig3", space: "banskabystrica-kpi", types: ["KeyPerformanceIndicator"] },
+    // The region's raw rows through bbsk-kraj's public endpoint, for the trend lines (T-2934).
+    { name: "bbsk-kraj-verejne", slug: "krajverejne", space: "bbsk-kraj", types: ["StatisticalObservation"] },
   ],
 };
 /** What each body's endpoint answers: the fixtures the component tests read. */
 const ANSWERS: Record<string, string> = {
   "7u4ns3cdg2mqlx5gmxhk7rqai6pmokdj": fixture("bbsk-kpi.json"),
   qfhhh5no5wz4lk3rfjisdtx3chiyfig3: fixture("banskabystrica-kpi.json"),
+  // 532 rows: one page of the trend read.
+  krajverejne: fixture("bbsk-kraj.json"),
 };
 // What src/apps/static_host.rs sends for an embeddable app with no other origin to reach.
 const CSP =
