@@ -74,6 +74,8 @@ pub struct AppState {
     /// The records each pipeline's stage refused (PL-61): durable with a database, in memory
     /// without one.
     pub rejected: Arc<crate::pipeline_outcomes::RejectedStore>,
+    /// Each person's copies of the entities they deleted from a data view (API/01 §31, T-3107).
+    pub trash: Arc<crate::entity_trash::TrashStore>,
     /// Each pipeline's runs and their log (PL-62), durable with a database.
     pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
@@ -163,6 +165,7 @@ impl AppState {
             space_usage,
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
+            trash: Arc::new(crate::entity_trash::TrashStore::new(None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             drift_watch: None,
             foreign_names: Arc::default(),
@@ -216,6 +219,7 @@ impl AppState {
             db.clone(),
         )));
         self.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(Some(db.clone())));
+        self.trash = Arc::new(crate::entity_trash::TrashStore::new(Some(db.clone())));
         self.db = Some(db);
         self
     }
@@ -260,6 +264,7 @@ impl AppState {
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
         state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
+        state.trash = Arc::new(crate::entity_trash::TrashStore::new(db.clone()));
         state.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(db.clone()));
         state.db = db;
         // What the process before this one refused stays refused (T-0980).

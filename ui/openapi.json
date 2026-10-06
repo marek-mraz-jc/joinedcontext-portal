@@ -8079,6 +8079,266 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/trash": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "List My Deleted Entities",
+        "description": "The caller's own copies of the entities they deleted from this space's data views, newest first, kept 30 days (API/01 §31).",
+        "operationId": "list_trash",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's copies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrashItem"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The trash is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Keep A Copy Before Deleting",
+        "description": "Keeps the caller's own copy of one entity they are about to delete through the gateway (API/01 §31). The copy grants nothing: restoring it is the caller's own create.",
+        "operationId": "keep",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeepRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The copy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an NGSI-LD entity, or larger than 256 KiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The trash is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/trash/{id}": {
+      "delete": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Forget A Copy",
+        "description": "Forgets one of the caller's copies: the entity was restored, or its delete was refused (API/01 §31). Another caller's copy is 404.",
+        "operationId": "forget",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The copy's id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Forgotten"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such copy of the caller's, or no such space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The trash is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/usage": {
       "get": {
         "tags": [
@@ -13651,6 +13911,20 @@
           }
         }
       },
+      "KeepRequest": {
+        "type": "object",
+        "description": "The copy of one entity about to be deleted.",
+        "required": [
+          "entity"
+        ],
+        "properties": {
+          "entity": {
+            "type": "object",
+            "description": "The NGSI-LD entity as the person read it, normalized."
+          }
+        },
+        "additionalProperties": false
+      },
       "KeyClaim": {
         "type": "object",
         "description": "A key asked for over MCP, waiting for its person in the Portal (PF-104). It carries no token\nand no id of a key that does not exist yet: nothing is minted until the person confirms it.",
@@ -16773,6 +17047,41 @@
           }
         },
         "additionalProperties": false
+      },
+      "TrashItem": {
+        "type": "object",
+        "description": "One deleted entity, as its keeper read it.",
+        "required": [
+          "id",
+          "urn",
+          "type",
+          "entity",
+          "deletedAt",
+          "expiresAt"
+        ],
+        "properties": {
+          "deletedAt": {
+            "type": "string",
+            "description": "RFC 3339."
+          },
+          "entity": {
+            "type": "object"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "RFC 3339: when the copy is gone."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "type": {
+            "type": "string"
+          },
+          "urn": {
+            "type": "string"
+          }
+        }
       },
       "UpdateReport": {
         "type": "object",

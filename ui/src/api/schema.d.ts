@@ -1905,6 +1905,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Deleted Entities
+         * @description The caller's own copies of the entities they deleted from this space's data views, newest first, kept 30 days (API/01 §31).
+         */
+        get: operations["list_trash"];
+        put?: never;
+        /**
+         * Keep A Copy Before Deleting
+         * @description Keeps the caller's own copy of one entity they are about to delete through the gateway (API/01 §31). The copy grants nothing: restoring it is the caller's own create.
+         */
+        post: operations["keep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/trash/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Forget A Copy
+         * @description Forgets one of the caller's copies: the entity was restored, or its delete was refused (API/01 §31). Another caller's copy is 404.
+         */
+        delete: operations["forget"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/usage": {
         parameters: {
             query?: never;
@@ -3569,6 +3613,11 @@ export interface components {
             /** @description Base URL of the catalogue. */
             url: string;
         };
+        /** @description The copy of one entity about to be deleted. */
+        KeepRequest: {
+            /** @description The NGSI-LD entity as the person read it, normalized. */
+            entity: Record<string, never>;
+        };
         /**
          * @description A key asked for over MCP, waiting for its person in the Portal (PF-104). It carries no token
          *     and no id of a key that does not exist yet: nothing is minted until the person confirms it.
@@ -4672,6 +4721,18 @@ export interface components {
             pipeline: unknown;
             /** @description What the harness reads, read through `SampleRequest`, whose shape the document publishes. */
             sample: components["schemas"]["PipelineTestSample"];
+        };
+        /** @description One deleted entity, as its keeper read it. */
+        TrashItem: {
+            /** @description RFC 3339. */
+            deletedAt: string;
+            entity: Record<string, never>;
+            /** @description RFC 3339: when the copy is gone. */
+            expiresAt: string;
+            /** Format: int64 */
+            id: number;
+            type: string;
+            urn: string;
         };
         /** @description What updating from main did (CC-80). */
         UpdateReport: {
@@ -10813,6 +10874,193 @@ export interface operations {
             };
             /** @description No such space the caller may read */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_trash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's copies */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashItem"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The trash is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    keep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeepRequest"];
+            };
+        };
+        responses: {
+            /** @description The copy */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashItem"];
+                };
+            };
+            /** @description Not an NGSI-LD entity, or larger than 256 KiB */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The trash is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    forget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The copy's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forgotten */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such copy of the caller's, or no such space */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The trash is not reachable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

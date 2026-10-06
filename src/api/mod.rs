@@ -18,6 +18,7 @@ pub mod delete;
 pub mod drafts;
 pub mod drift;
 pub mod dry_run;
+pub mod entity_trash;
 pub mod export;
 pub mod export_git;
 pub mod federation;
@@ -90,6 +91,7 @@ pub fn router() -> Router<AppState> {
         .merge(projects::router())
         .merge(quality::router())
         .merge(space_usage::router())
+        .merge(entity_trash::router())
         .merge(service_accounts::router())
         .merge(sync::router())
         .merge(sync_sources::router())
