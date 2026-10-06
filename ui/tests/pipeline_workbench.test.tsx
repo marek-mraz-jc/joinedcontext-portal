@@ -53,7 +53,9 @@ const LINKML = [
 const DATASOURCES = [
   manifest("DataSource", "shmu-csv", { type: "http", http: { url: "https://feeds.example/air.csv" } }),
 ];
-const ENDPOINTS = [manifest("Endpoint", "air-write", { contextSpaceRef: "ovzdusie" })];
+const ENDPOINTS = [manifest("Endpoint", "air-write", { contextSpaceRef: "ovzdusie", slug: "ep-air" })];
+/** A page of the endpoint, as the gateway answers the person's session. */
+const ENDPOINT_PAGE = [{ id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:01", type: "AirQualityObserved" }];
 const TARGETS = [{ name: "air-write", urn: URN }];
 
 const MAPPING = [
@@ -63,6 +65,8 @@ const MAPPING = [
 ].join("\n");
 
 interface Answers {
+  /** Held until it resolves: the sample step still running. */
+  sampleGate?: Promise<void>;
   sample?: Response | unknown;
   mapping?: unknown;
   validate?: unknown;
@@ -82,9 +86,14 @@ function stub(answers: Answers, seen: Seen) {
       if (op) {
         const body = (await request.clone().json()) as Record<string, unknown>;
         seen.ops.push({ name: op, body });
+        if (op === "jc_pipeline_sample_source" && answers.sampleGate) await answers.sampleGate;
         const answer =
           op === "jc_pipeline_sample_source" ? answers.sample : op === "jc_pipeline_try_mapping" ? answers.mapping : answers.validate;
         return answer instanceof Response ? answer : jsonResponse(answer ?? {});
+      }
+      if (path.startsWith("/api/endpoint/")) {
+        seen.ops.push({ name: `read ${path}`, body: {} });
+        return jsonResponse(ENDPOINT_PAGE);
       }
       if (path.endsWith("/spaces")) {
         return jsonResponse({
@@ -175,6 +184,30 @@ describe("the pipeline workbench", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("reads an endpoint source's page with the session and tries the mapping only once the sample is in", async () => {
+    // The runner fetched the endpoint's URL with no credential (401), and the mapping's run
+    // started beside the sample's and met "a pipeline test is already running" (T-3088).
+    const seen: Seen = { ops: [] };
+    let release = () => undefined as void;
+    stub({ sample: SAMPLE, mapping: MAPPED, validate: ONE_BAD, sampleGate: new Promise<void>((done) => (release = done)) }, seen);
+    show({
+      name: "air",
+      source: { endpointRef: "air-write", query: { type: "AirQualityObserved" } },
+      compute: { kind: "bloblang", bloblang: MAPPING },
+      targetEndpoint: URN,
+    } as PipelineForm);
+    await waitFor(() => expect(seen.ops.map((op) => op.name)).toContain("jc_pipeline_sample_source"));
+    const sampled = seen.ops.find((op) => op.name === "jc_pipeline_sample_source");
+    expect(sampled?.body).toEqual({ sample: { text: JSON.stringify(ENDPOINT_PAGE), format: "json" } });
+    expect(seen.ops.map((op) => op.name)).toContain("read /api/endpoint/ep-air/ngsi-ld/v1/entities");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(seen.ops.map((op) => op.name)).not.toContain("jc_pipeline_try_mapping");
+    release();
+    await waitFor(() => expect(seen.ops.map((op) => op.name)).toContain("jc_pipeline_try_mapping"));
+    const tried = seen.ops.find((op) => op.name === "jc_pipeline_try_mapping");
+    expect((tried?.body as { sample?: unknown }).sample).toEqual({ text: JSON.stringify(ENDPOINT_PAGE), format: "json" });
   });
 
   it("shows_six_steps_in_order_each_with_its_hint", () => {
