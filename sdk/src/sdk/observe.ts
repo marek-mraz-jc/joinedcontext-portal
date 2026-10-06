@@ -5,7 +5,8 @@ import { activity, MAX_FAILED_REQUESTS } from "./transport";
  * document when the Portal asks for it (SDK-27, Architecture/20 §4.1): the run checks each
  * generated version against the entities it sampled without asking anyone to look. Once the application's requests have
  * settled, the observer walks the pages its navigation offers (the links and tabs inside `nav`),
- * reads each one's visible text and table row counts, and returns to the page the person was on.
+ * reads each one's visible text, table row counts and level-1 headings (a count, never their
+ * text: T-3060), and returns to the page the person was on.
  * The bounds are the route's own (API/04 §5), so a post is never refused for its size.
  */
 
@@ -13,11 +14,14 @@ export const MAX_PAGES = 20;
 export const MAX_LABEL = 120;
 export const MAX_TEXT = 20_000;
 export const MAX_ROWS = 50;
+export const MAX_H1 = 50;
 
 export interface ObservedPage {
   label: string;
   text: string;
   rows: number[];
+  /** How many level-1 headings the page shows; the run asks for exactly one (SDK-28). */
+  h1: number;
 }
 
 export interface Observation {
@@ -105,14 +109,15 @@ function isActive(element: HTMLElement): boolean {
   );
 }
 
-/** One page as it stands: its label, visible text and the row count of each table body. */
+/** One page as it stands: its label, visible text, the row count of each table body and its h1s. */
 export function snapshot(doc: Document, label: string): ObservedPage {
   const body = doc.body as (HTMLElement & { innerText?: string }) | null;
   const raw = body ? (typeof body.innerText === "string" ? body.innerText : (body.textContent ?? "")) : "";
   const rows = Array.from(doc.querySelectorAll("table tbody"))
     .slice(0, MAX_ROWS)
     .map((tbody) => tbody.querySelectorAll("tr").length);
-  return { label: clean(label, MAX_LABEL) || "Page", text: clean(raw, MAX_TEXT), rows };
+  const h1 = Math.min(doc.querySelectorAll('h1, [role="heading"][aria-level="1"]').length, MAX_H1);
+  return { label: clean(label, MAX_LABEL) || "Page", text: clean(raw, MAX_TEXT), rows, h1 };
 }
 
 /** The `v` of the preview URL, without URLSearchParams (the SDK avoids Web APIs it can do without). */

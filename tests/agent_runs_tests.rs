@@ -1404,6 +1404,7 @@ async fn a_preview_observation_lands_once_per_version_within_its_bounds() {
         json!({ "version": 1, "pages": [page("x".repeat(20_001))] }),
         json!({ "version": 1, "pages": [{ "label": "l".repeat(121), "text": "ok" }] }),
         json!({ "version": 1, "pages": [{ "label": "Stations", "text": "ok", "rows": vec![1; 51] }] }),
+        json!({ "version": 1, "pages": [{ "label": "Stations", "text": "ok", "h1": 51 }] }),
         json!({ "version": 1, "pages": [page("ok".into())], "failedRequests": [{ "path": "/functions/summary", "status": 200 }] }),
         json!({ "version": 1, "pages": [page("ok".into())], "failedRequests": [{ "path": "p".repeat(257), "status": 500 }] }),
     ] {
@@ -1422,7 +1423,7 @@ async fn a_preview_observation_lands_once_per_version_within_its_bounds() {
 
     let observation = json!({
         "version": 1,
-        "pages": [page("Kaivopuisto 7".into())],
+        "pages": [{ "label": "Stations", "text": "Kaivopuisto 7", "rows": [5], "h1": 0 }],
         "failedRequests": [{ "path": "/functions/summary", "status": 500 }]
     });
     let (status, _) = call(&app, &cookie, Method::POST, &uri, Some(observation.clone())).await;
@@ -1438,6 +1439,7 @@ async fn a_preview_observation_lands_once_per_version_within_its_bounds() {
     assert!(stream.contains("event: preview_observation"), "{stream}");
     assert!(
         stream.contains(r#""text":"Kaivopuisto 7""#)
+            && stream.contains(r#""h1":0"#)
             && stream.contains(r#""failedRequests":[{"path":"/functions/summary","status":500}]"#)
             && stream.contains(STEWARD),
         "{stream}"

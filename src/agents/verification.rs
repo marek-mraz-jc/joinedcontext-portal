@@ -1,8 +1,9 @@
 //! What a generated version shows, checked against the run with no model call (SDK-28,
 //! Architecture/20 §4.1): the runtime errors and failed function calls since the version went
 //! on screen, the requests the bridge answered with an error, the words a broken binding leaves
-//! on a page, and whether the entities the run sampled appear anywhere. Every value of the
-//! observation is text the frame wrote; it is matched, never interpreted.
+//! on a page, whether each page has exactly one level-1 heading, and whether the entities the run
+//! sampled appear anywhere. Every value of the observation is text the frame wrote; it is
+//! matched, never interpreted.
 
 use serde_json::Value;
 
@@ -92,6 +93,19 @@ pub fn check(samples: &Value, since: &[AgentRunEvent], observation: Option<&Valu
                     text(page, "label")
                 ));
             }
+        }
+        match page.get("h1").and_then(Value::as_u64) {
+            Some(0) => push(format!(
+                "the page \"{}\" has no level-1 heading: keep the AppShell title, or give the page \
+                 one <h1> naming it",
+                text(page, "label")
+            )),
+            Some(many) if many > 1 => push(format!(
+                "the page \"{}\" has {many} level-1 headings: keep one <h1> naming the page and \
+                 make the others <h2>",
+                text(page, "label")
+            )),
+            _ => {}
         }
         if page_text.contains("urn:ngsi-ld:") {
             push(format!(
@@ -260,6 +274,31 @@ mod tests {
             { "id": "urn:ngsi-ld:BikeHireDockingStation:001", "name": "Kaivopuisto" },
             { "id": "urn:ngsi-ld:BikeHireDockingStation:002", "name": "Laivasillankatu" }
         ] })
+    }
+
+    #[test]
+    fn a_page_needs_exactly_one_level_one_heading_when_the_sdk_counts_them() {
+        let observed = |h1: Value| {
+            let observation = json!({ "version": 1, "pages": [
+                { "label": "Stations", "text": "Kaivopuisto 7 bikes", "h1": h1 }
+            ] });
+            check(&samples(), &[], Some(&observation)).problems
+        };
+        assert_eq!(
+            observed(json!(0)),
+            ["the page \"Stations\" has no level-1 heading: keep the AppShell title, or give the \
+              page one <h1> naming it"]
+        );
+        assert!(observed(json!(1)).is_empty());
+        assert_eq!(
+            observed(json!(2)),
+            [
+                "the page \"Stations\" has 2 level-1 headings: keep one <h1> naming the page and \
+              make the others <h2>"
+            ]
+        );
+        // An SDK older than T-3060 counts nothing, and nothing is claimed.
+        assert!(observed(Value::Null).is_empty());
     }
 
     #[test]
