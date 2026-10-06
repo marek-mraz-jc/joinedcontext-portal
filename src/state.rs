@@ -547,7 +547,8 @@ impl AppState {
                 }
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
-                let deployer = StreamDeployer::new(url);
+                let deployer =
+                    StreamDeployer::new(url).with_pipeline_identity(state.config.pipeline_identity);
                 // A refused record reaches the Portal on the listener the test harness reaches
                 // (PL-61); without that address the stream writes as it did, unvalidated.
                 let deployer = match state.config.pipeline_test_capture_url.clone() {

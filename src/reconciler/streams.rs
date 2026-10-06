@@ -93,6 +93,9 @@ pub struct StreamDeployer {
     /// The projects whose streams under the bare pipeline name were removed from the runner
     /// since this Portal started (T-3002): once per project, then never asked again.
     unqualified_retired: Mutex<HashSet<String>>,
+    /// Whether each stream presents its own pipeline's identity through the runner's token
+    /// sidecar rather than its project's `pipelines` account (PL-19, Architecture/12 §3).
+    pipeline_identity: bool,
 }
 
 /// The runner's id of one project's stream. One runner may serve every project, and two
@@ -177,6 +180,20 @@ impl StreamDeployer {
             backoff: Mutex::new(HashMap::new()),
             validation: None,
             unqualified_retired: Mutex::new(HashSet::new()),
+            pipeline_identity: false,
+        }
+    }
+
+    /// Renders every stream with its own pipeline's identity (PL-19): set once the runner carries
+    /// the token sidecar and the federated mechanism is seen working.
+    pub fn with_pipeline_identity(mut self, on: bool) -> Self {
+        self.pipeline_identity = on;
+        self
+    }
+
+    fn identified(&self, stream: &mut Value, project: &str, pipeline: &str) {
+        if self.pipeline_identity {
+            with_pipeline_identity(stream, project, pipeline);
         }
     }
 
@@ -465,6 +482,7 @@ impl StreamDeployer {
                         Ok(mut stream_json) => {
                             self.validated(&mut stream_json, &ns, &name, &spaces);
                             self.logged(&mut stream_json, &ns, &name);
+                            self.identified(&mut stream_json, &ns, &name);
                             jcctl::bento::inject_space(&mut stream_json, &segments);
                             inject_source_space(&mut stream_json, &source_segments);
                             let outcome = self
@@ -581,6 +599,7 @@ impl StreamDeployer {
                 let mut stream_json = stream_json;
                 self.validated(&mut stream_json, &ns, &name, &spaces);
                 self.logged(&mut stream_json, &ns, &name);
+                self.identified(&mut stream_json, &ns, &name);
                 jcctl::bento::inject_space(&mut stream_json, &segments);
                 inject_source_space(&mut stream_json, &source_segments);
                 let outcome = self
@@ -621,7 +640,9 @@ impl StreamDeployer {
                     .as_deref()
                     .map(|slug| crate::pipeline_expiry::render_sweep(&ns, slug, expiry));
                 let outcome = match stream {
-                    Some(Some(stream)) => {
+                    Some(Some(mut stream)) => {
+                        // The sweep deletes as the pipeline it sweeps for (PL-20).
+                        self.identified(&mut stream, &ns, &name);
                         self.apply(&ns, &sweep, stream, &mut running, &mut current_live)
                             .await
                     }
@@ -1883,6 +1904,44 @@ pub(crate) fn pipeline_oauth2(project: &str) -> serde_json::Value {
     })
 }
 
+/// The client id a stream names to the runner's token sidecar: its pipeline, `{project}/{pipeline}`.
+pub fn sidecar_client(project: &str, pipeline: &str) -> String {
+    format!("{project}/{pipeline}")
+}
+
+/// Turns every credential of `project`'s `pipelines` account in a rendered stream into its own
+/// pipeline's (PL-19): the stream names `{project}/{pipeline}` to the runner's token sidecar at
+/// `${JC_PIPELINE_TOKEN_URL}`, which presents that pipeline's own Kubernetes token to Keycloak.
+/// No secret is named: the sidecar ignores the one Bento's client must send. The runner's own
+/// credential (`${JC_CLIENT_ID}`, on the outcome and rejection sinks to the Portal) is not a
+/// pipeline's and is left alone.
+pub fn with_pipeline_identity(stream: &mut Value, project: &str, pipeline: &str) {
+    let account = jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT);
+    match stream {
+        Value::Object(map) => {
+            if let Some(oauth2) = map.get_mut("oauth2") {
+                if oauth2.get("client_key").and_then(Value::as_str) == Some(account.as_str()) {
+                    *oauth2 = serde_json::json!({
+                        "enabled": true,
+                        "client_key": sidecar_client(project, pipeline),
+                        "client_secret": "none",
+                        "token_url": "${JC_PIPELINE_TOKEN_URL}"
+                    });
+                }
+            }
+            for value in map.values_mut() {
+                with_pipeline_identity(value, project, pipeline);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                with_pipeline_identity(item, project, pipeline);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Where every stream writes: the endpoint's batch upsert, as the pipeline's service account.
 /// It is the one output a stream has, so no pipeline answers a caller: a client-facing API is
 /// the Context Gateway's (PL-06, EP-05).
@@ -2539,6 +2598,49 @@ output:
   http_client:
     url: https://somewhere.example/authored
 "#;
+
+    /// PL-19 (T-1508): with the switch on, every credential of the project's `pipelines` account
+    /// in a stream, its write and its source read, becomes its own pipeline's at the runner's
+    /// sidecar, and no secret variable is named; the runner's own sink credential is not a
+    /// pipeline's and stays.
+    #[test]
+    fn a_stream_presents_its_own_pipeline_and_names_no_secret() {
+        let mut stream = serde_json::json!({
+            "input": { "http_client": { "url": "src", "oauth2": pipeline_oauth2("zilina") } },
+            "pipeline": { "processors": [{ "http": { "url": "x", "oauth2": {
+                "enabled": true, "client_key": "${JC_CLIENT_ID}",
+                "client_secret": "${JC_CLIENT_SECRET}", "token_url": "${JC_TOKEN_URL}" } } }] },
+            "output": gateway_output("zilina", "slug")
+        });
+        let before = stream.to_string();
+        assert!(before.contains("JC_CLIENT_SECRET_ZILINA"), "{before}");
+
+        with_pipeline_identity(&mut stream, "zilina", "drepo");
+        let after = stream.to_string();
+        assert!(
+            !after.contains("JC_CLIENT_SECRET_ZILINA") && !after.contains("zilina-pipelines"),
+            "{after}"
+        );
+        for oauth2 in [
+            &stream["input"]["http_client"]["oauth2"],
+            &stream["output"]["http_client"]["oauth2"],
+        ] {
+            assert_eq!(oauth2["client_key"], "zilina/drepo");
+            assert_eq!(oauth2["token_url"], "${JC_PIPELINE_TOKEN_URL}");
+        }
+        assert_eq!(
+            stream["pipeline"]["processors"][0]["http"]["oauth2"]["client_key"], "${JC_CLIENT_ID}",
+            "the runner's own credential is not a pipeline's"
+        );
+
+        // Another project's credential in the stream is not this pipeline's to take.
+        let mut other = serde_json::json!({ "output": gateway_output("bbsk", "slug") });
+        with_pipeline_identity(&mut other, "zilina", "drepo");
+        assert_eq!(
+            other["output"]["http_client"]["oauth2"]["client_key"],
+            "bbsk-pipelines"
+        );
+    }
 
     #[test]
     fn a_write_no_retry_can_fix_is_dropped_and_one_that_can_recover_is_retried() {
