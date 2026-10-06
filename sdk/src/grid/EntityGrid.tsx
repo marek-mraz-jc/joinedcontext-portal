@@ -396,6 +396,37 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const mapPosition = mapConfig?.position ?? "right";
   const activeRowId = rows[state.activeCell?.row ?? -1]?.id ?? null;
 
+  // The table is the grid's one tab stop. Enter or F2 goes into the active cell's own control (its
+  // input, list or picker), Escape comes back to the grid, and the active cell is kept in view.
+  const gridProps = getGridProps() as Record<string, unknown> & { onKeyDown: (e: React.KeyboardEvent) => void };
+  const activeCellId = gridProps["aria-activedescendant"] as string | undefined;
+  React.useEffect(() => {
+    if (!activeCellId) return;
+    document.getElementById(activeCellId)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [activeCellId]);
+  const onGridKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTableElement>) => {
+      const onGrid = e.target === e.currentTarget;
+      if (!onGrid && e.key === "Escape") {
+        e.preventDefault();
+        e.currentTarget.focus();
+        return;
+      }
+      if (onGrid && (e.key === "Enter" || e.key === "F2") && activeCellId) {
+        const control = document
+          .getElementById(activeCellId)
+          ?.querySelector<HTMLElement>("input, select, textarea, button");
+        if (control) {
+          e.preventDefault();
+          control.focus();
+          return;
+        }
+      }
+      gridProps.onKeyDown(e);
+    },
+    [activeCellId, gridProps],
+  );
+
   const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}`;
 
   return (
@@ -417,7 +448,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       <div className="jc-grid-scroll">
         <table
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
-          {...getGridProps()}
+          {...gridProps}
+          onKeyDown={onGridKeyDown}
         >
           <thead className={`jc-grid-thead${classNames?.header ? ` ${classNames.header}` : ""}`}>
             <tr>

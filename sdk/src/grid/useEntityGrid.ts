@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ResolvedGridConfig, GridColumn } from "./config";
 import type { GeoArea } from "./geoarea";
 import { areaQuery } from "./geoarea";
@@ -734,8 +734,12 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     [filters, edits, activeCell, selected, shown, sort, onStateChange, controlledState],
   );
 
+  // The grid's own id prefix, so every cell has an id the grid can name as its active descendant.
+  const gridId = useId();
+  const cellId = useCallback((row: number, col: number) => `${gridId}-r${row}-c${col}`, [gridId]);
+
   const moveActive = useCallback(
-    (key: string): boolean => {
+    (key: string, toEdge = false): boolean => {
       const maxRow = sortedRows.length - 1;
       const maxCol = columns.length - 1;
       let { row, col } = activeCell ?? { row: 0, col: 0 };
@@ -758,10 +762,13 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           else return false;
           break;
         case "Home":
+          // Ctrl+Home is the grid's first cell, Home the row's (WAI-ARIA grid pattern).
           col = 0;
+          if (toEdge) row = 0;
           break;
         case "End":
           col = maxCol;
+          if (toEdge) row = maxRow;
           break;
         case "PageUp":
           row = Math.max(0, row - Math.max(1, sortedRows.length));
@@ -788,8 +795,13 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const getGridProps = useCallback((): Record<string, unknown> => {
     return {
       role: "grid",
-      "aria-rowcount": rows.length + 1,
+      // Every row of the set the grid pages through, and the header: a screen reader then says
+      // "row 12 of 340" on page two, not "row 2 of 11". Unknown is -1 (WAI-ARIA).
+      "aria-rowcount": total !== undefined ? total + 1 : -1,
       "aria-colcount": columns.length,
+      // Focus stays on the grid and the active cell is its active descendant, so the keys work
+      // from one tab stop and the cell is announced as it moves (UI-70).
+      "aria-activedescendant": activeCell && sortedRows.length > 0 ? cellId(activeCell.row, activeCell.col) : undefined,
       tabIndex: 0,
       onKeyDown: (e: React.KeyboardEvent) => {
         // Inside a cell's own input or picker the keys are that control's: an arrow moves the
@@ -798,12 +810,12 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
         if (target !== e.currentTarget && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) {
           return;
         }
-        if (moveActive(e.key)) {
+        if (moveActive(e.key, e.ctrlKey || e.metaKey)) {
           e.preventDefault();
         }
       },
     };
-  }, [rows.length, columns.length, moveActive]);
+  }, [total, columns.length, moveActive, activeCell, sortedRows.length, cellId]);
 
   const getHeaderProps = useCallback(
     (_column: VisibleColumn, index: number): Record<string, unknown> => {
@@ -819,23 +831,25 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     (_row: RichRow, index: number): Record<string, unknown> => {
       return {
         role: "row",
-        "aria-rowindex": index + 2,
+        // The row's place in the whole set: the page's offset, then the header row.
+        "aria-rowindex": offset + index + 2,
       };
     },
-    [],
+    [offset],
   );
 
   const getCellProps = useCallback(
     (_row: RichRow, rowIndex: number, _column: VisibleColumn, colIndex: number): Record<string, unknown> => {
       const isActive = activeCell?.row === rowIndex && activeCell?.col === colIndex;
       return {
+        id: cellId(rowIndex, colIndex),
         role: "gridcell",
         "aria-colindex": colIndex + 1,
         "aria-selected": isActive,
         "data-active": isActive ? "" : undefined,
       };
     },
-    [activeCell],
+    [activeCell, cellId],
   );
 
   return {

@@ -141,6 +141,47 @@ describe("EntityGrid", () => {
     fireEvent.keyDown(grid, { key: "PageDown" });
   });
 
+  // T-3097, UI-70: one tab stop, the active cell announced as the grid's active descendant, its
+  // place counted in the whole set, Ctrl+End to the last cell, Enter into the cell's own editor and
+  // Escape back to the grid.
+  it("names the active cell to assistive technology and moves into and out of its editor", async () => {
+    const editable = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "name", label: "Name" },
+        { attr: "availableBikeNumber", label: "Bikes" },
+      ],
+      pageSize: 1,
+      mode: "edit",
+      editableAttrs: ["availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(<EntityGrid config={editable} source={source} />);
+    await screen.findByText("Kamppi");
+    const grid = screen.getByRole("grid");
+    expect(grid).toHaveAttribute("aria-rowcount", "3");
+    grid.focus();
+
+    fireEvent.keyDown(grid, { key: "End", ctrlKey: true });
+    const active = grid.getAttribute("aria-activedescendant");
+    expect(active).toBeTruthy();
+    const cell = document.getElementById(active!)!;
+    expect(cell).toHaveAttribute("role", "gridcell");
+    expect(cell).toHaveAttribute("data-active");
+
+    fireEvent.keyDown(grid, { key: "Enter" });
+    const input = cell.querySelector("input")!;
+    expect(input).toHaveFocus();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(grid).toHaveFocus();
+
+    // Page two counts from the whole set: the row is the second of two, after the header.
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    await screen.findByText("Kallio");
+    expect(screen.getByText("Kallio").closest("[role=row]")).toHaveAttribute("aria-rowindex", "3");
+  });
+
   it("has role grid with aria-rowcount and headers with aria-colindex", async () => {
     render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
     await waitFor(() => {
