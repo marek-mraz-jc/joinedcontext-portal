@@ -641,3 +641,20 @@
     gap: 0.75rem;
   }
 }
+
+/* A scrolling grid (T-3097): the box scrolls, its header stays in sight. */
+.jc-grid--virtual .jc-grid-scroll {
+  max-height: 70vh;
+}
+
+.jc-grid--virtual thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--jc-color-surface, #fff);
+}
+
+.jc-grid-spacer td {
+  padding: 0;
+  border: none;
+}

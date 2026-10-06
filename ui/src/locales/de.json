@@ -2691,7 +2691,9 @@
     "rowDetail": "Details",
     "pasted": "Zellen eingefügt",
     "skipped": "übersprungen (nicht bearbeitbar, außerhalb der Seite oder kein zulässiger Wert)",
-    "pasteTooLarge": "Der kopierte Bereich ist zu groß zum Einfügen; fügen Sie höchstens 5000 Zellen auf einmal ein."
+    "pasteTooLarge": "Der kopierte Bereich ist zu groß zum Einfügen; fügen Sie höchstens 5000 Zellen auf einmal ein.",
+    "loaded": "geladen",
+    "of": "von"
   },
   "explore": {
     "title": "Daten erkunden",

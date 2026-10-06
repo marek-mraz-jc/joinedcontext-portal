@@ -138,6 +138,8 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     pasted: t("entityGrid.pasted"),
     skipped: t("entityGrid.skipped"),
     pasteTooLarge: t("entityGrid.pasteTooLarge"),
+    loaded: t("entityGrid.loaded"),
+    of: t("entityGrid.of"),
   };
 }
 

@@ -334,7 +334,7 @@ function SpaceData({
       parseGridConfig({
         source: { kind: "space", space },
         type,
-        pageSize: 25,
+        pageSize: 100,
         mode: "view",
         history: { enabled: true },
       }).config ?? null
@@ -387,6 +387,8 @@ function SpaceData({
           project={project}
           config={config}
           source={source}
+          // The whole type by scrolling, a window drawn at a time (T-3097).
+          virtual
           enums={enums}
           relations={relations}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}

@@ -2691,7 +2691,9 @@
     "rowDetail": "Details",
     "pasted": "cells pasted",
     "skipped": "skipped (not editable, off the page or not a listed value)",
-    "pasteTooLarge": "The copied range is too large to paste; paste at most 5000 cells at once."
+    "pasteTooLarge": "The copied range is too large to paste; paste at most 5000 cells at once.",
+    "loaded": "loaded",
+    "of": "of"
   },
   "explore": {
     "title": "Explore data",

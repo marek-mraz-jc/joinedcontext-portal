@@ -2691,7 +2691,9 @@
     "rowDetail": "Podrobnosti",
     "pasted": "buněk vloženo",
     "skipped": "vynecháno (nelze upravit, mimo stránku nebo není v seznamu hodnot)",
-    "pasteTooLarge": "Zkopírovaný rozsah je pro vložení příliš velký; vložte najednou nejvýše 5000 buněk."
+    "pasteTooLarge": "Zkopírovaný rozsah je pro vložení příliš velký; vložte najednou nejvýše 5000 buněk.",
+    "loaded": "načteno",
+    "of": "z"
   },
   "explore": {
     "title": "Procházet data",

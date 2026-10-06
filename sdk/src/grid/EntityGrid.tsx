@@ -139,6 +139,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     [primaryKey],
   );
   const tableRef = useRef<HTMLTableElement>(null);
+  // Scrolling instead of pages (T-3097): the rows in sight, between two spacers that stand for the
+  // rest, so ten thousand rows cost the DOM a screenful.
+  const virtual = hookOptions.virtual === true;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowHeight = useRef(FALLBACK_ROW_HEIGHT);
+  const [windowStart, setWindowStart] = useState(0);
+  const [windowSize, setWindowSize] = useState(FALLBACK_VIEWPORT_ROWS);
   // What the last paste did, said once in a status line (T-3097).
   const [pasteNote, setPasteNote] = useState<string | null>(null);
   const [refused, setRefused] = useState<Refusal[]>([]);
@@ -522,7 +529,37 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, setEdits],
   );
 
-  const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}`;
+  /** The window of rows in sight, read off the scroll position; past its end the next page loads. */
+  const onScroll = useCallback(() => {
+    const box = scrollRef.current;
+    if (!virtual || !box) return;
+    const first = box.querySelector<HTMLTableRowElement>("tbody tr:not(.jc-grid-spacer)");
+    if (first && first.offsetHeight > 0) rowHeight.current = first.offsetHeight;
+    const height = rowHeight.current;
+    const inSight = box.clientHeight > 0 ? Math.ceil(box.clientHeight / height) : FALLBACK_VIEWPORT_ROWS;
+    const start = Math.max(0, Math.floor(box.scrollTop / height) - OVERSCAN);
+    setWindowStart(start);
+    setWindowSize(inSight + 2 * OVERSCAN);
+    if (grid.more && start + inSight + 2 * OVERSCAN >= rows.length - OVERSCAN) {
+      grid.loadMore();
+    }
+  }, [virtual, grid, rows.length]);
+  // A key that moves the active cell out of the window scrolls to it; the scroll moves the window.
+  React.useEffect(() => {
+    const row = state.activeCell?.row;
+    const box = scrollRef.current;
+    if (!virtual || row === undefined || !box) return;
+    if (row < windowStart || row >= windowStart + windowSize) {
+      box.scrollTop = row * rowHeight.current;
+      onScroll();
+    }
+  }, [virtual, state.activeCell?.row, windowStart, windowSize, onScroll]);
+  const shownFrom = virtual ? Math.min(windowStart, Math.max(0, rows.length - 1)) : 0;
+  const shownRows = virtual ? rows.slice(shownFrom, shownFrom + windowSize) : rows;
+  const spacerAbove = virtual ? shownFrom * rowHeight.current : 0;
+  const spacerBelow = virtual ? Math.max(0, rows.length - shownFrom - shownRows.length) * rowHeight.current : 0;
+
+  const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}${virtual ? " jc-grid--virtual" : ""}`;
 
   return (
     <div className={rootClass} data-density={hookOptions.config.density}>
@@ -546,7 +583,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </div>
       )}
 
-      <div className="jc-grid-scroll">
+      <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
         <table
           ref={tableRef}
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
@@ -654,7 +691,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             )}
           </thead>
           <tbody className={`jc-grid-tbody${classNames?.row ? ` ${classNames.row}` : ""}`}>
-            {rows.map((row, rowIndex) => (
+            {spacerAbove > 0 && (
+              <tr className="jc-grid-spacer" aria-hidden="true">
+                <td colSpan={columns.length} style={{ height: spacerAbove }} />
+              </tr>
+            )}
+            {shownRows.map((row, shownIndex) => {
+              const rowIndex = shownFrom + shownIndex;
+              return (
               <tr
                 key={row.id}
                 className={`jc-grid-tr${classNames?.row ? ` ${classNames.row}` : ""}`}
@@ -681,7 +725,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                   </td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
+            {spacerBelow > 0 && (
+              <tr className="jc-grid-spacer" aria-hidden="true">
+                <td colSpan={columns.length} style={{ height: spacerBelow }} />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -848,6 +898,16 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </div>
       )}
 
+      {virtual ? (
+        <div className={`jc-grid-pager${classNames?.pager ? ` ${classNames.pager}` : ""}`} role="status">
+          <span className="jc-grid-total">
+            {grid.total !== undefined
+              ? `${rows.length} ${labels.of} ${grid.total} ${labels.loaded}`
+              : `${rows.length} ${labels.loaded}`}
+          </span>
+          {grid.loadingMore && <span className="jc-grid-loading-more">{labels.loading}</span>}
+        </div>
+      ) : (
       <div className={`jc-grid-pager${classNames?.pager ? ` ${classNames.pager}` : ""}`}>
         <button
           type="button"
@@ -871,9 +931,16 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           {labels.next}
         </button>
       </div>
+      )}
     </div>
   );
 }
+
+/** A row's height until one is measured, and the rows drawn when the box has no height yet. */
+const FALLBACK_ROW_HEIGHT = 36;
+const FALLBACK_VIEWPORT_ROWS = 30;
+/** Rows drawn beyond the window on each side, so a scroll shows rows rather than blank space. */
+const OVERSCAN = 10;
 
 /** The query as a person reads and copies it: the `q`, and the id pattern when one is asked. */
 function queryText(asked: { q?: string; idPattern?: string }): string {

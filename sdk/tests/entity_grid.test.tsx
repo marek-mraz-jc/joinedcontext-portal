@@ -277,6 +277,37 @@ describe("EntityGrid", () => {
     expect(within(panel).getAllByRole("textbox").length).toBeGreaterThan(0);
   });
 
+  // T-3097: a scrolling grid draws the rows in sight and loads the next page as the person nears
+  // the end; the footer counts what is loaded of the whole set, and the rows keep their places.
+  it("scrolls through more rows than a page, drawing only a window and loading as it goes", async () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({
+      id: `urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:${String(i).padStart(3, "0")}`,
+      type: "BikeHireDockingStation",
+      name: { type: "Property", value: `Station ${i}` },
+    }));
+    const scrolling = parseGridConfig({
+      source: { kind: "fixture", name: "many" },
+      type: "BikeHireDockingStation",
+      columns: [{ attr: "name", label: "Name" }],
+      pageSize: 50,
+    }).config!;
+    const { container } = render(<EntityGrid config={scrolling} source={fixtureSource(many)} virtual />);
+    await screen.findByText("Station 0");
+    expect(screen.getByText("50 of 120 loaded")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+    const drawn = () => container.querySelectorAll("tbody tr:not(.jc-grid-spacer)");
+    expect(drawn().length).toBeLessThanOrEqual(50);
+
+    const box = container.querySelector<HTMLDivElement>(".jc-grid-scroll")!;
+    box.scrollTop = 30 * 36;
+    fireEvent.scroll(box);
+    await screen.findByText("100 of 120 loaded");
+    // The window moved: the first drawn row is twenty rows in, and says so to a screen reader.
+    expect(screen.queryByText("Station 0")).toBeNull();
+    expect(drawn()[0]).toHaveAttribute("aria-rowindex", "22");
+    expect(drawn().length).toBeLessThan(100);
+  });
+
   it("has role grid with aria-rowcount and headers with aria-colindex", async () => {
     render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
     await waitFor(() => {

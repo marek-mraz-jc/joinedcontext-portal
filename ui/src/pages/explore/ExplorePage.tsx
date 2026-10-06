@@ -334,6 +334,8 @@ export function ExplorePage({
           key={`${slug}-${query.type}-${generation}`}
           project={project}
           config={config}
+          // Scroll through every matching entity, a window drawn at a time (T-3097).
+          virtual
           enums={enums}
           relations={relations}
           onOpenRelationship={setSelected}
