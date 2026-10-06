@@ -613,6 +613,59 @@ describe("a pipeline that reads several sources", () => {
     expect(screen.queryByTestId("flow-node-source-0")).not.toBeInTheDocument();
   });
 
+  it("asks an endpoint source what it reads and writes it into the source's query", async () => {
+    // A second source on an endpoint had no type, attributes or filter: it read nothing (T-3088).
+    const seen = vi.fn();
+    const endpoints: Manifest[] = [
+      {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "Endpoint",
+        metadata: { name: "ep-docks", namespace: "helsinki" },
+        spec: { contextSpaceRef: "mobility", slug: "docks" },
+      },
+    ];
+    function Host() {
+      const [draft, setDraft] = useState<PipelineForm>({ ...withCompute, moreSources: [{ endpointRef: "ep-docks" }] });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return (
+        <QueryClientProvider client={client}>
+          <I18nextProvider i18n={i18n}>
+            <PipelineStudio
+              project="helsinki"
+              draft={draft}
+              onChange={(form) => {
+                seen(form);
+                setDraft(form);
+              }}
+              dataSources={[]}
+              endpoints={endpoints}
+              toManifest={vi.fn()}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      );
+    }
+    render(<Host />);
+    await userEvent.click(screen.getByTestId("flow-node-source-0"));
+    const query = screen.getByTestId("flow-source-query");
+    await userEvent.type(within(query).getByLabelText(/^Attributes/), "availableBikeNumber, totalSlotNumber");
+    await userEvent.type(within(query).getByLabelText(/^Attribute filter/), "availableBikeNumber>0");
+    expect(seen).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        moreSources: [
+          {
+            endpointRef: "ep-docks",
+            query: { attrs: ["availableBikeNumber", "totalSlotNumber"], q: "availableBikeNumber>0" },
+          },
+        ],
+      }),
+    );
+    await userEvent.clear(within(query).getByLabelText(/^Attributes/));
+    expect(seen).toHaveBeenLastCalledWith(
+      expect.objectContaining({ moreSources: [{ endpointRef: "ep-docks", query: { q: "availableBikeNumber>0" } }] }),
+    );
+  });
+
   it("removes a second source with Delete and never the first one", () => {
     const form: PipelineForm = { ...withCompute, moreSources: [{ dataSourceRef: "feed-weather" }] };
     const onChange = vi.fn();

@@ -1149,6 +1149,7 @@
       "removeSource": "Odstranit zdroj",
       "sourceReads": "Tento zdroj čte",
       "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem.",
+      "attrsHint": "Oddělené čárkou; prázdné čte všechny atributy.",
       "mappingRefHint": "Mapování tohoto projektu; krok ho použije na každý záznam.",
       "moduleHint": "Cesta nebo balík modulu, který krok spouští.",
       "functionHint": "Vstupní bod modulu, který krok volá pro každý záznam.",

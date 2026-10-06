@@ -1149,6 +1149,7 @@
       "removeSource": "Remove source",
       "sourceReads": "This source reads",
       "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step.",
+      "attrsHint": "Comma-separated; empty reads every attribute.",
       "mappingRefHint": "A Mapping of this project; the step applies it to each record.",
       "moduleHint": "The path or package of the module the step runs.",
       "functionHint": "The module's entry point the step calls for each record.",

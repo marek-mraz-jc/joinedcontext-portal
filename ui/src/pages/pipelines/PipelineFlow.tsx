@@ -6,10 +6,12 @@ import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import type { ErrorSchema } from "@rjsf/utils";
 import { SchemaForm } from "../../components/forms/SchemaForm";
-import { Button, Field, Select, Tabs, tabPanelProps, Textarea } from "../../components/ui";
+import { TypePicker } from "../../components/pickers/TypePicker";
+import { Button, Field, Input, Select, Tabs, tabPanelProps, Textarea } from "../../components/ui";
 import processorCatalogue from "../../schemas/bento-processors.json";
 import { COMPUTE_KINDS, YamlFieldError } from "../../schemas/kinds";
 import type { PipelineForm, SourceForm, StepForm } from "./PipelineEditor";
+import { spaceOf } from "../spaces/SpaceInside";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
 import { errorAt, fromFormData, toFormData, useProcessorForms, withHelp } from "./processorForm";
@@ -989,6 +991,7 @@ export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.El
 }
 
 export interface SourceBlockProps {
+  project: string;
   source: SourceForm;
   dataSources: Manifest[];
   endpoints: Manifest[];
@@ -1004,6 +1007,7 @@ export interface SourceBlockProps {
  * studio's own section below edits.
  */
 export function SourceBlock({
+  project,
   source,
   dataSources,
   endpoints,
@@ -1046,6 +1050,8 @@ export function SourceBlock({
               ...source,
               dataSourceRef: kind === "DataSource" ? picked : undefined,
               endpointRef: kind === "Endpoint" ? picked : undefined,
+              // A query is what an endpoint is asked; a DataSource reads its own connection.
+              query: kind === "Endpoint" ? source.query : undefined,
             });
           }}
         >
@@ -1065,6 +1071,82 @@ export function SourceBlock({
             ))}
           </optgroup>
         </Select>
+      </Field>
+      {source.endpointRef ? (
+        // What an endpoint source reads (PL-42): the type its space models, the attributes and
+        // a filter, as the first source asks them; without a type the runner reads nothing (T-3088).
+        <EndpointQuery
+          project={project}
+          space={(() => {
+            const ep = endpoints.find((e) => e.metadata.name === source.endpointRef);
+            return ep ? spaceOf(ep) : undefined;
+          })()}
+          query={source.query ?? {}}
+          onChange={(query) => onChange({ ...source, query })}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** The type, attributes and filter of an endpoint source; empty values leave the query. */
+function EndpointQuery({
+  project,
+  space,
+  query,
+  onChange,
+}: {
+  project: string;
+  space: string | undefined;
+  query: Record<string, unknown>;
+  onChange: (query: Record<string, unknown>) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const set = (key: string, value: unknown) => {
+    const next = { ...query, [key]: value };
+    if (value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) {
+      delete next[key];
+    }
+    onChange(next);
+  };
+  const attrs = Array.isArray(query.attrs) ? (query.attrs as string[]) : [];
+  // The text is the author's while typing; the query keeps the names it splits into.
+  const [attrsText, setAttrsText] = useState(attrs.join(", "));
+  return (
+    <div className="grid gap-2 sm:grid-cols-2" data-testid="flow-source-query">
+      <Field id="flow-source-type" label={t("pipelines.field.queryType")} required>
+        <TypePicker
+          id="flow-source-type"
+          label={t("pipelines.field.queryType")}
+          labelled
+          project={project}
+          space={space}
+          value={typeof query.type === "string" && query.type ? [query.type] : []}
+          onChange={(types) => set("type", types[0])}
+        />
+      </Field>
+      <Field id="flow-source-attrs" label={t("pipelines.field.attrs")} help={t("pipelines.flow.attrsHint")}>
+        <Input
+          id="flow-source-attrs"
+          value={attrsText}
+          onChange={(event) => {
+            setAttrsText(event.target.value);
+            set(
+              "attrs",
+              event.target.value
+                .split(",")
+                .map((name) => name.trim())
+                .filter(Boolean),
+            );
+          }}
+        />
+      </Field>
+      <Field id="flow-source-q" label={t("pipelines.field.q")} help={t("pipelines.studio.qHint")}>
+        <Input
+          id="flow-source-q"
+          value={typeof query.q === "string" ? query.q : ""}
+          onChange={(event) => set("q", event.target.value.trim() ? event.target.value : undefined)}
+        />
       </Field>
     </div>
   );

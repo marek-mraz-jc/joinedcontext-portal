@@ -1149,6 +1149,7 @@
       "removeSource": "Quelle entfernen",
       "sourceReads": "Diese Quelle liest",
       "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen.",
+      "attrsHint": "Durch Kommas getrennt; leer liest alle Attribute.",
       "mappingRefHint": "Ein Mapping dieses Projekts; der Schritt wendet es auf jeden Datensatz an.",
       "moduleHint": "Pfad oder Paket des Moduls, das der Schritt ausführt.",
       "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft.",

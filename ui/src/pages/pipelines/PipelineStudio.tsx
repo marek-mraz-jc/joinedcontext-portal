@@ -1033,6 +1033,7 @@ export function PipelineStudio({
                   </div>
                 ) : selectedSource ? (
                   <SourceBlock
+                    project={project}
                     source={selectedSource}
                     dataSources={dataSources}
                     endpoints={endpoints}
