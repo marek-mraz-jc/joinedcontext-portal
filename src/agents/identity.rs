@@ -92,6 +92,53 @@ pub async fn hand_over(
     }
 }
 
+/// A five-minute data credential of `run_id` from the proxy, asked as the Portal's own service
+/// account: what `jc-functions` carries when the editing agent tests an App function, honoured on
+/// the proxy's data routes alone (ADR-N-038 decision 6). The reason it could not be had is told
+/// without any token.
+pub async fn data_credential(
+    oidc: Option<&OidcClient>,
+    proxy_base: &str,
+    run_id: &str,
+) -> Result<String, String> {
+    let oidc = oidc.ok_or("no Keycloak client to ask the proxy with")?;
+    let service = oidc
+        .service_token()
+        .await
+        .map_err(|error| format!("no service token to ask the proxy with: {error}"))?;
+    // The answer carries a credential: a redirect would take the request somewhere unreviewed.
+    let http = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| format!("no HTTP client: {error}"))?;
+    let url = format!(
+        "{}/internal/runs/{run_id}/data-credential",
+        proxy_base.trim_end_matches('/')
+    );
+    let response = http
+        .post(url)
+        .bearer_auth(service)
+        .send()
+        .await
+        .map_err(|error| format!("the proxy could not be reached: {}", error.without_url()))?;
+    if !response.status().is_success() {
+        return Err(format!("the proxy answered {}", response.status()));
+    }
+    #[derive(serde::Deserialize)]
+    struct Answer {
+        token: String,
+    }
+    let answer: Answer = response
+        .json()
+        .await
+        .map_err(|_| "the proxy's answer is not a data credential".to_owned())?;
+    if !answer.token.starts_with("jcd_") {
+        return Err("the proxy's answer is not a data credential".to_owned());
+    }
+    Ok(answer.token)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,6 +243,51 @@ mod tests {
         )
         .await;
         proxy.verify().await;
+    }
+
+    /// ADR-N-038 decision 6: the credential is asked as the Portal's service account and handed
+    /// back only when it is one; a refusal or a stranger's answer is a reason, never a token.
+    #[tokio::test]
+    async fn a_data_credential_is_asked_as_the_portal_and_only_a_credential_is_taken() {
+        let (_realm, oidc) = realm().await;
+        let proxy = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/internal/runs/run-1/data-credential"))
+            .and(wm_header("authorization", "Bearer portal-service-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({ "token": "jcd_run-1.secret", "expiresIn": 300 }),
+            ))
+            .mount(&proxy)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/internal/runs/run-2/data-credential"))
+            .respond_with(ResponseTemplate::new(409))
+            .mount(&proxy)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/internal/runs/run-3/data-credential"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "token": "something-else" })),
+            )
+            .mount(&proxy)
+            .await;
+
+        assert_eq!(
+            data_credential(Some(&oidc), &proxy.uri(), "run-1").await,
+            Ok("jcd_run-1.secret".to_owned())
+        );
+        let refused = data_credential(Some(&oidc), &proxy.uri(), "run-2")
+            .await
+            .unwrap_err();
+        assert!(refused.contains("409"), "{refused}");
+        assert!(data_credential(Some(&oidc), &proxy.uri(), "run-3")
+            .await
+            .is_err());
+        assert!(data_credential(None, &proxy.uri(), "run-1").await.is_err());
+        assert!(data_credential(Some(&oidc), "http://127.0.0.1:9", "run-1")
+            .await
+            .is_err());
     }
 
     #[tokio::test]

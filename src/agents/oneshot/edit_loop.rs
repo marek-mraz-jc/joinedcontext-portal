@@ -8,7 +8,7 @@ use std::time::Instant;
 use super::model::{assistant_turn_message, tool_result_message, ToolAnswer, ToolCall, ToolSpec};
 use super::*;
 use crate::agents::{code, patch};
-use crate::api::agent_runs::{invoke_function, InvokeError};
+use crate::api::agent_runs::{invoke_function, Caller, InvokeError};
 
 /// Lines one `read_file` returns at most: a whole file of the application, as a rule.
 const READ_WINDOW: usize = 2000;
@@ -57,14 +57,14 @@ impl Repeats {
 /// What `preview_errors` answers when the frame reported nothing.
 const NO_PREVIEW_ERRORS: &str = "no errors since the last reload";
 
-/// What `call_function` answers when the function's data call was refused for want of a
-/// credential: a run's own call carries no person's identity (T-3134), so the function's data path
-/// is proven by its test, and calling it again would only repeat the refusal.
-const FUNCTION_READS_DATA: &str = "status 401\nThe function asked its endpoint for data, and a \
-     call from the run carries no person's identity to read with, so the gateway refused it. This \
-     is not a fault in the function: its data path is proven by its own test over `fakeContext`. \
-     Do not call it again; call a function that computes without reading data, or change its \
-     test.";
+/// What `call_function` answers when the function's data call was refused for want of an identity:
+/// the run's call reads as the person who started it (ADR-N-038 decision 6), and this run holds no
+/// grant of theirs, so calling it again would only repeat the refusal.
+const FUNCTION_READS_DATA: &str = "status 401\nThe function asked its endpoint for data and was \
+     refused: this run reads as the person who started it, and it holds no identity of theirs (the \
+     run was not started from a signed-in session, or that session has ended). This is not a fault \
+     in the function: its data path is proven by its own test over `fakeContext`. Do not call it \
+     again; call a function that computes without reading data, or change its test.";
 /// Model calls one instruction may make (SDK-20): a request that needs more is asked in steps.
 const EDIT_CALLS: u32 = 12;
 /// Input tokens one instruction may send, over all of its calls (SDK-20).
@@ -872,7 +872,32 @@ impl Driver {
             Ok(None) => return ("the run is gone".to_owned(), false),
             Err(err) => return (err.to_string(), false),
         };
-        match invoke_function(&self.state, &run, &name, body, &query, &self.identity, None).await {
+        // The run's own call reads as the run, through the proxy, with a five-minute credential
+        // of the run (ADR-N-038 decision 6). Without one the function reads nothing, and says so.
+        let caller = match crate::agents::identity::data_credential(
+            self.state.oidc.as_deref(),
+            &self.proxy_base,
+            &self.run_id,
+        )
+        .await
+        {
+            Ok(credential) => Caller::Run(credential),
+            Err(reason) => {
+                tracing::warn!(run = %self.run_id, %reason, "no data credential for the run's function call");
+                Caller::Person(None)
+            }
+        };
+        match invoke_function(
+            &self.state,
+            &run,
+            &name,
+            body,
+            &query,
+            &self.identity,
+            caller,
+        )
+        .await
+        {
             Ok(invocation) => {
                 let status = invocation.outcome["status"].as_u64().unwrap_or(500);
                 let error = invocation
