@@ -23,6 +23,12 @@ export interface Trace {
     line?: number | null;
     message: string;
   }[];
+  /**
+   * Every step of `spec.steps` as the test saw it (PL-67, API/01 §7a): `reached` messages arrived
+   * whole, `sample` is what the step made of the first, cut at 4 KiB, as data or as text. Absent
+   * from a runner harness older than jcctl's PL-67; the Studio then shows what it showed before.
+   */
+  stages?: { step: number; reached: number; sample?: unknown }[];
 }
 
 /** The trace, or the status and the reason the route refused the run. */

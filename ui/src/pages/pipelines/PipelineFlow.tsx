@@ -416,6 +416,35 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
   return result;
 }
 
+/**
+ * What a node took in and gave out in a test (PL-67): a lane node reads the step before it and
+ * shows its own stage, the sources show what was read, an output what passed the model. A trace
+ * without `stages` (an older harness) gives what the drawer showed before: the read for the
+ * sources and the compute step, the mapped output for the rest.
+ */
+export function samplesOf(
+  trace: Trace,
+  nodes: FlowNode[],
+  id: FlowNodeId,
+): { in?: unknown; out?: unknown } {
+  const read = trace.input?.sample;
+  const passed = (() => {
+    const ok = trace.validation?.find((verdict) => verdict.ok);
+    return ok !== undefined ? trace.mapping?.[ok.index] : undefined;
+  })();
+  if (isSource(id)) return { in: read, out: read };
+  const stages = trace.stages;
+  if (!stages) {
+    if (id === "compute") return { in: read, out: trace.mapping?.[0] };
+    return { in: trace.mapping?.[0], out: passed };
+  }
+  const lane = nodes.filter((node) => !isSource(node.id) && !isOutput(node.id));
+  const sampleAt = (at: number) => (at < 0 ? read : stages.find((stage) => stage.step === at)?.sample);
+  if (isOutput(id)) return { in: sampleAt(lane.length - 1), out: passed };
+  const at = lane.findIndex((node) => node.id === id);
+  return at < 0 ? {} : { in: sampleAt(at - 1), out: sampleAt(at) };
+}
+
 /** What one component of the running stream counted, by its label (API/01 §7, PL-66). */
 export type NodeCounters = Record<
   string,

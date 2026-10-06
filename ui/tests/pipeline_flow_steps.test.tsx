@@ -23,6 +23,7 @@ import {
   plainSummary,
   removeSource,
   removeStep,
+  samplesOf,
   toFlow,
 } from "../src/pages/pipelines/PipelineFlow";
 import { PipelineStudio } from "../src/pages/pipelines/PipelineStudio";
@@ -775,5 +776,44 @@ describe("the test trace painted per step", () => {
     );
     expect(paint.compute).toMatchObject({ state: "error" });
     expect(paint["step-0"].state).toBe("ok");
+  });
+});
+
+describe("each node's own sample in a test (T-3089, PL-67)", () => {
+  const lane: PipelineForm = {
+    ...withCompute,
+    processors: [
+      { step: { processor: { jq: { query: ".a" } } } },
+      { step: { processor: { log: { message: "x" } } }, after: true },
+    ],
+  };
+  const trace = {
+    input: { events: 1, bytes: 10, sample: { a: 1 } },
+    mapping: [{ id: "urn:ngsi-ld:T:x" }],
+    validation: [{ index: 0, ok: true, problems: [] }],
+    errors: [],
+    stages: [
+      { step: 0, reached: 1, sample: 1 },
+      { step: 1, reached: 1, sample: { id: "urn:ngsi-ld:T:x" } },
+      { step: 2, reached: 1, sample: "logged" },
+    ],
+  } as unknown as Trace;
+
+  it("shows a step what the step before it made, and what it made itself", () => {
+    const { nodes } = toFlow(lane);
+    expect(samplesOf(trace, nodes, "source")).toEqual({ in: { a: 1 }, out: { a: 1 } });
+    expect(samplesOf(trace, nodes, "step-0")).toEqual({ in: { a: 1 }, out: 1 });
+    expect(samplesOf(trace, nodes, "compute")).toEqual({ in: 1, out: { id: "urn:ngsi-ld:T:x" } });
+    expect(samplesOf(trace, nodes, "step-1")).toEqual({ in: { id: "urn:ngsi-ld:T:x" }, out: "logged" });
+    expect(samplesOf(trace, nodes, "output")).toEqual({ in: "logged", out: { id: "urn:ngsi-ld:T:x" } });
+  });
+
+  it("says nothing for a step the messages never reached, and keeps the old view without stages", () => {
+    const { nodes } = toFlow(lane);
+    const stopped = { ...trace, stages: [{ step: 0, reached: 0 }, { step: 1, reached: 0 }, { step: 2, reached: 0 }] } as Trace;
+    expect(samplesOf(stopped, nodes, "compute")).toEqual({ in: undefined, out: undefined });
+    const older = { ...trace, stages: undefined } as Trace;
+    expect(samplesOf(older, nodes, "compute")).toEqual({ in: { a: 1 }, out: { id: "urn:ngsi-ld:T:x" } });
+    expect(samplesOf(older, nodes, "step-1")).toEqual({ in: { id: "urn:ngsi-ld:T:x" }, out: { id: "urn:ngsi-ld:T:x" } });
   });
 });

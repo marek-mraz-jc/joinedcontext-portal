@@ -37,9 +37,11 @@ import {
   removeOutput,
   removeSource,
   removeStep,
+  samplesOf,
   setComputeKind,
   sourceIndexOf,
   stepIndexOf,
+  toFlow,
 } from "./PipelineFlow";
 import type { FlowNodeId } from "./PipelineFlow";
 import { PipelineTest } from "./PipelineTest";
@@ -1114,12 +1116,11 @@ export function PipelineStudio({
                         className="max-h-36 overflow-auto font-mono text-caption whitespace-pre-wrap break-words"
                       >
                         {(() => {
-                          const sampleIn =
-                            selectedNode === "source" || selectedNode === "compute"
-                              ? flowTrace.input?.sample
-                              : flowTrace.mapping?.[0];
+                          const sampleIn = samplesOf(flowTrace, toFlow(draft).nodes, selectedNode).in;
                           return sampleIn !== undefined
-                            ? JSON.stringify(sampleIn, null, 2)
+                            ? typeof sampleIn === "string"
+                              ? sampleIn
+                              : JSON.stringify(sampleIn, null, 2)
                             : t("pipelines.flow.noSample", { defaultValue: "No sample" });
                         })()}
                       </pre>
@@ -1133,17 +1134,11 @@ export function PipelineStudio({
                         className="max-h-36 overflow-auto font-mono text-caption whitespace-pre-wrap break-words"
                       >
                         {(() => {
-                          const okValidation = flowTrace.validation?.find((v) => v.ok);
-                          const sampleOut =
-                            selectedNode === "source"
-                              ? flowTrace.input?.sample
-                              : selectedNode === "compute"
-                                ? flowTrace.mapping?.[0]
-                                : okValidation !== undefined
-                                  ? flowTrace.mapping?.[okValidation.index]
-                                  : undefined;
+                          const sampleOut = samplesOf(flowTrace, toFlow(draft).nodes, selectedNode).out;
                           return sampleOut !== undefined
-                            ? JSON.stringify(sampleOut, null, 2)
+                            ? typeof sampleOut === "string"
+                              ? sampleOut
+                              : JSON.stringify(sampleOut, null, 2)
                             : t("pipelines.flow.noSample", { defaultValue: "No sample" });
                         })()}
                       </pre>
