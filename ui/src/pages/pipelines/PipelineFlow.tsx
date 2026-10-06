@@ -9,8 +9,8 @@ import { SchemaForm } from "../../components/forms/SchemaForm";
 import { TypePicker } from "../../components/pickers/TypePicker";
 import { Button, Field, Input, Select, Tabs, tabPanelProps, Textarea } from "../../components/ui";
 import processorCatalogue from "../../schemas/bento-processors.json";
-import { COMPUTE_KINDS, YamlFieldError } from "../../schemas/kinds";
-import type { PipelineForm, SourceForm, StepForm } from "./PipelineEditor";
+import { COMPUTE_KINDS, OUTPUT_MODES, YamlFieldError } from "../../schemas/kinds";
+import type { OutputForm, PipelineForm, SourceForm, StepForm } from "./PipelineEditor";
 import { spaceOf } from "../spaces/SpaceInside";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
@@ -40,11 +40,18 @@ export const plainSummary = (summary: string): string =>
   summary.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
 
 /**
- * A step node is `step-<index into form.processors>` and a second source `source-<index into
- * form.moreSources>`; the first source, the compute step and the output are what they were, so
- * everything the studio hangs off `"source"` still finds it.
+ * A step node is `step-<index into form.processors>`, a second source `source-<index into
+ * form.moreSources>` and a second output `output-<index into form.moreOutputs>`; the first
+ * source, the compute step and the first output are what they were, so everything the studio
+ * hangs off `"source"` still finds it.
  */
-export type FlowNodeId = "source" | "compute" | "output" | `step-${number}` | `source-${number}`;
+export type FlowNodeId =
+  | "source"
+  | "compute"
+  | "output"
+  | `step-${number}`
+  | `source-${number}`
+  | `output-${number}`;
 
 export const stepIndexOf = (id: FlowNodeId | null): number | undefined =>
   id?.startsWith("step-") ? Number(id.slice(5)) : undefined;
@@ -53,6 +60,11 @@ export const sourceIndexOf = (id: FlowNodeId | null): number | undefined =>
   id?.startsWith("source-") ? Number(id.slice(7)) : undefined;
 
 const isSource = (id: FlowNodeId): boolean => id === "source" || id.startsWith("source-");
+
+export const outputIndexOf = (id: FlowNodeId | null): number | undefined =>
+  id?.startsWith("output-") ? Number(id.slice(7)) : undefined;
+
+const isOutput = (id: FlowNodeId): boolean => id === "output" || id.startsWith("output-");
 
 export interface FlowNode {
   id: FlowNodeId;
@@ -126,6 +138,17 @@ export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edg
     summary: outputSummary,
     present: true,
   };
+  const moreOutputNodes = (form?.moreOutputs ?? []).map(
+    (output, index): FlowNode => ({
+      id: `output-${index}`,
+      kind: "output",
+      label: "Output",
+      summary: [output.type, output.mode, output.targetEndpoint?.split(":").pop()]
+        .filter(Boolean)
+        .join(" · "),
+      present: true,
+    }),
+  );
 
   let computeNode: FlowNode | undefined;
   if (form?.compute?.kind) {
@@ -156,16 +179,19 @@ export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edg
     ...steps.filter(({ entry }) => !entry.after).map(({ node }) => node),
     ...(computeNode ? [computeNode] : []),
     ...steps.filter(({ entry }) => entry.after).map(({ node }) => node),
-    outputNode,
   ];
   const sources = [sourceNode, ...moreSourceNodes];
-  // Every source feeds the head of the lane, which is how the runner merges them (PL-53): a
-  // `broker` input is not a node an author places, so the canvas draws none.
+  const outputs = [outputNode, ...moreOutputNodes];
+  // Every source feeds the head of the lane, which is how the runner merges them (PL-53), and
+  // its tail feeds every output, which is how it fans out (PL-55): a `broker` is not a node an
+  // author places, so the canvas draws none.
+  const tail = lane.length > 0 ? [lane[lane.length - 1]] : sources;
   const edges: FlowEdge[] = [
-    ...sources.map((source) => ({ from: source.id, to: lane[0].id })),
+    ...(lane.length > 0 ? sources.map((source) => ({ from: source.id, to: lane[0].id })) : []),
     ...lane.slice(1).map((node, index) => ({ from: lane[index].id, to: node.id })),
+    ...tail.flatMap((from) => outputs.map((output) => ({ from: from.id, to: output.id }))),
   ];
-  return { nodes: [...sources, ...lane], edges };
+  return { nodes: [...sources, ...lane, ...outputs], edges };
 }
 
 /** The form with one more source to read, and the node it became (PL-52). */
@@ -181,6 +207,18 @@ export function addSource(form: PipelineForm | undefined): { form: PipelineForm;
  */
 export function removeSource(form: PipelineForm, index: number): PipelineForm {
   return { ...form, moreSources: (form.moreSources ?? []).filter((_, at) => at !== index) };
+}
+
+/** The form with one more output, empty until an Endpoint is picked, and the node it became. */
+export function addOutput(form: PipelineForm | undefined): { form: PipelineForm; id: FlowNodeId } {
+  const base: PipelineForm = form ?? { class: "auto" };
+  const more = [...(base.moreOutputs ?? []), { mode: "upsert" }];
+  return { form: { ...base, moreOutputs: more }, id: `output-${more.length - 1}` };
+}
+
+/** The form without the second output `index`; the first output is what the pipeline writes. */
+export function removeOutput(form: PipelineForm, index: number): PipelineForm {
+  return { ...form, moreOutputs: (form.moreOutputs ?? []).filter((_, at) => at !== index) };
 }
 
 /**
@@ -317,7 +355,7 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
   const sourceNodes = nodes.filter((node) => isSource(node.id));
   const read = trace.input?.events ?? 0;
   // The lane in manifest order, so a step index from the trace names the node that ran it.
-  const lane = nodes.filter((node) => !isSource(node.id) && node.id !== "output");
+  const lane = nodes.filter((node) => !isSource(node.id) && !isOutput(node.id));
   const errorsByNode: Record<string, string | undefined> = {
     ...Object.fromEntries(sourceNodes.map((node) => [node.id, sourceError])),
     ...Object.fromEntries(
@@ -351,7 +389,10 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
   // one failed and the others never ran. Behind them the lane stops at its first error.
   let errorEncountered = Boolean(sourceError);
   for (const node of nodes) {
-    const err = errorsByNode[node.id];
+    // Every output writes the same messages (PL-55): a second one is painted as the first.
+    if (outputIndexOf(node.id) !== undefined) continue;
+    const key = node.id;
+    const err = errorsByNode[key];
     let state: NodePaint["state"] = "ok";
     if (isSource(node.id)) {
       state = err ? "error" : "ok";
@@ -362,11 +403,14 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
       errorEncountered = true;
     }
     result[node.id] = {
-      eventsIn: eventsInByNode[node.id],
-      eventsOut: eventsOutByNode[node.id],
+      eventsIn: eventsInByNode[key],
+      eventsOut: eventsOutByNode[key],
       error: err,
       state,
     };
+  }
+  for (const node of nodes) {
+    if (outputIndexOf(node.id) !== undefined) result[node.id] = { ...result.output };
   }
 
   return result;
@@ -391,6 +435,8 @@ export function paintOfCounters(
 ): Record<string, NodePaint> {
   const labelOf = (id: FlowNodeId): string => {
     if (isSource(id)) return "input";
+    // The fan-out is one broker labelled `output`; its outputs are not counted one by one.
+    if (isOutput(id)) return "output";
     const step = stepIndexOf(id);
     return step !== undefined ? `step_${step}` : id;
   };
@@ -445,18 +491,24 @@ export function PipelineFlow({
   const startX = 20;
   const startY = 25;
 
-  // Sources stand in the left column, one under the other, and the lane runs to their right
-  // from the middle of that column (PL-56).
+  // Sources stand in the left column and outputs in the right one, each one under the other,
+  // and the lane runs between them along the middle of the taller column (PL-56).
   const sourceCount = nodes.filter((node) => isSource(node.id)).length;
-  const columnHeight = (sourceCount - 1) * rowSpacing;
+  const outputCount = nodes.filter((node) => isOutput(node.id)).length;
+  const laneCount = nodes.length - sourceCount - outputCount;
+  const columnHeight = (Math.max(sourceCount, outputCount) - 1) * rowSpacing;
+  const column = (count: number, at: number) =>
+    startY + (columnHeight - (count - 1) * rowSpacing) / 2 + at * rowSpacing;
   const placed = nodes.map((node, index) => {
-    const at = index - sourceCount;
-    return isSource(node.id)
-      ? { node, x: startX, y: startY + index * rowSpacing }
-      : { node, x: startX + (at + 1) * nodeSpacing, y: startY + columnHeight / 2 };
+    if (isSource(node.id)) return { node, x: startX, y: column(sourceCount, index) };
+    if (isOutput(node.id)) {
+      const at = index - sourceCount - laneCount;
+      return { node, x: startX + (laneCount + 1) * nodeSpacing, y: column(outputCount, at) };
+    }
+    return { node, x: startX + (index - sourceCount + 1) * nodeSpacing, y: startY + columnHeight / 2 };
   });
   const place = (id: FlowNodeId) => placed.find(({ node }) => node.id === id);
-  const svgWidth = Math.max((nodes.length - sourceCount + 1) * nodeSpacing + 40, 520);
+  const svgWidth = Math.max((laneCount + 2) * nodeSpacing + 40, 520);
   const svgHeight = 150 + columnHeight;
 
   const insert = (name: string, after: FlowNodeId | null) => {
@@ -469,13 +521,16 @@ export function PipelineFlow({
   const remove = (id: FlowNodeId) => {
     const step = stepIndexOf(id);
     const source = sourceIndexOf(id);
+    const output = outputIndexOf(id);
     if (!form) return;
     onChange(
       step !== undefined
         ? removeStep(form, step)
         : source !== undefined
           ? removeSource(form, source)
-          : setComputeKind(form, null),
+          : output !== undefined
+            ? removeOutput(form, output)
+            : setComputeKind(form, null),
     );
     onSelect(null);
   };
@@ -520,6 +575,18 @@ export function PipelineFlow({
           }}
         >
           {t("pipelines.flow.addSource")}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          data-testid="palette-output"
+          onClick={() => {
+            const added = addOutput(form);
+            onChange(added.form);
+            onSelect(added.id);
+          }}
+        >
+          {t("pipelines.flow.addOutput")}
         </Button>
         {form?.compute?.kind ? (
           <Button
@@ -694,7 +761,9 @@ export function PipelineFlow({
                         ? "step"
                         : sourceIndexOf(node.id) !== undefined
                           ? "source"
-                          : node.id
+                          : outputIndexOf(node.id) !== undefined
+                            ? "output"
+                            : node.id
                     }`,
                     { defaultValue: node.label },
                   )}
@@ -1148,6 +1217,86 @@ function EndpointQuery({
           onChange={(event) => set("q", event.target.value.trim() ? event.target.value : undefined)}
         />
       </Field>
+    </div>
+  );
+}
+
+export interface OutputBlockProps {
+  project: string;
+  output: OutputForm;
+  /** The Endpoints this pipeline may write through, each with its URN when it has one. */
+  targets: { manifest: Manifest; urn: string | undefined }[];
+  locale: string;
+  onChange: (output: OutputForm) => void;
+  onRemove: () => void;
+}
+
+/**
+ * An output after the first (PL-55): the Endpoint it writes through, the type and the write mode.
+ * The runner fans every message out to all outputs, so each is a target the pipeline writes as
+ * well, not a route a message takes.
+ */
+export function OutputBlock({ project, output, targets, locale, onChange, onRemove }: OutputBlockProps): JSX.Element {
+  const { t } = useTranslation();
+  const target = targets.find((candidate) => candidate.urn === output.targetEndpoint);
+  return (
+    <div
+      className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3"
+      data-testid="flow-node-editor-output"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-caption font-semibold text-fg">{t("pipelines.flow.node.output")}</span>
+        <Button size="sm" variant="ghost" data-testid="flow-output-remove" onClick={onRemove}>
+          {t("pipelines.flow.removeOutput")}
+        </Button>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Field id="flow-output-target" label={t("pipelines.flow.outputWrites")} help={t("pipelines.flow.outputWritesHint")} required>
+          <Select
+            id="flow-output-target"
+            data-testid="flow-output-target"
+            value={output.targetEndpoint ?? ""}
+            onChange={(event) => onChange({ ...output, targetEndpoint: event.target.value || undefined })}
+          >
+            <option value="">—</option>
+            {/* A URN the list no longer offers stays visible rather than silently replaced. */}
+            {output.targetEndpoint && !target ? (
+              <option value={output.targetEndpoint}>{output.targetEndpoint}</option>
+            ) : null}
+            {targets
+              .filter((candidate) => candidate.urn)
+              .map(({ manifest, urn }) => (
+                <option key={manifest.metadata.name} value={urn}>
+                  {localized(manifest.metadata.title, locale, manifest.metadata.name)}
+                </option>
+              ))}
+          </Select>
+        </Field>
+        <Field id="flow-output-mode" label={t("pipelines.field.outputMode")}>
+          <Select
+            id="flow-output-mode"
+            value={output.mode ?? "upsert"}
+            onChange={(event) => onChange({ ...output, mode: event.target.value })}
+          >
+            {OUTPUT_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`pipelines.field.modeChoice.${mode}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field id="flow-output-type" label={t("pipelines.field.outputType")}>
+          <TypePicker
+            id="flow-output-type"
+            label={t("pipelines.field.outputType")}
+            labelled
+            project={project}
+            space={target ? spaceOf(target.manifest) : undefined}
+            value={output.type ? [output.type] : []}
+            onChange={(types) => onChange({ ...output, type: types[0] })}
+          />
+        </Field>
+      </div>
     </div>
   );
 }

@@ -910,7 +910,8 @@
       "key": "Schlüssel",
       "known": "Bekannte Secrets"
     },
-    "emptyHint": "Eine Datenquelle ist der Ort, von dem die Plattform abruft: ein Feed, ein Broker, eine API. Fügen Sie eine hinzu, und eine Pipeline kann sie in einen Kontextraum lesen."
+    "emptyHint": "Eine Datenquelle ist der Ort, von dem die Plattform abruft: ein Feed, ein Broker, eine API. Fügen Sie eine hinzu, und eine Pipeline kann sie in einen Kontextraum lesen.",
+    "newPipeline": "Neue Pipeline aus dieser Quelle"
   },
   "pipelines": {
     "lead": "Was Daten hereinbringt: jede Pipeline liest eine Quelle, wandelt sie um und schreibt über einen Endpunkt.",
@@ -1147,6 +1148,10 @@
       "stepSecretHelp": "Zugangsdaten stehen nie in der Pipeline: Nennen Sie eine Variable aus den Secrets der Pipeline, als $'{'VAR'}'.",
       "addSource": "+ Quelle",
       "removeSource": "Quelle entfernen",
+      "addOutput": "+ Ausgabe",
+      "removeOutput": "Ausgabe entfernen",
+      "outputWrites": "Schreibt über",
+      "outputWritesHint": "Der Endpoint, über den diese Ausgabe jede Nachricht schreibt, wie die erste Ausgabe.",
       "sourceReads": "Diese Quelle liest",
       "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen.",
       "attrsHint": "Durch Kommas getrennt; leer liest alle Attribute.",
@@ -1161,6 +1166,7 @@
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
     "noCredential": "Keine",
     "expiryRemoves": "Entitäten, die {window} lang nicht aktualisiert wurden, werden entfernt",
+    "expiryRefused": "Nichts wird entfernt: Der Runner hat die Bereinigung abgelehnt: {reason}",
     "writesType": "Schreibt",
     "notWriting": "Schreibt nichts",
     "rejected": {
@@ -2373,7 +2379,9 @@
       "refreshed": {
         "onChange": "aktualisiert, wenn sich eine Entität ändert",
         "onReconcile": "aktualisiert, sooft die Konfiguration angewendet wird"
-      }
+      },
+      "lastChange": "Letzte Änderung {time}: {summary}",
+      "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}"
     },
     "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}",
     "access": {
@@ -2409,7 +2417,8 @@
         "already": "Sie verwalten {instance} bereits.",
         "absent": "Sie verwalten {instance} nicht über die Rolle dieses Katalogs.",
         "badEmail": "Geben Sie eine vollständige E-Mail-Adresse ein, etwa jana@example.org."
-      }
+      },
+      "hidden": "Wer diesen Katalog verwaltet, sehen die Administratoren der Organisation."
     }
   },
   "mappings": {

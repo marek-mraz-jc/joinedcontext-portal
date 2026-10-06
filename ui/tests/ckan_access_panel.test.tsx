@@ -49,7 +49,8 @@ interface Sent {
   body: unknown;
 }
 
-function renderPanel({ instance = "hel-fi", bindings = [ADMINS], roles = [ORG_ADMIN], approve = true } = {}) {
+function renderPanel({ instance = "hel-fi", bindings = [ADMINS], roles = [ORG_ADMIN], approve = true, orgReader = true } = {}) {
+  const read: string[] = [];
   const sent: Sent[] = [];
   const reply = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
@@ -64,13 +65,19 @@ function renderPanel({ instance = "hel-fi", bindings = [ADMINS], roles = [ORG_AD
         return reply(200, {
           project: "org",
           bootstrap: false,
-          grants: [{ rule: { kinds: ["Role", "RoleBinding"], verbs: approve ? ["read", "propose", "approve"] : ["read"] } }],
+          grants: orgReader
+            ? [{ rule: { kinds: ["Role", "RoleBinding", "Group"], verbs: approve ? ["read", "propose", "approve"] : ["read"] } }]
+            : [],
         });
       }
       if (request.method !== "GET") {
         const dryRun = url.searchParams.get("dryRun") === "All";
         sent.push({ method: request.method, path, dryRun, body: await request.json() });
         return reply(dryRun ? 200 : 202, dryRun ? { valid: true, verdict: { ok: true } } : CHANGE);
+      }
+      if (path.startsWith("/api/v1/projects/org/")) read.push(path);
+      if (!orgReader && path.startsWith("/api/v1/projects/org/")) {
+        return reply(404, { title: "Not Found", status: 404, detail: "plural roles not found in project org" });
       }
       if (path === "/api/v1/projects/org/roles") return reply(200, list(roles));
       if (path === "/api/v1/projects/org/rolebindings") return reply(200, list(bindings));
@@ -81,7 +88,7 @@ function renderPanel({ instance = "hel-fi", bindings = [ADMINS], roles = [ORG_AD
       return undefined;
     },
   });
-  return { proposals: () => sent.filter((s) => !s.dryRun) };
+  return { proposals: () => sent.filter((s) => !s.dryRun), read };
 }
 
 const panel = async (instance = "hel-fi") =>
@@ -117,7 +124,10 @@ describe("a CKAN instance's Access panel", () => {
   it("gives the instance to a group: the role and the binding as one Change", async () => {
     const { proposals } = renderPanel();
     const section = await panel();
-    await userEvent.selectOptions(await within(section).findByLabelText(en.ckan.access.whichGroup), "ckan-editors");
+    const which = await within(section).findByLabelText(en.ckan.access.whichGroup);
+    // The groups are read once the caller's permissions say they may read them.
+    await within(which).findByRole("option", { name: "ckan-editors" });
+    await userEvent.selectOptions(which, "ckan-editors");
     await userEvent.click(await addButton(section));
     expect(await within(section).findByText("chg-0000003a")).toBeInTheDocument();
     expect(proposals()).toHaveLength(1);
@@ -174,6 +184,16 @@ describe("a CKAN instance's Access panel", () => {
     await userEvent.click(add);
     expect(section).toHaveTextContent(en.ckan.access.denied);
     expect(proposals()).toEqual([]);
+  });
+
+  it("tells someone who may not read the organization's roles who sees the list, and asks nothing", async () => {
+    // An editor, an approver and a viewer met "The list could not be loaded: plural roles not
+    // found in project org" on the CKAN page (T-3131).
+    const { read } = renderPanel({ orgReader: false });
+    const section = await panel();
+    expect(await within(section).findByTestId("ckan-access-hidden")).toHaveTextContent(en.ckan.access.hidden);
+    expect(within(section).queryByRole("alert")).toBeNull();
+    expect(read.filter((path) => !path.endsWith("/permissions/me"))).toEqual([]);
   });
 
   it("shows the other instance of the project as the administrator's alone", async () => {

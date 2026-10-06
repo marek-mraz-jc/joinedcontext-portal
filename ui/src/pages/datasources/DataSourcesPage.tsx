@@ -5,7 +5,8 @@ import { ResourceList } from "../../components/ResourceList";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { takeEditRequest, takePrefill } from "../../assistant/state";
+import { useNavigate } from "@tanstack/react-router";
+import { handPrefill, takeEditRequest, takePrefill } from "../../assistant/state";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { EditResourceDialog } from "../../components/EditResourceDialog";
 import { usePermissions } from "../../api/permissions";
@@ -276,6 +277,7 @@ const RUNNER_GROUPS = [
 export function DataSourcesPage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
 
   // The assistant may have sent the person here with a form in hand (UI-45, AG-61): taken
@@ -612,6 +614,21 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
                   onEdit={() =>
                     formRoute ? formRoute.openEdit(source.metadata.name) : openEdit(source)
                   }
+                  extra={[
+                    {
+                      // What a source is for: the pipeline that reads it, started on it (T-3091).
+                      key: "pipeline",
+                      label: t("datasources.newPipeline"),
+                      onSelect: () => {
+                        const pipelines = `/projects/${project}/pipelines`;
+                        handPrefill(pipelines, {
+                          class: "auto",
+                          source: { dataSourceRef: source.metadata.name },
+                        });
+                        void navigate({ href: pipelines });
+                      },
+                    },
+                  ]}
                 />
               </TableCell>
             </TableRow>
@@ -658,11 +675,19 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           verdict={verdict}
           onVerdictChange={setVerdict}
           source={{
+            // With the runner's field tree, as the check and the proposal build it: without it a
+            // map typed on one line (`Accept: text/csv`) stayed a string in the draft and the YAML
+            // view, and the draft is what a proposal carries (T-3088).
             toManifest: (form) =>
-              toEnvelope(project, type, {
-                ...form,
-                secrets: Object.values(collectedSecrets),
-              }),
+              toEnvelope(
+                project,
+                type,
+                {
+                  ...form,
+                  secrets: Object.values(collectedSecrets),
+                },
+                runnerCatalogInput,
+              ),
             // A draft or YAML read back declares its own type, and the form follows it: a
             // `?draft=` of an HTTP source must not open in the page's first type's form.
             fromManifest: (manifest) => {

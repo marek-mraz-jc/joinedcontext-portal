@@ -910,7 +910,8 @@
       "records": "{records} records, {bytes} bytes",
       "skipped": "Not fetched: {reason}"
     },
-    "emptyHint": "A data source is where the platform fetches from: a feed, a broker, an API. Add one and a pipeline can read it into a context space."
+    "emptyHint": "A data source is where the platform fetches from: a feed, a broker, an API. Add one and a pipeline can read it into a context space.",
+    "newPipeline": "New pipeline from this source"
   },
   "pipelines": {
     "lead": "What brings data in: each pipeline reads a source, transforms it and writes through an endpoint.",
@@ -1147,6 +1148,10 @@
       "stepSecretHelp": "A credential never sits in the pipeline: name a variable of the pipeline's secrets, as $'{'VAR'}'.",
       "addSource": "+ Source",
       "removeSource": "Remove source",
+      "addOutput": "+ Output",
+      "removeOutput": "Remove output",
+      "outputWrites": "Writes through",
+      "outputWritesHint": "The Endpoint this output writes every message through, as the first output does.",
       "sourceReads": "This source reads",
       "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step.",
       "attrsHint": "Comma-separated; empty reads every attribute.",
@@ -1161,6 +1166,7 @@
     "credentialsOfSource": "Held by its data source {name}",
     "noCredential": "None",
     "expiryRemoves": "Entities not updated for {window} are removed",
+    "expiryRefused": "Nothing is removed: the runner refused the sweep: {reason}",
     "writesType": "Writes",
     "notWriting": "Writes nothing",
     "rejected": {
@@ -2373,7 +2379,9 @@
       "refreshed": {
         "onChange": "refreshed when an entity changes",
         "onReconcile": "refreshed each time the configuration is applied"
-      }
+      },
+      "lastChange": "Last change {time}: {summary}",
+      "lastFailed": "Last run failed {time}: {summary}"
     },
     "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}",
     "access": {
@@ -2409,7 +2417,8 @@
         "already": "They already manage {instance}.",
         "absent": "They do not manage {instance} through this catalogue's role.",
         "badEmail": "Type a whole e-mail address, such as jana@example.org."
-      }
+      },
+      "hidden": "Who manages this catalogue is visible to the organization's administrators."
     }
   },
   "mappings": {
