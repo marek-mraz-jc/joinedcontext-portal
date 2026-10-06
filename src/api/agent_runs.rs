@@ -1673,6 +1673,13 @@ pub async fn call_function(
         if let Some(file) = error["file"].as_str() {
             error["file"] = serde_json::json!(file.strip_prefix(transpile::APP).unwrap_or(file));
         }
+        // A data call the gateway refused for want of a credential is the caller's to fix
+        // (sign in again), not a fault of the function (T-3134).
+        let status = if unauthenticated(&error) {
+            StatusCode::UNAUTHORIZED
+        } else {
+            StatusCode::INTERNAL_SERVER_ERROR
+        };
         publish_event(
             &state,
             &id,
@@ -1682,16 +1689,12 @@ pub async fn call_function(
                 "status": "failed",
                 "durationMs": duration_ms,
                 "input": input,
-                "output": { "status": 500, "logs": logs },
+                "output": { "status": status.as_u16(), "logs": logs },
                 "error": error,
             }),
         )
         .await?;
-        return Ok((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": error })),
-        )
-            .into_response());
+        return Ok((status, Json(serde_json::json!({ "error": error }))).into_response());
     }
     publish_event(
         &state,
@@ -1711,6 +1714,16 @@ pub async fn call_function(
         .cloned()
         .unwrap_or(serde_json::Value::Null);
     Ok((status, Json(body)).into_response())
+}
+
+/// The gateway's answer to a data call that carries no valid credential, as the SDK's
+/// `ProblemError` brings its title out of the function (`@joinedcontext/sdk/server`).
+const UNAUTHENTICATED: &str = "Authentication Required";
+
+/// Whether a function failed because its data call was refused as unauthenticated, which is a
+/// `401` the caller can act on, never the function's own error (T-3134).
+pub(crate) fn unauthenticated(error: &serde_json::Value) -> bool {
+    error["message"].as_str() == Some(UNAUTHENTICATED)
 }
 
 /// What one invocation of a run's function returned: the runtime's outcome and how long it took.
@@ -2803,6 +2816,21 @@ pub fn preview_router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::{app_manifest, caller_token, is_function_name};
+
+    /// T-3134: the gateway's unauthenticated answer, as the SDK brings it out of a function, and
+    /// nothing else, is the caller's 401.
+    #[test]
+    fn only_the_gateways_unauthenticated_answer_is_a_401() {
+        use super::unauthenticated;
+        assert!(unauthenticated(&serde_json::json!({
+            "message": "Authentication Required", "file": "@joinedcontext/sdk/server", "line": 80
+        })));
+        assert!(!unauthenticated(&serde_json::json!({ "message": "boom" })));
+        assert!(!unauthenticated(
+            &serde_json::json!({ "message": "authentication required in my own words" })
+        ));
+        assert!(!unauthenticated(&serde_json::Value::Null));
+    }
 
     mod tests_hold {
         use super::super::{tests_hold, AgentRunEvent};
