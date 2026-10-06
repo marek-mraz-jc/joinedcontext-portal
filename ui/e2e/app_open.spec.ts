@@ -31,11 +31,12 @@ async function stub(page: Page, realm = "error=login_required"): Promise<void> {
     const path = new URL(route.request().url()).pathname;
     const json = (body: unknown, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-    // The page reads only the address the check lands on; the landing page's body is never read.
+    if (path.endsWith("/auth/me")) return json(IDENTITY);
+    // The silent realm check (T-3034): the realm says the person must sign in.
     if (path === "/api/v1/auth/sso-check") {
       return route.fulfill({ status: 303, headers: { location: `/api/v1/auth/sso-check/done#${realm}` } });
     }
-    if (path.endsWith("/auth/me")) return json(IDENTITY);
+    if (path === "/api/v1/auth/sso-check/done") return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html>" });
     if (path === "/api/v1/projects") {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
     }
@@ -108,10 +109,10 @@ test.describe("an App inside the Portal (AP-122)", () => {
   }
 
   // T-2941, T-3034: the stub App carries no SDK, so it never says it is up; 8 s after its load the
-  // page asks the realm silently, and the realm's "sign in" brings the offer above the frame,
-  // readable in both themes, with each control named once.
+  // page asks the realm silently, and the realm's login_required brings the sign-in offer above
+  // the frame, readable in both themes, naming each control once.
   for (const colorScheme of ["light", "dark"] as const) {
-    test(`offers the sign-in above a silent App's frame when the realm says so (${colorScheme})`, async ({ page }) => {
+    test(`offers the sign-in above a silent App's frame (${colorScheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme });
       await page.clock.install();
       await stub(page);
