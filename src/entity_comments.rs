@@ -300,7 +300,7 @@ impl CommentStore {
         id: i64,
     ) -> Result<bool, sqlx::Error> {
         match &self.inner {
-            // The notifications go with it: `ON DELETE CASCADE` (migration 0024).
+            // The notifications go with it: `ON DELETE CASCADE` (migration 0025).
             Inner::Postgres(pool) => Ok(sqlx::query(
                 "DELETE FROM entity_comments WHERE project = $1 AND space = $2 AND author = $3 AND id = $4",
             )
