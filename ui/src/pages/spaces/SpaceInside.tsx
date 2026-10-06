@@ -53,6 +53,7 @@ import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
 import { SharePanel } from "./PublicView";
+import { AiFieldPanel } from "./AiField";
 import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
@@ -478,7 +479,16 @@ function SpaceData({
             value={{ type, q }}
             onChange={(next) => setQ(next.q)}
           />
-          <OtherView project={project} source={source} space={space} type={type} q={q} view={view} enums={enums} />
+          <OtherView
+            project={project}
+            source={source}
+            space={space}
+            type={type}
+            q={q}
+            view={view}
+            enums={enums}
+            endpoints={endpoints.map((endpoint) => endpoint.metadata.name)}
+          />
         </div>
       ) : null}
       {probe.isSuccess && config && view === "grid" ? (
@@ -512,6 +522,7 @@ function OtherView({
   q,
   view,
   enums,
+  endpoints,
 }: {
   project: string;
   source: ReturnType<typeof sourceFor>;
@@ -521,6 +532,8 @@ function OtherView({
   view: Exclude<DataView, "grid" | "api">;
   /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
   enums: Record<string, EnumChoice[]>;
+  /** The names of the space's Endpoints, which the AI field writes through. */
+  endpoints: string[];
 }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -556,6 +569,7 @@ function OtherView({
       {view === "kanban" ? <KanbanView rows={shown} source={source} enums={enums} onDelete={onDelete} /> : null}
       {view === "calendar" ? <CalendarView rows={shown} source={source} onDelete={onDelete} /> : null}
       {view === "timeline" ? <TimelineView rows={shown} source={source} onDelete={onDelete} /> : null}
+      <AiFieldPanel space={space} type={type} endpoints={endpoints} rows={shown} />
     </>
   );
 }

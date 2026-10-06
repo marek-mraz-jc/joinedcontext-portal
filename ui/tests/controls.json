@@ -1198,6 +1198,14 @@
         "slot_unit.test.tsx"
       ]
     },
+    "src/pages/spaces/AiField.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "ai_field.test.tsx"
+      ]
+    },
     "src/pages/spaces/DataViews.tsx": {
       "controls": {
         "Button": 13,

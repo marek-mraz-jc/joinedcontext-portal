@@ -621,6 +621,19 @@
       "types": "Typen",
       "first": "Die ersten {count} Entitäten.",
       "count": "{count, plural, one {# Entität} other {# Entitäten}}."
+    },
+    "ai": {
+      "title": "Ein Attribut mit KI füllen",
+      "lead": "Ein Prompt, für jede Entität auf dem Bildschirm aus ihren eigenen Attributen beantwortet. Der Assistent bereitet die Werte vor; Sie prüfen sie und übernehmen sie mit Ihren Rechten, und die Modellaufrufe zählen gegen Ihr Tagesbudget.",
+      "attribute": "Zu füllendes Attribut",
+      "attributeHint": "Ein Attributname: ein Buchstabe, dann Buchstaben, Ziffern oder _, höchstens 64.",
+      "endpoint": "Über Endpoint",
+      "prompt": "Anweisung",
+      "promptHint": "Was für jede Entität zu antworten ist, höchstens {count} Zeichen, z. B. Fasse die Beschreibung in einem Satz zusammen.",
+      "budget": "{rows, plural, one {# Entität} other {# Entitäten}}, etwa {tokens} Tokens.",
+      "cut": "Die ersten {count} auf dem Bildschirm; schränken Sie den Filter für den Rest ein.",
+      "ask": "Den Assistenten fragen",
+      "noEndpoint": "Kein Endpoint bedient diesen Raum, daher kann nichts geschrieben werden."
     }
   },
   "endpoints": {

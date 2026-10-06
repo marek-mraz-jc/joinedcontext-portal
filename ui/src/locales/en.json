@@ -621,6 +621,19 @@
       "types": "Types",
       "first": "The first {count} entities.",
       "count": "{count, plural, one {# entity} other {# entities}}."
+    },
+    "ai": {
+      "title": "Fill an attribute with AI",
+      "lead": "A prompt answered for each entity on screen, from its own attributes. The assistant prepares the values; you review them and apply, with your rights, and the model calls count against your daily budget.",
+      "attribute": "Attribute to fill",
+      "attributeHint": "An attribute name: a letter, then letters, digits or _, at most 64.",
+      "endpoint": "Through Endpoint",
+      "prompt": "Prompt",
+      "promptHint": "What to answer for each entity, at most {count} characters, e.g. Summarise the description in one sentence.",
+      "budget": "{rows, plural, one {# entity} other {# entities}}, about {tokens} tokens.",
+      "cut": "The first {count} on screen; narrow the filter for the rest.",
+      "ask": "Ask the assistant",
+      "noEndpoint": "No Endpoint serves this space, so nothing can be written."
     }
   },
   "endpoints": {

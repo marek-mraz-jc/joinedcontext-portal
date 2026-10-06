@@ -621,6 +621,19 @@
       "types": "Typy",
       "first": "Prvých {count} entít.",
       "count": "{count, plural, one {# entita} few {# entity} other {# entít}}."
+    },
+    "ai": {
+      "title": "Vyplniť atribút pomocou AI",
+      "lead": "Výzva zodpovedaná pre každú entitu na obrazovke z jej vlastných atribútov. Asistent pripraví hodnoty; vy ich skontrolujete a použijete s vašimi právami a volania modelu sa počítajú do vášho denného rozpočtu.",
+      "attribute": "Atribút na vyplnenie",
+      "attributeHint": "Názov atribútu: písmeno, potom písmená, číslice alebo _, najviac 64.",
+      "endpoint": "Cez endpoint",
+      "prompt": "Výzva",
+      "promptHint": "Čo odpovedať pre každú entitu, najviac {count} znakov, napr. Zhrň opis jednou vetou.",
+      "budget": "{rows, plural, one {# entita} few {# entity} other {# entít}}, približne {tokens} tokenov.",
+      "cut": "Prvých {count} na obrazovke; zúžte filter pre ostatné.",
+      "ask": "Opýtať sa asistenta",
+      "noEndpoint": "Tento priestor neobsluhuje žiadny endpoint, takže nič nemožno zapísať."
     }
   },
   "endpoints": {
