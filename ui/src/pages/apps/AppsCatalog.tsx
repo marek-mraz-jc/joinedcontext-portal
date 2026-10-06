@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
@@ -27,7 +27,7 @@ import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
 import { Alert, Button, buttonClass, PageHeader, recordCard, safeHref } from "../../components/ui";
-import { RecordLink } from "../../components/RecordLink";
+import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 
@@ -402,9 +402,9 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
             >
               <AppIcon />
               <h2 className="line-clamp-2 text-sm font-semibold">
-                <RecordLink project={project} plural="apps" name={app.metadata.name}>
+                <AppCardLink project={project} app={app}>
                   {title}
-                </RecordLink>
+                </AppCardLink>
               </h2>
               <LifecycleBadge kind="appLifecycle" value={spec.lifecycle ?? "draft"} />
               {spec.lifecycle === "published" ? <AppCheckChip check={appChecks.get(app.metadata.name)} /> : null}
@@ -500,6 +500,31 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
   );
 }
 
+/**
+ * The card's link, which a click anywhere on the card follows (T-2875): an App something serves
+ * opens itself, framed under the Portal's header (T-3038, AP-122); any other App opens its page,
+ * which says why there is nothing to open yet. Its details stay one item of the card's menu.
+ */
+function AppCardLink({ project, app, children }: { project: string; app: Manifest; children: string }): JSX.Element {
+  const { t } = useTranslation();
+  const name = app.metadata.name;
+  const build = useAppBuild(project, name);
+  return openBlockedReason(app, build.data?.run ?? null, t) === undefined ? (
+    <Link
+      data-row-link=""
+      to="/projects/$project/$plural/$name/open"
+      params={{ project, plural: "apps", name }}
+      className={RECORD_LINK_STYLE}
+    >
+      {children}
+    </Link>
+  ) : (
+    <RecordLink project={project} plural="apps" name={name}>
+      {children}
+    </RecordLink>
+  );
+}
+
 /** The tile's icon: every application gets the same mark until a manifest carries its own. */
 function AppIcon(): JSX.Element {
   return (
@@ -563,11 +588,11 @@ function LifecycleDialog({
 type Lifecycle = "published" | "retired";
 
 /**
- * The footer of an application's card (T-2618, UI-26, UI-44): Open, and one ⋯ menu that holds
- * everything else. Open stays in the row when there is nothing to open, disabled with the reason,
- * because a person reads a card by the shape of its footer. The menu lists every action in three
- * blocks (the lifecycle, the forge, the manifest's own four), and an action that does not apply
- * stays listed, disabled, with its sentence.
+ * The footer of an application's card (T-2618, T-3038, UI-26, UI-44): why there is nothing to
+ * open when there is not, and one ⋯ menu that holds everything else; opening is the card's own
+ * click. The menu lists every action in three blocks (the lifecycle, the App's page and the
+ * forge, the manifest's own four), and an action that does not apply stays listed, disabled,
+ * with its sentence.
  */
 function AppCardActions({
   project,
@@ -585,6 +610,7 @@ function AppCardActions({
   onRebuild: (outcome: { error?: string }) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const permissions = usePermissions(project);
   const name = app.metadata.name;
   const lifecycle = appSpec(app).lifecycle ?? "draft";
@@ -652,38 +678,29 @@ function AppCardActions({
     ...(runUrl ? [{ key: "run", label: t("apps.latestRun"), href: runUrl }] : []),
     ...(packageUrl ? [{ key: "package", label: t("apps.package"), href: packageUrl }] : []),
   ];
-  const extra = forgeActions.length > 0
-    ? [
-        ...lifecycleActions.slice(0, -1),
-        { ...lifecycleActions[lifecycleActions.length - 1], separatorAfter: true },
-        ...forgeActions,
-      ]
-    : lifecycleActions;
+  // The App's page (settings, versions, build) now that a click on the card opens the App (T-3038).
+  const details: RowAction = {
+    key: "details",
+    label: t("apps.openPage.details"),
+    onSelect: () => {
+      void navigate({ to: "/projects/$project/$plural/$name", params: { project, plural: "apps", name } });
+    },
+  };
+  const extra = [
+    ...lifecycleActions.slice(0, -1),
+    { ...lifecycleActions[lifecycleActions.length - 1], separatorAfter: true },
+    details,
+    ...forgeActions,
+  ];
 
   return (
-    <div className="mt-auto flex flex-wrap justify-center gap-2">
+    <div className="mt-auto flex flex-col items-center gap-2">
+      {/* Open is the card itself (T-3038); a card with nothing to open says why, in words. A
+          retired app is gone, and its badge says so. */}
+      {openReason && lifecycle !== "retired" ? <p className="text-xs text-fg-muted">{openReason}</p> : null}
       <ResourceRowActions
         project={project}
         target={{ project, kind: "App", plural: "apps", name, label: title }}
-        primary={
-          // A published app opens inside the Portal, under its header, behind the edge login like
-          // any audience member sees it (AP-14, AP-122); that page offers a window of its own.
-          // Only a build something serves opens (AP-86). A retired app is gone: a greyed Open on
-          // it offered something that no longer exists.
-          lifecycle === "retired" ? undefined : openReason ? (
-            <Button size="sm" variant="primary" disabled disabledReason={openReason}>
-              {t("apps.openAction")}
-            </Button>
-          ) : (
-            <Link
-              to="/projects/$project/$plural/$name/open"
-              params={{ project, plural: "apps", name }}
-              className={buttonClass("primary", "sm")}
-            >
-              {t("apps.openAction")}
-            </Link>
-          )
-        }
         extra={extra}
         // The kind's own form, not the manifest as text (T-2343). Publishing and retiring stay
         // the menu's own items, with their confirmation: the form keeps the stored lifecycle.
