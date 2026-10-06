@@ -11,6 +11,7 @@ exclude = [
   "apps/banskabystrica-ovzdusie",
   "apps/banskabystrica-mapa",
   "apps/banskabystrica-data",
+  "apps/banskabystrica-skoly",
   "apps/banskabystrica-zaznamy",
   "apps/bbsk-zaznamy",
   "apps/helsinki-alerts",
