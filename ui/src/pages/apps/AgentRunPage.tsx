@@ -9,6 +9,7 @@ import { previewSrc, usePreviewBridge } from "./previewBridge";
 import { RunPublication } from "./RunPublication";
 import { RunTimeline } from "./RunTimeline";
 import { RunTimeSpent } from "./RunTimeSpent";
+import { RunCost } from "./RunCost";
 import { TERMINAL_STATES, testsHold, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { rememberRun } from "../../assistant/state";
@@ -198,6 +199,7 @@ export function AgentRunPage({
 
         <RunTimeline status={record.status} steps={record.steps} tokensUsed={record.tokensUsed} />
         <RunTimeSpent events={events} />
+        <RunCost events={events} />
 
         {(record.firstFrameMs != null || record.firstVersionMs != null) && (
           <div className="flex flex-wrap gap-4 text-xs text-fg-muted" data-testid="run-timings">

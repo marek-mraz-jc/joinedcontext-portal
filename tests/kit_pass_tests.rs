@@ -2475,9 +2475,11 @@ async fn an_application_is_written_in_one_call_and_the_template_never_reaches_th
     for part in [
         "## THE SDK",
         "function useEntities",
-        "### src/components/EntityTable.tsx",
-        "### functions/summary.test.ts",
-        "### package.json",
+        // An unchanged component by its exports, an unchanged test or set-up file by name (T-3076).
+        "### src/components/EntityTable.tsx (an unchanged template component",
+        "export function EntityTable",
+        "functions/summary.test.ts",
+        "package.json",
         JC_TYPES.trim(),
         "Kaivopuisto",
         "may NOT write",
