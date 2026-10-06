@@ -264,9 +264,8 @@ impl ModelSchema {
         }
     }
 
-    /// Every problem of one record, for the space whose rendered segment is `space` in the
-    /// organization `org_domain` (PL-59). An empty list is a valid record.
-    pub fn check(&self, record: &Value, org_domain: &str, space: &str) -> Vec<Problem> {
+    /// Every problem of one record (PL-59). An empty list is a valid record.
+    pub fn check(&self, record: &Value) -> Vec<Problem> {
         let Some(object) = record.as_object() else {
             return vec![problem("sh:node", "", "the record is not a JSON object")];
         };
@@ -283,7 +282,7 @@ impl ModelSchema {
                 ),
             )];
         };
-        let mut problems = id_problems(object, class, org_domain, space);
+        let mut problems = id_problems(object, class);
         match jsonschema::draft7::new(schema) {
             Ok(validator) => problems.extend(validator.iter_errors(record).map(|error| {
                 let mut path = attribute_of(&error.instance_path().to_string());
@@ -347,9 +346,9 @@ impl ModelSchema {
             json!({ "switch": cases }),
             json!({ "mapping": concat!(
                 "root = this\n",
-                "let prefix = \"urn:ngsi-ld:\" + this.type.string() + \":\" + env(\"JC_ORG_DOMAIN\") + \":\" + env(\"JC_SPACE\") + \":\"\n",
+                "let prefix = \"urn:ngsi-ld:\" + this.type.string() + \":\"\n",
                 "if !this.id.or(\"\").string().has_prefix($prefix) || this.id.or(\"\").string().length() <= $prefix.length() {\n",
-                "  root = throw(\"the id is not urn:ngsi-ld:{type}:{orgDomain}:{space}:{localId} of this space (PF-42)\")\n",
+                "  root = throw(\"the id is not an NGSI-LD URN of its type, urn:ngsi-ld:{type}:{id} (PF-43)\")\n",
                 "}"
             )}),
         ]
@@ -527,21 +526,18 @@ fn relationship_problems(
     problems
 }
 
-/// The id rule, checked here rather than by the schema so it names the space it wants (PF-42).
-fn id_problems(
-    object: &Map<String, Value>,
-    class: &str,
-    org_domain: &str,
-    space: &str,
-) -> Vec<Problem> {
-    let prefix = format!("urn:ngsi-ld:{class}:{org_domain}:{space}:");
+/// The id rule (PF-43, ADR-N-041): an NGSI-LD URN of the record's type. The rest of the id is the
+/// mapping's to choose; the space is the output Endpoint's whatever the id says, and the gateway
+/// checks its characters.
+fn id_problems(object: &Map<String, Value>, class: &str) -> Vec<Problem> {
+    let prefix = format!("urn:ngsi-ld:{class}:");
     match object.get("id").and_then(Value::as_str) {
         None => vec![problem("sh:minCount", "id", "the record has no id")],
         Some(id) if id.len() > prefix.len() && id.starts_with(&prefix) => Vec::new(),
         Some(_) => vec![problem(
             "id",
             "id",
-            &format!("the id is not {prefix}{{localId}} (PF-42)"),
+            &format!("the id is not an NGSI-LD URN of its type, {prefix}{{id}} (PF-43)"),
         )],
     }
 }
@@ -827,7 +823,7 @@ mod tests {
 
     fn rules(record: &Value) -> Vec<(String, String)> {
         model(false)
-            .check(record, DOMAIN, SPACE)
+            .check(record)
             .into_iter()
             .map(|p| (p.rule, p.path))
             .collect()
@@ -855,11 +851,11 @@ mod tests {
     fn a_quantity_in_another_unit_is_a_problem_naming_the_code() {
         use jc_core::kinds::MissingUnitCode;
         let fill = with_unit(MissingUnitCode::Fill);
-        assert!(fill.check(&valid(), DOMAIN, SPACE).is_empty());
+        assert!(fill.check(&valid()).is_empty());
 
         let mut record = valid();
         record["pm10"]["unitCode"] = json!("GP");
-        let problems = fill.check(&record, DOMAIN, SPACE);
+        let problems = fill.check(&record);
         assert_eq!(problems.len(), 1, "{problems:?}");
         assert_eq!(
             (problems[0].rule.as_str(), problems[0].path.as_str()),
@@ -879,11 +875,8 @@ mod tests {
         missing["pm10"]
             .as_object_mut()
             .map(|pm10| pm10.remove("unitCode"));
-        assert!(
-            fill.check(&missing, DOMAIN, SPACE).is_empty(),
-            "the gateway fills it"
-        );
-        let strict = with_unit(MissingUnitCode::Refuse).check(&missing, DOMAIN, SPACE);
+        assert!(fill.check(&missing).is_empty(), "the gateway fills it");
+        let strict = with_unit(MissingUnitCode::Refuse).check(&missing);
         assert_eq!(strict.len(), 1, "{strict:?}");
         assert_eq!(strict[0].rule, "ngsi-ld:unitCode");
         assert!(
@@ -894,7 +887,7 @@ mod tests {
 
         // A Relationship has no unit, whatever its slot says.
         assert!(with_unit(MissingUnitCode::Refuse)
-            .check(&valid(), DOMAIN, SPACE)
+            .check(&valid())
             .is_empty());
     }
 
@@ -939,21 +932,29 @@ mod tests {
 
     #[test]
     fn a_wrong_id_and_an_undeclared_type_are_named() {
-        let mut record = valid();
-        record["id"] = json!("urn:ngsi-ld:AirQualityObserved:hel.fi:helsinki:station-1");
-        assert_eq!(rules(&record), [("id".into(), "id".into())]);
-
-        let mut record = valid();
-        record["id"] = json!("urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:");
-        assert_eq!(
-            rules(&record),
-            [("id".into(), "id".into())],
-            "an empty local id"
-        );
+        // PF-43: an NGSI-LD URN of the record's type. Since ADR-N-041 its rest is the mapping's:
+        // another organization's prefix, or none, is an id of this space like any other.
+        for kept in [
+            "urn:ngsi-ld:AirQualityObserved:hel.fi:helsinki:station-1",
+            "urn:ngsi-ld:AirQualityObserved:Helsinki-001",
+        ] {
+            let mut record = valid();
+            record["id"] = json!(kept);
+            assert_eq!(rules(&record), Vec::<(String, String)>::new(), "{kept}");
+        }
+        for wrong in [
+            "urn:ngsi-ld:WeatherObserved:banskabystrica.sk:ovzdusie:s1",
+            "urn:ngsi-ld:AirQualityObserved:",
+            "station-1",
+        ] {
+            let mut record = valid();
+            record["id"] = json!(wrong);
+            assert_eq!(rules(&record), [("id".into(), "id".into())], "{wrong}");
+        }
 
         let mut record = valid();
         record["type"] = json!("Device");
-        let problems = model(false).check(&record, DOMAIN, SPACE);
+        let problems = model(false).check(&record);
         assert_eq!(problems.len(), 1);
         assert_eq!(problems[0].rule, "type");
         assert!(problems[0].message.contains("bb-air-quality"));
@@ -983,7 +984,7 @@ mod tests {
         let school = |local: &str| format!("urn:ngsi-ld:School:{DOMAIN}:{SPACE}:{local}");
         let rules = |record: Value| -> Vec<(String, String)> {
             model
-                .check(&record, DOMAIN, SPACE)
+                .check(&record)
                 .into_iter()
                 .map(|p| (p.rule, p.path))
                 .collect()
@@ -1012,7 +1013,7 @@ mod tests {
 
         let mut wrong = valid.clone();
         wrong["courses"]["object"][1] = json!(school("north"));
-        let problems = model.check(&wrong, DOMAIN, SPACE);
+        let problems = model.check(&wrong);
         assert_eq!(problems.len(), 1, "{problems:?}");
         assert_eq!(
             (problems[0].rule.as_str(), problems[0].path.as_str()),
@@ -1041,7 +1042,7 @@ mod tests {
     fn a_message_never_quotes_the_value() {
         let mut record = valid();
         record["pm10"]["value"] = json!("s3cr3t-looking-value");
-        for problem in model(false).check(&record, DOMAIN, SPACE) {
+        for problem in model(false).check(&record) {
             assert!(!problem.message.contains("s3cr3t"), "{problem:?}");
         }
     }
@@ -1050,7 +1051,7 @@ mod tests {
     fn an_open_model_takes_an_attribute_it_does_not_declare() {
         let mut record = valid();
         record["colour"] = json!({ "type": "Property", "value": "blue" });
-        assert!(model(true).check(&record, DOMAIN, SPACE).is_empty());
+        assert!(model(true).check(&record).is_empty());
     }
 
     #[test]
@@ -1070,8 +1071,15 @@ mod tests {
             .as_str()
             .is_some_and(|m| m.contains("throw") && m.contains("bb-air-quality")));
         let id_rule = stage[1]["mapping"].as_str().expect("the id rule");
+        // The id rule asks for an NGSI-LD URN of the record's type and reads no space or
+        // organization from it (ADR-N-041, PF-42).
         assert!(
-            id_rule.contains("env(\"JC_ORG_DOMAIN\")") && id_rule.contains("env(\"JC_SPACE\")")
+            id_rule.contains("\"urn:ngsi-ld:\" + this.type.string() + \":\""),
+            "{id_rule}"
+        );
+        assert!(
+            !id_rule.contains("JC_ORG_DOMAIN") && !id_rule.contains("JC_SPACE"),
+            "{id_rule}"
         );
     }
 
@@ -1141,7 +1149,7 @@ mod tests {
         let mut record = valid();
         record["pm10"]["value"] = json!("n/a");
         assert_eq!(
-            air.check(&record, DOMAIN, SPACE)[0].rule,
+            air.check(&record)[0].rule,
             "sh:datatype",
             "the artifact was read"
         );
@@ -1149,12 +1157,12 @@ mod tests {
         let drafted = &compiled[&("ovzdusie".to_owned(), "draft".to_owned())];
         let loose = json!({ "id": "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:draft:1", "type": "AirQualityObserved", "anything": { "type": "Property", "value": 1 } });
         assert!(
-            drafted.check(&loose, DOMAIN, "draft").is_empty(),
+            drafted.check(&loose).is_empty(),
             "a draft holds its types and ids only"
         );
         let mut wrong = loose.clone();
         wrong["type"] = json!("Device");
-        assert_eq!(drafted.check(&wrong, DOMAIN, "draft")[0].rule, "type");
+        assert_eq!(drafted.check(&wrong)[0].rule, "type");
     }
 
     #[test]
