@@ -1598,7 +1598,12 @@
       "app": "Aplikácia",
       "pickApp": "Vyberte aplikáciu",
       "needAppRole": "Najprv vyberte projekt, aplikáciu a jednu z jej rolí.",
-      "addAppRole": "Dať rolu aplikácie"
+      "addAppRole": "Dať rolu aplikácie",
+      "ckanTitle": "Katalógy, ktoré skupina spravuje",
+      "ckanLead": "Katalógy CKAN, ktoré priradenia skupiny {group} dovoľujú jej členom meniť.",
+      "noCkan": "Táto skupina nespravuje žiadny katalóg.",
+      "ckanInstance": "{project} / {name}",
+      "ckanVia": "cez rolu {role}"
     }
   },
   "flows": {
@@ -2328,7 +2333,42 @@
         "onReconcile": "obnovovaná pri každom použití konfigurácie"
       }
     },
-    "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}"
+    "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}",
+    "access": {
+      "sectionTitle": "Kto spravuje ktorý katalóg",
+      "title": "Prístup ku katalógu {instance}",
+      "lead": "Kto smie meniť nastavenia tohto katalógu. Administrátor vždy; ktokoľvek iný cez vlastnú rolu katalógu, ktorú tu dáte skupine alebo osobe. Každý krok je červená zmena, ktorú schvaľuje administrátor.",
+      "denied": "Kto spravuje katalóg, mení len administrátor, ktorý smie schvaľovať priradenia rolí.",
+      "nobody": "Toto právo zatiaľ nikto nemá.",
+      "holders": "Kto spravuje {instance}",
+      "group": "Skupina {name}",
+      "person": "{name}",
+      "rightOwn": "spravuje tento katalóg",
+      "rightVia": "cez rolu {role}",
+      "binding": "priradenie {name}",
+      "removeLast": "posledného správcu {name} katalógu {instance}",
+      "remove": "Odobrať {name} z {instance}",
+      "removeShort": "Odobrať",
+      "add": "Dať {instance} skupine alebo osobe",
+      "kind": "Komu",
+      "kindGroup": "Skupine",
+      "kindPerson": "Osobe",
+      "whichGroup": "Skupina",
+      "pickGroup": "Vyberte skupinu",
+      "email": "E-mail",
+      "addShort": "Dať právo",
+      "attached": "Endpointy, ktoré sem publikujú",
+      "noneAttached": "Do tohto katalógu nepublikuje žiadny endpoint.",
+      "refused": {
+        "noInstance": "Najprv vyberte katalóg.",
+        "unknownInstance": "Projekt nemá katalóg {instance}; obnovte stránku.",
+        "nameTooLong": "Názvy projektu a katalógu sú spolu na názov roly priveľmi dlhé (63 znakov); katalóg potrebuje kratší názov.",
+        "noSubject": "Najprv vyberte skupinu alebo napíšte e-mail.",
+        "already": "Katalóg {instance} už spravujú.",
+        "absent": "Katalóg {instance} nespravujú cez jeho rolu.",
+        "badEmail": "Napíšte celú e-mailovú adresu, napríklad jana@example.org."
+      }
+    }
   },
   "mappings": {
     "pair": "Modely",
@@ -2441,7 +2481,17 @@
       "project": "Projekt",
       "space": "Kontextový priestor"
     },
-    "emptyHint": "Toto sú všetky endpointy organizácie, bez ohľadu na to, ktorý projekt ich zverejňuje. Zverejnite jeden z kontextového priestoru a objaví sa tu pre projekty, ktoré povolíte."
+    "emptyHint": "Toto sú všetky endpointy organizácie, bez ohľadu na to, ktorý projekt ich zverejňuje. Zverejnite jeden z kontextového priestoru a objaví sa tu pre projekty, ktoré povolíte.",
+    "edit": "Upraviť {project}/{name}",
+    "editShort": "Upraviť",
+    "ckan": {
+      "title": "Katalógy CKAN",
+      "lead": "Všetky katalógy všetkých projektov. Otvorte katalóg a uvidíte, kto ho spravuje, a môžete ho dať skupine alebo osobe.",
+      "empty": "Žiadny projekt nemá katalóg CKAN.",
+      "instance": "{project} / {name}",
+      "show": "Zobraziť všetky katalógy",
+      "hide": "Skryť katalógy"
+    }
   },
   "projects": {
     "loading": "Načítavam projekty…",

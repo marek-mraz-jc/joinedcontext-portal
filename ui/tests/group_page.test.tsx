@@ -63,6 +63,17 @@ const APP = {
   },
 };
 
+// PF-107 (T-3046): the right on one CKAN instance, given to the group.
+const CKAN_ROLE = {
+  apiVersion: V,
+  kind: "Role",
+  metadata: { name: "ckan-admin-helsinki-hel-fi", namespace: "org" },
+  spec: {
+    rules: [{ kinds: ["CkanInstance"], verbs: ["propose", "approve", "delete"], constraints: [{ field: "metadata.name", in: ["hel-fi"] }] }],
+  },
+};
+const CKAN_BINDING = binding("ckan-admin-helsinki-hel-fi", [{ group: "stewards" }], "ckan-admin-helsinki-hel-fi", { project: "helsinki" });
+
 interface Sent {
   method: string;
   path: string;
@@ -70,7 +81,7 @@ interface Sent {
   body: unknown;
 }
 
-function renderGroup({ verbs = ["read", "propose", "delete"], people = false } = {}) {
+function renderGroup({ verbs = ["read", "propose", "delete"], people = false, ckan = false } = {}) {
   const sent: Sent[] = [];
   const reply = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
@@ -102,9 +113,13 @@ function renderGroup({ verbs = ["read", "propose", "delete"], people = false } =
       }
       if (path === "/api/v1/projects") return reply(200, list([{ name: "helsinki" }]));
       if (path === "/api/v1/projects/org/groups/stewards") return reply(200, GROUP);
-      if (path === "/api/v1/projects/org/rolebindings") return reply(200, list(BINDINGS));
+      if (path === "/api/v1/projects/org/rolebindings") return reply(200, list(ckan ? [...BINDINGS, CKAN_BINDING] : BINDINGS));
       if (path === "/api/v1/projects/org/roles") {
-        return reply(200, list([{ apiVersion: V, kind: "Role", metadata: { name: "viewer", namespace: "org" } }]));
+        return reply(200, list([{ apiVersion: V, kind: "Role", metadata: { name: "viewer", namespace: "org" } }, ...(ckan ? [CKAN_ROLE] : [])]));
+      }
+      if (path === "/api/v1/projects/helsinki/ckaninstances") {
+        const instance = (name: string) => ({ apiVersion: V, kind: "CkanInstance", metadata: { name, namespace: "helsinki" }, spec: {} });
+        return reply(200, list([instance("hel-fi"), instance("open-data-2")]));
       }
       if (path === "/api/v1/projects/helsinki/roles") {
         return reply(
@@ -185,6 +200,20 @@ describe("a group's page", () => {
     const apps = await section(en.access.groupPage.appRoles);
     expect(await within(apps).findByRole("link", { name: "viewer in alerts (helsinki)" })).toBeInTheDocument();
     await expectNoViolations(members);
+  });
+
+  it("lists the catalogues the group's bindings let it manage, and none without one", async () => {
+    renderGroup({ ckan: true });
+    const reached = await section(en.access.groupPage.ckanTitle);
+    expect(await within(reached).findByRole("link", { name: "helsinki / hel-fi" })).toHaveAttribute("href", "/projects/helsinki/ckan");
+    expect(within(reached).queryByText("helsinki / open-data-2")).toBeNull();
+    expect(within(reached).getByText("through the role ckan-admin-helsinki-hel-fi")).toBeInTheDocument();
+  });
+
+  it("says the group manages no catalogue when no binding reaches one", async () => {
+    renderGroup();
+    const reached = await section(en.access.groupPage.ckanTitle);
+    expect(await within(reached).findByText(en.access.groupPage.noCkan)).toBeInTheDocument();
   });
 
   it("offers the realm's people who are not members yet", async () => {

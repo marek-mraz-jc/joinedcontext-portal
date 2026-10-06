@@ -1598,7 +1598,12 @@
       "app": "Application",
       "pickApp": "Choose an application",
       "needAppRole": "Choose a project, an application and one of its roles first.",
-      "addAppRole": "Give application role"
+      "addAppRole": "Give application role",
+      "ckanTitle": "Catalogues this group manages",
+      "ckanLead": "The CKAN catalogues the bindings of {group} let its members change.",
+      "noCkan": "This group manages no catalogue.",
+      "ckanInstance": "{project} / {name}",
+      "ckanVia": "through the role {role}"
     }
   },
   "flows": {
@@ -2328,7 +2333,42 @@
         "onReconcile": "refreshed each time the configuration is applied"
       }
     },
-    "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}"
+    "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}",
+    "access": {
+      "sectionTitle": "Who manages each catalogue",
+      "title": "Access to {instance}",
+      "lead": "Who may change this catalogue's settings. The administrator always may; anyone else holds it through the catalogue's own role, given here to a group or a person. Each step is a red change an administrator approves.",
+      "denied": "Only an administrator who may approve role bindings changes who manages a catalogue.",
+      "nobody": "Nobody holds this right yet.",
+      "holders": "Who manages {instance}",
+      "group": "Group {name}",
+      "person": "{name}",
+      "rightOwn": "manages this catalogue",
+      "rightVia": "through the role {role}",
+      "binding": "binding {name}",
+      "removeLast": "the last holder {name} of {instance}",
+      "remove": "Remove {name} from {instance}",
+      "removeShort": "Remove",
+      "add": "Give {instance} to a group or a person",
+      "kind": "Give it to",
+      "kindGroup": "A group",
+      "kindPerson": "A person",
+      "whichGroup": "Group",
+      "pickGroup": "Choose a group",
+      "email": "E-mail",
+      "addShort": "Give the right",
+      "attached": "Endpoints that publish here",
+      "noneAttached": "No endpoint publishes to this catalogue.",
+      "refused": {
+        "noInstance": "Choose a catalogue first.",
+        "unknownInstance": "The project has no catalogue named {instance}; reload the page.",
+        "nameTooLong": "The project and catalogue names together are too long for a role name (63 characters); a shorter catalogue name is needed.",
+        "noSubject": "Choose a group or type an e-mail first.",
+        "already": "They already manage {instance}.",
+        "absent": "They do not manage {instance} through this catalogue's role.",
+        "badEmail": "Type a whole e-mail address, such as jana@example.org."
+      }
+    }
   },
   "mappings": {
     "pair": "Models",
@@ -2441,7 +2481,17 @@
       "project": "Project",
       "space": "Context Space"
     },
-    "emptyHint": "This is every endpoint of the organization, whatever project publishes it. Publish one from a context space and it is listed here for the projects you allow."
+    "emptyHint": "This is every endpoint of the organization, whatever project publishes it. Publish one from a context space and it is listed here for the projects you allow.",
+    "edit": "Edit {project}/{name}",
+    "editShort": "Edit",
+    "ckan": {
+      "title": "CKAN catalogues",
+      "lead": "Every catalogue of every project. Open one to see who manages it and to hand it to a group or a person.",
+      "empty": "No project has a CKAN catalogue.",
+      "instance": "{project} / {name}",
+      "show": "Show every catalogue",
+      "hide": "Hide the catalogues"
+    }
   },
   "projects": {
     "loading": "Loading projects…",

@@ -64,7 +64,22 @@ const STATUS = {
 interface Stub {
   status?: { code: number; body: unknown };
   verbs?: string[];
+  /** The caller administers the organization: approves roles and bindings (PF-107). */
+  admin?: boolean;
 }
+
+const ADMIN_GRANTS = {
+  project: "org",
+  bootstrap: false,
+  grants: [
+    {
+      role: "org-admin",
+      binding: "admins",
+      scope: "organization",
+      rule: { kinds: ["Role", "RoleBinding", "CkanInstance", "Endpoint"], verbs: ["read", "propose", "approve", "delete"] },
+    },
+  ],
+};
 
 async function stubApi(page: Page, stub: Stub = {}): Promise<{ writes: { path: string; body: unknown }[] }> {
   const writes: { path: string; body: unknown }[] = [];
@@ -93,7 +108,11 @@ async function stubApi(page: Page, stub: Stub = {}): Promise<{ writes: { path: s
         202,
       );
     }
+    if (stub.admin && url.pathname === "/api/v1/projects/org/permissions/me") return json(ADMIN_GRANTS);
     if (url.pathname.endsWith("/permissions/me")) return json(grants(stub.verbs ?? ["read", "propose"]));
+    if (url.pathname === "/api/v1/projects/org/groups") {
+      return json(LIST([{ apiVersion: "joinedcontext.com/v1alpha1", kind: "Group", metadata: { name: "ckan-editors", namespace: "org" }, spec: { members: [] } }]));
+    }
     if (url.pathname === "/api/v1/projects") return json(LIST([{ name: "helsinki" }]));
     if (url.pathname === "/api/v1/projects/helsinki/ckan/status") {
       return json(stub.status?.body ?? STATUS, stub.status?.code ?? 200);
@@ -193,6 +212,47 @@ test.describe("the open-data page", () => {
     await expect(page.getByRole("alert")).toContainText("the catalogue cannot be reached");
     await expect(page.getByText("No catalogue is configured for this project yet.")).toHaveCount(0);
     await expect(page.getByText("No endpoint in this project publishes to a catalogue.")).toHaveCount(0);
+  });
+
+  // PF-107 (T-3046): the administrator hands one catalogue to a group from its Access panel, by
+  // keyboard alone; the instance's own role and binding go out as one checked import.
+  test("an administrator gives the catalogue to a group in one step, by keyboard", async ({ page }) => {
+    const { writes } = await stubApi(page, { admin: true });
+    await page.goto("/projects/helsinki/ckan?lang=en");
+    const access = page.getByRole("region", { name: "Access to hel-fi" });
+    await expect(access.getByRole("button", { name: "Give the right" })).not.toHaveAttribute("aria-disabled", "true");
+    await access.getByLabel("Group").focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(access.getByLabel("Group")).toHaveValue("ckan-editors");
+    await page.keyboard.press("Tab");
+    await expect(access.getByRole("button", { name: "Give the right" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(access.getByText("chg-ckan-1")).toBeVisible();
+    expect(writes.map((write) => write.path)).toEqual([
+      "/api/v1/projects/helsinki/import?dryRun=All",
+      "/api/v1/projects/helsinki/import",
+    ]);
+    expect(writes[1].body).toMatchObject({
+      manifests: [
+        { kind: "Role", metadata: { name: "ckan-admin-helsinki-hel-fi", namespace: "org" } },
+        {
+          kind: "RoleBinding",
+          metadata: { name: "ckan-admin-helsinki-hel-fi", namespace: "org" },
+          spec: { subjects: [{ group: "ckan-editors" }], role: "ckan-admin-helsinki-hel-fi", scope: { project: "helsinki" } },
+        },
+      ],
+    });
+  });
+
+  test("a steward sees who manages the catalogue, and the step disabled with the reason", async ({ page }) => {
+    const { writes } = await stubApi(page);
+    await page.goto("/projects/helsinki/ckan?lang=en");
+    const access = page.getByRole("region", { name: "Access to hel-fi" });
+    const give = access.getByRole("button", { name: "Give the right" });
+    await expect(give).toHaveAttribute("aria-disabled", "true");
+    await expect(give).toHaveAccessibleDescription(/Only an administrator who may approve role bindings/);
+    await give.click({ force: true });
+    expect(writes).toEqual([]);
   });
 
   test("has no axe violations", async ({ page }) => {

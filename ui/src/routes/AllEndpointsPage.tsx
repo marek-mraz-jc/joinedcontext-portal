@@ -1,6 +1,7 @@
+import { useState } from "react";
 import type { JSX } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { asManifests, localized } from "../api/manifest";
@@ -13,7 +14,11 @@ import {
   servedRepresentations,
   useCatalogueLinks,
 } from "../components/endpoints/links";
+import { useProjects } from "../api/projects";
 import { useBranding } from "../branding";
+import { DeleteResourceAction } from "../components/DeleteResourceDialog";
+import { PermissionGuard } from "../components/ui/PermissionGuard";
+import { CkanAccessPanel } from "../pages/ckan/CkanAccessPanel";
 import { SharedWithBadge, spaceOf } from "../components/endpoints/sharing";
 import {
   Alert,
@@ -32,7 +37,7 @@ import {
   Term,
 } from "../components/ui";
 
-const COLUMNS = 5;
+const COLUMNS = 6;
 
 /**
  * Every Endpoint of every project in one table (EP-08, EP-44, PF-61): the project and space it
@@ -64,6 +69,9 @@ export function AllEndpointsPage(): JSX.Element {
       <TableHeaderCell>{t("endpoints.field.name")}</TableHeaderCell>
       <TableHeaderCell>{t("endpoints.field.audience")}</TableHeaderCell>
       <TableHeaderCell>{t("endpoints.field.representations")}</TableHeaderCell>
+      <TableHeaderCell align="right">
+        <span className="sr-only">{t("approvals.actions")}</span>
+      </TableHeaderCell>
     </TableHead>
   );
   const header = (
@@ -140,6 +148,7 @@ export function AllEndpointsPage(): JSX.Element {
             rows.map(({ project, endpoint }) => {
               const spec = endpoint.spec as {
                 slug?: string;
+                audience?: string;
                 enabledRepresentations?: string[];
               };
               const space = spaceOf(endpoint);
@@ -219,12 +228,155 @@ export function AllEndpointsPage(): JSX.Element {
                       </ul>
                     ) : null}
                   </TableCell>
+                  <TableCell align="right">
+                    {spec.audience === "public" ? (
+                      <PublicEndpointActions project={project} name={endpoint.metadata.name} />
+                    ) : null}
+                  </TableCell>
                 </TableRow>
               );
             })
           )}
         </TableBody>
       </Table>
+      <CkanInstancesAccess />
     </div>
+  );
+}
+
+/**
+ * What the project's own Endpoint page offers on a public Endpoint, here for every project
+ * (PF-61): edit it (its audience and publication are fields of the form) and delete it. Each is
+ * a Change in that project's repository through the project's own doors, in its normal lane.
+ */
+function PublicEndpointActions({ project, name }: { project: string; name: string }): JSX.Element {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <PermissionGuard project={project} kind="Endpoint" verb="propose">
+        <Button
+          size="sm"
+          variant="secondary"
+          aria-label={t("allEndpoints.edit", { project, name })}
+          onClick={() =>
+            void navigate({
+              to: "/projects/$project/$plural/$name/edit",
+              params: { project, plural: "endpoints", name },
+            })
+          }
+        >
+          {t("allEndpoints.editShort")}
+        </Button>
+      </PermissionGuard>
+      <DeleteResourceAction target={{ project, kind: "Endpoint", plural: "endpoints", name, label: `${project}/${name}` }} />
+    </span>
+  );
+}
+
+/**
+ * Every CKAN instance of every project, each with its Access panel (PF-107): who may manage it,
+ * and the one step that hands it to a group or a person. Nothing is fetched until the
+ * administrator asks for the list, and a panel loads when it is opened.
+ */
+function CkanInstancesAccess(): JSX.Element {
+  const { t } = useTranslation();
+  const [shown, setShown] = useState(false);
+  return (
+    <section aria-labelledby="all-ckan-heading" className="flex flex-col gap-3">
+      <div>
+        <h2 id="all-ckan-heading" className="text-title font-semibold text-fg">
+          {t("allEndpoints.ckan.title")}
+        </h2>
+        <p className="text-body text-fg-muted">{t("allEndpoints.ckan.lead")}</p>
+      </div>
+      <div>
+        <Button
+          size="sm"
+          variant="secondary"
+          aria-expanded={shown}
+          aria-controls="all-ckan-list"
+          onClick={() => setShown((current) => !current)}
+        >
+          {shown ? t("allEndpoints.ckan.hide") : t("allEndpoints.ckan.show")}
+        </Button>
+      </div>
+      <div id="all-ckan-list">{shown ? <CkanInstancesList /> : null}</div>
+    </section>
+  );
+}
+
+function CkanInstancesList(): JSX.Element {
+  const { t } = useTranslation();
+  const projects = useProjects();
+  const lists = useQueries({
+    queries: (projects.data ?? []).map((project) => ({
+      queryKey: queryKeys.list(project, "ckaninstances"),
+      queryFn: async () =>
+        unwrap(
+          await api.GET("/api/v1/projects/{project}/{plural}", {
+            params: { path: { project, plural: "ckaninstances" } },
+          }),
+        ),
+    })),
+  });
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const byProject = new Map(
+    lists.map((query, index) => [
+      (projects.data ?? [])[index] ?? "",
+      asManifests(query.data?.items ?? []).map((instance) => instance.metadata.name),
+    ]),
+  );
+  const instances = [...byProject].flatMap(([project, names]) => names.map((name) => ({ project, name })));
+  const failed = projects.isError ? projects : lists.find((query) => query.isError);
+  if (failed) {
+    return (
+      <Alert role="alert" tone="danger">
+        {failed.error instanceof ApiError
+          ? (failed.error.problem?.detail ?? failed.error.message)
+          : t("app.error.generic")}
+      </Alert>
+    );
+  }
+  if (projects.isPending || lists.some((query) => query.isPending)) {
+    return (
+      <p role="status" className="text-body text-fg-muted">
+        {t("app.loading")}
+      </p>
+    );
+  }
+  if (instances.length === 0) {
+    return <p className="text-body text-fg-muted">{t("allEndpoints.ckan.empty")}</p>;
+  }
+  return (
+    <ul className="flex flex-col gap-2" aria-label={t("allEndpoints.ckan.title")}>
+      {instances.map(({ project, name }) => {
+        const key = `${project}/${name}`;
+        return (
+          <li key={key}>
+            <details
+              onToggle={(event) => {
+                const opened = event.currentTarget.open;
+                setOpen((current) => {
+                  const next = new Set(current);
+                  if (opened) next.add(key);
+                  else next.delete(key);
+                  return next;
+                });
+              }}
+            >
+              <summary className="focus-ring cursor-pointer rounded-sm font-medium text-fg">
+                {t("allEndpoints.ckan.instance", { project, name })}
+              </summary>
+              {open.has(key) ? (
+                <div className="mt-2">
+                  <CkanAccessPanel project={project} instance={name} known={byProject.get(project) ?? []} />
+                </div>
+              ) : null}
+            </details>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
