@@ -460,6 +460,18 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                     {t("pipelines.expiryRemoves", { window: expiryWindow(spec.expiry.after, locale) })}
                   </div>
                 ) : null}
+                {(() => {
+                  // The sweep runs as its own stream; one the runner refused leaves the pipeline
+                  // writing and nothing removed, which the row says rather than the log (PL-64, T-3091).
+                  const sweep = (pipeline.status?.conditions ?? []).find(
+                    (condition) => condition.type === "ExpirySweep" && condition.status === "False",
+                  );
+                  return sweep && typeof spec.expiry?.after === "string" ? (
+                    <div className="mt-0.5 text-caption text-danger [overflow-wrap:anywhere]" data-testid="pipeline-expiry-refused">
+                      {t("pipelines.expiryRefused", { reason: sweep.message ?? sweep.reason ?? "" })}
+                    </div>
+                  ) : null;
+                })()}
               </TableCell>
               <TableCell secondary>
                 <Badge tone={klass === "resident" ? "info" : "neutral"} title={t(`pipelines.class.${klass}Help`)}>

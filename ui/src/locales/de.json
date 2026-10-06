@@ -1165,6 +1165,7 @@
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
     "noCredential": "Keine",
     "expiryRemoves": "Entitäten, die {window} lang nicht aktualisiert wurden, werden entfernt",
+    "expiryRefused": "Nichts wird entfernt: Der Runner hat die Bereinigung abgelehnt: {reason}",
     "writesType": "Schreibt",
     "notWriting": "Schreibt nichts",
     "rejected": {

@@ -1165,6 +1165,7 @@
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
     "noCredential": "Žiadne",
     "expiryRemoves": "Entity, ktoré sa neaktualizovali {window}, sa odstraňujú",
+    "expiryRefused": "Nič sa neodstraňuje: runner odmietol čistenie: {reason}",
     "writesType": "Zapisuje",
     "notWriting": "Nezapisuje nič",
     "rejected": {

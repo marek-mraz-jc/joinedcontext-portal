@@ -1165,6 +1165,7 @@
     "credentialsOfSource": "Held by its data source {name}",
     "noCredential": "None",
     "expiryRemoves": "Entities not updated for {window} are removed",
+    "expiryRefused": "Nothing is removed: the runner refused the sweep: {reason}",
     "writesType": "Writes",
     "notWriting": "Writes nothing",
     "rejected": {
