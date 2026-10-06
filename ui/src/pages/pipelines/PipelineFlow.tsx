@@ -367,10 +367,50 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
   return result;
 }
 
+/** What one component of the running stream counted, by its label (API/01 §7, PL-66). */
+export type NodeCounters = Record<
+  string,
+  { received?: number | null; sent?: number | null; errors?: number | null }
+>;
+
+/**
+ * The flow painted from the running stream (PL-66): each node with the counters of its own
+ * label, `input` for the sources, `step_{j}` for the `j`-th processor step, `compute` and
+ * `output`. A node with errors since the runner started is failing; one the runner reports
+ * nothing for is idle. `errorsSentence` says the count in the page's language.
+ */
+export function paintOfCounters(
+  counters: NodeCounters,
+  nodes: FlowNode[],
+  errorsSentence: (count: number) => string,
+): Record<string, NodePaint> {
+  const labelOf = (id: FlowNodeId): string => {
+    if (isSource(id)) return "input";
+    const step = stepIndexOf(id);
+    return step !== undefined ? `step_${step}` : id;
+  };
+  return Object.fromEntries(
+    nodes.map((node) => {
+      const counted = counters[labelOf(node.id)];
+      if (!counted) return [node.id, { state: "idle" } satisfies NodePaint];
+      const errors = counted.errors ?? 0;
+      const paint: NodePaint = {
+        eventsIn: counted.received ?? undefined,
+        eventsOut: counted.sent ?? undefined,
+        state: errors > 0 ? "error" : "ok",
+        error: errors > 0 ? errorsSentence(errors) : undefined,
+      };
+      return [node.id, paint];
+    }),
+  );
+}
+
 export interface PipelineFlowProps {
   form: PipelineForm | undefined;
   onChange: (f: PipelineForm) => void;
   trace: Trace | null;
+  /** The running stream's counters per node; painted whenever no test result is on screen. */
+  live?: NodeCounters;
   selected: FlowNodeId | null;
   onSelect: (id: FlowNodeId | null) => void;
   dataSources: Manifest[];
@@ -381,12 +421,17 @@ export function PipelineFlow({
   form,
   onChange,
   trace,
+  live,
   selected,
   onSelect,
 }: PipelineFlowProps): JSX.Element {
   const { t } = useTranslation();
   const { nodes, edges } = toFlow(form);
-  const paint = paintOf(trace, nodes);
+  // A test result is what the author just asked for; without one, the running stream speaks.
+  const showsLive = !trace && live !== undefined && Object.keys(live).length > 0;
+  const paint = showsLive
+    ? paintOfCounters(live, nodes, (count) => t("pipelines.flow.liveErrors", { count }))
+    : paintOf(trace, nodes);
 
   const nodeWidth = 200;
   const nodeHeight = 100;
@@ -486,6 +531,11 @@ export function PipelineFlow({
       </div>
 
       {/* SVG Canvas */}
+      {showsLive ? (
+        <p className="text-caption text-fg-muted" data-testid="flow-live">
+          {t("pipelines.flow.live")}
+        </p>
+      ) : null}
       <div className="w-full overflow-x-auto rounded-md border border-border bg-surface-subtle p-2">
         {/*
           A group, not an image: the canvas holds the pipeline's nodes, and every node is a

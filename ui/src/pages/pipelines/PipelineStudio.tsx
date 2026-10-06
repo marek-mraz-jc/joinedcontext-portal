@@ -282,6 +282,21 @@ export function PipelineStudio({
     draft?.compute?.kind ? "compute" : "source",
   );
   const [flowTrace, setFlowTrace] = useState<Trace | null>(null);
+  // The running stream's counters per node (PL-66), for a pipeline that exists: a new one, a
+  // paused one or a runner that does not answer simply paints nothing live.
+  const pipelineName = draft?.name ?? "";
+  const liveCounters = useQuery({
+    queryKey: [...queryKeys.resource(project, "pipelines", pipelineName), "metrics"],
+    enabled: pipelineName !== "",
+    retry: false,
+    refetchInterval: 15_000,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/pipelines/{name}/metrics", {
+          params: { path: { project, name: pipelineName } },
+        }),
+      ),
+  });
   const selectedStep = draft?.processors?.[stepIndexOf(selectedNode) ?? -1];
   const selectedSource = draft?.moreSources?.[sourceIndexOf(selectedNode) ?? -1];
   // The kind and the space are the author's choice until the form carries them: a chosen kind
@@ -848,6 +863,7 @@ export function PipelineStudio({
                   form={draft}
                   onChange={onChange}
                   trace={flowTrace}
+                  live={liveCounters.data?.nodes}
                   selected={selectedNode}
                   onSelect={setSelectedNode}
                   dataSources={dataSources}

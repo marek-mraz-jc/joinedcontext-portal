@@ -1040,9 +1040,10 @@ pub fn render_stream(
                 return Err(RenderError::MissingCompute);
             }
             if let Some(bloblang) = compute.bloblang.as_deref().filter(|b| !b.trim().is_empty()) {
-                processors.push(serde_json::json!({
-                    "mapping": bloblang
-                }));
+                processors.push(labelled(
+                    serde_json::json!({ "mapping": bloblang }),
+                    COMPUTE_LABEL,
+                ));
             }
         }
         (None, Some(bento)) => processors.extend(bento_processors(bento)?),
@@ -1069,6 +1070,9 @@ pub fn render_stream(
         "output": labelled(output, "output")
     }))
 }
+
+/// The label of a pipeline's compute step, the studio's `compute` node (PL-66).
+pub const COMPUTE_LABEL: &str = "compute";
 
 /// One Bento component with a `label`, so its counters are attributable (PL-24, T-1125).
 ///
@@ -1279,9 +1283,10 @@ pub fn render_endpoint_stream(
         .filter(|b| !b.trim().is_empty())
         .ok_or(RenderError::MissingCompute)?;
 
-    processors.push(serde_json::json!({
-        "mapping": bloblang
-    }));
+    processors.push(labelled(
+        serde_json::json!({ "mapping": bloblang }),
+        COMPUTE_LABEL,
+    ));
 
     processors.extend(batching());
 
@@ -1619,15 +1624,27 @@ pub fn render_merged(
     };
 
     let mut processors = Vec::new();
+    // Each step by its place in the manifest (PL-66): the `j`-th processor step is `step_{j}`,
+    // the compute step `compute`, which are the studio's own node names.
+    let mut processor_steps = 0usize;
     for step in pipeline.steps() {
         match step {
-            Step::Processor(step) => processors.push(serde_json::to_value(&step.processor)?),
+            Step::Processor(step) => {
+                processors.push(labelled(
+                    serde_json::to_value(&step.processor)?,
+                    &format!("step_{processor_steps}"),
+                ));
+                processor_steps += 1;
+            }
             Step::Compute(compute) => {
                 if compute.kind != ComputeKind::Bloblang {
                     return Err(RenderError::MissingCompute);
                 }
                 if let Some(bloblang) = compute.bloblang.filter(|b| !b.trim().is_empty()) {
-                    processors.push(serde_json::json!({ "mapping": bloblang }));
+                    processors.push(labelled(
+                        serde_json::json!({ "mapping": bloblang }),
+                        COMPUTE_LABEL,
+                    ));
                 }
             }
         }
@@ -3677,16 +3694,24 @@ output:
         .expect("renders");
         assert_eq!(rendered["input"]["label"], serde_json::json!("input"));
         assert_eq!(rendered["output"]["label"], serde_json::json!("output"));
+        // The platform's own processors by their place in the stream; the compute step by
+        // its place in the manifest, the studio's `compute` node (PL-66).
         for (at, processor) in rendered["pipeline"]["processors"]
             .as_array()
             .expect("processors")
             .iter()
             .enumerate()
         {
+            let compute = first_compute(&helsinki_pipeline_spec()).and_then(|c| c.bloblang);
+            let expected = if processor["mapping"].as_str() == compute.as_deref() {
+                COMPUTE_LABEL.to_owned()
+            } else {
+                format!("processor_{at}")
+            };
             assert_eq!(
                 processor["label"],
-                serde_json::json!(format!("processor_{at}")),
-                "processor {at} carries no label: {processor}"
+                serde_json::json!(expected),
+                "processor {at}: {processor}"
             );
         }
     }
@@ -3804,10 +3829,11 @@ output:
             .as_array()
             .expect("processors");
         assert_eq!(processors[0]["mapping"], "root = this");
+        assert_eq!(processors[0]["label"], COMPUTE_LABEL);
         assert_eq!(processors[1]["dedupe"]["cache"], "pipeline_changes");
         assert_eq!(
-            processors[1]["label"], "processor_1",
-            "every step is labelled by its index"
+            processors[1]["label"], "step_0",
+            "a processor step is labelled by its place among the manifest's processor steps (PL-66)"
         );
         assert!(processors[2]["mapping"]
             .as_str()
