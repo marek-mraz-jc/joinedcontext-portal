@@ -492,7 +492,25 @@
       "board": "Nástěnka podle {attr}",
       "column": "{title}, {count, plural, one {# karta} few {# karty} other {# karet}}",
       "moveTo": "Přesunout do",
-      "moveCard": "Přesunout {name} do"
+      "moveCard": "Přesunout {name} do",
+      "noDate": "Žádný atribut tohoto typu nemá datum, takže není co umístit do kalendáře.",
+      "dateBy": "Datum",
+      "observed": "{attr}, kdy byl pozorován",
+      "span": "Zobrazit",
+      "spans": {
+        "month": "Měsíc",
+        "week": "Týden",
+        "day": "Den"
+      },
+      "previous": "Předchozí",
+      "today": "Dnes",
+      "next": "Další",
+      "rescheduleRefused": "{name} se nepřesunul: {reason}",
+      "reschedule": "Přesunout {attr} na",
+      "rescheduleSave": "Přesunout",
+      "start": "Začátek",
+      "end": "Konec",
+      "undated": "Bez začátku nebo konce, a proto nezobrazené: {count, plural, one {# entita} few {# entity} other {# entit}}."
     }
   },
   "endpoints": {

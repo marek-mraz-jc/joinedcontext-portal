@@ -5,12 +5,12 @@
  * renderer over one page of the type, and a click opens the row whole.
  */
 import { useMemo, useState } from "react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { cellText } from "@joinedcontext/sdk";
 import type { EntitySource, RichRow } from "@joinedcontext/sdk";
-import { Alert, Button, Card, Checkbox, Dialog, ExternalLink, Field, Select } from "../../components/ui";
+import { Alert, Button, Card, Checkbox, Dialog, ExternalLink, Field, Input, Select } from "../../components/ui";
 import { safeHref } from "../../components/ui/safeHref";
 
 /** How many entities a card, board or calendar view reads: one page, said when it is cut. */
@@ -71,7 +71,16 @@ export function imageOf(
 }
 
 /** The whole row as attribute and value, opened from any view (T-3100). */
-export function RowDialog({ row, onClose }: { row: RichRow | null; onClose: () => void }): JSX.Element | null {
+export function RowDialog({
+  row,
+  onClose,
+  children,
+}: {
+  row: RichRow | null;
+  onClose: () => void;
+  /** What the view adds under the attributes: the calendar's reschedule. */
+  children?: ReactNode;
+}): JSX.Element | null {
   const { t } = useTranslation();
   if (!row) return null;
   const attrs = Object.keys(row.cells).sort();
@@ -94,6 +103,7 @@ export function RowDialog({ row, onClose }: { row: RichRow | null; onClose: () =
           </div>
         ))}
       </dl>
+      {children}
     </Dialog>
   );
 }
@@ -358,6 +368,362 @@ export function KanbanView({
           ),
         )}
       </div>
+      <RowDialog row={open} onClose={() => setOpen(null)} />
+    </div>
+  );
+}
+
+/** A date key of a row: an attribute's value, or `attr.observedAt`, when the observation was made. */
+const OBSERVED = ".observedAt";
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
+
+/** The day a row falls on by `key`, as `YYYY-MM-DD`, or nothing when that is no date. */
+export function dayOf(row: RichRow, key: string): string | undefined {
+  const observed = key.endsWith(OBSERVED);
+  const cell = row.cells[observed ? key.slice(0, -OBSERVED.length) : key];
+  const first = Array.isArray(cell) ? cell[0] : cell;
+  const text = observed ? first?.observedAt : first?.kind === "property" ? first.value : undefined;
+  return typeof text === "string" && ISO_DATE.test(text) ? text.slice(0, 10) : undefined;
+}
+
+/** The date keys a page offers: attributes holding dates, then when each attribute was observed. */
+export function dateKeys(rows: RichRow[]): string[] {
+  const keys = attributesOf(rows);
+  return [
+    ...keys.filter((key) => rows.some((row) => dayOf(row, key) !== undefined)),
+    ...keys
+      .map((key) => `${key}${OBSERVED}`)
+      .filter((key) => rows.some((row) => dayOf(row, key) !== undefined)),
+  ];
+}
+
+/**
+ * The attribute moved to `day`, in the shape it was written: a `DateTime` object stays one, a
+ * date-time keeps its time of day, a date stays a date. `undefined` for a key that is not a value
+ * the person may write (when it was observed is the source's, not an edit).
+ */
+export function rescheduled(row: RichRow, key: string, day: string): Record<string, unknown> | undefined {
+  if (key.endsWith(OBSERVED) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return undefined;
+  const raw = (row.raw[key] as { value?: unknown } | undefined)?.value;
+  const moved = (text: string) => (text.length > 10 ? `${day}${text.slice(10)}` : day);
+  if (typeof raw === "string" && ISO_DATE.test(raw)) {
+    return { [key]: { type: "Property", value: moved(raw) } };
+  }
+  const typed = raw as { "@type"?: unknown; "@value"?: unknown } | undefined;
+  if (typed && typeof typed["@value"] === "string" && ISO_DATE.test(typed["@value"])) {
+    return { [key]: { type: "Property", value: { "@type": typed["@type"], "@value": moved(typed["@value"]) } } };
+  }
+  return undefined;
+}
+
+export type CalendarSpan = "month" | "week" | "day";
+
+/** The days a calendar shows around `at` (`YYYY-MM-DD`): whole weeks from Monday for a month. */
+export function daysOf(at: string, span: CalendarSpan): string[] {
+  const day = (date: Date) => date.toISOString().slice(0, 10);
+  const anchor = new Date(`${at}T00:00:00Z`);
+  if (span === "day") return [at];
+  const monday = (date: Date) => {
+    const copy = new Date(date);
+    copy.setUTCDate(copy.getUTCDate() - ((copy.getUTCDay() + 6) % 7));
+    return copy;
+  };
+  const start =
+    span === "week"
+      ? monday(anchor)
+      : monday(new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1)));
+  const end =
+    span === "week"
+      ? new Date(start.getTime() + 6 * 86_400_000)
+      : (() => {
+          const last = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0));
+          const sunday = new Date(last);
+          sunday.setUTCDate(last.getUTCDate() + ((7 - last.getUTCDay()) % 7));
+          return sunday;
+        })();
+  const days: string[] = [];
+  for (let t = start.getTime(); t <= end.getTime(); t += 86_400_000) days.push(day(new Date(t)));
+  return days;
+}
+
+/** `at` moved by one span forward (`+1`) or back (`-1`). */
+export function stepOf(at: string, span: CalendarSpan, by: 1 | -1): string {
+  const date = new Date(`${at}T00:00:00Z`);
+  if (span === "month") date.setUTCMonth(date.getUTCMonth() + by, 1);
+  else date.setUTCDate(date.getUTCDate() + by * (span === "week" ? 7 : 1));
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * A calendar (T-3102): each row on the day of a date attribute, or of when an attribute was
+ * observed, by month, week or day. Dragging a row to another day, or choosing the day in the row's
+ * own dialog, writes the attribute through the space surface; when it was observed is not editable.
+ */
+export function CalendarView({
+  rows,
+  source,
+  today = new Date().toISOString().slice(0, 10),
+}: {
+  rows: RichRow[];
+  source: EntitySource;
+  today?: string;
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const keys = useMemo(() => dateKeys(rows), [rows]);
+  const [chosen, setChosen] = useState("");
+  const key = keys.includes(chosen) ? chosen : (keys[0] ?? "");
+  const [span, setSpan] = useState<CalendarSpan>("month");
+  const [at, setAt] = useState(today);
+  const [moved, setMoved] = useState<Record<string, string>>({});
+  const [refused, setRefused] = useState<string | null>(null);
+  const [open, setOpen] = useState<RichRow | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [newDay, setNewDay] = useState("");
+
+  if (keys.length === 0) {
+    return <p className="text-body text-fg-muted">{t("spaces.views.noDate")}</p>;
+  }
+  const days = daysOf(at, span);
+  const month = at.slice(0, 7);
+  const onDay = (day: string) => rows.filter((row) => (moved[row.id] ?? dayOf(row, key)) === day);
+  const heading = new Intl.DateTimeFormat(i18n.language, {
+    month: "long",
+    year: "numeric",
+    ...(span === "month" ? {} : { day: "numeric" }),
+    timeZone: "UTC",
+  }).format(new Date(`${at}T00:00:00Z`));
+  const dayLabel = new Intl.DateTimeFormat(i18n.language, { weekday: "short", day: "numeric", timeZone: "UTC" });
+  const editable = !key.endsWith(OBSERVED);
+
+  const reschedule = async (row: RichRow, day: string) => {
+    const patch = rescheduled(row, key, day);
+    if (!patch || dayOf(row, key) === day) return;
+    setRefused(null);
+    setMoved((now) => ({ ...now, [row.id]: day }));
+    try {
+      if (!source.patch) throw new Error(t("spaces.views.readOnly"));
+      await source.patch(row.id, patch);
+    } catch (error) {
+      setMoved((now) => {
+        const { [row.id]: _gone, ...rest } = now;
+        void _gone;
+        return rest;
+      });
+      setRefused(
+        t("spaces.views.rescheduleRefused", {
+          name: primaryOf(row),
+          reason: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="view-calendar">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field id="calendar-key" label={t("spaces.views.dateBy")} className="w-fit">
+          <Select id="calendar-key" value={key} onChange={(event) => setChosen(event.target.value)}>
+            {keys.map((name) => (
+              <option key={name} value={name}>
+                {name.endsWith(OBSERVED)
+                  ? t("spaces.views.observed", { attr: name.slice(0, -OBSERVED.length) })
+                  : name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field id="calendar-span" label={t("spaces.views.span")} className="w-fit">
+          <Select id="calendar-span" value={span} onChange={(event) => setSpan(event.target.value as CalendarSpan)}>
+            {(["month", "week", "day"] as const).map((value) => (
+              <option key={value} value={value}>
+                {t(`spaces.views.spans.${value}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="secondary" onClick={() => setAt(stepOf(at, span, -1))}>
+            {t("spaces.views.previous")}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setAt(today)}>
+            {t("spaces.views.today")}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setAt(stepOf(at, span, 1))}>
+            {t("spaces.views.next")}
+          </Button>
+        </div>
+      </div>
+      <h3 className="text-body font-semibold text-fg" aria-live="polite">
+        {heading}
+      </h3>
+      {refused ? (
+        <Alert role="alert" tone="danger">
+          {refused}
+        </Alert>
+      ) : null}
+      <Truncated count={rows.length} />
+      <ol
+        className={
+          span === "day"
+            ? "flex flex-col gap-2"
+            : "grid grid-cols-1 gap-1 sm:grid-cols-7"
+        }
+        aria-label={heading}
+      >
+        {days.map((day) => {
+          const here = onDay(day);
+          return (
+            <li
+              key={day}
+              data-testid={`calendar-day-${day}`}
+              className={`flex min-h-20 flex-col gap-1 rounded-md border border-border p-1 ${
+                span === "month" && day.slice(0, 7) !== month ? "bg-surface-subtle text-fg-subtle" : "bg-surface"
+              } ${day === today ? "ring-2 ring-primary" : ""}`}
+              onDragOver={(event) => {
+                if (dragging && editable) event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const row = rows.find((candidate) => candidate.id === dragging);
+                setDragging(null);
+                if (row) void reschedule(row, day);
+              }}
+            >
+              <span className="text-caption font-semibold">{dayLabel.format(new Date(`${day}T00:00:00Z`))}</span>
+              {here.map((row) => (
+                <Button
+                  key={row.id}
+                  size="sm"
+                  variant="ghost"
+                  draggable={editable}
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData("text/plain", row.id);
+                    setDragging(row.id);
+                  }}
+                  onDragEnd={() => setDragging(null)}
+                  className="justify-start truncate px-1 text-left"
+                  onClick={() => {
+                    setNewDay(moved[row.id] ?? dayOf(row, key) ?? "");
+                    setOpen(row);
+                  }}
+                >
+                  {primaryOf(row)}
+                </Button>
+              ))}
+            </li>
+          );
+        })}
+      </ol>
+      {open ? (
+        <RowDialog row={open} onClose={() => setOpen(null)}>
+          {editable && rescheduled(open, key, dayOf(open, key) ?? "") ? (
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void reschedule(open, newDay);
+                setOpen(null);
+              }}
+            >
+              <Field id="calendar-reschedule" label={t("spaces.views.reschedule", { attr: key })}>
+                <Input id="calendar-reschedule" type="date" required value={newDay} onChange={(event) => setNewDay(event.target.value)} />
+              </Field>
+              <Button type="submit" size="sm">
+                {t("spaces.views.rescheduleSave")}
+              </Button>
+            </form>
+          ) : null}
+        </RowDialog>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A timeline (T-3102): one bar per row from a start to an end date attribute, placed on the span
+ * from the earliest start to the latest end, in start order; a row missing either date is left out
+ * and counted.
+ */
+export function TimelineView({ rows }: { rows: RichRow[] }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const keys = useMemo(() => dateKeys(rows).filter((key) => !key.endsWith(OBSERVED)), [rows]);
+  const [startKey, setStartKey] = useState("");
+  const [endKey, setEndKey] = useState("");
+  const [open, setOpen] = useState<RichRow | null>(null);
+  const start = keys.includes(startKey) ? startKey : (keys[0] ?? "");
+  const end = keys.includes(endKey) ? endKey : (keys[1] ?? keys[0] ?? "");
+  if (keys.length === 0) {
+    return <p className="text-body text-fg-muted">{t("spaces.views.noDate")}</p>;
+  }
+  const spans = rows
+    .map((row) => ({ row, from: dayOf(row, start), to: dayOf(row, end) }))
+    .filter((span): span is { row: RichRow; from: string; to: string } => !!span.from && !!span.to)
+    .map((span) => (span.to < span.from ? { ...span, from: span.to, to: span.from } : span))
+    .sort((a, b) => a.from.localeCompare(b.from));
+  const left = rows.length - spans.length;
+  const ms = (day: string) => Date.parse(`${day}T00:00:00Z`);
+  const first = spans.length ? ms(spans[0].from) : 0;
+  const last = spans.length ? Math.max(...spans.map((span) => ms(span.to))) + 86_400_000 : 1;
+  const width = Math.max(last - first, 86_400_000);
+  const date = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeZone: "UTC" });
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="view-timeline">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field id="timeline-start" label={t("spaces.views.start")} className="w-fit">
+          <Select id="timeline-start" value={start} onChange={(event) => setStartKey(event.target.value)}>
+            {keys.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field id="timeline-end" label={t("spaces.views.end")} className="w-fit">
+          <Select id="timeline-end" value={end} onChange={(event) => setEndKey(event.target.value)}>
+            {keys.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <Truncated count={rows.length} />
+      {left > 0 ? <p className="text-caption text-fg-muted">{t("spaces.views.undated", { count: left })}</p> : null}
+      <ol className="flex flex-col gap-1">
+        {spans.map(({ row, from, to }) => (
+          <li key={row.id} className="grid grid-cols-1 items-center gap-1 sm:grid-cols-[12rem_1fr]">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="justify-start truncate px-1 text-left"
+              onClick={() => setOpen(row)}
+            >
+              {primaryOf(row)}
+            </Button>
+            <div className="relative h-6 rounded bg-surface-subtle">
+              {/* The bar is drawn, not styled: its place is data, and the page takes no inline style (UI-01). */}
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 100 1"
+                preserveAspectRatio="none"
+                className="absolute inset-0 h-full w-full"
+              >
+                <rect
+                  x={((ms(from) - first) / width) * 100}
+                  width={Math.max(((ms(to) + 86_400_000 - ms(from)) / width) * 100, 1)}
+                  height={1}
+                  className="fill-primary/70"
+                />
+              </svg>
+              <span className="relative px-1 text-caption text-fg">
+                {date.format(new Date(ms(from)))} – {date.format(new Date(ms(to)))}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ol>
       <RowDialog row={open} onClose={() => setOpen(null)} />
     </div>
   );

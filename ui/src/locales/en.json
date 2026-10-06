@@ -492,7 +492,25 @@
       "board": "Board by {attr}",
       "column": "{title}, {count, plural, one {# card} other {# cards}}",
       "moveTo": "Move to",
-      "moveCard": "Move {name} to"
+      "moveCard": "Move {name} to",
+      "noDate": "No attribute of this type holds a date, so there is nothing to place on a calendar.",
+      "dateBy": "Date",
+      "observed": "{attr}, when observed",
+      "span": "Show",
+      "spans": {
+        "month": "Month",
+        "week": "Week",
+        "day": "Day"
+      },
+      "previous": "Previous",
+      "today": "Today",
+      "next": "Next",
+      "rescheduleRefused": "{name} was not moved: {reason}",
+      "reschedule": "Move {attr} to",
+      "rescheduleSave": "Move",
+      "start": "Starts",
+      "end": "Ends",
+      "undated": "{count, plural, one {# entity has} other {# entities have}} no start or end and {count, plural, one {is} other {are}} not shown."
     }
   },
   "endpoints": {

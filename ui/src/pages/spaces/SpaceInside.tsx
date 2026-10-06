@@ -31,7 +31,7 @@ import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
-import { GalleryView, KanbanView, useViewRows } from "./DataViews";
+import { CalendarView, GalleryView, KanbanView, TimelineView, useViewRows } from "./DataViews";
 import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { SpaceQuality } from "./SpaceQuality";
@@ -432,7 +432,7 @@ function SpaceData({
 }
 
 /** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
-const DATA_VIEWS = ["grid", "gallery", "kanban"] as const;
+const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline"] as const;
 type DataView = (typeof DATA_VIEWS)[number];
 
 /** One view other than the grid, over one page of the filtered type. */
@@ -470,6 +470,10 @@ function OtherView({
       return <GalleryView rows={rows.data.rows} />;
     case "kanban":
       return <KanbanView rows={rows.data.rows} source={source} enums={enums} />;
+    case "calendar":
+      return <CalendarView rows={rows.data.rows} source={source} />;
+    case "timeline":
+      return <TimelineView rows={rows.data.rows} />;
   }
 }
 

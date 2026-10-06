@@ -492,7 +492,25 @@
       "board": "Board nach {attr}",
       "column": "{title}, {count, plural, one {# Karte} other {# Karten}}",
       "moveTo": "Verschieben nach",
-      "moveCard": "{name} verschieben nach"
+      "moveCard": "{name} verschieben nach",
+      "noDate": "Kein Attribut dieses Typs enthält ein Datum, daher gibt es nichts für einen Kalender.",
+      "dateBy": "Datum",
+      "observed": "{attr}, wann beobachtet",
+      "span": "Zeigen",
+      "spans": {
+        "month": "Monat",
+        "week": "Woche",
+        "day": "Tag"
+      },
+      "previous": "Zurück",
+      "today": "Heute",
+      "next": "Weiter",
+      "rescheduleRefused": "{name} wurde nicht verschoben: {reason}",
+      "reschedule": "{attr} verschieben auf",
+      "rescheduleSave": "Verschieben",
+      "start": "Beginn",
+      "end": "Ende",
+      "undated": "{count, plural, one {# Entität hat} other {# Entitäten haben}} keinen Beginn oder kein Ende und {count, plural, one {wird} other {werden}} nicht gezeigt."
     }
   },
   "endpoints": {

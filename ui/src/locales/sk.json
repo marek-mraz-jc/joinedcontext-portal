@@ -492,7 +492,25 @@
       "board": "Nástenka podľa {attr}",
       "column": "{title}, {count, plural, one {# karta} few {# karty} other {# kariet}}",
       "moveTo": "Presunúť do",
-      "moveCard": "Presunúť {name} do"
+      "moveCard": "Presunúť {name} do",
+      "noDate": "Žiadny atribút tohto typu nemá dátum, takže nie je čo umiestniť do kalendára.",
+      "dateBy": "Dátum",
+      "observed": "{attr}, kedy bol pozorovaný",
+      "span": "Zobraziť",
+      "spans": {
+        "month": "Mesiac",
+        "week": "Týždeň",
+        "day": "Deň"
+      },
+      "previous": "Predchádzajúce",
+      "today": "Dnes",
+      "next": "Ďalšie",
+      "rescheduleRefused": "{name} sa nepresunul: {reason}",
+      "reschedule": "Presunúť {attr} na",
+      "rescheduleSave": "Presunúť",
+      "start": "Začiatok",
+      "end": "Koniec",
+      "undated": "Bez začiatku alebo konca, a preto nezobrazené: {count, plural, one {# entita} few {# entity} other {# entít}}."
     }
   },
   "endpoints": {
