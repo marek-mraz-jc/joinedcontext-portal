@@ -24,14 +24,16 @@ const PERSON: Record<string, JcUser> = {
   steward: { id: "s1", name: "Demo Steward", roles: ["steward"] },
 };
 
-function app(access: AccessDocument, user: JcUser, entities = ALERTS) {
+const SUMMARY = { byCategory: { traffic: 4, event: 1 }, bySubCategory: { ROAD_WORK: 3 }, oldestOpen: null };
+
+function app(access: AccessDocument, user: JcUser, entities = ALERTS, summary: Record<string, unknown> = SUMMARY) {
   const client = stubClient(
     {
       entities,
       schema: SCHEMA,
       access,
       functions: {
-        summary: () => ({ total: entities.length, byCategory: { traffic: 4, event: 1 }, bySubCategory: { ROAD_WORK: 3 }, oldestOpen: null }),
+        summary: () => ({ total: entities.length, ...summary }),
       },
     },
     { appName: "helsinki-alerts", orgDomain: "hel.fi", space: "helsinki", user },
@@ -65,10 +67,25 @@ describe("helsinki-alerts", () => {
     const overview = await screen.findByRole("region", { name: "Overview" });
     const tile = within(overview).getByText("Alerts").closest(".jc-tile") as HTMLElement;
     await waitFor(() => expect(within(tile).getByText("5")).toBeInTheDocument());
-    expect(await within(overview).findByText("traffic: 4")).toBeInTheDocument();
+    expect(await within(overview).findByText("Traffic: 4")).toBeInTheDocument();
     expect(within(overview).queryByText(/Alerts stewards added/)).not.toBeInTheDocument();
     // AP-04: every call went to the app's own endpoint.
     expect(client.transport.calls.every((call) => call.path.includes("/api/endpoint/") || call.path.startsWith("/functions/"))).toBe(true);
+  });
+
+  // T-3126: the summary speaks to a person: a date, words for the feed's codes, no attribute names.
+  it("shows the summary's date and codes in words a person reads", async () => {
+    app(VIEWER, PERSON.viewer, ALERTS, {
+      byCategory: { traffic: 2 },
+      bySubCategory: { ROAD_WORK: 3, TRAFFIC_ANNOUNCEMENT: 1 },
+      oldestOpen: { id: "urn:ngsi-ld:Alert:hel.fi:helsinki:1", name: "Tie 40927, Espoo", dateIssued: "2025-06-11T07:53:43.647Z" },
+    });
+    const overview = await screen.findByRole("region", { name: "Overview" });
+    expect(await within(overview).findByText("Oldest open alert: Tie 40927, Espoo, issued Jun 11, 2025")).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "By kind" })).toBeInTheDocument();
+    expect(within(overview).getByText("Road work: 3")).toBeInTheDocument();
+    expect(within(overview).getByText("Traffic announcement: 1")).toBeInTheDocument();
+    expect(within(overview).queryByText(/subCategory|ROAD_WORK|T07:53/)).not.toBeInTheDocument();
   });
 
   // AP-07: category and subCategory filter the table (the model has no severity).
