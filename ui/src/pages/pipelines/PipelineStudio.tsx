@@ -894,6 +894,15 @@ export function PipelineStudio({
                         </Button>
                       ) : null}
                     </div>
+                    {draft?.compute?.kind && draft.compute.kind !== "bloblang" ? (
+                      // Only a Bloblang step runs today (Architecture/08): say so where the kind
+                      // is chosen, not after the merge as a Pending nobody can explain (T-3088).
+                      <Alert tone="warning" data-testid="flow-compute-not-run">
+                        {t("pipelines.flow.computeNotRun", {
+                          kind: t(`pipelines.field.computeChoice.${draft.compute.kind}`),
+                        })}
+                      </Alert>
+                    ) : null}
                     {draft?.compute?.kind === "bloblang" ? (
                       <Field id="flow-bloblang-field" label={t("pipelines.flow.nodeBloblang")} description={t("pipelines.field.bloblangHint")}>
                         <Textarea

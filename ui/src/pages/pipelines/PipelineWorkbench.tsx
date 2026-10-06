@@ -26,6 +26,7 @@ import { classSlots, parseModel, unitCode } from "../models/linkml";
 import type { LinkmlModel, LinkmlSlot } from "../models/linkml";
 import { entityTypesOf, spaceOf } from "../spaces/SpaceInside";
 import type { PipelineForm } from "./PipelineEditor";
+import { inlineEndpointSample } from "../../api/pipelineTest";
 import { sampleUrlOf } from "./PipelineStudio";
 import { MAX_SAMPLE_BYTES, draftFromSample, formatOf } from "./PipelineTest";
 import type { SampleFormat } from "./PipelineTest";
@@ -391,8 +392,14 @@ export function PipelineWorkbench({
     retry: false,
     // Each run reaches the project's runner: a person coming back to the tab asks it nothing new.
     refetchOnWindowFocus: false,
-    queryFn: () =>
-      run(project, "jc_pipeline_sample_source", source ?? {}, t("pipelines.workbench.failed"), readSample),
+    queryFn: async () => {
+      if (source && "sample" in source) {
+        const inlined = await inlineEndpointSample(source.sample);
+        if (!("sample" in inlined)) throw new StepFailed(inlined.status, inlined.detail);
+        return run(project, "jc_pipeline_sample_source", { sample: inlined.sample }, t("pipelines.workbench.failed"), readSample);
+      }
+      return run(project, "jc_pipeline_sample_source", source ?? {}, t("pipelines.workbench.failed"), readSample);
+    },
   });
 
   // Steps 3 and 4: the mapping, tried once typing rests.
@@ -406,11 +413,16 @@ export function PipelineWorkbench({
   );
   const tried = useQuery({
     queryKey: ["pipeline-workbench", project, "mapping", manifest, sample],
-    enabled: quiet.trim() !== "" && sample !== undefined && manifest !== undefined,
+    // After the sample step, never beside it: a project runs one test at a time, and the two
+    // started together answered "a pipeline test is already running" on every page load.
+    enabled: quiet.trim() !== "" && sample !== undefined && manifest !== undefined && !sampled.isFetching,
     retry: false,
     refetchOnWindowFocus: false,
-    queryFn: () =>
-      run(project, "jc_pipeline_try_mapping", { pipeline: manifest, sample }, t("pipelines.workbench.failed"), readMapping),
+    queryFn: async () => {
+      const inlined = sample ? await inlineEndpointSample(sample) : undefined;
+      if (inlined && !("sample" in inlined)) throw new StepFailed(inlined.status, inlined.detail);
+      return run(project, "jc_pipeline_try_mapping", { pipeline: manifest, sample: inlined?.sample }, t("pipelines.workbench.failed"), readMapping);
+    },
   });
   const records = (tried.data?.records ?? []).filter(
     (record): record is Record<string, unknown> => typeof record === "object" && record !== null && !Array.isArray(record),
