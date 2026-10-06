@@ -3,6 +3,7 @@ import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { forPeople } from "../../api/client";
 import { choicesOf, QuestionOptions } from "./QuestionOptions";
+import { AppBuildCard, appBuildOf } from "./AppBuildCard";
 import type { JsonSchema } from "../../components/forms/types";
 import { Alert, Button, EmptyState, ExternalLink, Textarea } from "../../components/ui";
 import { openQuestions, TERMINAL_STATES } from "./useAgentRun";
@@ -376,6 +377,7 @@ export function ConversationPanel({
   usedEndpoints,
   building = false,
   onOpenLink,
+  onBuildStarted,
 }: {
   /** The project the run belongs to: what a card's links open. */
   project: string;
@@ -413,6 +415,8 @@ export function ConversationPanel({
   usedEndpoints?: string[];
   /** Opens a Portal link of an answer in place, keeping the conversation (T-2773). */
   onOpenLink?: OpenLink;
+  /** Follows the run the person started from a Build an app card (T-2721). */
+  onBuildStarted?: (runId: string) => void;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
@@ -613,6 +617,15 @@ export function ConversationPanel({
                   ) : null}
                   {queried !== null ? <QueryResultCard result={queried} project={project} /> : null}
                   <ActionStep event={event} live={live} onSend={onSend} count={count} />
+                </li>
+              );
+            }
+            if (event.kind === "app-build") {
+              // What Build an app answered in the chat, and the person's own Build (T-2721).
+              const build = appBuildOf(event.payload);
+              return build === null ? null : (
+                <li key={event.seq}>
+                  <AppBuildCard project={project} build={build} onStarted={onBuildStarted} />
                 </li>
               );
             }

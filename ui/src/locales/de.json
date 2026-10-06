@@ -2050,6 +2050,33 @@
       "confirm": "Merge Request öffnen",
       "cancel": "Abbrechen"
     },
+    "buildCard": {
+      "title": "{name} bauen",
+      "reads": "Liest",
+      "may": "Darf",
+      "opens": "Öffnet für",
+      "does": "Macht",
+      "access": {
+        "read": "die Daten nur lesen",
+        "update": "Datensätze lesen und ändern",
+        "full": "Datensätze lesen, anlegen, ändern und löschen"
+      },
+      "audience": {
+        "project": "alle im Projekt",
+        "organization": "alle in der Organisation",
+        "private": "nur Sie"
+      },
+      "readOnly": "Ihre Berechtigung auf {name} erlaubt kein Schreiben, daher liest die App nur.",
+      "noEndpoint": "{name} ist kein Endpoint dieses Projekts.",
+      "unavailable": "Was {name} veröffentlicht, konnte nicht gelesen werden, daher gibt es nichts zu bauen. Versuchen Sie es gleich noch einmal.",
+      "nothing": "{name} veröffentlicht nichts, was diese App lesen könnte.",
+      "conflict": "Eine Anwendung namens {name} hat bereits einen laufenden Lauf. Öffnen Sie ihn oder nennen Sie im Gespräch einen anderen Namen.",
+      "reading": "Lese, was die Endpoints veröffentlichen…",
+      "build": "Bauen",
+      "building": "Starte…",
+      "started": "{name} wird gebaut; die Vorschau erscheint in diesem Gespräch.",
+      "open": "App öffnen"
+    },
     "generate": {
       "title": "Eigene Anwendung erzeugen",
       "subtitle": "Beschreiben Sie, was Sie brauchen. Der Bau-Agent schreibt und testet es und öffnet einen Merge Request; ohne Prüfung wird nichts ausgerollt.",

@@ -1432,40 +1432,107 @@ async fn testing_a_drafted_endpoint_says_it_is_not_live() {
     );
 }
 
-/// T-2696: the endpoints chosen for an app open the app builder on them, in the order chosen,
-/// with no model call; the person starts the run there (AG-11). Words go to the model.
-#[tokio::test]
-async fn the_endpoints_of_an_app_open_the_builder_on_them() {
-    let started = start(READER, json!({ "path": "build-app" }), &["never asked"]).await;
-    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
-    let events = events_until(&started, |e| e.kind == "question").await;
-    let question = of_kind(&events, "question")[0];
-    assert_eq!(question["step"], "build-app-endpoints");
+/// The newest question of `step`, once the run asked it.
+async fn question_of(started: &Started, step: &str) -> Value {
+    let events = events_until(started, |e| {
+        e.kind == "question" && e.payload["step"] == step
+    })
+    .await;
+    of_kind(&events, "question")
+        .into_iter()
+        .rev()
+        .find(|question| question["step"] == step)
+        .cloned()
+        .expect("the question")
+}
+
+async fn reply(started: &Started, question: &Value, answers: Value) {
     let run = started.body["id"].as_str().expect("run id");
     let (status, body) = send(
         &started.state,
         &started.config,
         READER,
         &format!("/api/v1/projects/helsinki/agent-runs/{run}/answers"),
-        json!({ "questionId": question["questionId"], "answers": { "answer": ["bikes", "air"] } }),
+        json!({ "questionId": question["questionId"], "answers": answers }),
     )
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
-    let events = events_until(&started, |e| e.kind == "navigate").await;
-    let navigate = of_kind(&events, "navigate");
-    assert_eq!(navigate.len(), 1, "{navigate:?}");
-    assert_eq!(navigate[0]["route"], "/projects/helsinki/apps/new");
+}
+
+/// The path's questions up to "What should the app do?", answered with `endpoints`.
+async fn build_app_up_to_the_description(endpoints: Value) -> Started {
+    let started = start(READER, json!({ "path": "build-app" }), &["never asked"]).await;
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let question = question_of(&started, "build-app-endpoints").await;
+    reply(&started, &question, json!({ "answer": endpoints })).await;
+
+    let access = question_of(&started, "build-app-access").await;
     assert_eq!(
-        navigate[0]["prefill"],
-        json!({ "endpoints": ["bikes", "air"] })
+        access["schema"]["title"],
+        "What may the app do with the data?"
     );
-    assert!(navigate[0]["elapsedMs"].is_u64(), "{}", navigate[0]);
+    let offered: Vec<&str> = access["options"]
+        .as_array()
+        .expect("options")
+        .iter()
+        .filter_map(|option| option["value"].as_str())
+        .collect();
+    assert_eq!(offered, ["read", "update", "full"]);
+    reply(&started, &access, json!({ "answer": "update" })).await;
+
+    let audience = question_of(&started, "build-app-audience").await;
+    assert_eq!(audience["default"], "project");
+    let public = audience["options"]
+        .as_array()
+        .expect("options")
+        .iter()
+        .find(|option| option["value"] == "public")
+        .expect("public is listed");
     assert!(
-        of_kind(&events, "thought")
-            .iter()
-            .any(|t| t["text"] == "The app builder opens on 'bikes', 'air'. Name the app, say what it should do and start it there."),
+        public["disabledReason"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("AP-42"),
+        "{public}"
+    );
+    reply(&started, &audience, json!({ "answer": "organization" })).await;
+    started
+}
+
+/// T-2721: Build an app is built in the conversation. Every question is the Portal's, with no
+/// model call; the answers end as one `app-build` event the person starts the run from, and the
+/// conversation starts no run of its own (AG-11, AP-132).
+#[tokio::test]
+async fn an_app_is_described_in_the_chat_and_ends_as_a_card_to_build_from() {
+    let started = build_app_up_to_the_description(json!(["bikes", "air"])).await;
+    let describe = question_of(&started, "build-app-describe").await;
+    assert_eq!(describe["schema"]["title"], "What should the app do?");
+    reply(
+        &started,
+        &describe,
+        json!({ "answer": "  A desk where the traffic office sees today's bikes  " }),
+    )
+    .await;
+
+    let events = events_until(&started, |e| e.kind == "app-build").await;
+    let build = of_kind(&events, "app-build");
+    assert_eq!(build.len(), 1, "{build:?}");
+    assert_eq!(build[0]["endpoints"], json!(["bikes", "air"]));
+    assert_eq!(build[0]["access"], "update");
+    assert_eq!(build[0]["visibility"], "organization");
+    assert_eq!(
+        build[0]["prompt"],
+        "A desk where the traffic office sees today's bikes"
+    );
+    assert!(build[0]["elapsedMs"].is_u64(), "{}", build[0]);
+    assert!(
+        of_kind(&events, "thought").iter().any(|t| t["text"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("Ready to build: it reads 'bikes', 'air', may read and update records, and everyone in the organization opens it.")),
         "{events:?}"
     );
+    assert!(of_kind(&events, "navigate").is_empty(), "no form opens");
     tokio::time::sleep(Duration::from_millis(150)).await;
     assert!(
         started
@@ -1474,7 +1541,7 @@ async fn the_endpoints_of_an_app_open_the_builder_on_them() {
             .await
             .unwrap_or_default()
             .is_empty(),
-        "the hand-over asked the model"
+        "a step of the path asked the model"
     );
     let runs = started
         .state
@@ -1483,6 +1550,105 @@ async fn the_endpoints_of_an_app_open_the_builder_on_them() {
         .await
         .expect("runs");
     assert_eq!(runs.len(), 1, "the conversation started no run of its own");
+}
+
+/// T-2721: words typed in the text box while "What should the app do?" stands are its answer,
+/// and an empty one asks again rather than building from nothing.
+#[tokio::test]
+async fn words_typed_while_the_description_stands_describe_the_app() {
+    let started = build_app_up_to_the_description(json!(["bikes"])).await;
+    question_of(&started, "build-app-describe").await;
+    let run = started.body["id"].as_str().expect("run id");
+    let uri = format!("/api/v1/projects/helsinki/agent-runs/{run}/messages");
+    let message = |text: &str| {
+        send(
+            &started.state,
+            &started.config,
+            READER,
+            &uri,
+            json!({ "text": text }),
+        )
+    };
+    let (status, body) = message("   ").await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "an empty message is no message: {body}"
+    );
+    let (status, body) = message("a map of the free bikes per station").await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let events = events_until(&started, |e| e.kind == "app-build").await;
+    let build = of_kind(&events, "app-build");
+    assert_eq!(build[0]["prompt"], "a map of the free bikes per station");
+    assert_eq!(build[0]["endpoints"], json!(["bikes"]));
+    assert!(
+        started
+            .proxy
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty(),
+        "the description went to the model"
+    );
+}
+
+/// T-2721: public is never chosen, with the reason; words instead of a choice are no step of the
+/// Portal's and go to the model, on the path, as every path's words do.
+#[tokio::test]
+async fn the_build_questions_refuse_public_and_hand_words_to_the_model() {
+    let started = start(
+        READER,
+        json!({ "path": "build-app" }),
+        &["Tell me more about what the app should change."],
+    )
+    .await;
+    let question = question_of(&started, "build-app-endpoints").await;
+    reply(&started, &question, json!({ "answer": ["bikes"] })).await;
+    let access = question_of(&started, "build-app-access").await;
+    reply(&started, &access, json!({ "answer": "read" })).await;
+    let audience = question_of(&started, "build-app-audience").await;
+    let run = started.body["id"].as_str().expect("run id");
+    let answers = format!("/api/v1/projects/helsinki/agent-runs/{run}/answers");
+    let (status, body) = send(
+        &started.state,
+        &started.config,
+        READER,
+        &answers,
+        json!({ "questionId": audience["questionId"], "answers": { "answer": "public" } }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body.to_string().contains("AP-42"),
+        "the refusal says why: {body}"
+    );
+
+    let (status, body) = send(
+        &started.state,
+        &started.config,
+        READER,
+        &answers,
+        json!({ "questionId": audience["questionId"], "answers": { "answer": "the whole city council" } }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let call = model_call_with(&started.proxy, "the whole city council").await;
+    assert!(
+        call.contains("build-app"),
+        "the words went to the model on the path: {call}"
+    );
+    let events = started
+        .state
+        .agents
+        .events_since(run, 0)
+        .await
+        .expect("events");
+    assert!(
+        !events
+            .iter()
+            .any(|e| e.kind == "question" && e.payload["step"] == "build-app-describe"),
+        "words are no audience"
+    );
 }
 
 /// AG-92, T-2718: the capabilities the person chose only narrow. A path outside the preset is
