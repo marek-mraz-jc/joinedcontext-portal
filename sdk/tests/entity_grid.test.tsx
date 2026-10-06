@@ -41,6 +41,17 @@ const config = configResult.config!;
 const onePerPage = { ...config, pageSize: 1 };
 
 describe("EntityGrid", () => {
+  it("leaves a column without a filter without a header cell in the filter row", async () => {
+    const some = { ...config, filters: { allowed: ["availableBikeNumber"], preset: {} } };
+    const { container } = render(<EntityGrid config={some} source={fixtureSource(bikeEntities)} />);
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
+    const row = container.querySelector("tr.jc-grid-filter-row") as HTMLTableRowElement;
+    // Every header cell of the filter row holds a filter; the other columns get a plain cell.
+    expect(Array.from(row.querySelectorAll("th")).every((cell) => cell.childElementCount > 0)).toBe(true);
+    expect(row.querySelectorAll("td").length).toBeGreaterThan(0);
+    expect(row.cells).toHaveLength(container.querySelectorAll("thead tr:first-child > *").length);
+  });
+
   it("renders value with unit", async () => {
     render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
     await waitFor(() => {

@@ -709,17 +709,19 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
               <tr className="jc-grid-filter-row" aria-label={labels.filterRow}>
                 {columns.map((col) => {
                   const column = filterable.get(col.key);
+                  const className = `jc-grid-filter${col.pinned ? " jc-grid-pinned" : ""}`;
+                  // A column the endpoint cannot be asked about has no filter, and an empty
+                  // header cell is a header that names nothing to a screen reader.
+                  if (!column || asText) return <td key={`filter-${col.key}`} className={className} />;
                   return (
-                    <th key={`filter-${col.key}`} className={`jc-grid-filter${col.pinned ? " jc-grid-pinned" : ""}`}>
-                      {column && !asText ? (
-                        <FilterCell
-                          column={column}
-                          label={col.label}
-                          labels={labels}
-                          filter={state.filters[col.key]}
-                          onChange={(next) => setFilter(col.key, next)}
-                        />
-                      ) : null}
+                    <th key={`filter-${col.key}`} className={className}>
+                      <FilterCell
+                        column={column}
+                        label={col.label}
+                        labels={labels}
+                        filter={state.filters[col.key]}
+                        onChange={(next) => setFilter(col.key, next)}
+                      />
                     </th>
                   );
                 })}

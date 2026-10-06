@@ -1,0 +1,35 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Policy
+metadata:
+  name: app-zilina-vyskum-1
+  namespace: zilina
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+spec:
+  assignee:
+    id: endpoint:zilina/app-zilina-vyskum
+    kind: role
+  assigner: did:web:hel.fi
+  contextSpaceRef:
+    kind: ContextSpace
+    name: zilina-uniza
+  information:
+  - entities:
+    - type: CreativeWork
+    propertyNames:
+    - name
+    - workType
+    - yearPublished
+    - isPartOf
+    - license
+    - url
+    relationshipNames:
+    - name
+    - workType
+    - yearPublished
+    - isPartOf
+    - license
+    - url
+  operations:
+  - queryEntity
+  - retrieveEntity
