@@ -1120,7 +1120,8 @@
         "part_pipeline_flow.test.tsx",
         "pipeline_flow.test.tsx",
         "pipeline_flow_live.test.tsx",
-        "pipeline_flow_steps.test.tsx"
+        "pipeline_flow_steps.test.tsx",
+        "pipeline_step_form.test.tsx"
       ]
     },
     "src/pages/pipelines/PipelineRejected.tsx": {

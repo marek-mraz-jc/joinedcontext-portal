@@ -350,6 +350,8 @@ describe("the canvas and the step's block", () => {
     render(<Studio initial={initial} seen={seen} />);
 
     await userEvent.click(screen.getByTestId("flow-node-step-0"));
+    // The form is the first view of a processor the runner documents (T-3088); this is the text.
+    await userEvent.click(await screen.findByRole("tab", { name: "YAML" }));
     const block = screen.getByTestId("flow-step-yaml") as HTMLTextAreaElement;
     expect(block.value).toBe("jq:\n  query: .id\n");
     // Its own block and nothing of a neighbour's (PL-56).
@@ -401,6 +403,7 @@ describe("the canvas and the step's block", () => {
     };
     render(<Studio initial={initial} seen={vi.fn()} />);
     await userEvent.click(screen.getByTestId("flow-node-step-0"));
+    await userEvent.click(await screen.findByRole("tab", { name: "YAML" }));
     expect((screen.getByTestId("flow-step-yaml") as HTMLTextAreaElement).value).toContain(
       "Authorization: ${FEED_TOKEN}",
     );

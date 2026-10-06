@@ -663,6 +663,9 @@ export function TextareaWidget(props: WidgetProps): React.JSX.Element {
       disabled={disabled}
       readOnly={readonly}
       rows={typeof options.rows === "number" ? options.rows : undefined}
+      // Bloblang, an interpolation or a YAML document reads as code (T-3088).
+      className={options.code || options.yaml ? "font-mono text-caption" : undefined}
+      spellCheck={options.code || options.yaml ? false : undefined}
       aria-invalid={hasErrors ? "true" : undefined}
       aria-describedby={ariaDescribedByIds(id)}
       onChange={(event) => onChange(event.target.value === "" ? options.emptyValue : event.target.value)}
