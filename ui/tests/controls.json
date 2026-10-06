@@ -973,7 +973,7 @@
     },
     "src/pages/knowledge/KnowledgePage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 4
       },
       "tests": [
         "knowledge_pages.test.tsx"

@@ -100,6 +100,16 @@ test.describe("the knowledge sources", () => {
     expect(await axeViolations(p)).toEqual([]);
   });
 
+  test("Add an assistant opens the deployment form at its own address, with its fields labelled and no axe violations", async ({ page: p }) => {
+    await stubApi(p);
+    await p.goto("/projects/helsinki/knowledge?lang=en");
+    await p.getByRole("button", { name: "Add an assistant" }).click();
+    await expect(p).toHaveURL(/\/projects\/helsinki\/assistantdeployments\/new/);
+    await expect(p.getByLabel("Public id")).toBeVisible();
+    await expect(p.getByLabel("Channel")).toBeVisible();
+    expect(await axeViolations(p)).toEqual([]);
+  });
+
   test("a viewer finds leaving out disabled with the reason, and pressing it sends nothing", async ({ page: p }) => {
     const { writes } = await stubApi(p, ["read"]);
     await p.goto("/projects/helsinki/knowledge/hel-web?lang=en");

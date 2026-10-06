@@ -51,6 +51,10 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
   ServiceAccount: { "roles[].types[]": TYPE },
   App: { "dataNeeds[].contextSpaceRef": project("spaces"), "dataNeeds[].types[]": TYPE },
   Mapping: { contextSpaceRef: project("spaces"), "source.name": MODEL, "target.name": MODEL },
+  // The knowledge assistant's kinds (T-3057): a catalogue, the project's own sources and the
+  // Endpoints whose MCP surface a connector reads.
+  KnowledgeSource: { ckanInstanceRef: project("ckaninstances") },
+  AssistantDeployment: { "sources[]": project("knowledgesources"), "connectors[].endpoint": project("endpoints") },
 };
 
 /**

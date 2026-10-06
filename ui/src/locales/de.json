@@ -5187,6 +5187,72 @@
       "offDomain": "Auf einer anderen Website",
       "noPassages": "Keine Passage: Der Assistent antwortet nicht daraus.",
       "noLinks": "Diese Seite verweist auf nichts, was der Durchlauf erfasst hat."
+    },
+    "field": {
+      "name": "Name",
+      "source": "Art",
+      "startUrls": "Startadressen",
+      "ckanInstanceRef": "Katalog",
+      "sitemap": "Sitemap lesen",
+      "include": "Nur diese Pfade lesen",
+      "exclude": "Diese Pfade überspringen",
+      "maxDepth": "Verweistiefe",
+      "maxPages": "Höchstens Seiten",
+      "pdf": "Dokumente",
+      "pdfPolicy": "Von Seiten verlinkte Dokumente",
+      "pdfMaxBytes": "Größtes Dokument (Bytes)",
+      "pdfMaxPages": "Höchstens Seiten eines Dokuments",
+      "offDomainDocuments": "Dokumente auf anderen Websites",
+      "schedule": "Erneut lesen",
+      "languages": "Sprachen",
+      "visibility": "Wem daraus geantwortet wird",
+      "publicId": "Öffentliche Kennung",
+      "channel": "Kanal",
+      "systemPrompt": "Anweisungen",
+      "sources": "Quellen",
+      "connectors": "Konnektoren",
+      "connectorEndpoint": "Endpoint",
+      "connectorTools": "Werkzeuge",
+      "connectorTimeout": "Zeitgrenze (Sekunden)",
+      "allowedOrigins": "Erlaubte Websites",
+      "rateLimit": "Wie oft er antwortet",
+      "requestsPerMinute": "Fragen pro Minute, alle",
+      "perClientPerMinute": "Fragen pro Minute, ein Besucher",
+      "budget": "Budget",
+      "tokensPerDay": "Tokens pro Tag",
+      "tokensPerConversation": "Tokens pro Gespräch",
+      "theme": "Aussehen",
+      "primaryColor": "Akzentfarbe",
+      "greeting": "Begrüßung",
+      "sandbox": "Skripte in der Sandbox"
+    },
+    "visibility": {
+      "internal": "Intern: angemeldete Mitarbeitende",
+      "public": "Öffentlich: jeder Kanal"
+    },
+    "channel": {
+      "public": "Öffentlich",
+      "internal": "Intern (Portal)",
+      "ckan": "Datenkatalog",
+      "iframe": "Auf einer Website eingebettet"
+    },
+    "pdfPolicy": {
+      "include": "Lesen",
+      "exclude": "Überspringen"
+    },
+    "addSource": "Quelle hinzufügen",
+    "assistants": {
+      "title": "Assistenten",
+      "add": "Assistenten hinzufügen",
+      "empty": "Aus diesem Projekt antwortet noch kein Assistent",
+      "emptyHint": "Ein Assistenten-Einsatz sagt, wo der Wissensassistent antwortet und aus welchen Quellen.",
+      "usage": "Nutzung",
+      "usageOf": "Nutzung von {name}",
+      "noUsage": "In den letzten 30 Tagen wurde keine Frage gestellt.",
+      "day": "Tag",
+      "requests": "Fragen",
+      "tokensIn": "Gelesene Tokens",
+      "tokensOut": "Geschriebene Tokens"
     }
   }
 }

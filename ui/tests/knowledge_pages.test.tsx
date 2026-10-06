@@ -13,6 +13,7 @@ import { bytesText, timeText } from "../src/pages/knowledge/knowledge";
 import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
 import { ApiError } from "../src/api/client";
+import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../src/schemas/knowledge";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };
 
@@ -129,6 +130,14 @@ function renderAt(path: string, stub: Stub = {}) {
     }
     if (url.pathname === `${base}/sources/bb-web/passages`) return json({ items: [{ ordinal: 0, text: "Odpad vyvážame v utorok.", lang: "sk", url: "u" }] });
     if (url.pathname === `${base}/sources/bb-web/pages/1/links`) return json({ items: [{ url: "https://www.banskabystrica.sk/vzn.pdf", kind: "document" }] });
+    if (url.pathname === `${base}/deployments/obcania/usage`) return json({ items: [{ day: "2026-10-06", requests: 12, tokensIn: 34000, tokensOut: 2100 }] });
+    if (url.pathname === "/api/v1/projects/banskabystrica/assistantdeployments") {
+      return json({
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "List",
+        items: [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "AssistantDeployment", metadata: { name: "obcania", namespace: "banskabystrica" }, spec: { publicId: "bb-obcania", channel: "public", sources: ["bb-web"], connectors: [{ endpoint: "ovzdusie-verejne", tools: ["query_entities"] }] } }],
+      });
+    }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -182,6 +191,25 @@ describe("the knowledge sources page (T-3057)", () => {
     await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
     await userEvent.click(button);
     expect(writes).toEqual([]);
+  });
+
+  it("lists the assistants with their channel, sources and connectors, and shows one's usage per day", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    const row = within(table).getByRole("link", { name: "obcania" }).closest("tr") as HTMLElement;
+    expect(within(row).getByText("bb-obcania")).toBeInTheDocument();
+    expect(within(row).getByText("Public")).toBeInTheDocument();
+    expect(within(row).getByText("ovzdusie-verejne")).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole("button", { name: "Usage of obcania" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("34,000")).toBeInTheDocument();
+    expect(within(dialog).getByText("12")).toBeInTheDocument();
+  });
+
+  it("opens the source form from Add a source", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    await userEvent.click(await screen.findByRole("button", { name: "Add a source" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/banskabystrica/knowledgesources/new"));
   });
 
   it("says the sources could not be read instead of claiming there are none", async () => {
@@ -248,6 +276,42 @@ describe("one source's pages and documents (T-3057, AG-113)", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Pages" }));
     await userEvent.click(await screen.findByRole("button", { name: "Links of https://www.banskabystrica.sk/" }));
     expect(await within(await screen.findByRole("dialog")).findByText("Document")).toBeInTheDocument();
+  });
+});
+
+describe("the knowledge forms (T-3057)", () => {
+  it("proposes what the form says and drops what it left empty, keeping the stored metadata", () => {
+    const manifest = toKindManifest(
+      "AssistantDeployment",
+      "banskabystrica",
+      { name: "obcania", publicId: "bb-obcania", channel: "internal", systemPrompt: "  ", sources: [], connectors: [{ endpoint: "a", tools: ["query_entities"] }], theme: { greeting: "" } },
+      { metadata: { name: "obcania", labels: { team: "web" } } },
+    );
+    expect(manifest).toEqual({
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "AssistantDeployment",
+      metadata: { name: "obcania", namespace: "banskabystrica", labels: { team: "web" } },
+      spec: { publicId: "bb-obcania", channel: "internal", connectors: [{ endpoint: "a", tools: ["query_entities"] }] },
+    });
+    expect(fromKindManifest({ metadata: { name: "web" }, spec: { source: "website", startUrls: ["https://a.example/"] } })).toEqual({
+      name: "web",
+      source: "website",
+      startUrls: ["https://a.example/"],
+    });
+    expect(fromKindManifest(null)).toEqual({ name: "" });
+  });
+
+  it("holds each schema to jc-core's bounds", () => {
+    const t = (key: string) => key;
+    const source = knowledgeSourceSchema(t, ["open-data"]);
+    expect(source.properties?.maxPages).toMatchObject({ minimum: 1, maximum: 50_000 });
+    expect(source.properties?.ckanInstanceRef).toMatchObject({ enum: ["open-data"] });
+    const deployment = assistantDeploymentSchema(t, [], ["air-public"]);
+    const origins = new RegExp(String((deployment.properties?.allowedOrigins as { items: { pattern: string } }).items.pattern));
+    expect(origins.test("https://www.example.org")).toBe(true);
+    expect(origins.test("https://www.example.org/path")).toBe(false);
+    expect(origins.test("http://www.example.org")).toBe(false);
+    expect(origins.test("https://*.example.org")).toBe(false);
   });
 });
 

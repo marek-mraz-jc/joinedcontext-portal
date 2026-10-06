@@ -5187,6 +5187,72 @@
       "offDomain": "Na jiném webu",
       "noPassages": "Žádná pasáž: asistent z tohoto neodpovídá.",
       "noLinks": "Tato stránka neodkazuje na nic, co procházení zaznamenalo."
+    },
+    "field": {
+      "name": "Název",
+      "source": "Typ",
+      "startUrls": "Počáteční adresy",
+      "ckanInstanceRef": "Katalog",
+      "sitemap": "Číst mapu webu",
+      "include": "Číst jen tyto cesty",
+      "exclude": "Přeskočit tyto cesty",
+      "maxDepth": "Hloubka odkazů",
+      "maxPages": "Nejvíce stránek",
+      "pdf": "Dokumenty",
+      "pdfPolicy": "Dokumenty odkazované ze stránek",
+      "pdfMaxBytes": "Největší dokument (bajty)",
+      "pdfMaxPages": "Nejvíce stran dokumentu",
+      "offDomainDocuments": "Dokumenty na jiných webech",
+      "schedule": "Přečíst znovu",
+      "languages": "Jazyky",
+      "visibility": "Komu se z něj smí odpovídat",
+      "publicId": "Veřejný identifikátor",
+      "channel": "Kanál",
+      "systemPrompt": "Pokyny",
+      "sources": "Zdroje",
+      "connectors": "Konektory",
+      "connectorEndpoint": "Endpoint",
+      "connectorTools": "Nástroje",
+      "connectorTimeout": "Časový limit (sekundy)",
+      "allowedOrigins": "Povolené weby",
+      "rateLimit": "Jak často odpovídá",
+      "requestsPerMinute": "Otázky za minutu, všichni",
+      "perClientPerMinute": "Otázky za minutu, jeden návštěvník",
+      "budget": "Rozpočet",
+      "tokensPerDay": "Tokeny za den",
+      "tokensPerConversation": "Tokeny za rozhovor",
+      "theme": "Vzhled",
+      "primaryColor": "Barva zvýraznění",
+      "greeting": "Pozdrav",
+      "sandbox": "Skripty v sandboxu"
+    },
+    "visibility": {
+      "internal": "Interní: přihlášení zaměstnanci",
+      "public": "Veřejný: každý kanál"
+    },
+    "channel": {
+      "public": "Veřejný",
+      "internal": "Interní (Portál)",
+      "ckan": "Datový katalog",
+      "iframe": "Vložený na webu"
+    },
+    "pdfPolicy": {
+      "include": "Číst je",
+      "exclude": "Přeskočit je"
+    },
+    "addSource": "Přidat zdroj",
+    "assistants": {
+      "title": "Asistenti",
+      "add": "Přidat asistenta",
+      "empty": "Z tohoto projektu zatím neodpovídá žádný asistent",
+      "emptyHint": "Nasazení asistenta určuje, kde asistent znalostí odpovídá a ze kterých zdrojů.",
+      "usage": "Využití",
+      "usageOf": "Využití asistenta {name}",
+      "noUsage": "Za posledních 30 dní nepadla žádná otázka.",
+      "day": "Den",
+      "requests": "Otázky",
+      "tokensIn": "Přečtené tokeny",
+      "tokensOut": "Napsané tokeny"
     }
   }
 }

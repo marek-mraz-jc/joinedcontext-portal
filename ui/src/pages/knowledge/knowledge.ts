@@ -169,6 +169,23 @@ export async function recrawl(project: string, source: string): Promise<void> {
   );
 }
 
+export interface UsageDay {
+  day: string;
+  requests: number;
+  tokensIn: number;
+  tokensOut: number;
+}
+
+export async function listUsage(project: string, deployment: string): Promise<UsageDay[]> {
+  return items<UsageDay>(
+    await unwrap(
+      await api.GET("/api/v1/projects/{project}/knowledge/deployments/{deployment}/usage", {
+        params: { path: { project, deployment } },
+      }),
+    ),
+  );
+}
+
 /** A byte count in the person's units: 1.2 MB, 340 kB. */
 export function bytesText(bytes: number | null | undefined, language: string): string {
   if (bytes === null || bytes === undefined) return "—";

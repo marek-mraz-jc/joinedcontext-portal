@@ -25,6 +25,7 @@ import { dataOfferSchema } from "../src/schemas/dataoffer";
 import { dataSpaceParticipantSchema } from "../src/schemas/dataspaceparticipant";
 import { environmentSchema } from "../src/schemas/environment";
 import { modelProjectionSchema } from "../src/schemas/modelprojection";
+import { assistantDeploymentSchema, knowledgeSourceSchema } from "../src/schemas/knowledge";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -102,6 +103,10 @@ const FORMS: Record<string, JsonSchema[]> = {
   Environment: [environmentSchema(t)],
   // Created and edited on its project list, besides the endpoint form's own (T-1548).
   ModelProjection: [modelProjectionSchema(t)],
+  // Created and edited on the Knowledge sources page (T-3057); a catalogue picked from the
+  // project's, a deployment's sources and connectors from the project's lists.
+  KnowledgeSource: [knowledgeSourceSchema(t), knowledgeSourceSchema(t, ["open-data"])],
+  AssistantDeployment: [assistantDeploymentSchema(t), assistantDeploymentSchema(t, ["city-web"], ["air-public"])],
   // Edited on the Organization page's Settings tab (T-2605).
   Organization: [kinds.organizationSchema(t)],
   // Edited on Project settings → General (T-2606).
@@ -439,6 +444,13 @@ describe("every choice of every form reads as words", () => {
     "verb",
     "accept",
     "operations",
+    // The knowledge assistant's forms (T-3057): a catalogue, the project's own sources and
+    // Endpoints by their names, and the tools of an Endpoint's MCP surface by the names its
+    // tools/list answers.
+    "ckanInstanceRef",
+    "sources",
+    "endpoint",
+    "tools",
   ]);
 
   function choices(node: unknown, name: string, found: { name: string; values: unknown[] }[] = []) {

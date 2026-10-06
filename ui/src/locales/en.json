@@ -5187,6 +5187,72 @@
       "offDomain": "On another site",
       "noPassages": "No passage: the assistant does not answer from this.",
       "noLinks": "This page links nothing the crawl recorded."
+    },
+    "field": {
+      "name": "Name",
+      "source": "Type",
+      "startUrls": "Start addresses",
+      "ckanInstanceRef": "Catalogue",
+      "sitemap": "Read the sitemap",
+      "include": "Read only these paths",
+      "exclude": "Skip these paths",
+      "maxDepth": "Link depth",
+      "maxPages": "Most pages",
+      "pdf": "Documents",
+      "pdfPolicy": "Documents linked from pages",
+      "pdfMaxBytes": "Largest document (bytes)",
+      "pdfMaxPages": "Most pages of a document",
+      "offDomainDocuments": "Documents on other sites",
+      "schedule": "Read again",
+      "languages": "Languages",
+      "visibility": "Who may be answered from it",
+      "publicId": "Public id",
+      "channel": "Channel",
+      "systemPrompt": "Instructions",
+      "sources": "Sources",
+      "connectors": "Connectors",
+      "connectorEndpoint": "Endpoint",
+      "connectorTools": "Tools",
+      "connectorTimeout": "Time limit (seconds)",
+      "allowedOrigins": "Allowed sites",
+      "rateLimit": "How often it answers",
+      "requestsPerMinute": "Questions a minute, everyone",
+      "perClientPerMinute": "Questions a minute, one visitor",
+      "budget": "Budget",
+      "tokensPerDay": "Tokens a day",
+      "tokensPerConversation": "Tokens a conversation",
+      "theme": "Look",
+      "primaryColor": "Accent colour",
+      "greeting": "Greeting",
+      "sandbox": "Scripts in the sandbox"
+    },
+    "visibility": {
+      "internal": "Internal: signed-in staff",
+      "public": "Public: every channel"
+    },
+    "channel": {
+      "public": "Public",
+      "internal": "Internal (Portal)",
+      "ckan": "Data catalogue",
+      "iframe": "Embedded on a site"
+    },
+    "pdfPolicy": {
+      "include": "Read them",
+      "exclude": "Skip them"
+    },
+    "addSource": "Add a source",
+    "assistants": {
+      "title": "Assistants",
+      "add": "Add an assistant",
+      "empty": "No assistant answers from this project yet",
+      "emptyHint": "An assistant deployment says where the knowledge assistant answers and from which sources.",
+      "usage": "Usage",
+      "usageOf": "Usage of {name}",
+      "noUsage": "No question was asked in the last 30 days.",
+      "day": "Day",
+      "requests": "Questions",
+      "tokensIn": "Tokens read",
+      "tokensOut": "Tokens written"
     }
   }
 }

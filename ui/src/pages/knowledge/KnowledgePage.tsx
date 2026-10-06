@@ -1,13 +1,15 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "../../api/client";
+import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { RecordLink } from "../../components/RecordLink";
 import {
   Alert,
   Badge,
   Button,
+  Dialog,
   EmptyState,
   PageHeader,
   PermissionGuard,
@@ -19,7 +21,7 @@ import {
   TableRow,
 } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui";
-import { knowledgeKeys, listSources, recrawl, timeText } from "./knowledge";
+import { knowledgeKeys, listSources, listUsage, recrawl, timeText } from "./knowledge";
 import type { KnowledgeSourceRow } from "./knowledge";
 
 /** The sentence an `ApiError` carries, or the generic one. */
@@ -63,10 +65,27 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
     },
   });
   const rows = sources.data ?? [];
+  const navigate = useNavigate();
 
   return (
     <section aria-label={t("knowledge.title")} className="space-y-6">
-      <PageHeader title={t("knowledge.title")} description={t("knowledge.intro")} />
+      <PageHeader
+        title={t("knowledge.title")}
+        description={t("knowledge.intro")}
+        actions={
+          <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() =>
+                void navigate({ to: "/projects/$project/$plural/new", params: { project, plural: "knowledgesources" } })
+              }
+            >
+              {t("knowledge.addSource")}
+            </Button>
+          </PermissionGuard>
+        }
+      />
       {sources.isError ? (
         <Alert role="alert" tone="danger">
           {t("knowledge.failed", { reason: reasonOf(sources.error, t("app.error.generic")) })}
@@ -166,6 +185,146 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
           </TableBody>
         </Table>
       ) : null}
+      <Assistants project={project} />
     </section>
+  );
+}
+
+interface DeploymentItem {
+  metadata: { name: string };
+  spec: {
+    publicId?: string;
+    channel?: string;
+    sources?: string[];
+    connectors?: { endpoint: string }[];
+  };
+}
+
+/**
+ * The project's assistant deployments: where each answers, from which sources and Endpoints, and
+ * what it spent over the last 30 days (T-3057). Each is created and edited as a manifest on its
+ * list, like every other kind.
+ */
+function Assistants({ project }: { project: string }): JSX.Element {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [usageOf, setUsageOf] = useState<string | null>(null);
+  const list = useQuery({
+    queryKey: queryKeys.list(project, "assistantdeployments"),
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project, plural: "assistantdeployments" } } })),
+  });
+  const items = (list.data?.items ?? []) as unknown as DeploymentItem[];
+  return (
+    <section aria-labelledby="knowledge-assistants" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="knowledge-assistants" className="text-lg font-semibold">
+          {t("knowledge.assistants.title")}
+        </h2>
+        <PermissionGuard project={project} kind="AssistantDeployment" verb="propose">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              void navigate({ to: "/projects/$project/$plural/new", params: { project, plural: "assistantdeployments" } })
+            }
+          >
+            {t("knowledge.assistants.add")}
+          </Button>
+        </PermissionGuard>
+      </div>
+      {list.isError ? (
+        <Alert role="alert" tone="danger">
+          {reasonOf(list.error, t("app.error.generic"))}
+        </Alert>
+      ) : null}
+      {!list.isLoading && !list.isError && items.length === 0 ? (
+        <EmptyState title={t("knowledge.assistants.empty")} description={t("knowledge.assistants.emptyHint")} icon="chat" />
+      ) : null}
+      {items.length > 0 ? (
+        <Table data-records="" caption={t("knowledge.assistants.title")}>
+          <TableHead>
+            <TableHeaderCell>{t("knowledge.field.name")}</TableHeaderCell>
+            <TableHeaderCell>{t("knowledge.field.publicId")}</TableHeaderCell>
+            <TableHeaderCell>{t("knowledge.field.channel")}</TableHeaderCell>
+            <TableHeaderCell>{t("knowledge.field.sources")}</TableHeaderCell>
+            <TableHeaderCell>{t("knowledge.field.connectors")}</TableHeaderCell>
+            <TableHeaderCell align="right">
+              <span className="sr-only">{t("approvals.actions")}</span>
+            </TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            {items.map((item) => (
+              <TableRow key={item.metadata.name}>
+                <TableCell className="font-mono">
+                  <RecordLink project={project} plural="assistantdeployments" name={item.metadata.name} />
+                </TableCell>
+                <TableCell className="font-mono">{item.spec.publicId ?? "—"}</TableCell>
+                <TableCell>{item.spec.channel ? t(`knowledge.channel.${item.spec.channel}`) : "—"}</TableCell>
+                <TableCell>{(item.spec.sources ?? []).join(", ") || "—"}</TableCell>
+                <TableCell>{(item.spec.connectors ?? []).map((c) => c.endpoint).join(", ") || "—"}</TableCell>
+                <TableCell align="right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={t("knowledge.assistants.usageOf", { name: item.metadata.name })}
+                    onClick={() => setUsageOf(item.metadata.name)}
+                  >
+                    {t("knowledge.assistants.usage")}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : null}
+      <Dialog
+        open={usageOf !== null}
+        onOpenChange={(open) => (open ? undefined : setUsageOf(null))}
+        title={t("knowledge.assistants.usageOf", { name: usageOf ?? "" })}
+        closeLabel={t("app.close")}
+      >
+        {usageOf ? <Usage project={project} deployment={usageOf} /> : null}
+      </Dialog>
+    </section>
+  );
+}
+
+function Usage({ project, deployment }: { project: string; deployment: string }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const usage = useQuery({
+    queryKey: ["projects", project, "knowledge", "deployments", deployment, "usage"],
+    queryFn: () => listUsage(project, deployment),
+  });
+  if (usage.isLoading) return <p role="status">{t("app.loading")}</p>;
+  if (usage.isError) {
+    return (
+      <Alert role="alert" tone="danger">
+        {reasonOf(usage.error, t("app.error.generic"))}
+      </Alert>
+    );
+  }
+  const days = usage.data ?? [];
+  if (days.length === 0) return <p>{t("knowledge.assistants.noUsage")}</p>;
+  const number = new Intl.NumberFormat(i18n.language);
+  return (
+    <Table data-records="" caption={t("knowledge.assistants.usage")}>
+      <TableHead>
+        <TableHeaderCell>{t("knowledge.assistants.day")}</TableHeaderCell>
+        <TableHeaderCell align="right">{t("knowledge.assistants.requests")}</TableHeaderCell>
+        <TableHeaderCell align="right">{t("knowledge.assistants.tokensIn")}</TableHeaderCell>
+        <TableHeaderCell align="right">{t("knowledge.assistants.tokensOut")}</TableHeaderCell>
+      </TableHead>
+      <TableBody>
+        {days.map((day) => (
+          <TableRow key={day.day}>
+            <TableCell>{day.day}</TableCell>
+            <TableCell align="right">{number.format(day.requests)}</TableCell>
+            <TableCell align="right">{number.format(day.tokensIn)}</TableCell>
+            <TableCell align="right">{number.format(day.tokensOut)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
