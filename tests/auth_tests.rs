@@ -1640,6 +1640,15 @@ async fn a_logout_without_a_session_ends_nobody_elses() {
     );
 }
 
+/// `value` with its middle character swapped for another base64url character, so the bytes it
+/// decodes to differ.
+fn tamper_middle(value: &str) -> String {
+    let mut chars: Vec<char> = value.chars().collect();
+    let middle = chars.len() / 2;
+    chars[middle] = if chars[middle] == 'A' { 'B' } else { 'A' };
+    chars.into_iter().collect()
+}
+
 /// PF-46: a cookie presented before there was a login never becomes one.
 ///
 /// Session fixation is handing somebody a session identifier and waiting for them to sign in
@@ -1669,8 +1678,10 @@ async fn a_cookie_planted_before_a_login_is_never_a_session() {
             r#"{"identity":{"subject":"f:1:admin","username":"admin","roles":["portal-admin"],"groups":[]},"expires_at":9999999999,"issued_at":0,"id_token":"","access_expires_at":9999999999}"#
         ),
         "jc_session=".to_string(),
-        // A sealed value with one byte changed: the authentication tag is what refuses it.
-        format!("jc_session={}x", &sealed[..sealed.len() - 1]),
+        // A sealed value with one byte changed: the authentication tag is what refuses it. The
+        // change is in the middle: the last base64 character may carry only padding bits, so
+        // swapping it can leave the bytes as they were and the cookie still valid.
+        format!("jc_session={}", tamper_middle(&sealed)),
         // Somebody else's cookie name, hoping the Portal reads the first thing it finds.
         format!("jc_sess={sealed}; jc_session=attacker-chosen-session-id"),
     ] {
