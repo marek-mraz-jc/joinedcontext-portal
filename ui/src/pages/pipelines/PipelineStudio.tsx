@@ -293,7 +293,9 @@ export function PipelineStudio({
   // paused one or a runner that does not answer simply paints nothing live.
   const pipelineName = draft?.name ?? "";
   const liveCounters = useQuery({
-    queryKey: [...queryKeys.resource(project, "pipelines", pipelineName), "metrics"],
+    // Its own key: the list row caches the same route under `metrics` with a rate it computes,
+    // and one cache entry holding either shape crashed the other reader (T-3090).
+    queryKey: [...queryKeys.resource(project, "pipelines", pipelineName), "metrics", "nodes"],
     enabled: pipelineName !== "",
     retry: false,
     refetchInterval: 15_000,
