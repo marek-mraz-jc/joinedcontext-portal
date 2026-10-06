@@ -484,9 +484,9 @@ impl Driver {
         if let Ok(index) = self.schema_index().await {
             let _ = self.schema_index.set(index);
         }
-        // An application is code on the App SDK (ADR-N-022); a dashboard and an analysis stay
-        // on the kit until it is retired (T-0681).
-        if self.kind == "application" {
+        // An application and a dashboard are code on the App SDK (ADR-N-022, AP-56, T-3159); an
+        // analysis stays on the kit until T-3160 moves it and T-0681 retires the kit.
+        if self.kind == "application" || self.kind == "dashboard" {
             return self.drive_code(&mut inbox, deadline).await;
         }
 

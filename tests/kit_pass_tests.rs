@@ -443,7 +443,9 @@ async fn create_run_with(
             "appName": "city-bikes-overview",
             "endpointName": "helsinki-bikes",
             "appClass": "ui",
-            "kind": "dashboard",
+            // An analysis is the run kind still on the kit (T-3159 moved dashboards, T-3160
+            // moves analyses, T-0681 then removes these tests with the kit).
+            "kind": "analysis",
             "visibility": "project",
             "prompt": prompt,
             "dataNeeds": [{
@@ -2407,6 +2409,85 @@ async fn an_app_like_another_of_the_project_is_asked_for_another_layout() {
         "{user}"
     );
     assert!(!user.contains("gallery layout `hero-map`"), "{user}");
+}
+
+/// T-3159, AP-56: a dashboard is written as code on the App SDK like an application, its request
+/// framed as read-only; nothing of the kit is written: no `spec.json` reaches a commit.
+#[tokio::test]
+async fn a_dashboard_is_code_on_the_sdk_and_only_reads() {
+    let forge = code_forge().await;
+    let answer = code_answer(
+        "A page listing the stations, with its test.",
+        &stations_app(STATIONS),
+    );
+    let (_state, app, cookie, proxy) =
+        portal_state_with("openai-compatible", &[answer], Some(&forge)).await;
+    mount_types(&proxy).await;
+    let (status, body) = json(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(json!({
+            "appName": "city-bikes-overview",
+            "endpointName": "helsinki-bikes",
+            "appClass": "ui",
+            "kind": "dashboard",
+            "visibility": "project",
+            "prompt": "A dashboard of the bike stations",
+            "dataNeeds": [{
+                "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" },
+                "types": ["BikeHireDockingStation"],
+                "attrs": ["name", "location", "availableBikeNumber"],
+                "operations": ["queryEntity"]
+            }]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    let id = body["id"].as_str().expect("a run id").to_owned();
+    // A dashboard is unattended: its first version ends waiting for approval (AG-69).
+    let run = wait_for(&app, &cookie, &id, &["awaiting_approval"]).await;
+    assert!(
+        run["previewUrl"]
+            .as_str()
+            .is_some_and(|url| url.ends_with("?v=1")),
+        "{run}"
+    );
+
+    let requests = model_requests(&proxy).await;
+    let system = requests[0]["messages"][0]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(system.contains("AN APPLICATION ON THE JOINEDCONTEXT APP SDK"));
+    let user = requests[0]["messages"][1]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        user.contains("THIS IS A DASHBOARD: a read-only application"),
+        "{user}"
+    );
+    assert!(user.contains("A dashboard of the bike stations"), "{user}");
+
+    let commits: Vec<String> = forge
+        .received_requests()
+        .await
+        .expect("recorded")
+        .into_iter()
+        .filter(|request| {
+            request.method.as_str() == "POST" && request.url.path().ends_with("/contents")
+        })
+        .map(|request| String::from_utf8_lossy(&request.body).into_owned())
+        .collect();
+    assert!(!commits.is_empty(), "the version was committed");
+    assert!(
+        commits.iter().all(|body| !body.contains("spec.json")),
+        "a dashboard run wrote the kit's spec.json"
+    );
+    assert!(
+        commits.iter().any(|body| body.contains("src/App.tsx")),
+        "{commits:?}"
+    );
 }
 
 #[tokio::test]

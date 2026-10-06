@@ -532,6 +532,14 @@ pub async fn create_run(
         &request.data_needs,
         &user,
     )?;
+    // T-3159: a dashboard is the read-only application; one that writes is an application.
+    if request.kind == "dashboard" && allows_write {
+        return Err(ApiError::BadRequest(
+            "a dashboard only reads, and these data needs ask for a write: build an application \
+             to write (AP-56)"
+                .to_owned(),
+        ));
+    }
     // AP-132, PF-70: never wider than what the caller holds, as the gateway says it.
     crate::agents::held::check(
         crate::agents::held::client(),
