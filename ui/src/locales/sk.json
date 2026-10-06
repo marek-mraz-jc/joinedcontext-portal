@@ -671,6 +671,16 @@
         "xlsx": "Excel",
         "json": "JSON"
       }
+    },
+    "comments": {
+      "title": "Komentáre",
+      "none": "Zatiaľ žiadne komentáre.",
+      "label": "Pridať komentár",
+      "help": "Napíšte @ a identifikátor kolegu, napríklad @demo.editor@hel.fi, a dostane upozornenie. Upozornení sú len ľudia, ktorí môžu čítať tento priestor.",
+      "post": "Komentovať",
+      "remove": "Odstrániť",
+      "removeOne": "Odstrániť váš komentár z {when}",
+      "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}"
     }
   },
   "endpoints": {
@@ -5138,5 +5148,11 @@
       "geoQ": "Filter oblasti",
       "temporalQ": "Časový filter"
     }
+  },
+  "notifications": {
+    "label": "{count, plural, =0 {Upozornenia} one {Upozornenia, # neprečítané} few {Upozornenia, # neprečítané} other {Upozornenia, # neprečítaných}}",
+    "title": "Upozornenia",
+    "none": "Nič nové.",
+    "mentioned": "{name} vás spomenul(a) v {space}"
   }
 }

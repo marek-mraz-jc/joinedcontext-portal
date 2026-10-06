@@ -18,6 +18,8 @@ export interface RowDetailProps {
   renderValue: (row: RichRow, column: VisibleColumn) => React.ReactNode;
   labels: RowDetailLabels;
   onClose: () => void;
+  /** What the host adds under the attributes, such as the row's comments. */
+  children?: React.ReactNode;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface RowDetailProps {
  * as in its cell and joins the same pending list. Named by the row's name, never only its id; the
  * heading takes focus when it opens and Escape closes it.
  */
-export function RowDetail({ row, name, columns, renderValue, labels, onClose }: RowDetailProps): React.JSX.Element {
+export function RowDetail({ row, name, columns, renderValue, labels, onClose, children }: RowDetailProps): React.JSX.Element {
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -73,6 +75,7 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose }: 
           </div>
         ))}
       </dl>
+      {children}
     </aside>
   );
 }

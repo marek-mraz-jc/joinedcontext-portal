@@ -671,6 +671,16 @@
         "xlsx": "Excel",
         "json": "JSON"
       }
+    },
+    "comments": {
+      "title": "Comments",
+      "none": "No comments yet.",
+      "label": "Add a comment",
+      "help": "Write @ and a colleague's identifier, such as @demo.editor@hel.fi, to notify them. Only people who may read this space are notified.",
+      "post": "Comment",
+      "remove": "Remove",
+      "removeOne": "Remove your comment of {when}",
+      "unknown": "Not notified, because they may not read this space: {names}"
     }
   },
   "endpoints": {
@@ -5138,5 +5148,11 @@
       "geoQ": "Area filter",
       "temporalQ": "Time filter"
     }
+  },
+  "notifications": {
+    "label": "{count, plural, =0 {Notifications} one {Notifications, # unread} other {Notifications, # unread}}",
+    "title": "Notifications",
+    "none": "Nothing new.",
+    "mentioned": "{name} mentioned you in {space}"
   }
 }

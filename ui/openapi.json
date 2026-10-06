@@ -867,6 +867,115 @@
         ]
       }
     },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List My Notifications",
+        "description": "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §34).",
+        "operationId": "list_notifications",
+        "responses": {
+          "200": {
+            "description": "The caller's notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Notifications"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The notifications are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{id}/read": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mark A Notification Read",
+        "description": "Marks one of the caller's notifications read (API/01 §34). Another caller's is 404.",
+        "operationId": "read_notification",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The notification's id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Read"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such notification of the caller's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The notifications are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/openapi.json": {
       "get": {
         "tags": [
@@ -8017,6 +8126,300 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/comments": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "List The Comments On An Entity",
+        "description": "The comments on one entity of the space, oldest first (API/01 §34).",
+        "operationId": "list_comments",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "urn",
+            "in": "query",
+            "description": "The entity's NGSI-LD URN.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The comments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommentView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an NGSI-LD URN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The comments are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Comment On An Entity",
+        "description": "Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §34). Changes no data.",
+        "operationId": "add_comment",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The entity and the text.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              },
+              "example": {
+                "text": "@demo.editor@hel.fi the count looks stale since Monday",
+                "urn": "urn:ngsi-ld:BikeHireDockingStation:hel.fi:bikes:7"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The comment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Commented"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an NGSI-LD URN, or no text, or more than 4,000 characters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The entity holds the most comments it keeps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The comments are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/comments/{id}": {
+      "delete": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Remove My Comment",
+        "description": "Removes one of the caller's own comments and the notifications it sent (API/01 §34). Another caller's comment is 404.",
+        "operationId": "remove_comment",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The comment's id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such comment of the caller's, or no such space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The comments are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/live": {
       "get": {
         "tags": [
@@ -12720,6 +13123,112 @@
           }
         }
       },
+      "Comment": {
+        "type": "object",
+        "description": "One comment as stored.",
+        "required": [
+          "id",
+          "urn",
+          "author",
+          "authorName",
+          "text",
+          "mentions",
+          "createdAt"
+        ],
+        "properties": {
+          "author": {
+            "type": "string",
+            "description": "Who wrote it: their username, as the Portal knows them."
+          },
+          "authorName": {
+            "type": "string",
+            "description": "What the Portal shows for the author."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "RFC 3339."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mentions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The people the comment notified, by identifier."
+          },
+          "text": {
+            "type": "string"
+          },
+          "urn": {
+            "type": "string"
+          }
+        }
+      },
+      "CommentRequest": {
+        "type": "object",
+        "description": "A comment to write.",
+        "required": [
+          "urn",
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "1 to 4,000 characters; `@identifier` mentions a person."
+          },
+          "urn": {
+            "type": "string",
+            "description": "The entity's NGSI-LD URN."
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommentView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Comment"
+          },
+          {
+            "type": "object",
+            "required": [
+              "mine"
+            ],
+            "properties": {
+              "mine": {
+                "type": "boolean",
+                "description": "The caller wrote it, so they may remove it."
+              }
+            }
+          }
+        ],
+        "description": "One comment as the caller reads it."
+      },
+      "Commented": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommentView"
+          },
+          {
+            "type": "object",
+            "required": [
+              "unknownMentions"
+            ],
+            "properties": {
+              "unknownMentions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Mentions of people who may not read the space: kept in the text, notified to nobody."
+              }
+            }
+          }
+        ],
+        "description": "A new comment, with the mentions that notified nobody."
+      },
       "Comparison": {
         "type": "object",
         "description": "What a workspace changes against its base, and where main changed the same files (API/01 §22).",
@@ -14525,6 +15034,78 @@
           "degraded",
           "unknown"
         ]
+      },
+      "Notification": {
+        "type": "object",
+        "description": "One notification of a mention.",
+        "required": [
+          "id",
+          "project",
+          "space",
+          "urn",
+          "commentId",
+          "author",
+          "authorName",
+          "excerpt",
+          "createdAt",
+          "read"
+        ],
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "authorName": {
+            "type": "string"
+          },
+          "commentId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "RFC 3339."
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "The first [`EXCERPT`] characters of the comment."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "project": {
+            "type": "string"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "space": {
+            "type": "string"
+          },
+          "urn": {
+            "type": "string"
+          }
+        }
+      },
+      "Notifications": {
+        "type": "object",
+        "description": "The caller's notifications.",
+        "required": [
+          "items",
+          "unread"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "ObjectMeta": {
         "type": "object",

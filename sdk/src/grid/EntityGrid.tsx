@@ -53,6 +53,8 @@ export interface EntityGridProps extends UseEntityGridOptions {
   mapLabels?: Partial<GridMapLabels>;
   geoLabels?: Partial<GeoLabels>;
   basemap?: string;
+  /** What the host adds under a row's detail, such as its comments (T-3106). */
+  detailExtra?: (row: RichRow) => React.ReactNode;
   toolbar?: React.ReactNode;
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
@@ -83,6 +85,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     onRows,
     marks,
     toolbar,
+    detailExtra,
     mapEngine,
     mapAllowed,
     mapLabels,
@@ -819,7 +822,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             setDetailId(null);
             tableRef.current?.focus();
           }}
-        />
+        >
+          {detailExtra?.(detailRow)}
+        </RowDetail>
       )}
 
       {history && (

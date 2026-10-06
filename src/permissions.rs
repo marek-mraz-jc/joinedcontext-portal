@@ -550,6 +550,45 @@ fn account_grants(
     grants
 }
 
+/// Whether the person `person` names (as a RoleBinding or a Group names people) may read the
+/// space `space` of `project` as the space routes decide it for a caller: a binding in force
+/// names them, directly or through a `Group` manifest's members (API/01 §34, T-3106).
+pub fn may_read_space(
+    mirror: &Mirror,
+    project: &str,
+    space: &str,
+    person: &str,
+    now: DateTime<Utc>,
+) -> bool {
+    let groups = mirror
+        .list(ORG_NAMESPACE, "Group", &ListOptions::default())
+        .items
+        .into_iter()
+        .filter(|env| {
+            serde_json::from_value::<jc_core::kinds::GroupSpec>(env.spec.clone()).is_ok_and(
+                |spec| {
+                    spec.members
+                        .iter()
+                        .any(|m| m.user.eq_ignore_ascii_case(person))
+                },
+            )
+        })
+        .map(|env| env.metadata.name)
+        .collect();
+    let identity = Identity {
+        client: None,
+        subject: person.to_owned(),
+        username: person.to_owned(),
+        email: Some(person.to_owned()),
+        name: None,
+        roles: Vec::new(),
+        groups,
+    };
+    // No bootstrap group: a person named in a comment is judged by their bindings alone.
+    let granted = effective(mirror, "", &identity, project, now);
+    granted.may_read_project() && granted.may_read_in("ContextSpace", Some(space))
+}
+
 /// Who reaches one project's repository in the forge, by lower-case identifier (PF-87): the
 /// people a binding in force at the organization or at the project lets read some kind, and
 /// those it lets propose, approve or delete. A `group` subject counts through the members of its

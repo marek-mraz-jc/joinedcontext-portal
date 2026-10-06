@@ -671,6 +671,16 @@
         "xlsx": "Excel",
         "json": "JSON"
       }
+    },
+    "comments": {
+      "title": "Kommentare",
+      "none": "Noch keine Kommentare.",
+      "label": "Kommentar hinzufügen",
+      "help": "Schreiben Sie @ und die Kennung einer Kollegin oder eines Kollegen, etwa @demo.editor@hel.fi, um sie zu benachrichtigen. Benachrichtigt wird nur, wer diesen Raum lesen darf.",
+      "post": "Kommentieren",
+      "remove": "Entfernen",
+      "removeOne": "Ihren Kommentar vom {when} entfernen",
+      "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}"
     }
   },
   "endpoints": {
@@ -5138,5 +5148,11 @@
       "geoQ": "Gebietsfilter",
       "temporalQ": "Zeitfilter"
     }
+  },
+  "notifications": {
+    "label": "{count, plural, =0 {Benachrichtigungen} one {Benachrichtigungen, # ungelesen} other {Benachrichtigungen, # ungelesen}}",
+    "title": "Benachrichtigungen",
+    "none": "Nichts Neues.",
+    "mentioned": "{name} hat Sie in {space} erwähnt"
   }
 }

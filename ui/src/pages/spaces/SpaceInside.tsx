@@ -42,6 +42,7 @@ import {
   GalleryView,
   KanbanView,
   LiveNotice,
+  RowExtra,
   TimelineView,
   TrashPanel,
   trashKey,
@@ -54,6 +55,7 @@ import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
 import { SharePanel } from "./PublicView";
 import { ExportLinks, ImportRowsDialog } from "./ImportRows";
+import { CommentsPanel } from "./Comments";
 import { importSlotsOf } from "./importRows";
 import { useOrgDomain } from "../../api/projects";
 import { AiFieldPanel } from "./AiField";
@@ -530,6 +532,7 @@ function SpaceData({
         <PortalEntityGrid
           // A new key after an import reads the type again from its first page.
           key={`${space}-${type}-${imported}`}
+          detailExtra={(row) => <CommentsPanel project={project} space={space} urn={row.id} />}
           project={project}
           config={config}
           source={source}
@@ -599,14 +602,14 @@ function OtherView({
   }
   const shown = rows.data.rows;
   return (
-    <>
+    <RowExtra.Provider value={(row) => <CommentsPanel project={project} space={space} urn={row.id} />}>
       <LiveNotice change={live} />
       {view === "gallery" ? <GalleryView rows={shown} source={source} onDelete={onDelete} /> : null}
       {view === "kanban" ? <KanbanView rows={shown} source={source} enums={enums} onDelete={onDelete} /> : null}
       {view === "calendar" ? <CalendarView rows={shown} source={source} onDelete={onDelete} /> : null}
       {view === "timeline" ? <TimelineView rows={shown} source={source} onDelete={onDelete} /> : null}
       <AiFieldPanel space={space} type={type} endpoints={endpoints} rows={shown} />
-    </>
+    </RowExtra.Provider>
   );
 }
 
