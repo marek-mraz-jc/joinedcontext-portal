@@ -625,8 +625,11 @@ impl Driver {
         .await
     }
 
-    /// The person's instruction with what the model needs to start: the files, the row types
-    /// and the turns before (SDK-20).
+    /// The person's instruction with what the model needs to start: the row types, the files,
+    /// the turns before and the request (SDK-20). What changes least comes first (T-3073): the
+    /// row types change with the data needs only and the files with the edits, while the
+    /// conversation and the request are new on every turn, so a provider's prefix cache keeps
+    /// what one turn shares with the next.
     fn edit_user_turn(
         &self,
         files: &BTreeMap<String, String>,
@@ -634,17 +637,16 @@ impl Driver {
         instruction: &str,
     ) -> (String, Vec<String>) {
         let mut turn = String::new();
-        if !conversation.is_empty() {
-            turn.push_str("Earlier in this conversation:\n");
-            for (asked, answered) in conversation.iter().rev().take(6).rev() {
-                turn.push_str(&format!("- asked: {asked}\n  answered: {answered}\n"));
-            }
-            turn.push('\n');
+        if let Some(types) = files.get(code::TYPES) {
+            turn.push_str(&format!("Row types ({}):\n{types}\n\n", code::TYPES));
         }
         let (files_text, whole) = opening(files);
         turn.push_str(&files_text);
-        if let Some(types) = files.get(code::TYPES) {
-            turn.push_str(&format!("\n\nRow types ({}):\n{types}", code::TYPES));
+        if !conversation.is_empty() {
+            turn.push_str("\n\nEarlier in this conversation:\n");
+            for (asked, answered) in conversation.iter().rev().take(6).rev() {
+                turn.push_str(&format!("- asked: {asked}\n  answered: {answered}\n"));
+            }
         }
         turn.push_str(&format!("\n\nThe request:\n{instruction}"));
         (turn, whole)
@@ -995,6 +997,85 @@ mod tests {
             .filter(|event| event.kind == "usage")
             .map(|event| event.payload)
             .collect()
+    }
+
+    /// The same stub on the chat-completions shape OpenRouter speaks.
+    async fn chat_listing_forever(server: &wiremock::MockServer) {
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/chat/completions"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{ "message": { "role": "assistant", "content": null, "tool_calls": [
+                    { "id": "t", "type": "function", "function": { "name": "list_files", "arguments": "{}" } }
+                ] } }],
+                "usage": { "prompt_tokens": 1_000, "completion_tokens": 30, "total_tokens": 1_030 },
+            })))
+            .mount(server)
+            .await;
+    }
+
+    /// T-3073: every call of a turn starts with the same bytes (the tools, the rules and the
+    /// opening), marked for the provider's cache; what changes per step only follows it.
+    #[tokio::test]
+    async fn every_call_of_a_turn_shares_one_cache_marked_prefix() {
+        let server = wiremock::MockServer::start().await;
+        chat_listing_forever(&server).await;
+        let mut driver = edit_driver(&server).await;
+        driver.provider = "openrouter".into();
+        let mut files = BTreeMap::from([
+            (
+                "src/App.tsx".to_owned(),
+                "export default function App() {}".to_owned(),
+            ),
+            (
+                code::TYPES.to_owned(),
+                "export interface Station { name: string }".to_owned(),
+            ),
+        ]);
+        let mut conversation = vec![("show bikes".to_owned(), "Done.".to_owned())];
+        driver
+            .edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut conversation,
+                "add a form",
+                None,
+            )
+            .await
+            .expect("the turn ends");
+        let bodies: Vec<Value> = server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .iter()
+            .map(|request| serde_json::from_slice(&request.body).expect("a JSON body"))
+            .collect();
+        assert!(bodies.len() > 2, "{}", bodies.len());
+        let prefix = |body: &Value| {
+            json!([body["tools"], body["messages"][0], body["messages"][1]]).to_string()
+        };
+        let first = prefix(&bodies[0]);
+        for body in &bodies {
+            assert_eq!(prefix(body), first, "a call changed the cached prefix");
+        }
+        // The per-step part grows after the prefix, never inside it.
+        assert!(
+            bodies[2]["messages"].as_array().map(Vec::len)
+                > bodies[0]["messages"].as_array().map(Vec::len)
+        );
+        let opening = &bodies[0]["messages"][1]["content"][0];
+        assert_eq!(opening["cache_control"], json!({ "type": "ephemeral" }));
+        // Stable first: the row types and the files, then the turns before and the request.
+        let text = opening["text"].as_str().expect("the opening");
+        let at = |needle: &str| {
+            text.find(needle)
+                .unwrap_or_else(|| panic!("{needle} in {text}"))
+        };
+        assert!(at("Row types") < at("Files:"), "{text}");
+        assert!(at("Files:") < at("Earlier in this conversation"), "{text}");
+        assert!(
+            at("Earlier in this conversation") < at("The request:"),
+            "{text}"
+        );
     }
 
     /// T-3072: the proxy writes the usage frame and counts the tokens of every call it relays,
