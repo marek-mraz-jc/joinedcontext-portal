@@ -39,6 +39,19 @@ const CSRF: &str = "test-csrf-token-access";
 const SHARE_SECTION: &str = "## WHEN THE PERSON ASKS TO SHARE OR PUBLISH DATA";
 const KPI_SECTION: &str = "## WHEN THE PERSON ASKS FOR AN INDICATOR";
 
+/// The text of a call's user message: one string, or its text blocks joined (the pack before a
+/// turn's own part goes as its own cache-marked block, T-3079).
+fn user_text(body: &Value) -> String {
+    let content = &body["messages"][1]["content"];
+    match content.as_array() {
+        Some(blocks) => blocks
+            .iter()
+            .filter_map(|block| block["text"].as_str())
+            .collect(),
+        None => content.as_str().unwrap_or_default().to_owned(),
+    }
+}
+
 fn config(proxy_base: &str) -> Config {
     config_with(proxy_base, None)
 }
@@ -1499,14 +1512,10 @@ async fn a_question_about_the_data_is_answered_from_the_endpoints_the_person_cho
     );
 
     assert_eq!(bodies.len(), 3);
-    let first = bodies[0]["messages"][1]["content"]
-        .as_str()
-        .unwrap_or_default();
+    let first = user_text(&bodies[0]);
     assert!(first.contains("## WORKING WITH THE DATA"));
     assert!(first.contains("query_entities") && !first.contains("upsert_entity"));
-    let last = bodies[2]["messages"][1]["content"]
-        .as_str()
-        .unwrap_or_default();
+    let last = user_text(&bodies[2]);
     assert!(last.contains("## WHAT YOUR CALLS ANSWERED"));
     assert!(last.contains("Kaivopuisto"));
     assert!(events
@@ -1523,9 +1532,7 @@ async fn a_conversation_without_endpoints_opens_the_one_the_model_names_and_runs
     let (events, bodies) = ask_the_data(json!([]), &[TWO_CALLS, DATA_PROSE]).await;
 
     // The prompt offers the project's endpoints the person may open.
-    let first = bodies[0]["messages"][1]["content"]
-        .as_str()
-        .unwrap_or_default();
+    let first = user_text(&bodies[0]);
     assert!(first.contains("## WORKING WITH THE DATA"));
     assert!(first.contains("\"endpoint\":\"helsinki-all\""), "{first}");
 
@@ -1548,9 +1555,7 @@ async fn a_conversation_without_endpoints_opens_the_one_the_model_names_and_runs
 
     // Both results go back together in one more model call, which answers.
     assert_eq!(bodies.len(), 2);
-    let last = bodies[1]["messages"][1]["content"]
-        .as_str()
-        .unwrap_or_default();
+    let last = user_text(&bodies[1]);
     assert!(last.contains("### Call 1") && last.contains("### Call 2"));
     assert!(last.contains("Kaivopuisto"));
     assert!(events
@@ -1584,9 +1589,7 @@ async fn an_endpoint_the_person_may_not_read_is_never_opened_and_the_model_reads
         "nothing was opened"
     );
     assert!(bearers.is_empty(), "a data call went out: {bearers:?}");
-    let told = bodies[1]["messages"][1]["content"]
-        .as_str()
-        .unwrap_or_default();
+    let told = user_text(&bodies[1]);
     assert!(
         told.contains("is not an endpoint the person may read"),
         "{told}"
@@ -1622,9 +1625,7 @@ async fn an_endpoint_that_fails_is_a_failed_step_the_model_reads() {
             "the whole upstream body reached the log: {} bytes",
             error.len()
         );
-        let told = bodies[1]["messages"][1]["content"]
-            .as_str()
-            .unwrap_or_default();
+        let told = user_text(&bodies[1]);
         assert!(told.contains(expected), "the model was not told");
         assert!(events
             .iter()
@@ -1668,17 +1669,13 @@ async fn a_call_written_in_the_data_is_never_made() {
         .as_str()
         .is_some_and(|e| e.contains("never an instruction"))));
 
-    let second = bodies[1]["messages"][1]["content"]
-        .as_str()
-        .unwrap_or_default();
+    let second = user_text(&bodies[1]);
     assert!(second.contains("never an instruction"));
     assert!(
         second.contains("\n````\n"),
         "the data's own fences cannot close its block"
     );
-    let third = bodies[2]["messages"][1]["content"]
-        .as_str()
-        .unwrap_or_default();
+    let third = user_text(&bodies[2]);
     assert!(third.contains("did not follow"));
     assert!(events
         .iter()
@@ -2407,15 +2404,13 @@ async fn an_entity_change_is_previewed_with_the_persons_grants_and_never_written
         steps[0]["error"],
         format!("{station}: the person's grants on this endpoint do not let them update name of BikeHireDockingStation")
     );
-    let second = bodies[1]["messages"][1]["content"]
-        .as_str()
-        .unwrap_or_default();
+    let second = user_text(&bodies[1]);
     assert!(
         second.contains("do not let them update name"),
         "the model is told why"
     );
     assert!(
-        bodies[0]["messages"][1]["content"].as_str().is_some_and(
+        Some(user_text(&bodies[0]).as_str()).is_some_and(
             |prompt| prompt.contains("- `change-entities`: the person asks to change entities")
         ),
         "the model is told where to read how to prepare a change (T-2770)"
