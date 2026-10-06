@@ -1446,11 +1446,6 @@ pub async fn propose_bundle(
     files: Vec<(String, String)>,
     headline: Option<(&str, &str)>,
 ) -> Result<Change, ApiError> {
-    let gitea = state
-        .forge_for(project)
-        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
-    let gitea: &crate::git::GiteaClient = &gitea;
-    let default_branch = gitea.default_branch().await?;
     let hash = digest(&files);
     let branch = match headline {
         Some((kind, name)) => format!(
@@ -1459,6 +1454,83 @@ pub async fn propose_bundle(
         ),
         None => format!("portal/import-{project}-{hash:08x}"),
     };
+    let title = format!("import {} resources into {project}", files.len());
+    let detail = serde_json::to_string_pretty(&report).unwrap_or_else(|_| "imported bundle".into());
+    // The one line an approver reads before the report: whether the transfer arrived whole
+    // (MF-42). A bundle without checksums has no such line rather than a reassuring one.
+    let lead: Vec<String> = report
+        .verification_summary()
+        .into_iter()
+        .chain(report.reassignment_lines())
+        .collect();
+    let body = if lead.is_empty() {
+        detail
+    } else {
+        format!("{}\n\n{detail}", lead.join("\n"))
+    };
+    let summary = crate::change::PlanSummary::new(
+        report.created.len(),
+        report.replaced.len() + report.renamed.len(),
+        0,
+    );
+    propose_files(
+        state,
+        identity,
+        project,
+        Proposal {
+            files,
+            verb: "import",
+            branch,
+            title,
+            body,
+            lane: report.lane,
+            summary,
+        },
+    )
+    .await
+}
+
+/// One merge request of several files, which a person approves as one Change.
+pub struct Proposal {
+    /// `(repository path, content)` of every file the merge request writes.
+    pub files: Vec<(String, String)>,
+    /// The word each file's commit message starts with, `import` or `rename`.
+    pub verb: &'static str,
+    /// The branch, `portal/{verb}-…`, which is how the change list recognises it.
+    pub branch: String,
+    /// The merge request's title.
+    pub title: String,
+    /// Its description: what the reviewer reads before the diff.
+    pub body: String,
+    /// The riskiest lane of what it writes (CC-63).
+    pub lane: Lane,
+    /// What the plan counts.
+    pub summary: crate::change::PlanSummary,
+}
+
+/// The forge half of [`propose_bundle`], for every door that writes several files as one Change
+/// in a person's name: the files go onto `proposal.branch` with `identity` as their author, and
+/// one merge request carries them.
+pub async fn propose_files(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    proposal: Proposal,
+) -> Result<Change, ApiError> {
+    let Proposal {
+        files,
+        verb,
+        branch,
+        title,
+        body,
+        lane,
+        summary,
+    } = proposal;
+    let gitea = state
+        .forge_for(project)
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
+    let default_branch = gitea.default_branch().await?;
     let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
 
     let (author_name, author_email) = author_credentials(identity, project);
@@ -1469,7 +1541,7 @@ pub async fn propose_bundle(
             .ok()
             .flatten()
             .map(|file| file.sha);
-        let message = format!("import {path}");
+        let message = format!("{verb} {path}");
         gitea
             .put_file(&FileWrite {
                 path,
@@ -1485,32 +1557,12 @@ pub async fn propose_bundle(
             .await?;
     }
 
-    let title = format!("import {} resources into {project}", files.len());
-    let detail = serde_json::to_string_pretty(&report).unwrap_or_else(|_| "imported bundle".into());
-    // The one line an approver reads before the report: whether the transfer arrived whole
-    // (MF-42). A bundle without checksums has no such line rather than a reassuring one.
-    let lead: Vec<String> = report
-        .verification_summary()
-        .into_iter()
-        .chain(report.reassignment_lines())
-        .collect();
-    let body = if lead.is_empty() {
-        detail
-    } else {
-        format!("{}\n\n{detail}", lead.join("\n"))
-    };
     let pull = gitea
         .create_pull_request(&branch, &default_branch, &title, &body)
         .await?;
-
-    let summary = crate::change::PlanSummary::new(
-        report.created.len(),
-        report.replaced.len() + report.renamed.len(),
-        0,
-    );
     let change = Change::new(
         crate::api::changes::change_meta(state, gitea, pull.number, project),
-        ChangeStatus::new(report.lane, ChangePhase::PendingApproval, summary)
+        ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
             .in_repository(&pull.repository)
             .with_merge_request(pull.url),
     );
@@ -2075,7 +2127,7 @@ fn reproject(path: &str, project: &str) -> String {
 
 /// A branch name that is the same for the same bundle, so a retry after a failed forge call
 /// reuses the branch instead of leaving one behind per attempt.
-fn digest(files: &[(String, String)]) -> u64 {
+pub(crate) fn digest(files: &[(String, String)]) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::hash::DefaultHasher::new();
     for (path, content) in files {
