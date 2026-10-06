@@ -585,6 +585,9 @@
   cursor: pointer;
   text-align: start;
   overflow-wrap: anywhere;
+  /* The row's name wraps inside the pinned column rather than being cut off at a phone's width:
+     the column keeps its 40% and the whole name stays readable (T-2782). */
+  white-space: normal;
 }
 
 .jc-grid-open:focus-visible {
