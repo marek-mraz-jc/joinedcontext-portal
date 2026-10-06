@@ -24,7 +24,9 @@ function app(name: string, lifecycle: string) {
   };
 }
 
-async function stub(page: Page): Promise<void> {
+// `realm` is what the realm answers the silent sign-in check (T-3034), in the fragment of the
+// Portal's landing page: an error when the person must sign in, a code when the session lives.
+async function stub(page: Page, realm = "error=login_required"): Promise<void> {
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body: unknown, status = 200) =>
@@ -32,7 +34,7 @@ async function stub(page: Page): Promise<void> {
     if (path.endsWith("/auth/me")) return json(IDENTITY);
     // The silent realm check (T-3034): the realm says the person must sign in.
     if (path === "/api/v1/auth/sso-check") {
-      return route.fulfill({ status: 303, headers: { location: "/api/v1/auth/sso-check/done#error=login_required" } });
+      return route.fulfill({ status: 303, headers: { location: `/api/v1/auth/sso-check/done#${realm}` } });
     }
     if (path === "/api/v1/auth/sso-check/done") return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html>" });
     if (path === "/api/v1/projects") {
@@ -130,6 +132,20 @@ test.describe("an App inside the Portal (AP-122)", () => {
       await expect(page.getByText("Your sign-in has ended.")).toHaveCount(0);
     });
   }
+
+  test("a silent App whose realm session lives brings no sign-in offer", async ({ page }) => {
+    await page.clock.install();
+    await stub(page, "code=never-redeemed&state=x");
+    await page.goto("/projects/helsinki/apps/city-bikes/open?lang=en");
+    await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
+
+    const landed = page.waitForRequest((request) => request.url().includes("/api/v1/auth/sso-check/done"));
+    await page.clock.runFor(8_000);
+    await landed;
+    // The check frame lands, is read and goes away; nothing is claimed.
+    await expect(page.getByTestId("app-sso-check")).toHaveCount(0);
+    await expect(page.getByText("Your sign-in has ended.")).toHaveCount(0);
+  });
 
   test("a retired App shows its state and no frame", async ({ page }) => {
     await stub(page);
