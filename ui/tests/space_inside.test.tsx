@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -463,6 +464,17 @@ describe("the space's own data", () => {
     const surface = reads.filter((url) => url.pathname.startsWith("/cs/ovzdusie/"));
     expect(surface).not.toHaveLength(0);
     expect(surface.every((url) => url.searchParams.get("type") === "AirQualityObserved")).toBe(true);
+  });
+
+  it("shows the same entities as cards, read through the space surface (T-3100)", async () => {
+    const fetchMock = renderInside({ status: 200, count: 1 });
+    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
+    const gallery = await screen.findByTestId("view-gallery");
+    expect(within(gallery).getByRole("button", { name: SPACE_ROWS[0].id })).toBeInTheDocument();
+    const reads = fetchMock.mock.calls
+      .map((call) => urlOf(call[0]))
+      .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+    expect(reads.some((url) => url.searchParams.get("limit") === "500")).toBe(true);
   });
 
   it("points at the endpoints when the surface answers this person nothing", async () => {

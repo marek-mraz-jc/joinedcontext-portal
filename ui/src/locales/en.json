@@ -468,6 +468,22 @@
         "empty": "Empty",
         "untargeted": "No target"
       }
+    },
+    "views": {
+      "label": "How to show the entities",
+      "kind": {
+        "grid": "Grid",
+        "gallery": "Gallery",
+        "kanban": "Board",
+        "calendar": "Calendar",
+        "timeline": "Timeline"
+      },
+      "truncated": "The first {count} entities are shown; narrow the filter to see others.",
+      "image": "Image",
+      "noImage": "No image",
+      "fields": "Fields on the card (up to {count})",
+      "fieldsFull": "A card shows at most {count} fields; untick one first.",
+      "openImage": "Open the image"
     }
   },
   "endpoints": {

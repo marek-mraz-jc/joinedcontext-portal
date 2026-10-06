@@ -24,12 +24,14 @@ import { useBranding } from "../../branding";
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { enumsOfModel, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
+import { EntityFilters } from "../../components/entities/EntityFilters";
+import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
+import { GalleryView, useViewRows } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { SpaceQuality } from "./SpaceQuality";
 import {
@@ -49,6 +51,8 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
+  Tabs,
+  tabPanelProps,
   Term,
 } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
@@ -312,6 +316,10 @@ function SpaceData({
   );
   const relations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
   const rules = useMemo(() => rulesOfModel(modelSource, type), [modelSource, type]);
+  const slots = useMemo(() => filterSlotsOf(modelSource, type), [modelSource, type]);
+  // The grid, or a view over the same rows (ADR-N-042 §3.2): the other views share one filter.
+  const [view, setView] = useState<DataView>("grid");
+  const [q, setQ] = useState<string | undefined>(undefined);
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -382,7 +390,29 @@ function SpaceData({
           </ul>
         </div>
       ) : null}
-      {probe.isSuccess && config ? (
+      {probe.isSuccess ? (
+        <Tabs
+          id="space-data-view"
+          label={t("spaces.views.label")}
+          variant="pill"
+          tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
+          value={view}
+          onChange={setView}
+        />
+      ) : null}
+      {probe.isSuccess && view !== "grid" ? (
+        <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
+          <EntityFilters
+            id="space-view-filter"
+            types={[type]}
+            slots={slots}
+            value={{ type, q }}
+            onChange={(next) => setQ(next.q)}
+          />
+          <OtherView source={source} space={space} type={type} q={q} view={view} />
+        </div>
+      ) : null}
+      {probe.isSuccess && config && view === "grid" ? (
         <PortalEntityGrid
           key={`${space}-${type}`}
           project={project}
@@ -398,6 +428,43 @@ function SpaceData({
       ) : null}
     </div>
   );
+}
+
+/** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
+const DATA_VIEWS = ["grid", "gallery"] as const;
+type DataView = (typeof DATA_VIEWS)[number];
+
+/** One view other than the grid, over one page of the filtered type. */
+function OtherView({
+  source,
+  space,
+  type,
+  q,
+  view,
+}: {
+  source: ReturnType<typeof sourceFor>;
+  space: string;
+  type: string;
+  q: string | undefined;
+  view: Exclude<DataView, "grid">;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const rows = useViewRows(source, space, type, q);
+  if (rows.isPending) return <p role="status">{t("app.loading")}</p>;
+  if (rows.isError) {
+    return (
+      <Alert role="alert" tone="danger">
+        {rows.error instanceof Error ? rows.error.message : t("app.error.generic")}
+      </Alert>
+    );
+  }
+  if (rows.data.rows.length === 0) {
+    return <p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>;
+  }
+  switch (view) {
+    case "gallery":
+      return <GalleryView rows={rows.data.rows} />;
+  }
 }
 
 /**

@@ -1189,6 +1189,15 @@
         "slot_unit.test.tsx"
       ]
     },
+    "src/pages/spaces/DataViews.tsx": {
+      "controls": {
+        "Button": 1,
+        "Checkbox": 1
+      },
+      "tests": [
+        "data_views.test.tsx"
+      ]
+    },
     "src/pages/spaces/SpaceComplete.tsx": {
       "controls": {
         "Button": 3

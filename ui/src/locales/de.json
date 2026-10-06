@@ -468,6 +468,22 @@
         "empty": "Leer",
         "untargeted": "Ohne Ziel"
       }
+    },
+    "views": {
+      "label": "Wie die Entitäten gezeigt werden",
+      "kind": {
+        "grid": "Tabelle",
+        "gallery": "Galerie",
+        "kanban": "Kanban",
+        "calendar": "Kalender",
+        "timeline": "Zeitleiste"
+      },
+      "truncated": "Die ersten {count} Entitäten werden gezeigt; schränken Sie den Filter ein, um weitere zu sehen.",
+      "image": "Bild",
+      "noImage": "Kein Bild",
+      "fields": "Felder auf der Karte (höchstens {count})",
+      "fieldsFull": "Eine Karte zeigt höchstens {count} Felder; entfernen Sie zuerst eines.",
+      "openImage": "Bild öffnen"
     }
   },
   "endpoints": {

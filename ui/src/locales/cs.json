@@ -468,6 +468,22 @@
         "empty": "Prázdné",
         "untargeted": "Bez cíle"
       }
+    },
+    "views": {
+      "label": "Jak zobrazit entity",
+      "kind": {
+        "grid": "Tabulka",
+        "gallery": "Galerie",
+        "kanban": "Nástěnka",
+        "calendar": "Kalendář",
+        "timeline": "Časová osa"
+      },
+      "truncated": "Zobrazuje se prvních {count} entit; zužte filtr, abyste viděli další.",
+      "image": "Obrázek",
+      "noImage": "Bez obrázku",
+      "fields": "Pole na kartě (nejvýše {count})",
+      "fieldsFull": "Karta zobrazí nejvýše {count} polí; nejdřív jedno odškrtněte.",
+      "openImage": "Otevřít obrázek"
     }
   },
   "endpoints": {
