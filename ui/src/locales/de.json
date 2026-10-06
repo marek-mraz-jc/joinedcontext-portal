@@ -1139,6 +1139,10 @@
       "stepYamlOne": "Ein Schritt ist ein Prozessor: ein Name oben, darunter seine Konfiguration.",
       "stepYamlUnknown": "Der Runner hat keinen Prozessor namens „{name}“. Wählen Sie einen aus der Palette.",
       "stepReadOnly": "Ein Rechen- oder Mapping-Schritt wird in der YAML-Ansicht dieses Dialogs bearbeitet.",
+      "stepView": "Wie dieser Schritt bearbeitet wird",
+      "stepForm": "Formular",
+      "stepYamlTab": "YAML",
+      "stepSecretHelp": "Zugangsdaten stehen nie in der Pipeline: Nennen Sie eine Variable aus den Secrets der Pipeline, als $'{'VAR'}'.",
       "addSource": "+ Quelle",
       "removeSource": "Quelle entfernen",
       "sourceReads": "Diese Quelle liest",
@@ -1146,6 +1150,7 @@
       "mappingRefHint": "Ein Mapping dieses Projekts; der Schritt wendet es auf jeden Datensatz an.",
       "moduleHint": "Pfad oder Paket des Moduls, das der Schritt ausführt.",
       "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft.",
+      "computeNotRun": "Die Plattform führt einen Schritt dieser Art noch nicht aus ({kind}): Die Pipeline wird angenommen und bleibt Pending, bis sie es tut. Ein Bloblang-Schritt läuft heute.",
       "live": "Live-Zählungen des laufenden Streams seit dem Start seines Runners; ein Test zeigt stattdessen eine Stichprobe.",
       "liveErrors": "{count, plural, one {# Fehler} other {# Fehler}} seit dem Start des Runners"
     },

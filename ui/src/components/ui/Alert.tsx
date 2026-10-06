@@ -64,7 +64,9 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(function Alert(
       <span className="sr-only">{t(label)}</span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         {title ? <p className="font-semibold">{title}</p> : null}
-        {children ? <div className="[&_a]:underline">{children}</div> : null}
+        {/* A URL or an id in an error has no space to break at: it wraps anywhere rather than
+            pushing the page sideways on a phone (T-3088). */}
+        {children ? <div className="[overflow-wrap:anywhere] [&_a]:underline">{children}</div> : null}
         {actions ? <div className="mt-1 flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
     </div>

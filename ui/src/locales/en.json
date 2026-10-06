@@ -1139,6 +1139,10 @@
       "stepYamlOne": "A step is one processor: one name at the top, its configuration under it.",
       "stepYamlUnknown": "The runner ships no processor named \"{name}\". Take one from the palette.",
       "stepReadOnly": "A compute or mapping step is edited in the YAML view of this dialog.",
+      "stepView": "How to edit this step",
+      "stepForm": "Form",
+      "stepYamlTab": "YAML",
+      "stepSecretHelp": "A credential never sits in the pipeline: name a variable of the pipeline's secrets, as $'{'VAR'}'.",
       "addSource": "+ Source",
       "removeSource": "Remove source",
       "sourceReads": "This source reads",
@@ -1146,6 +1150,7 @@
       "mappingRefHint": "A Mapping of this project; the step applies it to each record.",
       "moduleHint": "The path or package of the module the step runs.",
       "functionHint": "The module's entry point the step calls for each record.",
+      "computeNotRun": "The platform does not run a step of this kind yet ({kind}): the pipeline is accepted and stays Pending until it does. A Bloblang step runs today.",
       "live": "Live counts of the running stream since its runner started; run a test to see a sample instead.",
       "liveErrors": "{count, plural, one {# error} other {# errors}} since the runner started"
     },

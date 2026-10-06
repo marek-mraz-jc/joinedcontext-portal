@@ -40,12 +40,17 @@ export function Table({
     // `<section aria-labelledby>` whose name is the caption — two nested landmarks with one
     // name, which is the `landmark-unique` violation and an ambiguous query for every test that
     // asks for that section by name. A group names the tab stop and adds no landmark.
+    //
+    // `relative`: the frame is the containing block of the `sr-only` labels in the cells. They are
+    // positioned absolutely, and an absolute box is clipped only by a scroller that contains its
+    // containing block, so without it a header's hidden "Actions" stood at the table's far right
+    // and the whole page scrolled sideways at 375 px (T-3088).
     <div
       role="group"
       aria-label={caption}
       tabIndex={0}
       className={clsx(
-        "focus-ring overflow-x-auto rounded-lg border border-border bg-surface shadow-1",
+        "focus-ring relative overflow-x-auto rounded-lg border border-border bg-surface shadow-1",
         maxHeight && ["overflow-y-auto", maxHeight],
       )}
     >

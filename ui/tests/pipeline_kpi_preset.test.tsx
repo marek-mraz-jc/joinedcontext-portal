@@ -58,7 +58,12 @@ const KPI_TEST_ANSWER = {
   errors: [],
 };
 
-function mockFetch(testResponse?: { status: number; body: unknown }) {
+/** One page of the source endpoint, as the gateway answers it to the person's session. */
+const ENDPOINT_PAGE = [
+  { id: "urn:ngsi-ld:BikeHireDockingStation:hel.fi:h:1", type: "BikeHireDockingStation", availableBikeNumber: { type: "Property", value: 12.5 } },
+];
+
+function mockFetch(testResponse?: { status: number; body: unknown }, endpointStatus = 200) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const method = init?.method ?? (input instanceof Request ? input.method : "GET");
@@ -71,6 +76,11 @@ function mockFetch(testResponse?: { status: number; body: unknown }) {
       );
     if (url.includes("/api/v1/organization/datamodels")) {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: MODELS, smartDataModels: [] });
+    }
+    if (url.includes("/api/endpoint/")) {
+      return endpointStatus === 200
+        ? json(ENDPOINT_PAGE)
+        : json({ title: "Authentication Required", detail: "Authentication Required", status: endpointStatus }, endpointStatus);
     }
     if (url.includes("/pipelines/test") && method === "POST") {
       return json(testResponse?.body ?? {}, testResponse?.status ?? 200);
@@ -196,7 +206,7 @@ describe("PipelineStudio KPI preset", () => {
     });
   });
 
-  it("clicking the test button POSTs the sample url and shows the computed value", async () => {
+  it("reads the endpoint's page with the person's session and tests on it inline", async () => {
     const fetchMock = mockFetch({ status: 200, body: KPI_TEST_ANSWER });
     const { onVerdict } = renderStudio();
 
@@ -210,18 +220,33 @@ describe("PipelineStudio KPI preset", () => {
 
     await waitFor(() => expect(sentTo(fetchMock, "/pipelines/test")).toHaveLength(1));
 
+    // The runner fetches a URL with no credential and the endpoint answered it 401 (T-3088):
+    // the browser reads the page the reconciler will read, and the test carries it as text.
+    const read = sentTo(fetchMock, "/api/endpoint/abc123/ngsi-ld/v1/entities");
+    expect(read).toHaveLength(1);
+    expect(read[0].path).toContain("type=BikeHireDockingStation");
+    expect(read[0].path).toContain("limit=1000");
     const body = (await sentTo(fetchMock, "/pipelines/test")[0].json()) as {
-      sample: { url: string; format: string };
+      sample: { text?: string; url?: string; format: string };
       pipeline: { spec: PipelineForm };
     };
-    expect(body.sample.url).toContain(
-      "/api/endpoint/abc123/ngsi-ld/v1/entities?type=BikeHireDockingStation",
-    );
+    expect(body.sample.url).toBeUndefined();
+    expect(JSON.parse(body.sample.text ?? "")).toEqual(ENDPOINT_PAGE);
     expect(body.sample.format).toBe("json");
 
     const valueEl = await screen.findByTestId("studio-kpi-value");
     expect(valueEl).toHaveTextContent("12.5");
     expect(onVerdict).toHaveBeenCalledWith(true, expect.stringContaining("availableBikeNumber"));
+  });
+
+  it("says the endpoint's refusal in words and asks the runner nothing", async () => {
+    const fetchMock = mockFetch({ status: 200, body: KPI_TEST_ANSWER }, 401);
+    renderStudio();
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.studio.preset.title), "kpi");
+    await userEvent.selectOptions(await screen.findByLabelText(en.pipelines.studio.kpi.endpoint), "helsinki-all");
+    await userEvent.click(screen.getByTestId("studio-kpi-test"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Authentication Required");
+    expect(sentTo(fetchMock, "/pipelines/test")).toHaveLength(0);
   });
 
   it("shows the trace's first error instead of nothing when the mapping fails", async () => {

@@ -1139,6 +1139,10 @@
       "stepYamlOne": "Krok je jeden procesor: jeden názov hore a pod ním jeho konfigurácia.",
       "stepYamlUnknown": "Runner nemá procesor s názvom „{name}“. Vyberte si z palety.",
       "stepReadOnly": "Výpočtový alebo mapovací krok sa upravuje v zobrazení YAML tohto dialógu.",
+      "stepView": "Ako upraviť tento krok",
+      "stepForm": "Formulár",
+      "stepYamlTab": "YAML",
+      "stepSecretHelp": "Prístupový údaj nikdy nie je v pipeline: uveďte premennú z tajomstiev pipeline, ako $'{'VAR'}'.",
       "addSource": "+ Zdroj",
       "removeSource": "Odstrániť zdroj",
       "sourceReads": "Tento zdroj číta",
@@ -1146,6 +1150,7 @@
       "mappingRefHint": "Mapovanie tohto projektu; krok ho použije na každý záznam.",
       "moduleHint": "Cesta alebo balík modulu, ktorý krok spúšťa.",
       "functionHint": "Vstupný bod modulu, ktorý krok volá pre každý záznam.",
+      "computeNotRun": "Platforma krok tohto druhu zatiaľ nespúšťa ({kind}): pipeline sa prijme a zostane v stave Pending, kým to nebude možné. Krok Bloblang beží už dnes.",
       "live": "Živé počty bežiaceho prúdu od spustenia jeho runnera; ukážku uvidíte po spustení testu.",
       "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chýb}} od spustenia runnera"
     },

@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
-import { Button, Field, Select, Textarea } from "../../components/ui";
+import type { ErrorSchema } from "@rjsf/utils";
+import { SchemaForm } from "../../components/forms/SchemaForm";
+import { Button, Field, Select, Tabs, tabPanelProps, Textarea } from "../../components/ui";
 import processorCatalogue from "../../schemas/bento-processors.json";
-import { COMPUTE_KINDS } from "../../schemas/kinds";
+import { COMPUTE_KINDS, YamlFieldError } from "../../schemas/kinds";
 import type { PipelineForm, SourceForm, StepForm } from "./PipelineEditor";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
+import { errorAt, fromFormData, toFormData, useProcessorForms, withHelp } from "./processorForm";
 
 /** One processor of the pinned runner: the list jc-core admits a `processor` step from (PL-52). */
 export interface Processor {
@@ -808,10 +811,12 @@ export interface StepBlockProps {
 }
 
 /**
- * The selected step's own Bento block as YAML (PL-56): `<processor>: <config>`, nothing of a
- * neighbour's. What is typed reaches the form only while it is one processor the runner ships;
- * until then the form keeps the last block that was, and the reason stands under the text.
- * Mount it with the node's id as `key`: the text is the author's until another node is chosen.
+ * The selected step's own Bento block (PL-56): a form generated from the runner's field tree of
+ * that processor (T-3088), and the block as YAML, `<processor>: <config>`, nothing of a
+ * neighbour's. Both edit the same config; what is typed reaches the form only while it is one
+ * processor the runner ships, and until then the form keeps the last block that was, with the
+ * reason at the field or under the text. Mount it with the node's id as `key`: the text is the
+ * author's until another node is chosen.
  */
 // ponytail: a textarea like the compute node's mapping, not Monaco; swap in MonacoSourceView
 // when authors ask for completion inside a processor's fields.
@@ -822,8 +827,30 @@ export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.El
     stringifyYaml(processor ? { [processor[0]]: processor[1] } : entry.step),
   );
   const [problem, setProblem] = useState<string | null>(null);
+  const [view, setView] = useState<"form" | "yaml">("form");
+  // What the form starts from, taken when it opens: the form owns its text from then on, so a
+  // YAML box half typed is not rewritten under the cursor by its own round trip.
+  const [seed, setSeed] = useState<{ data: unknown } | null>(null);
+  const [boxError, setBoxError] = useState<ErrorSchema | undefined>(undefined);
+  const forms = useProcessorForms();
   const id = "flow-step-yaml";
   const found = (processorCatalogue as Processor[]).find(({ name }) => name === processor?.[0]);
+  const form = processor ? forms?.processors[processor[0]] : undefined;
+  const shown = form && view === "form" ? "form" : "yaml";
+  if (processor && form && seed === null) {
+    // The forms arrive after the first render the first time; the seed is taken then.
+    setSeed({ data: toFormData(processor[1], form.schema, form.uiSchema) });
+  }
+  const uiSchema = useMemo(
+    () =>
+      form
+        ? {
+            ...withHelp(form.uiSchema, t("pipelines.flow.stepSecretHelp")),
+            "ui:submitButtonOptions": { norender: true },
+          }
+        : undefined,
+    [form, t],
+  );
 
   const typed = (next: string) => {
     setText(next);
@@ -850,6 +877,35 @@ export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.El
     }
   };
 
+  const filled = (data: unknown) => {
+    if (!processor || !form) return;
+    let config: unknown;
+    try {
+      config = fromFormData(data, form.schema, form.uiSchema, "", processor[1]);
+    } catch (error) {
+      if (!(error instanceof YamlFieldError)) throw error;
+      setBoxError(
+        errorAt(error.field, t("pipelines.flow.stepYamlInvalid", { reason: error.detail })),
+      );
+      return;
+    }
+    setBoxError(undefined);
+    // The form reports itself once on opening; a block it did not change is not an edit.
+    if (JSON.stringify(config ?? {}) === JSON.stringify(processor[1] ?? {})) return;
+    const block = { [processor[0]]: config ?? {} };
+    setText(stringifyYaml(block));
+    setProblem(null);
+    onChange({ ...entry, step: { ...entry.step, processor: block } });
+  };
+
+  const switchTo = (next: "form" | "yaml") => {
+    if (next === "form" && processor && form) {
+      setSeed({ data: toFormData(processor[1], form.schema, form.uiSchema) });
+      setBoxError(undefined);
+    }
+    setView(next);
+  };
+
   return (
     <div
       className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3"
@@ -863,27 +919,61 @@ export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.El
           {t("pipelines.flow.removeStep")}
         </Button>
       </div>
-      {processor ? (
-        <Field
-          id={id}
-          label={t("pipelines.flow.stepYaml")}
-          description={found ? plainSummary(found.summary) : undefined}
-          help={t("pipelines.flow.stepYamlHint")}
-          errors={problem ? [problem] : undefined}
+      {processor && form ? (
+        <Tabs
+          id="flow-step-view"
+          label={t("pipelines.flow.stepView")}
+          variant="pill"
+          tabs={[
+            { value: "form", label: t("pipelines.flow.stepForm") },
+            { value: "yaml", label: t("pipelines.flow.stepYamlTab") },
+          ]}
+          value={shown}
+          onChange={switchTo}
+        />
+      ) : null}
+      {processor && form && shown === "form" ? (
+        <div
+          {...tabPanelProps("flow-step-view", "form")}
+          data-testid="flow-step-form"
+          className="flex flex-col gap-2"
         >
-          {/* The Field wires `aria-describedby` and `aria-invalid` onto the control it wraps,
-              so the textarea no longer rebuilds the ids by hand (T-2314). */}
-          <Textarea
-            id={id}
-            data-testid="flow-step-yaml"
-            rows={8}
-            spellCheck={false}
-            className="p-2 font-mono text-caption"
-            value={text}
-            onChange={(e) => typed(e.target.value)}
+          {found ? <p className="text-caption text-fg-muted">{plainSummary(found.summary)}</p> : null}
+          <SchemaForm<unknown>
+            // Keyed on the seed, so reopening the form after a YAML edit starts from that edit.
+            key={JSON.stringify(seed?.data ?? null)}
+            schema={form.schema}
+            uiSchema={uiSchema}
+            formData={seed?.data}
+            extraErrors={boxError}
+            onSubmit={() => undefined}
+            onChange={filled}
           />
-        </Field>
-      ) : (
+        </div>
+      ) : null}
+      {processor && shown === "yaml" ? (
+        <div {...(form ? tabPanelProps("flow-step-view", "yaml") : {})}>
+          <Field
+            id={id}
+            label={t("pipelines.flow.stepYaml")}
+            description={found ? plainSummary(found.summary) : undefined}
+            help={t("pipelines.flow.stepYamlHint")}
+            errors={problem ? [problem] : undefined}
+          >
+            {/* The Field wires `aria-describedby` and `aria-invalid` onto the control it wraps,
+                so the textarea no longer rebuilds the ids by hand (T-2314). */}
+            <Textarea
+              id={id}
+              data-testid="flow-step-yaml"
+              rows={8}
+              spellCheck={false}
+              className="p-2 font-mono text-caption"
+              value={text}
+              onChange={(e) => typed(e.target.value)}
+            />
+          </Field>
+        </div>
+      ) : processor ? null : (
         <>
           <pre
             data-testid="flow-step-readonly"
