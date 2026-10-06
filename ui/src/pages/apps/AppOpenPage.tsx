@@ -8,7 +8,7 @@ import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useAuth } from "../../auth/AuthProvider";
 import { useBranding } from "../../branding";
-import { Button, buttonClass, EmptyState, ExternalLink, Icon, PageHeader, PageLoading } from "../../components/ui";
+import { Button, buttonClass, EmptyState, ExternalLink, Icon, PageHeader, PageLoading, safeHref } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { useAppBuild } from "./AppBuildPanel";
 import { appSpec, openBlockedReason } from "./AppsCatalog";
@@ -310,6 +310,9 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
     );
   }
 
+  const sourceCode = safeHref(build.data?.repositoryUrl);
+  const configuration = safeHref(build.data?.configurationUrl);
+
   // The commit the App is served from is on its details page, in the build badge's tooltip:
   // developer information has no line of the person's screen here (owner, 2026-09-25).
   return (
@@ -338,6 +341,18 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
           <ExternalLink href={address} hideIcon className={buttonClass("ghost", "sm")}>
             {t("apps.openPage.newWindow")}
           </ExternalLink>
+          {/* The App's whole source and the project's configuration on the forge, each only when
+              the API gives this person its address (AP-103, T-3039). */}
+          {sourceCode ? (
+            <ExternalLink href={sourceCode} hideIcon className={buttonClass("ghost", "sm")}>
+              {t("apps.sourceCode")}
+            </ExternalLink>
+          ) : null}
+          {configuration ? (
+            <ExternalLink href={configuration} hideIcon className={buttonClass("ghost", "sm")}>
+              {t("apps.projectConfiguration")}
+            </ExternalLink>
+          ) : null}
           {/* An App whose session ran out keeps asking inside the frame, where Keycloak may not
               be framed: the way back is the Portal's own sign-in, in the top window (AP-122). */}
           <Button

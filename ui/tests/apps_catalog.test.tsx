@@ -210,32 +210,80 @@ describe("apps catalog", () => {
     expect(within(await cardOf("Temperatures")).queryByText(/^Checked/)).toBeNull();
   });
 
-  // T-2618: the owner reads a card by its footer, so it is always the same two controls.
-  it("a served app's card has its title's link, one Open and one menu, nothing else (T-2618, T-2875, AP-14)", async () => {
+  // T-3038: one click on a served app's card is the app, framed under the Portal's header.
+  it("a served app's card opens the app itself: its title is the link, one menu, no Open button (T-3038, AP-122)", async () => {
     renderCatalog([built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }))]);
 
     const card = await cardOf("Noise");
-    const open = within(card).getByRole("link", { name: en.apps.openAction });
-    // Inside the Portal, under its header (AP-122); that page offers a window of its own.
-    expect(open).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk/open");
-    expect(open).not.toHaveAttribute("target");
+    const link = await within(card).findByRole("link", { name: "Noise" });
+    await waitFor(() => {
+      expect(link).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk/open");
+    });
+    expect(link).not.toHaveAttribute("target");
+    expect(within(card).queryByRole("link", { name: en.apps.openAction })).toBeNull();
+    expect(within(card).queryByRole("button", { name: new RegExp(`^${en.apps.openAction}`) })).toBeNull();
     expect(within(card).getByRole("button", { name: more("Noise") })).toBeInTheDocument();
-    // The title is the card's record link (T-2875): a click anywhere on the card opens the app's page.
-    expect(within(card).getByRole("link", { name: "Noise" })).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk");
-    expect([...within(card).queryAllByRole("button"), ...within(card).queryAllByRole("link")]).toHaveLength(3);
+    expect([...within(card).queryAllByRole("button"), ...within(card).queryAllByRole("link")]).toHaveLength(2);
   });
 
-  it("a preview keeps Open disabled with its reason, and its menu offers preview and publish (T-2618, UI-44)", async () => {
+  it("a click on the card's body lands in the framed app; the menu's click does not navigate (T-3038)", async () => {
+    const user = userEvent.setup();
+    renderCatalog([built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }))]);
+    const card = await cardOf("Noise");
+    await waitFor(() => {
+      expect(within(card).getByRole("link", { name: "Noise" })).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk/open");
+    });
+
+    await user.click(within(card).getByRole("button", { name: more("Noise") }));
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/projects/banskabystrica/apps");
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    await user.click(within(card).getByText("Visible to project"));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/banskabystrica/apps/hluk/open");
+    });
+  });
+
+  it("Enter on the card's focused link opens the app (T-3038, UI keyboard)", async () => {
+    const user = userEvent.setup();
+    renderCatalog([built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }))]);
+    const link = within(await cardOf("Noise")).getByRole("link", { name: "Noise" });
+    await waitFor(() => {
+      expect(link).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk/open");
+    });
+    link.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/banskabystrica/apps/hluk/open");
+    });
+  });
+
+  it("the menu takes the owner to the app's page, which the card no longer opens (T-3038)", async () => {
+    const user = userEvent.setup();
+    renderCatalog([built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }))]);
+    await choose(user, "Noise", en.apps.openPage.details);
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/banskabystrica/apps/hluk");
+    });
+  });
+
+  it("a preview says why it does not open and its card opens the app's page (T-2618, T-3038, UI-44)", async () => {
     const user = userEvent.setup();
     renderCatalog([app()]);
 
     const card = await cardOf("Air quality map");
-    const open = within(card).getByRole("button", { name: new RegExp(`^${en.apps.openAction}`) });
-    expect(open).toHaveAttribute("aria-disabled", "true");
     expect(card).toHaveTextContent(en.apps.openDisabled.preview);
-    expect(within(card).queryByRole("link", { name: en.apps.openAction })).toBeNull();
+    expect(within(card).queryByRole("button", { name: new RegExp(`^${en.apps.openAction}`) })).toBeNull();
+    expect(within(card).getByRole("link", { name: "Air quality map" })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/apps/mapa-ovzdusia",
+    );
 
-    // Opened with the keyboard: Tab order is the title, Open, then the menu.
+    // Opened with the keyboard: Tab order is the title, then the menu.
     within(card).getByRole("button", { name: more("Air quality map") }).focus();
     await user.keyboard("{Enter}");
     const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent ?? "");
@@ -276,7 +324,8 @@ describe("apps catalog", () => {
       GREEN,
       {
         bikes: {
-          repositoryUrl: `${FORGE}/helsinki_bikes`,
+          repositoryUrl: `${FORGE}-apps/helsinki_bikes`,
+          configurationUrl: `${FORGE}/helsinki`,
           run: { status: "completed", conclusion: "success", commit: "9f1c2ab", url: `${FORGE}/helsinki_bikes/actions/runs/7` },
           packageUrl: `${FORGE}/-/packages/generic/app-bikes/9f1c2ab`,
           rebuild: { allowed: true },
@@ -286,7 +335,13 @@ describe("apps catalog", () => {
 
     await user.click(within(await cardOf("Bikes")).getByRole("button", { name: more("Bikes") }));
     const link = (label: string) => screen.getByRole("menuitem", { name: label });
+    // The App's whole source and the project's configuration first (T-3039), in that order.
+    const items = screen.getAllByRole("menuitem").map((item) => item.textContent ?? "");
+    expect(items.indexOf(en.apps.sourceCode)).toBe(items.indexOf(en.apps.openPage.details) + 1);
+    expect(items.indexOf(en.apps.projectConfiguration)).toBe(items.indexOf(en.apps.sourceCode) + 1);
     for (const [label, href] of [
+      [en.apps.sourceCode, `${FORGE}-apps/helsinki_bikes`],
+      [en.apps.projectConfiguration, `${FORGE}/helsinki`],
       [en.apps.history, "https://git.example.sk/city/config/src/branch/app/mapa-ovzdusia"],
       [en.apps.latestRun, `${FORGE}/helsinki_bikes/actions/runs/7`],
       [en.apps.package, `${FORGE}/-/packages/generic/app-bikes/9f1c2ab`],
@@ -299,9 +354,12 @@ describe("apps catalog", () => {
     expect(screen.getByRole("menuitem", { name: en.apps.rebuildAction })).not.toHaveAttribute("aria-disabled", "true");
     await user.keyboard("{Escape}");
 
-    // No build of its own on the forge: no run, no package, and Rebuild says why.
+    // No build of its own on the forge: no source repository, no run, no package, and Rebuild
+    // says why; a person the forge would not let read the configuration is not offered it.
     await user.click(within(await cardOf("Noise")).getByRole("button", { name: more("Noise") }));
     expect(await screen.findByRole("menuitem", { name: en.apps.history })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: en.apps.sourceCode })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: en.apps.projectConfiguration })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: en.apps.latestRun })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: en.apps.package })).toBeNull();
     expect(screen.getByRole("menuitem", { name: new RegExp(`^${en.apps.rebuildAction}`) })).toHaveAttribute(
@@ -370,8 +428,8 @@ describe("apps catalog", () => {
   });
 
   // AP-86, AP-87: the host serves a published App only from a build the lane published or the
-  // bundle the Portal image ships; one with neither answers 404, so its card offers no Open.
-  it("offers Open only on a published app something serves (AP-86, AP-87)", async () => {
+  // bundle the Portal image ships; one with neither answers 404, so its card opens its page.
+  it("opens the app from the card only when something serves it (AP-86, AP-87, T-3038)", async () => {
     renderCatalog([
       app({ name: "allerts", title: { en: "Alerts" } }, { lifecycle: "published" }),
       app(
@@ -391,16 +449,19 @@ describe("apps catalog", () => {
         { lifecycle: "published" },
       ),
       built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" })),
+      built(app({ name: "old", title: { en: "Old" } }, { lifecycle: "retired" })),
     ]);
 
-    const openOn = async (title: string) =>
-      within((await screen.findByText(title)).closest("li") as HTMLElement).queryByRole("link", {
-        name: en.apps.openAction,
-      });
-    expect(await openOn("Alerts")).toBeNull();
-    expect(await openOn("Claims")).toBeNull();
-    expect(await openOn("Indicators")).toHaveAttribute("href", "/projects/banskabystrica/apps/ukazovatele/open");
-    expect(await openOn("Bikes")).toHaveAttribute("href", "/projects/banskabystrica/apps/bikes/open");
+    const linkOf = async (title: string) =>
+      within(await cardOf(title)).getByRole("link", { name: title });
+    await waitFor(async () => {
+      expect(await linkOf("Bikes")).toHaveAttribute("href", "/projects/banskabystrica/apps/bikes/open");
+    });
+    expect(await linkOf("Indicators")).toHaveAttribute("href", "/projects/banskabystrica/apps/ukazovatele/open");
+    expect(await linkOf("Alerts")).toHaveAttribute("href", "/projects/banskabystrica/apps/allerts");
+    expect(await linkOf("Claims")).toHaveAttribute("href", "/projects/banskabystrica/apps/unshipped");
+    // A retired app is gone: its card opens its page, never a frame of nothing.
+    expect(await linkOf("Old")).toHaveAttribute("href", "/projects/banskabystrica/apps/old");
   });
 
   // AP-86, AP-87: a published card says whether its newest run is building, failed or served,

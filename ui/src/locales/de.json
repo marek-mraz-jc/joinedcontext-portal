@@ -2029,7 +2029,9 @@
     "previewAction": "Vorschau öffnen",
     "publishAction": "Veröffentlichen",
     "openAction": "App öffnen",
-    "history": "Quelle und Verlauf",
+    "history": "Manifest und Verlauf",
+    "sourceCode": "Quellcode",
+    "projectConfiguration": "Projektkonfiguration",
     "back": "Zurück zu den Anwendungen",
     "preview": {
       "title": "Vorschau von {name}",

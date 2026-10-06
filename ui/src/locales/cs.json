@@ -2029,7 +2029,9 @@
     "previewAction": "Otevřít náhled",
     "publishAction": "Publikovat",
     "openAction": "Otevřít aplikaci",
-    "history": "Zdroj a historie",
+    "history": "Manifest a historie",
+    "sourceCode": "Zdrojový kód",
+    "projectConfiguration": "Konfigurace projektu",
     "back": "Zpět na aplikace",
     "preview": {
       "title": "Náhled aplikace {name}",

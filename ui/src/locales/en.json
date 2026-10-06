@@ -2029,7 +2029,9 @@
     "previewAction": "Open preview",
     "publishAction": "Publish",
     "openAction": "Open app",
-    "history": "Source and history",
+    "history": "Manifest and history",
+    "sourceCode": "Source code",
+    "projectConfiguration": "Project configuration",
     "back": "Back to applications",
     "preview": {
       "title": "Preview of {name}",
