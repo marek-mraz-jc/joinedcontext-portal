@@ -8,10 +8,11 @@ import { useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { cellText } from "@joinedcontext/sdk";
+import { cellText, EntityHistory } from "@joinedcontext/sdk";
 import type { EntitySource, RichRow } from "@joinedcontext/sdk";
 import { Alert, Button, Card, Checkbox, Dialog, ExternalLink, Field, Input, Select } from "../../components/ui";
 import { safeHref } from "../../components/ui/safeHref";
+import { gridLabels } from "../../components/entities/PortalEntityGrid";
 
 /** How many entities a card, board or calendar view reads: one page, said when it is cut. */
 export const VIEW_ROWS = 500;
@@ -74,14 +75,18 @@ export function imageOf(
 export function RowDialog({
   row,
   onClose,
+  source,
   children,
 }: {
   row: RichRow | null;
   onClose: () => void;
+  /** Where each attribute's history is read (NGSI-LD temporal, T-3107); none, no history. */
+  source?: EntitySource;
   /** What the view adds under the attributes: the calendar's reschedule. */
   children?: ReactNode;
 }): JSX.Element | null {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [history, setHistory] = useState<string | null>(null);
   if (!row) return null;
   const attrs = Object.keys(row.cells).sort();
   return (
@@ -96,13 +101,43 @@ export function RowDialog({
       size="md"
     >
       <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[auto_1fr]" data-testid="view-row-detail">
-        {attrs.map((attr) => (
-          <div key={attr} className="contents">
-            <dt className="text-caption font-semibold text-fg-muted">{attr}</dt>
-            <dd className="text-body text-fg [overflow-wrap:anywhere]">{cellText(row.cells[attr]) || "—"}</dd>
-          </div>
-        ))}
+        {attrs.map((attr) => {
+          const cell = row.cells[attr];
+          const recorded = source?.history && !Array.isArray(cell) && cell?.kind === "property";
+          return (
+            <div key={attr} className="contents">
+              <dt className="text-caption font-semibold text-fg-muted">{attr}</dt>
+              <dd className="flex flex-wrap items-center gap-2 text-body text-fg [overflow-wrap:anywhere]">
+                <span>{cellText(cell) || "—"}</span>
+                {recorded ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-pressed={history === attr}
+                    aria-label={t("spaces.views.historyOf", { attr })}
+                    onClick={() => setHistory(history === attr ? null : attr)}
+                  >
+                    {t("spaces.views.history")}
+                  </Button>
+                ) : null}
+              </dd>
+            </div>
+          );
+        })}
       </dl>
+      {history && source?.history ? (
+        <EntityHistory
+          key={history}
+          source={source}
+          id={row.id}
+          attr={history}
+          unit={Array.isArray(row.cells[history]) ? undefined : (row.cells[history] as { unitCode?: string }).unitCode}
+          heading={t("spaces.views.historyOf", { attr: history })}
+          locale={i18n.language}
+          labels={gridLabels(t).historyLabels}
+          onClose={() => setHistory(null)}
+        />
+      ) : null}
       {children}
     </Dialog>
   );
@@ -120,7 +155,7 @@ function Truncated({ count }: { count: number }): JSX.Element | null {
  * Cards (T-3100): the image the person chose, the primary field and up to five fields; a click or
  * Enter on a card opens the row.
  */
-export function GalleryView({ rows }: { rows: RichRow[] }): JSX.Element {
+export function GalleryView({ rows, source }: { rows: RichRow[]; source?: EntitySource }): JSX.Element {
   const { t } = useTranslation();
   const images = useMemo(() => linkAttributes(rows), [rows]);
   const attrs = useMemo(() => attributesOf(rows).filter((attr) => attr !== "name"), [rows]);
@@ -202,7 +237,7 @@ export function GalleryView({ rows }: { rows: RichRow[] }): JSX.Element {
           );
         })}
       </ul>
-      <RowDialog row={open} onClose={() => setOpen(null)} />
+      <RowDialog row={open} onClose={() => setOpen(null)} source={source} />
     </div>
   );
 }
@@ -232,6 +267,120 @@ export function columnsOf(
   return columns;
 }
 
+/** One move a person made: the row, the value it had and the value it was given. */
+interface Move {
+  row: RichRow;
+  from: string;
+  to: string;
+}
+
+/**
+ * The moves of one view (T-3107): the value each moved row shows until the page is read again, the
+ * write itself, and the person's own moves to undo and redo, each replayed as the compensating
+ * write through the same source, refused like any write. A move from no value is not offered for
+ * undo: the write that compensates it would remove the attribute, which is a deletion, not a move.
+ */
+export function useMoves(
+  current: (row: RichRow) => string | undefined,
+  write: (row: RichRow, to: string) => Promise<void>,
+) {
+  const [shown, setShown] = useState<Record<string, string | undefined>>({});
+  const [undone, setUndone] = useState<Move[]>([]);
+  const [done, setDone] = useState<Move[]>([]);
+  const [refused, setRefused] = useState<{ row: RichRow; reason: string } | null>(null);
+  const valueOf = (row: RichRow) => (row.id in shown ? shown[row.id] : current(row));
+
+  const apply = async (row: RichRow, to: string, as: "do" | "undo" | "redo"): Promise<void> => {
+    const from = valueOf(row);
+    if (to === "" || to === from) return;
+    setRefused(null);
+    setShown((now) => ({ ...now, [row.id]: to }));
+    try {
+      await write(row, to);
+    } catch (error) {
+      setShown((now) => ({ ...now, [row.id]: from }));
+      setRefused({ row, reason: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const move = { row, from: from ?? "", to };
+    if (as === "do") {
+      if (move.from !== "") setDone((now) => [...now, move]);
+      setUndone([]);
+    } else if (as === "undo") {
+      setUndone((now) => [...now, { row, from: to, to: move.from }]);
+    } else {
+      setDone((now) => [...now, { row, from: move.from, to }]);
+    }
+  };
+
+  const last = done[done.length - 1];
+  const next = undone[undone.length - 1];
+  return {
+    valueOf,
+    refused,
+    move: (row: RichRow, to: string) => apply(row, to, "do"),
+    lastDone: last,
+    lastUndone: next,
+    undo: async () => {
+      if (!last) return;
+      setDone((now) => now.slice(0, -1));
+      await apply(last.row, last.from, "undo");
+    },
+    redo: async () => {
+      if (!next) return;
+      setUndone((now) => now.slice(0, -1));
+      await apply(next.row, next.to, "redo");
+    },
+  };
+}
+
+/** Undo and redo of a view's moves, with what each would do in its name; Ctrl+Z and Ctrl+Shift+Z. */
+function UndoBar({ moves }: { moves: ReturnType<typeof useMoves> }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={!moves.lastDone}
+        disabledReason={t("spaces.views.nothingToUndo")}
+        onClick={() => void moves.undo()}
+      >
+        {moves.lastDone
+          ? t("spaces.views.undo", { name: primaryOf(moves.lastDone.row), value: moves.lastDone.from })
+          : t("spaces.views.undoNone")}
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={!moves.lastUndone}
+        disabledReason={t("spaces.views.nothingToRedo")}
+        onClick={() => void moves.redo()}
+      >
+        {moves.lastUndone
+          ? t("spaces.views.redo", { name: primaryOf(moves.lastUndone.row), value: moves.lastUndone.to })
+          : t("spaces.views.redoNone")}
+      </Button>
+    </div>
+  );
+}
+
+/** Ctrl+Z (Cmd+Z) undoes and Ctrl+Shift+Z or Ctrl+Y redoes, anywhere in the view but a text field. */
+function undoKeys(moves: ReturnType<typeof useMoves>) {
+  return (event: React.KeyboardEvent) => {
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test((event.target as HTMLElement).tagName)) return;
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    if (key === "z" && !event.shiftKey) {
+      event.preventDefault();
+      void moves.undo();
+    } else if ((key === "z" && event.shiftKey) || key === "y") {
+      event.preventDefault();
+      void moves.redo();
+    }
+  };
+}
+
 /**
  * A board (T-3101): columns are the values of one enum attribute of the model, each with how many
  * cards it holds. Dragging a card, or choosing its column from the card itself (the keyboard and
@@ -251,44 +400,33 @@ export function KanbanView({
   const attrs = Object.keys(enums).sort();
   const [chosen, setChosen] = useState("");
   const attr = attrs.includes(chosen) ? chosen : (attrs[0] ?? "");
-  const [moved, setMoved] = useState<Record<string, string>>({});
-  const [refused, setRefused] = useState<string | null>(null);
   const [open, setOpen] = useState<RichRow | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const moves = useMoves(
+    (row) => cellText(row.cells[attr]).trim() || undefined,
+    async (row, to) => {
+      if (!source.patch) throw new Error(t("spaces.views.readOnly"));
+      await source.patch(row.id, { [attr]: { type: "Property", value: to } });
+    },
+  );
 
   if (attrs.length === 0) {
     return <p className="text-body text-fg-muted">{t("spaces.views.noEnum")}</p>;
   }
   const values = enums[attr];
+  const moved = Object.fromEntries(rows.map((row) => [row.id, moves.valueOf(row) ?? ""]));
   const columns = columnsOf(rows, attr, values, moved);
   const titleOf = (value: string) =>
     value === "" ? t("spaces.views.noValue") : (values.find((choice) => choice.value === value)?.title ?? value);
 
-  const move = async (row: RichRow, to: string) => {
-    const from = moved[row.id] ?? cellText(row.cells[attr]).trim();
-    if (to === from || to === "") return;
-    setRefused(null);
-    setMoved((now) => ({ ...now, [row.id]: to }));
-    try {
-      if (!source.patch) throw new Error(t("spaces.views.readOnly"));
-      await source.patch(row.id, { [attr]: { type: "Property", value: to } });
-    } catch (error) {
-      setMoved((now) => {
-        const { [row.id]: _gone, ...rest } = now;
-        void _gone;
-        return rest;
-      });
-      setRefused(
-        t("spaces.views.moveRefused", {
-          name: primaryOf(row),
-          reason: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    }
-  };
+  const move = moves.move;
+  const refused = moves.refused
+    ? t("spaces.views.moveRefused", { name: primaryOf(moves.refused.row), reason: moves.refused.reason })
+    : null;
 
   return (
-    <div className="flex flex-col gap-3" data-testid="view-kanban">
+    <div className="flex flex-col gap-3" data-testid="view-kanban" onKeyDown={undoKeys(moves)}>
+      <UndoBar moves={moves} />
       <Field id="kanban-attr" label={t("spaces.views.groupBy")} className="w-fit">
         <Select id="kanban-attr" value={attr} onChange={(event) => setChosen(event.target.value)}>
           {attrs.map((name) => (
@@ -368,7 +506,7 @@ export function KanbanView({
           ),
         )}
       </div>
-      <RowDialog row={open} onClose={() => setOpen(null)} />
+      <RowDialog row={open} onClose={() => setOpen(null)} source={source} />
     </div>
   );
 }
@@ -474,18 +612,25 @@ export function CalendarView({
   const key = keys.includes(chosen) ? chosen : (keys[0] ?? "");
   const [span, setSpan] = useState<CalendarSpan>("month");
   const [at, setAt] = useState(today);
-  const [moved, setMoved] = useState<Record<string, string>>({});
-  const [refused, setRefused] = useState<string | null>(null);
   const [open, setOpen] = useState<RichRow | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [newDay, setNewDay] = useState("");
+  const moves = useMoves(
+    (row) => dayOf(row, key),
+    async (row, day) => {
+      const patch = rescheduled(row, key, day);
+      if (!patch) throw new Error(t("spaces.views.readOnly"));
+      if (!source.patch) throw new Error(t("spaces.views.readOnly"));
+      await source.patch(row.id, patch);
+    },
+  );
 
   if (keys.length === 0) {
     return <p className="text-body text-fg-muted">{t("spaces.views.noDate")}</p>;
   }
   const days = daysOf(at, span);
   const month = at.slice(0, 7);
-  const onDay = (day: string) => rows.filter((row) => (moved[row.id] ?? dayOf(row, key)) === day);
+  const onDay = (day: string) => rows.filter((row) => moves.valueOf(row) === day);
   const heading = new Intl.DateTimeFormat(i18n.language, {
     month: "long",
     year: "numeric",
@@ -495,31 +640,14 @@ export function CalendarView({
   const dayLabel = new Intl.DateTimeFormat(i18n.language, { weekday: "short", day: "numeric", timeZone: "UTC" });
   const editable = !key.endsWith(OBSERVED);
 
-  const reschedule = async (row: RichRow, day: string) => {
-    const patch = rescheduled(row, key, day);
-    if (!patch || dayOf(row, key) === day) return;
-    setRefused(null);
-    setMoved((now) => ({ ...now, [row.id]: day }));
-    try {
-      if (!source.patch) throw new Error(t("spaces.views.readOnly"));
-      await source.patch(row.id, patch);
-    } catch (error) {
-      setMoved((now) => {
-        const { [row.id]: _gone, ...rest } = now;
-        void _gone;
-        return rest;
-      });
-      setRefused(
-        t("spaces.views.rescheduleRefused", {
-          name: primaryOf(row),
-          reason: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    }
-  };
+  const reschedule = moves.move;
+  const refused = moves.refused
+    ? t("spaces.views.rescheduleRefused", { name: primaryOf(moves.refused.row), reason: moves.refused.reason })
+    : null;
 
   return (
-    <div className="flex flex-col gap-3" data-testid="view-calendar">
+    <div className="flex flex-col gap-3" data-testid="view-calendar" onKeyDown={undoKeys(moves)}>
+      {editable ? <UndoBar moves={moves} /> : null}
       <div className="flex flex-wrap items-end gap-3">
         <Field id="calendar-key" label={t("spaces.views.dateBy")} className="w-fit">
           <Select id="calendar-key" value={key} onChange={(event) => setChosen(event.target.value)}>
@@ -603,7 +731,7 @@ export function CalendarView({
                   onDragEnd={() => setDragging(null)}
                   className="justify-start truncate px-1 text-left"
                   onClick={() => {
-                    setNewDay(moved[row.id] ?? dayOf(row, key) ?? "");
+                    setNewDay(moves.valueOf(row) ?? "");
                     setOpen(row);
                   }}
                 >
@@ -615,7 +743,7 @@ export function CalendarView({
         })}
       </ol>
       {open ? (
-        <RowDialog row={open} onClose={() => setOpen(null)}>
+        <RowDialog row={open} onClose={() => setOpen(null)} source={source}>
           {editable && rescheduled(open, key, dayOf(open, key) ?? "") ? (
             <form
               className="flex flex-wrap items-end gap-2"
@@ -644,7 +772,7 @@ export function CalendarView({
  * from the earliest start to the latest end, in start order; a row missing either date is left out
  * and counted.
  */
-export function TimelineView({ rows }: { rows: RichRow[] }): JSX.Element {
+export function TimelineView({ rows, source }: { rows: RichRow[]; source?: EntitySource }): JSX.Element {
   const { t, i18n } = useTranslation();
   const keys = useMemo(() => dateKeys(rows).filter((key) => !key.endsWith(OBSERVED)), [rows]);
   const [startKey, setStartKey] = useState("");
@@ -724,7 +852,7 @@ export function TimelineView({ rows }: { rows: RichRow[] }): JSX.Element {
           </li>
         ))}
       </ol>
-      <RowDialog row={open} onClose={() => setOpen(null)} />
+      <RowDialog row={open} onClose={() => setOpen(null)} source={source} />
     </div>
   );
 }

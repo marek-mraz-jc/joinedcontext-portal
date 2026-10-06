@@ -559,7 +559,15 @@
       "rescheduleSave": "Přesunout",
       "start": "Začátek",
       "end": "Konec",
-      "undated": "Bez začátku nebo konce, a proto nezobrazené: {count, plural, one {# entita} few {# entity} other {# entit}}."
+      "undated": "Bez začátku nebo konce, a proto nezobrazené: {count, plural, one {# entita} few {# entity} other {# entit}}.",
+      "history": "Historie",
+      "historyOf": "Historie {attr}",
+      "undo": "Zpět: {name} zpět na {value}",
+      "redo": "Znovu: {name} na {value}",
+      "undoNone": "Zpět",
+      "redoNone": "Znovu",
+      "nothingToUndo": "Nic, co jste tu přesunuli, není k vrácení.",
+      "nothingToRedo": "Nic vráceného k zopakování."
     }
   },
   "endpoints": {

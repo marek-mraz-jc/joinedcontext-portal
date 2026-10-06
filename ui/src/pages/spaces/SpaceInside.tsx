@@ -497,13 +497,13 @@ function OtherView({
   }
   switch (view) {
     case "gallery":
-      return <GalleryView rows={rows.data.rows} />;
+      return <GalleryView rows={rows.data.rows} source={source} />;
     case "kanban":
       return <KanbanView rows={rows.data.rows} source={source} enums={enums} />;
     case "calendar":
       return <CalendarView rows={rows.data.rows} source={source} />;
     case "timeline":
-      return <TimelineView rows={rows.data.rows} />;
+      return <TimelineView rows={rows.data.rows} source={source} />;
   }
 }
 

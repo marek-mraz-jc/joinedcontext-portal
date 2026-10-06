@@ -318,3 +318,76 @@ describe("the calendar and the timeline (T-3102)", () => {
     expect(screen.getByText(en.spaces.views.noDate)).toBeInTheDocument();
   });
 });
+
+describe("history and undo (T-3107)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  const STATUS = [
+    { value: "working", title: "Working" },
+    { value: "outOfService", title: "Out of service" },
+  ];
+
+  it("undoes and redoes the person's own move as compensating writes, by button and by Ctrl+Z", async () => {
+    const patch = vi.fn((_id: string, _attrs: Record<string, unknown>) => Promise.resolve());
+    const source: EntitySource = { query: vi.fn(), get: vi.fn(), patch };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <KanbanView rows={[station(1)]} source={source} enums={{ status: STATUS }} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("button", { name: en.spaces.views.undoNone })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Move Station 1 to" }), "outOfService");
+    const undo = screen.getByRole("button", { name: "Undo: Station 1 back to working" });
+    await userEvent.click(undo);
+    expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "working" } });
+    expect(within(screen.getByTestId("kanban-column-working")).getAllByRole("listitem")).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Redo: Station 1 to outOfService" }));
+    expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "outOfService" } });
+
+    screen.getByTestId("view-kanban").focus();
+    fireEvent.keyDown(screen.getByTestId("view-kanban"), { key: "z", ctrlKey: true });
+    await waitFor(() =>
+      expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "working" } }),
+    );
+    expect(patch).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps a refused undo where it was, with the policy's words", async () => {
+    let refuse = false;
+    const patch = vi.fn(() => (refuse ? Promise.reject(new SourceError(403, "no grant")) : Promise.resolve()));
+    const source: EntitySource = { query: vi.fn(), get: vi.fn(), patch };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <KanbanView rows={[station(1)]} source={source} enums={{ status: STATUS }} />
+      </I18nextProvider>,
+    );
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Move Station 1 to" }), "outOfService");
+    refuse = true;
+    await userEvent.click(screen.getByRole("button", { name: "Undo: Station 1 back to working" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Station 1 was not moved: no grant");
+    expect(within(screen.getByTestId("kanban-column-outOfService")).getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("shows an attribute's recorded values from the temporal API in the row", async () => {
+    const history = vi.fn(() =>
+      Promise.resolve([
+        { at: "2026-10-06T10:00:00Z", value: 4 },
+        { at: "2026-10-06T11:00:00Z", value: 1 },
+      ]),
+    );
+    const source: EntitySource = { query: vi.fn(), get: vi.fn(), history };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <GalleryView rows={[station(1)]} source={source} />
+      </I18nextProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Station 1" }));
+    const dialog = await screen.findByRole("dialog", { name: "Station 1" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "History of availableBikeNumber" }));
+    expect(history).toHaveBeenCalledWith(station(1).id, "availableBikeNumber", expect.anything());
+    expect((await within(dialog).findAllByText("4")).length).toBeGreaterThan(0);
+  });
+});

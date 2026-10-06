@@ -559,7 +559,15 @@
       "rescheduleSave": "Verschieben",
       "start": "Beginn",
       "end": "Ende",
-      "undated": "{count, plural, one {# Entität hat} other {# Entitäten haben}} keinen Beginn oder kein Ende und {count, plural, one {wird} other {werden}} nicht gezeigt."
+      "undated": "{count, plural, one {# Entität hat} other {# Entitäten haben}} keinen Beginn oder kein Ende und {count, plural, one {wird} other {werden}} nicht gezeigt.",
+      "history": "Verlauf",
+      "historyOf": "Verlauf von {attr}",
+      "undo": "Rückgängig: {name} zurück auf {value}",
+      "redo": "Wiederholen: {name} auf {value}",
+      "undoNone": "Rückgängig",
+      "redoNone": "Wiederholen",
+      "nothingToUndo": "Nichts, was Sie hier verschoben haben, ist rückgängig zu machen.",
+      "nothingToRedo": "Nichts Rückgängiggemachtes zu wiederholen."
     }
   },
   "endpoints": {

@@ -1200,7 +1200,7 @@
     },
     "src/pages/spaces/DataViews.tsx": {
       "controls": {
-        "Button": 8,
+        "Button": 11,
         "Checkbox": 1
       },
       "tests": [

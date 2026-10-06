@@ -559,7 +559,15 @@
       "rescheduleSave": "Move",
       "start": "Starts",
       "end": "Ends",
-      "undated": "{count, plural, one {# entity has} other {# entities have}} no start or end and {count, plural, one {is} other {are}} not shown."
+      "undated": "{count, plural, one {# entity has} other {# entities have}} no start or end and {count, plural, one {is} other {are}} not shown.",
+      "history": "History",
+      "historyOf": "History of {attr}",
+      "undo": "Undo: {name} back to {value}",
+      "redo": "Redo: {name} to {value}",
+      "undoNone": "Undo",
+      "redoNone": "Redo",
+      "nothingToUndo": "Nothing you moved here to undo.",
+      "nothingToRedo": "Nothing undone to redo."
     }
   },
   "endpoints": {

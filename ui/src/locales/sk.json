@@ -559,7 +559,15 @@
       "rescheduleSave": "Presunúť",
       "start": "Začiatok",
       "end": "Koniec",
-      "undated": "Bez začiatku alebo konca, a preto nezobrazené: {count, plural, one {# entita} few {# entity} other {# entít}}."
+      "undated": "Bez začiatku alebo konca, a preto nezobrazené: {count, plural, one {# entita} few {# entity} other {# entít}}.",
+      "history": "História",
+      "historyOf": "História {attr}",
+      "undo": "Späť: {name} naspäť na {value}",
+      "redo": "Znova: {name} na {value}",
+      "undoNone": "Späť",
+      "redoNone": "Znova",
+      "nothingToUndo": "Nič, čo ste tu presunuli, nie je na vrátenie.",
+      "nothingToRedo": "Nič vrátené na zopakovanie."
     }
   },
   "endpoints": {
