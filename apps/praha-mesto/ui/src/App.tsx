@@ -4,7 +4,7 @@
  * reader's own token. Each section loads on its own, so one type failing leaves the others on
  * screen and says what failed in its own place.
  */
-import { useEffect, useId, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useState } from "react";
 import { endpointSource, Header, mapColors, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
 import type { RichRow } from "@joinedcontext/sdk";
 import {
@@ -110,14 +110,29 @@ function Status<T>({ load, s }: { load: Load<T>; s: Strings }) {
   return null;
 }
 
+/** The id of the heading of the section a table sits in, so its scroller is named by it. */
+const SectionHeading = createContext<string | undefined>(undefined);
+
 function Section({ title, note, children }: { title: string; note: string; children: React.ReactNode }) {
   const id = useId();
   return (
     <section className="section" aria-labelledby={id}>
       <h2 id={id}>{title}</h2>
       <p className="note">{note}</p>
-      {children}
+      <SectionHeading.Provider value={id}>{children}</SectionHeading.Provider>
     </section>
+  );
+}
+
+/**
+ * A table's own sideways scroll on a narrow screen: it takes focus so the keyboard can scroll it,
+ * and is named by its section's heading (T-3045, axe scrollable-region-focusable).
+ */
+function Scroll({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="scroll" tabIndex={0} role="group" aria-labelledby={useContext(SectionHeading)}>
+      {children}
+    </div>
   );
 }
 
@@ -197,7 +212,7 @@ function BikeList({ stations, total, s }: { stations: BikeStation[]; total: numb
       <p className="note" aria-live="polite">
         {s.shown(shown.length, total)}
       </p>
-      <div className="scroll">
+      <Scroll>
         <table>
           <thead>
             <tr>
@@ -223,7 +238,7 @@ function BikeList({ stations, total, s }: { stations: BikeStation[]; total: numb
             ))}
           </tbody>
         </table>
-      </div>
+      </Scroll>
     </>
   );
 }
@@ -235,7 +250,7 @@ function Parking({ s }: { s: Strings }) {
       <Status load={load} s={s} />
       {load.status === "ready" && load.rows.length > 0 && <ParkingChart parks={load.rows} s={s} />}
       {load.status === "ready" && load.rows.length > 0 && (
-        <div className="scroll">
+        <Scroll>
           <table>
             <thead>
               <tr>
@@ -272,7 +287,7 @@ function Parking({ s }: { s: Strings }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </Scroll>
       )}
     </Section>
   );
@@ -325,7 +340,7 @@ function Air({ s }: { s: Strings }) {
       <Status load={load} s={s} />
       {load.status === "ready" && load.rows.length > 0 && <AirChart stations={load.rows} s={s} />}
       {load.status === "ready" && load.rows.length > 0 && (
-        <div className="scroll">
+        <Scroll>
           <table>
             <caption className="note">{s.air.unit}</caption>
             <thead>
@@ -359,7 +374,7 @@ function Air({ s }: { s: Strings }) {
               })}
             </tbody>
           </table>
-        </div>
+        </Scroll>
       )}
     </Section>
   );

@@ -163,4 +163,18 @@ describe("Prague right now", () => {
     const result = await axe.run(document.body);
     expect(result.violations.map((violation) => violation.id)).toEqual([]);
   });
+
+  // T-3045: on a phone each table scrolls sideways in its own box, which axe on dev found out of
+  // keyboard reach (scrollable-region-focusable). jsdom lays nothing out, so what is held is that
+  // each box takes focus and is named by its section's heading.
+  it("lets the keyboard reach and scroll every table, each named by its section", async () => {
+    show({ language: "en" });
+    const titles = [LOCALES.en.bikes.title, LOCALES.en.parking.title, LOCALES.en.air.title];
+    for (const title of titles) {
+      await waitFor(() => expect(within(section(title)).getByRole("table")).toBeInTheDocument());
+      const box = within(section(title)).getByRole("group", { name: title });
+      expect(box).toHaveAttribute("tabindex", "0");
+      expect(within(box).getByRole("table")).toBeInTheDocument();
+    }
+  });
 });
