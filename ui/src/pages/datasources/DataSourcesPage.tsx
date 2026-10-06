@@ -658,11 +658,19 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           verdict={verdict}
           onVerdictChange={setVerdict}
           source={{
+            // With the runner's field tree, as the check and the proposal build it: without it a
+            // map typed on one line (`Accept: text/csv`) stayed a string in the draft and the YAML
+            // view, and the draft is what a proposal carries (T-3088).
             toManifest: (form) =>
-              toEnvelope(project, type, {
-                ...form,
-                secrets: Object.values(collectedSecrets),
-              }),
+              toEnvelope(
+                project,
+                type,
+                {
+                  ...form,
+                  secrets: Object.values(collectedSecrets),
+                },
+                runnerCatalogInput,
+              ),
             // A draft or YAML read back declares its own type, and the form follows it: a
             // `?draft=` of an HTTP source must not open in the page's first type's form.
             fromManifest: (manifest) => {
