@@ -3278,6 +3278,12 @@
       },
       "catalogue": {
         "published": "Katalogveröffentlichung"
+      },
+      "person": {
+        "changed": "Person geändert"
+      },
+      "model": {
+        "key": "Modellschlüssel"
       }
     },
     "sources": {
