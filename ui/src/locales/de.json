@@ -80,7 +80,8 @@
     "scopedefinitions": "Bereichsdefinitionen",
     "dataspaceparticipants": "Datenraum",
     "environments": "Umgebungen",
-    "projections": "Modellprojektionen"
+    "projections": "Modellprojektionen",
+    "knowledge": "Wissensquellen"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -5100,6 +5101,92 @@
       "scopeQ": "Bereichsfilter",
       "geoQ": "Gebietsfilter",
       "temporalQ": "Zeitfilter"
+    }
+  },
+  "knowledge": {
+    "title": "Wissensquellen",
+    "intro": "Was der Wissensassistent von den Websites und Katalogen dieses Projekts gelesen hat und woraus er antwortet.",
+    "failed": "Die Quellen konnten nicht gelesen werden: {reason}",
+    "queued": "Ein Durchlauf von {source} steht an. Er beginnt innerhalb einer Minute.",
+    "empty": "Dieses Projekt hat keine Wissensquelle",
+    "emptyHint": "Eine KnowledgeSource nennt eine Website oder einen Katalog, den der Assistent lesen soll. Schlagen Sie sie vor wie jede andere Ressource des Projekts.",
+    "sources": "Wissensquellen",
+    "recrawl": "Jetzt durchlaufen",
+    "recrawlOf": "{source} jetzt durchlaufen",
+    "alreadyQueued": "Ein Durchlauf dieser Quelle steht bereits an oder läuft.",
+    "recrawlSending": "Die Anfrage wird gesendet.",
+    "ofTotal": "{part} von {total}",
+    "embeddedOf": "{total} ({embedded} durchsuchbar)",
+    "included": "Einbezogen",
+    "excludedByAdministrator": "Von einer Administration ausgeschlossen",
+    "excludedByPattern": "Durch die Muster der Quelle ausgeschlossen",
+    "column": {
+      "source": "Quelle",
+      "type": "Art",
+      "state": "Stand",
+      "lastCrawl": "Letzter Durchlauf",
+      "pages": "Einbezogene Seiten",
+      "documents": "Dokumente",
+      "passages": "Passagen",
+      "document": "Dokument",
+      "size": "Größe",
+      "pdfPages": "Seiten"
+    },
+    "state": {
+      "notCrawled": "Noch nicht durchlaufen",
+      "queued": "Steht an",
+      "running": "Wird durchlaufen",
+      "failed": "Letzter Durchlauf fehlgeschlagen",
+      "crawled": "Durchlaufen"
+    },
+    "type": {
+      "website": "Website",
+      "ckan": "Datenkatalog"
+    },
+    "status": {
+      "pending": "Noch nicht gelesen",
+      "failed": "Nicht lesbar",
+      "skipped": "Übersprungen",
+      "fetched": "Gelesen"
+    },
+    "link": {
+      "page": "Seite",
+      "document": "Dokument",
+      "external": "Andere Website"
+    },
+    "source": {
+      "title": "Quelle {source}",
+      "intro": "Seiten und Dokumente, die der Assistent aus dieser Quelle gelesen hat. Schließen Sie aus, woraus er nicht antworten soll: Die Passagen verschwinden sofort, und spätere Durchläufe lassen es draußen.",
+      "back": "Alle Wissensquellen",
+      "selection": "Ausgewählte Seiten und Dokumente",
+      "selected": "{count, plural, =0 {Nichts ausgewählt} one {# ausgewählt} other {# ausgewählt}}",
+      "subtree": "Mit allen Seiten unter einer ausgewählten Seite und den Dokumenten, auf die sie verweisen",
+      "exclude": "Aus Antworten ausschließen",
+      "include": "Wieder in Antworten aufnehmen",
+      "selectFirst": "Wählen Sie zuerst Seiten oder Dokumente aus.",
+      "sending": "Die Änderung wird gesendet.",
+      "includedDone": "Wieder aufgenommen: {pages} Seiten und {documents} Dokumente. Beim nächsten Durchlauf werden sie neu gelesen.",
+      "excludedDone": "Ausgeschlossen: {pages} Seiten und {documents} Dokumente; {passages} Passagen entfernt.",
+      "views": "Seiten und Dokumente",
+      "pages": "Seiten",
+      "documents": "Dokumente",
+      "noPages": "Noch keine Seite gelesen",
+      "noPagesHint": "Der erste Durchlauf dieser Quelle hat noch keine Seite gespeichert.",
+      "noDocuments": "Kein Dokument",
+      "noDocumentsHint": "Keine bisher gelesene Seite verweist auf ein Dokument, das die Quelle liest.",
+      "collapse": "Die {count} Seiten unter {url} ausblenden",
+      "expand": "Die {count} Seiten unter {url} anzeigen",
+      "selectPage": "{url} auswählen",
+      "selectDocument": "{url} auswählen",
+      "select": "Auswählen",
+      "pageCounts": "{passages} Passagen, {documents} Dokumente",
+      "passages": "Passagen",
+      "passagesOf": "Passagen von {url}",
+      "links": "Verweise",
+      "linksOf": "Verweise von {url}",
+      "offDomain": "Auf einer anderen Website",
+      "noPassages": "Keine Passage: Der Assistent antwortet nicht daraus.",
+      "noLinks": "Diese Seite verweist auf nichts, was der Durchlauf erfasst hat."
     }
   }
 }

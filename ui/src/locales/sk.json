@@ -80,7 +80,8 @@
     "scopedefinitions": "Definície rozsahov",
     "dataspaceparticipants": "Dátový priestor",
     "environments": "Prostredia",
-    "projections": "Projekcie modelov"
+    "projections": "Projekcie modelov",
+    "knowledge": "Zdroje znalostí"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -5100,6 +5101,92 @@
       "scopeQ": "Filter rozsahu",
       "geoQ": "Filter oblasti",
       "temporalQ": "Časový filter"
+    }
+  },
+  "knowledge": {
+    "title": "Zdroje znalostí",
+    "intro": "Čo asistent znalostí prečítal z webov a katalógov tohto projektu a z čoho odpovedá.",
+    "failed": "Zdroje sa nepodarilo načítať: {reason}",
+    "queued": "Prechádzanie zdroja {source} je vo fronte. Začne do minúty.",
+    "empty": "Tento projekt nemá žiadny zdroj znalostí",
+    "emptyHint": "KnowledgeSource pomenúva web alebo katalóg, ktorý má asistent čítať. Navrhnite ho ako každý iný zdroj projektu.",
+    "sources": "Zdroje znalostí",
+    "recrawl": "Prejsť teraz",
+    "recrawlOf": "Prejsť zdroj {source} teraz",
+    "alreadyQueued": "Prechádzanie tohto zdroja už čaká vo fronte alebo prebieha.",
+    "recrawlSending": "Požiadavka sa odosiela.",
+    "ofTotal": "{part} z {total}",
+    "embeddedOf": "{total} ({embedded} vyhľadateľných)",
+    "included": "Zahrnuté",
+    "excludedByAdministrator": "Vynechal správca",
+    "excludedByPattern": "Vynechané vzormi zdroja",
+    "column": {
+      "source": "Zdroj",
+      "type": "Typ",
+      "state": "Stav",
+      "lastCrawl": "Posledné prechádzanie",
+      "pages": "Zahrnuté stránky",
+      "documents": "Dokumenty",
+      "passages": "Pasáže",
+      "document": "Dokument",
+      "size": "Veľkosť",
+      "pdfPages": "Strany"
+    },
+    "state": {
+      "notCrawled": "Ešte neprejdený",
+      "queued": "Vo fronte",
+      "running": "Prechádza sa",
+      "failed": "Posledné prechádzanie zlyhalo",
+      "crawled": "Prejdený"
+    },
+    "type": {
+      "website": "Web",
+      "ckan": "Dátový katalóg"
+    },
+    "status": {
+      "pending": "Ešte neprečítané",
+      "failed": "Nedalo sa prečítať",
+      "skipped": "Preskočené",
+      "fetched": "Prečítané"
+    },
+    "link": {
+      "page": "Stránka",
+      "document": "Dokument",
+      "external": "Iný web"
+    },
+    "source": {
+      "title": "Zdroj {source}",
+      "intro": "Stránky a dokumenty, ktoré asistent z tohto zdroja prečítal. Vynechajte, z čoho nemá odpovedať: pasáže zmiznú hneď a ďalšie prechádzania to už nezahrnú.",
+      "back": "Všetky zdroje znalostí",
+      "selection": "Vybrané stránky a dokumenty",
+      "selected": "{count, plural, =0 {Nič nie je vybrané} one {# vybraná položka} few {# vybrané položky} other {# vybraných položiek}}",
+      "subtree": "Aj so všetkými stránkami pod vybranou stránkou a dokumentmi, na ktoré odkazujú",
+      "exclude": "Vynechať z odpovedí",
+      "include": "Vrátiť do odpovedí",
+      "selectFirst": "Najprv vyberte stránky alebo dokumenty.",
+      "sending": "Zmena sa odosiela.",
+      "includedDone": "Vrátené: {pages} stránok a {documents} dokumentov. Pri ďalšom prechádzaní sa prečítajú znova.",
+      "excludedDone": "Vynechané: {pages} stránok a {documents} dokumentov; odstránených {passages} pasáží.",
+      "views": "Stránky a dokumenty",
+      "pages": "Stránky",
+      "documents": "Dokumenty",
+      "noPages": "Zatiaľ nebola prečítaná žiadna stránka",
+      "noPagesHint": "Prvé prechádzanie tohto zdroja zatiaľ neuložilo žiadnu stránku.",
+      "noDocuments": "Žiadny dokument",
+      "noDocumentsHint": "Žiadna zatiaľ prečítaná stránka neodkazuje na dokument, ktorý zdroj číta.",
+      "collapse": "Skryť {count} stránok pod {url}",
+      "expand": "Zobraziť {count} stránok pod {url}",
+      "selectPage": "Vybrať {url}",
+      "selectDocument": "Vybrať {url}",
+      "select": "Vybrať",
+      "pageCounts": "{passages} pasáží, {documents} dokumentov",
+      "passages": "Pasáže",
+      "passagesOf": "Pasáže z {url}",
+      "links": "Odkazy",
+      "linksOf": "Odkazy z {url}",
+      "offDomain": "Na inom webe",
+      "noPassages": "Žiadna pasáž: asistent z tohto neodpovedá.",
+      "noLinks": "Táto stránka neodkazuje na nič, čo prechádzanie zaznamenalo."
     }
   }
 }
