@@ -40,10 +40,24 @@ import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
-import { CalendarView, deleteRow, GalleryView, KanbanView, TimelineView, TrashPanel, trashKey, useViewRows } from "./DataViews";
+import {
+  CalendarView,
+  deleteRow,
+  GalleryView,
+  KanbanView,
+  LiveNotice,
+  TimelineView,
+  TrashPanel,
+  trashKey,
+  useLive,
+  useViewRows,
+} from "./DataViews";
+import type { LiveChange } from "./DataViews";
 import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
+import { SharePanel } from "./PublicView";
+import { AiFieldPanel } from "./AiField";
 import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
@@ -550,6 +564,7 @@ function SpaceData({
       {probe.isSuccess && view === "api" ? (
         <div {...tabPanelProps("space-data-view", view)}>
           <TypeApi project={project} space={space} type={type} endpoints={endpoints} />
+          <SharePanel key={type} project={project} space={space} type={type} attributes={slots.map((slot) => slot.name)} />
         </div>
       ) : null}
       {probe.isSuccess && view !== "grid" && view !== "api" ? (
@@ -561,7 +576,16 @@ function SpaceData({
             value={{ type, q }}
             onChange={(next) => setQ(next.q)}
           />
-          <OtherView project={project} source={source} space={space} type={type} q={q} view={view} enums={enums} />
+          <OtherView
+            project={project}
+            source={source}
+            space={space}
+            type={type}
+            q={q}
+            view={view}
+            enums={enums}
+            endpoints={endpoints.map((endpoint) => endpoint.metadata.name)}
+          />
         </div>
       ) : null}
       {probe.isSuccess && config && view === "grid" ? (
@@ -604,6 +628,7 @@ function OtherView({
   q,
   view,
   enums,
+  endpoints,
 }: {
   project: string;
   source: ReturnType<typeof sourceFor>;
@@ -613,10 +638,18 @@ function OtherView({
   view: Exclude<DataView, "grid" | "api">;
   /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
   enums: Record<string, EnumChoice[]>;
+  /** The names of the space's Endpoints, which the AI field writes through. */
+  endpoints: string[];
 }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const rows = useViewRows(source, space, type, q);
+  // Someone changed rows of this type, anywhere: the page is read again with this session (T-3105).
+  const [live, setLive] = useState<LiveChange | null>(null);
+  useLive(project, space, type, (change) => {
+    setLive(change);
+    void queryClient.invalidateQueries({ queryKey: ["space-view-rows", space, type] });
+  });
   // A delete keeps the person's copy, then reads the page and the trash again (T-3107).
   const onDelete = async (row: RichRow) => {
     await deleteRow(project, space, source, row);
@@ -634,16 +667,17 @@ function OtherView({
   if (rows.data.rows.length === 0) {
     return <p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>;
   }
-  switch (view) {
-    case "gallery":
-      return <GalleryView rows={rows.data.rows} source={source} onDelete={onDelete} />;
-    case "kanban":
-      return <KanbanView rows={rows.data.rows} source={source} enums={enums} onDelete={onDelete} />;
-    case "calendar":
-      return <CalendarView rows={rows.data.rows} source={source} onDelete={onDelete} />;
-    case "timeline":
-      return <TimelineView rows={rows.data.rows} source={source} onDelete={onDelete} />;
-  }
+  const shown = rows.data.rows;
+  return (
+    <>
+      <LiveNotice change={live} />
+      {view === "gallery" ? <GalleryView rows={shown} source={source} onDelete={onDelete} /> : null}
+      {view === "kanban" ? <KanbanView rows={shown} source={source} enums={enums} onDelete={onDelete} /> : null}
+      {view === "calendar" ? <CalendarView rows={shown} source={source} onDelete={onDelete} /> : null}
+      {view === "timeline" ? <TimelineView rows={shown} source={source} onDelete={onDelete} /> : null}
+      <AiFieldPanel space={space} type={type} endpoints={endpoints} rows={shown} />
+    </>
+  );
 }
 
 /**

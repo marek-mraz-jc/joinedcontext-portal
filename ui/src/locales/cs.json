@@ -578,7 +578,8 @@
       "deletedAt": "smazáno {at}",
       "restore": "Vrátit",
       "restoreOne": "Vrátit {name}",
-      "restoreRefused": "{name} se nevrátil: {reason}"
+      "restoreRefused": "{name} se nevrátil: {reason}",
+      "liveChanged": "{count, plural, one {Změnila se # entita} few {Změnily se # entity} other {Změnilo se # entit}} ({attrs}); zobrazeno tak, jak jsou teď."
     },
     "api": {
       "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",
@@ -607,6 +608,32 @@
       "webhooksLead": "NGSI-LD subscription na {type}, která zavolá URL, když se entita změní, navržená jako změna.",
       "noWebhook": "Tento typ zatím nesleduje žádný webhook.",
       "newWebhook": "Nový webhook pro tento typ"
+    },
+    "share": {
+      "title": "Zveřejnit tento typ jako veřejný odkaz",
+      "lead": "Veřejný endpoint, který ukazuje {type} a jen atributy, které necháte zaškrtnuté, čitelný kýmkoli bez přihlášení. Navrhne se jako změna a posoudí jako každý endpoint; smazání endpointu odkaz zruší.",
+      "name": "Název endpointu",
+      "nameHint": "Malá písmena, číslice a pomlčky, nejvýše 63.",
+      "shown": "Atributy, které odkaz ukazuje",
+      "publish": "Navrhnout veřejný odkaz",
+      "link": "Po sloučení a nasazení změny je odkaz {url}",
+      "notPublished": "Tento pohled není zveřejněn nebo už není.",
+      "types": "Typy",
+      "first": "Prvních {count} entit.",
+      "count": "{count, plural, one {# entita} few {# entity} other {# entit}}."
+    },
+    "ai": {
+      "title": "Vyplnit atribut pomocí AI",
+      "lead": "Výzva zodpovězená pro každou entitu na obrazovce z jejích vlastních atributů. Asistent připraví hodnoty; vy je zkontrolujete a použijete s vašimi právy a volání modelu se počítají do vašeho denního rozpočtu.",
+      "attribute": "Atribut k vyplnění",
+      "attributeHint": "Název atributu: písmeno, pak písmena, číslice nebo _, nejvýše 64.",
+      "endpoint": "Přes endpoint",
+      "prompt": "Výzva",
+      "promptHint": "Co odpovědět pro každou entitu, nejvýše {count} znaků, např. Shrň popis jednou větou.",
+      "budget": "{rows, plural, one {# entita} few {# entity} other {# entit}}, přibližně {tokens} tokenů.",
+      "cut": "Prvních {count} na obrazovce; zužte filtr pro ostatní.",
+      "ask": "Zeptat se asistenta",
+      "noEndpoint": "Tento prostor neobsluhuje žádný endpoint, takže nelze nic zapsat."
     },
     "saved": {
       "view": "Pohled",

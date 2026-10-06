@@ -98,8 +98,8 @@ export function problemsOf(draft: FieldDraft, model: LinkmlModel, type: string):
 
 /** A choice as it is stored: trimmed text of up to 100 characters, no control characters. */
 function isValue(value: string): boolean {
-  // eslint-disable-next-line no-control-regex
-  return value !== "" && value === value.trim() && value.length <= 100 && !/[\u0000-\u001f\u007f]/.test(value);
+  const control = [...value].some((char) => char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f);
+  return value !== "" && value === value.trim() && value.length <= 100 && !control;
 }
 
 /** `capacityLevel` → `CapacityLevel`: the enum a select field brings is named after it. */

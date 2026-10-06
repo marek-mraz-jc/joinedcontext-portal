@@ -240,11 +240,17 @@ async fn mirror_one(
         }
     }
 
+    // One branch per reference, so a reference has one open proposal however many days nobody
+    // reviews it; and a proposal that already carries these models is left as it is (T-3158).
+    let branch = branch_name(key);
+    if proposed_already(gitea, &branch, &files).await {
+        return Ok(None);
+    }
     let body = serde_json::to_string_pretty(&plan.to_json()).unwrap_or_default();
     let pull = proposal::open(
         gitea,
         &Proposal {
-            branch: &branch_name(key, &files),
+            branch: &branch,
             title: &format!("mirror {} foreign model(s) for {key}", files.len()),
             body: &body,
             files,
@@ -252,6 +258,8 @@ async fn mirror_one(
             // Never. A mirror is another organisation's schema arriving in this repository,
             // and DM-49 wants a person to see it.
             auto_merge: false,
+            // The digest-named branches of the days before are this reference's line too.
+            line: Some(&branch),
         },
     )
     .await?;
@@ -313,20 +321,39 @@ fn collect(
     Ok(())
 }
 
-/// A branch name that is the same for the same peer state, so a retry after a failed forge
-/// call continues where it stopped instead of opening a second merge request (CC-18).
-fn branch_name(key: &str, files: &BTreeMap<String, String>) -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::hash::DefaultHasher::new();
-    for (path, body) in files {
-        path.hash(&mut hasher);
-        body.hash(&mut hasher);
-    }
+/// The one branch a reference's mirror is proposed on (T-3158). It was named after a digest of
+/// the files, and the files carry the day's `fetchedAt`, so every day was a new branch and a new
+/// merge request; one name per reference updates the open proposal instead (CC-18).
+fn branch_name(key: &str) -> String {
     let slug: String = key
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    format!("mirror/{slug}-{:08x}", hasher.finish() as u32)
+    format!("mirror/{slug}")
+}
+
+/// A file's text without the line that only says when it was fetched.
+fn without_fetch_time(text: &str) -> String {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("fetchedAt:"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Whether the branch already proposes these files, but for when they were fetched: then the
+/// open proposal says everything this run would, and nothing is written (T-3158).
+async fn proposed_already(
+    gitea: &GiteaClient,
+    branch: &str,
+    files: &BTreeMap<String, String>,
+) -> bool {
+    for (path, body) in files {
+        match gitea.get_file(path, branch).await {
+            Ok(Some(file)) if without_fetch_time(&file.content) == without_fetch_time(body) => {}
+            _ => return false,
+        }
+    }
+    !files.is_empty()
 }
 
 /// The mirror schedule a reference declares, when it declares one (DM-49).
@@ -347,26 +374,63 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_branch_name_is_the_same_for_the_same_peer_state() {
-        let mut files = BTreeMap::new();
-        files.insert("projects/bb/models/air.yaml".to_owned(), "a: 1".to_owned());
-        let first = branch_name("bb/peer", &files);
-        assert_eq!(first, branch_name("bb/peer", &files));
+    fn a_reference_has_one_branch_whatever_the_day_fetched() {
+        // T-3158: the name was a digest of files that carry the day's `fetchedAt`, so every day
+        // was a new branch and a new merge request.
+        assert_eq!(branch_name("bb/peer"), "mirror/bb-peer");
+        assert_ne!(branch_name("bb/peer"), branch_name("bb/peer-2"));
+    }
 
-        files.insert("projects/bb/models/air.yaml".to_owned(), "a: 2".to_owned());
-        assert_ne!(
-            first,
-            branch_name("bb/peer", &files),
-            "a different digest is a different branch, or the second run would push onto the \
-             first one's review"
+    #[test]
+    fn when_a_model_was_fetched_is_not_a_change_to_propose() {
+        let monday = "spec:\n  source:\n    remote:\n      sha256: abc\n      fetchedAt: '2026-10-05T03:00:00Z'\n";
+        let tuesday = monday.replace("2026-10-05", "2026-10-06");
+        assert_eq!(without_fetch_time(monday), without_fetch_time(&tuesday));
+        let changed = tuesday.replace("abc", "def");
+        assert_ne!(without_fetch_time(monday), without_fetch_time(&changed));
+    }
+
+    #[tokio::test]
+    async fn a_second_run_with_the_same_models_proposes_nothing_and_a_changed_one_does() {
+        use base64::Engine;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        let stored = "spec:\n  source:\n    remote:\n      sha256: abc\n      fetchedAt: '2026-10-05T03:00:00Z'\n";
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/o/r/contents/models/air.yaml"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sha": "s1",
+                "content": base64::engine::general_purpose::STANDARD.encode(stored),
+            })))
+            .mount(&server)
+            .await;
+        let gitea =
+            GiteaClient::new(server.uri().parse().expect("url"), "o", "r", "t").expect("client");
+        let mut files = BTreeMap::new();
+        files.insert(
+            "models/air.yaml".to_owned(),
+            stored.replace("2026-10-05", "2026-10-06"),
+        );
+        assert!(
+            proposed_already(&gitea, "mirror/bb-peer", &files).await,
+            "only the fetch time moved"
+        );
+        files.insert("models/air.yaml".to_owned(), stored.replace("abc", "def"));
+        assert!(
+            !proposed_already(&gitea, "mirror/bb-peer", &files).await,
+            "the peer changed its model"
+        );
+        files.insert("models/new.yaml".to_owned(), "a".to_owned());
+        assert!(
+            !proposed_already(&gitea, "mirror/bb-peer", &files).await,
+            "a model the branch lacks"
         );
     }
 
     #[test]
     fn a_branch_name_carries_nothing_a_git_ref_refuses() {
-        let mut files = BTreeMap::new();
-        files.insert("p".to_owned(), "c".to_owned());
-        let name = branch_name("bb/peer name", &files);
+        let name = branch_name("bb/peer name");
         assert!(
             name.chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '/'),

@@ -280,6 +280,7 @@ impl Driver {
                 files,
                 removed,
                 auto_merge: plan.auto_merge,
+                line: None,
             },
         )
         .await

@@ -78,6 +78,8 @@ pub struct AppState {
     pub rejected: Arc<crate::pipeline_outcomes::RejectedStore>,
     /// Each person's copies of the entities they deleted from a data view (API/01 §31, T-3107).
     pub trash: Arc<crate::entity_trash::TrashStore>,
+    /// The live updates of open data views (API/01 §32, T-3105).
+    pub live: Arc<crate::live::LiveHub>,
     /// Each pipeline's runs and their log (PL-62), durable with a database.
     pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
@@ -134,6 +136,7 @@ impl AppState {
     }
 
     pub fn new(config: Config, oidc: Option<OidcClient>) -> Self {
+        let public_base = config.public_base_url.to_string();
         let bearer = config
             .oidc
             .as_ref()
@@ -169,6 +172,7 @@ impl AppState {
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             trash: Arc::new(crate::entity_trash::TrashStore::new(None)),
+            live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             drift_watch: None,
             foreign_names: Arc::default(),
@@ -270,6 +274,27 @@ impl AppState {
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
         state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
         state.trash = Arc::new(crate::entity_trash::TrashStore::new(db.clone()));
+        // The live updates write their subscriptions as the reconciler writes declared ones: through
+        // the space surface, as this Portal's own ServiceAccount (API/01 §32).
+        if let (Some(base), Some(oidc), Some((id, secret)), Some(domain)) = (
+            state.config.gateway_url.clone(),
+            state.config.oidc.as_ref(),
+            state.config.keycloak_admin.clone(),
+            state.config.org_domain.clone(),
+        ) {
+            state.live = Arc::new(crate::live::LiveHub::new(
+                state.config.public_base_url.as_str(),
+                Some(Arc::new(
+                    crate::reconciler::subscriptions::SubscriptionSync::new(
+                        base,
+                        oidc.issuer.as_str(),
+                        id,
+                        secret,
+                        domain,
+                    ),
+                )),
+            ));
+        }
         state.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(db.clone()));
         state.db = db;
         // What the process before this one refused stays refused (T-0980).

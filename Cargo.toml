@@ -9,6 +9,8 @@ members = ["apps/*"]
 exclude = [
   "apps/bbsk-ukazovatele",
   "apps/banskabystrica-ovzdusie",
+  "apps/banskabystrica-mapa",
+  "apps/banskabystrica-data",
   "apps/banskabystrica-zaznamy",
   "apps/bbsk-zaznamy",
   "apps/helsinki-alerts",

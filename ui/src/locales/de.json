@@ -578,7 +578,8 @@
       "deletedAt": "gelöscht {at}",
       "restore": "Zurücklegen",
       "restoreOne": "{name} zurücklegen",
-      "restoreRefused": "{name} wurde nicht zurückgelegt: {reason}"
+      "restoreRefused": "{name} wurde nicht zurückgelegt: {reason}",
+      "liveChanged": "{count, plural, one {# Entität wurde} other {# Entitäten wurden}} geändert ({attrs}); so gezeigt, wie sie jetzt sind."
     },
     "api": {
       "lead": "Wie ein Programm {type} liest: über einen Endpoint dieses Raums, mit eigenem Token, und die Webhooks, die ihm sagen, wenn sich etwas ändert.",
@@ -607,6 +608,32 @@
       "webhooksLead": "Eine NGSI-LD-Subscription auf {type}, die eine URL aufruft, wenn sich eine Entität ändert, als Change vorgeschlagen.",
       "noWebhook": "Noch kein Webhook beobachtet diesen Typ.",
       "newWebhook": "Neuer Webhook für diesen Typ"
+    },
+    "share": {
+      "title": "Diesen Typ als öffentlichen Link veröffentlichen",
+      "lead": "Ein öffentlicher Endpoint, der {type} und nur die Attribute zeigt, die Sie angehakt lassen, für jeden ohne Anmeldung lesbar. Er wird als Change vorgeschlagen und wie jeder Endpoint geprüft; das Löschen des Endpoints nimmt den Link zurück.",
+      "name": "Name des Endpoints",
+      "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, höchstens 63.",
+      "shown": "Attribute, die der Link zeigt",
+      "publish": "Öffentlichen Link vorschlagen",
+      "link": "Sobald der Change übernommen und ausgerollt ist, lautet der Link {url}",
+      "notPublished": "Diese Ansicht ist nicht oder nicht mehr veröffentlicht.",
+      "types": "Typen",
+      "first": "Die ersten {count} Entitäten.",
+      "count": "{count, plural, one {# Entität} other {# Entitäten}}."
+    },
+    "ai": {
+      "title": "Ein Attribut mit KI füllen",
+      "lead": "Ein Prompt, für jede Entität auf dem Bildschirm aus ihren eigenen Attributen beantwortet. Der Assistent bereitet die Werte vor; Sie prüfen sie und übernehmen sie mit Ihren Rechten, und die Modellaufrufe zählen gegen Ihr Tagesbudget.",
+      "attribute": "Zu füllendes Attribut",
+      "attributeHint": "Ein Attributname: ein Buchstabe, dann Buchstaben, Ziffern oder _, höchstens 64.",
+      "endpoint": "Über Endpoint",
+      "prompt": "Anweisung",
+      "promptHint": "Was für jede Entität zu antworten ist, höchstens {count} Zeichen, z. B. Fasse die Beschreibung in einem Satz zusammen.",
+      "budget": "{rows, plural, one {# Entität} other {# Entitäten}}, etwa {tokens} Tokens.",
+      "cut": "Die ersten {count} auf dem Bildschirm; schränken Sie den Filter für den Rest ein.",
+      "ask": "Den Assistenten fragen",
+      "noEndpoint": "Kein Endpoint bedient diesen Raum, daher kann nichts geschrieben werden."
     },
     "saved": {
       "view": "Ansicht",

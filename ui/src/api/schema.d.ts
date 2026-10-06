@@ -1885,6 +1885,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Watch A Type Of A Space
+         * @description Server-sent `changed` events naming the entities and attributes of one type that changed, never their values (API/01 §32). The view reads the rows again with the caller's session.
+         */
+        get: operations["watch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/quality": {
         parameters: {
             query?: never;
@@ -10957,6 +10977,61 @@ export interface operations {
             };
         };
     };
+    watch: {
+        parameters: {
+            query: {
+                /** @description The NGSI-LD type the view shows. */
+                type: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description No NGSI-LD type name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     get_quality: {
         parameters: {
             query?: never;
@@ -11064,17 +11139,18 @@ export interface operations {
             };
             cookie?: never;
         };
+        /** @description The entity as the person read it, normalized. */
         requestBody: {
             content: {
                 /**
                  * @example {
                  *       "entity": {
-                 *         "id": "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1",
-                 *         "no2": {
+                 *         "id": "urn:ngsi-ld:BikeHireDockingStation:hel.fi:bikes:7",
+                 *         "name": {
                  *           "type": "Property",
-                 *           "value": 41
+                 *           "value": "Station 7"
                  *         },
-                 *         "type": "AirQualityObserved"
+                 *         "type": "BikeHireDockingStation"
                  *       }
                  *     }
                  */

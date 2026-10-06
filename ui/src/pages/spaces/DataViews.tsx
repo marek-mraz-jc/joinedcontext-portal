@@ -4,7 +4,7 @@
  * drawn as cards, as a board or on a calendar. Nothing is copied out of the space: each view is a
  * renderer over one page of the type, and a click opens the row whole.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -910,7 +910,7 @@ export function TimelineView({
                   x={((ms(from) - first) / width) * 100}
                   width={Math.max(((ms(to) + 86_400_000 - ms(from)) / width) * 100, 1)}
                   height={1}
-                  className="fill-primary/70"
+                  className="fill-info"
                 />
               </svg>
               <span className="relative px-1 text-caption text-fg">
@@ -1064,5 +1064,53 @@ export function TrashPanel({
         })}
       </ul>
     </details>
+  );
+}
+
+/** Which entities and attributes changed, by name (API/01 §32). */
+export interface LiveChange {
+  type: string;
+  ids: string[];
+  attrs: string[];
+}
+
+/**
+ * Listens for changes of one type of a space while a view is open (T-3105, API/01 §32). Each event
+ * names what changed and never a value, so `onChange` reads the rows again with the person's own
+ * session; the browser's EventSource reconnects by itself. A browser without one hears nothing.
+ */
+export function useLive(project: string, space: string, type: string, onChange: (change: LiveChange) => void): void {
+  const latest = useRef(onChange);
+  useEffect(() => {
+    latest.current = onChange;
+  }, [onChange]);
+  useEffect(() => {
+    if (!type || typeof EventSource === "undefined") return;
+    const source = new EventSource(
+      `/api/v1/projects/${encodeURIComponent(project)}/spaces/${encodeURIComponent(space)}/live?type=${encodeURIComponent(type)}`,
+    );
+    const changed = (event: MessageEvent<string>) => {
+      try {
+        const change = JSON.parse(event.data) as LiveChange;
+        if (Array.isArray(change.ids)) latest.current(change);
+      } catch {
+        // Not JSON: no change to act on.
+      }
+    };
+    source.addEventListener("changed", changed as EventListener);
+    return () => {
+      source.removeEventListener("changed", changed as EventListener);
+      source.close();
+    };
+  }, [project, space, type]);
+}
+
+/** The line a live view shows after others changed rows: how many, read again just now. */
+export function LiveNotice({ change }: { change: LiveChange | null }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <p role="status" aria-live="polite" className="text-caption text-fg-muted" data-testid="view-live">
+      {change ? t("spaces.views.liveChanged", { count: change.ids.length, attrs: change.attrs.join(", ") }) : ""}
+    </p>
   );
 }

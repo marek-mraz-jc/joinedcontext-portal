@@ -26,7 +26,7 @@ pub struct KeepRequest {
 }
 
 /// The space, when the caller may read it; `404` for one they may not, as every space route.
-fn readable(
+pub(crate) fn readable(
     state: &AppState,
     user: &CurrentUser,
     project: &str,
@@ -125,7 +125,15 @@ pub async fn list_trash(
     ),
     request_body(
         content = KeepRequest,
-        example = json!({ "entity": { "id": "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1", "type": "AirQualityObserved", "no2": { "type": "Property", "value": 41 } } })
+        description = "The entity as the person read it, normalized.",
+        content_type = "application/json",
+        example = json!({
+            "entity": {
+                "id": "urn:ngsi-ld:BikeHireDockingStation:hel.fi:bikes:7",
+                "type": "BikeHireDockingStation",
+                "name": { "type": "Property", "value": "Station 7" }
+            }
+        })
     ),
     responses(
         (status = 201, description = "The copy", body = TrashItem),
