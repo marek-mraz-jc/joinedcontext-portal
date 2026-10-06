@@ -578,7 +578,8 @@
       "deletedAt": "smazáno {at}",
       "restore": "Vrátit",
       "restoreOne": "Vrátit {name}",
-      "restoreRefused": "{name} se nevrátil: {reason}"
+      "restoreRefused": "{name} se nevrátil: {reason}",
+      "liveChanged": "{count, plural, one {Změnila se # entita} few {Změnily se # entity} other {Změnilo se # entit}} ({attrs}); zobrazeno tak, jak jsou teď."
     },
     "api": {
       "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -480,6 +480,43 @@ describe("the space's own data", () => {
       .map((call) => urlOf(call[0]))
       .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
     expect(reads.some((url) => url.searchParams.get("limit") === "500")).toBe(true);
+  });
+
+  it("reads a view's rows again when the space says entities of its type changed (T-3105)", async () => {
+    const opened: FakeEventSource[] = [];
+    class FakeEventSource {
+      listeners: Record<string, ((event: MessageEvent<string>) => void)[]> = {};
+      closed = false;
+      constructor(readonly url: string) {
+        opened.push(this);
+      }
+      addEventListener(name: string, listener: (event: MessageEvent<string>) => void) {
+        (this.listeners[name] ??= []).push(listener);
+      }
+      removeEventListener() {}
+      close() {
+        this.closed = true;
+      }
+      emit(name: string, data: unknown) {
+        for (const listener of this.listeners[name] ?? []) listener(new MessageEvent(name, { data: JSON.stringify(data) }));
+      }
+    }
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const fetchMock = renderInside({ status: 200, count: 1 });
+    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
+    await screen.findByTestId("view-gallery");
+    const reads = () =>
+      fetchMock.mock.calls.map((call) => urlOf(call[0])).filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities") && url.searchParams.get("limit") === "500").length;
+    const before = reads();
+    const stream = opened.find((source) => source.url.includes("/spaces/ovzdusie/live?type=AirQualityObserved"));
+    expect(stream).toBeDefined();
+    act(() => stream?.emit("changed", { type: "AirQualityObserved", ids: [SPACE_ROWS[0].id], attrs: ["pm10"] }));
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+    expect(screen.getByTestId("view-live")).toHaveTextContent("1 entity changed (pm10); shown as they are now.");
+    // Back to the grid, the stream is closed.
+    await userEvent.click(screen.getByRole("tab", { name: en.spaces.views.kind.grid }));
+    expect(stream?.closed).toBe(true);
+    vi.unstubAllGlobals();
   });
 
   it("points at the endpoints when the surface answers this person nothing", async () => {
