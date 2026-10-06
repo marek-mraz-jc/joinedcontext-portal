@@ -150,6 +150,7 @@ fn list_files(files: &BTreeMap<String, String>) -> String {
 fn opening(files: &BTreeMap<String, String>) -> (String, Vec<String>) {
     let mut out = String::from("Files:\n");
     out.push_str(&list_files(files));
+    let template = crate::agents::preview::template_files();
     let mut own: Vec<(&String, &String)> = files
         .iter()
         .filter(|(path, _)| code::writable(path))
@@ -159,13 +160,30 @@ fn opening(files: &BTreeMap<String, String>) -> (String, Vec<String>) {
     let mut whole = Vec::new();
     let mut left_out = Vec::new();
     for (path, content) in own {
-        if carried + content.len() > OPENING_BYTES {
+        // An unchanged template component by its exports, an unchanged test by name (T-3076).
+        let text = match code::shown(path, content, &template) {
+            code::Shown::Whole => None,
+            code::Shown::Outline(exports) => Some(exports),
+            code::Shown::Named => {
+                left_out.push(path.as_str());
+                continue;
+            }
+        };
+        let size = text.as_ref().map_or(content.len(), String::len);
+        if carried + size > OPENING_BYTES {
             left_out.push(path.as_str());
             continue;
         }
-        carried += content.len();
-        whole.push(path.clone());
-        out.push_str(&format!("\n\n=== {path} ===\n{content}"));
+        carried += size;
+        match text {
+            Some(exports) => out.push_str(&format!(
+                "\n\n=== {path} (unchanged template component, its exports; read_file for the whole) ===\n{exports}"
+            )),
+            None => {
+                whole.push(path.clone());
+                out.push_str(&format!("\n\n=== {path} ===\n{content}"));
+            }
+        }
     }
     if !left_out.is_empty() {
         out.push_str(&format!(
@@ -1050,6 +1068,22 @@ mod tests {
         Value::Array(transcript("anthropic", "opening", rounds))
             .to_string()
             .len()
+    }
+
+    /// T-3076: the editing opening over the template carries the components by their exports
+    /// and leaves its tests out: within 15k tokens, where it carried ~50k.
+    #[test]
+    fn the_opening_over_the_template_stays_small() {
+        let template = crate::agents::preview::template_files();
+        let (text, whole) = opening(&template);
+        assert!(text.len() / 4 <= 15_000, "{} tokens", text.len() / 4);
+        assert!(whole.contains(&"src/App.tsx".to_owned()));
+        assert!(!whole.contains(&"src/components/EntityForm.tsx".to_owned()));
+        assert!(text.contains("=== src/components/EntityForm.tsx (unchanged template component"));
+        assert!(
+            text.contains("Not shown, read before editing:")
+                && text.contains("EntityForm.test.tsx")
+        );
     }
 
     /// T-3074: after the opening, a call carries the summary of the earlier rounds and the last
