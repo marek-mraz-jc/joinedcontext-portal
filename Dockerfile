@@ -53,6 +53,7 @@ COPY apps/praha-mapa/ui/package.json apps/praha-mapa/ui/pnpm-lock.yaml ./apps/pr
 COPY apps/praha-data/ui/package.json apps/praha-data/ui/pnpm-lock.yaml ./apps/praha-data/ui/
 COPY apps/praha-odpad/ui/package.json apps/praha-odpad/ui/pnpm-lock.yaml ./apps/praha-odpad/ui/
 COPY apps/helsinki-kartta/ui/package.json apps/helsinki-kartta/ui/pnpm-lock.yaml ./apps/helsinki-kartta/ui/
+COPY apps/helsinki-data/ui/package.json apps/helsinki-data/ui/pnpm-lock.yaml ./apps/helsinki-data/ui/
 COPY apps/praha-mesto/ui/package.json apps/praha-mesto/ui/pnpm-lock.yaml ./apps/praha-mesto/ui/
 RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile \
@@ -68,6 +69,7 @@ RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../../praha-data/ui && pnpm install --frozen-lockfile \
     && cd ../../praha-odpad/ui && pnpm install --frozen-lockfile \
     && cd ../../helsinki-kartta/ui && pnpm install --frozen-lockfile \
+    && cd ../../helsinki-data/ui && pnpm install --frozen-lockfile \
     && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
 COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
@@ -83,6 +85,7 @@ COPY apps/praha-mapa/ui/ ./apps/praha-mapa/ui/
 COPY apps/praha-data/ui/ ./apps/praha-data/ui/
 COPY apps/praha-odpad/ui/ ./apps/praha-odpad/ui/
 COPY apps/helsinki-kartta/ui/ ./apps/helsinki-kartta/ui/
+COPY apps/helsinki-data/ui/ ./apps/helsinki-data/ui/
 COPY apps/praha-mesto/ui/ ./apps/praha-mesto/ui/
 COPY scripts/app-integrity.mjs ./scripts/
 RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
@@ -124,6 +127,9 @@ RUN cd apps/praha-odpad/ui && pnpm build \
 RUN cd apps/helsinki-kartta/ui && pnpm build \
     && cp -r dist /srv/apps/helsinki-kartta \
     && node /work/scripts/app-integrity.mjs /srv/apps/helsinki-kartta
+RUN cd apps/helsinki-data/ui && pnpm build \
+    && cp -r dist /srv/apps/helsinki-data \
+    && node /work/scripts/app-integrity.mjs /srv/apps/helsinki-data
 RUN cd apps/praha-mesto/ui && pnpm build \
     && cp -r dist /srv/apps/praha-mesto \
     && node /work/scripts/app-integrity.mjs /srv/apps/praha-mesto
