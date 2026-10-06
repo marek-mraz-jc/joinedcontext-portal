@@ -137,6 +137,19 @@ impl Driver {
                         .and_then(Value::as_str)
                         .unwrap_or_default()
                         .to_owned();
+                    // Words typed while Build an app asks what the app should do answer it (T-2721).
+                    match self.build_words(&text).await {
+                        Ok(Some(integrate::Taken::Done(prose))) => {
+                            conversation.push((text, prose));
+                            continue;
+                        }
+                        Ok(_) => {}
+                        Err(reason) => {
+                            self.failed_answer(&format!("That step failed: {reason}"))
+                                .await;
+                            continue;
+                        }
+                    }
                     self.turn(&mut conversation, text).await;
                 }
                 _ => {}
@@ -1430,7 +1443,7 @@ const CHOOSE_PATH_BUDGET: u32 = 200;
 
 impl Driver {
     /// The path the conversation is on now.
-    fn current_path(&self) -> Option<Path> {
+    pub(super) fn current_path(&self) -> Option<Path> {
         *self.path.lock().unwrap_or_else(PoisonError::into_inner)
     }
 

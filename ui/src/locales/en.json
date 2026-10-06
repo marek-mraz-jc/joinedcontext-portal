@@ -2050,6 +2050,33 @@
       "confirm": "Open the merge request",
       "cancel": "Cancel"
     },
+    "buildCard": {
+      "title": "Build {name}",
+      "reads": "Reads",
+      "may": "May",
+      "opens": "Opens for",
+      "does": "Does",
+      "access": {
+        "read": "only read the data",
+        "update": "read and update records",
+        "full": "read, add, update and delete records"
+      },
+      "audience": {
+        "project": "everyone in the project",
+        "organization": "everyone in the organization",
+        "private": "only you"
+      },
+      "readOnly": "Your grant on {name} carries no write, so the app only reads.",
+      "noEndpoint": "{name} is not an endpoint of this project.",
+      "unavailable": "What {name} publishes could not be read, so there is nothing to build on. Try again in a moment.",
+      "nothing": "{name} publishes nothing this app could read.",
+      "conflict": "An application named {name} already has a live run. Open it, or say a different name in the conversation.",
+      "reading": "Reading what the endpoints publish…",
+      "build": "Build",
+      "building": "Starting…",
+      "started": "{name} is being built; its preview shows in this conversation.",
+      "open": "Open the app"
+    },
     "generate": {
       "title": "Generate your own app",
       "subtitle": "Describe what you want. The builder agent writes it, tests it and opens a merge request; nothing is deployed without a review.",
