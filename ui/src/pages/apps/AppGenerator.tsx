@@ -217,6 +217,88 @@ export function isRoleName(name: string): boolean {
 }
 
 /**
+ * What an app of these endpoints would be allowed to read and write (AP-22, AP-44, AP-132): the
+ * primary endpoint's published types less what the person unticked, with the preset's operations
+ * where the person's own grant holds them, else reading; every further endpoint read whole. The
+ * builder's form and the assistant's Build card (T-2721) start a run from the same answer.
+ */
+export function useAppNeeds(
+  project: string,
+  endpointName: string,
+  extra: string[],
+  preset: Preset,
+  dropped: string[] = [],
+  writeRole = "",
+) {
+  const endpoints = useQuery({
+    queryKey: queryKeys.list(project, "endpoints"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "endpoints" } },
+        }),
+      ),
+  });
+
+  const choices = asManifests(endpoints.data?.items ?? []);
+  const endpoint = choices.find((candidate) => candidate.metadata.name === endpointName);
+  const slug = endpoint ? (endpointSpec(endpoint).slug ?? "") : "";
+  // The option to update exists only where the person's own grant on the endpoint has a write
+  // (AP-22, AP-62): the gateway evaluates each save anyway; this keeps the form honest.
+  const access = useAccess(slug === "" ? undefined : slug);
+
+  // The endpoint's published model, which is where the app's bounds come from.
+  const schema = useQuery({
+    queryKey: ["generator-endpoint-schema", slug],
+    enabled: slug !== "",
+    retry: false,
+    queryFn: async () => endpointSchema(slug),
+  });
+
+  // Every added endpoint is read whole: all its concrete types and attributes, never written.
+  const extraEndpoints = extra
+    .filter((name) => name !== endpointName)
+    .map((name) => choices.find((candidate) => candidate.metadata.name === name))
+    .filter((candidate): candidate is Manifest => candidate !== undefined);
+  const extraSchemas = useQueries({
+    queries: extraEndpoints.map((candidate) => {
+      const extraSlug = endpointSpec(candidate).slug ?? "";
+      return {
+        queryKey: ["generator-endpoint-schema", extraSlug],
+        enabled: extraSlug !== "",
+        retry: false,
+        queryFn: async () => endpointSchema(extraSlug),
+      };
+    }),
+  });
+
+  // Both are a pass over a handful of names; the React Compiler memoizes them, and a manual
+  // useMemo here only tells it a dependency might be mutated when none of them is.
+  const types = concreteTypes(schema.data);
+  const kept = types
+    .filter((type) => type.attributes.some((attribute) => !dropped.includes(`${type.name}.${attribute}`)))
+    .map((type) => type.name);
+  // A preset the grant no longer carries (another endpoint picked, a type unticked) falls back to
+  // reading, never to a write the person does not hold.
+  const chosenPreset = offersPreset(preset, access.data, kept) ? preset : "read";
+  const needs = endpoint
+    ? [
+        ...dataNeeds(
+          endpoint,
+          types,
+          dropped,
+          presetOperations(chosenPreset, access.data, kept),
+          chosenPreset === "read" ? "" : writeRole.trim(),
+        ),
+        ...extraEndpoints.flatMap((candidate, i) =>
+          dataNeeds(candidate, concreteTypes(extraSchemas[i]?.data), []),
+        ),
+      ]
+    : [];
+  return { endpoints, choices, endpoint, slug, access, schema, extraEndpoints, extraSchemas, types, kept, chosenPreset, needs };
+}
+
+/**
  * "Generate your own app" (AP-22, AP-30, AP-51, AG-26, AG-43).
  *
  * The form is the whole of what a person has to decide: which endpoint, what the app should do,
@@ -283,74 +365,17 @@ export function AppGenerator({
     queryFn: async () => unwrap(await api.GET("/api/v1/blueprints", {})),
   });
 
-  const endpoints = useQuery({
-    queryKey: queryKeys.list(project, "endpoints"),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project, plural: "endpoints" } },
-        }),
-      ),
-  });
-
+  const { endpoints, choices, endpoint, slug, access, schema, extraEndpoints, types, kept, chosenPreset, needs } = useAppNeeds(
+    project,
+    endpointName,
+    extra,
+    preset,
+    dropped,
+    writeRole,
+  );
   const available = asManifests(blueprints.data?.items ?? []).find(
     (blueprint) => blueprint.metadata.name === BLUEPRINT,
   );
-  const choices = asManifests(endpoints.data?.items ?? []);
-  const endpoint = choices.find((candidate) => candidate.metadata.name === endpointName);
-  const slug = endpoint ? (endpointSpec(endpoint).slug ?? "") : "";
-  // The option to update exists only where the person's own grant on the endpoint has a write
-  // (AP-22, AP-62): the gateway evaluates each save anyway; this keeps the form honest.
-  const access = useAccess(slug === "" ? undefined : slug);
-
-  // The endpoint's published model, which is where the app's bounds come from.
-  const schema = useQuery({
-    queryKey: ["generator-endpoint-schema", slug],
-    enabled: slug !== "",
-    retry: false,
-    queryFn: async () => endpointSchema(slug),
-  });
-
-  // Every added endpoint is read whole: all its concrete types and attributes, never written.
-  const extraEndpoints = extra
-    .filter((name) => name !== endpointName)
-    .map((name) => choices.find((candidate) => candidate.metadata.name === name))
-    .filter((candidate): candidate is Manifest => candidate !== undefined);
-  const extraSchemas = useQueries({
-    queries: extraEndpoints.map((candidate) => {
-      const extraSlug = endpointSpec(candidate).slug ?? "";
-      return {
-        queryKey: ["generator-endpoint-schema", extraSlug],
-        enabled: extraSlug !== "",
-        retry: false,
-        queryFn: async () => endpointSchema(extraSlug),
-      };
-    }),
-  });
-
-  // Both are a pass over a handful of names; the React Compiler memoizes them, and a manual
-  // useMemo here only tells it a dependency might be mutated when none of them is.
-  const types = concreteTypes(schema.data);
-  const kept = types
-    .filter((type) => type.attributes.some((attribute) => !dropped.includes(`${type.name}.${attribute}`)))
-    .map((type) => type.name);
-  // A preset the grant no longer carries (another endpoint picked, a type unticked) falls back to
-  // reading, never to a write the person does not hold.
-  const chosenPreset = offersPreset(preset, access.data, kept) ? preset : "read";
-  const needs = endpoint
-    ? [
-        ...dataNeeds(
-          endpoint,
-          types,
-          dropped,
-          presetOperations(chosenPreset, access.data, kept),
-          chosenPreset === "read" ? "" : writeRole.trim(),
-        ),
-        ...extraEndpoints.flatMap((candidate, i) =>
-          dataNeeds(candidate, concreteTypes(extraSchemas[i]?.data), []),
-        ),
-      ]
-    : [];
 
   const generate = useMutation({
     mutationFn: async () => {

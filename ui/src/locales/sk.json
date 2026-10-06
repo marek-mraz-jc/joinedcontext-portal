@@ -2050,6 +2050,33 @@
       "confirm": "Otvoriť merge request",
       "cancel": "Zrušiť"
     },
+    "buildCard": {
+      "title": "Postaviť {name}",
+      "reads": "Číta",
+      "may": "Smie",
+      "opens": "Otvorí",
+      "does": "Robí",
+      "access": {
+        "read": "len čítať údaje",
+        "update": "čítať a upravovať záznamy",
+        "full": "čítať, pridávať, upravovať a mazať záznamy"
+      },
+      "audience": {
+        "project": "každý v projekte",
+        "organization": "každý v organizácii",
+        "private": "len vy"
+      },
+      "readOnly": "Vaše oprávnenie na {name} nedovoľuje zápis, preto aplikácia len číta.",
+      "noEndpoint": "{name} nie je endpoint tohto projektu.",
+      "unavailable": "Nepodarilo sa prečítať, čo {name} zverejňuje, takže nie je na čom stavať. Skúste to o chvíľu.",
+      "nothing": "{name} nezverejňuje nič, čo by táto aplikácia mohla čítať.",
+      "conflict": "Aplikácia s názvom {name} už má bežiaci beh. Otvorte ho alebo v konverzácii povedzte iný názov.",
+      "reading": "Čítam, čo endpointy zverejňujú…",
+      "build": "Postaviť",
+      "building": "Spúšťam…",
+      "started": "{name} sa stavia; jej náhľad sa zobrazí v tejto konverzácii.",
+      "open": "Otvoriť aplikáciu"
+    },
     "generate": {
       "title": "Vygenerujte si vlastnú aplikáciu",
       "subtitle": "Opíšte, čo chcete. Agent ju napíše, otestuje a otvorí žiadosť o zlúčenie; bez revízie sa nič nenasadí.",
@@ -2289,6 +2316,11 @@
       "amber": "Dlho nekontrolovaná",
       "line": "Skontrolované {when}",
       "lineWithReason": "Skontrolované {when}: {reason}"
+    },
+    "renameShapes": {
+      "notice": "{count, plural, one {# aplikácia ešte používa názov tvaru, ktorý ďalšie vydanie odmietne.} few {# aplikácie ešte používajú názvy tvarov, ktoré ďalšie vydanie odmietne.} other {# aplikácií ešte používa názvy tvarov, ktoré ďalšie vydanie odmietne.}} Jedna zmena navrhnutá vo vašom mene zapíše nové názvy a nič iné nezmení.",
+      "item": "{name}: z {from} bude {to}",
+      "action": "Navrhnúť premenovanie"
     }
   },
   "appLifecycle": {

@@ -613,6 +613,10 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             sending={send.isPending}
             live={!over}
             building={Boolean(record.data?.appName)}
+            // The run Build an app's card started is the one the dock follows next (T-2721).
+            onBuildStarted={(runId) => {
+              rememberRun({ project: activeProject, runId });
+            }}
             onAnswer={(questionId, answers) => {
               answer.mutate({ questionId, answers });
             }}

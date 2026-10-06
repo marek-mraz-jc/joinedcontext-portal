@@ -2050,6 +2050,33 @@
       "confirm": "Otevřít merge request",
       "cancel": "Zrušit"
     },
+    "buildCard": {
+      "title": "Postavit {name}",
+      "reads": "Čte",
+      "may": "Smí",
+      "opens": "Otevře",
+      "does": "Dělá",
+      "access": {
+        "read": "jen číst data",
+        "update": "číst a upravovat záznamy",
+        "full": "číst, přidávat, upravovat a mazat záznamy"
+      },
+      "audience": {
+        "project": "každý v projektu",
+        "organization": "každý v organizaci",
+        "private": "jen vy"
+      },
+      "readOnly": "Vaše oprávnění na {name} nedovoluje zápis, proto aplikace jen čte.",
+      "noEndpoint": "{name} není endpoint tohoto projektu.",
+      "unavailable": "Nepodařilo se přečíst, co {name} zveřejňuje, takže není na čem stavět. Zkuste to za chvíli.",
+      "nothing": "{name} nezveřejňuje nic, co by tato aplikace mohla číst.",
+      "conflict": "Aplikace s názvem {name} už má běžící běh. Otevřete ho, nebo v konverzaci řekněte jiný název.",
+      "reading": "Čtu, co endpointy zveřejňují…",
+      "build": "Postavit",
+      "building": "Spouštím…",
+      "started": "{name} se staví; její náhled se zobrazí v této konverzaci.",
+      "open": "Otevřít aplikaci"
+    },
     "generate": {
       "title": "Vygenerujte si vlastní aplikaci",
       "subtitle": "Popište, co chcete. Agent ji napíše, otestuje a otevře žádost o sloučení; bez revize se nic nenasadí.",
@@ -2289,6 +2316,11 @@
       "amber": "Dlouho nekontrolovaná",
       "line": "Zkontrolováno {when}",
       "lineWithReason": "Zkontrolováno {when}: {reason}"
+    },
+    "renameShapes": {
+      "notice": "{count, plural, one {# aplikace ještě používá název tvaru, který další vydání odmítne.} few {# aplikace ještě používají názvy tvarů, které další vydání odmítne.} other {# aplikací ještě používá názvy tvarů, které další vydání odmítne.}} Jedna změna navržená vaším jménem zapíše nové názvy a nic jiného nezmění.",
+      "item": "{name}: z {from} bude {to}",
+      "action": "Navrhnout přejmenování"
     }
   },
   "appLifecycle": {

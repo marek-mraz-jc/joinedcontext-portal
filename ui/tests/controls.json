@@ -617,6 +617,14 @@
         "page_agent_run_page.test.tsx"
       ]
     },
+    "src/pages/apps/AppBuildCard.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "app_build_card.test.tsx"
+      ]
+    },
     "src/pages/apps/AppBuildPanel.tsx": {
       "controls": {
         "Button": 1
@@ -631,6 +639,7 @@
         "Checkbox": 2
       },
       "tests": [
+        "app_build_card.test.tsx",
         "app_generator.test.tsx",
         "form_app_generator.test.tsx",
         "generator_types.test.ts"
@@ -763,6 +772,14 @@
         "part_question_options.test.tsx",
         "question_data.test.tsx",
         "question_options.test.tsx"
+      ]
+    },
+    "src/pages/apps/RenameShapesNotice.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "rename_shapes_notice.test.tsx"
       ]
     },
     "src/pages/apps/RolesAndMembers.tsx": {

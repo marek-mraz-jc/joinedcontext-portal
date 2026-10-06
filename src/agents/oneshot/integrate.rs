@@ -150,7 +150,12 @@ impl Driver {
             Some(SOURCE_STEP) => self.source_taken(&answers).await,
             Some(TARGET_STEP) => self.target_taken(&answers, &events).await,
             Some(FEED_STEP) => self.feed_taken(&answers, &events).await,
-            Some(build::ENDPOINTS_STEP) => self.build_taken(&answers).await,
+            Some(
+                step @ (build::ENDPOINTS_STEP
+                | build::ACCESS_STEP
+                | build::AUDIENCE_STEP
+                | build::DESCRIBE_STEP),
+            ) => self.build_answer(step, &answers, &events).await,
             _ => Ok(None),
         }
     }
