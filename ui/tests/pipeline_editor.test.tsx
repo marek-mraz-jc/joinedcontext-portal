@@ -694,7 +694,9 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const gatewayCalls = fetchMock.mock.calls
       .map((call) => new URL((call[0] as Request).url))
       // The sample read; the access panel's own calls (T-0529) are beside it.
-      .filter((url) => url.pathname.startsWith("/api/endpoint/") && url.pathname.includes("/ngsi-ld/"));
+      .filter((url) => url.pathname.startsWith("/api/endpoint/") && url.pathname.includes("/ngsi-ld/"))
+      // The workbench reads the same page as the pipeline will, normalized, for its test (T-3088).
+      .filter((url) => url.searchParams.get("options") === "keyValues");
     expect(gatewayCalls).toHaveLength(1);
     expect(gatewayCalls[0].pathname).toBe("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/ngsi-ld/v1/entities");
     expect(gatewayCalls[0].searchParams.get("options")).toBe("keyValues");
@@ -1014,6 +1016,32 @@ describe("the pipeline editor against the UI contract", () => {
     expect(within(dialog).getByText(en.pipelines.bloblangHint)).toBeInTheDocument();
     expect(within(dialog).queryByRole("link", { name: /bento\.yaml/ })).toBeNull();
     expect(dialog.querySelector('a[href^="javascript:"]')).toBeNull();
+  });
+
+  /// T-3088: a pipeline with no compute step keeps its mapping in bento.yaml; its edit page
+  /// said nothing and showed an empty mapping box, which read as a pipeline that maps nothing.
+  it("says that an existing pipeline without a compute step maps in bento.yaml, and links the file", async () => {
+    const { compute: _dropped, ...spec } = EXISTING.spec as Record<string, unknown>;
+    renderPipelines([{ ...EXISTING, spec } as Manifest]);
+    const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    const dialog = await findFormPage();
+    const notice = within(dialog).getByTestId("pipeline-mapping-in-bento");
+    expect(notice).toHaveTextContent(en.pipelines.bentoMapping);
+    expect(within(notice).getByRole("link", { name: /bento\.yaml/ })).toHaveAttribute(
+      "href",
+      "https://git.example.sk/bb/org/src/branch/main/projects/banskabystrica/pipelines/aq-mqtt-ingest/bento.yaml",
+    );
+  });
+
+  it("says nothing of bento.yaml for a pipeline that maps in its own compute step", async () => {
+    renderPipelines();
+    const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    const dialog = await findFormPage();
+    expect(within(dialog).queryByTestId("pipeline-mapping-in-bento")).toBeNull();
   });
 
   /// T-1775: the sampled entities are the shared `Table`, so the caption names it, the headers

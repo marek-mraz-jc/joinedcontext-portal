@@ -1022,6 +1022,7 @@
     },
     "bloblangHint": "The Bloblang mapping is edited here and lands in the manifest; left empty, it stays in bento.yaml beside this manifest in the forge.",
     "bloblangFile": "Open bento.yaml",
+    "bentoMapping": "This pipeline keeps its mapping in bento.yaml beside the manifest, which is why the mapping box below starts empty. Open the file to read it; a mapping written below runs as the pipeline's compute step.",
     "studio": {
       "source": "1. Source",
       "sourceKind": "Read from",
@@ -1066,6 +1067,7 @@
         "nameHint": "Lower-case letters, digits and hyphens; it names the indicator and its pipeline.",
         "typeHint": "The entity type whose values are aggregated, one the endpoint's space models.",
         "attributeHint": "The numeric attribute of that type the aggregate reads.",
+        "attributePick": "The numeric attributes the model of that type lists; pick the one the aggregate reads.",
         "aggregateHint": "How the values of one period become one number.",
         "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h."
       },
@@ -1147,6 +1149,7 @@
       "removeSource": "Remove source",
       "sourceReads": "This source reads",
       "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step.",
+      "attrsHint": "Comma-separated; empty reads every attribute.",
       "mappingRefHint": "A Mapping of this project; the step applies it to each record.",
       "moduleHint": "The path or package of the module the step runs.",
       "functionHint": "The module's entry point the step calls for each record.",

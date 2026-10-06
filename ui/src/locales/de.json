@@ -1022,6 +1022,7 @@
     },
     "bloblangHint": "Das Bloblang-Mapping wird hier bearbeitet und landet im Manifest; leer bleibt es in bento.yaml neben diesem Manifest im Forge.",
     "bloblangFile": "bento.yaml öffnen",
+    "bentoMapping": "Diese Pipeline hält ihr Mapping in bento.yaml neben dem Manifest, deshalb ist das Mapping-Feld unten leer. Öffnen Sie die Datei, um es zu lesen; ein unten geschriebenes Mapping läuft als Rechenschritt der Pipeline.",
     "studio": {
       "source": "1. Quelle",
       "sourceKind": "Lesen aus",
@@ -1074,6 +1075,7 @@
         "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche; benennt den Indikator und seine Pipeline.",
         "typeHint": "Der Entitätstyp, dessen Werte aggregiert werden; der Space des Endpoints modelliert ihn.",
         "attributeHint": "Das numerische Attribut dieses Typs, das die Aggregation liest.",
+        "attributePick": "Die numerischen Attribute, die das Modell dieses Typs nennt; wählen Sie das, das die Aggregation liest.",
         "aggregateHint": "Wie die Werte eines Zeitraums zu einer Zahl werden.",
         "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h."
       },
@@ -1147,6 +1149,7 @@
       "removeSource": "Quelle entfernen",
       "sourceReads": "Diese Quelle liest",
       "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen.",
+      "attrsHint": "Durch Kommas getrennt; leer liest alle Attribute.",
       "mappingRefHint": "Ein Mapping dieses Projekts; der Schritt wendet es auf jeden Datensatz an.",
       "moduleHint": "Pfad oder Paket des Moduls, das der Schritt ausführt.",
       "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft.",

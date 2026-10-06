@@ -386,20 +386,35 @@ export function PipelineWorkbench({
   // Step 2: the sample.
   const sample = sampleFor(draft, file, dataSources, endpoints);
   const source = sourceFor(draft, file, sample);
+  // A page of one of this platform's endpoints is read here, once, with the person's session
+  // (T-3088): the runner fetches with no credential and the endpoint answered it 401.
+  const inlined = useQuery({
+    queryKey: ["pipeline-workbench", project, "inline", sample],
+    enabled: sample !== undefined && !file,
+    retry: false,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const answer = await inlineEndpointSample(sample as Sample);
+      if (!("sample" in answer)) throw new StepFailed(answer.status, answer.detail);
+      return answer.sample;
+    },
+  });
+  const sentSample = file ? sample : inlined.data;
+  const readsSample = source !== undefined && "sample" in source;
   const sampled = useQuery({
-    queryKey: ["pipeline-workbench", project, "sample", source],
-    enabled: source !== undefined,
+    queryKey: ["pipeline-workbench", project, "sample", source, readsSample ? sentSample : null],
+    enabled: source !== undefined && (!readsSample || sentSample !== undefined),
     retry: false,
     // Each run reaches the project's runner: a person coming back to the tab asks it nothing new.
     refetchOnWindowFocus: false,
-    queryFn: async () => {
-      if (source && "sample" in source) {
-        const inlined = await inlineEndpointSample(source.sample);
-        if (!("sample" in inlined)) throw new StepFailed(inlined.status, inlined.detail);
-        return run(project, "jc_pipeline_sample_source", { sample: inlined.sample }, t("pipelines.workbench.failed"), readSample);
-      }
-      return run(project, "jc_pipeline_sample_source", source ?? {}, t("pipelines.workbench.failed"), readSample);
-    },
+    queryFn: () =>
+      run(
+        project,
+        "jc_pipeline_sample_source",
+        readsSample ? { sample: sentSample } : (source ?? {}),
+        t("pipelines.workbench.failed"),
+        readSample,
+      ),
   });
 
   // Steps 3 and 4: the mapping, tried once typing rests.
@@ -412,17 +427,14 @@ export function PipelineWorkbench({
     [draft, quiet, toManifest],
   );
   const tried = useQuery({
-    queryKey: ["pipeline-workbench", project, "mapping", manifest, sample],
+    queryKey: ["pipeline-workbench", project, "mapping", manifest, sentSample],
     // After the sample step, never beside it: a project runs one test at a time, and the two
     // started together answered "a pipeline test is already running" on every page load.
-    enabled: quiet.trim() !== "" && sample !== undefined && manifest !== undefined && !sampled.isFetching,
+    enabled: quiet.trim() !== "" && sentSample !== undefined && manifest !== undefined && !sampled.isFetching,
     retry: false,
     refetchOnWindowFocus: false,
-    queryFn: async () => {
-      const inlined = sample ? await inlineEndpointSample(sample) : undefined;
-      if (inlined && !("sample" in inlined)) throw new StepFailed(inlined.status, inlined.detail);
-      return run(project, "jc_pipeline_try_mapping", { pipeline: manifest, sample: inlined?.sample }, t("pipelines.workbench.failed"), readMapping);
-    },
+    queryFn: () =>
+      run(project, "jc_pipeline_try_mapping", { pipeline: manifest, sample: sentSample }, t("pipelines.workbench.failed"), readMapping),
   });
   const records = (tried.data?.records ?? []).filter(
     (record): record is Record<string, unknown> => typeof record === "object" && record !== null && !Array.isArray(record),
@@ -546,6 +558,10 @@ export function PipelineWorkbench({
       <Step number={2} id="workbench-sample" title={t("pipelines.workbench.sample.title")} hint={t("pipelines.workbench.sample.hint")}>
         {source === undefined ? (
           <p className="text-caption text-fg-subtle">{t("pipelines.workbench.sample.waiting")}</p>
+        ) : inlined.isError ? (
+          <Alert role="alert" tone="danger">
+            {failedText(inlined.error)}
+          </Alert>
         ) : sampled.isPending ? (
           <p role="status" className="text-caption text-fg-subtle">
             {t("pipelines.workbench.running")}
