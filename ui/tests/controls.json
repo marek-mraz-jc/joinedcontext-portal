@@ -1119,6 +1119,7 @@
       "tests": [
         "part_pipeline_flow.test.tsx",
         "pipeline_flow.test.tsx",
+        "pipeline_flow_live.test.tsx",
         "pipeline_flow_steps.test.tsx"
       ]
     },
@@ -1162,6 +1163,7 @@
         "part_pipeline_flow.test.tsx",
         "part_pipeline_test.test.tsx",
         "pipeline_flow.test.tsx",
+        "pipeline_flow_live.test.tsx",
         "pipeline_flow_steps.test.tsx",
         "pipeline_studio_debug.test.tsx",
         "pipeline_test_functions.test.ts"

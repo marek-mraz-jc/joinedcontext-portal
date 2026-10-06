@@ -1145,7 +1145,9 @@
       "sourceReadsHint": "Runner zlúči všetky zdroje linky do jedného prúdu pred prvým krokom.",
       "mappingRefHint": "Mapovanie tohto projektu; krok ho použije na každý záznam.",
       "moduleHint": "Cesta alebo balík modulu, ktorý krok spúšťa.",
-      "functionHint": "Vstupný bod modulu, ktorý krok volá pre každý záznam."
+      "functionHint": "Vstupný bod modulu, ktorý krok volá pre každý záznam.",
+      "live": "Živé počty bežiaceho prúdu od spustenia jeho runnera; ukážku uvidíte po spustení testu.",
+      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chýb}} od spustenia runnera"
     },
     "emptyHint": "Pridajte dátový zdroj a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
