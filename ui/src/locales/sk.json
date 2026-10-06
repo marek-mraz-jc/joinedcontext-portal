@@ -3300,6 +3300,12 @@
       },
       "catalogue": {
         "published": "Publikovanie do katalógu"
+      },
+      "person": {
+        "changed": "Zmena osoby"
+      },
+      "model": {
+        "key": "Kľúč modelu"
       }
     },
     "sources": {

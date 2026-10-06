@@ -3300,6 +3300,12 @@
       },
       "catalogue": {
         "published": "Catalogue publication"
+      },
+      "person": {
+        "changed": "Person changed"
+      },
+      "model": {
+        "key": "Model key"
       }
     },
     "sources": {
