@@ -468,6 +468,55 @@
         "empty": "Leer",
         "untargeted": "Ohne Ziel"
       }
+    },
+    "fields": {
+      "add": "Feld hinzufügen",
+      "title": "Feld zu {type} hinzufügen",
+      "lead": "Ein Feld ist ein Attribut im DataModel des Typs. Das Hinzufügen schlägt eine Modelländerung zur Prüfung vor; die Daten ändern sich erst nach dem Zusammenführen.",
+      "propose": "Feld vorschlagen",
+      "refused": "Das Feld konnte nicht vorgeschlagen werden",
+      "refusedStatus": "Das Portal antwortete {status}.",
+      "sdmTitle": "Aus dem Smart Data Model",
+      "sdmUnavailable": "Der Smart-Data-Models-Katalog ist gerade nicht erreichbar; ein eigenes Feld können Sie trotzdem anlegen.",
+      "sdmNone": "Jedes Attribut des Smart Data Models {type}, das ein Feld aufnehmen kann, hat dieser Typ bereits.",
+      "sdmNoModel": "Es gibt kein Smart Data Model namens {type}.",
+      "proposeOfficial": "Attribut {name} des Smart Data Models vorschlagen",
+      "ownTitle": "Eigenes Feld",
+      "name": "Name",
+      "nameHelp": "Nur Buchstaben, Ziffern und _, beginnend mit einem Buchstaben, zum Beispiel capacityLevel.",
+      "type": "Typ",
+      "values": "Auswahlwerte",
+      "valuesHelp": "Einer pro Zeile.",
+      "target": "Verweist auf",
+      "inverse": "Name des Rückverweises",
+      "inverseHelp": "Das Attribut am Ziel, das die {type}-Entitäten auflistet, die darauf verweisen.",
+      "many": "Verweist auf mehrere Entitäten",
+      "required": "Pflichtfeld",
+      "problem": {
+        "nameInvalid": "Nur Buchstaben, Ziffern und _, beginnend mit einem Buchstaben.",
+        "nameTaken": "Dieser Typ oder sein Modell hat bereits ein Attribut mit diesem Namen.",
+        "valuesMissing": "Geben Sie mindestens einen Auswahlwert an.",
+        "valueInvalid": "Ein Auswahlwert ist leer, zu lang (über 100 Zeichen) oder enthält ein Steuerzeichen.",
+        "valueTwice": "Ein Auswahlwert steht doppelt in der Liste.",
+        "targetMissing": "Wählen Sie den Typ, auf den verwiesen wird.",
+        "inverseInvalid": "Nur Buchstaben, Ziffern und _, und ein anderer Name als der des Feldes.",
+        "inverseTaken": "Der Zieltyp hat bereits ein Attribut mit diesem Namen."
+      },
+      "types": {
+        "text": "Text",
+        "number": "Zahl",
+        "integer": "Ganze Zahl",
+        "date": "Datum",
+        "datetime": "Datum und Uhrzeit",
+        "boolean": "Ja / Nein",
+        "select": "Auswahl",
+        "multiSelect": "Mehrfachauswahl",
+        "url": "Webadresse",
+        "email": "E-Mail",
+        "file": "Dateilink",
+        "location": "Standort",
+        "relationship": "Verweis auf einen anderen Typ"
+      }
     }
   },
   "endpoints": {

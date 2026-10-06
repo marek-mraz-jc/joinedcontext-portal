@@ -468,6 +468,55 @@
         "empty": "Empty",
         "untargeted": "No target"
       }
+    },
+    "fields": {
+      "add": "Add field",
+      "title": "Add a field to {type}",
+      "lead": "A field is an attribute of the type's DataModel. Adding one proposes a model change for review; no data changes until it is merged.",
+      "propose": "Propose field",
+      "refused": "The field could not be proposed",
+      "refusedStatus": "The Portal answered {status}.",
+      "sdmTitle": "From the Smart Data Model",
+      "sdmUnavailable": "The Smart Data Models catalogue cannot be reached now; you can still define your own field.",
+      "sdmNone": "Every attribute of the Smart Data Model {type} that a field can hold is already in this type.",
+      "sdmNoModel": "There is no Smart Data Model named {type}.",
+      "proposeOfficial": "Propose the Smart Data Model attribute {name}",
+      "ownTitle": "Your own field",
+      "name": "Name",
+      "nameHelp": "Letters, digits and _ only, starting with a letter, for example capacityLevel.",
+      "type": "Type",
+      "values": "Choices",
+      "valuesHelp": "One per line.",
+      "target": "Points to",
+      "inverse": "Name of the way back",
+      "inverseHelp": "The attribute on the target that lists the {type} entities pointing at it.",
+      "many": "Points to several entities",
+      "required": "Required",
+      "problem": {
+        "nameInvalid": "Use letters, digits and _ only, starting with a letter.",
+        "nameTaken": "This type or its model already has an attribute of this name.",
+        "valuesMissing": "Give at least one choice.",
+        "valueInvalid": "A choice is empty, too long (over 100 characters) or contains a control character.",
+        "valueTwice": "A choice is listed twice.",
+        "targetMissing": "Pick the type it points to.",
+        "inverseInvalid": "Use letters, digits and _ only, and a name other than the field's.",
+        "inverseTaken": "The target type already has an attribute of this name."
+      },
+      "types": {
+        "text": "Text",
+        "number": "Number",
+        "integer": "Whole number",
+        "date": "Date",
+        "datetime": "Date and time",
+        "boolean": "Yes / no",
+        "select": "Choice",
+        "multiSelect": "Several choices",
+        "url": "Web address",
+        "email": "E-mail",
+        "file": "File link",
+        "location": "Location",
+        "relationship": "Link to another type"
+      }
     }
   },
   "endpoints": {
