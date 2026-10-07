@@ -154,7 +154,12 @@
     "entityUrn": "An entity id: urn:ngsi-ld: then its type and name, such as urn:ngsi-ld:Vehicle:bus-12.",
     "notificationUri": "A full address starting with http:// or https://, with no user name or password in it.",
     "instant": "A date and time with its zone, such as 2026-12-31T23:59:00Z.",
-    "headerName": "A header name of letters, digits and hyphens. Authorization, Cookie and Proxy-Authorization are refused: put a credential in Credential instead."
+    "headerName": "A header name of letters, digits and hyphens. Authorization, Cookie and Proxy-Authorization are refused: put a credential in Credential instead.",
+    "cron": "Five fields separated by spaces: minute, hour, day, month, weekday, such as 0 3 * * * for every day at 03:00.",
+    "origin": "https:// and a host, a port at most, such as https://www.example.org; no path and no wildcard.",
+    "language": "A two-letter language code in lower case, such as sk or en.",
+    "sitePath": "A path of the site starting with a slash, such as /news/**.",
+    "color": "A colour as # and six hexadecimal digits, such as #0b5394."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",

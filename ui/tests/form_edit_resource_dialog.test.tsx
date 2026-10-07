@@ -210,3 +210,43 @@ describe("the dialog meets the UI contract", () => {
     expectNoRawKeys(await dialog());
   });
 });
+
+describe("an edit tells a person what each field is for (T-3220)", () => {
+  it("the_edit_of_a_project_shows_the_help_its_form_ships", async () => {
+    const { projectSchema } = await import("../src/schemas/kinds");
+    const { fromProject, toProject } = await import("../src/pages/projectSettings/ProjectSettingsPage");
+    const project = {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "Project",
+      metadata: { name: "helsinki", namespace: "org", title: "Helsinki city data" },
+      spec: { organizationRef: "hel", quotas: { contextSpaces: 4 } },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(String(input), init);
+        const url = new URL(request.url, "http://localhost");
+        return url.pathname.endsWith("/forms") ? json({ items: [] }) : json(project);
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <EditResourceDialog
+            target={{ project: "helsinki", home: "org", kind: "Project", plural: "projects", name: "helsinki" }}
+            open
+            onOpenChange={() => {}}
+            form={{ schema: projectSchema((key) => i18n.t(key)), fromManifest: fromProject, toManifest: toProject }}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    const box = await dialog();
+    const title = await within(box).findByLabelText(/^Title/);
+    expect(title).toHaveAccessibleDescription(
+      "The name people read in the project switcher and at the top of every page of it.",
+    );
+    expect(within(box).getByText(/How many context spaces this project may run/)).toBeInTheDocument();
+  });
+});

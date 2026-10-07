@@ -154,7 +154,12 @@
     "entityUrn": "Eine Entitäts-ID: urn:ngsi-ld:, dann ihr Typ und Name, wie urn:ngsi-ld:Vehicle:bus-12.",
     "notificationUri": "Eine vollständige Adresse, die mit http:// oder https:// beginnt, ohne Benutzername und Passwort.",
     "instant": "Datum und Uhrzeit mit Zeitzone, wie 2026-12-31T23:59:00Z.",
-    "headerName": "Ein Header-Name aus Buchstaben, Ziffern und Bindestrichen. Authorization, Cookie und Proxy-Authorization werden abgelehnt: Zugangsdaten gehören in das Feld Zugangsdaten."
+    "headerName": "Ein Header-Name aus Buchstaben, Ziffern und Bindestrichen. Authorization, Cookie und Proxy-Authorization werden abgelehnt: Zugangsdaten gehören in das Feld Zugangsdaten.",
+    "cron": "Fünf durch Leerzeichen getrennte Felder: Minute, Stunde, Tag, Monat, Wochentag, wie 0 3 * * * für jeden Tag um 03:00.",
+    "origin": "https:// und ein Host, höchstens mit Port, wie https://www.example.org; ohne Pfad und Platzhalter.",
+    "language": "Ein zweibuchstabiger Sprachcode in Kleinbuchstaben, wie sk oder en.",
+    "sitePath": "Ein Pfad der Website, der mit einem Schrägstrich beginnt, wie /news/**.",
+    "color": "Eine Farbe als # und sechs Hexadezimalziffern, wie #0b5394."
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",

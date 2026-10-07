@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
 import { PermissionGuard } from "./ui/PermissionGuard";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,11 @@ import { usePermissions } from "../api/permissions";
 import { takeEditRequest } from "../assistant/state";
 import { ChangeNotice } from "./ChangeNotice";
 import { SchemaForm } from "./forms/SchemaForm";
+import { portalThemeWidgets } from "./forms/theme";
+import { arrange, index, mergeUi, paths } from "./forms/uischema";
+import { portalWidgets } from "./forms/widgets";
+import { shippedForms } from "../schemas/forms";
+import { useBranding } from "../branding";
 import type { JsonSchema, UiSchema } from "./forms/types";
 import type { ResourceTarget } from "./DeleteResourceDialog";
 import { Alert, Button, PageFailed, PageLoading } from "./ui";
@@ -73,7 +78,8 @@ export function EditResourceDialog({
    */
   readOnly?: boolean;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const branding = useBranding();
   const formRoute = useFormRoute();
   const queryClient = useQueryClient();
   const { project, plural, name } = target;
@@ -94,6 +100,35 @@ export function EditResourceDialog({
       ),
   });
   const source = text ?? (current.data ? writable(current.data as Record<string, unknown>) : "");
+
+  // The help and the examples a new resource's form shows, on its edit as well (T-3220): the
+  // edit used to render the bare fields, so changing a project's settings told a person nothing
+  // a field was for. Shipped arrangements first, the organization's own after them, as on the
+  // create form; every field is shown, since an edit is of what the resource already holds.
+  const forms = useQuery({
+    queryKey: queryKeys.forms(),
+    enabled: open && form !== undefined,
+    staleTime: 5 * 60_000,
+    retry: false,
+    queryFn: async () => unwrap(await api.GET("/api/v1/forms", {})),
+  });
+  const arrangeable = form ? paths(form.schema).join("\u0000") : "";
+  const requiredFields = (form?.schema.required ?? []).join("\u0000");
+  const arranged = useMemo<UiSchema | undefined>(() => {
+    const manifest = index([...shippedForms, ...(forms.data?.items ?? [])]).forms[target.kind];
+    if (!manifest || arrangeable === "") {
+      return undefined;
+    }
+    return arrange(manifest, {
+      locale: i18n.language,
+      properties: arrangeable.split("\u0000"),
+      required: requiredFields === "" ? [] : requiredFields.split("\u0000"),
+      widgets: [...Object.keys(portalThemeWidgets), ...Object.keys(portalWidgets)],
+      advanced: true,
+      examples: { project: home, orgDomain: branding.orgDomain },
+    }).uiSchema;
+  }, [arrangeable, requiredFields, forms.data, i18n.language, target.kind, home, branding.orgDomain]);
+  const uiSchema = arranged ? (mergeUi(arranged, form?.uiSchema) as UiSchema) : form?.uiSchema;
 
   const propose = useMutation({
     mutationFn: async (body: unknown) =>
@@ -224,9 +259,9 @@ export function EditResourceDialog({
                 kind={target.kind}
                 // The name is where this manifest lives, so it is read here and changed nowhere.
                 uiSchema={{
-                  ...form.uiSchema,
+                  ...uiSchema,
                   name: {
-                    ...((form.uiSchema?.name as Record<string, unknown> | undefined) ?? {}),
+                    ...((uiSchema?.name as Record<string, unknown> | undefined) ?? {}),
                     "ui:readonly": true,
                   },
                   ...(readOnly ? { "ui:submitButtonOptions": { norender: true } } : {}),
