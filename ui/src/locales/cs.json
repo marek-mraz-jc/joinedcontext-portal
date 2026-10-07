@@ -3412,6 +3412,21 @@
       "truncated": "Jen prvních {max} řádků: pro ostatní zužte filtr.",
       "empty": "Pohled nemá žádné řádky k exportu.",
       "noGeometry": "Žádná entita pohledu nemá polohu, proto není co exportovat do GeoJSON."
+    },
+    "useData": {
+      "open": "Použít tato data",
+      "title": "Použít tato data v programu",
+      "lead": "Řádky typu {type}, které ukazuje tento pohled, čtené přes stejný endpoint se stejným filtrem. Zkopírujte ukázku a spusťte ji tak, jak je.",
+      "public": "Tento endpoint odpovídá komukoli: token není potřeba.",
+      "tokenTitle": "Token vašeho programu",
+      "token": "Před spuštěním ukázky vložte token do proměnné prostředí {variable}: API klíč servisního účtu tohoto projektu, o kterém rozhoduje politika endpointu stejně jako o vaší relaci. Nikdy nevkládejte svou osobní relaci do programu.",
+      "tokenLink": "Vytvořit servisní účet a jeho API klíč",
+      "copy": "Kopírovat ukázku {language}",
+      "language": {
+        "curl": "curl (příkazový řádek)",
+        "python": "Python 3 (bez balíčků)",
+        "javascript": "JavaScript (Node 18 nebo novější)"
+      }
     }
   },
   "agentRun": {

@@ -959,6 +959,14 @@
         "form_schema_projection.test.tsx"
       ]
     },
+    "src/pages/explore/UseThisData.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "explore_use_data.test.tsx"
+      ]
+    },
     "src/pages/explore/ExportView.tsx": {
       "controls": {
         "Button": 2
