@@ -1286,6 +1286,16 @@
       "fill": "Fill in the fields the call needs first.",
       "answered": "The endpoint answered {status}.",
       "code": "The same call as code"
+    },
+    "docs": {
+      "title": "API documentation",
+      "open": "Show the generated documentation",
+      "publicPage": "Public page for anyone: {url}",
+      "unavailable": "This endpoint's documentation cannot be read: it does not exist, or you may not read it.",
+      "download": "The OpenAPI document (JSON)",
+      "parameter": "Name",
+      "meaning": "What it sets",
+      "parametersOf": "Parameters of {path}"
     }
   },
   "datasources": {
@@ -3143,6 +3153,16 @@
         "contact": "Name a contact",
         "privacy": "Change what it reads or who may open it"
       }
+    },
+    "templates": {
+      "title": "Start from a template",
+      "lead": "Each template says what it is for and the data it needs. Pick one and choose which endpoint it reads: the app is built on your data and runs as a preview before you change anything.",
+      "for": "For:",
+      "needs": "Reads:",
+      "create": "Create from this",
+      "mayNot": "Your role may not propose an app in this project.",
+      "createTitle": "Create from {title}",
+      "createHint": "Choose the endpoint whose data the app shows; the rest is the template's."
     }
   },
   "appLifecycle": {

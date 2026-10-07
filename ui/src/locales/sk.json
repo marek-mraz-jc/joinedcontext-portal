@@ -1286,6 +1286,16 @@
       "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
       "answered": "Endpoint odpovedal {status}.",
       "code": "To isté volanie ako kód"
+    },
+    "docs": {
+      "title": "Dokumentácia API",
+      "open": "Zobraziť vygenerovanú dokumentáciu",
+      "publicPage": "Verejná stránka pre každého: {url}",
+      "unavailable": "Dokumentáciu tohto endpointu nemožno prečítať: neexistuje, alebo ju nesmiete čítať.",
+      "download": "Dokument OpenAPI (JSON)",
+      "parameter": "Názov",
+      "meaning": "Čo nastavuje",
+      "parametersOf": "Parametre {path}"
     }
   },
   "datasources": {
@@ -3143,6 +3153,16 @@
         "contact": "Uviesť kontakt",
         "privacy": "Zmeniť, čo číta alebo kto ju smie otvoriť"
       }
+    },
+    "templates": {
+      "title": "Začať zo šablóny",
+      "lead": "Každá šablóna hovorí, na čo slúži a aké dáta potrebuje. Vyberte jednu a zvoľte endpoint, ktorý číta: aplikácia sa zostaví nad vašimi dátami a beží ako náhľad skôr, než čokoľvek zmeníte.",
+      "for": "Pre:",
+      "needs": "Číta:",
+      "create": "Vytvoriť z tejto",
+      "mayNot": "Vaša rola v tomto projekte nesmie navrhnúť aplikáciu.",
+      "createTitle": "Vytvoriť zo šablóny {title}",
+      "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny."
     }
   },
   "appLifecycle": {

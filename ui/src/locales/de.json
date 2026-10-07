@@ -1286,6 +1286,16 @@
       "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
       "answered": "Der Endpunkt antwortete {status}.",
       "code": "Derselbe Aufruf als Code"
+    },
+    "docs": {
+      "title": "API-Dokumentation",
+      "open": "Erzeugte Dokumentation anzeigen",
+      "publicPage": "Öffentliche Seite für alle: {url}",
+      "unavailable": "Die Dokumentation dieses Endpunkts lässt sich nicht lesen: es gibt ihn nicht, oder Sie dürfen ihn nicht lesen.",
+      "download": "Das OpenAPI-Dokument (JSON)",
+      "parameter": "Name",
+      "meaning": "Was er festlegt",
+      "parametersOf": "Parameter von {path}"
     }
   },
   "datasources": {
@@ -3143,6 +3153,16 @@
         "contact": "Kontakt angeben",
         "privacy": "Ändern, was sie liest oder wer sie öffnen darf"
       }
+    },
+    "templates": {
+      "title": "Mit einer Vorlage beginnen",
+      "lead": "Jede Vorlage sagt, wofür sie dient und welche Daten sie braucht. Wählen Sie eine und den Endpunkt, den sie liest: die App wird auf Ihren Daten gebaut und läuft als Vorschau, bevor Sie etwas ändern.",
+      "for": "Für:",
+      "needs": "Liest:",
+      "create": "Daraus erstellen",
+      "mayNot": "Ihre Rolle darf in diesem Projekt keine App vorschlagen.",
+      "createTitle": "Aus {title} erstellen",
+      "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage."
     }
   },
   "appLifecycle": {
