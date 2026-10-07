@@ -253,6 +253,7 @@ fn every_kind_the_catalogue_holds_has_a_lane_somebody_decided() {
         "AgentProfile",
         "AgentRun",
         "App",
+        "AssistantDeployment", // internal; a public one is Red by its channel, below
         "Basemap",
         "Blueprint",
         "Bundle",
@@ -262,6 +263,7 @@ fn every_kind_the_catalogue_holds_has_a_lane_somebody_decided() {
         "DataSource",
         "Endpoint",
         "Entity",
+        "KnowledgeSource",
         "Mapping",
         "ModelProjection",
         "Pipeline",
@@ -335,4 +337,46 @@ fn a_kind_the_catalogue_does_not_have_is_never_green() {
     // A very long name is a name like any other: no panic, no Green.
     let long = "R".repeat(100_000);
     assert_eq!(lane(&long, Operation::Create, json!({})), Lane::Yellow);
+}
+
+/// T-3057, MF-52: an assistant that answers anyone is public exposure and spends the model
+/// budget, so its deployment is Red; one for signed-in staff, and a source, are Yellow.
+#[test]
+fn a_public_assistant_deployment_is_red_and_an_internal_one_yellow() {
+    for channel in ["public", "ckan", "iframe"] {
+        assert_eq!(
+            lane(
+                "AssistantDeployment",
+                Operation::Create,
+                json!({"channel": channel})
+            ),
+            Lane::Red,
+            "{channel}"
+        );
+        assert_eq!(
+            lane(
+                "AssistantDeployment",
+                Operation::Update,
+                json!({"channel": channel})
+            ),
+            Lane::Red,
+            "{channel}"
+        );
+    }
+    assert_eq!(
+        lane(
+            "AssistantDeployment",
+            Operation::Create,
+            json!({"channel": "internal"})
+        ),
+        Lane::Yellow
+    );
+    assert_eq!(
+        lane(
+            "KnowledgeSource",
+            Operation::Update,
+            json!({"visibility": "public"})
+        ),
+        Lane::Yellow
+    );
 }

@@ -27,6 +27,7 @@ pub mod health;
 pub mod import;
 pub mod import_git;
 pub mod internal;
+pub mod knowledge;
 pub mod live;
 pub mod mutate;
 pub mod ops;
@@ -93,6 +94,7 @@ pub fn router() -> Router<AppState> {
         .merge(quality::router())
         .merge(space_usage::router())
         .merge(entity_trash::router())
+        .merge(knowledge::router())
         .merge(live::router())
         .merge(service_accounts::router())
         .merge(sync::router())
