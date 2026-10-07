@@ -22,6 +22,7 @@ import {
 } from "../../schemas/kinds";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   Dialog,
@@ -401,6 +402,27 @@ function KeyClaimDialog({
 }
 
 /** The keys of one account: what exists, when it stops working, and the three actions on it. */
+/** How soon a key stops working before somebody has to rotate it (T-3255). */
+export const EXPIRY_WARNING_DAYS = 14;
+
+/**
+ * Where a key stands against its expiry: gone, within the warning window (with the whole days
+ * left, rounded up), fine, or without an expiry. A revoked key is no longer anyone's concern.
+ */
+export function keyExpiry(
+  key: { expiresAt?: string | null; revokedAt?: string | null },
+  now: Date,
+): { state: "never" | "fine" | "revoked" } | { state: "soon"; days: number } | { state: "expired" } {
+  if (key.revokedAt) return { state: "revoked" };
+  if (!key.expiresAt) return { state: "never" };
+  const at = new Date(key.expiresAt).getTime();
+  if (Number.isNaN(at)) return { state: "never" };
+  const left = at - now.getTime();
+  if (left <= 0) return { state: "expired" };
+  const days = Math.ceil(left / 86_400_000);
+  return days <= EXPIRY_WARNING_DAYS ? { state: "soon", days } : { state: "fine" };
+}
+
 function KeyTable({
   project,
   account,
@@ -495,6 +517,8 @@ function KeyTable({
 
   const items: KeyInfo[] = keys.data?.items ?? [];
   const busy = create.isPending || rotate.isPending || revoke.isPending;
+  const now = new Date();
+  const ending = items.filter((key) => ["soon", "expired"].includes(keyExpiry(key, now).state)).length;
 
   return (
     <div className="mt-3 space-y-3">
@@ -540,6 +564,12 @@ function KeyTable({
           <p className="text-body text-fg-muted">{t("access.keys.empty")}</p>
         )
       ) : (
+        <>
+        {ending > 0 ? (
+          <Alert tone="warning" role="status">
+            {t("access.keys.ending", { count: ending, days: EXPIRY_WARNING_DAYS })}
+          </Alert>
+        ) : null}
         <Table caption={t("access.keys.tableCaption", { account })}>
           <TableHead>
             <TableHeaderCell>{t("access.keys.field.keyId")}</TableHeaderCell>
@@ -564,6 +594,21 @@ function KeyTable({
                   {key.revokedAt
                     ? t("access.keys.revoked", { date: formatDate(key.revokedAt, locale) })
                     : (formatDate(key.expiresAt, locale) || t("access.keys.never"))}
+                  {(() => {
+                    const standing = keyExpiry(key, now);
+                    if (standing.state === "soon") {
+                      return (
+                        <Badge tone="warning" className="ml-2">
+                          {t("access.keys.expiresIn", { count: standing.days })}
+                        </Badge>
+                      );
+                    }
+                    return standing.state === "expired" ? (
+                      <Badge tone="danger" className="ml-2">
+                        {t("access.keys.expired")}
+                      </Badge>
+                    ) : null;
+                  })()}
                 </TableCell>
                 <TableCell>
                   {formatDate(key.lastUsedAt, locale) || t("access.keys.neverUsed")}
@@ -620,6 +665,7 @@ function KeyTable({
           </TableBody>
           )}
         </Table>
+        </>
       )}
     </div>
   );

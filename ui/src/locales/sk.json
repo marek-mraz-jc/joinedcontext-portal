@@ -1286,6 +1286,16 @@
       "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
       "answered": "Endpoint odpovedal {status}.",
       "code": "To isté volanie ako kód"
+    },
+    "docs": {
+      "title": "Dokumentácia API",
+      "open": "Zobraziť vygenerovanú dokumentáciu",
+      "publicPage": "Verejná stránka pre každého: {url}",
+      "unavailable": "Dokumentáciu tohto endpointu nemožno prečítať: neexistuje, alebo ju nesmiete čítať.",
+      "download": "Dokument OpenAPI (JSON)",
+      "parameter": "Názov",
+      "meaning": "Čo nastavuje",
+      "parametersOf": "Parametre {path}"
     }
   },
   "datasources": {
@@ -1758,7 +1768,14 @@
         "failed": "Zlyhal"
       },
       "newest": "Najnovšie",
-      "older": "Staršie riadky"
+      "older": "Staršie riadky",
+      "took": "Trvanie",
+      "delta": "Zapísané oproti predošlému behu",
+      "seconds": "{count, plural, one {# sekunda} few {# sekundy} other {# sekúnd}}",
+      "minutes": "{count, plural, one {# minúta} few {# minúty} other {# minút}}",
+      "same": "rovnako",
+      "silentBadge": "Nezapísal nič",
+      "silent": "Posledný beh nezapísal nič, kým predošlý zapísal {before}. Zdroj možno prestal odpovedať alebo mapovanie zahodí každý záznam; otvorte log behu."
     },
     "workbench": {
       "failed": "Krok sa nepodarilo spustiť; skúste znova.",
@@ -1956,6 +1973,47 @@
       "next": "Ďalších päť behov vo vašom čase",
       "never": "Tento rozvrh nemenuje žiadny čas v nasledujúcich štyroch rokoch.",
       "tooOften": "Tento rozvrh beží častejšie, než sa zdroj mení (záznam v katalógu hovorí: {frequency}), takže väčšina behov nenájde nič nové."
+    },
+    "recipe": {
+      "title": "Začať z receptu",
+      "lead": "Vyberte, čo pipeline robí, a zadajte jej zdroj a kam zapisuje; kroky nižšie zdroj ochutnajú, navrhnú mapovanie a otestujú ho skôr, než čokoľvek navrhnete.",
+      "use": "Vyplniť pipeline",
+      "choose": "Vyberte…",
+      "target": "Kam zapisuje",
+      "targetHelp": "Endpoint, cez ktorý idú záznamy; kontrolujú sa voči modelu jeho priestoru.",
+      "none": {
+        "datasource": "Projekt ešte nemá zdroj dát: pridajte ho v Zdrojoch dát zo šablóny.",
+        "endpoint": "Projekt ešte nemá endpoint, z ktorého čítať."
+      },
+      "csv": {
+        "title": "Súbor CSV na entity",
+        "what": "Tabuľka zverejnená ako súbor, načítaná každý deň o 03:00 UTC.",
+        "source": "Zdroj dát so súborom"
+      },
+      "api": {
+        "title": "Pravidelne čítať API",
+        "what": "API v JSON čítané každých 15 minút.",
+        "source": "Zdroj dát s API"
+      },
+      "ckan": {
+        "title": "Zbierať dataset z CKAN",
+        "what": "Zdroj z katalógu otvorených dát, načítaný každý deň o 04:00 UTC.",
+        "source": "Zdroj dát so zdrojom CKAN"
+      },
+      "kpi": {
+        "title": "Agregácia KPI",
+        "what": "Priemer jedného atribútu naprieč typom každých 15 minút ako entita KPI.",
+        "source": "Endpoint na čítanie",
+        "type": "Typ entity",
+        "attribute": "Atribút na priemer",
+        "attributeHelp": "Číselný atribút typu, podľa jeho názvu v modeli."
+      },
+      "problem": {
+        "source": "Vyberte zdroj.",
+        "target": "Vyberte, kam pipeline zapisuje.",
+        "type": "Zadajte typ entity na agregáciu.",
+        "attribute": "Zadajte číselný atribút: písmená, číslice a podčiarkovníky."
+      }
     }
   },
   "dashboards": {
@@ -2156,7 +2214,10 @@
         "confirmRotate": "Vymeniť a zobraziť kľúč",
         "cancel": "Teraz nie",
         "gone": "Tento odkaz vypršal, už bol použitý alebo patrí niekomu inému. Požiadajte o kľúč znova vo svojom MCP klientovi."
-      }
+      },
+      "expiresIn": "{count, plural, one {vyprší o # deň} few {vyprší o # dni} other {vyprší o # dní}}",
+      "expired": "vypršal",
+      "ending": "Kľúče, ktoré vypršia do {days} dní alebo už vypršali: {count}. Vymeňte ich skôr, než programy, ktoré ich používajú, zlyhajú."
     },
     "matrix": {
       "title": "Prístup k údajom",
@@ -3095,6 +3156,16 @@
         "contact": "Uviesť kontakt",
         "privacy": "Zmeniť, čo číta alebo kto ju smie otvoriť"
       }
+    },
+    "templates": {
+      "title": "Začať zo šablóny",
+      "lead": "Každá šablóna hovorí, na čo slúži a aké dáta potrebuje. Vyberte jednu a zvoľte endpoint, ktorý číta: aplikácia sa zostaví nad vašimi dátami a beží ako náhľad skôr, než čokoľvek zmeníte.",
+      "for": "Pre:",
+      "needs": "Číta:",
+      "create": "Vytvoriť z tejto",
+      "mayNot": "Vaša rola v tomto projekte nesmie navrhnúť aplikáciu.",
+      "createTitle": "Vytvoriť zo šablóny {title}",
+      "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny."
     }
   },
   "appLifecycle": {
@@ -3541,6 +3612,15 @@
         "python": "Python 3 (bez balíkov)",
         "javascript": "JavaScript (Node 18 alebo novší)"
       }
+    },
+    "map": {
+      "tab": "Mapa",
+      "loading": "Načítavam entity s polohou…",
+      "none": "Žiadna entita tohto pohľadu nemá polohu.",
+      "count": "{shown} z {total} na mape",
+      "truncated": "Iba prvých {max}: pre ostatné zúžte filter.",
+      "label": "Mapa typu {type}",
+      "open": "Otvoriť entitu"
     }
   },
   "agentRun": {

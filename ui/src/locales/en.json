@@ -1286,6 +1286,16 @@
       "fill": "Fill in the fields the call needs first.",
       "answered": "The endpoint answered {status}.",
       "code": "The same call as code"
+    },
+    "docs": {
+      "title": "API documentation",
+      "open": "Show the generated documentation",
+      "publicPage": "Public page for anyone: {url}",
+      "unavailable": "This endpoint's documentation cannot be read: it does not exist, or you may not read it.",
+      "download": "The OpenAPI document (JSON)",
+      "parameter": "Name",
+      "meaning": "What it sets",
+      "parametersOf": "Parameters of {path}"
     }
   },
   "datasources": {
@@ -1758,7 +1768,14 @@
         "failed": "Failed"
       },
       "newest": "Newest",
-      "older": "Older lines"
+      "older": "Older lines",
+      "took": "Took",
+      "delta": "Written vs the run before",
+      "seconds": "{count, plural, one {# second} other {# seconds}}",
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "same": "same",
+      "silentBadge": "Wrote nothing",
+      "silent": "The last run wrote nothing, while the run before wrote {before}. The source may have stopped answering, or the mapping may drop every record; open the run's log."
     },
     "workbench": {
       "failed": "The step could not run; try again.",
@@ -1956,6 +1973,47 @@
       "next": "Next five runs, in your time",
       "never": "This schedule names no time that comes in the next four years.",
       "tooOften": "This schedule runs more often than the source changes (its catalogue record says: {frequency}), so most runs will find nothing new."
+    },
+    "recipe": {
+      "title": "Start from a recipe",
+      "lead": "Pick what the pipeline does and give its source and where it writes; the steps below sample the source, draft the mapping and test it before anything is proposed.",
+      "use": "Fill the pipeline",
+      "choose": "Choose…",
+      "target": "Where it writes",
+      "targetHelp": "The endpoint the records go through; its space's model is what they are checked against.",
+      "none": {
+        "datasource": "The project has no data source yet: add one under Data sources, from a template.",
+        "endpoint": "The project has no endpoint to read from yet."
+      },
+      "csv": {
+        "title": "CSV file to entities",
+        "what": "A table published as a file, loaded every day at 03:00 UTC.",
+        "source": "The data source of the file"
+      },
+      "api": {
+        "title": "Poll an API",
+        "what": "A JSON API read every 15 minutes.",
+        "source": "The data source of the API"
+      },
+      "ckan": {
+        "title": "Harvest a CKAN dataset",
+        "what": "A resource of an open-data catalogue, loaded every day at 04:00 UTC.",
+        "source": "The data source of the CKAN resource"
+      },
+      "kpi": {
+        "title": "A KPI aggregation",
+        "what": "The average of one attribute across a type, every 15 minutes, as a KPI entity.",
+        "source": "The endpoint to read",
+        "type": "Entity type",
+        "attribute": "Attribute to average",
+        "attributeHelp": "A numeric attribute of the type, by its name in the model."
+      },
+      "problem": {
+        "source": "Choose the source.",
+        "target": "Choose where the pipeline writes.",
+        "type": "Name the entity type to aggregate.",
+        "attribute": "Name a numeric attribute: letters, digits and underscores."
+      }
     }
   },
   "dashboards": {
@@ -2156,7 +2214,10 @@
         "confirmRotate": "Rotate and show the key",
         "cancel": "Not now",
         "gone": "This link has expired, was already used, or belongs to someone else. Ask for the key again from your MCP client."
-      }
+      },
+      "expiresIn": "{count, plural, one {expires in # day} other {expires in # days}}",
+      "expired": "expired",
+      "ending": "Keys that expire within {days} days or have expired: {count}. Rotate them before the programs that use them fail."
     },
     "matrix": {
       "title": "Data access",
@@ -3095,6 +3156,16 @@
         "contact": "Name a contact",
         "privacy": "Change what it reads or who may open it"
       }
+    },
+    "templates": {
+      "title": "Start from a template",
+      "lead": "Each template says what it is for and the data it needs. Pick one and choose which endpoint it reads: the app is built on your data and runs as a preview before you change anything.",
+      "for": "For:",
+      "needs": "Reads:",
+      "create": "Create from this",
+      "mayNot": "Your role may not propose an app in this project.",
+      "createTitle": "Create from {title}",
+      "createHint": "Choose the endpoint whose data the app shows; the rest is the template's."
     }
   },
   "appLifecycle": {
@@ -3541,6 +3612,15 @@
         "python": "Python 3 (no packages needed)",
         "javascript": "JavaScript (Node 18 or later)"
       }
+    },
+    "map": {
+      "tab": "Map",
+      "loading": "Reading the located entities…",
+      "none": "No entity of this view has a location.",
+      "count": "{shown} of {total} on the map",
+      "truncated": "Only the first {max}: narrow the filter to see the rest.",
+      "label": "Map of {type}",
+      "open": "Open the entity"
     }
   },
   "agentRun": {

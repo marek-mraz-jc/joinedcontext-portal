@@ -7,6 +7,7 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import type { BadgeTone } from "../../components/ui/Badge";
 import {
+  Alert,
   Badge,
   Button,
   Dialog,
@@ -21,6 +22,29 @@ import {
 } from "../../components/ui";
 
 type Run = components["schemas"]["PipelineRun"];
+
+/** What a run says beside its counts (T-3260): how long it took, and what moved since the run before. */
+export interface RunFacts {
+  /** Seconds from its first outcome to its last; `undefined` for a run with one instant. */
+  seconds?: number;
+  /** Written now minus written by the run before; `undefined` for the oldest run listed. */
+  delta?: number;
+  /** It wrote nothing while the run before wrote something: a feed or a mapping stopped. */
+  silent: boolean;
+}
+
+/** The facts of every run of `runs`, newest first as the API lists them. */
+export function runFacts(runs: Run[]): RunFacts[] {
+  return runs.map((run, at) => {
+    const before = runs[at + 1];
+    const span = (Date.parse(run.lastAt) - Date.parse(run.firstAt)) / 1000;
+    return {
+      seconds: Number.isFinite(span) && span > 0 ? span : undefined,
+      delta: before === undefined ? undefined : run.sent - before.sent,
+      silent: before !== undefined && run.sent === 0 && before.sent > 0,
+    };
+  });
+}
 type LogLine = components["schemas"]["PipelineLogLine"];
 
 const PAGE = 100;
@@ -65,6 +89,13 @@ export function PipelineRunsDialog({
       ),
   });
   const items: Run[] = runs.data?.items ?? [];
+  const facts = runFacts(items);
+  const took = (seconds: number | undefined) =>
+    seconds === undefined
+      ? "—"
+      : seconds < 60
+        ? t("pipelines.runs.seconds", { count: Math.round(seconds) })
+        : t("pipelines.runs.minutes", { count: Math.round(seconds / 60) });
   // The newest run is open until a person picks another.
   const open = picked ?? items[0]?.run ?? null;
 
@@ -108,18 +139,25 @@ export function PipelineRunsDialog({
           />
         ) : (
           <>
+            {facts[0]?.silent ? (
+              <Alert tone="warning" role="status">
+                {t("pipelines.runs.silent", { before: items[1].sent.toLocaleString(locale) })}
+              </Alert>
+            ) : null}
             <Table caption={t("pipelines.runs.caption")} maxHeight="max-h-64">
               <TableHead>
                 <TableHeaderCell>{t("pipelines.runs.run")}</TableHeaderCell>
                 <TableHeaderCell>{t("pipelines.runs.sent")}</TableHeaderCell>
                 <TableHeaderCell>{t("pipelines.runs.rejected")}</TableHeaderCell>
                 <TableHeaderCell>{t("pipelines.runs.failed")}</TableHeaderCell>
+                <TableHeaderCell>{t("pipelines.runs.took")}</TableHeaderCell>
+                <TableHeaderCell>{t("pipelines.runs.delta")}</TableHeaderCell>
                 <TableHeaderCell>
                   <span className="sr-only">{t("pipelines.runs.log")}</span>
                 </TableHeaderCell>
               </TableHead>
               <TableBody>
-                {items.map((run) => (
+                {items.map((run, at) => (
                   <TableRow key={run.run}>
                     <TableCell>
                       <time dateTime={run.lastAt} className="whitespace-nowrap tabular-nums">
@@ -138,6 +176,22 @@ export function PipelineRunsDialog({
                       <span className={run.failed > 0 ? "tabular-nums text-danger" : "tabular-nums"}>
                         {run.failed.toLocaleString(locale)}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="whitespace-nowrap tabular-nums">{took(facts[at].seconds)}</span>
+                    </TableCell>
+                    <TableCell>
+                      {facts[at].silent ? (
+                        <Badge tone="warning">{t("pipelines.runs.silentBadge")}</Badge>
+                      ) : facts[at].delta === undefined ? (
+                        "—"
+                      ) : (
+                        <span className="tabular-nums">
+                          {facts[at].delta === 0
+                            ? t("pipelines.runs.same")
+                            : `${(facts[at].delta as number) > 0 ? "+" : "−"}${Math.abs(facts[at].delta as number).toLocaleString(locale)}`}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Button

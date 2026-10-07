@@ -1286,6 +1286,16 @@
       "fill": "Nejprve vyplňte pole, která volání potřebuje.",
       "answered": "Endpoint odpověděl {status}.",
       "code": "Totéž volání jako kód"
+    },
+    "docs": {
+      "title": "Dokumentace API",
+      "open": "Zobrazit vygenerovanou dokumentaci",
+      "publicPage": "Veřejná stránka pro každého: {url}",
+      "unavailable": "Dokumentaci tohoto endpointu nelze přečíst: neexistuje, nebo ji nesmíte číst.",
+      "download": "Dokument OpenAPI (JSON)",
+      "parameter": "Název",
+      "meaning": "Co nastavuje",
+      "parametersOf": "Parametry {path}"
     }
   },
   "datasources": {
@@ -1758,7 +1768,14 @@
         "failed": "Selhal"
       },
       "newest": "Nejnovější",
-      "older": "Starší řádky"
+      "older": "Starší řádky",
+      "took": "Trvání",
+      "delta": "Zapsáno oproti předchozímu běhu",
+      "seconds": "{count, plural, one {# sekunda} few {# sekundy} other {# sekund}}",
+      "minutes": "{count, plural, one {# minuta} few {# minuty} other {# minut}}",
+      "same": "stejně",
+      "silentBadge": "Nezapsal nic",
+      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu."
     },
     "workbench": {
       "failed": "Krok se nepodařilo spustit; zkuste to znovu.",
@@ -1956,6 +1973,47 @@
       "next": "Dalších pět běhů ve vašem čase",
       "never": "Tento rozvrh nejmenuje žádný čas v příštích čtyřech letech.",
       "tooOften": "Tento rozvrh běží častěji, než se zdroj mění (záznam v katalogu říká: {frequency}), takže většina běhů nenajde nic nového."
+    },
+    "recipe": {
+      "title": "Začít z receptu",
+      "lead": "Vyberte, co pipeline dělá, a zadejte její zdroj a kam zapisuje; kroky níže zdroj ochutnají, navrhnou mapování a otestují ho dřív, než cokoli navrhnete.",
+      "use": "Vyplnit pipeline",
+      "choose": "Vyberte…",
+      "target": "Kam zapisuje",
+      "targetHelp": "Endpoint, přes který jdou záznamy; kontrolují se proti modelu jeho prostoru.",
+      "none": {
+        "datasource": "Projekt zatím nemá zdroj dat: přidejte ho ve Zdrojích dat ze šablony.",
+        "endpoint": "Projekt zatím nemá endpoint, ze kterého číst."
+      },
+      "csv": {
+        "title": "Soubor CSV na entity",
+        "what": "Tabulka zveřejněná jako soubor, načítaná každý den ve 03:00 UTC.",
+        "source": "Zdroj dat se souborem"
+      },
+      "api": {
+        "title": "Pravidelně číst API",
+        "what": "API v JSON čtené každých 15 minut.",
+        "source": "Zdroj dat s API"
+      },
+      "ckan": {
+        "title": "Sklízet dataset z CKAN",
+        "what": "Zdroj z katalogu otevřených dat, načítaný každý den ve 04:00 UTC.",
+        "source": "Zdroj dat se zdrojem CKAN"
+      },
+      "kpi": {
+        "title": "Agregace KPI",
+        "what": "Průměr jednoho atributu napříč typem každých 15 minut jako entita KPI.",
+        "source": "Endpoint ke čtení",
+        "type": "Typ entity",
+        "attribute": "Atribut k průměru",
+        "attributeHelp": "Číselný atribut typu, podle jeho názvu v modelu."
+      },
+      "problem": {
+        "source": "Vyberte zdroj.",
+        "target": "Vyberte, kam pipeline zapisuje.",
+        "type": "Zadejte typ entity k agregaci.",
+        "attribute": "Zadejte číselný atribut: písmena, číslice a podtržítka."
+      }
     }
   },
   "dashboards": {
@@ -2156,7 +2214,10 @@
         "confirmRotate": "Vyměnit a zobrazit klíč",
         "cancel": "Teď ne",
         "gone": "Tento odkaz vypršel, byl už použit nebo patří někomu jinému. Požádejte o klíč znovu ve svém MCP klientovi."
-      }
+      },
+      "expiresIn": "{count, plural, one {vyprší za # den} few {vyprší za # dny} other {vyprší za # dní}}",
+      "expired": "vypršel",
+      "ending": "Klíče, které vyprší do {days} dnů nebo už vypršely: {count}. Vyměňte je dřív, než programy, které je používají, selžou."
     },
     "matrix": {
       "title": "Přístup k datům",
@@ -3095,6 +3156,16 @@
         "contact": "Uvést kontakt",
         "privacy": "Změnit, co čte nebo kdo ji smí otevřít"
       }
+    },
+    "templates": {
+      "title": "Začít ze šablony",
+      "lead": "Každá šablona říká, k čemu slouží a jaká data potřebuje. Vyberte jednu a zvolte endpoint, který čte: aplikace se sestaví nad vašimi daty a běží jako náhled dřív, než cokoli změníte.",
+      "for": "Pro:",
+      "needs": "Čte:",
+      "create": "Vytvořit z této",
+      "mayNot": "Vaše role v tomto projektu nesmí navrhnout aplikaci.",
+      "createTitle": "Vytvořit ze šablony {title}",
+      "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony."
     }
   },
   "appLifecycle": {
@@ -3541,6 +3612,15 @@
         "python": "Python 3 (bez balíčků)",
         "javascript": "JavaScript (Node 18 nebo novější)"
       }
+    },
+    "map": {
+      "tab": "Mapa",
+      "loading": "Načítám entity s polohou…",
+      "none": "Žádná entita tohoto pohledu nemá polohu.",
+      "count": "{shown} z {total} na mapě",
+      "truncated": "Jen prvních {max}: pro ostatní zužte filtr.",
+      "label": "Mapa typu {type}",
+      "open": "Otevřít entitu"
     }
   },
   "agentRun": {

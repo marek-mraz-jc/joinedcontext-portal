@@ -8,11 +8,12 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   basemapColour,
   outlineColour,
   plainColour,
+  plainColourOf,
   RAMP,
   rgbOf,
   themeColour,
@@ -99,5 +100,35 @@ describe("the map's own attribution", () => {
     const rule = /\.maplibregl-ctrl-attrib a\s*\{[^}]*text-decoration:\s*underline/;
 
     expect(css, "the rule lives in index.css: the element belongs to maplibre-gl").toMatch(rule);
+  });
+});
+
+// T-3256: a theme token written as `color-mix()` made the plain ground's style invalid, and a map
+// without a basemap never drew a layer. Every colour a map style gets is plain.
+describe("a theme colour a map style can read", () => {
+  it("keeps hex, rgb and hsl as they are", () => {
+    for (const colour of ["#2563eb", "#fff", "rgb(1, 2, 3)", "rgba(1, 2, 3, 0.5)", "hsl(210 40% 50%)"]) {
+      expect(plainColourOf(colour, "#000000")).toBe(colour);
+    }
+  });
+
+  it("resolves anything else through the browser, and falls back where there is no canvas", () => {
+    const fill = vi.fn();
+    const context = {
+      fillStyle: "",
+      fillRect: fill,
+      getImageData: () => ({ data: new Uint8ClampedArray([248, 249, 250, 255]) }),
+    };
+    const create = document.createElement.bind(document);
+    const spy = vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const element = create(tag);
+      if (tag === "canvas") (element as HTMLCanvasElement).getContext = (() => context) as unknown as HTMLCanvasElement["getContext"];
+      return element;
+    });
+    expect(plainColourOf("color-mix(in oklab, #0f172a 3%, #ffffff)", "#eef1f4")).toBe("rgb(248, 249, 250)");
+    expect(context.fillStyle).toBe("color-mix(in oklab, #0f172a 3%, #ffffff)");
+    spy.mockRestore();
+    // jsdom draws on no canvas: the literal stands in.
+    expect(plainColourOf("oklch(0.6 0.2 250)", "#2563eb")).toBe("#2563eb");
   });
 });

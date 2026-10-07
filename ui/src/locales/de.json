@@ -1286,6 +1286,16 @@
       "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
       "answered": "Der Endpunkt antwortete {status}.",
       "code": "Derselbe Aufruf als Code"
+    },
+    "docs": {
+      "title": "API-Dokumentation",
+      "open": "Erzeugte Dokumentation anzeigen",
+      "publicPage": "Öffentliche Seite für alle: {url}",
+      "unavailable": "Die Dokumentation dieses Endpunkts lässt sich nicht lesen: es gibt ihn nicht, oder Sie dürfen ihn nicht lesen.",
+      "download": "Das OpenAPI-Dokument (JSON)",
+      "parameter": "Name",
+      "meaning": "Was er festlegt",
+      "parametersOf": "Parameter von {path}"
     }
   },
   "datasources": {
@@ -1758,7 +1768,14 @@
         "failed": "Gescheitert"
       },
       "newest": "Neueste",
-      "older": "Ältere Zeilen"
+      "older": "Ältere Zeilen",
+      "took": "Dauer",
+      "delta": "Geschrieben gegenüber dem Lauf davor",
+      "seconds": "{count, plural, one {# Sekunde} other {# Sekunden}}",
+      "minutes": "{count, plural, one {# Minute} other {# Minuten}}",
+      "same": "gleich",
+      "silentBadge": "Nichts geschrieben",
+      "silent": "Der letzte Lauf hat nichts geschrieben, der Lauf davor {before}. Die Quelle antwortet vielleicht nicht mehr oder das Mapping verwirft jeden Datensatz; öffnen Sie das Log des Laufs."
     },
     "workbench": {
       "failed": "Der Schritt konnte nicht laufen; versuchen Sie es erneut.",
@@ -1956,6 +1973,47 @@
       "next": "Die nächsten fünf Läufe, in Ihrer Zeit",
       "never": "Dieser Zeitplan nennt keine Zeit in den nächsten vier Jahren.",
       "tooOften": "Dieser Zeitplan läuft öfter, als sich die Quelle ändert (ihr Katalogeintrag sagt: {frequency}), die meisten Läufe finden also nichts Neues."
+    },
+    "recipe": {
+      "title": "Mit einem Rezept beginnen",
+      "lead": "Wählen Sie, was die Pipeline tut, und geben Sie Quelle und Ziel an; die Schritte unten lesen eine Probe, entwerfen das Mapping und testen es, bevor etwas vorgeschlagen wird.",
+      "use": "Pipeline ausfüllen",
+      "choose": "Auswählen…",
+      "target": "Wohin sie schreibt",
+      "targetHelp": "Der Endpoint, über den die Datensätze gehen; geprüft wird gegen das Modell seines Raums.",
+      "none": {
+        "datasource": "Das Projekt hat noch keine Datenquelle: Legen Sie unter Datenquellen eine aus einer Vorlage an.",
+        "endpoint": "Das Projekt hat noch keinen Endpoint zum Lesen."
+      },
+      "csv": {
+        "title": "CSV-Datei zu Entitäten",
+        "what": "Eine als Datei veröffentlichte Tabelle, täglich um 03:00 UTC geladen.",
+        "source": "Die Datenquelle der Datei"
+      },
+      "api": {
+        "title": "Eine API abfragen",
+        "what": "Eine JSON-API, alle 15 Minuten gelesen.",
+        "source": "Die Datenquelle der API"
+      },
+      "ckan": {
+        "title": "Einen CKAN-Datensatz einsammeln",
+        "what": "Eine Ressource eines Open-Data-Katalogs, täglich um 04:00 UTC geladen.",
+        "source": "Die Datenquelle der CKAN-Ressource"
+      },
+      "kpi": {
+        "title": "Eine KPI-Aggregation",
+        "what": "Der Durchschnitt eines Attributs über einen Typ, alle 15 Minuten, als KPI-Entität.",
+        "source": "Der zu lesende Endpoint",
+        "type": "Entitätstyp",
+        "attribute": "Zu mittelndes Attribut",
+        "attributeHelp": "Ein numerisches Attribut des Typs, mit seinem Namen im Modell."
+      },
+      "problem": {
+        "source": "Wählen Sie die Quelle.",
+        "target": "Wählen Sie, wohin die Pipeline schreibt.",
+        "type": "Nennen Sie den zu aggregierenden Entitätstyp.",
+        "attribute": "Nennen Sie ein numerisches Attribut: Buchstaben, Ziffern und Unterstriche."
+      }
     }
   },
   "dashboards": {
@@ -2156,7 +2214,10 @@
         "confirmRotate": "Rotieren und Schlüssel anzeigen",
         "cancel": "Nicht jetzt",
         "gone": "Dieser Link ist abgelaufen, wurde bereits verwendet oder gehört jemand anderem. Fordern Sie den Schlüssel in Ihrem MCP-Client erneut an."
-      }
+      },
+      "expiresIn": "{count, plural, one {läuft in # Tag ab} other {läuft in # Tagen ab}}",
+      "expired": "abgelaufen",
+      "ending": "Schlüssel, die innerhalb von {days} Tagen ablaufen oder abgelaufen sind: {count}. Rotieren Sie sie, bevor die Programme, die sie nutzen, scheitern."
     },
     "matrix": {
       "title": "Datenzugriff",
@@ -3095,6 +3156,16 @@
         "contact": "Kontakt angeben",
         "privacy": "Ändern, was sie liest oder wer sie öffnen darf"
       }
+    },
+    "templates": {
+      "title": "Mit einer Vorlage beginnen",
+      "lead": "Jede Vorlage sagt, wofür sie dient und welche Daten sie braucht. Wählen Sie eine und den Endpunkt, den sie liest: die App wird auf Ihren Daten gebaut und läuft als Vorschau, bevor Sie etwas ändern.",
+      "for": "Für:",
+      "needs": "Liest:",
+      "create": "Daraus erstellen",
+      "mayNot": "Ihre Rolle darf in diesem Projekt keine App vorschlagen.",
+      "createTitle": "Aus {title} erstellen",
+      "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage."
     }
   },
   "appLifecycle": {
@@ -3541,6 +3612,15 @@
         "python": "Python 3 (ohne Pakete)",
         "javascript": "JavaScript (Node 18 oder neuer)"
       }
+    },
+    "map": {
+      "tab": "Karte",
+      "loading": "Lese die Entitäten mit Ort…",
+      "none": "Keine Entität dieser Ansicht hat einen Ort.",
+      "count": "{shown} von {total} auf der Karte",
+      "truncated": "Nur die ersten {max}: grenzen Sie den Filter ein, um den Rest zu sehen.",
+      "label": "Karte von {type}",
+      "open": "Entität öffnen"
     }
   },
   "agentRun": {
