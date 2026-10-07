@@ -843,7 +843,20 @@
       "writing": "{sent} von {total} angelegt…",
       "done": "{created, plural, =0 {Keine Zeile angelegt} one {# Zeile angelegt} other {# Zeilen angelegt}}, {refused, plural, =0 {keine abgelehnt.} one {# abgelehnt.} other {# abgelehnt.}}",
       "downloadRefused": "Abgelehnte Zeilen herunterladen (CSV)",
-      "close": "Schließen"
+      "close": "Schließen",
+      "preview": "Vorschau der {count, plural, one {ersten # Zeile} other {ersten # Zeilen}}",
+      "previewCaption": "Die ersten Zeilen der Datei, wie gelesen",
+      "detected": {
+        "encoding": "Kodierung {encoding}",
+        "separator": {
+          "comma": "durch Kommas getrennt",
+          "semicolon": "durch Semikolons getrennt",
+          "tab": "durch Tabulatoren getrennt"
+        },
+        "decimalComma": "Dezimalkomma",
+        "decimalPoint": "Dezimalpunkt",
+        "dates": "Datum als {format}"
+      }
     },
     "export": {
       "label": "Exportieren:",

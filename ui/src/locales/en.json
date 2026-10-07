@@ -843,7 +843,20 @@
       "writing": "Created {sent} of {total}…",
       "done": "{created, plural, =0 {No row was created} one {# row created} other {# rows created}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
       "downloadRefused": "Download the refused rows (CSV)",
-      "close": "Close"
+      "close": "Close",
+      "preview": "Preview the first {count, plural, one {# row} other {# rows}}",
+      "previewCaption": "The file's first rows as read",
+      "detected": {
+        "encoding": "Encoding {encoding}",
+        "separator": {
+          "comma": "separated by commas",
+          "semicolon": "separated by semicolons",
+          "tab": "separated by tabs"
+        },
+        "decimalComma": "decimal comma",
+        "decimalPoint": "decimal point",
+        "dates": "dates as {format}"
+      }
     },
     "export": {
       "label": "Export:",
