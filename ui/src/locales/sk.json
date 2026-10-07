@@ -5991,6 +5991,35 @@
     "service-unavailable": "Platforma na to ešte nie je pripravená; skúste to o minútu.",
     "delivery-timeout": "Príjemca neodpovedal včas; overte, že je dostupný, a skúste to znova."
   },
+  "jobs": {
+    "title": "Čo ste spustili",
+    "label": "Čo ste spustili: {running, plural, =0 {nič nebeží} one {# beží} few {# bežia} other {# beží}}{finished, plural, =0 {} one {, # dokončené} other {, # dokončených}}",
+    "queued": "Čaká na spustenie",
+    "running": "Beží {minutes, plural, =0 {menej ako minútu} one {# minútu} few {# minúty} other {# minút}}",
+    "runningWithEstimate": "Beží {minutes, plural, =0 {menej ako minútu} one {# minútu} few {# minúty} other {# minút}}, zostáva asi {left, plural, =0 {chvíľa} one {# minúta} few {# minúty} other {# minút}}",
+    "unknown": "Momentálne sa nedá zistiť",
+    "outcome": {
+      "succeeded": "Dokončené",
+      "failed": "Zlyhalo: otvorte, prečo",
+      "cancelled": "Zrušené"
+    },
+    "kind": {
+      "appBuild": "Zostavenie {name}",
+      "knowledgeCrawl": "Prehľadávanie {name}"
+    },
+    "finished": {
+      "appBuild": {
+        "succeeded": "Zostavenie {name} sa dokončilo.",
+        "failed": "Zostavenie {name} zlyhalo.",
+        "cancelled": "Zostavenie {name} bolo zrušené."
+      },
+      "knowledgeCrawl": {
+        "succeeded": "Prehľadávanie {name} sa dokončilo.",
+        "failed": "Prehľadávanie {name} zlyhalo.",
+        "cancelled": "Prehľadávanie {name} bolo zrušené."
+      }
+    }
+  },
   "places": {
     "star": "Označiť stránku hviezdičkou",
     "copyLink": "Kopírovať odkaz",

@@ -5991,6 +5991,35 @@
     "service-unavailable": "Die Plattform ist dafür noch nicht bereit; versuchen Sie es in einer Minute.",
     "delivery-timeout": "Der Empfänger hat nicht rechtzeitig geantwortet; prüfen Sie die Erreichbarkeit und versuchen Sie es erneut."
   },
+  "jobs": {
+    "title": "Was Sie gestartet haben",
+    "label": "Was Sie gestartet haben: {running, plural, =0 {nichts läuft} one {# läuft} other {# laufen}}{finished, plural, =0 {} one {, # fertig} other {, # fertig}}",
+    "queued": "Wartet auf den Start",
+    "running": "Läuft seit {minutes, plural, =0 {weniger als einer Minute} one {# Minute} other {# Minuten}}",
+    "runningWithEstimate": "Läuft seit {minutes, plural, =0 {weniger als einer Minute} one {# Minute} other {# Minuten}}, noch etwa {left, plural, =0 {einen Moment} one {# Minute} other {# Minuten}}",
+    "unknown": "Gerade nicht lesbar",
+    "outcome": {
+      "succeeded": "Fertig",
+      "failed": "Fehlgeschlagen: öffnen Sie es für den Grund",
+      "cancelled": "Abgebrochen"
+    },
+    "kind": {
+      "appBuild": "Build von {name}",
+      "knowledgeCrawl": "Durchsuchen von {name}"
+    },
+    "finished": {
+      "appBuild": {
+        "succeeded": "Der Build von {name} ist fertig.",
+        "failed": "Der Build von {name} ist fehlgeschlagen.",
+        "cancelled": "Der Build von {name} wurde abgebrochen."
+      },
+      "knowledgeCrawl": {
+        "succeeded": "Das Durchsuchen von {name} ist fertig.",
+        "failed": "Das Durchsuchen von {name} ist fehlgeschlagen.",
+        "cancelled": "Das Durchsuchen von {name} wurde abgebrochen."
+      }
+    }
+  },
   "places": {
     "star": "Seite mit Stern markieren",
     "copyLink": "Link kopieren",

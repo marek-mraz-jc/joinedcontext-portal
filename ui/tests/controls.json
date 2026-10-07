@@ -118,6 +118,14 @@
         "project_duplicate_import.test.tsx"
       ]
     },
+    "src/components/JobsMenu.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "jobs.test.tsx"
+      ]
+    },
     "src/components/LanguageSwitcher.tsx": {
       "controls": {
         "Button": 1

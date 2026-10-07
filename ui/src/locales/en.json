@@ -5991,6 +5991,35 @@
     "service-unavailable": "The platform is not ready for this yet; try again in a minute.",
     "delivery-timeout": "The receiver did not answer in time; check that it is reachable and try again."
   },
+  "jobs": {
+    "title": "What you started",
+    "label": "What you started: {running, plural, =0 {nothing running} one {# running} other {# running}}{finished, plural, =0 {} one {, # finished} other {, # finished}}",
+    "queued": "Waiting to start",
+    "running": "Running for {minutes, plural, =0 {less than a minute} one {# minute} other {# minutes}}",
+    "runningWithEstimate": "Running for {minutes, plural, =0 {less than a minute} one {# minute} other {# minutes}}, about {left, plural, =0 {a moment} one {# minute} other {# minutes}} left",
+    "unknown": "Could not be read just now",
+    "outcome": {
+      "succeeded": "Finished",
+      "failed": "Failed: open it to read why",
+      "cancelled": "Cancelled"
+    },
+    "kind": {
+      "appBuild": "Build of {name}",
+      "knowledgeCrawl": "Crawl of {name}"
+    },
+    "finished": {
+      "appBuild": {
+        "succeeded": "The build of {name} finished.",
+        "failed": "The build of {name} failed.",
+        "cancelled": "The build of {name} was cancelled."
+      },
+      "knowledgeCrawl": {
+        "succeeded": "The crawl of {name} finished.",
+        "failed": "The crawl of {name} failed.",
+        "cancelled": "The crawl of {name} was cancelled."
+      }
+    }
+  },
   "places": {
     "star": "Star this page",
     "copyLink": "Copy link",
