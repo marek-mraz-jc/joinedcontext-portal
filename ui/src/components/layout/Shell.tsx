@@ -177,7 +177,7 @@ export function BrandMark({ short = false }: { short?: boolean }): JSX.Element {
   const logo = logoUrl(branding);
   const name = short ? (branding.shortName ?? branding.instanceName) : branding.instanceName;
   return (
-    <span className="inline-flex items-center gap-2.5">
+    <span className="inline-flex min-w-0 items-center gap-2.5">
       {logo ? (
         <img src={logo} alt="" aria-hidden="true" className="h-7 w-auto max-w-32 object-contain" />
       ) : (
@@ -188,7 +188,7 @@ export function BrandMark({ short = false }: { short?: boolean }): JSX.Element {
           {name.trim().charAt(0).toUpperCase()}
         </span>
       )}
-      <span className="font-heading font-semibold tracking-tight">{name}</span>
+      <span className="truncate font-heading font-semibold tracking-tight">{name}</span>
     </span>
   );
 }
@@ -431,11 +431,13 @@ export function Shell({
         <Link
           to="/projects/$project/$plural"
           params={{ project, plural: "spaces" }}
-          className="focus-ring rounded-md text-body text-fg"
+          // On a phone the toolbar keeps its controls and the name gives way to them: the name
+          // truncates instead of pushing the menus off the side (UI-15, T-3195).
+          className="focus-ring flex min-w-0 rounded-md text-body text-fg"
         >
           <BrandMark short />
         </Link>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {/* Administration is one entry, for organization administrators only, and its page
               holds every organization-wide power as tabs, the whole-project export and import
               included (UI-75, UI-87, owner 2026-09-25). */}
