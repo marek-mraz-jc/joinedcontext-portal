@@ -152,7 +152,17 @@ export function WorkspacesPage({
 
       {list.isPending || list.isError ? null : items.length === 0 ? (
         <EmptyState title={t("workspaces.empty")}
-          description={t("workspaces.emptyHint")} />
+          description={t("workspaces.emptyHint")}
+          action={
+            // The address that opens the header's dialog, so the first copy starts from here too.
+            <Link
+              to="/projects/$project/workspaces/new"
+              params={{ project }}
+              className={buttonClass("primary", "md")}
+            >
+              {t("workspaces.new")}
+            </Link>
+          } />
       ) : (
         <div className="space-y-8">
           {mine.length > 0 ? (

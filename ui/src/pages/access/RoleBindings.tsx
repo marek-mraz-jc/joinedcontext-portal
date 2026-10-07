@@ -581,6 +581,13 @@ export function RoleBindings({
                     title={t("access.roles.empty")}
                     description={
                       scope === "organization" ? t("organization.members.emptyHint") : t("access.roles.emptyHint")
+                    }
+                    action={
+                      <PermissionGuard project={ORG_NAMESPACE} kind="RoleBinding" verb="propose">
+                        <Button variant="primary" onClick={() => setGranting(true)}>
+                          {t("access.roles.grant")}
+                        </Button>
+                      </PermissionGuard>
                     } />
                 </TableEmpty>
               ) : (

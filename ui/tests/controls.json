@@ -604,7 +604,7 @@
     },
     "src/pages/access/RoleBindings.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "form_role_bindings.test.tsx"
@@ -612,7 +612,7 @@
     },
     "src/pages/access/Roles.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "access_forms.test.tsx",
@@ -694,7 +694,7 @@
     },
     "src/pages/apps/AppsCatalog.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 6
       },
       "tests": [
         "apps_catalog.test.tsx"
@@ -1383,7 +1383,7 @@
     },
     "src/pages/sync/SyncSourcesPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "form_errors_after_touch.test.tsx",

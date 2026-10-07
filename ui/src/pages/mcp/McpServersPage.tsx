@@ -86,7 +86,7 @@ export function McpServersPage({ project, embedded = false }: { project: string;
       ) : null}
       {servers.isLoading ? <p role="status">{t("app.loading")}</p> : null}
       {!servers.isLoading && !servers.isError && items.length === 0 ? (
-        <EmptyState title={t("mcp.empty")} description={t("mcp.emptyHint")} icon="endpoints" />
+        <EmptyState title={t("mcp.empty")} description={t("mcp.emptyHint")} icon="endpoints" action={create} />
       ) : null}
       {items.map((server) => (
         <ServerCard

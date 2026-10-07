@@ -343,7 +343,14 @@ export function Roles({
                 <TableEmpty columns={4}>
                   <EmptyState bare
                     title={t("access.projectRoles.empty")}
-                    description={t("access.projectRoles.emptyHint")} />
+                    description={t("access.projectRoles.emptyHint")}
+                    action={
+                      <PermissionGuard project={project} kind="Role" verb="propose">
+                        <Button variant="secondary" onClick={() => setWriting(true)}>
+                          {t("access.projectRoles.new")}
+                        </Button>
+                      </PermissionGuard>
+                    } />
                 </TableEmpty>
               ) : (
                 rows.map((row) => (

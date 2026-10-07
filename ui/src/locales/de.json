@@ -400,7 +400,8 @@
     "new": "Neu: {kind}",
     "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
     "propose": "Änderung vorschlagen",
-    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular."
+    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular.",
+    "askAssistant": "Den Assistenten um einen Vorschlag bitten"
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
@@ -1014,7 +1015,8 @@
         "aliasHelp": "Der Name, unter dem dieses Projekt den geteilten Raum liest; Abfragen und Pipelines hier nutzen ihn.",
         "interval": "Spiegelintervall",
         "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
-      }
+      },
+      "browse": "Ansehen, was andere Projekte veröffentlichen"
     },
     "slugHint": "Die Adresse wird für Sie erzeugt und ändert sich nie, auch wenn der Endpunkt umbenannt wird.",
     "picker": {
@@ -1977,7 +1979,8 @@
         "k8sServiceAccount": "Kubernetes-Dienstkonto"
       },
       "grantIn": "{role} in {where}",
-      "grantOrg": "{role} in der ganzen Organisation"
+      "grantOrg": "{role} in der ganzen Organisation",
+      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes bekommt eigene Schlüssel und nur die Rolle, die Sie ihm geben."
     },
     "keys": {
       "create": "Neuer API-Schlüssel ({credential})",
@@ -2877,7 +2880,8 @@
       "organization": "alle in der Organisation",
       "public": "alle, auch ohne Anmeldung",
       "roles": "Personen mit einer ihrer Rollen"
-    }
+    },
+    "emptyTitle": "Noch keine Anwendungen"
   },
   "appLifecycle": {
     "draft": "Entwurf",

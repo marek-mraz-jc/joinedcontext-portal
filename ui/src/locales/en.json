@@ -400,7 +400,8 @@
     "new": "New {kind}",
     "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
     "propose": "Propose change",
-    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form."
+    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form.",
+    "askAssistant": "Ask the assistant for one"
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -1034,7 +1035,8 @@
         "aliasHelp": "The name this project reads the shared space by; queries and pipelines here use it.",
         "interval": "Mirror interval",
         "intervalHelp": "How often the source's schema is mirrored here, such as 6h or 1d; leave empty for once a day."
-      }
+      },
+      "browse": "See what other projects publish"
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",
@@ -1977,7 +1979,8 @@
         "k8sServiceAccount": "Kubernetes service account"
       },
       "grantIn": "{role} in {where}",
-      "grantOrg": "{role} in the whole organization"
+      "grantOrg": "{role} in the whole organization",
+      "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each gets its own keys and only the role you give it."
     },
     "keys": {
       "create": "New API key ({credential})",
@@ -2877,7 +2880,8 @@
       "organization": "everyone in the organization",
       "public": "everyone, without signing in",
       "roles": "the people holding one of its roles"
-    }
+    },
+    "emptyTitle": "No applications yet"
   },
   "appLifecycle": {
     "draft": "Draft",
