@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import { Link, useMatchRoute, useRouterState } from "@tanstack/react-router";
+import { Link, useMatchRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { NotificationsMenu } from "../../pages/spaces/Comments";
+import { useFirstRun } from "../../pages/home/firstRun";
 import { AssistantDock } from "../../assistant/AssistantDock";
 import { CommandPalette } from "../../navigation/CommandPalette";
 import { PageTools } from "../../navigation/PageTools";
@@ -88,6 +89,8 @@ function ProjectSelector({ active }: { active: string }) {
 function UserMenu() {
   const { t } = useTranslation();
   const { identity, signOut } = useAuth();
+  const firstRun = useFirstRun();
+  const navigate = useNavigate();
   if (!identity) {
     return null;
   }
@@ -115,6 +118,23 @@ function UserMenu() {
           <span className="block truncate text-body font-medium text-fg">{display}</span>
           {identity.name ? <span className="block truncate font-mono">{identity.username}</span> : null}
         </MenuLabel>
+        <MenuSeparator />
+        {/* The way back to what the first run offered (T-3233, T-3236). */}
+        <MenuItem
+          onSelect={() => {
+            firstRun.restore();
+            void navigate({ to: "/" });
+          }}
+        >
+          <Icon name="check" className="size-4" />
+          {t("home.firstRun.restore")}
+        </MenuItem>
+        <MenuItem asChild>
+          <a href="/glossary">
+            <Icon name="info" className="size-4" />
+            {t("glossary.page.title")}
+          </a>
+        </MenuItem>
         <MenuSeparator />
         <MenuItem
           onSelect={() => {
@@ -386,8 +406,12 @@ export function Shell({
     matchRoute({ to: "/projects/$project/settings/$tab", params: { project }, fuzzy: true }),
   );
 
+  // By the address itself: a match against the static route also answered on the other pages.
+  const onHome = pathname.replace(/\/+$/, "") === `/projects/${project}/home`;
   const activeSection = NAV_SECTIONS.find((section) =>
-    section.plural === "approvals"
+    section.plural === "home"
+      ? onHome
+      : section.plural === "approvals"
       ? onApprovals
       : section.plural === "workspaces" && copyDetail
         ? true
@@ -501,7 +525,17 @@ export function Shell({
                 <li key={section.plural}>
                   {/* Approvals and Assistant have routes of their own; linking them through the generic
                       template would resolve to that route anyway, with a router warning. */}
-                  {section.plural === "approvals" ? (
+                  {section.plural === "home" ? (
+                    <Link
+                      to="/projects/$project/home"
+                      params={{ project }}
+                      onClick={closeNav}
+                      aria-current={isActive ? "page" : undefined}
+                      className={navLinkClass(isActive)}
+                    >
+                      {body}
+                    </Link>
+                  ) : section.plural === "approvals" ? (
                     <Link
                       to="/projects/$project/approvals"
                       params={{ project }}

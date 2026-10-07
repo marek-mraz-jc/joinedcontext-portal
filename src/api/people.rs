@@ -57,6 +57,9 @@ pub struct Person {
     pub last_seen: Option<String>,
     /// The Change a deletion waits for; `null` when none is pending.
     pub pending_deletion: Option<String>,
+    /// When the link of the last invitation the Portal sent stops working, while a step is left
+    /// (RFC 3339, PF-108); `null` once none is, or without a database to remember it in.
+    pub invitation_expires: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -111,6 +114,10 @@ pub struct CreatePerson {
     pub last_name: String,
     #[serde(default)]
     pub locale: Option<String>,
+    /// The project the invitation leads into: its home page greets the person once their
+    /// password is set (PF-108). It grants nothing.
+    #[serde(default)]
+    pub project: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -233,6 +240,7 @@ fn person(user: &KcUser, last_seen: Option<i64>, pending: Option<String>) -> Per
         created_at: rfc3339(user.created_timestamp),
         last_seen: rfc3339(last_seen),
         pending_deletion: pending,
+        invitation_expires: None,
     }
 }
 
@@ -245,6 +253,89 @@ async fn pending(state: &AppState, id: &str) -> Option<String> {
             None
         }
     }
+}
+
+/// Fills in when each invitation still pending expires (PF-108). Without a database, or when it
+/// does not answer, the expiry stays unknown: the list still answers.
+async fn with_invitations(state: &AppState, people: &mut [Person]) {
+    let Some(pool) = state.db.as_ref() else {
+        return;
+    };
+    let waiting: Vec<String> = people
+        .iter()
+        .filter(|person| !person.required_actions.is_empty())
+        .map(|person| person.id.clone())
+        .collect();
+    if waiting.is_empty() {
+        return;
+    }
+    match crate::db::person_invitations(pool, &waiting).await {
+        Ok(expiries) => {
+            for person in people.iter_mut() {
+                if person.required_actions.is_empty() {
+                    continue;
+                }
+                person.invitation_expires = expiries.get(&person.id).and_then(|at| {
+                    rfc3339(i64::try_from(at.unix_timestamp_nanos() / 1_000_000).ok())
+                });
+            }
+        }
+        Err(err) => tracing::warn!(error = %err, "the invitations' expiries could not be read"),
+    }
+}
+
+/// Remembers when the invitation just sent expires, so the people page can say so, and where it
+/// leads, so sending it again leads there too (PF-108).
+async fn remember_invitation(state: &AppState, id: &str, project: Option<&str>) {
+    let (Some(pool), Some(lifespan)) = (
+        state.db.as_ref(),
+        crate::api::organization_limits::invitation_lifespan(state),
+    ) else {
+        return;
+    };
+    let expires = time::OffsetDateTime::now_utc() + lifespan;
+    if let Err(err) = crate::db::set_person_invitation(pool, id, expires, project).await {
+        tracing::warn!(person = %id, error = %err, "the invitation's expiry is not remembered");
+    }
+}
+
+async fn forget_invitation(state: &AppState, id: &str) {
+    if let Some(pool) = state.db.as_ref() {
+        if let Err(err) = crate::db::remove_person_invitation(pool, id).await {
+            tracing::warn!(person = %id, error = %err, "the invitation of a deleted person is still remembered");
+        }
+    }
+}
+
+/// The project an invitation leads into, if the caller may read it (PF-108): `404` otherwise,
+/// like every read of a project the caller is not given (PF-59).
+fn invitation_project(
+    state: &AppState,
+    identity: &Identity,
+    raw: Option<&str>,
+) -> Result<Option<String>, ApiError> {
+    let Some(project) = raw.map(str::trim).filter(|p| !p.is_empty()) else {
+        return Ok(None);
+    };
+    let known = project != ORG_NAMESPACE
+        && state.mirror.namespaces().iter().any(|name| name == project)
+        && crate::permissions::for_request(state, identity, project).may_read_project();
+    if !known {
+        return Err(ApiError::NotFound(format!("no project '{project}'")));
+    }
+    Ok(Some(project.to_owned()))
+}
+
+/// The client and the page an invitation's link returns to, when the Portal knows a client for
+/// it (`JC_PORTAL_INVITATION_CLIENT_ID`).
+fn welcome_page(state: &AppState, project: Option<&str>) -> Option<(String, String)> {
+    let client = state.config.invitation_client_id.clone()?;
+    let path = project.map_or_else(
+        || "/".to_owned(),
+        |p| format!("/projects/{p}/home?welcome=1"),
+    );
+    let page = state.config.public_base_url.join(&path).ok()?;
+    Some((client, page.to_string()))
 }
 
 /// One `person.changed` event (PF-90): the actor, the action, the person's id.
@@ -459,6 +550,7 @@ pub async fn list_people(
             pending(&state, &user.id).await,
         ));
     }
+    with_invitations(&state, &mut items).await;
     Ok(Json(PersonPage { items, next }))
 }
 
@@ -468,11 +560,12 @@ pub async fn list_people(
     summary = "Create Person",
     description = "Creates a person and sends the sign-up e-mail.",
     tag = "people",
-    request_body(content = CreatePerson, example = json!({ "email": "jana.kovacova@example.org", "firstName": "Jana", "lastName": "Kováčová", "locale": "sk" })),
+    request_body(content = CreatePerson, example = json!({ "email": "jana.kovacova@example.org", "firstName": "Jana", "lastName": "Kováčová", "locale": "sk", "project": "helsinki" })),
     responses(
         (status = 201, description = "Created; the only answer that may carry a temporary password", body = CreatedPerson),
         (status = 400, description = "Invalid input", body = ProblemDetails),
         (status = 403, description = "The caller lacks create on Person", body = ProblemDetails),
+        (status = 404, description = "No project of that name the caller may read", body = ProblemDetails),
         (status = 409, description = "The e-mail is taken", body = ProblemDetails),
         (status = 503, description = "No Keycloak admin client", body = ProblemDetails),
     )
@@ -499,6 +592,7 @@ pub(crate) async fn create(
     let first_name = name("firstName", &body.first_name)?;
     let last_name = name("lastName", &body.last_name)?;
     let language = body.locale.as_deref().map(locale).transpose()?;
+    let project = invitation_project(state, identity, body.project.as_deref())?;
     let admin = people(state)?.admin().await?;
     let id = admin
         .create(&NewPerson {
@@ -514,12 +608,24 @@ pub(crate) async fn create(
             )),
             other => other.into(),
         })?;
-    let (email_sent, temporary_password) =
-        invite(state, &admin, &id, &["VERIFY_EMAIL", "UPDATE_PASSWORD"]).await?;
+    let back = welcome_page(state, project.as_deref());
+    let (email_sent, temporary_password) = invite(
+        state,
+        &admin,
+        &id,
+        &["VERIFY_EMAIL", "UPDATE_PASSWORD"],
+        back.as_ref().map(|(c, p)| (c.as_str(), p.as_str())),
+    )
+    .await?;
+    if email_sent {
+        remember_invitation(state, &id, project.as_deref()).await;
+    }
     record(state, identity, "created", &id).await;
     let created = admin.get(&id).await?;
+    let mut answer = person(&created, None, None);
+    with_invitations(state, std::slice::from_mut(&mut answer)).await;
     Ok(CreatedPerson {
-        person: person(&created, None, None),
+        person: answer,
         email_sent,
         temporary_password,
     })
@@ -531,9 +637,10 @@ async fn invite(
     admin: &Admin<'_>,
     id: &str,
     actions: &[&str],
+    back: Option<(&str, &str)>,
 ) -> Result<(bool, Option<String>), ApiError> {
     let lifespan = crate::api::organization_limits::invitation_lifespan(state);
-    if admin.send_actions(id, actions, lifespan).await? {
+    if admin.send_actions(id, actions, lifespan, back).await? {
         return Ok((true, None));
     }
     let password = crate::people::temporary_password();
@@ -606,8 +713,10 @@ pub async fn get_person(
     }
     app_roles.sort_by(|a, b| (&a.project, &a.app, &a.role).cmp(&(&b.project, &b.app, &b.role)));
     let seen = admin.last_seen(&found.id).await.unwrap_or(None);
+    let mut shown = person(&found, seen, pending(&state, &found.id).await);
+    with_invitations(&state, std::slice::from_mut(&mut shown)).await;
     Ok(Json(PersonDetail {
-        person: person(&found, seen, pending(&state, &found.id).await),
+        person: shown,
         groups: groups.into_iter().map(|name| GroupRef { name }).collect(),
         platform_roles,
         app_roles,
@@ -698,7 +807,7 @@ pub async fn edit_person(
         // The realm asks for the new address to be verified; without mail it waits for the login.
         let lifespan = crate::api::organization_limits::invitation_lifespan(&state);
         admin
-            .send_actions(&found.id, &["VERIFY_EMAIL"], lifespan)
+            .send_actions(&found.id, &["VERIFY_EMAIL"], lifespan, None)
             .await?;
     }
     record(&state, identity, "edited", &found.id).await;
@@ -806,8 +915,74 @@ pub async fn reset_password(
     let identity = &user.0.identity;
     let (admin, found) = target(&state, identity, Verb::Update, &id).await?;
     let (email_sent, temporary_password) =
-        invite(&state, &admin, &found.id, &["UPDATE_PASSWORD"]).await?;
+        invite(&state, &admin, &found.id, &["UPDATE_PASSWORD"], None).await?;
     record(&state, identity, "reset the password of", &found.id).await;
+    let status = if email_sent {
+        StatusCode::ACCEPTED
+    } else {
+        StatusCode::OK
+    };
+    Ok((
+        status,
+        Json(PasswordReset {
+            email_sent,
+            temporary_password,
+        }),
+    )
+        .into_response())
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/organization/people/{id}/resend-invitation",
+    summary = "Resend Invitation",
+    description = "Sends the realm's e-mail again for the steps the person has not taken, with a fresh link that leads into the project the first one did. Needs `create` on Person and every right the person holds.",
+    tag = "people",
+    params(("id" = String, Path, description = "The Keycloak user id")),
+    responses(
+        (status = 202, description = "The e-mail went", body = PasswordReset),
+        (status = 200, description = "The realm cannot send mail: a temporary password, once", body = PasswordReset),
+        (status = 403, description = "The caller lacks create on Person, or a right the person holds", body = ProblemDetails),
+        (status = 404, description = "No such person", body = ProblemDetails),
+        (status = 409, description = "The person has no step left: the invitation was accepted", body = ProblemDetails),
+        (status = 503, description = "No Keycloak admin client", body = ProblemDetails),
+    )
+)]
+pub async fn resend_invitation(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let identity = &user.0.identity;
+    let (admin, found) = target(&state, identity, Verb::Create, &id).await?;
+    if found.required_actions.is_empty() {
+        return Err(ApiError::Conflict(
+            "the person has taken every step: the invitation was accepted".into(),
+        ));
+    }
+    let project = match state.db.as_ref() {
+        Some(pool) => crate::db::person_invitation_project(pool, &found.id)
+            .await
+            .unwrap_or_else(|err| {
+                tracing::warn!(person = %found.id, error = %err, "the invitation's project could not be read");
+                None
+            }),
+        None => None,
+    };
+    let back = welcome_page(&state, project.as_deref());
+    let steps: Vec<&str> = found.required_actions.iter().map(String::as_str).collect();
+    let (email_sent, temporary_password) = invite(
+        &state,
+        &admin,
+        &found.id,
+        &steps,
+        back.as_ref().map(|(c, p)| (c.as_str(), p.as_str())),
+    )
+    .await?;
+    if email_sent {
+        remember_invitation(&state, &found.id, None).await;
+    }
+    record(&state, identity, "sent the invitation again to", &found.id).await;
     let status = if email_sent {
         StatusCode::ACCEPTED
     } else {
@@ -962,6 +1137,7 @@ pub async fn delete_person(
     let removal = removal(&state, &email)?;
     if removal.edited.is_empty() && removal.removed.is_empty() {
         admin.delete(&found.id).await?;
+        forget_invitation(&state, &found.id).await;
         record(&state, identity, "deleted", &found.id).await;
         return Ok(StatusCode::NO_CONTENT.into_response());
     }
@@ -1154,6 +1330,11 @@ pub async fn finish_deletions(
         }
     }
     for (person, outcome) in decided {
+        if outcome == "deleted" {
+            if let Err(err) = crate::db::remove_person_invitation(pool, &person).await {
+                tracing::warn!(person = %person, error = %err, "the invitation of a deleted person is still remembered");
+            }
+        }
         if let Err(err) = crate::db::remove_person_deletion(pool, &person).await {
             tracing::warn!(person = %person, error = %err, "the finished removal stays recorded");
         } else {
@@ -1174,6 +1355,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/organization/people/{id}/reset-password",
             post(reset_password),
+        )
+        .route(
+            "/organization/people/{id}/resend-invitation",
+            post(resend_invitation),
         )
         .route(
             "/organization/people/{id}/remove-second-factor",
