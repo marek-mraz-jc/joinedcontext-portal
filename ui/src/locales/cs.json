@@ -740,6 +740,8 @@
       "noAsked": "Formulář se neptá na žádné pole",
       "notPublished": "Tento formulář není zveřejněn nebo už není.",
       "publicLead": "Vaše odpovědi vytvoří jeden záznam. Nic z toho, co pošlete, se vám nezobrazí zpět.",
+      "publicData": "Vaše odpovědi se stanou veřejnými daty tohoto prostoru: přečte je každý, komu prostor data zveřejňuje. Neposílejte osobní údaje.",
+      "trap": "Toto pole nechte prázdné",
       "labelOf": "Název pole {attr}",
       "helpOf": "Nápověda k {attr}",
       "requiredOf": "{attr} povinné"

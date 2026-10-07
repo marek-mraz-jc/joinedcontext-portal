@@ -6,7 +6,8 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/spaces/formView.ts.
 import { describe, expect, it } from "vitest";
 import type { LinkmlSlot } from "../src/pages/models/linkml";
-import { entityOf, fieldsOf, fieldsOfSchema, prefilled, problemsOf, visibleFields } from "../src/pages/spaces/formView";
+import { createdId, entityOf, fieldsOf, fieldsOfSchema, prefilled, problemsOf, trapName, visibleFields } from "../src/pages/spaces/formView";
+import type { FormField } from "../src/pages/spaces/formView";
 
 const slot = (name: string, more: Partial<LinkmlSlot> = {}): LinkmlSlot => ({ name, kind: "Property", ...more });
 const SLOTS: LinkmlSlot[] = [
@@ -158,5 +159,19 @@ describe("a public form's fields", () => {
     expect(fields[0].help).toBe("What it is called");
     expect(fields[2].options).toEqual([{ value: "street" }, { value: "garage" }]);
     expect(fieldsOfSchema(undefined, {})).toEqual([]);
+  });
+});
+
+describe("a public form's trap and minted id", () => {
+  it("names a trap no field of the form uses", () => {
+    expect(trapName([])).toBe("website");
+    expect(trapName([{ attr: "website", label: "w", kind: "text", required: false } satisfies FormField])).toBe("homepageUrl");
+  });
+
+  it("reads the created id from Location, or none", () => {
+    expect(createdId("/ngsi-ld/v1/entities/urn%3Angsi-ld%3AReport%3Aa1")).toBe("urn:ngsi-ld:Report:a1");
+    expect(createdId("https://x.example/api/endpoint/s/ngsi-ld/v1/entities/urn:ngsi-ld:Report:b2?x=1")).toBe("urn:ngsi-ld:Report:b2");
+    expect(createdId(null)).toBeUndefined();
+    expect(createdId("/elsewhere")).toBeUndefined();
   });
 });

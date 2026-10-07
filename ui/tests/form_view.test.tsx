@@ -140,13 +140,15 @@ describe("the form's settings", () => {
 
 describe("a public form", () => {
   it("asks propose-endpoint for a public endpoint that allows creating its type alone", () => {
-    expect(formPublishRequest("parking", "parking-form", "ParkingSpot", ["name", "capacity", "note"], ["name", "capacity"])).toEqual({
+    expect(formPublishRequest("parking", "parking-form", "ParkingSpot", ["name", "capacity", "note", "refZone"], ["name", "capacity", "refZone"], ["refZone"])).toEqual({
       contextSpace: "parking",
       name: "parking-form",
       audience: "public",
       entityTypes: ["ParkingSpot"],
       access: "create",
       hiddenAttributes: ["note"],
+      writeAttributes: ["name", "capacity"],
+      writeRelationships: ["refZone"],
     });
   });
 
@@ -201,11 +203,14 @@ describe("a public form", () => {
             },
           });
         }
-        if (request.method === "POST") return new Response(null, { status: 201 });
+        if (request.method === "POST") {
+          return new Response(null, { status: 201, headers: { Location: "/ngsi-ld/v1/entities/urn:ngsi-ld:ParkingSpot:minted-7" } });
+        }
         return undefined;
       },
     });
     expect(await screen.findByRole("heading", { level: 1, name: "ParkingSpot" })).toBeInTheDocument();
+    expect(screen.getByText(en.spaces.form.publicData)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /capacity/ })).toHaveValue("12");
     await userEvent.type(screen.getByRole("textbox", { name: /^name/ }), "Hlavná");
     await expectNoViolations(screen.getByTestId("public-form"));
@@ -214,7 +219,39 @@ describe("a public form", () => {
     const post = requests.find((r) => r.method === "POST") as Request;
     expect(new URL(post.url).pathname).toBe("/api/endpoint/abc/ngsi-ld/v1/entities");
     expect(post.credentials).toBe("omit");
-    expect(await screen.findByText(/Created urn:ngsi-ld:ParkingSpot:/)).toBeInTheDocument();
+    const sentEntity = (await post.clone().json()) as Record<string, unknown>;
+    expect(sentEntity).not.toHaveProperty("website");
+    // The id the gateway minted is the one shown, not the one the page proposed (EP-97).
+    expect(await screen.findByText("Created urn:ngsi-ld:ParkingSpot:minted-7.")).toBeInTheDocument();
+  });
+
+  it("sends a filled trap field, which the form's Policy does not grant", async () => {
+    const posts: Request[] = [];
+    renderPage(<PublicFormPage slug="abc" search={new URLSearchParams()} />, {
+      path: "/f/abc",
+      answer: async (url, request) => {
+        if (!url.pathname.startsWith("/api/endpoint/abc/")) return undefined;
+        if (url.pathname.endsWith("/schema/index.json")) return json({ models: [{ version: 1 }] });
+        if (url.pathname.endsWith("/schema/v1/json-schema")) {
+          return json({ definitions: { ParkingSpot: { properties: { id: { type: "string" }, type: { type: "string" }, name: { type: ["string", "null"] } } } } });
+        }
+        if (request.method === "POST") {
+          posts.push(request);
+          return json({ title: "Forbidden" }, 403);
+        }
+        return undefined;
+      },
+    });
+    await screen.findByRole("heading", { level: 1, name: "ParkingSpot" });
+    // A person never reaches it: it is outside the accessibility tree and the tab order.
+    expect(screen.queryByRole("textbox", { name: en.spaces.form.trap })).toBeNull();
+    const trap = document.getElementById("public-form-website") as HTMLInputElement;
+    expect(trap.tabIndex).toBe(-1);
+    await userEvent.type(trap, "https://spam.example");
+    await userEvent.click(screen.getByRole("button", { name: en.spaces.form.submit }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(((await posts[0].clone().json()) as Record<string, unknown>).website).toEqual({ type: "Property", value: "https://spam.example" });
+    expect(await screen.findByText(/Not created/)).toBeInTheDocument();
   });
 
   it("says the form is not published when the Endpoint is gone", async () => {

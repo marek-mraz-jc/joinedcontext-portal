@@ -740,6 +740,8 @@
       "noAsked": "The form asks for no field",
       "notPublished": "This form is not published, or no longer.",
       "publicLead": "Your answers create one record. Nothing you send is read back to you.",
+      "publicData": "Your answers become public data of this space: anyone the space publishes to can read them. Do not send personal details.",
+      "trap": "Leave this field empty",
       "labelOf": "Label of {attr}",
       "helpOf": "Help for {attr}",
       "requiredOf": "{attr} required"
