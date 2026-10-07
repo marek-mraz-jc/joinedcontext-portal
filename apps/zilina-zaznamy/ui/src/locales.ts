@@ -1,0 +1,251 @@
+/** What the records screen says, in Slovak and English (UI-30): the reader's language, else Slovak. */
+import type { GridLabels } from "@joinedcontext/sdk";
+import type { Dataset } from "./datasets";
+
+export interface Strings {
+  locale: string;
+  title: string;
+  subtitle: string;
+  datasets: string;
+  name: Record<Dataset, string>;
+  about: Record<Dataset, string>;
+  licence: Record<Dataset, string>;
+  column: Record<string, string>;
+  exportCsv: string;
+  exporting: string;
+  exported: (rows: number) => string;
+  exportCut: (rows: number) => string;
+  exportFailed: (reason: string) => string;
+  readOnly: string;
+  noEndpoint: (dataset: string) => string;
+  grid: Partial<GridLabels>;
+}
+
+const COLUMNS_SK: Record<string, string> = {
+  name: "Názov",
+  monumentKind: "Objekt",
+  architecturalStyle: "Sloh",
+  constructionPeriod: "Vznik",
+  cadastralArea: "Katastrálne územie",
+  ownershipForm: "Forma vlastníctva",
+  monumentNumber: "Číslo v ÚZPF",
+  address: "Adresa",
+  dailyDepartures: "Odchody vlakov dnes",
+  stopCode: "Kód stanice (GTFS)",
+  pm10: "PM10",
+  pm25: "PM2,5",
+  no2: "NO₂",
+  o3: "O₃",
+  co: "CO",
+  dateObserved: "Posledné meranie",
+  workType: "Druh",
+  yearPublished: "Rok",
+  isPartOf: "Zbierka",
+  publisher: "Vydavateľ",
+  license: "Licencia",
+  url: "Odkaz",
+};
+
+const COLUMNS_EN: Record<string, string> = {
+  name: "Name",
+  monumentKind: "Object",
+  architecturalStyle: "Style",
+  constructionPeriod: "Built",
+  cadastralArea: "Cadastral area",
+  ownershipForm: "Form of ownership",
+  monumentNumber: "Number in the central list",
+  address: "Address",
+  dailyDepartures: "Trains leaving today",
+  stopCode: "Station code (GTFS)",
+  pm10: "PM10",
+  pm25: "PM2.5",
+  no2: "NO₂",
+  o3: "O₃",
+  co: "CO",
+  dateObserved: "Latest reading",
+  workType: "Kind",
+  yearPublished: "Year",
+  isPartOf: "Collection",
+  publisher: "Publisher",
+  license: "Licence",
+  url: "Link",
+};
+
+const sk: Strings = {
+  locale: "sk",
+  title: "Otvorené dáta o Žiline",
+  subtitle: "Každý verejný súbor údajov projektu Žilina ako tabuľka, s filtrom v každom stĺpci a celým súborom na stiahnutie.",
+  datasets: "Súbory údajov",
+  name: {
+    monuments: "Kultúrne pamiatky",
+    stations: "Železničné stanice",
+    air: "Kvalita ovzdušia",
+    works: "Publikácie UNIZA",
+  },
+  about: {
+    monuments: "Nehnuteľné národné kultúrne pamiatky v meste, každý objekt jeden riadok, umiestnený podľa registra adries.",
+    stations: "Päť železničných staníc v meste a počet vlakov, ktoré z nich dnes odchádzajú.",
+    air: "Posledná platná hodinová hodnota každej látky na stanici SK0020A.",
+    works: "Práce Digitálneho repozitára Žilinskej univerzity s otvorenou licenciou, bez mien autorov.",
+  },
+  licence: {
+    monuments: "Pamiatkový úrad SR a MV SR, CC BY 4.0",
+    stations: "ŽSR, grafikon vlakovej dopravy (GTFS)",
+    air: "Európska environmentálna agentúra, údaje SHMÚ, CC BY 4.0",
+    works: "Žilinská univerzita v Žiline, DREPO; každá práca pod licenciou, ktorú uvádza",
+  },
+  column: COLUMNS_SK,
+  exportCsv: "Stiahnuť celý súbor (CSV)",
+  exporting: "Pripravujem súbor…",
+  exported: (rows) => `Stiahnutých ${rows} riadkov.`,
+  exportCut: (rows) => `Súbor je väčší, stiahnutých je prvých ${rows} riadkov.`,
+  exportFailed: (reason) => `Súbor sa nepodarilo pripraviť: ${reason}`,
+  readOnly: "Údaje zapisujú kanály zo zdrojov; tabuľka ich iba zobrazuje, ďalší beh by každú ručnú zmenu prepísal.",
+  noEndpoint: (dataset) => `Aplikácia nemá zverejnený prístup k súboru „${dataset}“.`,
+  grid: {
+    id: "Identifikátor",
+    type: "Typ",
+    observedAt: "Merané",
+    unit: "Jednotka",
+    datasetId: "Súbor údajov",
+    createdAt: "Vytvorené",
+    modifiedAt: "Zmenené",
+    empty: "Žiadne záznamy.",
+    loading: "Načítava sa…",
+    previous: "Predchádzajúca strana",
+    next: "Ďalšia strana",
+    page: "Strana",
+    showMetadata: "Zobraziť podrobnosti stĺpca",
+    error: "Chyba",
+    filter: "Filter",
+    ops: {
+      contains: "obsahuje",
+      equals: "sa rovná",
+      notEquals: "sa nerovná",
+      gt: ">",
+      gte: "≥",
+      lt: "<",
+      lte: "≤",
+      between: "medzi",
+      empty: "je prázdne",
+      present: "má hodnotu",
+      pattern: "zodpovedá",
+      anyOf: "je jednou z",
+    },
+    value: "Hodnota",
+    upperValue: "Horná hodnota",
+    query: "Dopyt, ktorý sa odošle endpointu",
+    copyQuery: "Kopírovať dopyt",
+    editAsText: "Upraviť ako text",
+    filterRow: "Filtre",
+    sortPage: "Zoradiť túto stranu podľa",
+    matching: "zodpovedá",
+    history: "História",
+    edit: "Upraviť",
+    pending: "zatiaľ neuložené",
+    review: "Skontrolovať zmeny",
+    apply: "Uložiť",
+    discard: "Zahodiť zmeny",
+    attribute: "Atribút",
+    before: "Pred zmenou",
+    after: "Po zmene",
+    observedKeep: "ponechať, kedy bola hodnota zistená",
+    observedNow: "tieto hodnoty boli zistené teraz",
+    applying: "Ukladá sa…",
+    refusedHere: "zamietnuté",
+    notInList: "nie je v zozname",
+  },
+};
+
+const en: Strings = {
+  locale: "en",
+  title: "Open data about Žilina",
+  subtitle: "Every public dataset of the Žilina project as a table, with a filter in each column and the whole dataset to download.",
+  datasets: "Datasets",
+  name: {
+    monuments: "Cultural monuments",
+    stations: "Railway stations",
+    air: "Air quality",
+    works: "University works",
+  },
+  about: {
+    monuments: "The immovable national cultural monuments in the city, one row per object, placed through the register of addresses.",
+    stations: "The city's five railway stations and the trains leaving each today.",
+    air: "The latest valid hourly mean of each pollutant at station SK0020A.",
+    works: "The openly licensed works of the University of Žilina's digital repository, without author names.",
+  },
+  licence: {
+    monuments: "Monuments Board of the SR and Ministry of Interior of the SR, CC BY 4.0",
+    stations: "ŽSR, train timetable (GTFS)",
+    air: "European Environment Agency, SHMÚ's data, CC BY 4.0",
+    works: "University of Žilina, DREPO; each work under the licence it states",
+  },
+  column: COLUMNS_EN,
+  exportCsv: "Download the whole dataset (CSV)",
+  exporting: "Preparing the file…",
+  exported: (rows) => `${rows} rows downloaded.`,
+  exportCut: (rows) => `The dataset is larger; the first ${rows} rows were downloaded.`,
+  exportFailed: (reason) => `The file could not be prepared: ${reason}`,
+  readOnly: "Pipelines write these data from their sources; the table only shows them, as the next run would overwrite any edit.",
+  noEndpoint: (dataset) => `This app has no published access to the dataset “${dataset}”.`,
+  grid: {
+    id: "Identifier",
+    type: "Type",
+    observedAt: "Observed",
+    unit: "Unit",
+    datasetId: "Dataset",
+    createdAt: "Created",
+    modifiedAt: "Modified",
+    empty: "No records.",
+    loading: "Loading…",
+    previous: "Previous page",
+    next: "Next page",
+    page: "Page",
+    showMetadata: "Show the column's details",
+    error: "Error",
+    filter: "Filter",
+    ops: {
+      contains: "contains",
+      equals: "is",
+      notEquals: "is not",
+      gt: ">",
+      gte: "≥",
+      lt: "<",
+      lte: "≤",
+      between: "between",
+      empty: "is empty",
+      present: "has a value",
+      pattern: "matches",
+      anyOf: "is one of",
+    },
+    value: "Value",
+    upperValue: "Upper value",
+    query: "The query this sends to the endpoint",
+    copyQuery: "Copy the query",
+    editAsText: "Edit as text",
+    filterRow: "Filters",
+    sortPage: "Sort this page by",
+    matching: "matching",
+    history: "History",
+    edit: "Edit",
+    pending: "not saved yet",
+    review: "Review the changes",
+    apply: "Save",
+    discard: "Discard the changes",
+    attribute: "Attribute",
+    before: "Before",
+    after: "After",
+    observedKeep: "keep when each value was observed",
+    observedNow: "these values were observed now",
+    applying: "Saving…",
+    refusedHere: "refused",
+    notInList: "not in the list",
+  },
+};
+
+export const LOCALES: Record<string, Strings> = { sk, en };
+
+export function stringsFor(language: string | undefined): Strings {
+  const short = (language ?? "sk").slice(0, 2).toLowerCase();
+  return LOCALES[short] ?? sk;
+}
