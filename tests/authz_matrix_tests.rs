@@ -304,7 +304,7 @@ fn url(path: &str, row: &Row) -> (bool, String) {
 
 /// A route's placeholders, filled with what the fixture holds.
 fn fill(path: &str) -> String {
-    let values: [(&str, &str); 23] = [
+    let values: [(&str, &str); 24] = [
         ("{project}", PROJECT),
         ("{plural}", "endpoints"),
         ("{name}", EXISTING),
@@ -328,6 +328,7 @@ fn fill(path: &str) -> String {
         ("{source}", EXISTING),
         ("{page}", "1"),
         ("{deployment}", EXISTING),
+        ("{type}", "Station"),
     ];
     values
         .iter()
@@ -367,6 +368,18 @@ async fn fixture() -> AppState {
     if let Some(bearer) = &state.bearer {
         bearer.refresh().await.expect("the test realm's keys");
     }
+    // The space's model as the reconciler compiles it, so a type's attributes are there to read
+    // (T-3223).
+    state.model_schemas.replace(std::collections::HashMap::from([(
+        (PROJECT.to_owned(), PROJECT.to_owned()),
+        std::sync::Arc::new(joinedcontext_portal::pipeline_validation::ModelSchema::compile(
+            "stations",
+            "1.0.0",
+            &json!({ "definitions": { "Station": { "properties": { "name": { "type": "string" } } } } }),
+            &["Station".to_owned()],
+            false,
+        )),
+    )]));
     let bind = |name: &str, rules: Value, subject: Value, scope: Value| {
         state.mirror.upsert(envelope(
             "Role",

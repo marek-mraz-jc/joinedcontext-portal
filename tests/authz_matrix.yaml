@@ -246,6 +246,9 @@ routes:
     rule: "space-read, then the view's mode"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
     note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
+  - route: GET /projects/{project}/spaces/{space}/types/{type}/attributes
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/spaces/{space}/live
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

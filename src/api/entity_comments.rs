@@ -1,9 +1,12 @@
 //! Comments on a space's entities with `@mentions`, and the caller's notifications (API/01 §35,
-//! ADR-N-042 §3.1, T-3106). Commenting needs a read of the space and changes no data; a mention
-//! notifies only a person a binding in force lets read the space.
+//! ADR-N-042 §3.1, T-3106). Commenting needs a read of the space and of the entity, as the
+//! gateway decides it for the caller (T-3284), and changes no data; a mention notifies only a
+//! person a binding in force lets read the space.
+
+use std::time::Duration;
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -112,6 +115,59 @@ pub fn mentions_in(text: &str) -> Vec<String> {
     found
 }
 
+/// Whether the caller may read the entity `urn` of `space`: one read of it on the space surface
+/// with the caller's own token, so their Policy decides and the Portal decides nothing itself
+/// (API/01 §35, T-3284). Hidden and missing are the same `404`, so no answer tells an entity's
+/// existence to someone who may not read it.
+async fn entity_readable(
+    state: &AppState,
+    headers: &HeaderMap,
+    space: &str,
+    urn: &str,
+) -> Result<(), ApiError> {
+    let base = state.config.gateway_url.as_deref().ok_or_else(|| {
+        ApiError::Unavailable(
+            "this Portal has no gateway address (JC_PORTAL_GATEWAY_URL), so it cannot tell \
+             whether you may read the entity"
+                .into(),
+        )
+    })?;
+    let token = crate::agents::identity::persons_token(headers, state.config.trust_edge_token)
+        .ok_or_else(|| {
+            ApiError::NotFound(
+                "an entity's comments are read with your own access token, which this session \
+                 does not carry; sign in through the platform's address"
+                    .into(),
+            )
+        })?;
+    let mut url = reqwest::Url::parse(base)
+        .map_err(|_| ApiError::Unavailable("the gateway address is not a URL".into()))?;
+    url.path_segments_mut()
+        .map_err(|_| ApiError::Unavailable("the gateway address is not a URL".into()))?
+        .pop_if_empty()
+        .extend(["cs", space, "ngsi-ld", "v1", "entities", urn]);
+    let answer = crate::api::pipelines::http()
+        .get(url)
+        .bearer_auth(token)
+        .header(header::ACCEPT, "application/json")
+        .timeout(Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|err| {
+            tracing::warn!(error = %err.without_url(), "the gateway did not answer an entity read");
+            ApiError::Unavailable("the gateway did not answer; try again shortly".into())
+        })?;
+    match answer.status().as_u16() {
+        200..=299 => Ok(()),
+        401 | 403 | 404 => Err(ApiError::NotFound(format!(
+            "no entity {urn} you may read in space '{space}'"
+        ))),
+        status => Err(ApiError::Unavailable(format!(
+            "the gateway answered {status} reading the entity; try again shortly"
+        ))),
+    }
+}
+
 /// The identifiers a notification for the caller may be addressed to: their username and their
 /// e-mail, lower case.
 fn recipients(user: &CurrentUser) -> Vec<String> {
@@ -141,7 +197,7 @@ fn recipients(user: &CurrentUser) -> Vec<String> {
         (status = 200, description = "The comments", body = [CommentView]),
         (status = 400, description = "Not an NGSI-LD URN", body = crate::error::ProblemDetails),
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
-        (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such space, or no entity of it the caller may read (API/01 §35, T-3284)", body = crate::error::ProblemDetails),
         (status = 503, description = "The comments are not reachable", body = crate::error::ProblemDetails),
     )
 )]
@@ -149,10 +205,12 @@ pub async fn list_comments(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, space)): Path<(String, String)>,
+    headers: HeaderMap,
     Query(query): Query<EntityQuery>,
 ) -> Result<Json<Vec<CommentView>>, ApiError> {
     readable(&state, &user, &project, &space)?;
     let urn = urn_of(&query.urn)?;
+    entity_readable(&state, &headers, &space, urn).await?;
     let me = user.0.identity.username.as_str();
     let comments = state
         .comments
@@ -193,7 +251,7 @@ pub async fn list_comments(
         (status = 201, description = "The comment", body = Commented),
         (status = 400, description = "Not an NGSI-LD URN, or no text, or more than 4,000 characters", body = crate::error::ProblemDetails),
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
-        (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such space, or no entity of it the caller may read (API/01 §35, T-3284)", body = crate::error::ProblemDetails),
         (status = 409, description = "The entity holds the most comments it keeps", body = crate::error::ProblemDetails),
         (status = 503, description = "The comments are not reachable", body = crate::error::ProblemDetails),
     )
@@ -202,10 +260,12 @@ pub async fn add_comment(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, space)): Path<(String, String)>,
+    headers: HeaderMap,
     Json(request): Json<CommentRequest>,
 ) -> Result<(StatusCode, Json<Commented>), ApiError> {
     readable(&state, &user, &project, &space)?;
     let urn = urn_of(&request.urn)?;
+    entity_readable(&state, &headers, &space, urn).await?;
     let text = request.text.trim();
     let length = text.chars().count();
     if length == 0 || length > MAX_TEXT {
