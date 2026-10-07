@@ -1758,7 +1758,14 @@
         "failed": "Gescheitert"
       },
       "newest": "Neueste",
-      "older": "Ältere Zeilen"
+      "older": "Ältere Zeilen",
+      "took": "Dauer",
+      "delta": "Geschrieben gegenüber dem Lauf davor",
+      "seconds": "{count, plural, one {# Sekunde} other {# Sekunden}}",
+      "minutes": "{count, plural, one {# Minute} other {# Minuten}}",
+      "same": "gleich",
+      "silentBadge": "Nichts geschrieben",
+      "silent": "Der letzte Lauf hat nichts geschrieben, der Lauf davor {before}. Die Quelle antwortet vielleicht nicht mehr oder das Mapping verwirft jeden Datensatz; öffnen Sie das Log des Laufs."
     },
     "workbench": {
       "failed": "Der Schritt konnte nicht laufen; versuchen Sie es erneut.",

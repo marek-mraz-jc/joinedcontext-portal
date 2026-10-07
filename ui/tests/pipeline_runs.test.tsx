@@ -12,7 +12,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { PipelineRunsDialog } from "../src/pages/pipelines/PipelineRuns";
+import { PipelineRunsDialog, runFacts } from "../src/pages/pipelines/PipelineRuns";
 import { expectAxeClean, jsonResponse, list, problem, renderRoute } from "./pageHarness";
 
 const PATH = "/projects/helsinki/pipelines";
@@ -116,6 +116,34 @@ describe("a pipeline's runs and log", () => {
     expect(newest).toHaveAttribute("aria-pressed", "true");
     expect(older).toHaveAttribute("aria-pressed", "false");
     await expectAxeClean(container);
+  });
+
+  it("says_how_long_each_run_took_what_moved_since_the_one_before_and_flags_a_silent_run", async () => {
+    const at = (name: string, sent: number, first: string, last: string) => ({ run: name, firstAt: first, lastAt: last, sent, rejected: 0, failed: 0 });
+    const runs = [
+      at("2026-09-25T10:00:00Z", 0, "2026-09-25T10:00:01Z", "2026-09-25T10:00:01Z"),
+      at("2026-09-25T09:00:00Z", 40, "2026-09-25T09:00:01Z", "2026-09-25T09:02:31Z"),
+      at("2026-09-25T08:00:00Z", 40, "2026-09-25T08:00:01Z", "2026-09-25T08:00:13Z"),
+      at("2026-09-25T07:00:00Z", 35, "2026-09-25T07:00:01Z", "2026-09-25T07:00:09Z"),
+    ];
+    expect(runFacts(runs)).toEqual([
+      { seconds: undefined, delta: -40, silent: true },
+      { seconds: 150, delta: 0, silent: false },
+      { seconds: 12, delta: 5, silent: false },
+      { seconds: 8, delta: undefined, silent: false },
+    ]);
+    // Nothing after nothing is not a stop: the run before wrote nothing either.
+    expect(runFacts([runs[0], { ...runs[1], sent: 0 }])[0].silent).toBe(false);
+
+    await renderRoute({ path: PATH, answer: answering({ items: runs }, {}) });
+    const dialog = await openRuns();
+    expect(await within(dialog).findByRole("status")).toHaveTextContent("The last run wrote nothing, while the run before wrote 40.");
+    const rows = within(within(dialog).getByRole("table", { name: en.pipelines.runs.caption })).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent(en.pipelines.runs.silentBadge);
+    expect(rows[2]).toHaveTextContent("3 minutes");
+    expect(rows[2]).toHaveTextContent(en.pipelines.runs.same);
+    expect(rows[3]).toHaveTextContent("12 seconds");
+    expect(rows[3]).toHaveTextContent("+5");
   });
 
   it("opens_another_run_and_pages_its_log_older_and_back", async () => {

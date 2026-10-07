@@ -1758,7 +1758,14 @@
         "failed": "Zlyhal"
       },
       "newest": "Najnovšie",
-      "older": "Staršie riadky"
+      "older": "Staršie riadky",
+      "took": "Trvanie",
+      "delta": "Zapísané oproti predošlému behu",
+      "seconds": "{count, plural, one {# sekunda} few {# sekundy} other {# sekúnd}}",
+      "minutes": "{count, plural, one {# minúta} few {# minúty} other {# minút}}",
+      "same": "rovnako",
+      "silentBadge": "Nezapísal nič",
+      "silent": "Posledný beh nezapísal nič, kým predošlý zapísal {before}. Zdroj možno prestal odpovedať alebo mapovanie zahodí každý záznam; otvorte log behu."
     },
     "workbench": {
       "failed": "Krok sa nepodarilo spustiť; skúste znova.",
