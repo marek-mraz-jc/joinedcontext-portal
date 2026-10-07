@@ -17,6 +17,8 @@ import { TypeQuality } from "./TypeQuality";
 import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
 import { ExportView } from "./ExportView";
+import { UseThisData } from "./UseThisData";
+import { andQ } from "./exportView";
 import type { ViewSort } from "./exportView";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 import { useIdentity } from "../../auth/AuthProvider";
@@ -397,7 +399,17 @@ export function ExplorePage({
             onGridState={onGridState}
             renderers={renderers}
             toolbar={
-              slug ? <ExportView slug={slug} query={query} grid={gridAsk} sort={gridSort} /> : null
+              slug ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <ExportView slug={slug} query={query} grid={gridAsk} sort={gridSort} />
+                  <UseThisData
+                    project={project}
+                    slug={slug}
+                    query={{ ...query, q: andQ(query.q, gridAsk.q), idPattern: gridAsk.idPattern }}
+                    open={endpoint?.spec.audience === "public"}
+                  />
+                </div>
+              ) : null
             }
           />
         </div>
