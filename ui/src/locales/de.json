@@ -2426,7 +2426,11 @@
       "refused": "{n} Operationen hat der Editor abgelehnt",
       "populate": "Editor befüllen",
       "cancel": "Abbrechen",
-      "close": "Schließen"
+      "close": "Schließen",
+      "url": "Oder die Adresse einer API, die JSON liefert",
+      "urlHelp": "Einmal vom Runner des Projekts gelesen, wie die Prüfung einer Datenquelle sie liest; das Modell entsteht aus den Datensätzen der Antwort.",
+      "readUrl": "Adresse lesen",
+      "urlInvalid": "Geben Sie eine vollständige Adresse an, die mit https:// oder http:// beginnt."
     },
     "source": {
       "loading": "Modellquelle wird geladen…",

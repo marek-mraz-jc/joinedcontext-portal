@@ -2426,7 +2426,11 @@
       "refused": "Editor odmietol {n} operácií",
       "populate": "Naplniť editor",
       "cancel": "Zrušiť",
-      "close": "Zavrieť"
+      "close": "Zavrieť",
+      "url": "Alebo adresa API, ktoré odpovedá v JSON",
+      "urlHelp": "Raz ju prečíta runner projektu, ako ju číta overenie zdroja dát; model sa odvodí zo záznamov, ktoré vráti.",
+      "readUrl": "Prečítať adresu",
+      "urlInvalid": "Zadajte celú adresu začínajúcu na https:// alebo http://."
     },
     "source": {
       "loading": "Načítava sa zdroj modelu…",
