@@ -113,6 +113,19 @@ describe("the sync sources page", () => {
     ).toBeInTheDocument();
   });
 
+  // T-3219: a person who never set one up learns at each field what to type and what it does.
+  it("tells a new user at each field what to type, and refuses a wrong address in words", async () => {
+    renderSync();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: en.syncSources.add }));
+    const dialog = await screen.findByRole("dialog", { name: en.syncSources.dialog.title });
+    const url = within(dialog).getByLabelText(new RegExp(`^${en.syncSources.field.url}`));
+    expect(url).toHaveAccessibleDescription(/A private repository also needs the credential below/);
+    await user.type(url, "git.example.org/city");
+    await user.tab();
+    expect(await within(dialog).findByText(en.form.gitUrl)).toBeInTheDocument();
+  });
+
   it("says the list is loading rather than showing it empty", async () => {
     renderSync({ pending: true });
     expect(await screen.findByRole("status")).toHaveTextContent(en.app.loading);

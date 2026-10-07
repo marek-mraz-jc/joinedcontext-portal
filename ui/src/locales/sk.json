@@ -147,7 +147,14 @@
     "dropOne": "Pretiahnite sem súbor alebo ho vyberte",
     "dropMany": "Pretiahnite sem súbory alebo ich vyberte",
     "chosenFiles": "Vybrané: {names}",
-    "advancedModeHint": "Zobrazí aj polia, ktoré väčšina manifestov necháva na predvolených hodnotách; voľba sa vám zapamätá."
+    "advancedModeHint": "Zobrazí aj polia, ktoré väčšina manifestov necháva na predvolených hodnotách; voľba sa vám zapamätá.",
+    "gitUrl": "Adresa na klonovanie, ktorá začína https://, ssh:// alebo git@, ako https://git.example.org/city/config.git.",
+    "httpsUrl": "Úplná adresa, ktorá začína https://.",
+    "interval": "Celé číslo a jednotka s, m, h alebo d, ako 30m alebo 6h.",
+    "entityUrn": "Identifikátor entity: urn:ngsi-ld:, potom jej typ a názov, ako urn:ngsi-ld:Vehicle:bus-12.",
+    "notificationUri": "Úplná adresa, ktorá začína http:// alebo https://, bez mena a hesla.",
+    "instant": "Dátum a čas s časovým pásmom, ako 2026-12-31T23:59:00Z.",
+    "headerName": "Názov hlavičky z písmen, číslic a pomlčiek. Authorization, Cookie a Proxy-Authorization sú odmietnuté: prístupový údaj patrí do poľa Prístupový údaj."
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",
@@ -3911,7 +3918,9 @@
       "submit": "Začať kópiu",
       "titleField": "Názov",
       "titleHint": "Voliteľné; zobrazí sa namiesto mena.",
-      "denied": "Vaša rola nemôže v tomto projekte nič navrhnúť, takže nemôže otvoriť kópiu."
+      "denied": "Vaša rola nemôže v tomto projekte nič navrhnúť, takže nemôže otvoriť kópiu.",
+      "ttlHint": "Keď čas uplynie, kópia a všetko, čo z nej nebolo vrátené, sa zmaže. Projekt sa nemení.",
+      "nameTaken": "Kópia s názvom {name} už existuje. Zvoľte iný názov."
     },
     "bar": {
       "label": "Kópia",

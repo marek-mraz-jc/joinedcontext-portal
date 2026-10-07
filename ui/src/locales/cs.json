@@ -147,7 +147,14 @@
     "dropOne": "Přetáhněte sem soubor nebo jej vyberte",
     "dropMany": "Přetáhněte sem soubory nebo je vyberte",
     "chosenFiles": "Vybráno: {names}",
-    "advancedModeHint": "Zobrazí i pole, která většina manifestů nechává na výchozích hodnotách; volba se vám zapamatuje."
+    "advancedModeHint": "Zobrazí i pole, která většina manifestů nechává na výchozích hodnotách; volba se vám zapamatuje.",
+    "gitUrl": "Adresa pro klonování začínající https://, ssh:// nebo git@, jako https://git.example.org/city/config.git.",
+    "httpsUrl": "Úplná adresa začínající https://.",
+    "interval": "Celé číslo a jednotka s, m, h nebo d, jako 30m nebo 6h.",
+    "entityUrn": "Identifikátor entity: urn:ngsi-ld:, pak její typ a název, jako urn:ngsi-ld:Vehicle:bus-12.",
+    "notificationUri": "Úplná adresa začínající http:// nebo https://, bez jména a hesla.",
+    "instant": "Datum a čas s časovým pásmem, jako 2026-12-31T23:59:00Z.",
+    "headerName": "Název hlavičky z písmen, číslic a pomlček. Authorization, Cookie a Proxy-Authorization jsou odmítnuty: přístupový údaj patří do pole Přístupový údaj."
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -3911,7 +3918,9 @@
       "submit": "Začít kopii",
       "titleField": "Název",
       "titleHint": "Volitelné; zobrazí se místo jména.",
-      "denied": "Vaše role nemůže v tomto projektu nic navrhnout, takže nemůže otevřít kopii."
+      "denied": "Vaše role nemůže v tomto projektu nic navrhnout, takže nemůže otevřít kopii.",
+      "ttlHint": "Až čas uplyne, kopie a vše, co z ní nebylo vráceno, se smaže. Projekt se nemění.",
+      "nameTaken": "Kopie s názvem {name} už existuje. Zvolte jiný název."
     },
     "bar": {
       "label": "Kopie",

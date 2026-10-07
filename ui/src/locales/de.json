@@ -147,7 +147,14 @@
     "dropOne": "Datei hierher ziehen oder auswählen",
     "dropMany": "Dateien hierher ziehen oder auswählen",
     "chosenFiles": "Ausgewählt: {names}",
-    "advancedModeHint": "Zeigt auch die Felder, die die meisten Manifeste auf ihren Standardwerten lassen; die Wahl wird für Sie gespeichert."
+    "advancedModeHint": "Zeigt auch die Felder, die die meisten Manifeste auf ihren Standardwerten lassen; die Wahl wird für Sie gespeichert.",
+    "gitUrl": "Eine Klon-Adresse, die mit https://, ssh:// oder git@ beginnt, wie https://git.example.org/city/config.git.",
+    "httpsUrl": "Eine vollständige Adresse, die mit https:// beginnt.",
+    "interval": "Eine ganze Zahl und eine Einheit s, m, h oder d, wie 30m oder 6h.",
+    "entityUrn": "Eine Entitäts-ID: urn:ngsi-ld:, dann ihr Typ und Name, wie urn:ngsi-ld:Vehicle:bus-12.",
+    "notificationUri": "Eine vollständige Adresse, die mit http:// oder https:// beginnt, ohne Benutzername und Passwort.",
+    "instant": "Datum und Uhrzeit mit Zeitzone, wie 2026-12-31T23:59:00Z.",
+    "headerName": "Ein Header-Name aus Buchstaben, Ziffern und Bindestrichen. Authorization, Cookie und Proxy-Authorization werden abgelehnt: Zugangsdaten gehören in das Feld Zugangsdaten."
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -3911,7 +3918,9 @@
       "submit": "Kopie starten",
       "titleField": "Titel",
       "titleHint": "Optional; wird anstelle des Namens angezeigt.",
-      "denied": "Ihre Rolle darf in diesem Projekt nichts vorschlagen und kann daher keine Kopie öffnen."
+      "denied": "Ihre Rolle darf in diesem Projekt nichts vorschlagen und kann daher keine Kopie öffnen.",
+      "ttlHint": "Ist die Zeit um, werden die Kopie und alles, was nicht zurückgeholt wurde, gelöscht. Das Projekt bleibt unberührt.",
+      "nameTaken": "Eine Kopie namens {name} gibt es schon. Wählen Sie einen anderen Namen."
     },
     "bar": {
       "label": "Kopie",
