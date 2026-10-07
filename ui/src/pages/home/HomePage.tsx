@@ -117,7 +117,7 @@ export function HomePage({
           <p className="text-body text-fg">{holdsNothing || !role ? t("home.welcome.unknown") : t(`home.welcome.role.${role}`)}</p>
           <div className="flex flex-wrap items-center gap-3">
             {holdsNothing || !role ? null : (
-              <Link to={welcomeStep(project, role)} className="text-body font-medium text-primary underline">
+              <Link to={welcomeStep(project, role)} className="text-body font-medium text-primary-soft-fg underline">
                 {t(`home.welcome.first.${role}`)}
               </Link>
             )}
@@ -149,7 +149,7 @@ export function HomePage({
                 <span className={step.done ? "text-fg-muted line-through" : "text-fg"}>{t(`home.firstRun.step.${step.key}`)}</span>
                 <span className="sr-only">{step.done ? t("home.firstRun.done") : t("home.firstRun.todo")}</span>
                 {step.done ? null : (
-                  <Link to={step.to} className="text-body font-medium text-primary underline">
+                  <Link to={step.to} className="text-body font-medium text-primary-soft-fg underline">
                     {t(`home.firstRun.go.${step.key}`)}
                   </Link>
                 )}
