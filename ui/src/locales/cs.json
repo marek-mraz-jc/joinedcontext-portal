@@ -1109,7 +1109,12 @@
           "lead": "Dokument tak, jak jej z tohoto rozhraní čte sběrač katalogu nebo konektor datového prostoru.",
           "failed": "Rozhraní neodpovědělo. Odpoví, až bude změna, která jej vytvořila, schválena a nasazena."
         }
-      }
+      },
+      "firstCall": "První volání",
+      "firstCallOpen": "Otevřít v prohlížeči",
+      "firstCallCopy": "Kopírovat příkaz",
+      "firstCallPublic": "Volat ho může kdokoli, token není potřeba.",
+      "firstCallToken": "V prohlížeči stačí vaše přihlášení do Portálu. Program posílá token servisního účtu jako $TOKEN."
     },
     "condition": {
       "title": "Přidat podmínku",
@@ -1616,7 +1621,9 @@
         "sourceUnit": "Zdroj v jiné jednotce?",
         "sourceUnitOf": "Jednotka zdroje pro {slot}",
         "addConversion": "Přidat do mapování",
-        "bloblangHint": "Bloblang, který z jednoho záznamu udělá jednu entitu: nastavte její id, typ a sloty uvedené vedle."
+        "bloblangHint": "Bloblang, který z jednoho záznamu udělá jednu entitu: nastavte její id, typ a sloty uvedené vedle.",
+        "addLine": "Přidat do mapování",
+        "addLineOf": "Přidat řádek pro {slot} do mapování"
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -5010,6 +5017,11 @@
     "connectorEngine": {
       "rainbow": "Rainbow",
       "edc": "Eclipse Dataspace Components"
+    },
+    "mqttQos": {
+      "0": "0: nejvýše jednou (zpráva se může ztratit)",
+      "1": "1: alespoň jednou (zpráva se může opakovat)",
+      "2": "2: právě jednou (nejpomalejší)"
     }
   },
   "picker": {

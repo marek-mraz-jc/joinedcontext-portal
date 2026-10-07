@@ -80,22 +80,22 @@ spec:
         de: Der Name dieses Feeds in Listen und beim Bauen einer Pipeline.
     mqtt.urls:
       help:
-        en: Network addresses of the message brokers to connect to.
-        sk: Sieťové adresy brokerov správ, ku ktorým sa má pripojiť.
-        cs: Síťové adresy brokerů zpráv, ke kterým se má připojit.
-        de: Netzwerkadressen der Message-Broker, zu denen verbunden werden soll.
+        en: Network addresses of the message brokers; each starts with tcp://, tls://, ws:// or wss:// and names the host and port.
+        sk: Sieťové adresy brokerov správ; každá začína tcp://, tls://, ws:// alebo wss:// a uvádza hostiteľa a port.
+        cs: Síťové adresy brokerů zpráv; každá začíná tcp://, tls://, ws:// nebo wss:// a uvádí hostitele a port.
+        de: Netzwerkadressen der Message-Broker; jede beginnt mit tcp://, tls://, ws:// oder wss:// und nennt Host und Port.
     mqtt.topics:
       help:
-        en: Message topics to subscribe to on the broker.
-        sk: Témy správ, ktoré sa majú odoberať na brokeri.
-        cs: Témata zpráv, která se mají odebírat na brokeru.
-        de: Nachrichten-Topics, die auf dem Broker abonniert werden sollen.
+        en: Message topics to subscribe to on the broker; + stands for one level of a topic and # for every level below it.
+        sk: Témy správ, ktoré sa majú odoberať na brokeri; + zastupuje jednu úroveň témy a # všetky úrovne pod ňou.
+        cs: Témata zpráv, která se mají odebírat na brokeru; + zastupuje jednu úroveň tématu a # všechny úrovně pod ní.
+        de: Nachrichten-Topics, die auf dem Broker abonniert werden sollen; + steht für eine Ebene eines Topics, # für alle Ebenen darunter.
     mqtt.qos:
       help:
-        en: Quality of service level for message delivery guarantees.
-        sk: Úroveň kvality služby určujúca záruky doručenia správ.
-        cs: Úroveň kvality služby určující záruky doručení zpráv.
-        de: Quality-of-Service-Stufe für Zustellgarantien von Nachrichten.
+        en: How hard the broker tries to deliver each message; leave it empty for the broker's own, at most once.
+        sk: Ako veľmi sa broker snaží doručiť každú správu; nechajte prázdne pre predvoľbu brokera, najviac raz.
+        cs: Jak moc se broker snaží doručit každou zprávu; nechte prázdné pro výchozí volbu brokeru, nejvýše jednou.
+        de: Wie sehr der Broker jede Nachricht zuzustellen versucht; leer lassen für die Vorgabe des Brokers, höchstens einmal.
     mqtt.cleanSession:
       help:
         en: Discard previous state and start a fresh session on each connection.
@@ -122,10 +122,10 @@ spec:
         de: Schlüssel innerhalb des Secrets, unter dem das Broker-Passwort hinterlegt ist.
     http.url:
       help:
-        en: Web address of the external JSON, XML, or binary feed to poll.
-        sk: Webová adresa externého JSON, XML alebo binárneho zdroja na načítanie.
-        cs: Webová adresa externího JSON, XML nebo binárního zdroje pro načítání.
-        de: Webadresse des externen JSON-, XML- oder Binär-Feeds zum Abrufen.
+        en: Web address of the external JSON, XML, or binary feed to poll; it starts with http:// or https:// and is fetched as written, query included.
+        sk: Webová adresa externého zdroja JSON, XML alebo binárnych dát; začína http:// alebo https:// a načíta sa tak, ako je napísaná, aj s parametrami.
+        cs: Webová adresa externího zdroje JSON, XML nebo binárních dat; začíná http:// nebo https:// a načte se tak, jak je napsaná, i s parametry.
+        de: Webadresse des externen JSON-, XML- oder Binär-Feeds; sie beginnt mit http:// oder https:// und wird so abgerufen, wie sie geschrieben ist, mit Parametern.
     http.verb:
       help:
         en: HTTP request method sent to the remote server, typically GET.
@@ -158,10 +158,10 @@ spec:
         de: Schlüssel innerhalb des Secrets, unter dem der Token-Wert hinterlegt ist.
     webSocket.url:
       help:
-        en: Web address of the WebSocket server to stream messages from.
-        sk: Webová adresa servera WebSocket, z ktorého sa majú prúdiť správy.
-        cs: Webová adresa serveru WebSocket, ze kterého se mají proudit zprávy.
-        de: Webadresse des WebSocket-Servers, von dem Nachrichten gestreamt werden.
+        en: Web address of the WebSocket server to stream messages from; it starts with ws:// or wss://.
+        sk: Webová adresa servera WebSocket, z ktorého prúdia správy; začína ws:// alebo wss://.
+        cs: Webová adresa serveru WebSocket, ze kterého proudí zprávy; začíná ws:// nebo wss://.
+        de: Webadresse des WebSocket-Servers, von dem Nachrichten gestreamt werden; sie beginnt mit ws:// oder wss://.
     webSocket.openMessage:
       widget: textarea
       help:
@@ -171,10 +171,10 @@ spec:
         de: Erste Nachricht, die unmittelbar nach dem Verbindungsaufbau an den Server gesendet wird.
     gtfsRt.url:
       help:
-        en: Web address of the remote GTFS-realtime protobuf feed.
-        sk: Webová adresa vzdialeného zdroja protobuf vo formáte GTFS-realtime.
-        cs: Webová adresa vzdáleného zdroje protobuf ve formátu GTFS-realtime.
-        de: Webadresse des externen GTFS-Realtime-Protobuf-Feeds.
+        en: Web address of the GTFS-realtime protobuf feed itself, not of its documentation page; it starts with http:// or https://.
+        sk: Webová adresa samotného zdroja GTFS-realtime (protobuf), nie stránky s jeho dokumentáciou; začína http:// alebo https://.
+        cs: Webová adresa samotného zdroje GTFS-realtime (protobuf), ne stránky s jeho dokumentací; začíná http:// nebo https://.
+        de: Webadresse des GTFS-realtime-Feeds (protobuf) selbst, nicht seiner Dokumentationsseite; sie beginnt mit http:// oder https://.
     gtfsRt.feed:
       help:
         en: Type of real-time transit information contained in the feed.

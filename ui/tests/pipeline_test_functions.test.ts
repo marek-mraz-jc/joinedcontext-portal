@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  draftFromRecord,
   draftFromSample,
   errorLines,
   firstRecordOf,
@@ -129,6 +130,24 @@ describe("the mapping a sample drafts (PL-44)", () => {
     // characters a path may hold — the µ and the ³ are not among them.
     expect(awkward?.bloblang).toContain('this."pm 10 (µg/m³)"');
     expect(awkward?.bloblang).toContain("root.pm_10___g_m__ =");
+  });
+
+  // T-3211: a record a picked source answered drafts the same way, typed as the target model asks.
+  it("drafts from one record of a source, typed as asked, its own `type` and `@context` left out", () => {
+    const drafted = draftFromRecord(
+      "shmu-csv",
+      { id: "BB1", type: "Station", "@context": "x", pm10: 21.5 },
+      "ovzdusie",
+      "json",
+      "AirQualityObserved",
+    );
+    expect(drafted?.bloblang).toContain('root.type = "AirQualityObserved"');
+    expect(drafted?.bloblang).toContain('.format("AirQualityObserved", $domain, "ovzdusie", this.id.string())');
+    expect(drafted?.bloblang).not.toContain("root.type = { ");
+    expect(drafted?.bloblang).not.toContain("@context");
+    expect(drafted?.columns).toEqual(["id", "type", "pm10"]);
+    expect(draftFromRecord("shmu-csv", { "@context": "x" }, "ovzdusie")).toBeNull();
+    expect(draftFromRecord("shmu-csv", { pm10: 1 }, "ovzdusie")?.type).toBe("ShmuCsv");
   });
 
   it("drafts nothing from a file with no record or no column", () => {

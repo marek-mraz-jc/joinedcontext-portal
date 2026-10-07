@@ -1253,6 +1253,7 @@
     },
     "src/pages/pipelines/PipelineWorkbench.tsx": {
       "controls": {
+        "Button": 1,
         "FilePicker": 1
       },
       "tests": [

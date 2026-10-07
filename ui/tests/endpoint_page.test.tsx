@@ -284,6 +284,33 @@ describe("the endpoint's own settings page", () => {
     expect(screen.getByText(en.endpoints.page.proposedNotice)).toBeInTheDocument();
   });
 
+  it("shows one first call a newcomer can make, with a token only where the endpoint needs one (T-3212)", async () => {
+    renderPage();
+
+    const answers = (
+      await screen.findByRole("heading", { name: en.endpoints.page.whatItAnswers })
+    ).closest("section") as HTMLElement;
+    const url = `${window.location.origin}/api/endpoint/${SLUG}/ngsi-ld/v1/entities?type=AirQualityObserved&limit=5`;
+    await waitFor(() =>
+      expect(within(answers).getByRole("link", { name: en.endpoints.page.firstCallOpen })).toHaveAttribute(
+        "href",
+        url,
+      ),
+    );
+    // Not public: the command names the token a program sends, never a real one.
+    expect(
+      within(answers).getByText(
+        `curl -H 'Accept: application/ld+json' -H "Authorization: Bearer $TOKEN" '${url}'`,
+      ),
+    ).toBeInTheDocument();
+    expect(within(answers).getByText(en.endpoints.page.firstCallToken)).toBeInTheDocument();
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await userEvent.click(within(answers).getByRole("button", { name: en.endpoints.page.firstCallCopy }));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(url));
+  });
+
   it("reads the filtering from the named projection it publishes through", async () => {
     renderPage();
 

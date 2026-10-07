@@ -183,28 +183,45 @@ describe("data sources view", () => {
     expect(within(feed).getByText(en.datasources.noSecret)).toBeInTheDocument();
   });
 
-  it("renders the MQTT form for the MQTT type and no other connection", async () => {
+  // T-3211: a person adding their first source most often has the address of a file or an API,
+  // so a new source opens on HTTP and no other connection's fields.
+  it("opens a new source on the HTTP connection and no other", async () => {
     renderDataSources();
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+
+    expect(within(dialog).getByLabelText(en.datasources.field.type)).toHaveValue("http");
+    expect(within(dialog).getByLabelText(/Method/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/Timeout/)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/Broker URLs/)).not.toBeInTheDocument();
+  });
+
+  it("swaps the form to the MQTT connection, and no other, when the type selector changes", async () => {
+    renderDataSources();
+
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
+    const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "mqtt");
 
     expect(within(dialog).getByLabelText(/Broker URLs/)).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/User name/)).toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/Opening message/)).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/Feed/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/Method/)).not.toBeInTheDocument();
   });
 
-  it("swaps the form to the HTTP connection when the type selector changes", async () => {
+  // T-3211: QoS names what each level guarantees; nobody types a number they have to look up.
+  it("offers the MQTT delivery levels by what they guarantee", async () => {
     renderDataSources();
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
-    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "http");
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "mqtt");
 
-    expect(within(dialog).getByLabelText(/Method/)).toBeInTheDocument();
-    expect(within(dialog).getByLabelText(/Timeout/)).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText(/Broker URLs/)).not.toBeInTheDocument();
+    const qos = within(dialog).getByLabelText(/QoS/);
+    const labels = [...qos.querySelectorAll("option")].map((option) => option.textContent);
+    expect(labels).toEqual(expect.arrayContaining([en.choice.mqttQos["0"], en.choice.mqttQos["1"], en.choice.mqttQos["2"]]));
   });
 
   // T-2758: the type decides every field of the form, so it is the form's first question, not a
@@ -219,8 +236,8 @@ describe("data sources view", () => {
     expect(type.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     await userEvent.type(name, "free-bikes");
-    await userEvent.selectOptions(type, "http");
-    expect(within(dialog).getByLabelText(/Method/)).toBeInTheDocument();
+    await userEvent.selectOptions(type, "mqtt");
+    expect(within(dialog).getByLabelText(/Broker URLs/)).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Name/)).toHaveValue("free-bikes");
   });
 
@@ -247,6 +264,7 @@ describe("data sources view", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "mqtt");
 
     expect(within(dialog).getByText(en.datasources.field.password)).toBeInTheDocument();
     expect(within(dialog).getByText(en.datasources.secretHint)).toBeInTheDocument();
@@ -357,6 +375,7 @@ describe("data sources view", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "mqtt");
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mqtt-novy");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
 

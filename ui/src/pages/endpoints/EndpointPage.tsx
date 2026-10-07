@@ -395,6 +395,14 @@ export function EndpointPage({
               </ul>
             </Fact>
           ) : null}
+          {slug ? (
+            <Fact label={t("endpoints.page.firstCall")}>
+              <FirstCall
+                url={endpointUrl(slug, firstCallPath(projection ? classesOf(projection)[0] : undefined))}
+                open={spec.audience === "public"}
+              />
+            </Fact>
+          ) : null}
           <Fact label={t("endpoints.field.types")}>
             {projection ? (
               <ul className="flex flex-wrap gap-1">
@@ -1318,6 +1326,33 @@ export function filterOf(projection: Manifest): Record<string, string | undefine
 export function classesOf(projection: Manifest): string[] {
   const classes = (projection.spec as { classes?: Array<{ name?: string }> }).classes ?? [];
   return classes.map((klass) => klass.name ?? "").filter((klass) => klass !== "");
+}
+
+/** The read a newcomer tries first: five entities of the first published class, or the type list. */
+export function firstCallPath(type: string | undefined): string {
+  return type
+    ? `/ngsi-ld/v1/entities?type=${encodeURIComponent(type)}&limit=5`
+    : "/ngsi-ld/v1/types";
+}
+
+/** One example call: the link opens in the browser session, the command is for a program (T-3212). */
+function FirstCall({ url, open }: { url: string; open: boolean }): JSX.Element {
+  const { t } = useTranslation();
+  const command = open
+    ? `curl -H 'Accept: application/ld+json' '${url}'`
+    : `curl -H 'Accept: application/ld+json' -H "Authorization: Bearer $TOKEN" '${url}'`;
+  return (
+    <div className="space-y-1">
+      <EndpointLink href={url}>{t("endpoints.page.firstCallOpen")}</EndpointLink>
+      <div className="flex flex-wrap items-center gap-2">
+        <code className="break-all font-mono text-caption">{command}</code>
+        <CopyUrlButton url={command} label={t("endpoints.page.firstCallCopy")} />
+      </div>
+      <p className="text-caption text-fg-muted">
+        {open ? t("endpoints.page.firstCallPublic") : t("endpoints.page.firstCallToken")}
+      </p>
+    </div>
+  );
 }
 
 function Section({

@@ -210,6 +210,42 @@ describe("the pipeline workbench", () => {
     expect((tried?.body as { sample?: unknown }).sample).toEqual({ text: JSON.stringify(ENDPOINT_PAGE), format: "json" });
   });
 
+  // T-3211: a person new to Bloblang who picks an existing data source starts from a mapping that
+  // runs, drafted from the source's first record, as a dropped file already drafted one.
+  it("drafts the mapping from a picked source's first record, typed as the target model's one class", async () => {
+    const seen: Seen = { ops: [] };
+    stub({ sample: SAMPLE, mapping: MAPPED, validate: ONE_BAD }, seen);
+    show({ targetEndpoint: URN });
+
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.workbench.source.pick), "datasource:shmu-csv");
+    const mapping = screen.getByLabelText(en.pipelines.field.bloblang) as HTMLTextAreaElement;
+    await waitFor(() => expect(mapping.value).toContain('root.type = "AirQualityObserved"'));
+    expect(mapping.value).toContain('"urn:ngsi-ld:%v:%v:%v:%v".format("AirQualityObserved", $domain, "ovzdusie", this.station.string())');
+    expect(mapping.value).toContain('root.pm10 = { "type": "Property", "value": this.pm10.number().catch(this.pm10) }');
+    // The drafted mapping is tried like a typed one.
+    await waitFor(() => expect(seen.ops.map((op) => op.name)).toContain("jc_pipeline_try_mapping"));
+  });
+
+  it("never replaces a mapping the person has written", async () => {
+    stub({ sample: SAMPLE, mapping: MAPPED, validate: ONE_BAD }, { ops: [] });
+    show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } });
+
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.workbench.source.pick), "datasource:shmu-csv");
+    await within(step(en.pipelines.workbench.sample.title)).findByRole("table", { name: en.pipelines.workbench.sample.caption });
+    expect(screen.getByLabelText(en.pipelines.field.bloblang)).toHaveValue(MAPPING);
+  });
+
+  it("adds a slot's example line to the mapping with one click", async () => {
+    stub({ sample: SAMPLE, mapping: MAPPED, validate: ONE_BAD }, { ops: [] });
+    show({ targetEndpoint: URN, source: { dataSourceRef: "shmu-csv" }, compute: { kind: "bloblang", bloblang: MAPPING } });
+
+    const add = await screen.findByRole("button", { name: "Add the line for quality to the mapping" });
+    await userEvent.click(add);
+    const value = (screen.getByLabelText(en.pipelines.field.bloblang) as HTMLTextAreaElement).value;
+    expect(value.startsWith(MAPPING)).toBe(true);
+    expect(value.split("\n").at(-1)).toBe('root.quality = { "type": "Property", "value": "good" }');
+  });
+
   it("shows_six_steps_in_order_each_with_its_hint", () => {
     stub({}, { ops: [] });
     show({});
