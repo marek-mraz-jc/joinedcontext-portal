@@ -611,6 +611,14 @@ export function ModelsPage({
                       })}
                     </Select>
                   </Field>
+                  {spaces.data && spaces.data.every((space) => occupied.has(space.metadata.name)) ? (
+                    <p role="status" className="text-body text-fg-muted">
+                      {t(spaces.data.length === 0 ? "models.create.noSpace" : "models.create.noFreeSpace")}{" "}
+                      <Link to="/projects/$project/$plural/new" params={{ project, plural: "spaces" }}>
+                        {t("models.create.newSpace")}
+                      </Link>
+                    </p>
+                  ) : null}
                   {targetName ? (
                     <p className="text-body text-fg-muted">
                       {t("models.create.file", { name: targetName })}

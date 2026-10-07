@@ -1191,6 +1191,14 @@
         "people_page.test.tsx"
       ]
     },
+    "src/pages/pipelines/OutputMapper.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "output_mapper_ui.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineFlow.tsx": {
       "controls": {
         "Button": 8
@@ -1255,7 +1263,8 @@
     "src/pages/pipelines/PipelineWorkbench.tsx": {
       "controls": {
         "Button": 1,
-        "FilePicker": 1
+        "FilePicker": 1,
+        "RadioGroup": 1
       },
       "tests": [
         "pipeline_workbench.test.tsx"
