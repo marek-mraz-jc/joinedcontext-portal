@@ -166,6 +166,8 @@ export function CapabilitiesControl({
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        // Handled here: the panel around it keeps its own Escape for when nothing is open (UI-92).
+        event.preventDefault();
         setOpen(false);
         trigger.current?.focus();
       }

@@ -180,6 +180,21 @@ describe("a model from a dropped file", () => {
     });
   });
 
+  it("refuses an address carrying a credential before anything is sent (T-3250)", async () => {
+    const { fetchMock } = renderDrop(() => new Response("{}", { status: 200 }));
+    const address = screen.getByLabelText(en.models.infer.url);
+    for (const url of [
+      "https://user:hunter2@api.example.org/a.json",
+      "https://api.example.org/a.json?api_key=hunter2",
+      "https://api.example.org/a.json?Access-Token=hunter2",
+    ]) {
+      await userEvent.clear(address);
+      await userEvent.type(address, `${url}{Enter}`);
+      expect(screen.getByRole("alert")).toHaveTextContent(en.models.infer.urlCredential);
+    }
+    expect(fetchMock.mock.calls.filter((call) => urlOf(call[0]).includes("/ops/"))).toHaveLength(0);
+  });
+
   it("says the runner's reason when the address cannot be read (T-3250)", async () => {
     renderDrop(
       () =>

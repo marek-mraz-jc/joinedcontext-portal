@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -277,6 +278,27 @@ test.describe("the entity grid", () => {
     await expect(
       page.getByRole("columnheader", { name: "availableBikeNumber · Observed" }),
     ).toBeVisible();
+  });
+
+  // T-3253: the export is the view, the grid's own filter included, in a file Excel opens.
+  test("exports the filtered view, every page of it, as CSV for Excel", async ({ page }) => {
+    const { reads } = await stubApi(page);
+
+    await page.goto(`${EXPLORE}?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
+    await expect(page.getByRole("button", { name: FULL_DOCK })).toBeVisible();
+    await page.getByLabel("Filter: availableBikeNumber").selectOption("equals");
+    await page.getByLabel("Value: availableBikeNumber").fill("0");
+    await expect(page.getByRole("button", { name: FULL_DOCK })).toHaveCount(0);
+
+    await page.getByLabel("Export format").selectOption("csv-excel");
+    await page.getByRole("button", { name: "Export the view" }).click();
+    const link = page.getByRole("link", { name: `Download ${TYPE}.csv (1 row)` });
+    const [download] = await Promise.all([page.waitForEvent("download"), link.click()]);
+    const text = await readFile((await download.path()) ?? "", "utf8");
+    expect(text.startsWith("\uFEFFid;")).toBe(true);
+    expect(text).toContain(EMPTY_DOCK);
+    expect(text).not.toContain(FULL_DOCK);
+    expect(reads.some((search) => search.includes("count=true") && search.includes("availableBikeNumber%3D%3D0"))).toBe(true);
   });
 
   test("corrects a value with the keyboard alone and applies it through the endpoint", async ({

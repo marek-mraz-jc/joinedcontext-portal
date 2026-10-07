@@ -19,7 +19,7 @@ import { EmptyState, PageFailed } from "./components/ui";
 import { ErrorPage, errorReference } from "./components/ErrorBoundary";
 import { NotFoundState } from "./components/NotFoundState";
 import { LoginPage } from "./routes/LoginPage";
-import { ResourceListPage } from "./routes/ResourceListPage";
+import { hasEditForm, ResourceListPage } from "./routes/ResourceListPage";
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
@@ -31,6 +31,7 @@ import { ModelPage } from "./pages/models/ModelPage";
 import { ExplorePage } from "./pages/explore/ExplorePage";
 import { CkanPage } from "./pages/ckan/CkanPage";
 import { GlossaryPage } from "./pages/glossary/GlossaryPage";
+import { HomePage } from "./pages/home/HomePage";
 import { KnowledgePage } from "./pages/knowledge/KnowledgePage";
 import { SourcePage } from "./pages/knowledge/SourcePage";
 import { McpServersPage } from "./pages/mcp/McpServersPage";
@@ -152,7 +153,7 @@ function IndexRedirect(): React.JSX.Element {
   if (!first) {
     return <NoProject projects={projects} />;
   }
-  return <Navigate to="/projects/$project/$plural" params={{ project: first, plural: "spaces" }} />;
+  return <Navigate to="/projects/$project/home" params={{ project: first }} />;
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -250,6 +251,25 @@ const catalogueDatasetRoute = createRoute({
     const { name } = catalogueDatasetRoute.useParams();
     return (
       <CatalogueFrame>{() => <DatasetPage name={name} />}</CatalogueFrame>
+    );
+  },
+});
+
+/** A project's home: the first-run checklist and what the person's role does next (T-3233, T-3235). */
+const homeRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/home",
+  // `?welcome=1` is where an invitation's link ends (PF-108): the page greets the newcomer.
+  validateSearch: (search: Record<string, unknown>): { welcome?: boolean } =>
+    search.welcome === 1 || search.welcome === "1" || search.welcome === true ? { welcome: true } : {},
+  component: function HomeRoute() {
+    const { project } = homeRoute.useParams();
+    const { welcome } = homeRoute.useSearch();
+    const navigate = homeRoute.useNavigate();
+    return (
+      <Shell project={project}>
+        <HomePage project={project} welcome={welcome === true} onWelcomeClosed={() => void navigate({ search: {} })} />
+      </Shell>
     );
   },
 });
@@ -1014,9 +1034,13 @@ const sectionDetailRoute = createRoute({
   getParentRoute: () => sectionRoute,
   path: "$name",
   beforeLoad: ({ params }) => {
-    // The Portal's own "no such page", the one an address that matches nothing gets, and not
-    // the section's page around it.
+    // Every item has this address (T-3241): a kind without a page of its own opens on its
+    // form, so a link sent as `/projects/{project}/{plural}/{name}` always lands. What is no
+    // kind gets the Portal's own "no such page", not the section's page around it.
     if (!DETAIL_PAGES.has(params.plural)) {
+      if (hasEditForm(params.plural)) {
+        throw redirect({ to: "/projects/$project/$plural/$name/edit", params, replace: true });
+      }
       throw notFound({ routeId: rootRoute.id });
     }
   },
@@ -1061,6 +1085,7 @@ export const routeTree = rootRoute.addChildren([
   ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,
+    homeRoute,
     activityRoute,
     approvalsRoute,
     approvalDetailRoute,
@@ -1105,6 +1130,8 @@ export function createPortalRouter() {
     routeTree,
     context: { auth: undefined as unknown as AuthState },
     defaultPreload: false,
+    // Back and forward land where the page was left, not at its top (UI-89, T-3239).
+    scrollRestoration: true,
     defaultNotFoundComponent: NotFound,
     // What throws before a page is drawn — a loader, a `beforeLoad` — cannot be caught inside
     // the shell, because there is no shell yet. It gets the same words as the boundary at the

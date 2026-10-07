@@ -20,6 +20,41 @@ use crate::state::AppState;
 /// The browser's saved dashboard state, per dashboard name. Opaque to the Portal, so it is capped
 /// rather than understood: a saved layout is small, anything bigger is not a layout.
 const MAX_LAYOUTS_BYTES: usize = 64 * 1024;
+/// The pages a person opened last, newest first (UI-90).
+const MAX_RECENT: usize = 10;
+/// The pages a person starred (UI-90).
+const MAX_FAVOURITES: usize = 50;
+
+/// A page of the Portal a person went to or starred: where it is and what it was called.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Place {
+    /// A path inside the Portal, with its query: `/projects/helsinki/pipelines/air?tab=runs`.
+    pub path: String,
+    /// The page's title when it was opened, 1 to 200 characters.
+    pub title: String,
+}
+
+impl Place {
+    fn validate(&self) -> Result<(), String> {
+        let path = &self.path;
+        // Only an address of this Portal: never another origin (`//host`, `https:`), never a
+        // script, never a control character a link could smuggle.
+        if !path.starts_with('/')
+            || path.starts_with("//")
+            || path.contains('\\')
+            || path.len() > 512
+            || path.chars().any(char::is_control)
+        {
+            return Err(format!("place path '{path}' is not a path of this Portal"));
+        }
+        let title_len = self.title.chars().count();
+        if title_len == 0 || title_len > 200 || self.title.chars().any(char::is_control) {
+            return Err("a place's title is 1 to 200 characters of text".into());
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -43,6 +78,16 @@ pub struct Preferences {
     /// display preference: it changes what a form shows, never what a write may do.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub advanced_mode: Option<bool>,
+    /// Whether the person put the first-run checklist away (T-3233). Absent shows it; the help
+    /// menu clears it. The steps tick themselves from the project, never from this record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_run_dismissed: Option<bool>,
+    /// The last pages the person opened, newest first, at most 10 (UI-90).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent: Vec<Place>,
+    /// The pages the person starred, at most 50 (UI-90).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub favourites: Vec<Place>,
 }
 
 impl Preferences {
@@ -67,6 +112,21 @@ impl Preferences {
                     "dashboardLayouts key '{name}' is not a dashboard name"
                 ));
             }
+        }
+        if self.recent.len() > MAX_RECENT {
+            return Err(format!(
+                "recent holds {} places, the limit is {MAX_RECENT}",
+                self.recent.len()
+            ));
+        }
+        if self.favourites.len() > MAX_FAVOURITES {
+            return Err(format!(
+                "favourites holds {} places, the limit is {MAX_FAVOURITES}",
+                self.favourites.len()
+            ));
+        }
+        for place in self.recent.iter().chain(&self.favourites) {
+            place.validate()?;
         }
         let layouts_len = serde_json::to_vec(&self.dashboard_layouts)
             .map(|bytes| bytes.len())
@@ -156,8 +216,82 @@ pub async fn put_preferences(
     Ok(Json(preferences))
 }
 
+/// The pages a person opened since the last report, newest first (UI-90).
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RecentPlaces {
+    /// 1 to 10 places, newest first.
+    pub places: Vec<Place>,
+}
+
+/// Puts `opened` (newest first) before `stored`, each path once, the newest ten.
+fn merged_recent(opened: Vec<Place>, stored: Vec<Place>) -> Vec<Place> {
+    let mut out: Vec<Place> = Vec::with_capacity(MAX_RECENT);
+    for place in opened.into_iter().chain(stored) {
+        if out.len() == MAX_RECENT {
+            break;
+        }
+        if !out.iter().any(|kept| kept.path == place.path) {
+            out.push(place);
+        }
+    }
+    out
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/preferences/recent",
+    summary = "Add Recent Pages",
+    description = "Puts the pages the caller opened, newest first, at the top of their recent pages, each once, the newest ten kept; every other preference stays as stored. The browser sends them when its tab is hidden, so a visit is not a write.",
+    tag = "preferences",
+    request_body(
+        content = RecentPlaces,
+        example = json!({ "places": [{ "path": "/projects/helsinki/pipelines/air-quality/edit", "title": "air-quality · helsinki" }] })
+    ),
+    responses(
+        (status = 200, description = "Stored; the body is what is now saved", body = Preferences),
+        (status = 400, description = "No place, more than ten, or a place that is not a page of this Portal", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "Missing or mismatched CSRF token", body = ProblemDetails),
+        (status = 503, description = "No preferences database configured", body = ProblemDetails)
+    )
+)]
+pub async fn add_recent(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<Json<Preferences>, ApiError> {
+    let opened: RecentPlaces = serde_json::from_slice(&body)
+        .map_err(|e| ApiError::BadRequest(format!("recent pages body is invalid: {e}")))?;
+    if opened.places.is_empty() || opened.places.len() > MAX_RECENT {
+        return Err(ApiError::BadRequest(format!(
+            "send 1 to {MAX_RECENT} places, not {}",
+            opened.places.len()
+        )));
+    }
+    for place in &opened.places {
+        place.validate().map_err(ApiError::BadRequest)?;
+    }
+    let pool = pool(&state)?;
+    let subject = &user.0.identity.subject;
+    let mut preferences = db::load_preferences(pool, subject)
+        .await
+        .map_err(db_error)?
+        .and_then(|value| serde_json::from_value::<Preferences>(value).ok())
+        .unwrap_or_default();
+    preferences.recent = merged_recent(opened.places, std::mem::take(&mut preferences.recent));
+    let value = serde_json::to_value(&preferences)
+        .map_err(|e| ApiError::Internal(format!("preferences did not serialize: {e}")))?;
+    db::save_preferences(pool, subject, &value)
+        .await
+        .map_err(db_error)?;
+    Ok(Json(preferences))
+}
+
 pub fn router() -> Router<AppState> {
-    Router::new().route("/preferences", get(get_preferences).put(put_preferences))
+    Router::new()
+        .route("/preferences", get(get_preferences).put(put_preferences))
+        .route("/preferences/recent", axum::routing::post(add_recent))
 }
 
 #[cfg(test)]
@@ -175,10 +309,12 @@ mod tests {
             "locale": "sk",
             "defaultProject": "ovzdusie",
             "dashboardLayouts": { "ovzdusie-prehlad": { "collapsedLegend": true } },
-            "advancedMode": true
+            "advancedMode": true,
+            "firstRunDismissed": true
         }));
         assert_eq!(p.validate(), Ok(()));
         assert_eq!(p.advanced_mode, Some(true));
+        assert_eq!(p.first_run_dismissed, Some(true));
         // Absent is off, and stays absent on the way back out (CC-29).
         let unset = prefs(serde_json::json!({}));
         assert_eq!(unset.advanced_mode, None);
@@ -189,6 +325,54 @@ mod tests {
         assert!(
             Preferences::default().validate().is_ok(),
             "nothing set is fine"
+        );
+    }
+
+    #[test]
+    fn recent_pages_put_the_new_first_once_each_and_keep_ten() {
+        let place = |n: usize| Place {
+            path: format!("/p{n}"),
+            title: format!("p{n}"),
+        };
+        let stored: Vec<Place> = (0..10).map(place).collect();
+        let merged = merged_recent(vec![place(20), place(3)], stored);
+        let paths: Vec<&str> = merged.iter().map(|p| p.path.as_str()).collect();
+        assert_eq!(
+            paths,
+            ["/p20", "/p3", "/p0", "/p1", "/p2", "/p4", "/p5", "/p6", "/p7", "/p8"]
+        );
+        assert!(merged_recent(Vec::new(), Vec::new()).is_empty());
+    }
+
+    #[test]
+    fn keeps_recent_and_starred_pages_of_this_portal_only() {
+        let place = |path: &str| serde_json::json!({ "path": path, "title": "Air quality" });
+        let ok = prefs(serde_json::json!({
+            "recent": [place("/projects/helsinki/pipelines/air-quality?tab=runs")],
+            "favourites": [place("/catalogue")]
+        }));
+        assert_eq!(ok.validate(), Ok(()));
+        for wrong in [
+            "https://evil.example/",
+            "//evil.example/x",
+            "javascript:alert(1)",
+            "/a\\b",
+            "/a\nb",
+            "",
+        ] {
+            let p = prefs(serde_json::json!({ "favourites": [place(wrong)] }));
+            assert!(p.validate().is_err(), "{wrong:?} is refused");
+        }
+        let untitled = prefs(serde_json::json!({ "recent": [{ "path": "/x", "title": "" }] }));
+        assert!(untitled.validate().is_err());
+        let eleven = prefs(serde_json::json!({ "recent": vec![place("/x"); 11] }));
+        assert!(eleven.validate().is_err(), "ten recent pages at most");
+        let fifty_one = prefs(serde_json::json!({ "favourites": vec![place("/x"); 51] }));
+        assert!(fifty_one.validate().is_err(), "fifty starred pages at most");
+        assert!(
+            prefs(serde_json::json!({ "favourites": vec![place("/x"); 50] }))
+                .validate()
+                .is_ok()
         );
     }
 

@@ -169,6 +169,9 @@ routes:
   - route: POST /organization/people/{id}/reset-password
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people/{id}/resend-invitation
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
   - route: POST /organization/people/{id}/sign-out
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
@@ -176,6 +179,9 @@ routes:
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: PUT /preferences
+    rule: "signed-in"
+    expect: [403, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /preferences/recent
     rule: "signed-in"
     expect: [403, allow, allow, allow, allow, allow, allow, allow]
   - route: GET /endpoints

@@ -87,7 +87,8 @@
     "environments": "Environments",
     "projections": "Model projections",
     "knowledge": "Knowledge sources",
-    "mcp": "MCP servers"
+    "mcp": "MCP servers",
+    "home": "Home"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -2509,7 +2510,8 @@
       "url": "Or the address of an API that answers JSON",
       "urlHelp": "Read once by the project's runner, as a data source check reads it; the model is drawn from the records it answers.",
       "readUrl": "Read the address",
-      "urlInvalid": "Give a full address starting with https:// or http://."
+      "urlInvalid": "Give a full address starting with https:// or http://.",
+      "urlCredential": "The address carries a user name, a password or a key. Give one without, or connect the source as a data source whose credential is a secret."
     },
     "classParent": "The class it specialises",
     "classParentNone": "None",
@@ -3399,7 +3401,6 @@
     "removeConfirm": "Delete",
     "removeNote": "The endpoint's Policy decides: the deletion runs with your session, not with a service identity, and it cannot be undone.",
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
-    "export": "Export this page",
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
     "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
@@ -3421,6 +3422,23 @@
       "outlierCount": "{count, plural, one {# value} other {# values}}",
       "pipelines": "Pipelines writing this type",
       "rejected": "Open {pipeline} for its rejected records"
+    },
+    "exportView": {
+      "format": "Export format",
+      "formats": {
+        "csv-excel": "CSV for Excel (Slovak number and date formats)",
+        "csv": "CSV",
+        "json": "JSON",
+        "geojson": "GeoJSON (located entities)"
+      },
+      "start": "Export the view",
+      "cancel": "Cancel the export",
+      "progress": "{done} rows read…",
+      "progressOf": "{done} of {total} rows read…",
+      "download": "Download {name} ({rows, plural, one {# row} other {# rows}})",
+      "truncated": "Only the first {max} rows: narrow the filter for the rest.",
+      "empty": "The view holds no rows to export.",
+      "noGeometry": "No entity of the view has a location, so there is no GeoJSON to export."
     }
   },
   "agentRun": {
@@ -4630,7 +4648,8 @@
         "reset-password": "Reset password",
         "remove-second-factor": "Remove second factor",
         "sign-out": "Sign out everywhere",
-        "delete": "Delete"
+        "delete": "Delete",
+        "resend-invitation": "Send the invitation again"
       },
       "done": {
         "disable": "Disabled. Every session of the person ended.",
@@ -4638,7 +4657,8 @@
         "reset-password": "The realm e-mailed the person a link to set a new password.",
         "remove-second-factor": "Second factor removed. The person sets up a new one at the next sign-in.",
         "sign-out": "Every session of the person ended.",
-        "delete": "Deleted."
+        "delete": "Deleted.",
+        "resend-invitation": "The realm sent the invitation again, with a new link."
       },
       "confirm": {
         "disable": {
@@ -4664,6 +4684,10 @@
         "delete": {
           "title": "Delete {name}?",
           "body": "The person is disabled now. When groups or bindings name them, a Change takes them out of each; the account goes once that Change is approved. This cannot be undone."
+        },
+        "resend-invitation": {
+          "title": "Send the invitation to {name} again?",
+          "body": "The realm e-mails a new link for the steps the person has not taken. Without e-mail you get a temporary password once."
         }
       },
       "password": {
@@ -4674,6 +4698,46 @@
         "copy": "Copy",
         "copied": "Copied to the clipboard.",
         "done": "Done"
+      },
+      "invitedInto": "The realm sent {email} an e-mail to verify the address and set a password. The link then opens the project {project}.",
+      "invite": {
+        "project": "Project",
+        "projectHelp": "The project the invitation leads into. The person lands on its home page once their password is set.",
+        "noProject": "No project: the organization only",
+        "role": "Role in the project",
+        "roleHelp": "What the person may do in {project}. The role is proposed as a change and holds once it is approved.",
+        "roles": {
+          "viewer": {
+            "label": "Viewer",
+            "may": "Reads the project's spaces, data, pipelines and dashboards. Changes nothing."
+          },
+          "editor": {
+            "label": "Editor",
+            "may": "Proposes and approves changes to spaces, models, mappings, policies, data sources, pipelines and endpoints. Deletes nothing."
+          },
+          "steward": {
+            "label": "Steward",
+            "may": "Proposes and approves changes to everything in the project, apps, dashboards and data offers included, and approves what others propose."
+          }
+        },
+        "roleProposed": "The role {role} for {email} in {project} is proposed. It holds once the change is approved.",
+        "roleFailed": "The person is invited, but the role {role} in {project} was not proposed: {reason} Give it under Members of the project."
+      },
+      "pending": {
+        "title": "Invitations not accepted yet",
+        "link": "Invitation link",
+        "expires": "The link works until {at}.",
+        "expired": "The link expired on {at}. Send it again.",
+        "expiryUnknown": "The Portal did not record when the link expires.",
+        "resent": "The realm sent the invitation to {email} again, with a new link.",
+        "revoked": "The invitation of {email} is revoked and the account deleted.",
+        "revoke": "Revoke",
+        "resendFor": "Send the invitation to {email} again",
+        "revokeFor": "Revoke the invitation of {email}",
+        "confirmRevoke": {
+          "title": "Revoke the invitation of {email}?",
+          "body": "The account is deleted and the link stops working. When a binding already names the person, a change takes them out of it first."
+        }
       }
     },
     "setup": {
@@ -5935,5 +5999,121 @@
     "upstream-redirect": "The service behind the platform sent a redirect it may not follow; ask its owner for the final address.",
     "service-unavailable": "The platform is not ready for this yet; try again in a minute.",
     "delivery-timeout": "The receiver did not answer in time; check that it is reachable and try again."
+  },
+  "places": {
+    "star": "Star this page",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied: whoever may read this page opens it as you see it.",
+    "linkNotCopied": "The browser did not let the Portal copy; copy the address from the address bar."
+  },
+  "palette": {
+    "title": "Go to",
+    "hint": "Type a name: a page, a project, a space, an endpoint, a pipeline, an app, a model, a type or an entity's URN. Ctrl+K again asks the assistant.",
+    "search": "Name to go to",
+    "placeholder": "air-quality, Helsinki events, urn:ngsi-ld:…",
+    "results": "Results",
+    "nothing": "Nothing you may read has this name. Ctrl+K asks the assistant instead.",
+    "glossary": "Glossary",
+    "groups": {
+      "recent": "Recently opened",
+      "favourites": "Starred",
+      "actions": "Actions",
+      "pages": "Pages",
+      "projects": "Projects",
+      "types": "Entity types"
+    },
+    "actions": {
+      "openEntity": "Open the entity {id}",
+      "findEntities": "Find entities matching “{q}”",
+      "ask": "Ask the assistant",
+      "newPipeline": "Create a pipeline",
+      "invite": "Invite a person",
+      "settings": "Open the project's settings"
+    }
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "hint": "What works on this page. A letter never acts while you type in a field.",
+    "palette": "Go to a page, an item or an action; twice asks the assistant",
+    "save": "Save the form",
+    "new": "Create a new one",
+    "test": "Run the test",
+    "next": "Next row of the list",
+    "previous": "Previous row of the list",
+    "close": "Close the dialog or panel",
+    "help": "Show these shortcuts"
+  },
+  "home": {
+    "title": "Home",
+    "leadLoading": "What this project holds and what you can do next.",
+    "lead": {
+      "steward": "What waits for your approval and what needs your attention in this project.",
+      "editor": "What you were working on, and what to fix next.",
+      "viewer": "The data and dashboards of this project you can read."
+    },
+    "next": "Next for you",
+    "firstRun": {
+      "title": "Getting started",
+      "progress": "{done} of {total} done",
+      "done": "Done",
+      "todo": "Still to do",
+      "dismiss": "Put the checklist away",
+      "restore": "Show the getting-started checklist",
+      "step": {
+        "space": "Create a context space",
+        "source": "Connect a data source",
+        "pipeline": "Run a pipeline",
+        "data": "See the data",
+        "share": "Share it through an endpoint"
+      },
+      "go": {
+        "space": "Create a space",
+        "source": "Connect a source",
+        "pipeline": "Open pipelines",
+        "data": "Open the space",
+        "share": "Create an endpoint"
+      }
+    },
+    "card": {
+      "approvals": {
+        "title": "{count, plural, one {# change waits for approval} other {# changes wait for approval}}",
+        "action": "Review them"
+      },
+      "failing": {
+        "title": "{count, plural, one {# pipeline is failing} other {# pipelines are failing}}",
+        "action": "See what went wrong"
+      },
+      "invites": {
+        "title": "{count, plural, one {# invitation is not accepted yet} other {# invitations are not accepted yet}}",
+        "action": "Open people"
+      },
+      "drafts": {
+        "title": "{count, plural, one {# draft in progress} other {# drafts in progress}}",
+        "action": "Continue the latest"
+      },
+      "data": {
+        "title": "Data you can read",
+        "action": "Open the space"
+      },
+      "dashboards": {
+        "title": "{count, plural, one {# dashboard} other {# dashboards}}",
+        "action": "Open the first"
+      }
+    },
+    "welcome": {
+      "title": "Welcome to {project}",
+      "role": {
+        "viewer": "You are a viewer here: you read the project's data and dashboards.",
+        "editor": "You are an editor here: you propose changes to the project's configuration.",
+        "steward": "You are a steward here: you approve what others propose and answer for the project's data."
+      },
+      "unknown": "Your role here is not given yet: it holds once the change proposing it is approved.",
+      "first": {
+        "viewer": "Open the project's spaces",
+        "editor": "Connect a data source",
+        "steward": "Review the changes waiting"
+      },
+      "close": "Close the welcome"
+    }
   }
 }
