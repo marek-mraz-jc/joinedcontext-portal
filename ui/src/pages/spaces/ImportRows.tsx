@@ -25,6 +25,8 @@ import type { ImportSlot, Mapping, Rejected, Send, Table as Rows, Target } from 
 
 /** How many rows the mapping step shows of the file. */
 const PREVIEW = 5;
+/** How many rows the preview grid shows (T-3248). */
+const PREVIEW_ROWS = 50;
 
 /** How many refused rows the report lists on screen; the download holds them all. */
 const LISTED = 50;
@@ -176,6 +178,45 @@ function MapStep({
       <p className="text-body text-fg-muted">
         {t("spaces.import.read", { name: step.name, rows: table.rows.length, columns: table.columns.length })}
       </p>
+      {table.detected ? (
+        <p className="text-caption text-fg-muted" data-testid="import-detected">
+          {[
+            table.detected.encoding ? t("spaces.import.detected.encoding", { encoding: table.detected.encoding.toUpperCase() }) : null,
+            table.detected.separator ? t(`spaces.import.detected.separator.${table.detected.separator === "\t" ? "tab" : table.detected.separator === ";" ? "semicolon" : "comma"}`) : null,
+            t(table.detected.decimalComma ? "spaces.import.detected.decimalComma" : "spaces.import.detected.decimalPoint"),
+            table.detected.dateFormat ? t("spaces.import.detected.dates", { format: table.detected.dateFormat }) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      ) : null}
+      <details>
+        <summary className="focus-ring cursor-pointer rounded-md text-body font-medium text-fg">
+          {t("spaces.import.preview", { count: Math.min(PREVIEW_ROWS, table.rows.length) })}
+        </summary>
+        <Table caption={t("spaces.import.previewCaption")} maxHeight="max-h-80">
+          <TableHead>
+            <TableRow>
+              <TableHeaderCell>#</TableHeaderCell>
+              {table.columns.map((column) => (
+                <TableHeaderCell key={column}>{column}</TableHeaderCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {table.rows.slice(0, PREVIEW_ROWS).map((row, at) => (
+              <TableRow key={at}>
+                <TableCell className="text-fg-muted">{at + 2}</TableCell>
+                {table.columns.map((column) => (
+                  <TableCell key={column} className="max-w-48 truncate">
+                    {row[column]}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </details>
       <Table caption={t("spaces.import.mapping")} maxHeight="max-h-80">
         <TableHead>
           <TableRow>

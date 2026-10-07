@@ -848,7 +848,20 @@
       "writing": "Vytvorených {sent} z {total}…",
       "done": "{created, plural, =0 {Nevytvoril sa žiadny riadok} one {Vytvorený # riadok} few {Vytvorené # riadky} other {Vytvorených # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} one {# odmietnutý.} few {# odmietnuté.} other {# odmietnutých.}}",
       "downloadRefused": "Stiahnuť odmietnuté riadky (CSV)",
-      "close": "Zavrieť"
+      "close": "Zavrieť",
+      "preview": "Ukážka {count, plural, one {prvého # riadku} other {prvých # riadkov}}",
+      "previewCaption": "Prvé riadky súboru tak, ako boli prečítané",
+      "detected": {
+        "encoding": "Kódovanie {encoding}",
+        "separator": {
+          "comma": "oddelené čiarkami",
+          "semicolon": "oddelené bodkočiarkami",
+          "tab": "oddelené tabulátormi"
+        },
+        "decimalComma": "desatinná čiarka",
+        "decimalPoint": "desatinná bodka",
+        "dates": "dátumy ako {format}"
+      }
     },
     "export": {
       "label": "Exportovať:",

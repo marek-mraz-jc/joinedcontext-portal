@@ -15,6 +15,16 @@ import type { NgsiLdKind } from "../models/linkml";
 export interface Table {
   columns: string[];
   rows: Record<string, string>[];
+  /** What the reading found and the person is shown (T-3248): absent for a format with no choice. */
+  detected?: Detected;
+}
+
+/** How a text file was read: its encoding and separator, and how its numbers and dates are written. */
+export interface Detected {
+  encoding?: "utf-8" | "windows-1250";
+  separator?: "," | ";" | "\t";
+  decimalComma: boolean;
+  dateFormat?: "d.m.yyyy" | "yyyy-mm-dd";
 }
 
 /** One slot of the type as the import needs it. */
@@ -67,20 +77,85 @@ export function importSlotsOf(source: string | undefined, type: string): ImportS
 /** The file as rows, by its extension; an error names what could not be read. */
 export async function readTable(file: File): Promise<Table> {
   const name = file.name.toLowerCase();
-  if (name.endsWith(".csv") || name.endsWith(".tsv") || name.endsWith(".txt")) return parseCsv(await file.text());
+  if (name.endsWith(".csv") || name.endsWith(".tsv") || name.endsWith(".txt")) {
+    const { text, encoding } = decodeText(new Uint8Array(await file.arrayBuffer()));
+    const table = parseCsv(text);
+    return { ...table, detected: { ...detectedOf(table), encoding, separator: separatorOf(text) } };
+  }
   if (name.endsWith(".json") || name.endsWith(".geojson")) return parseJson(await file.text());
   if (name.endsWith(".xml")) return parseXml(await file.text());
   if (name.endsWith(".xlsx")) return parseXlsx(new Uint8Array(await file.arrayBuffer()));
   throw new Error("read CSV, Excel (.xlsx), JSON or XML");
 }
 
+/**
+ * The bytes of a text file as text: UTF-8 when they are UTF-8, else Windows-1250, the code page a
+ * Slovak or Czech Excel writes its CSV in, so `č` and `ž` arrive as themselves.
+ */
+export function decodeText(bytes: Uint8Array): { text: string; encoding: "utf-8" | "windows-1250" } {
+  try {
+    return { text: new TextDecoder("utf-8", { fatal: true }).decode(bytes), encoding: "utf-8" };
+  } catch {
+    return { text: new TextDecoder("windows-1250").decode(bytes), encoding: "windows-1250" };
+  }
+}
+
+/** The separator of `,`, `;` and tab the header line holds most of. */
+export function separatorOf(text: string): "," | ";" | "\t" {
+  const header = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
+  return ([",", ";", "\t"] as const).reduce((best, sep) =>
+    header.split(sep).length > header.split(best).length ? sep : best,
+  );
+}
+
+const DECIMAL_COMMA = /^-?\d{1,3}(?:[ .\u00a0]?\d{3})*,\d+$/;
+const SLOVAK_DATE = /^(\d{1,2})\.\s?(\d{1,2})\.\s?(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
+
+/** How the table writes its numbers and dates, read from its first rows. */
+export function detectedOf(table: Table): Detected {
+  const cells = table.rows.slice(0, 200).flatMap((row) => Object.values(row));
+  return {
+    decimalComma: cells.some((cell) => DECIMAL_COMMA.test(cell)),
+    dateFormat: cells.some((cell) => SLOVAK_DATE.test(cell))
+      ? "d.m.yyyy"
+      : cells.some((cell) => ISO_DATE.test(cell))
+        ? "yyyy-mm-dd"
+        : undefined,
+  };
+}
+
+/**
+ * A number as a person writes it: `4,5` and `1 234,5` and `1.234,5` (decimal comma, the group
+ * mark a space or a dot) as well as `1,234.5` and `4.5`. When both marks occur, the last one is the
+ * decimal mark; a lone comma before digits is one.
+ */
+export function numberOf(text: string): number {
+  const bare = text.replace(/[\s\u00a0]/g, "");
+  const comma = bare.lastIndexOf(",");
+  const dot = bare.lastIndexOf(".");
+  const plain =
+    comma >= 0 && dot >= 0
+      ? comma > dot
+        ? bare.replace(/\./g, "").replace(",", ".")
+        : bare.replace(/,/g, "")
+      : bare.replace(/,(?=\d+$)/, ".");
+  return plain === "" ? Number.NaN : Number(plain);
+}
+
+/** A date as a Slovak file writes it, `7.10.2026` or `7. 10. 2026 14:30`, in ISO form; else as given. */
+export function isoDateOf(text: string): string {
+  const match = SLOVAK_DATE.exec(text.trim());
+  if (!match) return text;
+  const [, day, month, year, hour, minute, second] = match;
+  const date = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return hour === undefined ? date : `${date}T${hour.padStart(2, "0")}:${minute}:${second ?? "00"}`;
+}
+
 /** CSV by RFC 4180, its separator the one of `,`, `;` and tab the header line holds most of. */
 export function parseCsv(text: string): Table {
   const body = text.replace(/^\uFEFF/, "");
-  const header = body.split(/\r?\n/, 1)[0] ?? "";
-  const separator = [",", ";", "\t"].reduce((best, sep) =>
-    header.split(sep).length > header.split(best).length ? sep : best,
-  );
+  const separator = separatorOf(body);
   const records: string[][] = [];
   let record: string[] = [];
   let field = "";
@@ -403,7 +478,7 @@ function valueOf(text: string, slot: ImportSlot): unknown | Error {
     return text;
   }
   if (INTEGER.has(range) || NUMBER.has(range)) {
-    const number = Number(text.replace(/\s/g, "").replace(/,(?=\d+$)/, "."));
+    const number = numberOf(text);
     if (!Number.isFinite(number) || (INTEGER.has(range) && !Number.isInteger(number))) {
       return new Error(`${slot.name}: \`${text}\` is not ${INTEGER.has(range) ? "a whole number" : "a number"}`);
     }
@@ -418,8 +493,9 @@ function valueOf(text: string, slot: ImportSlot): unknown | Error {
     return new Error(`${slot.name}: \`${text}\` is not yes or no`);
   }
   if (DATE.has(range)) {
-    if (Number.isNaN(Date.parse(text))) return new Error(`${slot.name}: \`${text}\` is not a date`);
-    return range === "date" ? text.slice(0, 10) : new Date(text).toISOString();
+    const iso = isoDateOf(text);
+    if (Number.isNaN(Date.parse(iso))) return new Error(`${slot.name}: \`${text}\` is not a date`);
+    return range === "date" ? iso.slice(0, 10) : new Date(iso).toISOString();
   }
   return text;
 }
