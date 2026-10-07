@@ -69,7 +69,13 @@ test("a pipeline built in the workbench writes only what the model takes", async
     await expect(step(form, "Sample").getByRole("table", { name: "Sample records" })).toBeVisible({ timeout: 60_000 });
 
     await form.locator("#root_name").fill(PIPELINE);
+    // The target is step 3, before the mapping (T-3296): it names the space and its model, and
+    // the mapping step below already lists what that model takes.
     await form.locator("#workbench-target-pick").selectOption(TARGET);
+    await expect(
+      step(form, "Target").getByText("The records land in the space helsinki, checked against the model helsinki."),
+    ).toBeVisible();
+    await expect(step(form, "Mapping").getByRole("region", { name: /^What .+ takes$/ }).first()).toBeVisible({ timeout: 30_000 });
     // A run a minute after the approval, not the seeded pipeline's daily one.
     await form.getByText("More options").click();
     await form.locator("#root_period").fill("60s");
@@ -91,10 +97,7 @@ test("a pipeline built in the workbench writes only what the model takes", async
     info.annotations.push({ type: "workbench", description: (await valid.textContent()) ?? "" });
     await expect(records.getByText("sh:datatype")).toHaveCount(0);
 
-    // 4. The target names the space and its model; proposed, and approved by someone else.
-    await expect(
-      step(form, "Target and save").getByText("The records land in the space helsinki, checked against the model helsinki."),
-    ).toBeVisible();
+    // 4. Proposed, and approved by someone else.
     await proposeFrom(form);
     await approve(approver.page, PROJECT, await proposedChange(page));
 

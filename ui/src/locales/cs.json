@@ -1699,7 +1699,7 @@
         "slotsOf": "Co bere {type}",
         "slots": "Co bere model",
         "noModel": "Cílový prostor nejmenuje datový model, takže žádný slot není znám.",
-        "pickTarget": "Vyberte cílový endpoint v kroku 6 a uvidíte, co bere jeho model.",
+        "pickTarget": "Vyberte cílový endpoint v kroku 3 a uvidíte, co bere jeho model.",
         "required": "povinné",
         "many": "více hodnot",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a další (#)}}",
@@ -1732,7 +1732,7 @@
         "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušují} other {# záznamů porušuje}} {model} {version} a nezapíše se; platných: {valid}."
       },
       "target": {
-        "title": "Cíl a uložení",
+        "title": "Cíl",
         "hint": "Určete endpoint, přes který se záznamy zapíší; uložení navrhne změnu.",
         "lands": "Záznamy přistanou v prostoru {space}, kontrolované vůči modelu {model}.",
         "landsUnmodelled": "Záznamy přistanou v prostoru {space}, který zatím nejmenuje datový model.",
@@ -1743,6 +1743,8 @@
       "mode": "Jak se z každého záznamu stane entita",
       "modeMap": "Přiřadit pole",
       "modeCode": "Napsat Bloblang",
+      "modeMapHint": "Pro každý atribut vyberte pole záznamu, výraz, pevnou hodnotu nebo bod.",
+      "modeCodeHint": "Krok v Bloblangu napište sami.",
       "type": "Typ entity",
       "typeHint": "Typ z datového modelu cílového prostoru; jeho atributy jsou níže.",
       "loading": "Načítají se atributy typu…",
@@ -1780,6 +1782,42 @@
         "notValue": "{field} obsahuje „{value}“; {name} očekává jednu z hodnot {values}.",
         "noId": "Vyberte pole, ze kterého vznikne id každé entity."
       }
+    },
+    "debug": {
+      "add": "+ Ladění",
+      "pickWire": "Nejprve vyberte uzel: ladicí uzel odposlouchává drát, který do něj vede, nebo ho přetáhněte na drát.",
+      "remove": "Odstranit tento ladicí uzel",
+      "badge": "ladění",
+      "title": "Ladění",
+      "clear": "Vymazat",
+      "noTaps": "Pusťte ladicí uzel na drát a uvidíte, co jím při každém testu projde.",
+      "filter": "Zobrazit dráty uzlu",
+      "everyNode": "Každý uzel",
+      "nothingYet": "Spusťte test a uvidíte, co projde odposlouchávanými dráty.",
+      "messages": "Co prošlo odposlouchávanými dráty, nejnovější první",
+      "wholeSample": "Celý vzorek",
+      "message": "Zpráva {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Tento drát nic nedosáhlo.",
+      "failedHere": "Tento uzel selhal",
+      "brokeIt": "Vstup, na kterém selhal:",
+      "changed": "Co tento uzel změnil",
+      "unchanged": "Nic: zpráva odešla tak, jak přišla.",
+      "kind": {
+        "added": "přidáno",
+        "removed": "odstraněno",
+        "changed": "změněno"
+      },
+      "rerun": "Spustit tento uzel znovu na tomto vstupu",
+      "rerunHint": "Běží jen tento uzel, na vstupu výše; nic se nezapíše.",
+      "rerunFailed": "Stále selhává",
+      "rerunOk": "Prošlo; co vytvořil:",
+      "stepMode": "Jedna zpráva najednou",
+      "stepModeHint": "Spustí vzorek po jedné zprávě, abyste mohli sledovat každou skrz kroky.",
+      "stepModeFile": "Krokování dělí vzorek ze souboru na zprávy; místo URL dejte soubor.",
+      "runMessage": "Spustit zprávu {number} z {total}",
+      "startOver": "Od začátku",
+      "position": "Zpráva {number} z {total}"
     }
   },
   "dashboards": {

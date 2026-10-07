@@ -1699,7 +1699,7 @@
         "slotsOf": "Čo berie {type}",
         "slots": "Čo berie model",
         "noModel": "Cieľový priestor nemenuje dátový model, takže žiadny slot nie je známy.",
-        "pickTarget": "Vyberte cieľový endpoint v kroku 6 a uvidíte, čo berie jeho model.",
+        "pickTarget": "Vyberte cieľový endpoint v kroku 3 a uvidíte, čo berie jeho model.",
         "required": "povinné",
         "many": "viac hodnôt",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
@@ -1732,7 +1732,7 @@
         "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušujú} other {# záznamov porušuje}} {model} {version} a nezapíše sa; platných: {valid}."
       },
       "target": {
-        "title": "Cieľ a uloženie",
+        "title": "Cieľ",
         "hint": "Určte endpoint, cez ktorý sa záznamy zapíšu; uloženie navrhne zmenu.",
         "lands": "Záznamy pristanú v priestore {space}, kontrolované voči modelu {model}.",
         "landsUnmodelled": "Záznamy pristanú v priestore {space}, ktorý zatiaľ nemenuje dátový model.",
@@ -1743,6 +1743,8 @@
       "mode": "Ako sa z každého záznamu stane entita",
       "modeMap": "Priradiť polia",
       "modeCode": "Napísať Bloblang",
+      "modeMapHint": "Pre každý atribút vyberte pole záznamu, výraz, pevnú hodnotu alebo bod.",
+      "modeCodeHint": "Krok v Bloblangu napíšte sami.",
       "type": "Typ entity",
       "typeHint": "Typ z dátového modelu cieľového priestoru; jeho atribúty sú nižšie.",
       "loading": "Načítavajú sa atribúty typu…",
@@ -1780,6 +1782,42 @@
         "notValue": "{field} obsahuje „{value}“; {name} očakáva jednu z hodnôt {values}.",
         "noId": "Vyberte pole, z ktorého vznikne id každej entity."
       }
+    },
+    "debug": {
+      "add": "+ Ladenie",
+      "pickWire": "Najprv vyberte uzol: ladiaci uzol odpočúva drôt, ktorý doň vedie, alebo ho pretiahnite na drôt.",
+      "remove": "Odstrániť tento ladiaci uzol",
+      "badge": "ladenie",
+      "title": "Ladenie",
+      "clear": "Vymazať",
+      "noTaps": "Pustite ladiaci uzol na drôt a uvidíte, čo ním pri každom teste prejde.",
+      "filter": "Zobraziť drôty uzla",
+      "everyNode": "Každý uzol",
+      "nothingYet": "Spustite test a uvidíte, čo prejde odpočúvanými drôtmi.",
+      "messages": "Čo prešlo odpočúvanými drôtmi, najnovšie prvé",
+      "wholeSample": "Celá vzorka",
+      "message": "Správa {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Tento drôt nič nedosiahlo.",
+      "failedHere": "Tento uzol zlyhal",
+      "brokeIt": "Vstup, na ktorom zlyhal:",
+      "changed": "Čo tento uzol zmenil",
+      "unchanged": "Nič: správa odišla tak, ako prišla.",
+      "kind": {
+        "added": "pridané",
+        "removed": "odstránené",
+        "changed": "zmenené"
+      },
+      "rerun": "Spustiť tento uzol znova na tomto vstupe",
+      "rerunHint": "Beží iba tento uzol, na vstupe vyššie; nič sa nezapíše.",
+      "rerunFailed": "Stále zlyháva",
+      "rerunOk": "Prešlo; čo vytvoril:",
+      "stepMode": "Jedna správa naraz",
+      "stepModeHint": "Spustí vzorku po jednej správe, aby ste mohli sledovať každú cez kroky.",
+      "stepModeFile": "Krokovanie delí vzorku zo súboru na správy; namiesto URL dajte súbor.",
+      "runMessage": "Spustiť správu {number} z {total}",
+      "startOver": "Od začiatku",
+      "position": "Správa {number} z {total}"
     }
   },
   "dashboards": {
