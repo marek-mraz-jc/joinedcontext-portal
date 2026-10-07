@@ -117,7 +117,7 @@ export function ExportView({
       )}
       {job.state === "ready" ? (
         <span role="status" className="text-caption text-fg">
-          <a href={job.href} download={job.name} className="font-medium text-primary underline">
+          <a href={job.href} download={job.name} className="font-medium text-primary-soft-fg underline">
             {t("explore.exportView.download", { name: job.name, rows: job.rows })}
           </a>
           {job.truncated ? <span className="ml-1 text-warning">{t("explore.exportView.truncated", { max: number(MAX_EXPORT_ROWS) })}</span> : null}
