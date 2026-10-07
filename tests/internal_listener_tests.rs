@@ -424,3 +424,48 @@ async fn the_domain_states_answer_the_gateway_alone_and_say_pending_when_uncheck
     let (status, _, _) = domain_states(&app, None, Some(&etag)).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
+
+/// T-3193 (PL-19, PL-47): a pipeline's outcome and rejection sinks post for their own project.
+/// Every stream of project P presents P's `pipelines` client, or with pipeline identity its own
+/// `{P}-pl-{pipeline}`; one runner-wide client accepted for every project refused every project's
+/// outcomes but Helsinki's on dev. Another project's client, the runner's configured client for a
+/// project that is not its own, and an unknown client are all refused.
+#[tokio::test]
+async fn a_pipeline_sink_is_admitted_for_its_own_project_and_refused_for_any_other() {
+    let (app, signer, issuer) = listener(Some(GATEWAY_CLIENT)).await;
+    let outcome = r#"{"sent":["urn:ngsi-ld:Thing:1"]}"#;
+    let rejected = r#"{"record":{"id":"urn:ngsi-ld:Thing:1"},"error":"no"}"#;
+    for (route, body) in [("outcomes", outcome), ("rejected", rejected)] {
+        let uri = format!("/internal/pipelines/praha/odpad/{route}");
+        for client in ["praha-pipelines", "praha-pl-odpad"] {
+            let own = token(&signer, &issuer, INTERNAL_AUDIENCE, client);
+            let status = call(&app, "POST", &uri, body, Some(&own)).await;
+            assert_ne!(status, StatusCode::UNAUTHORIZED, "{route} as {client}");
+        }
+        for client in [
+            "helsinki-pipelines",
+            "zilina-pipelines",
+            "praha-pl-other",
+            "praha-agent-proxy",
+            "",
+        ] {
+            let other = token(&signer, &issuer, INTERNAL_AUDIENCE, client);
+            assert_eq!(
+                call(&app, "POST", &uri, body, Some(&other)).await,
+                StatusCode::UNAUTHORIZED,
+                "{route} as {client:?}"
+            );
+        }
+        // Its own client with the Portal's API audience is not a token for this listener.
+        let wrong_audience = token(&signer, &issuer, PORTAL_AUDIENCE, "praha-pipelines");
+        assert_eq!(
+            call(&app, "POST", &uri, body, Some(&wrong_audience)).await,
+            StatusCode::UNAUTHORIZED,
+            "{route}"
+        );
+        assert_eq!(
+            call(&app, "POST", &uri, body, None).await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+}
