@@ -6202,5 +6202,76 @@
       },
       "close": "Zavřít uvítání"
     }
+  },
+  "help": {
+    "title": "Nápověda",
+    "label": "Nápověda{count, plural, =0 {} one {, # nová změna} few {, # nové změny} other {, # nových změn}}"
+  },
+  "whatsNew": {
+    "menu": "Co je nového",
+    "menuUnread": "Co je nového ({count} nové)",
+    "title": "Co je nového",
+    "lead": "Co se v Portálu změnilo pro ty, kdo ho používají, od nejnovějšího.",
+    "new": "Nové",
+    "open": "Otevřít",
+    "close": "Zavřít",
+    "entries": {
+      "jobs": {
+        "title": "Pracujte dál, zatímco běží sestavení",
+        "body": "Spusťte sestavení aplikace nebo procházení a jděte jinam: hlavička ukazuje, jak daleko je, kolik asi zbývá, a řekne vám, až bude hotovo."
+      },
+      "history": {
+        "title": "Historie každé změny a cesta zpět",
+        "body": "Schvalování má kartu Historie: co bylo sloučeno nebo zamítnuto, kdo rozhodl a proč. Odstraněné se dá odtud vrátit."
+      },
+      "search": {
+        "title": "Najděte cokoli přes Ctrl+K",
+        "body": "Stiskněte Ctrl+K a napište název: stránku, prostor, endpoint, pipeline, aplikaci nebo entitu."
+      },
+      "shortcuts": {
+        "title": "Klávesové zkratky",
+        "body": "Stiskněte ? a uvidíte je: uložit, hledat, nové, spustit test a pohyb v seznamech."
+      },
+      "links": {
+        "title": "Každá stránka má vlastní odkaz",
+        "body": "Drobečková navigace ukazuje, kde jste, a Kopírovat odkaz dá kolegovi přesně tu stránku, kartu a filtr."
+      },
+      "home": {
+        "title": "Domovská stránka s dalšími kroky",
+        "body": "Správci, editoři a čtenáři vidí své další kroky a nováček dostane pětikrokový seznam."
+      },
+      "glossary": {
+        "title": "Každý pojem vysvětlen",
+        "body": "Prostor, typ entity, endpoint, politika: slovník vysvětlí každý z nich a slova na něj odkazují tam, kde se objeví."
+      },
+      "invite": {
+        "title": "Pozvěte kolegu",
+        "body": "Pozvěte člověka e-mailem i s rolí; čekající pozvánky lze poslat znovu nebo zrušit."
+      },
+      "loadFile": {
+        "title": "Nahrajte soubor nebo začněte ze šablony",
+        "body": "Nahrajte CSV, Excel nebo GeoJSON a přiřaďte sloupce, nebo začněte zdroj dat z hotové šablony, například datasetu CKAN nebo GTFS."
+      },
+      "useData": {
+        "title": "Vezměte si data s sebou",
+        "body": "Exportujte, co vidíte, jako CSV, Excel, GeoJSON nebo NGSI-LD, nebo zkopírujte hotový úryvek pro Python, JavaScript, Excel či QGIS."
+      },
+      "pipelineMapper": {
+        "title": "Přiřaďte pole k datovému modelu",
+        "body": "Poslední krok pipeline vám dá vybrat typ entity a přiřadit pole k jeho atributům, ověřené proti modelu dřív, než se něco zapíše."
+      },
+      "knowledge": {
+        "title": "Asistent, který odpovídá z vašich stránek",
+        "body": "Nasměrujte znalostního asistenta na své weby a PDF a umístěte ho na svůj web nebo do Portálu."
+      },
+      "mcp": {
+        "title": "MCP servery pro nástroje AI",
+        "body": "Spojte endpointy, které patří k sobě, za jednu MCP adresu a zkopírujte její nastavení do svého klienta AI."
+      },
+      "dataViews": {
+        "title": "Nové pohledy na prostor",
+        "body": "Galerie, nástěnka a kalendář, komentáře se @zmínkami, historie řádků s vrácením a veřejné formuláře."
+      }
+    }
   }
 }

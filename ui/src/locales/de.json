@@ -6202,5 +6202,76 @@
       },
       "close": "Begrüßung schließen"
     }
+  },
+  "help": {
+    "title": "Hilfe",
+    "label": "Hilfe{count, plural, =0 {} one {, # neue Änderung} other {, # neue Änderungen}}"
+  },
+  "whatsNew": {
+    "menu": "Neuigkeiten",
+    "menuUnread": "Neuigkeiten ({count} neu)",
+    "title": "Neuigkeiten",
+    "lead": "Was sich im Portal für die Menschen geändert hat, die es nutzen, das Neueste zuerst.",
+    "new": "Neu",
+    "open": "Öffnen",
+    "close": "Schließen",
+    "entries": {
+      "jobs": {
+        "title": "Weiterarbeiten, während ein Build läuft",
+        "body": "Starten Sie einen App-Build oder ein Durchsuchen und gehen Sie woanders hin: die Kopfzeile zeigt den Stand, die ungefähre Restzeit und sagt Bescheid, wenn es fertig ist."
+      },
+      "history": {
+        "title": "Der Verlauf jeder Änderung und ein Weg zurück",
+        "body": "Freigaben hat einen Verlauf: was zusammengeführt oder abgelehnt wurde, wer entschieden hat und warum. Entferntes lässt sich von dort zurückholen."
+      },
+      "search": {
+        "title": "Alles finden mit Strg+K",
+        "body": "Drücken Sie Strg+K und tippen Sie einen Namen: eine Seite, einen Raum, einen Endpunkt, eine Pipeline, eine App oder eine Entität."
+      },
+      "shortcuts": {
+        "title": "Tastenkürzel",
+        "body": "Drücken Sie ?, um sie zu sehen: speichern, suchen, neu, Test ausführen und durch Listen gehen."
+      },
+      "links": {
+        "title": "Jede Seite hat ihren eigenen Link",
+        "body": "Der Brotkrumenpfad zeigt, wo Sie sind, und Link kopieren gibt Kollegen genau diese Seite, diesen Reiter und Filter."
+      },
+      "home": {
+        "title": "Eine Startseite mit den nächsten Schritten",
+        "body": "Verantwortliche, Bearbeitende und Lesende sehen ihre nächsten Schritte, und Neue bekommen eine Liste mit fünf Schritten."
+      },
+      "glossary": {
+        "title": "Jeder Begriff erklärt",
+        "body": "Raum, Entitätstyp, Endpunkt, Richtlinie: das Glossar erklärt jeden Begriff, und die Wörter verlinken dorthin, wo sie erscheinen."
+      },
+      "invite": {
+        "title": "Kollegen einladen",
+        "body": "Laden Sie eine Person per E-Mail mit ihrer Rolle ein; offene Einladungen lassen sich erneut senden oder zurückziehen."
+      },
+      "loadFile": {
+        "title": "Eine Datei laden oder mit einer Vorlage beginnen",
+        "body": "Laden Sie CSV, Excel oder GeoJSON hoch und ordnen Sie die Spalten zu, oder beginnen Sie eine Datenquelle mit einer fertigen Vorlage wie einem CKAN-Datensatz oder GTFS."
+      },
+      "useData": {
+        "title": "Die Daten mitnehmen",
+        "body": "Exportieren Sie, was Sie sehen, als CSV, Excel, GeoJSON oder NGSI-LD, oder kopieren Sie ein fertiges Snippet für Python, JavaScript, Excel oder QGIS."
+      },
+      "pipelineMapper": {
+        "title": "Felder dem Datenmodell zuordnen",
+        "body": "Im letzten Schritt einer Pipeline wählen Sie den Entitätstyp und ordnen Ihre Felder seinen Attributen zu, geprüft gegen das Modell, bevor etwas geschrieben wird."
+      },
+      "knowledge": {
+        "title": "Ein Assistent, der aus Ihren eigenen Seiten antwortet",
+        "body": "Richten Sie den Wissensassistenten auf Ihre Websites und PDFs und platzieren Sie ihn auf Ihrer Website oder im Portal."
+      },
+      "mcp": {
+        "title": "MCP-Server für KI-Werkzeuge",
+        "body": "Bündeln Sie zusammengehörige Endpunkte hinter einer MCP-Adresse und kopieren Sie deren Konfiguration in Ihren KI-Client."
+      },
+      "dataViews": {
+        "title": "Neue Ansichten eines Raums",
+        "body": "Galerie-, Board- und Kalenderansicht, Kommentare mit @Erwähnungen, Zeilenverlauf mit Rückgängig und öffentliche Formulare."
+      }
+    }
   }
 }
