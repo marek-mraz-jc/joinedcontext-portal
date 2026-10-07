@@ -75,10 +75,12 @@ export function Term({ name, children, className }: TermProps): React.JSX.Elemen
         {children ?? t(`glossary.${name}.term`)}
       </span>
       {/* The whole entry, with its example, one step away (T-3236). Beside the word, not inside
-          it: the word stays a term a screen reader reads with its definition. */}
+          it: the word stays a term a screen reader reads with its definition. Raised by a
+          relative offset, not `vertical-align: super`, which grew every line holding a term
+          (T-3301). */}
       <a
         href={glossaryHref(name)}
-        className="focus-ring ml-0.5 align-super text-caption text-fg-muted no-underline hover:text-fg"
+        className="focus-ring relative -top-1.5 ml-0.5 align-baseline text-caption leading-none text-fg-muted no-underline hover:text-fg"
         aria-label={t("glossary.page.more", { term: t(`glossary.${name}.term`) })}
       >
         ?

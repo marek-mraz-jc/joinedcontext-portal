@@ -709,10 +709,15 @@ describe("apps catalog", () => {
     window.addEventListener("jc:assistant-open", listener);
     renderCatalog([]);
 
-    await user.click(await screen.findByRole("button", { name: en.apps.newAction }));
+    // An empty catalogue offers the same action in its empty state (T-3246): both open the builder.
+    const buttons = await screen.findAllByRole("button", { name: en.apps.newAction });
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      await user.click(button);
+    }
 
     window.removeEventListener("jc:assistant-open", listener);
-    expect(intents).toEqual(["build"]);
+    expect(intents).toEqual(["build", "build"]);
     expect(screen.queryByLabelText(en.apps.generate.prompt, { exact: false })).toBeNull();
   });
 

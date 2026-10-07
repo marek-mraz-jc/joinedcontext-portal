@@ -211,7 +211,14 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
 
       {!list.isPending && !list.isError && items.length === 0 ? (
         <EmptyState title={t("syncSources.empty")}
-          description={t("syncSources.emptyHint")} />
+          description={t("syncSources.emptyHint")}
+          action={
+            <PermissionGuard project={project} kind="SyncSource" verb="propose">
+              <Button size="sm" variant="primary" onClick={() => setAdding(true)}>
+                {t("syncSources.add")}
+              </Button>
+            </PermissionGuard>
+          } />
       ) : null}
 
       <ul className="space-y-4">

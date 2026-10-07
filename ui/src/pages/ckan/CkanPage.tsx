@@ -24,6 +24,7 @@ import {
   ExternalLink,
   Field,
   Input,
+  PageFailed,
   PageHeader,
   Table,
   TableBody,
@@ -121,14 +122,19 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
           steward as a fact that the project has no catalogue and publishes nothing, and the
           next move is to propose a catalogue that is already there (T-1765). */}
       {status.isError ? (
-        <Alert role="alert" tone="danger">
+        <PageFailed
+          error={status.error}
+          onRetry={() => {
+            void status.refetch();
+          }}
+        >
           {t("ckan.statusFailed", {
             reason:
               status.error instanceof ApiError
                 ? (status.error.problem?.detail ?? status.error.message)
                 : t("app.error.generic"),
           })}
-        </Alert>
+        </PageFailed>
       ) : null}
 
       <Instances

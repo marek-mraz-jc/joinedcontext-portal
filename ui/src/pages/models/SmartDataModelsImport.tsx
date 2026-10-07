@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { api, unwrap } from "../../api/client";
+import { isSeq, parseDocument } from "yaml";
 import { edit, parseModel } from "./linkml";
 import type { Artifacts } from "./LinkmlPreviewPanel";
-import { Alert, Button, Checkbox, Input, Select, Skeleton } from "../../components/ui";
+import { Alert, Button, Checkbox, Field, Input, RadioGroup, Select, Skeleton, safeHref } from "../../components/ui";
 
 /**
  * The primary path into a model: take an official Smart Data Model and adapt it (DM-07).
@@ -87,6 +88,54 @@ export function deprecateUnused(source: string, keep: string[]): string {
   });
 }
 
+/** The ranges an attribute added in the picker may take: the plain ones a person names (T-3251). */
+export const ADDED_RANGES = ["string", "integer", "float", "boolean", "datetime"] as const;
+
+export interface AddedAttribute {
+  name: string;
+  range: (typeof ADDED_RANGES)[number];
+}
+
+/** An attribute name as Smart Data Models writes them: lower camel case, letters and digits. */
+const ATTRIBUTE_NAME = /^[a-z][A-Za-z0-9]{0,62}$/;
+
+/** Why a new attribute cannot be added, as a key under `models.sdm.addProblem`. */
+export function addedProblem(name: string, existing: string[]): "name" | "taken" | undefined {
+  if (!ATTRIBUTE_NAME.test(name)) return "name";
+  return existing.includes(name) ? "taken" : undefined;
+}
+
+/** The imported source with the person's own attributes on its class, each a slot of its own. */
+export function withAttributes(source: string, className: string, added: AddedAttribute[]): string {
+  if (added.length === 0) return source;
+  return edit(source, (document) => {
+    for (const attribute of added) {
+      document.setIn(["slots", attribute.name], document.createNode({ range: attribute.range }));
+      const slots = document.getIn(["classes", className, "slots"]);
+      const listed = isSeq(slots) ? (slots.toJSON() as unknown[]) : [];
+      document.setIn(["classes", className, "slots"], document.createNode([...listed, attribute.name]));
+    }
+  });
+}
+
+/**
+ * The upstream model the import came from, pinned to its commit (DM-08): the repository, path and
+ * commit the importer writes as the model's annotations, as an address a person can open.
+ */
+export function originOf(source: string): { href: string; commit: string } | undefined {
+  const document = parseDocument(source);
+  const annotation = (key: string): string | undefined => {
+    const value = document.getIn(["annotations", key]);
+    const text = value && typeof value === "object" && "value" in value ? (value as { value: unknown }).value : value;
+    return typeof text === "string" && text !== "" ? text : undefined;
+  };
+  const repository = annotation("spec.source.repository");
+  const path = annotation("spec.source.path");
+  const commit = annotation("spec.source.commit");
+  if (!repository || !path || !commit || !/^https:\/\/github\.com\//.test(repository)) return undefined;
+  return { href: `${repository.replace(/\/$/, "")}/blob/${commit}/${path.replace(/^\//, "")}`, commit };
+}
+
 export function SmartDataModelsImport({
   onImport,
   spaces = [],
@@ -102,6 +151,12 @@ export function SmartDataModelsImport({
   const [showAll, setShowAll] = useState(false);
   const [showAllModels, setShowAllModels] = useState(false);
   const [space, setSpace] = useState("");
+  // Adopt the model as it is, or adapt it: drop attributes, add the person's own (T-3251).
+  const [mode, setMode] = useState<"asIs" | "adapt">("asIs");
+  const [added, setAdded] = useState<AddedAttribute[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newRange, setNewRange] = useState<AddedAttribute["range"]>("string");
+  const [addProblem, setAddProblem] = useState<"name" | "taken" | null>(null);
 
   const catalogue = useQuery({
     queryKey: ["tools", "sdm-catalog", refreshes],
@@ -174,11 +229,27 @@ export function SmartDataModelsImport({
     : [...offered.required, ...offered.optional].slice(0, ATTRIBUTE_PAGE);
   const hidden = offered.total - shown.length;
 
+  const origin = useMemo(() => (imported ? originOf(imported) : undefined), [imported]);
+  const addAttribute = () => {
+    const name = newName.trim();
+    const problem = addedProblem(name, [...upstreamSlots, ...added.map((one) => one.name)]);
+    setAddProblem(problem ?? null);
+    if (problem) return;
+    setAdded([...added, { name, range: newRange }]);
+    setNewName("");
+  };
+
   const doImport = () => {
     if (!imported || !selected) {
       return;
     }
-    onImport(deprecateUnused(imported, chosen), selected, space || undefined);
+    const className =
+      model?.classes.find((klass) => klass.name === selected.name)?.name ?? model?.classes[0]?.name ?? selected.name;
+    const adopted =
+      mode === "asIs"
+        ? imported
+        : withAttributes(deprecateUnused(imported, chosen), className, added);
+    onImport(adopted, selected, space || undefined);
   };
 
   return (
@@ -267,6 +338,8 @@ export function SmartDataModelsImport({
                       onClick={() => {
                         setSelected(model);
                         setKeep(null);
+                        setAdded([]);
+                        setMode("asIs");
                       }}
                       aria-current={selected?.id === model.id ? "true" : undefined}
                       className={clsx(
@@ -324,6 +397,26 @@ export function SmartDataModelsImport({
           </Alert>
         ) : imported ? (
           <>
+            {origin && safeHref(origin.href) ? (
+              <p className="text-caption text-fg-muted">
+                {/* The address comes from the imported model, so it is linked only when it is one (UI-41). */}
+                <a href={safeHref(origin.href)} target="_blank" rel="noreferrer noopener" className="underline">
+                  {t("models.sdm.origin", { commit: origin.commit.slice(0, 7) })}
+                </a>
+              </p>
+            ) : null}
+            <RadioGroup
+              name="sdm-mode"
+              legend={t("models.sdm.mode")}
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: "asIs", label: t("models.sdm.asIs"), description: t("models.sdm.asIsHint", { count: upstreamSlots.length }) },
+                { value: "adapt", label: t("models.sdm.adapt"), description: t("models.sdm.adaptHint") },
+              ]}
+            />
+            {mode === "adapt" ? (
+            <>
             <p className="text-body">{t("models.sdm.keepAll")}</p>
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => setKeep(upstreamSlots)}>
@@ -381,6 +474,64 @@ export function SmartDataModelsImport({
               <Button size="sm" className="self-start" onClick={() => setShowAll(true)}>
                 {t("models.sdm.showMore", { count: hidden })}
               </Button>
+            ) : null}
+            <fieldset className="flex flex-col gap-2 rounded-md border border-border p-2">
+              <legend className="px-1 text-body font-medium">{t("models.sdm.addTitle")}</legend>
+              {added.length > 0 ? (
+                <ul className="flex flex-wrap gap-1" aria-label={t("models.sdm.addedList")}>
+                  {added.map((one) => (
+                    <li key={one.name} className="flex items-center gap-1 rounded border border-border px-2 py-0.5 font-mono text-caption">
+                      {one.name}: {one.range}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={t("models.sdm.addRemove", { name: one.name })}
+                        onClick={() => setAdded(added.filter((other) => other.name !== one.name))}
+                      >
+                        ×
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="flex flex-wrap items-end gap-2">
+                <Field
+                  id="sdm-add-name"
+                  label={t("models.sdm.addName")}
+                  help={t("models.sdm.addNameHelp")}
+                  errors={addProblem ? [t(`models.sdm.addProblem.${addProblem}`)] : undefined}
+                >
+                  <Input
+                    id="sdm-add-name"
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addAttribute();
+                      }
+                    }}
+                  />
+                </Field>
+                <Field id="sdm-add-range" label={t("models.sdm.addRange")}>
+                  <Select
+                    id="sdm-add-range"
+                    value={newRange}
+                    onChange={(event) => setNewRange(event.target.value as AddedAttribute["range"])}
+                  >
+                    {ADDED_RANGES.map((range) => (
+                      <option key={range} value={range}>
+                        {t(`models.sdm.range.${range}`)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Button size="sm" onClick={addAttribute}>
+                  {t("models.sdm.add")}
+                </Button>
+              </div>
+            </fieldset>
+            </>
             ) : null}
             {spaces.length > 0 ? (
               <label className="flex flex-col gap-1 text-body">

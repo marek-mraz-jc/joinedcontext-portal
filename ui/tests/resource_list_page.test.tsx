@@ -7,7 +7,8 @@
  * its own gets — a heading in the person's own language rather than the URL segment, the
  * project's manifests in a table, one menu per row, and the empty, waiting and refused states.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
@@ -112,7 +113,18 @@ describe("a kind's list page", () => {
     );
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("You may not read the roles of helsinki.");
-    expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    expect(alert).toHaveTextContent(en.app.error.forbiddenHint);
+    expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+  });
+
+  it("offers to ask again after a server failure, and asks", async () => {
+    let failing = true;
+    show("roles", (url) => (url.pathname.endsWith("/roles") && failing ? problem(500, "The store is away.") : undefined));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The store is away.");
+    failing = false;
+    await userEvent.click(within(alert).getByRole("button", { name: en.app.error.retry }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 
   it("announces the wait rather than showing an empty table", async () => {

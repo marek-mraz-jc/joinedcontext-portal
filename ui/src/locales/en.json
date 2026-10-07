@@ -12,7 +12,11 @@
       "crashHome": "Go to the start",
       "session": "Your session ended. Sign in again to see this.",
       "forbiddenHint": "A project owner or an organization administrator can give you access.",
-      "reference": "Quote this when you report it:"
+      "reference": "Quote this when you report it:",
+      "offline": "You are offline. The page reads again as soon as the connection is back.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyReference": "Copy the reference {reference}"
     },
     "notFound": {
       "title": "This page does not exist",
@@ -240,6 +244,7 @@
       "inForge": "Closed in the repository",
       "older": "Show older changes",
       "empty": "No change has been merged or rejected yet.",
+      "emptyHint": "A change lands here with who decided it once it is approved or rejected on the Open tab.",
       "noneOnPage": "None of these changes is one you may read. Older ones may be."
     }
   },
@@ -396,7 +401,8 @@
     "new": "New {kind}",
     "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
     "propose": "Propose change",
-    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form."
+    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form.",
+    "askAssistant": "Ask the assistant for one"
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -843,7 +849,20 @@
       "writing": "Created {sent} of {total}…",
       "done": "{created, plural, =0 {No row was created} one {# row created} other {# rows created}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
       "downloadRefused": "Download the refused rows (CSV)",
-      "close": "Close"
+      "close": "Close",
+      "preview": "Preview the first {count, plural, one {# row} other {# rows}}",
+      "previewCaption": "The file's first rows as read",
+      "detected": {
+        "encoding": "Encoding {encoding}",
+        "separator": {
+          "comma": "separated by commas",
+          "semicolon": "separated by semicolons",
+          "tab": "separated by tabs"
+        },
+        "decimalComma": "decimal comma",
+        "decimalPoint": "decimal point",
+        "dates": "dates as {format}"
+      }
     },
     "export": {
       "label": "Export:",
@@ -1030,7 +1049,8 @@
         "aliasHelp": "The name this project reads the shared space by; queries and pipelines here use it.",
         "interval": "Mirror interval",
         "intervalHelp": "How often the source's schema is mirrored here, such as 6h or 1d; leave empty for once a day."
-      }
+      },
+      "browse": "See what other projects publish"
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",
@@ -1312,7 +1332,51 @@
       "skipped": "Not fetched: {reason}"
     },
     "emptyHint": "A data source is where the platform fetches from: a feed, a broker, an API. Add one and a pipeline can read it into a context space.",
-    "newPipeline": "New pipeline from this source"
+    "newPipeline": "New pipeline from this source",
+    "template": {
+      "title": "Start from a template",
+      "lead": "Pick what the source is and give its address: the form is filled and checked at once, and the first records show before anything is proposed.",
+      "use": "Fill the form and check",
+      "nameHelp": "Lowercase letters, digits and hyphens; taken from the address until you type one.",
+      "csv": {
+        "title": "CSV file at an address",
+        "what": "A table published as a .csv file, read on every run.",
+        "url": "Address of the CSV file",
+        "urlHelp": "The address that downloads the file itself, starting with https://."
+      },
+      "json": {
+        "title": "REST API (JSON)",
+        "what": "An API that answers JSON, read on every run.",
+        "url": "Address of the API",
+        "urlHelp": "The full address with its query, starting with https://; an API that needs a key gets it in the form below."
+      },
+      "ckan": {
+        "title": "Dataset from a CKAN portal",
+        "what": "A resource of an open-data catalogue such as data.gov.sk.",
+        "url": "Download address of the resource",
+        "urlHelp": "On the dataset page, open the CSV or JSON resource and copy its download address."
+      },
+      "wfs": {
+        "title": "WFS layer or GeoJSON",
+        "what": "Features of a map service, read as GeoJSON.",
+        "url": "Address of the WFS service or the GeoJSON file",
+        "urlHelp": "The service address ending before the question mark, or a GeoJSON file.",
+        "layer": "Layer name",
+        "layerHelp": "The feature type the service lists in its capabilities; not needed for a GeoJSON file."
+      },
+      "gtfs-rt": {
+        "title": "GTFS Realtime feed",
+        "what": "Vehicle positions of a public transport operator.",
+        "url": "Address of the GTFS Realtime feed",
+        "urlHelp": "The protobuf feed the operator publishes, starting with https://. A static GTFS timetable (a .zip) is not a live feed."
+      },
+      "problem": {
+        "name": "Give a name of lowercase letters, digits and hyphens, at most 63 characters.",
+        "url": "Give a full address starting with https:// or http://.",
+        "ckanDataset": "This is the dataset page, not a file. Open the CSV or JSON resource on it and copy its download address.",
+        "layer": "Name the layer to read, or give the address of a GeoJSON file."
+      }
+    }
   },
   "pipelines": {
     "lead": "What brings data in: each pipeline reads a source, transforms it and writes through an endpoint.",
@@ -1695,7 +1759,7 @@
         "slotsOf": "What {type} takes",
         "slots": "What the model takes",
         "noModel": "The target space names no data model, so no slot is known.",
-        "pickTarget": "Pick the target endpoint in step 6 to see what its model takes.",
+        "pickTarget": "Pick the target endpoint in step 3 to see what its model takes.",
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
@@ -1728,7 +1792,7 @@
         "someRejected": "{count, plural, one {# record breaks} other {# records break}} {model} {version} and would not be written; {valid} valid."
       },
       "target": {
-        "title": "Target and save",
+        "title": "Target",
         "hint": "Name the endpoint the records are written through; saving proposes a change.",
         "lands": "The records land in the space {space}, checked against the model {model}.",
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
@@ -1739,6 +1803,8 @@
       "mode": "How each record becomes an entity",
       "modeMap": "Map fields",
       "modeCode": "Write Bloblang",
+      "modeMapHint": "Pick a record field, an expression, a fixed value or a point for each attribute.",
+      "modeCodeHint": "Write the Bloblang step yourself.",
       "type": "Entity type",
       "typeHint": "A type of the target space's data model; its attributes are listed below.",
       "loading": "Reading the type's attributes…",
@@ -1776,6 +1842,42 @@
         "notValue": "{field} holds “{value}”; {name} takes one of {values}.",
         "noId": "Choose the field each entity's id comes from."
       }
+    },
+    "debug": {
+      "add": "+ Debug",
+      "pickWire": "Select a node first: the Debug node taps the wire into it, or drag it onto a wire.",
+      "remove": "Remove this Debug node",
+      "badge": "debug",
+      "title": "Debug",
+      "clear": "Clear",
+      "noTaps": "Drop a Debug node on a wire to watch what crosses it on every test run.",
+      "filter": "Show the wires of",
+      "everyNode": "Every node",
+      "nothingYet": "Run the test to see what crosses the tapped wires.",
+      "messages": "What crossed the tapped wires, newest first",
+      "wholeSample": "Whole sample",
+      "message": "Message {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Nothing reached this wire.",
+      "failedHere": "This node failed",
+      "brokeIt": "The input that broke it:",
+      "changed": "What this node changed",
+      "unchanged": "Nothing: the message left as it came in.",
+      "kind": {
+        "added": "added",
+        "removed": "removed",
+        "changed": "changed"
+      },
+      "rerun": "Rerun this node on this input",
+      "rerunHint": "Only this node runs, on the input above; nothing is written.",
+      "rerunFailed": "Still failing",
+      "rerunOk": "Passed; what it made:",
+      "stepMode": "One message at a time",
+      "stepModeHint": "Runs the sample one message at a time, so you can follow each one through the steps.",
+      "stepModeFile": "Step mode cuts a file sample into its messages; give a file instead of the URL.",
+      "runMessage": "Run message {number} of {total}",
+      "startOver": "Start over",
+      "position": "Message {number} of {total}"
     }
   },
   "dashboards": {
@@ -1935,7 +2037,8 @@
         "k8sServiceAccount": "Kubernetes service account"
       },
       "grantIn": "{role} in {where}",
-      "grantOrg": "{role} in the whole organization"
+      "grantOrg": "{role} in the whole organization",
+      "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each gets its own keys and only the role you give it."
     },
     "keys": {
       "create": "New API key ({credential})",
@@ -2290,7 +2393,31 @@
       "count": "{count, plural, one {# model} other {# models}}",
       "allAttributes": "All",
       "onlyRequired": "Only required",
-      "kept": "{kept} of {total} attributes kept"
+      "kept": "{kept} of {total} attributes kept",
+      "origin": "The original model on GitHub (commit {commit})",
+      "mode": "How to take it",
+      "asIs": "As it is",
+      "asIsHint": "All {count} attributes, unchanged; the quickest way in.",
+      "adapt": "Adapt it",
+      "adaptHint": "Untick what you do not need and add your own attributes.",
+      "addTitle": "Your own attributes",
+      "addedList": "Attributes you added",
+      "addRemove": "Remove {name}",
+      "addName": "Attribute name",
+      "addNameHelp": "Lower camel case, letters and digits, as Smart Data Models names them.",
+      "addRange": "Kind of value",
+      "add": "Add",
+      "addProblem": {
+        "name": "Start with a lowercase letter and use only letters and digits.",
+        "taken": "The model already has an attribute of this name."
+      },
+      "range": {
+        "string": "Text",
+        "integer": "Whole number",
+        "float": "Number",
+        "boolean": "Yes or no",
+        "datetime": "Date and time"
+      }
     },
     "addClass": "Add class",
     "addSlot": "Add slot",
@@ -2339,7 +2466,11 @@
       "refused": "{n} operations were refused by the editor",
       "populate": "Populate the editor",
       "cancel": "Cancel",
-      "close": "Close"
+      "close": "Close",
+      "url": "Or the address of an API that answers JSON",
+      "urlHelp": "Read once by the project's runner, as a data source check reads it; the model is drawn from the records it answers.",
+      "readUrl": "Read the address",
+      "urlInvalid": "Give a full address starting with https:// or http://."
     },
     "classParent": "The class it specialises",
     "classParentNone": "None",
@@ -2835,7 +2966,8 @@
       "organization": "everyone in the organization",
       "public": "everyone, without signing in",
       "roles": "the people holding one of its roles"
-    }
+    },
+    "emptyTitle": "No applications yet"
   },
   "appLifecycle": {
     "draft": "Draft",
@@ -5716,6 +5848,36 @@
     "title": "Notifications",
     "none": "Nothing new.",
     "mentioned": "{name} mentioned you in {space}"
+  },
+  "problem": {
+    "bad-request": "Correct the request as the detail says and send it again.",
+    "invalid-request": "Correct the marked fields and send it again.",
+    "invalid-body": "Send a body of the documented shape; the detail names what is wrong.",
+    "urn-scheme": "Use an entity id of the form urn:ngsi-ld:Type:id, such as urn:ngsi-ld:Vehicle:bus-12.",
+    "unauthorized": "Sign in again, or send a valid token for this service.",
+    "forbidden": "Ask a project owner or an organization administrator for the role this needs.",
+    "domain-not-verified": "Verify the domain in the organization settings first.",
+    "self-approval": "Ask another approver to decide your own change.",
+    "resource-not-found": "Check the name in the address; it does not exist or is not shared with you.",
+    "method-not-allowed": "Use one of the methods this address allows.",
+    "read-only-view": "This view only reads; change the data through the endpoint it is built on.",
+    "conflict": "Load it again and repeat the change on what is there now.",
+    "verdict-required": "Run the test first; a green result lets the change be proposed.",
+    "precondition-failed": "Load the entity again; someone changed it since you read it.",
+    "payload-too-large": "Send less at once: split the request or the file.",
+    "unsupported-media-type": "Send the content as JSON.",
+    "too-many-requests": "Wait a moment, then try again.",
+    "daily-budget": "Today's allowance is used up; try again tomorrow or ask an administrator to raise it.",
+    "egress-budget-spent": "This run's outbound allowance is used up; start a new run or ask an administrator to raise it.",
+    "internal-error": "Try again; if it happens again, report the reference below.",
+    "not-implemented": "This installation does not offer it; ask an administrator.",
+    "subscription-not-routable": "Use a receiver address the platform can reach over HTTP(S).",
+    "federation-identity-unavailable": "This installation has no federation identity; ask an administrator to configure one.",
+    "broker-failure": "The data store failed this request; try again in a minute, and report the reference if it repeats.",
+    "upstream-unavailable": "A service behind the platform did not answer; try again in a minute.",
+    "upstream-redirect": "The service behind the platform sent a redirect it may not follow; ask its owner for the final address.",
+    "service-unavailable": "The platform is not ready for this yet; try again in a minute.",
+    "delivery-timeout": "The receiver did not answer in time; check that it is reachable and try again."
   },
   "places": {
     "star": "Star this page",

@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
+import { callOperation } from "../../api/operations";
+import { nameFrom } from "../datasources/templates";
 import { useOrgDomain } from "../../api/projects";
 import {
   Alert,
@@ -9,8 +11,10 @@ import {
   Button,
   buttonClass,
   Dialog,
+  Field,
   FilePicker,
   Icon,
+  Input,
   Table,
   TableBody,
   TableCell,
@@ -202,6 +206,43 @@ export function ModelFileDrop({
     }
   };
 
+  // An API's address instead of a file (T-3250): fetched once on the project's runner by
+  // `jc_model_infer`, as a data source's Check fetches it, and inferred from its records.
+  const [address, setAddress] = useState("");
+  const takeAddress = async (): Promise<void> => {
+    setProblem(null);
+    let url: URL;
+    try {
+      url = new URL(address.trim());
+    } catch {
+      setProblem(t("models.infer.urlInvalid"));
+      return;
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      setProblem(t("models.infer.urlInvalid"));
+      return;
+    }
+    const name = nameFrom(url.toString()) || "sample";
+    setBusy(url.host);
+    try {
+      const answered = await callOperation(project, "jc_model_infer", { url: url.toString(), name });
+      if (!answered.ok) {
+        setProblem(t("models.infer.failed", { detail: answered.reason ?? String(answered.status) }));
+        return;
+      }
+      const answer = inferAnswerOf(answered.output);
+      if (!answer) {
+        setProblem(t("models.infer.unreadable"));
+        return;
+      }
+      setDraft(draftOf(answer, orgDomain, name));
+    } catch {
+      setProblem(t("models.infer.failed", { detail: "network" }));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const rows = draft ? slotRows(draft.answer.operations) : [];
   const classes = draft ? draft.answer.operations.filter((op) => op.op === "addClass").length : 0;
 
@@ -253,6 +294,28 @@ export function ModelFileDrop({
             </span>
           ) : null}
         </div>
+      )}
+      {compact || icon ? null : (
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void takeAddress();
+          }}
+        >
+          <Field id="models-infer-url" label={t("models.infer.url")} help={t("models.infer.urlHelp")} className="min-w-64 flex-1">
+            <Input
+              id="models-infer-url"
+              type="url"
+              inputMode="url"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+            />
+          </Field>
+          <Button type="submit" disabled={address.trim() === "" || busy !== null}>
+            {t("models.infer.readUrl")}
+          </Button>
+        </form>
       )}
       {problem ? (
         icon ? (

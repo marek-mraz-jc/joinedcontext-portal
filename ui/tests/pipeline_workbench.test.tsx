@@ -256,10 +256,11 @@ describe("the pipeline workbench", () => {
     expect(titles).toEqual([
       "workbench-source-title",
       "workbench-sample-title",
+      // The target before the mapping, so the mapping opens knowing the model (T-3296).
+      "workbench-target-title",
       "workbench-mapping-title",
       "workbench-output-title",
       "workbench-validation-title",
-      "workbench-target-title",
     ]);
     for (const hint of [
       en.pipelines.workbench.source.hint,
@@ -357,6 +358,19 @@ describe("the pipeline workbench", () => {
     ).toBeInTheDocument();
   });
 
+  // T-3296: the target is step 3, so a newcomer picks it before writing the mapping, and the
+  // mapping step shows what the target's model takes without a jump ahead.
+  it("the_mapping_shows_the_target_class_slots_once_the_target_above_it_is_picked", async () => {
+    stub({}, { ops: [] });
+    show({ compute: { kind: "bloblang", bloblang: MAPPING } });
+    const mapping = step(en.pipelines.workbench.mapping.title);
+    expect(within(mapping).getByText(en.pipelines.workbench.mapping.pickTarget)).toBeInTheDocument();
+    expect(en.pipelines.workbench.mapping.pickTarget).toMatch(/step 3/);
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.field.targetEndpoint), URN);
+    expect(await within(mapping).findByRole("region", { name: "What AirQualityObserved takes" })).toBeInTheDocument();
+    expect(within(mapping).queryByText(en.pipelines.workbench.mapping.pickTarget)).toBeNull();
+  });
+
   it("a_space_without_a_model_says_so_and_does_not_hold_the_proposal", async () => {
     const verdicts: { ok: boolean; bloblang: string }[] = [];
     stub(
@@ -411,13 +425,13 @@ describe("the pipeline workbench", () => {
     expect(screen.getByLabelText(en.pipelines.workbench.source.pick)).toHaveFocus();
     await userEvent.tab();
     expect(screen.getByLabelText(en.pipelines.workbench.source.file)).toHaveFocus();
-    // Step 3 asks first how a record becomes an entity: fields mapped or Bloblang (T-3224).
+    // Step 3 is the target (T-3296); step 4 asks how a record becomes an entity (T-3224).
+    await userEvent.tab();
+    expect(screen.getByLabelText(en.pipelines.field.targetEndpoint)).toHaveFocus();
     await userEvent.tab();
     expect(screen.getByRole("radio", { name: en.pipelines.mapper.modeCode })).toHaveFocus();
     await userEvent.tab();
     expect(screen.getByLabelText(en.pipelines.field.bloblang)).toHaveFocus();
-    await userEvent.tab();
-    expect(screen.getByLabelText(en.pipelines.field.targetEndpoint)).toHaveFocus();
   });
 });
 

@@ -21,6 +21,7 @@ import {
   EmptyState,
   Field,
   Input,
+  PageFailed,
   Select,
   Table,
   TableBody,
@@ -538,15 +539,23 @@ export function RoleBindings({
       </div>
 
       {scope !== "organization" && spaces.isError ? (
-        <Alert tone="danger" role="alert">
+        <PageFailed
+          error={spaces.error}
+          onRetry={() => {
+            void spaces.refetch();
+          }}
+        >
           {t("access.roles.spacesFailed", { reason: reasonOf(spaces.error, t("app.error.generic")) })}
-        </Alert>
+        </PageFailed>
       ) : null}
 
       {bindings.isError ? (
-        <Alert tone="danger" role="alert">
-          {reasonOf(bindings.error, t("app.error.generic"))}
-        </Alert>
+        <PageFailed
+          error={bindings.error}
+          onRetry={() => {
+            void bindings.refetch();
+          }}
+        />
       ) : (
         <Table
           data-records=""
@@ -572,6 +581,13 @@ export function RoleBindings({
                     title={t("access.roles.empty")}
                     description={
                       scope === "organization" ? t("organization.members.emptyHint") : t("access.roles.emptyHint")
+                    }
+                    action={
+                      <PermissionGuard project={ORG_NAMESPACE} kind="RoleBinding" verb="propose">
+                        <Button variant="primary" onClick={() => setGranting(true)}>
+                          {t("access.roles.grant")}
+                        </Button>
+                      </PermissionGuard>
                     } />
                 </TableEmpty>
               ) : (

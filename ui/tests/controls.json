@@ -141,15 +141,6 @@
         "resource_form_dialog.test.tsx"
       ]
     },
-    "src/components/ResourceList.tsx": {
-      "controls": {
-        "Button": 1
-      },
-      "tests": [
-        "part_resource_list.test.tsx",
-        "resource_list.test.tsx"
-      ]
-    },
     "src/components/SaveAsDialog.tsx": {
       "controls": {
         "Button": 5,
@@ -471,7 +462,7 @@
     },
     "src/components/ui/PageState.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "browser_security.test.tsx",
@@ -621,7 +612,7 @@
     },
     "src/pages/access/RoleBindings.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "form_role_bindings.test.tsx"
@@ -629,7 +620,7 @@
     },
     "src/pages/access/Roles.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "access_forms.test.tsx",
@@ -711,7 +702,7 @@
     },
     "src/pages/apps/AppsCatalog.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 6
       },
       "tests": [
         "apps_catalog.test.tsx"
@@ -914,6 +905,14 @@
         "runner_input_schema.test.ts"
       ]
     },
+    "src/pages/datasources/TemplateGallery.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "datasource_templates.test.tsx"
+      ]
+    },
     "src/pages/endpoints/CatalogSection.tsx": {
       "controls": {
         "Button": 1
@@ -1103,7 +1102,7 @@
     },
     "src/pages/models/ModelFileDrop.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
         "FilePicker": 2
       },
       "tests": [
@@ -1174,8 +1173,9 @@
     "src/pages/models/SmartDataModelsImport.tsx": {
       "controls": {
         "button": 1,
-        "Button": 7,
-        "Checkbox": 1
+        "Button": 9,
+        "Checkbox": 1,
+        "RadioGroup": 1
       },
       "tests": [
         "sdm_import.test.tsx"
@@ -1210,6 +1210,14 @@
         "people_page.test.tsx"
       ]
     },
+    "src/pages/pipelines/DebugPanel.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "pipeline_debug_view.test.tsx"
+      ]
+    },
     "src/pages/pipelines/OutputMapper.tsx": {
       "controls": {
         "Button": 2
@@ -1220,10 +1228,12 @@
     },
     "src/pages/pipelines/PipelineFlow.tsx": {
       "controls": {
-        "Button": 19
+        "Button": 20
       },
       "tests": [
         "part_pipeline_flow.test.tsx",
+        "pipeline_debug.test.ts",
+        "pipeline_debug_view.test.tsx",
         "pipeline_flow.test.tsx",
         "pipeline_flow_graph.test.tsx",
         "pipeline_flow_live.test.tsx",
@@ -1267,12 +1277,14 @@
     },
     "src/pages/pipelines/PipelineTest.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
+        "Checkbox": 1,
         "FilePicker": 1
       },
       "tests": [
         "part_pipeline_flow.test.tsx",
         "part_pipeline_test.test.tsx",
+        "pipeline_debug_view.test.tsx",
         "pipeline_flow.test.tsx",
         "pipeline_flow_live.test.tsx",
         "pipeline_flow_outputs.test.tsx",
@@ -1388,7 +1400,7 @@
     },
     "src/pages/sync/SyncSourcesPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "form_errors_after_touch.test.tsx",

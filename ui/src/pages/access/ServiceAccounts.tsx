@@ -24,15 +24,16 @@ import {
   Button,
   Card,
   Dialog,
+  EmptyState,
   Field,
   Icon,
   Input,
+  Skeleton,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeaderCell,
-  Skeleton,
   TableRow,
   TableSkeleton,
 } from "../../components/ui";
@@ -792,7 +793,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
       ) : null}
 
       {accounts.length === 0 ? (
-        <p className="text-body text-fg-muted">{t("access.accounts.empty")}</p>
+        <EmptyState title={t("access.accounts.empty")} description={t("access.accounts.emptyHint")} icon="access" action={addButton} />
       ) : (
         <ul className="space-y-4">
           {accounts.map((account) => {

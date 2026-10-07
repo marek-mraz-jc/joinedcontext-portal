@@ -294,8 +294,9 @@ export interface PipelineWorkbenchProps {
 }
 
 /**
- * The pipeline workbench (ADR-N-034, PL-58): source, sample, mapping, mapped output, validation,
- * and target and save, in that order. Each step shows its output and a one-line hint, and runs
+ * The pipeline workbench (ADR-N-034, PL-58): source, sample, target, mapping, mapped output and
+ * validation, in that order; the target comes before the mapping so the mapping opens knowing the
+ * model it has to produce (T-3296). Each step shows its output and a one-line hint, and runs
  * the operation an agent or the assistant runs for the same step (PL-63): the sample and the
  * mapping on the project's runner, the verdict against the target space's model. Nothing here is
  * written; Propose, under the steps, opens the Change.
@@ -421,7 +422,7 @@ export function PipelineWorkbench({
       ),
   });
 
-  // Steps 3 and 4: the mapping, tried once typing rests.
+  // Steps 4 and 5: the mapping, tried once typing rests.
   const bloblang = draft?.compute?.kind === "bloblang" || draft?.compute?.kind === undefined ? (draft?.compute?.bloblang ?? "") : "";
   const quiet = useQuiet(bloblang, QUIET_MS);
   // Fields mapped onto the type's attributes, or Bloblang written by hand (T-3224): the mapper for a
@@ -449,7 +450,7 @@ export function PipelineWorkbench({
     (record): record is Record<string, unknown> => typeof record === "object" && record !== null && !Array.isArray(record),
   );
 
-  // Step 5: the verdicts against the target space's model.
+  // Step 6: the verdicts against the target space's model.
   const validated = useQuery({
     queryKey: ["pipeline-workbench", project, "validate", manifest, records],
     enabled: records.length > 0 && Boolean(draft?.targetEndpoint),
@@ -484,7 +485,7 @@ export function PipelineWorkbench({
     }
   }, [settled, ok, quiet]);
 
-  // Step 3's hints: the slots of the class the mapping writes, from the target space's model.
+  // Step 4's hints: the slots of the class the mapping writes, from the target space's model.
   const targetName = targets.find((candidate) => candidate.urn === draft?.targetEndpoint)?.name;
   const targetEndpoint = endpoints.find((candidate) => candidate.metadata.name === targetName);
   const targetSpace = targetEndpoint ? spaceOf(targetEndpoint) : undefined;
@@ -641,15 +642,41 @@ export function PipelineWorkbench({
         )}
       </Step>
 
-      <Step number={3} id="workbench-mapping" title={t("pipelines.workbench.mapping.title")} hint={t("pipelines.workbench.mapping.hint")}>
+      <Step number={3} id="workbench-target" title={t("pipelines.workbench.target.title")} hint={t("pipelines.workbench.target.hint")}>
+        <Field id="workbench-target-pick" label={t("pipelines.field.targetEndpoint")} description={t("pipelines.field.targetEndpointHint")}>
+          <Select
+            id="workbench-target-pick"
+            value={draft?.targetEndpoint ?? ""}
+            onChange={(event) => onChange({ ...(draft ?? {}), targetEndpoint: event.target.value || undefined })}
+          >
+            <option value="">{t("form.choose")}</option>
+            {targets
+              .filter((candidate) => candidate.urn)
+              .map((candidate) => (
+                <option key={candidate.urn} value={candidate.urn}>
+                  {candidate.name}
+                </option>
+              ))}
+          </Select>
+        </Field>
+        {targetSpace ? (
+          <p className="text-caption text-fg-muted">
+            {targetModel
+              ? t("pipelines.workbench.target.lands", { space: targetSpace, model: targetModel.metadata.name })
+              : t("pipelines.workbench.target.landsUnmodelled", { space: targetSpace })}
+          </p>
+        ) : null}
+      </Step>
+
+      <Step number={4} id="workbench-mapping" title={t("pipelines.workbench.mapping.title")} hint={t("pipelines.workbench.mapping.hint")}>
         <RadioGroup
           name="workbench-mapping-mode"
           legend={t("pipelines.mapper.mode")}
           value={mappingMode}
           layout="row"
           options={[
-            { value: "map", label: t("pipelines.mapper.modeMap") },
-            { value: "code", label: t("pipelines.mapper.modeCode") },
+            { value: "map", label: t("pipelines.mapper.modeMap"), description: t("pipelines.mapper.modeMapHint") },
+            { value: "code", label: t("pipelines.mapper.modeCode"), description: t("pipelines.mapper.modeCodeHint") },
           ]}
           onChange={setMappingMode}
         />
@@ -750,7 +777,7 @@ export function PipelineWorkbench({
         )}
       </Step>
 
-      <Step number={4} id="workbench-output" title={t("pipelines.workbench.output.title")} hint={t("pipelines.workbench.output.hint")}>
+      <Step number={5} id="workbench-output" title={t("pipelines.workbench.output.title")} hint={t("pipelines.workbench.output.hint")}>
         {!tried.isFetched && !tried.isFetching ? (
           <p className="text-caption text-fg-subtle">{t("pipelines.workbench.output.waiting")}</p>
         ) : tried.isFetching ? (
@@ -822,7 +849,7 @@ export function PipelineWorkbench({
         )}
       </Step>
 
-      <Step number={5} id="workbench-validation" title={t("pipelines.workbench.validation.title")} hint={t("pipelines.workbench.validation.hint")}>
+      <Step number={6} id="workbench-validation" title={t("pipelines.workbench.validation.title")} hint={t("pipelines.workbench.validation.hint")}>
         {!draft?.targetEndpoint ? (
           <p className="text-caption text-fg-subtle">{t("pipelines.workbench.mapping.pickTarget")}</p>
         ) : records.length === 0 ? (
@@ -852,33 +879,8 @@ export function PipelineWorkbench({
           </Alert>
         ) : null}
       </Step>
+      <p className="text-caption text-fg-subtle">{t("pipelines.workbench.target.save")}</p>
 
-      <Step number={6} id="workbench-target" title={t("pipelines.workbench.target.title")} hint={t("pipelines.workbench.target.hint")}>
-        <Field id="workbench-target-pick" label={t("pipelines.field.targetEndpoint")} description={t("pipelines.field.targetEndpointHint")}>
-          <Select
-            id="workbench-target-pick"
-            value={draft?.targetEndpoint ?? ""}
-            onChange={(event) => onChange({ ...(draft ?? {}), targetEndpoint: event.target.value || undefined })}
-          >
-            <option value="">{t("form.choose")}</option>
-            {targets
-              .filter((candidate) => candidate.urn)
-              .map((candidate) => (
-                <option key={candidate.urn} value={candidate.urn}>
-                  {candidate.name}
-                </option>
-              ))}
-          </Select>
-        </Field>
-        {targetSpace ? (
-          <p className="text-caption text-fg-muted">
-            {targetModel
-              ? t("pipelines.workbench.target.lands", { space: targetSpace, model: targetModel.metadata.name })
-              : t("pipelines.workbench.target.landsUnmodelled", { space: targetSpace })}
-          </p>
-        ) : null}
-        <p className="text-caption text-fg-subtle">{t("pipelines.workbench.target.save")}</p>
-      </Step>
 
       {children}
     </div>

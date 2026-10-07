@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { testPipeline } from "../../api/pipelineTest";
 import type { SampleFormat, Trace } from "../../api/pipelineTest";
-import { Alert, Button, FilePicker } from "../../components/ui";
+import { Alert, Button, Checkbox, FilePicker } from "../../components/ui";
+import type { DebugEntry } from "./DebugPanel";
+import { messagesOf } from "./pipelineDebug";
 import type { PipelineForm } from "./PipelineEditor";
 import { FormHeading } from "../../components/forms/FormRoute";
 
@@ -180,18 +182,25 @@ export interface PipelineTestProps {
   onVerdict?: (ok: boolean, bloblang: string) => void;
   /** Notifies whenever the test trace is produced or cleared. */
   onTrace?: (trace: Trace | null) => void;
+  /** Every finished run, and the message it ran on in step mode, for the Debug sidebar (T-3222). */
+  onDebug?: (entry: DebugEntry) => void;
 }
 
 /** A sample is a file held in memory, or a URL the runner fetches itself (PL-43, PL-48). */
 type SampleSource = { name: string; format: SampleFormat } & ({ text: string; url?: undefined } | { url: string; text?: undefined });
 
-export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, onVerdict, onTrace }: PipelineTestProps): JSX.Element {
+export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, onVerdict, onTrace, onDebug }: PipelineTestProps): JSX.Element {
   const { t } = useTranslation();
   const [sample, setSample] = useState<SampleSource | null>(null);
   const [trace, setTrace] = useState<Trace | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const bloblang = draft?.compute?.bloblang ?? "";
+  // Step mode: one message of the sample per run, in order (T-3222).
+  const [stepping, setStepping] = useState(false);
+  const stepHint = useId();
+  const [at, setAt] = useState(0);
+  const messages = stepping && sample?.text !== undefined ? messagesOf(sample.text, sample.format) : [];
 
   async function takeFile(file: File | undefined) {
     if (!file) {
@@ -205,6 +214,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
       setError(t("pipelines.test.tooLarge"));
       return;
     }
+    setAt(0);
     const text = await readText(file);
     const space = spaceOfTarget(draft?.targetEndpoint, project);
     const drafted = draftFromSample(file.name, text, space);
@@ -219,10 +229,11 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
     }
   }
 
-  async function run() {
+  async function run(message?: number) {
     if (!sample || !draft) {
       return;
     }
+    const text = message === undefined ? sample.text : messages[message];
     setRunning(true);
     setError(null);
     try {
@@ -231,7 +242,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         toManifest(draft),
         sample.url !== undefined
           ? { url: sample.url, format: sample.format }
-          : { text: sample.text ?? "", format: sample.format },
+          : { text: text ?? "", format: sample.format },
       );
       if (!("trace" in answered)) {
         setTrace(null);
@@ -242,6 +253,8 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
       const answer = answered.trace;
       setTrace(answer);
       onTrace?.(answer);
+      onDebug?.({ message: message ?? null, trace: answer });
+      if (message !== undefined) setAt(Math.min(message + 1, messages.length - 1));
       onVerdict?.(
         answer.errors.length === 0 && answer.validation.length > 0 && answer.validation.every((v) => v.ok),
         bloblang,
@@ -322,11 +335,39 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
                 : undefined
           }
           onClick={() => {
-            void run();
+            void run(stepping && messages.length > 0 ? at : undefined);
           }}
         >
-          {running ? t("pipelines.test.running") : t("pipelines.test.run")}
+          {running
+            ? t("pipelines.test.running")
+            : stepping && messages.length > 0
+              ? t("pipelines.debug.runMessage", { number: at + 1, total: messages.length })
+              : t("pipelines.test.run")}
         </Button>
+        <Checkbox
+          label={t("pipelines.debug.stepMode")}
+          aria-describedby={stepHint}
+          checked={stepping}
+          disabled={sample?.url !== undefined}
+          disabledReason={sample?.url !== undefined ? t("pipelines.debug.stepModeFile") : undefined}
+          onChange={(e) => {
+            setStepping(e.target.checked);
+            setAt(0);
+          }}
+        />
+        <span id={stepHint} className="text-caption text-fg-muted">
+          {t("pipelines.debug.stepModeHint")}
+        </span>
+        {stepping && messages.length > 0 ? (
+          <>
+            <Button size="sm" variant="ghost" disabled={at === 0} onClick={() => setAt(0)}>
+              {t("pipelines.debug.startOver")}
+            </Button>
+            <span className="text-caption text-fg-muted" aria-live="polite">
+              {t("pipelines.debug.position", { number: at + 1, total: messages.length })}
+            </span>
+          </>
+        ) : null}
       </div>
       {error ? (
         <Alert role="alert" tone="danger">

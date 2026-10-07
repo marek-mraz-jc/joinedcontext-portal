@@ -12,7 +12,11 @@
       "crashHome": "Zpět na začátek",
       "session": "Vaše přihlášení skončilo. Přihlaste se znovu, abyste to viděli.",
       "forbiddenHint": "Přístup vám může dát vlastník projektu nebo správce organizace.",
-      "reference": "Uveďte toto, až to budete hlásit:"
+      "reference": "Uveďte toto, až to budete hlásit:",
+      "offline": "Jste offline. Stránka se načte znovu, jakmile bude připojení zpět.",
+      "copy": "Kopírovat",
+      "copied": "Zkopírováno",
+      "copyReference": "Kopírovat referenci {reference}"
     },
     "notFound": {
       "title": "Tato stránka neexistuje",
@@ -240,6 +244,7 @@
       "inForge": "Uzavřeno v repozitáři",
       "older": "Zobrazit starší změny",
       "empty": "Zatím nebyla sloučena ani zamítnuta žádná změna.",
+      "emptyHint": "Změna se tu objeví i s tím, kdo o ní rozhodl, jakmile ji na kartě Otevřené schválíte nebo zamítnete.",
       "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano."
     }
   },
@@ -396,7 +401,8 @@
     "new": "Nový {kind}",
     "newHint": "Vyplňte formulář, zkontrolujte jej a navrhněte; změnu posoudí schvalovatel.",
     "propose": "Navrhnout změnu",
-    "emptyHintCreate": "V projektu zatím nic tohoto druhu není. Nový {kind} otevře formulář."
+    "emptyHintCreate": "V projektu zatím nic tohoto druhu není. Nový {kind} otevře formulář.",
+    "askAssistant": "Požádat asistenta o návrh"
   },
   "spaces": {
     "entitiesUnknown": "Počet není k dispozici: {reason}",
@@ -843,7 +849,20 @@
       "writing": "Vytvořeno {sent} z {total}…",
       "done": "{created, plural, =0 {Nevytvořil se žádný řádek} one {Vytvořen # řádek} few {Vytvořeny # řádky} other {Vytvořeno # řádků}}, {refused, plural, =0 {žádný odmítnut.} one {# odmítnut.} few {# odmítnuty.} other {# odmítnuto.}}",
       "downloadRefused": "Stáhnout odmítnuté řádky (CSV)",
-      "close": "Zavřít"
+      "close": "Zavřít",
+      "preview": "Ukázka {count, plural, one {prvního # řádku} other {prvních # řádků}}",
+      "previewCaption": "První řádky souboru tak, jak byly přečteny",
+      "detected": {
+        "encoding": "Kódování {encoding}",
+        "separator": {
+          "comma": "odděleno čárkami",
+          "semicolon": "odděleno středníky",
+          "tab": "odděleno tabulátory"
+        },
+        "decimalComma": "desetinná čárka",
+        "decimalPoint": "desetinná tečka",
+        "dates": "data jako {format}"
+      }
     },
     "export": {
       "label": "Exportovat:",
@@ -1030,7 +1049,8 @@
         "aliasHelp": "Název, pod kterým tento projekt čte sdílený prostor; používají jej zdejší dotazy a pipeliny.",
         "interval": "Interval zrcadlení",
         "intervalHelp": "Jak často se sem zrcadlí schéma zdroje, například 6h nebo 1d; prázdné znamená jednou denně."
-      }
+      },
+      "browse": "Podívat se, co zveřejňují jiné projekty"
     },
     "audienceOption": {
       "project-list": "Vybrané projekty: pouze projekty, které označíte",
@@ -1312,7 +1332,51 @@
       "known": "Známá tajemství"
     },
     "emptyHint": "Datový zdroj je místo, odkud platforma čte: kanál, broker, API. Přidejte jeden a pipeline jej může načíst do kontextového prostoru.",
-    "newPipeline": "Nová pipeline z tohoto zdroje"
+    "newPipeline": "Nová pipeline z tohoto zdroje",
+    "template": {
+      "title": "Začít ze šablony",
+      "lead": "Vyberte, co je zdroj, a zadejte jeho adresu: formulář se vyplní a hned ověří a první záznamy uvidíte dřív, než cokoli navrhnete.",
+      "use": "Vyplnit formulář a ověřit",
+      "nameHelp": "Malá písmena, číslice a pomlčky; bere se z adresy, dokud nenapíšete vlastní.",
+      "csv": {
+        "title": "Soubor CSV na adrese",
+        "what": "Tabulka zveřejněná jako soubor .csv, čtená při každém běhu.",
+        "url": "Adresa souboru CSV",
+        "urlHelp": "Adresa, která stáhne samotný soubor, začíná na https://."
+      },
+      "json": {
+        "title": "REST API (JSON)",
+        "what": "API, které odpovídá v JSON, čtené při každém běhu.",
+        "url": "Adresa API",
+        "urlHelp": "Celá adresa i s parametry, začíná na https://; klíč k API zadáte ve formuláři níže."
+      },
+      "ckan": {
+        "title": "Dataset z portálu CKAN",
+        "what": "Zdroj z katalogu otevřených dat, například data.gov.cz.",
+        "url": "Adresa ke stažení zdroje",
+        "urlHelp": "Na stránce datasetu otevřete zdroj CSV nebo JSON a zkopírujte jeho adresu ke stažení."
+      },
+      "wfs": {
+        "title": "Vrstva WFS nebo GeoJSON",
+        "what": "Prvky mapové služby, čtené jako GeoJSON.",
+        "url": "Adresa služby WFS nebo souboru GeoJSON",
+        "urlHelp": "Adresa služby po otazník, nebo soubor GeoJSON.",
+        "layer": "Název vrstvy",
+        "layerHelp": "Typ prvků, který služba uvádí ve svých capabilities; u souboru GeoJSON není potřeba."
+      },
+      "gtfs-rt": {
+        "title": "Kanál GTFS Realtime",
+        "what": "Polohy vozidel dopravce veřejné dopravy.",
+        "url": "Adresa kanálu GTFS Realtime",
+        "urlHelp": "Kanál protobuf, který dopravce zveřejňuje, začíná na https://. Statický jízdní řád GTFS (.zip) není živý kanál."
+      },
+      "problem": {
+        "name": "Zadejte název z malých písmen, číslic a pomlček, nejvýš 63 znaků.",
+        "url": "Zadejte celou adresu začínající na https:// nebo http://.",
+        "ckanDataset": "Tohle je stránka datasetu, ne soubor. Otevřete na ní zdroj CSV nebo JSON a zkopírujte jeho adresu ke stažení.",
+        "layer": "Zadejte vrstvu ke čtení, nebo adresu souboru GeoJSON."
+      }
+    }
   },
   "pipelines": {
     "lead": "Co přináší data: každá pipeline čte zdroj, transformuje ho a zapisuje přes endpoint.",
@@ -1695,7 +1759,7 @@
         "slotsOf": "Co bere {type}",
         "slots": "Co bere model",
         "noModel": "Cílový prostor nejmenuje datový model, takže žádný slot není znám.",
-        "pickTarget": "Vyberte cílový endpoint v kroku 6 a uvidíte, co bere jeho model.",
+        "pickTarget": "Vyberte cílový endpoint v kroku 3 a uvidíte, co bere jeho model.",
         "required": "povinné",
         "many": "více hodnot",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a další (#)}}",
@@ -1728,7 +1792,7 @@
         "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušují} other {# záznamů porušuje}} {model} {version} a nezapíše se; platných: {valid}."
       },
       "target": {
-        "title": "Cíl a uložení",
+        "title": "Cíl",
         "hint": "Určete endpoint, přes který se záznamy zapíší; uložení navrhne změnu.",
         "lands": "Záznamy přistanou v prostoru {space}, kontrolované vůči modelu {model}.",
         "landsUnmodelled": "Záznamy přistanou v prostoru {space}, který zatím nejmenuje datový model.",
@@ -1739,6 +1803,8 @@
       "mode": "Jak se z každého záznamu stane entita",
       "modeMap": "Přiřadit pole",
       "modeCode": "Napsat Bloblang",
+      "modeMapHint": "Pro každý atribut vyberte pole záznamu, výraz, pevnou hodnotu nebo bod.",
+      "modeCodeHint": "Krok v Bloblangu napište sami.",
       "type": "Typ entity",
       "typeHint": "Typ z datového modelu cílového prostoru; jeho atributy jsou níže.",
       "loading": "Načítají se atributy typu…",
@@ -1776,6 +1842,42 @@
         "notValue": "{field} obsahuje „{value}“; {name} očekává jednu z hodnot {values}.",
         "noId": "Vyberte pole, ze kterého vznikne id každé entity."
       }
+    },
+    "debug": {
+      "add": "+ Ladění",
+      "pickWire": "Nejprve vyberte uzel: ladicí uzel odposlouchává drát, který do něj vede, nebo ho přetáhněte na drát.",
+      "remove": "Odstranit tento ladicí uzel",
+      "badge": "ladění",
+      "title": "Ladění",
+      "clear": "Vymazat",
+      "noTaps": "Pusťte ladicí uzel na drát a uvidíte, co jím při každém testu projde.",
+      "filter": "Zobrazit dráty uzlu",
+      "everyNode": "Každý uzel",
+      "nothingYet": "Spusťte test a uvidíte, co projde odposlouchávanými dráty.",
+      "messages": "Co prošlo odposlouchávanými dráty, nejnovější první",
+      "wholeSample": "Celý vzorek",
+      "message": "Zpráva {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Tento drát nic nedosáhlo.",
+      "failedHere": "Tento uzel selhal",
+      "brokeIt": "Vstup, na kterém selhal:",
+      "changed": "Co tento uzel změnil",
+      "unchanged": "Nic: zpráva odešla tak, jak přišla.",
+      "kind": {
+        "added": "přidáno",
+        "removed": "odstraněno",
+        "changed": "změněno"
+      },
+      "rerun": "Spustit tento uzel znovu na tomto vstupu",
+      "rerunHint": "Běží jen tento uzel, na vstupu výše; nic se nezapíše.",
+      "rerunFailed": "Stále selhává",
+      "rerunOk": "Prošlo; co vytvořil:",
+      "stepMode": "Jedna zpráva najednou",
+      "stepModeHint": "Spustí vzorek po jedné zprávě, abyste mohli sledovat každou skrz kroky.",
+      "stepModeFile": "Krokování dělí vzorek ze souboru na zprávy; místo URL dejte soubor.",
+      "runMessage": "Spustit zprávu {number} z {total}",
+      "startOver": "Od začátku",
+      "position": "Zpráva {number} z {total}"
     }
   },
   "dashboards": {
@@ -1935,7 +2037,8 @@
         "k8sServiceAccount": "Servisní účet Kubernetes"
       },
       "grantIn": "{role} v {where}",
-      "grantOrg": "{role} v celé organizaci"
+      "grantOrg": "{role} v celé organizaci",
+      "emptyHint": "Servisní účet je způsob, jak program mimo Portál čte nebo zapisuje tento projekt: skript, pipeline jinde, jiná platforma. Každý dostane vlastní klíče a jen roli, kterou mu dáte."
     },
     "keys": {
       "create": "Nový API klíč ({credential})",
@@ -2275,7 +2378,31 @@
       "count": "{count, plural, one {# model} few {# modely} other {# modelů}}",
       "allAttributes": "Všechny",
       "onlyRequired": "Jen povinné",
-      "kept": "Ponechané atributy: {kept} z {total}"
+      "kept": "Ponechané atributy: {kept} z {total}",
+      "origin": "Původní model na GitHubu (commit {commit})",
+      "mode": "Jak ho převzít",
+      "asIs": "Tak, jak je",
+      "asIsHint": "Všech {count} atributů beze změny; nejrychlejší cesta.",
+      "adapt": "Upravit ho",
+      "adaptHint": "Odškrtněte, co nepotřebujete, a přidejte vlastní atributy.",
+      "addTitle": "Vaše vlastní atributy",
+      "addedList": "Atributy, které jste přidali",
+      "addRemove": "Odstranit {name}",
+      "addName": "Název atributu",
+      "addNameHelp": "Malý camelCase, písmena a číslice, jak je pojmenovává Smart Data Models.",
+      "addRange": "Druh hodnoty",
+      "add": "Přidat",
+      "addProblem": {
+        "name": "Začněte malým písmenem a použijte jen písmena a číslice.",
+        "taken": "Model už má atribut s tímto názvem."
+      },
+      "range": {
+        "string": "Text",
+        "integer": "Celé číslo",
+        "float": "Číslo",
+        "boolean": "Ano nebo ne",
+        "datetime": "Datum a čas"
+      }
     },
     "addClass": "Přidat třídu",
     "addSlot": "Přidat atribut",
@@ -2324,7 +2451,11 @@
       "refused": "Editor odmítl {n} operací",
       "populate": "Naplnit editor",
       "cancel": "Zrušit",
-      "close": "Zavřít"
+      "close": "Zavřít",
+      "url": "Nebo adresa API, které odpovídá v JSON",
+      "urlHelp": "Jednou ji přečte runner projektu, jako ji čte ověření zdroje dat; model se odvodí ze záznamů, které vrátí.",
+      "readUrl": "Přečíst adresu",
+      "urlInvalid": "Zadejte celou adresu začínající na https:// nebo http://."
     },
     "source": {
       "loading": "Načítá se zdroj modelu…",
@@ -2835,7 +2966,8 @@
       "organization": "všichni v organizaci",
       "public": "všichni, i bez přihlášení",
       "roles": "lidé s některou z jejích rolí"
-    }
+    },
+    "emptyTitle": "Zatím žádné aplikace"
   },
   "appLifecycle": {
     "draft": "Návrh",
@@ -5716,6 +5848,36 @@
     "title": "Upozornění",
     "none": "Nic nového.",
     "mentioned": "{name} vás zmínil(a) v {space}"
+  },
+  "problem": {
+    "bad-request": "Opravte požadavek podle popisu a pošlete jej znovu.",
+    "invalid-request": "Opravte označená pole a pošlete to znovu.",
+    "invalid-body": "Pošlete tělo v dokumentovaném tvaru; popis říká, co je špatně.",
+    "urn-scheme": "Použijte identifikátor entity ve tvaru urn:ngsi-ld:Type:id, např. urn:ngsi-ld:Vehicle:bus-12.",
+    "unauthorized": "Přihlaste se znovu nebo pošlete platný token pro tuto službu.",
+    "forbidden": "Požádejte vlastníka projektu nebo správce organizace o roli, kterou to vyžaduje.",
+    "domain-not-verified": "Nejprve ověřte doménu v nastavení organizace.",
+    "self-approval": "Požádejte jiného schvalovatele, aby rozhodl o vaší změně.",
+    "resource-not-found": "Zkontrolujte název v adrese; neexistuje nebo s vámi není sdílený.",
+    "method-not-allowed": "Použijte některou z metod, které tato adresa povoluje.",
+    "read-only-view": "Tento pohled jen čte; data měňte přes endpoint, na kterém stojí.",
+    "conflict": "Načtěte to znovu a zopakujte změnu nad aktuálním stavem.",
+    "verdict-required": "Nejprve spusťte test; zelený výsledek umožní změnu navrhnout.",
+    "precondition-failed": "Načtěte entitu znovu; od vašeho čtení ji někdo změnil.",
+    "payload-too-large": "Pošlete najednou méně: rozdělte požadavek nebo soubor.",
+    "unsupported-media-type": "Pošlete obsah jako JSON.",
+    "too-many-requests": "Chvíli počkejte a zkuste to znovu.",
+    "daily-budget": "Dnešní limit je vyčerpán; zkuste to zítra nebo požádejte správce o navýšení.",
+    "egress-budget-spent": "Odchozí limit tohoto běhu je vyčerpán; spusťte nový běh nebo požádejte správce o navýšení.",
+    "internal-error": "Zkuste to znovu; pokud se to opakuje, nahlaste referenci níže.",
+    "not-implemented": "Tato instalace to nenabízí; obraťte se na správce.",
+    "subscription-not-routable": "Použijte adresu příjemce, kterou platforma dosáhne přes HTTP(S).",
+    "federation-identity-unavailable": "Tato instalace nemá federační identitu; požádejte správce, aby ji nastavil.",
+    "broker-failure": "Úložiště dat tento požadavek nezvládlo; zkuste to za minutu a pokud se to opakuje, nahlaste referenci.",
+    "upstream-unavailable": "Služba za platformou neodpověděla; zkuste to za minutu.",
+    "upstream-redirect": "Služba za platformou poslala přesměrování, které nesmí následovat; požádejte jejího vlastníka o konečnou adresu.",
+    "service-unavailable": "Platforma na to ještě není připravená; zkuste to za minutu.",
+    "delivery-timeout": "Příjemce neodpověděl včas; ověřte, že je dostupný, a zkuste to znovu."
   },
   "places": {
     "star": "Označit stránku hvězdičkou",

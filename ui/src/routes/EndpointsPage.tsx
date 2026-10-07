@@ -60,6 +60,7 @@ import {
   Alert,
   Badge,
   Button,
+  buttonClass,
   Dialog,
   EmptyState,
   Icon,
@@ -1305,7 +1306,13 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 <EmptyState bare
                   icon="globe"
                   title={t("endpoints.shared.empty")}
-                  description={t("endpoints.shared.emptyHint")} />
+                  description={t("endpoints.shared.emptyHint")}
+                  action={
+                    // What other projects publish is where a person finds one to ask for (T-3246).
+                    <Link to="/endpoints" className={buttonClass("secondary", "md")}>
+                      {t("endpoints.shared.browse")}
+                    </Link>
+                  } />
               </TableEmpty>
             ) : (
               shared.map(({ source, endpoint }) => {
