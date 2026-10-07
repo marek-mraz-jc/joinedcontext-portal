@@ -226,6 +226,26 @@ routes:
   - route: GET /projects/{project}/spaces/{space}/usage
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/spaces/{space}/views
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/spaces/{space}/views
+    rule: "space-read"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    body: {"type": "Station", "kind": "grid", "mode": "personal", "title": "x"}
+  - route: GET /projects/{project}/spaces/{space}/views/{id}
+    rule: "space-read, then the view's mode"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
+  - route: PUT /projects/{project}/spaces/{space}/views/{id}
+    rule: "space-read, then the view's mode"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    body: {"kind": "grid", "mode": "personal", "title": "x"}
+    note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
+  - route: DELETE /projects/{project}/spaces/{space}/views/{id}
+    rule: "space-read, then the view's mode"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
   - route: GET /projects/{project}/spaces/{space}/live
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
@@ -260,6 +280,45 @@ routes:
     rule: "signed-in"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
     note: "the caller's own notification only; the fixture holds none, so every signed-in caller meets 404"
+  - route: GET /projects/{project}/knowledge/sources
+    rule: "project-verb:read:KnowledgeSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "a caller the rule admits meets 503: the fixture configures no knowledge assistant (JC_PORTAL_KNOWLEDGE_URL)"
+  - route: GET /projects/{project}/knowledge/sources/{source}/pages
+    rule: "project-verb:read:KnowledgeSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: GET /projects/{project}/knowledge/sources/{source}/documents
+    rule: "project-verb:read:KnowledgeSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: GET /projects/{project}/knowledge/sources/{source}/pages/{page}/links
+    rule: "project-verb:read:KnowledgeSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: GET /projects/{project}/knowledge/sources/{source}/passages
+    rule: "project-verb:read:KnowledgeSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    query: "page=1"
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: POST /projects/{project}/knowledge/sources/{source}/inclusion
+    rule: "project-verb:propose:KnowledgeSource"
+    expect: [403, 403, 403, 403, 403, allow, 404, 403]
+    body: {"pages": [1], "included": false}
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: POST /projects/{project}/knowledge/sources/{source}/recrawl
+    rule: "project-verb:propose:KnowledgeSource"
+    expect: [403, 403, 403, 403, 403, allow, 404, 403]
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: GET /projects/{project}/knowledge/deployments/{deployment}/usage
+    rule: "project-verb:read:AssistantDeployment"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no AssistantDeployment, so a caller the rule admits meets 404 after the check passed"
+  - route: POST /projects/{project}/knowledge/deployments/{deployment}/chat
+    rule: "project-verb:read:AssistantDeployment"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    body: {"message": "Ahoj"}
+    note: "the fixture holds no AssistantDeployment, so a caller the rule admits meets 404 after the check passed; knowledge_api_tests holds the rule with one"
   - route: GET /projects/{project}/agent-runs
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

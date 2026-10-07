@@ -72,6 +72,7 @@ import { DataSourcesPage } from "../pages/datasources/DataSourcesPage";
 import { FlowGallery } from "../pages/flows/Gallery";
 import { AppsCatalog } from "../pages/apps/AppsCatalog";
 import { SyncSourcesPage } from "../pages/sync/SyncSourcesPage";
+import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../schemas/knowledge";
 
 const VIEWS: Record<string, (props: { project: string; edit?: string }) => JSX.Element> = {
   spaces: SpacesPage,
@@ -155,6 +156,18 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
     fromManifest: (manifest) => fromAgentProfileManifest(manifest) as Record<string, unknown>,
     toManifest: (form, stored) => toAgentProfileManifest(form as AgentProfileForm, stored),
   }),
+  // The knowledge assistant's kinds (T-3057): created and edited from their lists, which the
+  // Knowledge sources page links; their references are pickers (pickers.ts).
+  knowledgesources: (t, project) => ({
+    schema: knowledgeSourceSchema(t),
+    fromManifest: (manifest) => fromKindManifest(manifest),
+    toManifest: (form, stored) => toKindManifest("KnowledgeSource", project, form, stored),
+  }),
+  assistantdeployments: (t, project) => ({
+    schema: assistantDeploymentSchema(t),
+    fromManifest: (manifest) => fromKindManifest(manifest),
+    toManifest: (form, stored) => toKindManifest("AssistantDeployment", project, form, stored),
+  }),
 };
 
 /**
@@ -171,6 +184,8 @@ const CREATE_KINDS: Record<string, string> = {
   agentprofiles: "AgentProfile",
   dataspaceparticipants: "DataSpaceParticipant",
   environments: "Environment",
+  knowledgesources: "KnowledgeSource",
+  assistantdeployments: "AssistantDeployment",
 };
 
 /**

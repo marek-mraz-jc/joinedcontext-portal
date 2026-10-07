@@ -203,12 +203,15 @@ export function PublicViewPage({ slug }: { slug: string }): JSX.Element {
     [rows.data],
   );
 
-  if (types.isPending) return <p role="status">{t("app.loading")}</p>;
-  if (types.isError || types.data.length === 0) {
+  // Every state keeps the page's one heading: the link's own name until a type is read.
+  if (types.isPending || types.isError || types.data.length === 0) {
     return (
-      <Alert role="alert" tone="info">
-        {t("spaces.share.notPublished")}
-      </Alert>
+      <div className="flex flex-col gap-3" data-testid="public-view">
+        <h1 className="text-title font-semibold text-fg">{slug}</h1>
+        <p className="text-body text-fg-muted" role="status">
+          {types.isPending ? t("app.loading") : t("spaces.share.notPublished")}
+        </p>
+      </div>
     );
   }
   return (

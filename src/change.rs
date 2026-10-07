@@ -209,6 +209,8 @@ pub fn classify_manifest(manifest: &crate::resource::ResourceEnvelope, op: Opera
 ///   is who a binding names, so a membership is reviewed like the binding itself.
 /// - `Environment` is `Red` (CC-73, CC-75): one file decides the domain of every URN, the image
 ///   every workload runs and where a `secretRef` is resolved, for a whole environment at once.
+/// - `AssistantDeployment` on the `public`, `ckan` or `iframe` channel is `Red`: it answers anyone
+///   and spends the installation's model budget (MF-52, Architecture/06 §4).
 /// - `ContextSpace` with `spec.isSandbox == true` is `Green` (ephemeral sandbox, CC-67).
 /// - `Dashboard` and `Layer` are `Green`.
 /// - Everything else defaults to `Yellow`.
@@ -230,6 +232,21 @@ pub fn classify(kind: &str, op: Operation, spec: &serde_json::Value) -> Lane {
                 .get("egress")
                 .and_then(|v| v.as_array())
                 .is_some_and(|egress| !egress.is_empty()))
+    {
+        return Lane::Red;
+    }
+
+    // A named MCP server open to anyone is public exposure of its member Endpoints: declaring or
+    // widening one to `public` takes a publisher's approval (MF-53, ADR-N-043).
+    if kind == "McpServer" && spec.get("audience").and_then(|v| v.as_str()) == Some("public") {
+        return Lane::Red;
+    }
+
+    if kind == "AssistantDeployment"
+        && spec
+            .get("channel")
+            .and_then(|v| v.as_str())
+            .is_some_and(|channel| channel != "internal")
     {
         return Lane::Red;
     }

@@ -368,6 +368,10 @@ export function Shell({
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
+  const knowledgeActive = Boolean(
+    matchRoute({ to: "/projects/$project/knowledge", params: { project }, fuzzy: true }),
+  );
+  const mcpActive = Boolean(matchRoute({ to: "/projects/$project/mcp", params: { project } }));
   const catalogueActive = Boolean(matchRoute({ to: "/catalogue", fuzzy: true }));
   const importActive = Boolean(matchRoute({ to: "/projects/$project/import", params: { project } }));
 
@@ -558,6 +562,28 @@ export function Shell({
                 className={navLinkClass(ckanActive)}
               >
                 <NavLabel icon="ckan" label={t("nav.ckan")} />
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/projects/$project/knowledge"
+                params={{ project }}
+                onClick={closeNav}
+                aria-current={knowledgeActive ? "page" : undefined}
+                className={navLinkClass(knowledgeActive)}
+              >
+                <NavLabel icon="search" label={t("nav.knowledge")} />
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/projects/$project/mcp"
+                params={{ project }}
+                onClick={closeNav}
+                aria-current={mcpActive ? "page" : undefined}
+                className={navLinkClass(mcpActive)}
+              >
+                <NavLabel icon="endpoints" label={t("nav.mcp")} />
               </Link>
             </li>
             <li>

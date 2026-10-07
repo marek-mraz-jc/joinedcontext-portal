@@ -129,8 +129,12 @@ pub struct Syncer {
     /// The federated client of every ServiceAccount bound to a workload (PF-47). `None` without
     /// a login client: such an account then has no client, and its workload no identity.
     workload_clients: Option<Arc<super::workload_clients::WorkloadClientSync>>,
+    /// The pipelines' own Kubernetes ServiceAccounts and the namespace they live in (PL-19).
+    pipeline_service_accounts: Option<(Arc<crate::apps::kube::KubeClient>, String)>,
     /// The MCP hub client's `endpoint:{slug}` scopes (T-2490, EP-88).
     hub_scopes: Option<Arc<super::hub_scopes::HubScopeSync>>,
+    /// The sign-in client of every named MCP server (EP-96, T-3156).
+    mcp_clients: Option<Arc<super::mcp_clients::McpClientSync>>,
     /// The APISIX file the edge serves, composed from helm's base and every published App's
     /// routes (ADR-N-030, AP-112), with the settings that say where each App runs. `None`
     /// outside a cluster: the edge then serves helm's base alone.
@@ -213,7 +217,9 @@ impl Syncer {
             app_clients: None,
             app_client_secrets: Arc::default(),
             workload_clients: None,
+            pipeline_service_accounts: None,
             hub_scopes: None,
+            mcp_clients: None,
             edge_file: None,
             app_hosts: None,
             activity: None,
@@ -338,13 +344,30 @@ impl Syncer {
         self
     }
 
-    /// Makes each run bring every workload-bound ServiceAccount's client to its manifest (PF-47).
     /// Renders the MCP hub client's `endpoint:{slug}` scopes each run (T-2490).
     pub fn with_hub_scopes(mut self, scopes: Arc<super::hub_scopes::HubScopeSync>) -> Self {
         self.hub_scopes = Some(scopes);
         self
     }
 
+    /// Renders every named MCP server's client `mcp-{project}-{name}` each run (EP-96, T-3156).
+    pub fn with_mcp_clients(mut self, clients: Arc<super::mcp_clients::McpClientSync>) -> Self {
+        self.mcp_clients = Some(clients);
+        self
+    }
+
+    /// Makes each run keep one Kubernetes ServiceAccount per Pipeline in `namespace`, the
+    /// subject its federated client trusts (PL-19, T-1508).
+    pub fn with_pipeline_service_accounts(
+        mut self,
+        kube: Arc<crate::apps::kube::KubeClient>,
+        namespace: impl Into<String>,
+    ) -> Self {
+        self.pipeline_service_accounts = Some((kube, namespace.into()));
+        self
+    }
+
+    /// Makes each run bring every workload-bound ServiceAccount's client to its manifest (PF-47).
     pub fn with_workload_clients(
         mut self,
         clients: Arc<super::workload_clients::WorkloadClientSync>,
@@ -1076,7 +1099,19 @@ impl Syncer {
         }
 
         // 5d'. The federated client of every ServiceAccount bound to a workload (PF-47). Nothing
-        //      is read back: no secret opens such a client.
+        //      is read back: no secret opens such a client. A Pipeline's own account is bound
+        //      to a Kubernetes ServiceAccount the step before it keeps (PL-19).
+        if let Some((kube, namespace)) = self.pipeline_service_accounts.as_ref() {
+            for failure in super::workload_clients::converge_pipeline_service_accounts(
+                kube,
+                &fresh_mirror,
+                namespace,
+            )
+            .await
+            {
+                tracing::warn!(%namespace, %failure, "pipeline ServiceAccount did not converge");
+            }
+        }
         if let Some(clients) = self.workload_clients.as_ref() {
             for outcome in clients.converge(&fresh_mirror).await {
                 match (&outcome.error, outcome.drift.is_empty()) {
@@ -1102,6 +1137,18 @@ impl Syncer {
                 }
                 for warning in &outcome.warnings {
                     tracing::info!(scope = %outcome.app, warning = %warning, "hub scopes wait for the realm");
+                }
+            }
+        }
+
+        // 5d, named servers. One public PKCE client per named MCP server, its own audience
+        //       (EP-96, T-3156).
+        if let Some(clients) = self.mcp_clients.as_ref() {
+            for outcome in clients.converge(&fresh_mirror).await {
+                if let Some(err) = &outcome.error {
+                    tracing::warn!(server = %outcome.app, error = %err, "MCP server client did not converge");
+                } else if !outcome.drift.is_empty() {
+                    tracing::info!(server = %outcome.app, drift = %outcome.drift.join("; "), "MCP server client brought back to its server");
                 }
             }
         }

@@ -253,6 +253,7 @@ fn every_kind_the_catalogue_holds_has_a_lane_somebody_decided() {
         "AgentProfile",
         "AgentRun",
         "App",
+        "AssistantDeployment", // internal; a public one is Red by its channel, below
         "Basemap",
         "Blueprint",
         "Bundle",
@@ -262,7 +263,9 @@ fn every_kind_the_catalogue_holds_has_a_lane_somebody_decided() {
         "DataSource",
         "Endpoint",
         "Entity",
+        "KnowledgeSource",
         "Mapping",
+        "McpServer", // organization or a project list; a public one is Red by its audience, below
         "ModelProjection",
         "Pipeline",
         "Subscription", // T-2292
@@ -335,4 +338,74 @@ fn a_kind_the_catalogue_does_not_have_is_never_green() {
     // A very long name is a name like any other: no panic, no Green.
     let long = "R".repeat(100_000);
     assert_eq!(lane(&long, Operation::Create, json!({})), Lane::Yellow);
+}
+
+/// T-3057, MF-52: an assistant that answers anyone is public exposure and spends the model
+/// budget, so its deployment is Red; one for signed-in staff, and a source, are Yellow.
+#[test]
+fn a_public_assistant_deployment_is_red_and_an_internal_one_yellow() {
+    for channel in ["public", "ckan", "iframe"] {
+        assert_eq!(
+            lane(
+                "AssistantDeployment",
+                Operation::Create,
+                json!({"channel": channel})
+            ),
+            Lane::Red,
+            "{channel}"
+        );
+        assert_eq!(
+            lane(
+                "AssistantDeployment",
+                Operation::Update,
+                json!({"channel": channel})
+            ),
+            Lane::Red,
+            "{channel}"
+        );
+    }
+    assert_eq!(
+        lane(
+            "AssistantDeployment",
+            Operation::Create,
+            json!({"channel": "internal"})
+        ),
+        Lane::Yellow
+    );
+    assert_eq!(
+        lane(
+            "KnowledgeSource",
+            Operation::Update,
+            json!({"visibility": "public"})
+        ),
+        Lane::Yellow
+    );
+}
+
+/// MF-53, ADR-N-043: declaring or widening a named MCP server to `public` exposes its members to
+/// anyone and takes the Red lane; one for the organization or a list of projects is Yellow.
+#[test]
+fn a_public_mcp_server_is_red_and_a_narrower_one_yellow() {
+    for operation in [Operation::Create, Operation::Update] {
+        assert_eq!(
+            lane("McpServer", operation, json!({"audience": "public"})),
+            Lane::Red
+        );
+        for audience in ["organization", "project-list"] {
+            assert_eq!(
+                lane("McpServer", operation, json!({"audience": audience})),
+                Lane::Yellow,
+                "{audience}"
+            );
+        }
+    }
+    // An audience that is not a string is not public, and not Green either.
+    assert_eq!(
+        lane(
+            "McpServer",
+            Operation::Create,
+            json!({"audience": ["public"]})
+        ),
+        Lane::Yellow
+    );
 }

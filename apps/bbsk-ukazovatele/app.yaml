@@ -54,3 +54,13 @@ spec:
       attrs: [name, divisionLevel, location]
       operations: [queryEntity]
       representations: [ngsi-ld]
+    # The second further space (AP-04, T-2934): the region's yearly rows, read only through
+    # bbsk-kraj's public Endpoint `bbsk-kraj-verejne`, for the trend line on each region card.
+    # Compiled into no grant: that endpoint answers anyone already, steward's notes left out.
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: bbsk-kraj
+      types: [StatisticalObservation]
+      attrs: [dataSet, indicator, refArea, refPeriod, dimensionKey, value]
+      operations: [queryEntity]
+      representations: [ngsi-ld]

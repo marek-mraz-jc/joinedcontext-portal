@@ -208,6 +208,16 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     vi.restoreAllMocks();
   });
 
+  it("opens with no complaint about its own arrangement while no rate is set (T-3142)", async () => {
+    // The burst field is left out until a rate per minute is picked; the form said "the schema
+    // has no field rateLimits.burst" in red over every new endpoint on dev.
+    setupTest();
+    await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
+    const page = await findFormPage();
+    expect(within(page).queryByText(en.form.uischemaProblems)).toBeNull();
+    expect(within(page).queryByText(/rateLimits\.burst/)).toBeNull();
+  });
+
   it("shows read-only slug and public URL without slug input or generate button", async () => {
     setupTest();
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));

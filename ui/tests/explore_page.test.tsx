@@ -439,7 +439,14 @@ describe("correcting a value from the explorer", () => {
       "availableBikeNumber: { range: integer, minimum_value: 0 }",
       'availableBikeNumber: { range: float, equals_expression: "{capacity} - 1" }\n  capacity: { range: integer }',
     ).replace("slots: [id, availableBikeNumber]", "slots: [id, availableBikeNumber, capacity]");
-    await openWith(["queryEntity", "updateAttrs"], list([{ ...MODELS_INLINE.items[0], spec: { classes: ["BikeHireDockingStation"], linkml: formula } }]));
+    await openWith(["queryEntity", "updateAttrs"], list([
+        {
+          apiVersion: "joinedcontext.com/v1alpha1",
+          kind: "DataModel",
+          metadata: { name: "helsinki-mobility", namespace: "helsinki" },
+          spec: { classes: ["BikeHireDockingStation"], linkml: formula },
+        },
+      ]));
     expect(screen.getByText("5")).toBeInTheDocument();
     expect(screen.queryByLabelText(CELL)).toBeNull();
   });

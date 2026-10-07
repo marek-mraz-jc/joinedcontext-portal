@@ -933,7 +933,7 @@ export interface paths {
         /**
          * The preview of a run in one document, because the frame it is shown in has no origin to
          *     fetch anything else with (AP-50, AP-60, UI-41): a code run's `src/**` transpiled onto the SDK
-         *     runtime (SDK-16), else the kit bundle rendering `spec.json`.
+         *     runtime (SDK-16).
          */
         get: operations["preview"];
         put?: never;
@@ -1637,6 +1637,186 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask an Assistant
+         * @description One question to the project's AssistantDeployment as the signed-in person, answered as the Server-Sent Events of API/05 §1.3. An internal deployment reads its internal passages and the organization's Endpoints with the person's own token, which the Portal passes on and keeps no copy of; any other channel answers as it answers a visitor (API/05 §1.7, AG-115).
+         */
+        post: operations["chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/deployments/{deployment}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read An Assistant's Usage
+         * @description Requests and model tokens per day of one AssistantDeployment, the last 30 days.
+         */
+        get: operations["deployment_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Knowledge Sources
+         * @description Every KnowledgeSource the project declares, with what the assistant holds of it: pages, documents, passages, the last crawl and the last job; `state: not-crawled` before its first crawl (API/01 §34).
+         */
+        get: operations["list_sources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/sources/{source}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List A Source's Documents
+         * @description The documents (PDFs) the source's pages link: size, pages, whether on another host, included or who excluded it, passages.
+         */
+        get: operations["list_documents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/sources/{source}/inclusion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Include Or Exclude Pages And Documents
+         * @description Excluding removes the passages of what it names at once and holds over every later crawl; including indexes it again at the next crawl. Needs `propose` on KnowledgeSource (AG-113).
+         */
+        post: operations["set_inclusion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/sources/{source}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read A Level Of The Page Tree
+         * @description The pages under `parent`, or the roots without it: depth, status, language, whether included and who excluded it, and how many children, documents and passages each holds.
+         */
+        get: operations["list_pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/sources/{source}/pages/{page}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List A Page's Links
+         * @description Every link the page carries: to another page of the site, to a document, or off the site.
+         */
+        get: operations["list_links"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/sources/{source}/passages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Passages
+         * @description The passages the assistant answers from, of one page (`?page=`) or one document (`?document=`), in order.
+         */
+        get: operations["list_passages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/sources/{source}/recrawl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recrawl A Source Now
+         * @description Queues a crawl of the source now instead of at its schedule. Needs `propose` on KnowledgeSource (AG-113).
+         */
+        post: operations["recrawl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops": {
         parameters: {
             query?: never;
@@ -2068,6 +2248,58 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Views
+         * @description The saved views of one space this caller sees: their own personal views and every collaborative or locked one, oldest first.
+         */
+        get: operations["list_views"];
+        put?: never;
+        /**
+         * Save A Data View
+         * @description Saves a new view of one entity type of the space, owned by the caller. Reading the space is all it needs.
+         */
+        post: operations["create_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/views/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read A Data View
+         * @description One saved view. A personal view of someone else answers like no view.
+         */
+        get: operations["get_view"];
+        /**
+         * Change A Data View
+         * @description Renames a view or changes its kind, mode or settings. A locked view is changed by its owner or a steward of the space, and so is any view's mode. With `expectedVersion`, a save against a newer view is refused.
+         */
+        put: operations["update_view"];
+        post?: never;
+        /**
+         * Delete A Data View
+         * @description Deletes a saved view: its owner's, or for a shared one also a steward's of the space. The space's data is not touched.
+         */
+        delete: operations["delete_view"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3178,6 +3410,23 @@ export interface components {
             key: string;
             params: Record<string, never>;
         };
+        /** @description A question to an assistant (API/05 §1.1); `jc-assistant` holds every bound. */
+        ChatRequest: {
+            /** @description The connectors switched on; none sent leaves every one on. */
+            connectors?: string[] | null;
+            /** @description The id the first answer gave, to continue its conversation. */
+            conversation?: string | null;
+            /** @description At most 6 earlier turns. */
+            history?: components["schemas"]["ChatTurn"][];
+            /** @description 1 to 4,000 characters. */
+            message: string;
+        };
+        /** @description One turn of what the person's chat holds (API/05 §1.1). */
+        ChatTurn: {
+            /** @description `user` or `assistant`. */
+            role: string;
+            text: string;
+        };
         CheckHealth: {
             check: string;
             result?: null | components["schemas"]["Digest"];
@@ -3203,6 +3452,12 @@ export interface components {
             id: string;
             /** @description The Portal page that shows the claim to the person who asked for it. */
             url: string;
+        };
+        ColourRule: {
+            /** @description One of `neutral`, `info`, `success`, `warning`, `danger`. */
+            colour: string;
+            /** @description An NGSI-LD `q` evaluated in the page on the rows it shows. */
+            when: string;
         };
         /**
          * @description The five colours a page is built from. Each is validated as a hex triplet or sextet before
@@ -3346,6 +3601,13 @@ export interface components {
             /** @description Who may reach the published application. `public` is refused (AP-42). */
             visibility?: string;
         };
+        CreateView: {
+            config?: components["schemas"]["ViewConfig"];
+            kind: string;
+            mode: string;
+            title: string;
+            type: string;
+        };
         /** @description The one answer that may carry a temporary password, once (PF-92). */
         CreatedPerson: {
             emailSent: boolean;
@@ -3366,6 +3628,23 @@ export interface components {
             refresh: string;
             /** @description The tabular representation the rows are read through. */
             representation: string;
+        };
+        /** @description A saved view as the API answers it. */
+        DataView: {
+            config: components["schemas"]["ViewConfig"];
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            kind: string;
+            mode: string;
+            /** @description The owner's username, for display. */
+            owner: string;
+            title: string;
+            type: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            version: number;
         };
         /** @description What `scripts/publish-health.py` writes for one check. */
         Digest: {
@@ -3737,6 +4016,17 @@ export interface components {
              *     Tools (DM-10), and the Portal refuses anything a caller could steer.
              */
             model: string;
+        };
+        /** @description Include or exclude pages, their subtrees, and documents (API/01 §34). */
+        InclusionRequest: {
+            /** @description Document ids of this source. */
+            documents?: number[];
+            /** @description `false` excludes: their passages go at once and the choice holds over later crawls. */
+            included: boolean;
+            /** @description Page ids of this source. */
+            pages?: number[];
+            /** @description Whether every page below the named ones, and the documents they link, change too. */
+            subtree?: boolean;
         };
         /** @description One `CkanInstance`, without anything secret about it. */
         InstanceSummary: {
@@ -4744,6 +5034,10 @@ export interface components {
          * @enum {string}
          */
         Side: "ours" | "theirs";
+        SortKey: {
+            attr: string;
+            desc?: boolean;
+        };
         /** @description Result returned for `PUT /source?dryRun=All`. */
         SourceDryRunResult: {
             artifacts: components["schemas"]["Artifacts"];
@@ -4906,6 +5200,17 @@ export interface components {
         UpdateRequest: {
             resolutions?: components["schemas"]["Resolution"][];
         };
+        UpdateView: {
+            config?: components["schemas"]["ViewConfig"];
+            /**
+             * Format: int64
+             * @description The version read; a save against a newer view is refused instead of overwriting it.
+             */
+            expectedVersion?: number | null;
+            kind: string;
+            mode: string;
+            title: string;
+        };
         /** @description One quota dimension of a project: what it holds and what it may (PF-75). */
         Usage: {
             /**
@@ -4943,6 +5248,26 @@ export interface components {
             equal: boolean;
             /** @description The path the bundle index gave the file. */
             path: string;
+        };
+        /** @description How a view looks at its type (API/01 §30). */
+        ViewConfig: {
+            colour?: components["schemas"]["ColourRule"][];
+            /** @description An enum attribute the rows are grouped by. */
+            group?: string | null;
+            hidden?: string[];
+            /** @description An NGSI-LD query, sent as the person's own `q` when the view opens. */
+            q?: string | null;
+            /** @description The view kind's own settings: card fields, the kanban's attribute, a calendar's dates. */
+            settings?: Record<string, never>;
+            sort?: components["schemas"]["SortKey"][];
+            /** @description Column widths in pixels, by attribute. */
+            width?: {
+                [key: string]: number;
+            };
+        };
+        ViewList: {
+            /** @description The views of the space this caller sees, oldest first. */
+            items: components["schemas"]["DataView"][];
         };
         /** @description A workflow run of an application's repository, as the App page links it (AP-86, AP-103). */
         WorkflowRun: {
@@ -7541,7 +7866,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description One document: a code run's interface on the SDK runtime, or the kit rendering a kit run's specification */
+            /** @description One document: a code run's interface on the SDK runtime */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7577,7 +7902,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description This Portal was built without the kit or the SDK runtime */
+            /** @description This Portal was built without the SDK runtime */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -8353,7 +8678,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132). API/04. */
+        /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132), or `create` for a public form, with the fields it asks for in `writeAttributes` and `writeRelationships` and its daily count in `createsPerDay` (T-3172, T-3177). API/04. */
         requestBody: {
             content: {
                 /**
@@ -10039,6 +10364,599 @@ export interface operations {
             };
         };
     };
+    chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description AssistantDeployment name */
+                deployment: string;
+            };
+            cookie?: never;
+        };
+        /** @description API/05 §1.1: the question, the last turns the chat holds, the connectors switched on. */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "connectors": [
+                 *         "helsinki-weather"
+                 *       ],
+                 *       "history": [
+                 *         {
+                 *           "role": "user",
+                 *           "text": "Hello"
+                 *         },
+                 *         {
+                 *           "role": "assistant",
+                 *           "text": "Hello! Ask me about the city's data."
+                 *         }
+                 *       ],
+                 *       "message": "Where are the air quality stations?"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description The answer, as Server-Sent Events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description The question breaks a bound of API/05 §1.1 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or deployment the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The deployment has no budget yet */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The deployment's per-minute limit is reached */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    deployment_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description AssistantDeployment name */
+                deployment: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usage per day */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or deployment the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sources */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller may read the sources of */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_documents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description KnowledgeSource name */
+                source: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The documents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or crawled source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    set_inclusion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description KnowledgeSource name */
+                source: string;
+            };
+            cookie?: never;
+        };
+        /** @description At most 500 page and document ids. */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "documents": [],
+                 *       "included": false,
+                 *       "pages": [
+                 *         12
+                 *       ],
+                 *       "subtree": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["InclusionRequest"];
+            };
+        };
+        responses: {
+            /** @description What changed: pages, documents, passagesRemoved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No id, or more than 500 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose a KnowledgeSource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or crawled source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_pages: {
+        parameters: {
+            query?: {
+                /** @description The page whose children to list; none lists the roots. */
+                parent?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description KnowledgeSource name */
+                source: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or crawled source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_links: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description KnowledgeSource name */
+                source: string;
+                /** @description Page id */
+                page: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The links */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project, source or page */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_passages: {
+        parameters: {
+            query?: {
+                page?: number | null;
+                document?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description KnowledgeSource name */
+                source: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The passages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Neither or both of page and document */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or crawled source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    recrawl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description KnowledgeSource name */
+                source: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The queued job */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose a KnowledgeSource */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or declared source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A crawl is already queued or running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     list_ops: {
         parameters: {
             query?: never;
@@ -11650,6 +12568,327 @@ export interface operations {
             };
             /** @description No broker is configured, or it did not answer */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_views: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The views this caller sees */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "config": {
+                 *         "colour": [
+                 *           {
+                 *             "colour": "danger",
+                 *             "when": "availableBikeNumber==0"
+                 *           }
+                 *         ],
+                 *         "hidden": [
+                 *           "dateLastReported"
+                 *         ],
+                 *         "q": "availableBikeNumber<3"
+                 *       },
+                 *       "kind": "grid",
+                 *       "mode": "collaborative",
+                 *       "title": "Stations short of bikes",
+                 *       "type": "BikeHireDockingStation"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateView"];
+            };
+        };
+        responses: {
+            /** @description The view, saved */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataView"];
+                };
+            };
+            /** @description A field out of bounds or an unknown key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing or mismatched CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller keeps the most views a person may in this space */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The view's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataView"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such view the caller sees */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The view's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "config": {
+                 *         "q": "availableBikeNumber<2"
+                 *       },
+                 *       "expectedVersion": 3,
+                 *       "kind": "grid",
+                 *       "mode": "collaborative",
+                 *       "title": "Stations short of bikes"
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdateView"];
+            };
+        };
+        responses: {
+            /** @description The view as now saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataView"];
+                };
+            };
+            /** @description A field out of bounds or an unknown key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A locked view, or its mode, is its owner's or a steward's to change; or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such view the caller sees */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The view was changed since `expectedVersion` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The view's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Neither its owner nor a steward of the space; or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such view the caller sees */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

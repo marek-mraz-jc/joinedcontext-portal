@@ -657,6 +657,12 @@
   background: var(--jc-color-surface, #fff);
 }
 
+/* A header cell whose metadata menu is open lies above the filter row below it, which is as
+   sticky and would otherwise paint over the menu and take its clicks (T-3170). */
+.jc-grid thead th:has(.jc-grid-meta-menu) {
+  z-index: 4;
+}
+
 .jc-grid-spacer td {
   padding: 0;
   border: none;
@@ -672,4 +678,27 @@
   display: block;
   font-size: 0.8125rem;
   color: var(--jc-color-danger, #b42318);
+}
+
+/* A view's colour rule (API/01 §30): a tinted row and a swatch that names the reason. */
+.jc-grid-tone {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-inline-end: 0.375rem;
+  border-radius: 999px;
+  vertical-align: middle;
+  background: var(--jc-tone, currentColor);
+}
+.jc-grid-tr--neutral { --jc-tone: var(--jc-color-neutral, #6b7280); }
+.jc-grid-tr--info { --jc-tone: var(--jc-color-info, #2563eb); }
+.jc-grid-tr--success { --jc-tone: var(--jc-color-success, #15803d); }
+.jc-grid-tr--warning { --jc-tone: var(--jc-color-warning, #b45309); }
+.jc-grid-tr--danger { --jc-tone: var(--jc-color-danger, #b42318); }
+.jc-grid-tr--neutral,
+.jc-grid-tr--info,
+.jc-grid-tr--success,
+.jc-grid-tr--warning,
+.jc-grid-tr--danger {
+  background: color-mix(in srgb, var(--jc-tone) 10%, transparent);
 }

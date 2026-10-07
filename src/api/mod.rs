@@ -13,6 +13,7 @@ pub mod catalogue;
 pub mod catalogue_draft;
 pub mod changes;
 pub mod ckan;
+pub mod data_views;
 pub mod datamodels;
 pub mod delete;
 pub mod drafts;
@@ -28,6 +29,7 @@ pub mod health;
 pub mod import;
 pub mod import_git;
 pub mod internal;
+pub mod knowledge;
 pub mod live;
 pub mod mutate;
 pub mod ops;
@@ -93,8 +95,10 @@ pub fn router() -> Router<AppState> {
         .merge(projects::router())
         .merge(quality::router())
         .merge(space_usage::router())
+        .merge(data_views::router())
         .merge(entity_trash::router())
         .merge(entity_comments::router())
+        .merge(knowledge::router())
         .merge(live::router())
         .merge(service_accounts::router())
         .merge(sync::router())

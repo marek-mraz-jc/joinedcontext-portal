@@ -346,7 +346,9 @@ async fn create_and_trace(
     config: &Value,
     receiver: &mut mpsc::UnboundedReceiver<Captured>,
 ) -> Result<TestTrace, ApiError> {
-    let created = http().post(stream).json(config).send().await.map_err(|err| {
+    let mut config = config.clone();
+    crate::reconciler::streams::own_credential(&mut config, project);
+    let created = http().post(stream).json(&config).send().await.map_err(|err| {
         tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
         ApiError::Unavailable("the pipeline runner did not answer".into())
     })?;

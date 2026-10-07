@@ -42,6 +42,7 @@ import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
 import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
+import { McpServersPage } from "../mcp/McpServersPage";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
 export const ORGANIZATION_TABS = [
@@ -61,6 +62,7 @@ export const ORGANIZATION_TABS = [
   "setup",
   "health",
   "endpoints",
+  "mcp-servers",
 ] as const;
 
 export type OrganizationTab = (typeof ORGANIZATION_TABS)[number];
@@ -333,6 +335,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
         {tab === "health" ? <ValidationHealth /> : null}
         {tab === "endpoints" ? <AllEndpointsPage /> : null}
+        {tab === "mcp-servers" ? <McpServersPage project={ORG_NAMESPACE} embedded /> : null}
       </div>
     </div>
   );

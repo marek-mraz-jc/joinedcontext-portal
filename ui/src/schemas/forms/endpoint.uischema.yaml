@@ -24,6 +24,9 @@ spec:
       Ein Endpunkt ist die Tür, durch die andere einen Kontextraum lesen: eine Adresse, die
       Formate, die Sie erlauben, und die Grenzen, die Sie setzen. Wählen Sie den Raum und wer
       lesen darf — veröffentlicht wird erst, wenn eine Person die Änderung genehmigt.
+  # Absent from the schema by design while the person has not picked what they belong to: the
+  # project list until the audience is `project-list`, a burst until a rate per minute is set.
+  variants: [allowedProjects, rateLimits.burst]
   order:
     [
       contextSpaceRef,

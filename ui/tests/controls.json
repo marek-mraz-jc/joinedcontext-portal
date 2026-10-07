@@ -220,6 +220,24 @@
         "form_entity_filters.test.tsx"
       ]
     },
+    "src/components/entities/ViewBar.tsx": {
+      "controls": {
+        "Button": 7,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "view_bar.test.tsx"
+      ]
+    },
+    "src/components/entities/ViewOptions.tsx": {
+      "controls": {
+        "Button": 4,
+        "Checkbox": 1
+      },
+      "tests": [
+        "view_options.test.tsx"
+      ]
+    },
     "src/components/export/ExportButton.tsx": {
       "controls": {
         "Button": 1
@@ -971,6 +989,57 @@
         "import_wizard.test.tsx"
       ]
     },
+    "src/pages/knowledge/AssistantChat.tsx": {
+      "controls": {
+        "Button": 2,
+        "Checkbox": 1
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
+    "src/pages/knowledge/KnowledgePage.tsx": {
+      "controls": {
+        "Button": 6
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
+    "src/pages/knowledge/SourcePage.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 3
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
+    "src/pages/mcp/McpServerDialog.tsx": {
+      "controls": {
+        "Button": 3,
+        "Checkbox": 1
+      },
+      "tests": [
+        "mcp_servers.test.tsx"
+      ]
+    },
+    "src/pages/mcp/McpServerPanels.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "mcp_servers.test.tsx"
+      ]
+    },
+    "src/pages/mcp/McpServersPage.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "mcp_servers.test.tsx"
+      ]
+    },
     "src/pages/models/LinkmlGraphView.tsx": {
       "controls": {
         "Button": 3
@@ -1215,6 +1284,15 @@
         "data_views.test.tsx"
       ]
     },
+    "src/pages/spaces/FormView.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 4
+      },
+      "tests": [
+        "form_view.test.tsx"
+      ]
+    },
     "src/pages/spaces/PublicView.tsx": {
       "controls": {
         "Button": 2,
@@ -1242,7 +1320,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 4
       },
       "tests": [
         "endpoint_admits_person.test.ts",

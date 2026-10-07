@@ -239,7 +239,9 @@ export function ModelPage({
                   <Link
                     to="/projects/$project/$plural/$name"
                     params={{ project, plural: "spaces", name: space }}
-                    className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
+                    // Underlined: inside a line of text a link told apart by colour alone is
+                    // missed by a reader who cannot see the colour (WCAG 1.4.1, T-3143).
+                    className="focus-ring text-primary-soft-fg underline underline-offset-2"
                   >
                     {space}
                   </Link>

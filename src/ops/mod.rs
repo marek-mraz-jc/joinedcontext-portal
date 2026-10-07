@@ -15,6 +15,7 @@ use std::sync::OnceLock;
 pub mod admin;
 pub mod changes;
 pub mod compute;
+pub mod data_views;
 pub mod drafts;
 pub mod feed_shape;
 pub mod people;

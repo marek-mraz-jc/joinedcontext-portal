@@ -38,7 +38,8 @@ describe("the not-found state", () => {
 
   it("names the address and links home", async () => {
     const { container } = show("/projects/helsinki/nonexistent-section");
-    expect(await screen.findByText(en.app.notFound.title)).toBeInTheDocument();
+    // The page is nothing but this state, so its title is the page's one heading (T-3150).
+    expect(await screen.findByRole("heading", { level: 1, name: en.app.notFound.title })).toBeInTheDocument();
     expect(screen.getByText(/nonexistent-section/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: en.app.notFound.home })).toHaveAttribute("href", "/");
     await expectNoViolations(container);

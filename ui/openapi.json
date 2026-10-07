@@ -3324,7 +3324,7 @@
         "tags": [
           "agents"
         ],
-        "summary": "The preview of a run in one document, because the frame it is shown in has no origin to\nfetch anything else with (AP-50, AP-60, UI-41): a code run's `src/**` transpiled onto the SDK\nruntime (SDK-16), else the kit bundle rendering `spec.json`.",
+        "summary": "The preview of a run in one document, because the frame it is shown in has no origin to\nfetch anything else with (AP-50, AP-60, UI-41): a code run's `src/**` transpiled onto the SDK\nruntime (SDK-16).",
         "operationId": "preview",
         "parameters": [
           {
@@ -3348,7 +3348,7 @@
         ],
         "responses": {
           "200": {
-            "description": "One document: a code run's interface on the SDK runtime, or the kit rendering a kit run's specification",
+            "description": "One document: a code run's interface on the SDK runtime",
             "content": {
               "text/html": {}
             }
@@ -3384,7 +3384,7 @@
             }
           },
           "503": {
-            "description": "This Portal was built without the kit or the SDK runtime",
+            "description": "This Portal was built without the SDK runtime",
             "content": {
               "application/json": {
                 "schema": {
@@ -4394,7 +4394,7 @@
           }
         ],
         "requestBody": {
-          "description": "What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132). API/04.",
+          "description": "What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132), or `create` for a public form, with the fields it asks for in `writeAttributes` and `writeRelationships` and its daily count in `createsPerDay` (T-3172, T-3177). API/04.",
           "content": {
             "application/json": {
               "schema": {
@@ -6669,6 +6669,828 @@
         }
       }
     },
+    "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Ask an Assistant",
+        "description": "One question to the project's AssistantDeployment as the signed-in person, answered as the Server-Sent Events of API/05 §1.3. An internal deployment reads its internal passages and the organization's Endpoints with the person's own token, which the Portal passes on and keeps no copy of; any other channel answers as it answers a visitor (API/05 §1.7, AG-115).",
+        "operationId": "chat",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deployment",
+            "in": "path",
+            "description": "AssistantDeployment name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "API/05 §1.1: the question, the last turns the chat holds, the connectors switched on.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              },
+              "example": {
+                "connectors": [
+                  "helsinki-weather"
+                ],
+                "history": [
+                  {
+                    "role": "user",
+                    "text": "Hello"
+                  },
+                  {
+                    "role": "assistant",
+                    "text": "Hello! Ask me about the city's data."
+                  }
+                ],
+                "message": "Where are the air quality stations?"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, as Server-Sent Events",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The question breaks a bound of API/05 §1.1",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or deployment the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The deployment has no budget yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The deployment's per-minute limit is reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/deployments/{deployment}/usage": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Read An Assistant's Usage",
+        "description": "Requests and model tokens per day of one AssistantDeployment, the last 30 days.",
+        "operationId": "deployment_usage",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deployment",
+            "in": "path",
+            "description": "AssistantDeployment name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage per day",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or deployment the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/sources": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "List Knowledge Sources",
+        "description": "Every KnowledgeSource the project declares, with what the assistant holds of it: pages, documents, passages, the last crawl and the last job; `state: not-crawled` before its first crawl (API/01 §34).",
+        "operationId": "list_sources",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller may read the sources of",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/sources/{source}/documents": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "List A Source's Documents",
+        "description": "The documents (PDFs) the source's pages link: size, pages, whether on another host, included or who excluded it, passages.",
+        "operationId": "list_documents",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "description": "KnowledgeSource name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or crawled source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/sources/{source}/inclusion": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Include Or Exclude Pages And Documents",
+        "description": "Excluding removes the passages of what it names at once and holds over every later crawl; including indexes it again at the next crawl. Needs `propose` on KnowledgeSource (AG-113).",
+        "operationId": "set_inclusion",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "description": "KnowledgeSource name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "At most 500 page and document ids.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InclusionRequest"
+              },
+              "example": {
+                "documents": [],
+                "included": false,
+                "pages": [
+                  12
+                ],
+                "subtree": true
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "What changed: pages, documents, passagesRemoved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No id, or more than 500",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose a KnowledgeSource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or crawled source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/sources/{source}/pages": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Read A Level Of The Page Tree",
+        "description": "The pages under `parent`, or the roots without it: depth, status, language, whether included and who excluded it, and how many children, documents and passages each holds.",
+        "operationId": "list_pages",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "description": "KnowledgeSource name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "parent",
+            "in": "query",
+            "description": "The page whose children to list; none lists the roots.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or crawled source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/sources/{source}/pages/{page}/links": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "List A Page's Links",
+        "description": "Every link the page carries: to another page of the site, to a document, or off the site.",
+        "operationId": "list_links",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "description": "KnowledgeSource name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "description": "Page id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project, source or page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/sources/{source}/passages": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Preview Passages",
+        "description": "The passages the assistant answers from, of one page (`?page=`) or one document (`?document=`), in order.",
+        "operationId": "list_passages",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "description": "KnowledgeSource name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "document",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The passages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Neither or both of page and document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or crawled source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/sources/{source}/recrawl": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Recrawl A Source Now",
+        "description": "Queues a crawl of the source now instead of at its schedule. Needs `propose` on KnowledgeSource (AG-113).",
+        "operationId": "recrawl",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "description": "KnowledgeSource name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The queued job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose a KnowledgeSource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or declared source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A crawl is already queued or running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops": {
       "get": {
         "tags": [
@@ -8891,6 +9713,447 @@
           },
           "503": {
             "description": "No broker is configured, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/views": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "List Data Views",
+        "description": "The saved views of one space this caller sees: their own personal views and every collaborative or locked one, oldest first.",
+        "operationId": "list_views",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The views this caller sees",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Save A Data View",
+        "description": "Saves a new view of one entity type of the space, owned by the caller. Reading the space is all it needs.",
+        "operationId": "create_view",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateView"
+              },
+              "example": {
+                "config": {
+                  "colour": [
+                    {
+                      "colour": "danger",
+                      "when": "availableBikeNumber==0"
+                    }
+                  ],
+                  "hidden": [
+                    "dateLastReported"
+                  ],
+                  "q": "availableBikeNumber<3"
+                },
+                "kind": "grid",
+                "mode": "collaborative",
+                "title": "Stations short of bikes",
+                "type": "BikeHireDockingStation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The view, saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field out of bounds or an unknown key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or mismatched CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The caller keeps the most views a person may in this space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/views/{id}": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read A Data View",
+        "description": "One saved view. A personal view of someone else answers like no view.",
+        "operationId": "get_view",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The view's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such view the caller sees",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Change A Data View",
+        "description": "Renames a view or changes its kind, mode or settings. A locked view is changed by its owner or a steward of the space, and so is any view's mode. With `expectedVersion`, a save against a newer view is refused.",
+        "operationId": "update_view",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The view's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateView"
+              },
+              "example": {
+                "config": {
+                  "q": "availableBikeNumber<2"
+                },
+                "expectedVersion": 3,
+                "kind": "grid",
+                "mode": "collaborative",
+                "title": "Stations short of bikes"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The view as now saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field out of bounds or an unknown key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A locked view, or its mode, is its owner's or a steward's to change; or a missing CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such view the caller sees",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The view was changed since `expectedVersion`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Delete A Data View",
+        "description": "Deletes a saved view: its owner's, or for a shared one also a steward's of the space. The space's data is not touched.",
+        "operationId": "delete_view",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The view's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Neither its owner nor a steward of the space; or a missing CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such view the caller sees",
             "content": {
               "application/json": {
                 "schema": {
@@ -13005,6 +14268,62 @@
           }
         }
       },
+      "ChatRequest": {
+        "type": "object",
+        "description": "A question to an assistant (API/05 §1.1); `jc-assistant` holds every bound.",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "connectors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The connectors switched on; none sent leaves every one on."
+          },
+          "conversation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The id the first answer gave, to continue its conversation."
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatTurn"
+            },
+            "description": "At most 6 earlier turns."
+          },
+          "message": {
+            "type": "string",
+            "description": "1 to 4,000 characters."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatTurn": {
+        "type": "object",
+        "description": "One turn of what the person's chat holds (API/05 §1.1).",
+        "required": [
+          "role",
+          "text"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "`user` or `assistant`."
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "CheckHealth": {
         "type": "object",
         "required": [
@@ -13091,6 +14410,24 @@
             "description": "The Portal page that shows the claim to the person who asked for it."
           }
         }
+      },
+      "ColourRule": {
+        "type": "object",
+        "required": [
+          "when",
+          "colour"
+        ],
+        "properties": {
+          "colour": {
+            "type": "string",
+            "description": "One of `neutral`, `info`, `success`, `warning`, `danger`."
+          },
+          "when": {
+            "type": "string",
+            "description": "An NGSI-LD `q` evaluated in the page on the rows it shows."
+          }
+        },
+        "additionalProperties": false
       },
       "Colours": {
         "type": "object",
@@ -13422,6 +14759,33 @@
         },
         "additionalProperties": false
       },
+      "CreateView": {
+        "type": "object",
+        "required": [
+          "type",
+          "kind",
+          "mode",
+          "title"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ViewConfig"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreatedPerson": {
         "type": "object",
         "description": "The one answer that may carry a temporary password, once (PF-92).",
@@ -13478,6 +14842,58 @@
           "representation": {
             "type": "string",
             "description": "The tabular representation the rows are read through."
+          }
+        }
+      },
+      "DataView": {
+        "type": "object",
+        "description": "A saved view as the API answers it.",
+        "required": [
+          "id",
+          "type",
+          "kind",
+          "mode",
+          "title",
+          "owner",
+          "config",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ViewConfig"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "description": "The owner's username, for display."
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -14477,6 +15893,40 @@
             "description": "Catalogue identifier, `dataModel.Environment/AirQualityObserved`. Never a URL: the\nallowlist that limits fetching to the Smart Data Models organisation lives in Model\nTools (DM-10), and the Portal refuses anything a caller could steer."
           }
         }
+      },
+      "InclusionRequest": {
+        "type": "object",
+        "description": "Include or exclude pages, their subtrees, and documents (API/01 §34).",
+        "required": [
+          "included"
+        ],
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Document ids of this source."
+          },
+          "included": {
+            "type": "boolean",
+            "description": "`false` excludes: their passages go at once and the choice holds over later crawls."
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Page ids of this source."
+          },
+          "subtree": {
+            "type": "boolean",
+            "description": "Whether every page below the named ones, and the documents they link, change too."
+          }
+        },
+        "additionalProperties": false
       },
       "InstanceSummary": {
         "type": "object",
@@ -17324,6 +18774,21 @@
           "theirs"
         ]
       },
+      "SortKey": {
+        "type": "object",
+        "required": [
+          "attr"
+        ],
+        "properties": {
+          "attr": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "SourceDryRunResult": {
         "type": "object",
         "description": "Result returned for `PUT /source?dryRun=All`.",
@@ -17797,6 +19262,37 @@
         },
         "additionalProperties": false
       },
+      "UpdateView": {
+        "type": "object",
+        "required": [
+          "kind",
+          "mode",
+          "title"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ViewConfig"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The version read; a save against a newer view is refused instead of overwriting it."
+          },
+          "kind": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "Usage": {
         "type": "object",
         "description": "One quota dimension of a project: what it holds and what it may (PF-75).",
@@ -17893,6 +19389,76 @@
           "path": {
             "type": "string",
             "description": "The path the bundle index gave the file."
+          }
+        }
+      },
+      "ViewConfig": {
+        "type": "object",
+        "description": "How a view looks at its type (API/01 §30).",
+        "properties": {
+          "colour": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ColourRule"
+            }
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An enum attribute the rows are grouped by."
+          },
+          "hidden": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "q": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An NGSI-LD query, sent as the person's own `q` when the view opens."
+          },
+          "settings": {
+            "type": "object",
+            "description": "The view kind's own settings: card fields, the kanban's attribute, a calendar's dates."
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SortKey"
+            }
+          },
+          "width": {
+            "type": "object",
+            "description": "Column widths in pixels, by attribute.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ViewList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataView"
+            },
+            "description": "The views of the space this caller sees, oldest first."
           }
         }
       },
@@ -18064,6 +19630,10 @@
     {
       "name": "basemap",
       "description": "Map tiles and styles for application views, proxied so no coordinate leaves the platform (AP-67)"
+    },
+    {
+      "name": "knowledge",
+      "description": "What the knowledge assistant holds of a project's sources, read and steered (API/01 §34, AG-113)"
     }
   ]
 }

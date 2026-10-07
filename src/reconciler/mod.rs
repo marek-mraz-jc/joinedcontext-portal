@@ -17,6 +17,7 @@ pub mod foreign;
 pub mod groups;
 pub mod hub_scopes;
 pub mod leader;
+pub mod mcp_clients;
 pub mod project_teams;
 pub mod realm;
 pub mod registrations;

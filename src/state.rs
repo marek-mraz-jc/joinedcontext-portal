@@ -58,6 +58,8 @@ pub struct AppState {
     pub draft_events: DraftHub,
     /// The workspace registry (CC-76): durable with a database, in memory without one.
     pub workspaces: crate::ops::workspaces::WorkspaceStore,
+    /// Saved data views of the spaces (API/01 §30).
+    pub data_views: crate::ops::data_views::DataViewStore,
     /// The renders of running workspace previews, by branch head (CC-78).
     pub previews: Arc<crate::ops::previews::Renders>,
     /// What is happening in a project (UI-31, OPS-48). Always present, durable only when there
@@ -161,6 +163,7 @@ impl AppState {
             drafts,
             draft_events,
             workspaces: crate::ops::workspaces::WorkspaceStore::new(None),
+            data_views: crate::ops::data_views::DataViewStore::new(None),
             previews: Arc::default(),
             activity,
             activity_events,
@@ -220,6 +223,7 @@ impl AppState {
         self.drafts = DraftStore::new(Some(db.clone())).with_hub(self.draft_events.clone());
         self.draft_events.connect(db.clone());
         self.workspaces = crate::ops::workspaces::WorkspaceStore::new(Some(db.clone()));
+        self.data_views = crate::ops::data_views::DataViewStore::new(Some(db.clone()));
         self.activity = crate::activity::ActivityStore::new(Some(db.clone()))
             .with_hub(self.activity_events.clone());
         self.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(Some(
@@ -269,6 +273,7 @@ impl AppState {
             state.draft_events.connect(db.clone());
         }
         state.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
+        state.data_views = crate::ops::data_views::DataViewStore::new(db.clone());
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
         state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
@@ -537,7 +542,13 @@ impl AppState {
                     oidc.client_id.clone(),
                     oidc.client_secret().to_owned(),
                 ) {
-                    Some(clients) => syncer = syncer.with_workload_clients(Arc::new(clients)),
+                    Some(clients) => {
+                        let clients = match state.config.pipeline_namespace.clone() {
+                            Some(namespace) => clients.with_pipelines(namespace),
+                            None => clients,
+                        };
+                        syncer = syncer.with_workload_clients(Arc::new(clients))
+                    }
                     None => tracing::warn!(
                         "the issuer is not a realm URL, so no workload client is managed"
                     ),
@@ -550,9 +561,34 @@ impl AppState {
                 ) {
                     syncer = syncer.with_hub_scopes(Arc::new(scopes));
                 }
+                // Each named MCP server's sign-in client (EP-96, T-3156), by the same identity.
+                if let Some(clients) = crate::reconciler::mcp_clients::McpClientSync::new(
+                    oidc.issuer.as_str(),
+                    oidc.client_id.clone(),
+                    oidc.client_secret().to_owned(),
+                ) {
+                    syncer = syncer.with_mcp_clients(Arc::new(clients));
+                }
+            }
+            // Each Pipeline's own Kubernetes ServiceAccount (PL-19, T-1508), by the Portal's
+            // in-cluster identity, which the deployment lets write that one namespace.
+            if let Some(namespace) = state.config.pipeline_namespace.clone() {
+                match crate::apps::kube::KubeClient::in_cluster() {
+                    Ok(Some(kube)) => {
+                        syncer = syncer.with_pipeline_service_accounts(Arc::new(kube), namespace)
+                    }
+                    Ok(None) => tracing::warn!(
+                        "no ServiceAccount mount: the pipelines' Kubernetes accounts are not made"
+                    ),
+                    Err(err) => tracing::warn!(
+                        error = %err,
+                        "the ServiceAccount mount is unreadable, so the pipelines' Kubernetes accounts are not made"
+                    ),
+                }
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
-                let deployer = StreamDeployer::new(url);
+                let deployer =
+                    StreamDeployer::new(url).with_pipeline_identity(state.config.pipeline_identity);
                 // A refused record reaches the Portal on the listener the test harness reaches
                 // (PL-61); without that address the stream writes as it did, unvalidated.
                 let deployer = match state.config.pipeline_test_capture_url.clone() {
