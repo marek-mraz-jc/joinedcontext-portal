@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { NotificationsMenu } from "../../pages/spaces/Comments";
+import { HelpMenu } from "../HelpMenu";
 import { JobsMenu } from "../JobsMenu";
 import { useFirstRun } from "../../pages/home/firstRun";
 import { AssistantDock } from "../../assistant/AssistantDock";
@@ -490,6 +491,7 @@ export function Shell({
           ) : null}
           <LanguageSwitcher />
           <JobsMenu />
+          <HelpMenu />
           <NotificationsMenu />
           <UserMenu />
         </div>
