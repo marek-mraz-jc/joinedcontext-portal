@@ -910,7 +910,7 @@ export function TimelineView({
                   x={((ms(from) - first) / width) * 100}
                   width={Math.max(((ms(to) + 86_400_000 - ms(from)) / width) * 100, 1)}
                   height={1}
-                  className="fill-primary/70"
+                  className="fill-info"
                 />
               </svg>
               <span className="relative px-1 text-caption text-fg">
