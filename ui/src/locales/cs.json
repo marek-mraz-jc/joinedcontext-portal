@@ -2712,11 +2712,16 @@
       "propose": "Navrhnout katalog",
       "nameHelp": "Krátký název, pod kterým je tento katalog znám zde. Malá písmena, číslice a spojovníky.",
       "urlHelp": "Adresa portálu CKAN, na který se datové sady zveřejňují, i se schématem.",
-      "organizationHelp": "Organizace v CKAN, do které sada spadne, když endpoint neurčí vlastní.",
+      "organizationHelp": "Organizace v CKAN, do které dataset patří, pokud endpoint neurčí vlastní: krátký název na konci její adresy v CKAN, /organization/<název>.",
       "emptyHint": "Katalog je portál CKAN, do kterého tento projekt publikuje. Pojmenujte ho níže a rekonciliátor jeho datové sady zaregistruje.",
       "nameInvalid": "Název tvoří malá písmena, číslice a spojovníky a začíná i končí písmenem nebo číslicí.",
       "urlInvalid": "Adresa začíná na http:// nebo https://.",
-      "secretRequired": "Pojmenujte tajemství, které nahrál operátor; samotný token se tu nikdy nezadává."
+      "secretRequired": "Pojmenujte tajemství, které nahrál operátor; samotný token se tu nikdy nezadává.",
+      "secretKey": "Klíč v secretu",
+      "secretKeyHelp": "Položka toho secretu, která obsahuje token. Nechte apiToken, pokud operátor neurčí jinak.",
+      "secretKeyInvalid": "Klíč tvoří písmena, číslice, tečky, pomlčky a podtržítka, například apiToken.",
+      "secretInvalid": "Název secretu tvoří malá písmena, číslice, pomlčky a tečky, například ckan-api-token.",
+      "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu."
     },
     "publications": {
       "title": "Publikované endpointy",
@@ -2724,13 +2729,14 @@
       "datastore": "Kopie řádků v DataStore z {representation}, {refresh}.",
       "publishedTo": "publikováno do {instance}",
       "missingInstance": "katalog {instance} chybí",
-      "emptyHint": "Endpoint publikuje, když to jeho manifest vyhlásí. Otevřete endpoint a přidejte publikování, aby se tu zobrazilo.",
+      "emptyHint": "Stiskněte „Zveřejnit datovou sadu“, vyberte endpoint, zkontrolujte jeho popis a navrhněte ho. Dataset se zde a v CKAN objeví po schválení.",
       "refreshed": {
         "onChange": "obnovovaná při změně entity",
         "onReconcile": "obnovovaná při každém použití konfigurace"
       },
       "lastChange": "Poslední změna {time}: {summary}",
-      "lastFailed": "Poslední běh selhal {time}: {summary}"
+      "lastFailed": "Poslední běh selhal {time}: {summary}",
+      "needsCatalogue": "Nejprve výše přidejte katalog: dataset potřebuje portál CKAN, kam se zveřejní."
     },
     "statusFailed": "Stav katalogů tohoto projektu se nepodařilo přečíst, takže níže uvedené může být neúplné: {reason}",
     "access": {

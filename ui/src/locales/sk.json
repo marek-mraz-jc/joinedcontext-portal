@@ -2712,11 +2712,16 @@
       "propose": "Navrhnúť katalóg",
       "nameHelp": "Krátky názov, pod ktorým je tento katalóg známy tu. Malé písmená, číslice a spojovníky.",
       "urlHelp": "Adresa portálu CKAN, na ktorý sa dátové sady zverejňujú, aj so schémou.",
-      "organizationHelp": "Organizácia v CKAN, do ktorej sada spadne, keď endpoint neurčí vlastnú.",
+      "organizationHelp": "Organizácia v CKAN, do ktorej dataset patrí, ak endpoint neurčí vlastnú: krátky názov na konci jej adresy v CKAN, /organization/<názov>.",
       "emptyHint": "Katalóg je portál CKAN, do ktorého tento projekt publikuje. Pomenujte ho nižšie a rekonciliátor jeho datasety zaregistruje.",
       "nameInvalid": "Názov tvoria malé písmená, číslice a spojovníky a začína aj končí písmenom alebo číslicou.",
       "urlInvalid": "Adresa začína na http:// alebo https://.",
-      "secretRequired": "Pomenujte tajomstvo, ktoré nahral operátor; samotný token sa tu nikdy nezadáva."
+      "secretRequired": "Pomenujte tajomstvo, ktoré nahral operátor; samotný token sa tu nikdy nezadáva.",
+      "secretKey": "Kľúč v secrete",
+      "secretKeyHelp": "Položka toho secretu, ktorá obsahuje token. Nechajte apiToken, ak operátor neurčí inak.",
+      "secretKeyInvalid": "Kľúč tvoria písmená, číslice, bodky, pomlčky a podčiarkovníky, napríklad apiToken.",
+      "secretInvalid": "Názov secretu tvoria malé písmená, číslice, pomlčky a bodky, napríklad ckan-api-token.",
+      "secretIsToken": "Toto vyzerá ako samotný API token. Nevkladajte ho sem: požiadajte operátora, aby ho uložil do úložiska secretov, a napíšte názov toho secretu."
     },
     "publications": {
       "title": "Publikované endpointy",
@@ -2724,13 +2729,14 @@
       "datastore": "Kópia riadkov v DataStore z {representation}, {refresh}.",
       "publishedTo": "publikované do {instance}",
       "missingInstance": "katalóg {instance} chýba",
-      "emptyHint": "Endpoint publikuje, keď to jeho manifest vyhlási. Otvorte endpoint a pridajte publikovanie, aby sa tu zobrazilo.",
+      "emptyHint": "Stlačte „Zverejniť dataset“, vyberte endpoint, skontrolujte jeho popis a navrhnite ho. Dataset sa tu a v CKAN objaví po schválení.",
       "refreshed": {
         "onChange": "obnovovaná pri zmene entity",
         "onReconcile": "obnovovaná pri každom použití konfigurácie"
       },
       "lastChange": "Posledná zmena {time}: {summary}",
-      "lastFailed": "Posledný beh zlyhal {time}: {summary}"
+      "lastFailed": "Posledný beh zlyhal {time}: {summary}",
+      "needsCatalogue": "Najprv vyššie pridajte katalóg: dataset potrebuje portál CKAN, kam sa zverejní."
     },
     "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}",
     "access": {

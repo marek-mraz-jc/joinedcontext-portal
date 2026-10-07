@@ -171,7 +171,8 @@ describe("the help beside a hand-built form field", () => {
     const submit = await screen.findByRole("button", { name: en.ckan.instances.propose });
     const form = submit.closest("form") as HTMLElement;
     const fields = controls(form);
-    expect(fields.length).toBe(4);
+    // Name, address, organization, secret and the key inside it (T-3215).
+    expect(fields.length).toBe(5);
     for (const field of fields) {
       expect(describedText(field).length, field.id).toBeGreaterThan(15);
     }
