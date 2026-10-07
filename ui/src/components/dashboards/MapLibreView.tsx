@@ -27,6 +27,13 @@ export interface MapLayer {
   colorBy?: { property: string; domain?: [number, number]; palette?: string };
   sizeBy?: { property: string; range?: [number, number] };
   popupProperties?: string[];
+  /**
+   * Points gathered into counted circles at low zoom (T-3256): a click on one zooms to what it
+   * holds. Only for a point layer; MapLibre clusters points alone.
+   */
+  cluster?: boolean;
+  /** The popup's own button, opening the feature's entity by its `id` property (T-3256). */
+  open?: { label: string; onOpen: (id: string) => void };
 }
 
 /** `[west, south, east, north]` of the viewport, as the Endpoint's `coordinates` wants it. */
@@ -120,19 +127,41 @@ function paintFor(layer: MapLayer): Record<string, unknown> {
   };
 }
 
-function popupHtml(feature: MapGeoJSONFeature, properties?: string[]): string {
+/**
+ * A feature's popup, built as nodes with text only: an attribute value is whatever the data
+ * holds, and none of it is ever read as markup. With `open`, a button opens the entity.
+ */
+export function popupNode(
+  feature: Pick<MapGeoJSONFeature, "properties">,
+  properties?: string[],
+  open?: MapLayer["open"],
+): HTMLElement {
   const props = feature.properties ?? {};
-  const keys = properties?.length ? properties : Object.keys(props).slice(0, 6);
-  const escape = (value: unknown) =>
-    String(value ?? "—").replace(
-      /[&<>"']/g,
-      (char) =>
-        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char,
-    );
-  return `<dl>${keys
-    .map((key) => `<dt>${escape(key)}</dt><dd>${escape(props[key])}</dd>`)
-    .join("")}</dl>`;
+  const keys = properties?.length ? properties : Object.keys(props).filter((key) => key !== "id").slice(0, 6);
+  const root = document.createElement("div");
+  const list = document.createElement("dl");
+  for (const key of keys) {
+    const term = document.createElement("dt");
+    term.textContent = key;
+    const value = document.createElement("dd");
+    value.textContent = props[key] === undefined || props[key] === null ? "—" : String(props[key]);
+    list.append(term, value);
+  }
+  root.append(list);
+  const id = props.id;
+  if (open && typeof id === "string") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mt-1 text-primary-soft-fg underline";
+    button.textContent = open.label;
+    button.addEventListener("click", () => open.onOpen(id));
+    root.append(button);
+  }
+  return root;
 }
+
+/** The layer a clustered source adds beside its own: the circles that grow with what they hold. */
+const clusterLayers = (name: string) => [`${name}--clusters`];
 
 /** The extent of a feature collection, or nothing when it has no coordinate. */
 export function extentOf(data: unknown): Bbox | null {
@@ -214,6 +243,9 @@ export function MapLibreView({
     instance.on("error", () => {
       if (!fellBack && !instance.isStyleLoaded()) {
         fellBack = true;
+        // The map's own `load` never comes once its first style failed: the plain ground's
+        // `style.load` is what says the layers may be added now (T-3256).
+        instance.once("style.load", () => setLoaded(instance));
         instance.setStyle(blankStyle());
       }
     });
@@ -241,6 +273,10 @@ export function MapLibreView({
     const wanted = new Set(layers.map((layer) => layer.name));
     for (const name of [...drawn.current.keys()]) {
       if (!wanted.has(name)) {
+        const was = drawn.current.get(name);
+        if (was?.cluster && was.style === "circle") {
+          for (const extra of clusterLayers(name)) instance.removeLayer(extra);
+        }
         instance.removeLayer(name);
         instance.removeSource(name);
         drawn.current.delete(name);
@@ -256,13 +292,45 @@ export function MapLibreView({
         }
         continue;
       }
-      instance.addSource(layer.name, { type: "geojson", data });
+      const clustered = layer.cluster === true && layer.style === "circle";
+      instance.addSource(layer.name, {
+        type: "geojson",
+        data,
+        ...(clustered ? { cluster: true, clusterRadius: 48, clusterMaxZoom: 14 } : {}),
+      });
       instance.addLayer({
         id: layer.name,
         type: layer.style,
         source: layer.name,
+        ...(clustered ? { filter: ["!", ["has", "point_count"]] } : {}),
         paint: paintFor(layer),
       } as Parameters<MapLibreMap["addLayer"]>[0]);
+      if (clustered) {
+        const [circles] = clusterLayers(layer.name);
+        instance.addLayer({
+          id: circles,
+          type: "circle",
+          source: layer.name,
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": plainColour(),
+            "circle-opacity": 0.85,
+            "circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 100, 24, 1000, 30],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": outlineColour(),
+          },
+        });
+        instance.on("click", circles, (event) => {
+          const feature = event.features?.[0];
+          const id = feature?.properties?.cluster_id;
+          const source = instance.getSource(layer.name) as { getClusterExpansionZoom?: (id: number) => Promise<number> } | undefined;
+          if (typeof id !== "number" || !source?.getClusterExpansionZoom || feature?.geometry.type !== "Point") {
+            return;
+          }
+          const at = feature.geometry.coordinates as [number, number];
+          void source.getClusterExpansionZoom(id).then((next) => instance.easeTo({ center: at, zoom: next }));
+        });
+      }
       instance.on("click", layer.name, (event) => {
         const feature = event.features?.[0];
         if (!feature) {
@@ -270,7 +338,7 @@ export function MapLibreView({
         }
         new Popup()
           .setLngLat(event.lngLat)
-          .setHTML(popupHtml(feature, layer.popupProperties))
+          .setDOMContent(popupNode(feature, layer.popupProperties, layer.open))
           .addTo(instance);
       });
       drawn.current.set(layer.name, layer);

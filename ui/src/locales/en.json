@@ -3430,6 +3430,15 @@
         "python": "Python 3 (no packages needed)",
         "javascript": "JavaScript (Node 18 or later)"
       }
+    },
+    "map": {
+      "tab": "Map",
+      "loading": "Reading the located entities…",
+      "none": "No entity of this view has a location.",
+      "count": "{shown} of {total} on the map",
+      "truncated": "Only the first {max}: narrow the filter to see the rest.",
+      "label": "Map of {type}",
+      "open": "Open the entity"
     }
   },
   "agentRun": {

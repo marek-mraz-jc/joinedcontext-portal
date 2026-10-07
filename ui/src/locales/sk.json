@@ -3430,6 +3430,15 @@
         "python": "Python 3 (bez balíkov)",
         "javascript": "JavaScript (Node 18 alebo novší)"
       }
+    },
+    "map": {
+      "tab": "Mapa",
+      "loading": "Načítavam entity s polohou…",
+      "none": "Žiadna entita tohto pohľadu nemá polohu.",
+      "count": "{shown} z {total} na mape",
+      "truncated": "Iba prvých {max}: pre ostatné zúžte filter.",
+      "label": "Mapa typu {type}",
+      "open": "Otvoriť entitu"
     }
   },
   "agentRun": {

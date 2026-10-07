@@ -3430,6 +3430,15 @@
         "python": "Python 3 (ohne Pakete)",
         "javascript": "JavaScript (Node 18 oder neuer)"
       }
+    },
+    "map": {
+      "tab": "Karte",
+      "loading": "Lese die Entitäten mit Ort…",
+      "none": "Keine Entität dieser Ansicht hat einen Ort.",
+      "count": "{shown} von {total} auf der Karte",
+      "truncated": "Nur die ersten {max}: grenzen Sie den Filter ein, um den Rest zu sehen.",
+      "label": "Karte von {type}",
+      "open": "Entität öffnen"
     }
   },
   "agentRun": {
