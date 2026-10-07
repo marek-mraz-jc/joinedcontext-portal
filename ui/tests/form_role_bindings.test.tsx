@@ -32,8 +32,11 @@ vi.mock("../src/components/ChangeNotice", () => ({
 }));
 
 let mayPropose = true;
-vi.mock("../src/api/permissions", () => ({
-  usePermissions: () => ({ can: () => mayPropose }),
+/** The caller's effective grants, as `/permissions/me` answers them; none unless a case says so. */
+let effective: unknown = undefined;
+vi.mock("../src/api/permissions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/api/permissions")>()),
+  usePermissions: () => ({ can: () => mayPropose, data: effective }),
 }));
 
 const { GrantRoleDialog, RoleBindings } = await import("../src/pages/access/RoleBindings");
@@ -93,6 +96,7 @@ const dialog = () => <GrantRoleDialog project={PROJECT} open onOpenChange={() =>
 
 beforeEach(async () => {
   mayPropose = true;
+  effective = undefined;
   await i18n.changeLanguage("en");
 });
 afterEach(() => {
@@ -102,6 +106,61 @@ afterEach(() => {
 describe("the grant dialog (T-1759)", () => {
   it("meets_the_form_contract", async () => {
     await checkForm(dialog, spec);
+  });
+
+  it("offers_the_realm_people_under_the_typing_to_a_caller_who_may_read_them (T-3216)", async () => {
+    effective = { grants: [{ rule: { kinds: ["Person"], verbs: ["read"] } }] };
+    renderPage(dialog(), {
+      path: `/projects/${PROJECT}`,
+      answer: (url) => {
+        if (url.pathname === "/api/v1/organization/people") {
+          return json({
+            items: [
+              { id: "1", email: "jana.kovacova@example.sk", firstName: "Jana", lastName: "Kováčová", enabled: true, emailVerified: true, requiredActions: [] },
+              { id: "2", email: "gone@example.sk", firstName: "Gone", lastName: "", enabled: false, emailVerified: true, requiredActions: [] },
+            ],
+          });
+        }
+        return reads()(url);
+      },
+    });
+    const person = await screen.findByLabelText(/Username or e-mail/);
+    await waitFor(() => expect(person).toHaveAttribute("list"));
+    const listed = document.getElementById(person.getAttribute("list") ?? "");
+    const values = [...(listed?.querySelectorAll("option") ?? [])].map((option) => option.getAttribute("value"));
+    // A disabled account is not offered: a grant to it would do nothing.
+    expect(values).toEqual(["jana.kovacova@example.sk"]);
+  });
+
+  it("offers_no_list_and_keeps_typing_open_to_a_caller_who_may_not_read_people (T-3216)", async () => {
+    renderPage(dialog(), { path: `/projects/${PROJECT}`, answer: reads() });
+    const person = await screen.findByLabelText(/Username or e-mail/);
+    expect(person).not.toHaveAttribute("list");
+    expect(person).not.toBeDisabled();
+  });
+
+  it("says_what_the_chosen_role_lets_a_person_do (T-3216)", async () => {
+    const user = userEvent.setup();
+    renderPage(dialog(), {
+      path: `/projects/${PROJECT}`,
+      answer: (url) => {
+        if (url.pathname === ROLES) {
+          return json(
+            list([
+              { ...role("steward"), metadata: { name: "steward", title: "Data steward", description: "Looks after the data of the project." } },
+              { ...role("reader"), spec: { rules: [{ kinds: ["ContextSpace", "Endpoint"], verbs: ["read"] }] } },
+            ]),
+          );
+        }
+        return reads()(url);
+      },
+    });
+    const picker = await screen.findByLabelText(/^Role/);
+    await screen.findByRole("option", { name: "Data steward (steward)" });
+    await user.selectOptions(picker, "steward");
+    expect(picker).toHaveAccessibleDescription(/Looks after the data of the project\./);
+    await user.selectOptions(picker, "reader");
+    expect(picker).toHaveAccessibleDescription(/This role may: read on ContextSpace, Endpoint\./);
   });
 
   it("proposes_one_grant_carrying_what_was_typed", async () => {

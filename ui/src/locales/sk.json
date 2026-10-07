@@ -1743,7 +1743,9 @@
       "spacesFailed": "Kontextové priestory tohto projektu sa nepodarilo načítať, takže pridelenia platné pre jeden priestor v tomto zozname chýbajú: {reason}",
       "discardTitle": "Zahodiť toto pridelenie?",
       "discardConfirm": "To, čo ste napísali, sa stratí a nič sa nenavrhne. Už pridelené roly sa nemenia.",
-      "discard": "Zahodiť pridelenie"
+      "discard": "Zahodiť pridelenie",
+      "grants": "Táto rola smie: {rights}.",
+      "grantsNothing": "Táto rola zatiaľ nič neudeľuje: nemá pravidlá."
     },
     "projectRoles": {
       "title": "Role",
@@ -4227,7 +4229,7 @@
       "lead": "Ľudia prihlasovacej domény organizácie. Čo kto smie, určujú väzby a skupiny, ktoré ho menujú.",
       "new": "Nová osoba",
       "hidden": "Tento zoznam vidí len osoba, ktorej rola číta ľudí. Pridelí ju administrátor organizácie.",
-      "invited": "Doména poslala na {email} e-mail na overenie adresy a nastavenie hesla.",
+      "invited": "Doména poslala na {email} e-mail na overenie adresy a nastavenie hesla. Prihlásiť sa môže, no kým nemá rolu, nič neurobí: udeľte ju v časti Členovia projektu alebo organizácie.",
       "search": "Hľadať ľudí",
       "searchPlaceholder": "Meno alebo e-mail",
       "searchButton": "Hľadať",
