@@ -14,6 +14,7 @@ import {
   Button,
   Field,
   FilePicker,
+  RadioGroup,
   Select,
   Table,
   TableBody,
@@ -32,6 +33,8 @@ import { sampleUrlOf } from "./PipelineStudio";
 import { MAX_SAMPLE_BYTES, draftFromRecord, draftFromSample, formatOf } from "./PipelineTest";
 import type { SampleFormat } from "./PipelineTest";
 import { SlotUnit } from "./SlotUnit";
+import { OutputMapper } from "./OutputMapper";
+import { HEADER } from "./outputMapper";
 
 /** How long the mapping rests before the workbench tries it again: one pause in typing. */
 export const QUIET_MS = 600;
@@ -421,6 +424,11 @@ export function PipelineWorkbench({
   // Steps 3 and 4: the mapping, tried once typing rests.
   const bloblang = draft?.compute?.kind === "bloblang" || draft?.compute?.kind === undefined ? (draft?.compute?.bloblang ?? "") : "";
   const quiet = useQuiet(bloblang, QUIET_MS);
+  // Fields mapped onto the type's attributes, or Bloblang written by hand (T-3224): the mapper for a
+  // step it wrote, the code for any other, an empty one and a draft from a dropped file included,
+  // until the person picks one.
+  const [chosenMode, setMappingMode] = useState<"map" | "code" | null>(null);
+  const mappingMode = chosenMode ?? (bloblang.startsWith(HEADER) ? "map" : "code");
   // The manifest carries the rested mapping, not every keystroke: a query key is compared by
   // value, so a draft that changed nowhere else asks the runner nothing new.
   const manifest = useMemo(
@@ -634,6 +642,33 @@ export function PipelineWorkbench({
       </Step>
 
       <Step number={3} id="workbench-mapping" title={t("pipelines.workbench.mapping.title")} hint={t("pipelines.workbench.mapping.hint")}>
+        <RadioGroup
+          name="workbench-mapping-mode"
+          legend={t("pipelines.mapper.mode")}
+          value={mappingMode}
+          layout="row"
+          options={[
+            { value: "map", label: t("pipelines.mapper.modeMap") },
+            { value: "code", label: t("pipelines.mapper.modeCode") },
+          ]}
+          onChange={setMappingMode}
+        />
+        {mappingMode === "map" ? (
+          targetSpace ? (
+            <OutputMapper
+              project={project}
+              space={targetSpace}
+              orgDomain={draft?.targetEndpoint?.split(":")[3] ?? ""}
+              records={sampled.data?.records ?? []}
+              bloblang={bloblang}
+              onBloblang={(next) =>
+                onChange({ ...(draft ?? {}), compute: { ...(draft?.compute ?? {}), kind: "bloblang", bloblang: next } })
+              }
+            />
+          ) : (
+            <p className="text-caption text-fg-subtle">{t("pipelines.workbench.mapping.pickTarget")}</p>
+          )
+        ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <Field id="workbench-bloblang" label={t("pipelines.field.bloblang")} description={t("pipelines.workbench.mapping.bloblangHint")}>
             <Textarea
@@ -712,6 +747,7 @@ export function PipelineWorkbench({
             )}
           </div>
         </div>
+        )}
       </Step>
 
       <Step number={4} id="workbench-output" title={t("pipelines.workbench.output.title")} hint={t("pipelines.workbench.output.hint")}>

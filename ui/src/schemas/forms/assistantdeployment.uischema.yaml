@@ -120,10 +120,10 @@ spec:
         de: Wie lange ein Aufruf des Endpoints dauern darf, in Sekunden, 1 bis 120; danach ohne ihn.
     allowedOrigins:
       help:
-        en: The sites a public chat may be placed on, each https://host or https://host:port, no path and no wildcard.
-        sk: Weby, na ktorých smie byť verejný chat, každý https://hostiteľ alebo s portom, bez cesty a zástupných znakov.
-        cs: Weby, na kterých smí být veřejný chat, každý https://hostitel nebo s portem, bez cesty a zástupných znaků.
-        de: Websites für einen öffentlichen Chat, jeweils https://Host oder mit Port, ohne Pfad und Platzhalter.
+        en: The sites a public chat may be placed on, each https://host or https://host:port, no path and no wildcard; a public, catalogue or embedded channel needs at least one.
+        sk: Weby, na ktorých smie byť verejný chat, každý https://hostiteľ alebo s portom, bez cesty a zástupných znakov; verejný, katalógový alebo vložený kanál potrebuje aspoň jeden.
+        cs: Weby, na kterých smí být veřejný chat, každý https://hostitel nebo s portem, bez cesty a zástupných znaků; veřejný, katalogový nebo vložený kanál potřebuje alespoň jeden.
+        de: Websites für einen öffentlichen Chat, jeweils https://Host oder mit Port, ohne Pfad und Platzhalter; ein öffentlicher, Katalog- oder eingebetteter Kanal braucht mindestens eine.
     rateLimit.requestsPerMinute:
       help:
         en: Questions a minute it answers across everyone, up to 600; past it a person is asked to wait.

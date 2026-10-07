@@ -26,6 +26,7 @@ import {
   RFC3339_PATTERN,
   SYNC_INTERVAL_PATTERN,
 } from "../../schemas/kinds";
+import { CRON, HEX_COLOR, HTTPS_URL, LANGUAGE, ORIGIN, SITE_PATH } from "../../schemas/knowledge";
 
 /**
  * The patterns whose refusal says what to write instead of "invalid value" (T-3219): each is a
@@ -41,6 +42,12 @@ const PATTERN_MESSAGES: Record<string, string> = {
   [NOTIFICATION_URI_PATTERN]: "form.notificationUri",
   [RFC3339_PATTERN]: "form.instant",
   [HEADER_NAME_PATTERN]: "form.headerName",
+  [HTTPS_URL]: "form.httpsUrl",
+  [CRON]: "form.cron",
+  [ORIGIN]: "form.origin",
+  [LANGUAGE]: "form.language",
+  [SITE_PATH]: "form.sitePath",
+  [HEX_COLOR]: "form.color",
 };
 import { namesOfRefs, withPickers } from "../../schemas/pickers";
 
