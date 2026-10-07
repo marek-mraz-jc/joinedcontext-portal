@@ -9,7 +9,7 @@ import { useProjects } from "../../api/projects";
 import { useBranding } from "../../branding";
 import { DeleteResourceDialog } from "../../components/DeleteResourceDialog";
 import { namedServerUrl } from "../../components/endpoints/links";
-import { Alert, Badge, Button, Card, EmptyState, PageHeader, PermissionGuard } from "../../components/ui";
+import { Badge, Button, Card, EmptyState, PageFailed, PageHeader, PermissionGuard } from "../../components/ui";
 import { reasonOf } from "../../components/forms/widgets/ListFailed";
 import { McpServerDialog } from "./McpServerDialog";
 import { CopyValue, ToolPreview } from "./McpServerPanels";
@@ -75,9 +75,14 @@ export function McpServersPage({ project, embedded = false }: { project: string;
         <PageHeader title={t("mcp.title")} description={t("mcp.lead")} actions={create} />
       )}
       {servers.isError ? (
-        <Alert tone="danger" role="alert">
+        <PageFailed
+          error={servers.error}
+          onRetry={() => {
+            void servers.refetch();
+          }}
+        >
           {t("mcp.listFailed", { reason: reasonOf(servers.error, t("app.error.generic")) })}
-        </Alert>
+        </PageFailed>
       ) : null}
       {servers.isLoading ? <p role="status">{t("app.loading")}</p> : null}
       {!servers.isLoading && !servers.isError && items.length === 0 ? (

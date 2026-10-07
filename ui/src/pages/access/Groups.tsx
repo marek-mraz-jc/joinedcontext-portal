@@ -14,10 +14,10 @@ import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
 import { groupSchema } from "../../schemas/kinds";
 import {
-  Alert,
   Badge,
   Button,
   EmptyState,
+  PageFailed,
   Table,
   TableBody,
   TableCell,
@@ -239,11 +239,12 @@ export function Groups({ project }: { project: string }): JSX.Element {
       </div>
 
       {groups.error ? (
-        <Alert tone="danger" role="alert">
-          {groups.error instanceof ApiError
-            ? (groups.error.problem?.detail ?? groups.error.message)
-            : t("app.error.generic")}
-        </Alert>
+        <PageFailed
+          error={groups.error}
+          onRetry={() => {
+            void groups.refetch();
+          }}
+        />
       ) : (
         <Table
           data-records=""

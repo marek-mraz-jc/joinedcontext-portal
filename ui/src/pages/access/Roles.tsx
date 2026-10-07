@@ -15,10 +15,10 @@ import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
 import { ROLE_VERBS, roleSchema } from "../../schemas/kinds";
 import {
-  Alert,
   Badge,
   Button,
   EmptyState,
+  PageFailed,
   Table,
   TableBody,
   TableCell,
@@ -320,9 +320,13 @@ export function Roles({
       </div>
 
       {error ? (
-        <Alert tone="danger" role="alert">
-          {error instanceof ApiError ? (error.problem?.detail ?? error.message) : t("app.error.generic")}
-        </Alert>
+        <PageFailed
+          error={error}
+          onRetry={() => {
+            void organization.refetch();
+            void here.refetch();
+          }}
+        />
       ) : (
         <Table data-records="" caption={t("access.projectRoles.caption", { project })} status={pending ? t("app.loading") : undefined}>
           <TableHead>

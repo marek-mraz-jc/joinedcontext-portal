@@ -261,6 +261,18 @@ describe("the approvals page, mounted on its own", () => {
     });
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("You may not read the changes of helsinki.");
+    // A refusal answers the same the second time: it says who gives access instead (T-3244).
+    expect(alert).toHaveTextContent(en.app.error.forbiddenHint);
+    expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+  });
+
+  it("offers to ask again when the forge failed", async () => {
+    renderPage(page, {
+      answer: (url) => (url.pathname.endsWith("/changes") ? problem(503, "The forge does not answer.") : undefined),
+      path: "/projects/helsinki/approvals",
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The forge does not answer.");
     expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
   });
 

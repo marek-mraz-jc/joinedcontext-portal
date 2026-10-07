@@ -141,15 +141,6 @@
         "resource_form_dialog.test.tsx"
       ]
     },
-    "src/components/ResourceList.tsx": {
-      "controls": {
-        "Button": 1
-      },
-      "tests": [
-        "part_resource_list.test.tsx",
-        "resource_list.test.tsx"
-      ]
-    },
     "src/components/SaveAsDialog.tsx": {
       "controls": {
         "Button": 5,
@@ -471,7 +462,7 @@
     },
     "src/components/ui/PageState.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "browser_security.test.tsx",

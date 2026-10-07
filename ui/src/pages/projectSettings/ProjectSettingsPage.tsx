@@ -2,7 +2,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, ORG_NAMESPACE, plainTitle } from "../../api/manifest";
 import { usePermissions } from "../../api/permissions";
 import type { Rule } from "../../api/permissions";
@@ -13,6 +13,7 @@ import type { EditableForm } from "../../components/EditResourceDialog";
 import { ProjectQuota } from "../../components/ProjectQuota";
 import {
   Alert,
+  PageFailed,
   PageHeader,
   Table,
   TableBody,
@@ -22,8 +23,8 @@ import {
   TableHeaderCell,
   TableRow,
   TableSkeleton,
-  Tabs,
   tabPanelProps,
+  Tabs,
 } from "../../components/ui";
 import { projectSchema } from "../../schemas/kinds";
 import { EffectivePermissions } from "../access/EffectivePermissions";
@@ -158,11 +159,12 @@ function General({ project }: { project: string }): JSX.Element {
           ) : null}
         </div>
         {manifest.isError ? (
-          <Alert tone="danger" role="alert">
-            {manifest.error instanceof ApiError
-              ? (manifest.error.problem?.detail ?? manifest.error.message)
-              : t("app.error.generic")}
-          </Alert>
+          <PageFailed
+            error={manifest.error}
+            onRetry={() => {
+              void manifest.refetch();
+            }}
+          />
         ) : null}
         <dl className="grid gap-x-6 gap-y-3 text-body sm:grid-cols-[max-content_1fr]">
           <dt className="font-medium text-fg">{t("projectSettings.field.title")}</dt>
