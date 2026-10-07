@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
@@ -17,6 +17,7 @@ import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 import { useIdentity } from "../../auth/AuthProvider";
+import { replaceOwnSearch } from "../../assistant/HandOff";
 
 const PAGE_SIZE = 50;
 
@@ -87,6 +88,24 @@ export function ExplorePage({
   /** Bumped when an entity is removed, so the grid reads the endpoint again. */
   const [generation, setGeneration] = useState(0);
   const queryClient = useQueryClient();
+
+  // What is chosen stands in the address as it changes (UI-89, T-3239): a reload or a link sent
+  // to a colleague opens the same space, endpoint, type, search and entity. `space` and
+  // `endpoint` are also the assistant's hand-off; written as the page's own, they mount nothing
+  // afresh. Replaced, not pushed: each pick is not a step back needs to retrace.
+  useEffect(() => {
+    const address = new URLSearchParams(window.location.search);
+    const put = (key: string, value: string | null | undefined) => {
+      if (value) address.set(key, value);
+      else address.delete(key);
+    };
+    if (chosenSpace !== null) put("space", chosenSpace);
+    if (endpointChoice !== "") put("endpoint", endpointChoice);
+    put("type", query.type);
+    put("q", query.q);
+    put("entityId", selected);
+    replaceOwnSearch(address);
+  }, [chosenSpace, endpointChoice, query.type, query.q, selected]);
 
   /**
    * The `entities` hand-off names the endpoint and not its space (UI-59), and the page reads an

@@ -308,6 +308,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         <Button
           size="sm"
           variant="primary"
+          data-shortcut="test"
           loading={running}
           disabled={!sample || !bloblang}
           // Why the run is refused, where it is refused: a sentence beside the button said

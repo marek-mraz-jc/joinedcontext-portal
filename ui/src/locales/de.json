@@ -5716,5 +5716,48 @@
     "title": "Benachrichtigungen",
     "none": "Nichts Neues.",
     "mentioned": "{name} hat Sie in {space} erwähnt"
+  },
+  "places": {
+    "star": "Seite mit Stern markieren",
+    "copyLink": "Link kopieren",
+    "linkCopied": "Link kopiert: Wer diese Seite lesen darf, öffnet sie so, wie Sie sie sehen.",
+    "linkNotCopied": "Der Browser hat das Kopieren nicht erlaubt; kopieren Sie die Adresse aus der Adresszeile."
+  },
+  "palette": {
+    "title": "Gehe zu",
+    "hint": "Geben Sie einen Namen ein: eine Seite, ein Projekt, einen Raum, einen Endpunkt, eine Pipeline, eine App, ein Modell, einen Typ oder die URN einer Entität. Ein weiteres Strg+K fragt den Assistenten.",
+    "search": "Name, zu dem Sie gehen",
+    "placeholder": "air-quality, Veranstaltungen, urn:ngsi-ld:…",
+    "results": "Ergebnisse",
+    "nothing": "Nichts, was Sie lesen dürfen, heißt so. Strg+K fragt stattdessen den Assistenten.",
+    "glossary": "Glossar",
+    "groups": {
+      "recent": "Zuletzt geöffnet",
+      "favourites": "Mit Stern",
+      "actions": "Aktionen",
+      "pages": "Seiten",
+      "projects": "Projekte",
+      "types": "Entitätstypen"
+    },
+    "actions": {
+      "openEntity": "Entität {id} öffnen",
+      "findEntities": "Entitäten zu „{q}“ finden",
+      "ask": "Den Assistenten fragen",
+      "newPipeline": "Pipeline anlegen",
+      "invite": "Person einladen",
+      "settings": "Projekteinstellungen öffnen"
+    }
+  },
+  "shortcuts": {
+    "title": "Tastenkürzel",
+    "hint": "Was auf dieser Seite wirkt. Ein Buchstabe wirkt nie, während Sie in ein Feld tippen.",
+    "palette": "Zu einer Seite, einem Element oder einer Aktion; zweimal fragt den Assistenten",
+    "save": "Formular speichern",
+    "new": "Neu anlegen",
+    "test": "Test ausführen",
+    "next": "Nächste Zeile der Liste",
+    "previous": "Vorherige Zeile der Liste",
+    "close": "Dialog oder Bereich schließen",
+    "help": "Diese Kürzel anzeigen"
   }
 }

@@ -5716,5 +5716,48 @@
     "title": "Notifications",
     "none": "Nothing new.",
     "mentioned": "{name} mentioned you in {space}"
+  },
+  "places": {
+    "star": "Star this page",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied: whoever may read this page opens it as you see it.",
+    "linkNotCopied": "The browser did not let the Portal copy; copy the address from the address bar."
+  },
+  "palette": {
+    "title": "Go to",
+    "hint": "Type a name: a page, a project, a space, an endpoint, a pipeline, an app, a model, a type or an entity's URN. Ctrl+K again asks the assistant.",
+    "search": "Name to go to",
+    "placeholder": "air-quality, Helsinki events, urn:ngsi-ld:…",
+    "results": "Results",
+    "nothing": "Nothing you may read has this name. Ctrl+K asks the assistant instead.",
+    "glossary": "Glossary",
+    "groups": {
+      "recent": "Recently opened",
+      "favourites": "Starred",
+      "actions": "Actions",
+      "pages": "Pages",
+      "projects": "Projects",
+      "types": "Entity types"
+    },
+    "actions": {
+      "openEntity": "Open the entity {id}",
+      "findEntities": "Find entities matching “{q}”",
+      "ask": "Ask the assistant",
+      "newPipeline": "Create a pipeline",
+      "invite": "Invite a person",
+      "settings": "Open the project's settings"
+    }
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "hint": "What works on this page. A letter never acts while you type in a field.",
+    "palette": "Go to a page, an item or an action; twice asks the assistant",
+    "save": "Save the form",
+    "new": "Create a new one",
+    "test": "Run the test",
+    "next": "Next row of the list",
+    "previous": "Previous row of the list",
+    "close": "Close the dialog or panel",
+    "help": "Show these shortcuts"
   }
 }

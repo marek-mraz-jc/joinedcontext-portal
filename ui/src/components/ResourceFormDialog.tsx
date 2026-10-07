@@ -1168,6 +1168,7 @@ export function ResourceFormDialog<T>({
                   the person tabbing the footer (UI-44, T-1753). */}
               <Button
                 variant="primary"
+                data-shortcut="save"
                 disabled={disabled || Boolean(effectiveSubmitDisabledReason)}
                 disabledReason={effectiveSubmitDisabledReason}
                 loading={submitting || saving}

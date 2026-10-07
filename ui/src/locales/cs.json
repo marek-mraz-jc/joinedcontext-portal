@@ -5716,5 +5716,48 @@
     "title": "Upozornění",
     "none": "Nic nového.",
     "mentioned": "{name} vás zmínil(a) v {space}"
+  },
+  "places": {
+    "star": "Označit stránku hvězdičkou",
+    "copyLink": "Kopírovat odkaz",
+    "linkCopied": "Odkaz zkopírován: kdo smí číst tuto stránku, otevře ji tak, jak ji vidíte vy.",
+    "linkNotCopied": "Prohlížeč nedovolil kopírování; zkopírujte adresu z adresního řádku."
+  },
+  "palette": {
+    "title": "Přejít na",
+    "hint": "Napište název: stránku, projekt, prostor, endpoint, pipeline, aplikaci, model, typ nebo URN entity. Další Ctrl+K se zeptá asistenta.",
+    "search": "Název, kam přejít",
+    "placeholder": "air-quality, Akce, urn:ngsi-ld:…",
+    "results": "Výsledky",
+    "nothing": "Nic, co smíte číst, se takto nejmenuje. Ctrl+K se místo toho zeptá asistenta.",
+    "glossary": "Slovník pojmů",
+    "groups": {
+      "recent": "Naposledy otevřené",
+      "favourites": "S hvězdičkou",
+      "actions": "Akce",
+      "pages": "Stránky",
+      "projects": "Projekty",
+      "types": "Typy entit"
+    },
+    "actions": {
+      "openEntity": "Otevřít entitu {id}",
+      "findEntities": "Najít entity podle „{q}“",
+      "ask": "Zeptat se asistenta",
+      "newPipeline": "Vytvořit pipeline",
+      "invite": "Pozvat osobu",
+      "settings": "Otevřít nastavení projektu"
+    }
+  },
+  "shortcuts": {
+    "title": "Klávesové zkratky",
+    "hint": "Co funguje na této stránce. Písmeno nikdy nejedná, když píšete do pole.",
+    "palette": "Přejít na stránku, položku nebo akci; dvakrát se zeptá asistenta",
+    "save": "Uložit formulář",
+    "new": "Vytvořit nový",
+    "test": "Spustit test",
+    "next": "Další řádek seznamu",
+    "previous": "Předchozí řádek seznamu",
+    "close": "Zavřít dialog nebo panel",
+    "help": "Zobrazit tyto zkratky"
   }
 }

@@ -88,6 +88,7 @@ import {
   Term,
 } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
+import { useUrlParam } from "../../navigation/urlState";
 
 const SPACE_LABEL = "joinedcontext.com/space";
 const RESULTS_COUNT_HEADER = "NGSILD-Results-Count";
@@ -370,7 +371,8 @@ function SpaceData({
   const rules = useMemo(() => rulesOfModel(modelSource, type), [modelSource, type]);
   const slots = useMemo(() => filterSlotsOf(modelSource, type), [modelSource, type]);
   // The grid, or a view over the same rows (ADR-N-042 §3.2): the other views share one filter.
-  const [view, setView] = useState<DataView>("grid");
+  // The view is in the address, so back, reload and a sent link open it (T-3239).
+  const [view, setView] = useUrlParam<DataView>("view", "grid", DATA_VIEWS);
   const [q, setQ] = useState<string | undefined>(undefined);
   // A field is a slot of the type's class: offered only when the space's model declares the type.
   const ownClass = useMemo(
@@ -411,7 +413,7 @@ function SpaceData({
       filterText: next?.config.q ?? null,
       sort: first ? { attr: first.attr, dir: first.desc ? "desc" : "asc" } : null,
     });
-  }, []);
+  }, [setView]);
   const onGridState = useCallback((next: GridState) => {
     setGridView((before) =>
       before.filterText === next.filterText && before.sort?.attr === next.sort?.attr && before.sort?.dir === next.sort?.dir

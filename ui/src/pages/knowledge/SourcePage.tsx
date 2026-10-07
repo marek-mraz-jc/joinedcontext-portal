@@ -34,6 +34,7 @@ import {
   timeText,
 } from "./knowledge";
 import type { DocumentRow, InclusionCounts, PageRow } from "./knowledge";
+import { useUrlParam } from "../../navigation/urlState";
 
 type View = "pages" | "documents";
 
@@ -61,7 +62,8 @@ export function InclusionBadge({ included, excludedBy }: { included: boolean; ex
 export function SourcePage({ project, source }: { project: string; source: string }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [view, setView] = useState<View>("pages");
+  // The tab is in the address, so back, reload and a sent link open it (T-3239).
+  const [view, setView] = useUrlParam<View>("tab", "pages", ["pages", "documents"]);
   const [pages, setPages] = useState<ReadonlySet<number>>(new Set());
   const [documents, setDocuments] = useState<ReadonlySet<number>>(new Set());
   const [subtree, setSubtree] = useState(true);

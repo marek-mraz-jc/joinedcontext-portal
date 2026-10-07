@@ -255,3 +255,72 @@ async fn an_invalid_field_is_400_and_leaves_the_row_untouched() {
     let (_, body) = call(&app, &cookie, Method::GET, None).await;
     assert_eq!(body, json!({ "theme": "dark" }));
 }
+
+/// UI-90: the recent pages a tab reports are put first, each once, the newest ten kept, and
+/// nothing else of the stored preferences changes.
+#[tokio::test]
+async fn recent_pages_are_merged_without_touching_the_rest() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let config = Config::for_tests();
+    let cookie = session_cookie(&config, &fresh_subject("recent"));
+    let app = server::app(AppState::new(config, None).with_db(pool));
+    let place = |path: &str| json!({ "path": path, "title": "t" });
+    let (status, _) = call(
+        &app,
+        &cookie,
+        Method::PUT,
+        Some(json!({ "theme": "dark", "recent": [place("/a"), place("/b")] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let post = |body: Value| {
+        let app = app.clone();
+        let cookie = cookie.clone();
+        async move {
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .method(Method::POST)
+                        .uri("/api/v1/preferences/recent")
+                        .header(header::COOKIE, cookie)
+                        .header("x-csrf-token", CSRF)
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from(body.to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let status = response.status();
+            let bytes = response.into_body().collect().await.unwrap().to_bytes();
+            (
+                status,
+                serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null),
+            )
+        }
+    };
+    let (status, body) = post(json!({ "places": [place("/c"), place("/b")] })).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["theme"], "dark");
+    assert_eq!(
+        body["recent"],
+        json!([place("/c"), place("/b"), place("/a")])
+    );
+
+    let (status, _) = post(json!({ "places": [] })).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = post(json!({ "places": [place("https://evil.example/")] })).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (_, stored) = call(&app, &cookie, Method::GET, None).await;
+    assert_eq!(
+        stored["recent"],
+        json!([place("/c"), place("/b"), place("/a")]),
+        "a refused report changes nothing"
+    );
+}
