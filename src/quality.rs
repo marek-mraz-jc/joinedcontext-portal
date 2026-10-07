@@ -71,7 +71,7 @@ pub struct Freshness {
 }
 
 /// What one run found in one space.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SpaceQuality {
     #[schema(value_type = String, format = DateTime)]
@@ -81,7 +81,52 @@ pub struct SpaceQuality {
     pub truncated: bool,
     pub rules: Vec<RuleCount>,
     pub freshness: Vec<Freshness>,
+    /// Per entity type: how complete each attribute is, the newest change, numeric ranges and
+    /// outliers (T-3252).
+    pub types: Vec<TypeQuality>,
 }
+
+/// What one run found of one entity type.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TypeQuality {
+    #[serde(rename = "type")]
+    pub entity_type: String,
+    pub count: u64,
+    #[schema(value_type = Option<String>, format = DateTime)]
+    pub newest: Option<DateTime<Utc>>,
+    /// Every attribute an entity of the type carries, the most complete first.
+    pub attributes: Vec<AttributeQuality>,
+}
+
+/// One attribute of one type: how many entities carry it and, for numbers, their range and the
+/// values far outside the rest.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AttributeQuality {
+    pub name: String,
+    /// Entities of the type that carry the attribute.
+    pub present: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    /// Values outside the Tukey fences (1.5 interquartile ranges past the quartiles).
+    pub outliers: u64,
+    /// At most five ids of entities holding such a value.
+    pub outlier_examples: Vec<String>,
+}
+
+/// What a run keeps of one type while it reads it: ids by position, so a number keeps a `u32`.
+#[derive(Debug, Default)]
+struct TypeTally {
+    ids: Vec<String>,
+    present: BTreeMap<String, u64>,
+    numbers: BTreeMap<String, Vec<(f64, u32)>>,
+}
+
+/// The fewest numbers an attribute needs before a value is called an outlier.
+const OUTLIER_FROM: usize = 8;
 
 /// The count of one space's entities while a run reads them.
 #[derive(Debug, Default)]
@@ -92,6 +137,19 @@ pub struct Tally {
     rules: BTreeMap<(String, String), (u64, Vec<String>)>,
     /// The newest `modifiedAt` per type.
     newest: BTreeMap<String, DateTime<Utc>>,
+    types: BTreeMap<String, TypeTally>,
+}
+
+/// The number an attribute holds: a Property's numeric `value`, the first of several instances.
+fn number_of(attribute: &Value) -> Option<f64> {
+    let first = match attribute {
+        Value::Array(items) => items.first()?,
+        other => other,
+    };
+    first
+        .get("value")
+        .and_then(Value::as_f64)
+        .filter(|n| n.is_finite())
 }
 
 impl Tally {
@@ -101,6 +159,33 @@ impl Tally {
         if let (Some(kind), Some(at)) = (entity.get("type").and_then(Value::as_str), modified) {
             let newest = self.newest.entry(kind.to_owned()).or_insert(at);
             *newest = (*newest).max(at);
+        }
+        if let (Some(kind), Some(object)) = (
+            entity.get("type").and_then(Value::as_str),
+            entity.as_object(),
+        ) {
+            let tally = self.types.entry(kind.to_owned()).or_default();
+            let at = u32::try_from(tally.ids.len()).unwrap_or(u32::MAX);
+            tally.ids.push(
+                entity
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+            );
+            for (name, attribute) in object {
+                if matches!(name.as_str(), "id" | "type" | "@context") || attribute.is_null() {
+                    continue;
+                }
+                *tally.present.entry(name.clone()).or_default() += 1;
+                if let Some(number) = number_of(attribute) {
+                    tally
+                        .numbers
+                        .entry(name.clone())
+                        .or_default()
+                        .push((number, at));
+                }
+            }
         }
         if problems.is_empty() {
             return;
@@ -151,6 +236,14 @@ impl Tally {
                 .cmp(&a.count)
                 .then_with(|| (&a.rule, &a.path).cmp(&(&b.rule, &b.path)))
         });
+        let types = self
+            .types
+            .into_iter()
+            .map(|(entity_type, tally)| {
+                let newest = self.newest.get(&entity_type).copied();
+                type_quality(entity_type, newest, tally)
+            })
+            .collect();
         SpaceQuality {
             observed_at,
             checked: self.checked,
@@ -158,8 +251,72 @@ impl Tally {
             truncated: self.truncated,
             rules,
             freshness,
+            types,
         }
     }
+}
+
+/// One type's report from what the run kept of it.
+fn type_quality(
+    entity_type: String,
+    newest: Option<DateTime<Utc>>,
+    tally: TypeTally,
+) -> TypeQuality {
+    let TypeTally {
+        ids,
+        present,
+        mut numbers,
+    } = tally;
+    let mut attributes: Vec<AttributeQuality> = present
+        .into_iter()
+        .map(|(name, present)| {
+            let mut values = numbers.remove(&name).unwrap_or_default();
+            values.sort_by(|a, b| a.0.total_cmp(&b.0));
+            let (outliers, outlier_examples) = outliers_of(&values, &ids);
+            AttributeQuality {
+                min: values.first().map(|v| v.0),
+                max: values.last().map(|v| v.0),
+                name,
+                present,
+                outliers,
+                outlier_examples,
+            }
+        })
+        .collect();
+    attributes.sort_by(|a, b| b.present.cmp(&a.present).then_with(|| a.name.cmp(&b.name)));
+    TypeQuality {
+        entity_type,
+        count: ids.len() as u64,
+        newest,
+        attributes,
+    }
+}
+
+/// The values of `sorted` outside the Tukey fences, and up to five ids holding them; nothing
+/// below [`OUTLIER_FROM`] values, where quartiles say nothing.
+fn outliers_of(sorted: &[(f64, u32)], ids: &[String]) -> (u64, Vec<String>) {
+    if sorted.len() < OUTLIER_FROM {
+        return (0, Vec::new());
+    }
+    let quartile = |q: f64| {
+        let at = q * (sorted.len() - 1) as f64;
+        let (low, high) = (at.floor() as usize, at.ceil() as usize);
+        sorted[low].0 + (sorted[high].0 - sorted[low].0) * (at - low as f64)
+    };
+    let (q1, q3) = (quartile(0.25), quartile(0.75));
+    let fence = 1.5 * (q3 - q1);
+    let outside: Vec<&(f64, u32)> = sorted
+        .iter()
+        .filter(|(value, _)| *value < q1 - fence || *value > q3 + fence)
+        .collect();
+    let examples = outside
+        .iter()
+        .filter_map(|(_, at)| ids.get(*at as usize))
+        .filter(|id| !id.is_empty())
+        .take(EXAMPLES)
+        .cloned()
+        .collect();
+    (outside.len() as u64, examples)
 }
 
 /// Takes the system attributes `options=sysAttrs` adds off an entity and its attributes, so the
@@ -442,6 +599,70 @@ mod tests {
             path: path.into(),
             message: "m".into(),
         }
+    }
+
+    // T-3252: per type, how many entities carry each attribute, the numeric range, and the one
+    // value far outside the rest named by its entity.
+    #[test]
+    fn a_tally_reports_completeness_ranges_and_outliers_per_type() {
+        let mut tally = Tally::default();
+        for n in 0..10 {
+            let capacity = if n == 7 { 400 } else { 10 + n };
+            let mut station = json!({
+                "id": format!("urn:ngsi-ld:Station:hel.fi:bikes:{n}"),
+                "type": "Station",
+                "capacity": { "type": "Property", "value": capacity },
+            });
+            if n % 2 == 0 {
+                station["name"] = json!({ "type": "Property", "value": format!("S{n}") });
+            }
+            tally.add(&station, Some(at("2026-10-07T08:00:00Z")), &[]);
+        }
+        tally.add(
+            &json!({ "id": "urn:ngsi-ld:Street:hel.fi:bikes:a", "type": "Street" }),
+            None,
+            &[],
+        );
+        let quality = tally.into_quality(at("2026-10-07T09:00:00Z"), Vec::new());
+
+        let station = quality
+            .types
+            .iter()
+            .find(|kind| kind.entity_type == "Station")
+            .unwrap();
+        assert_eq!(station.count, 10);
+        assert_eq!(station.newest, Some(at("2026-10-07T08:00:00Z")));
+        let names: Vec<(&str, u64)> = station
+            .attributes
+            .iter()
+            .map(|a| (a.name.as_str(), a.present))
+            .collect();
+        assert_eq!(names, vec![("capacity", 10), ("name", 5)]);
+        let capacity = &station.attributes[0];
+        assert_eq!((capacity.min, capacity.max), (Some(10.0), Some(400.0)));
+        assert_eq!(capacity.outliers, 1);
+        assert_eq!(
+            capacity.outlier_examples,
+            vec!["urn:ngsi-ld:Station:hel.fi:bikes:7".to_owned()]
+        );
+        let name = &station.attributes[1];
+        assert_eq!((name.min, name.outliers), (None, 0));
+
+        let street = quality
+            .types
+            .iter()
+            .find(|kind| kind.entity_type == "Street")
+            .unwrap();
+        assert_eq!((street.count, street.attributes.len()), (1, 0));
+    }
+
+    #[test]
+    fn too_few_numbers_call_nothing_an_outlier() {
+        let values: Vec<(f64, u32)> = vec![(1.0, 0), (2.0, 1), (1000.0, 2)];
+        assert_eq!(
+            outliers_of(&values, &["a".into(), "b".into(), "c".into()]),
+            (0, Vec::new())
+        );
     }
 
     #[test]

@@ -41,15 +41,18 @@ export function PipelineRunsDialog({
   project,
   name,
   onClose,
+  initialRun,
 }: {
   project: string;
   name: string;
   onClose: () => void;
+  /** The run to open first, as a rejected record names it (T-3252). */
+  initialRun?: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const time = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium" });
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(initialRun ?? null);
 
   const runsKey = [...queryKeys.resource(project, "pipelines", name), "runs"];
   const runs = useQuery({

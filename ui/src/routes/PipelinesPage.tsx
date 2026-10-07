@@ -233,6 +233,8 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   const [rejectedOf, setRejectedOf] = useState<string | null>(null);
   // The pipeline whose runs and log are open (PL-62).
   const [runsOf, setRunsOf] = useState<string | null>(null);
+  // The run a rejected record names, opened when the person follows it (T-3252).
+  const [runOpened, setRunOpened] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "pipelines"),
@@ -580,10 +582,27 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
       </ResourceList>
 
       {rejectedOf !== null ? (
-        <PipelineRejectedDialog project={project} name={rejectedOf} onClose={() => setRejectedOf(null)} />
+        <PipelineRejectedDialog
+          project={project}
+          name={rejectedOf}
+          onClose={() => setRejectedOf(null)}
+          onOpenRun={(run) => {
+            setRunsOf(rejectedOf);
+            setRunOpened(run);
+            setRejectedOf(null);
+          }}
+        />
       ) : null}
       {runsOf !== null ? (
-        <PipelineRunsDialog project={project} name={runsOf} onClose={() => setRunsOf(null)} />
+        <PipelineRunsDialog
+          project={project}
+          name={runsOf}
+          initialRun={runOpened ?? undefined}
+          onClose={() => {
+            setRunsOf(null);
+            setRunOpened(null);
+          }}
+        />
       ) : null}
 
       {dialogOpen && editing && viewOnly ? (

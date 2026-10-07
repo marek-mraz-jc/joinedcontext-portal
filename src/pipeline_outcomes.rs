@@ -41,6 +41,10 @@ pub struct Rejected {
     /// validation stage.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub step: Option<i32>,
+    /// The run whose log holds the record's line (PL-62); none for a record a failed replay put
+    /// back, or one kept before runs were named.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run: Option<String>,
 }
 
 type Key = (String, String);
@@ -54,6 +58,7 @@ type Row = (
     String,
     String,
     Option<i32>,
+    Option<String>,
 );
 
 /// Why the stage refused a record: the constraint, where, in words, and the step it failed at.
@@ -63,6 +68,7 @@ pub struct Reason {
     pub path: String,
     pub message: String,
     pub step: Option<i32>,
+    pub run: Option<String>,
 }
 
 /// The rejected records of every pipeline.
@@ -99,6 +105,7 @@ impl RejectedStore {
             path,
             message,
             step,
+            run,
         } = reason;
         let step = *step;
         let record = mask(record);
@@ -106,8 +113,8 @@ impl RejectedStore {
             Inner::Postgres(pool) => {
                 let mut tx = pool.begin().await?;
                 sqlx::query(
-                    "INSERT INTO pipeline_rejected (project, pipeline, record, rule, path, message, step) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                    "INSERT INTO pipeline_rejected (project, pipeline, record, rule, path, message, step, run) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                 )
                 .bind(project)
                 .bind(pipeline)
@@ -116,6 +123,7 @@ impl RejectedStore {
                 .bind(path)
                 .bind(message)
                 .bind(step)
+                .bind(run)
                 .execute(&mut *tx)
                 .await?;
                 sqlx::query(
@@ -144,6 +152,7 @@ impl RejectedStore {
                     path: path.clone(),
                     message: message.clone(),
                     step,
+                    run: run.clone(),
                 });
                 let over = list.len().saturating_sub(KEPT);
                 list.drain(..over);
@@ -165,7 +174,7 @@ impl RejectedStore {
         match &self.inner {
             Inner::Postgres(pool) => {
                 let rows: Vec<Row> = sqlx::query_as(
-                    "SELECT id, at, record, rule, path, message, step FROM pipeline_rejected \
+                    "SELECT id, at, record, rule, path, message, step, run FROM pipeline_rejected \
                          WHERE project = $1 AND pipeline = $2 AND ($3::bigint IS NULL OR id < $3) \
                          ORDER BY id DESC LIMIT $4",
                 )
@@ -177,17 +186,20 @@ impl RejectedStore {
                 .await?;
                 Ok(rows
                     .into_iter()
-                    .map(|(id, at, record, rule, path, message, step)| Rejected {
-                        id,
-                        at: at
-                            .format(&time::format_description::well_known::Rfc3339)
-                            .unwrap_or_default(),
-                        record,
-                        rule,
-                        path,
-                        message,
-                        step,
-                    })
+                    .map(
+                        |(id, at, record, rule, path, message, step, run)| Rejected {
+                            id,
+                            at: at
+                                .format(&time::format_description::well_known::Rfc3339)
+                                .unwrap_or_default(),
+                            record,
+                            rule,
+                            path,
+                            message,
+                            step,
+                            run,
+                        },
+                    )
                     .collect())
             }
             Inner::Memory(map) => {
@@ -299,6 +311,7 @@ impl RejectedStore {
                         path: String::new(),
                         message: String::new(),
                         step: None,
+                        run: None,
                     })
                     .collect())
             }
@@ -482,6 +495,7 @@ mod tests {
             path: path.into(),
             message: format!("{path} breaks {rule}"),
             step,
+            run: Some("2026-10-07T08:00:00Z".into()),
         }
     }
 

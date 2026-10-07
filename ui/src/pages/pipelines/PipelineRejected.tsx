@@ -38,10 +38,13 @@ export function PipelineRejectedDialog({
   project,
   name,
   onClose,
+  onOpenRun,
 }: {
   project: string;
   name: string;
   onClose: () => void;
+  /** Opens the log of the run a record was refused in (T-3252). */
+  onOpenRun?: (run: string) => void;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -222,6 +225,11 @@ export function PipelineRejectedDialog({
                           <span className="text-caption text-fg-subtle">
                             {t("pipelines.rejected.step", { step: item.step + 1 })}
                           </span>
+                        ) : null}
+                        {item.run && onOpenRun ? (
+                          <Button size="sm" variant="ghost" onClick={() => onOpenRun(item.run as string)}>
+                            {t("pipelines.rejected.openRun")}
+                          </Button>
                         ) : null}
                       </div>
                     </TableCell>
