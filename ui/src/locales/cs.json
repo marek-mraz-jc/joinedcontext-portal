@@ -1758,7 +1758,14 @@
         "failed": "Selhal"
       },
       "newest": "Nejnovější",
-      "older": "Starší řádky"
+      "older": "Starší řádky",
+      "took": "Trvání",
+      "delta": "Zapsáno oproti předchozímu běhu",
+      "seconds": "{count, plural, one {# sekunda} few {# sekundy} other {# sekund}}",
+      "minutes": "{count, plural, one {# minuta} few {# minuty} other {# minut}}",
+      "same": "stejně",
+      "silentBadge": "Nezapsal nic",
+      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu."
     },
     "workbench": {
       "failed": "Krok se nepodařilo spustit; zkuste to znovu.",

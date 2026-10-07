@@ -1758,7 +1758,14 @@
         "failed": "Failed"
       },
       "newest": "Newest",
-      "older": "Older lines"
+      "older": "Older lines",
+      "took": "Took",
+      "delta": "Written vs the run before",
+      "seconds": "{count, plural, one {# second} other {# seconds}}",
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "same": "same",
+      "silentBadge": "Wrote nothing",
+      "silent": "The last run wrote nothing, while the run before wrote {before}. The source may have stopped answering, or the mapping may drop every record; open the run's log."
     },
     "workbench": {
       "failed": "The step could not run; try again.",
