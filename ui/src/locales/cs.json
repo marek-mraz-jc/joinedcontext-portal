@@ -3001,7 +3001,56 @@
       "public": "všichni, i bez přihlášení",
       "roles": "lidé s některou z jejích rolí"
     },
-    "emptyTitle": "Zatím žádné aplikace"
+    "emptyTitle": "Zatím žádné aplikace",
+    "checklist": {
+      "heading": "Před zveřejněním",
+      "reading": "Čtu endpointy projektu…",
+      "blocked": "Problém se soukromím brání zveřejnění: nejprve ho opravte.",
+      "state": {
+        "ok": "Hotovo",
+        "warning": "Chybí",
+        "problem": "Soukromí"
+      },
+      "title": {
+        "ok": "Má název.",
+        "warning": "Nemá název: lidé uvidí její technický název."
+      },
+      "description": {
+        "ok": "Má popis.",
+        "warning": "Nemá popis, k čemu slouží."
+      },
+      "licence": {
+        "ok": "Licence je {detail}.",
+        "warning": "Neuvádí licenci a instalace nemá výchozí."
+      },
+      "visibility": {
+        "ok": "Kdo ji smí otevřít: {detail}.",
+        "problem": "Je soukromá: po zveřejnění by ji nikdo nemohl otevřít."
+      },
+      "checks": {
+        "ok": "Poslední kontrola ji otevřela a přečetla její data, testy sestavení obsahují kontrolu přístupnosti.",
+        "warning": "Zatím žádná úspěšná kontrola: testy sestavení kontrolují přístupnost a sonda ji po zveřejnění otevře. {detail}"
+      },
+      "contact": {
+        "ok": "Kontakt: {detail}.",
+        "warning": "Neuvádí kontakt a instalace nemá kontaktní adresu."
+      },
+      "privacy": {
+        "ok": "Žádný problém se soukromím: čte jen zveřejněná data a nic nezapisuje.",
+        "writes": "Kdokoli by přes ni mohl zapisovat do prostoru {detail}.",
+        "unpublished": "Ukazuje komukoli data prostoru {detail}, která žádný veřejný endpoint nezveřejňuje.",
+        "personal": "Ukazuje komukoli atribut {detail}, osobní údaje."
+      },
+      "fix": {
+        "title": "Přidat název",
+        "description": "Přidat popis",
+        "licence": "Uvést licenci",
+        "visibility": "Zvolit, kdo ji smí otevřít",
+        "checks": "Zobrazit kontroly",
+        "contact": "Uvést kontakt",
+        "privacy": "Změnit, co čte nebo kdo ji smí otevřít"
+      }
+    }
   },
   "appLifecycle": {
     "draft": "Návrh",

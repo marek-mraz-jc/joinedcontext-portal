@@ -3001,7 +3001,56 @@
       "public": "everyone, without signing in",
       "roles": "the people holding one of its roles"
     },
-    "emptyTitle": "No applications yet"
+    "emptyTitle": "No applications yet",
+    "checklist": {
+      "heading": "Before it is published",
+      "reading": "Reading the project's endpoints…",
+      "blocked": "A privacy problem holds the publication: fix it first.",
+      "state": {
+        "ok": "Done",
+        "warning": "Missing",
+        "problem": "Privacy"
+      },
+      "title": {
+        "ok": "It has a title.",
+        "warning": "It has no title: people see its technical name."
+      },
+      "description": {
+        "ok": "It has a description.",
+        "warning": "It has no description of what it is for."
+      },
+      "licence": {
+        "ok": "Licence: {detail}.",
+        "warning": "It names no licence, and the installation has no default."
+      },
+      "visibility": {
+        "ok": "Who may open it: {detail}.",
+        "problem": "It is private: nobody could open it once published."
+      },
+      "checks": {
+        "ok": "The last check opened it and read its data, the build's tests include an accessibility run.",
+        "warning": "No passing check yet: the build's tests run an accessibility check, and the probe opens it after publishing. {detail}"
+      },
+      "contact": {
+        "ok": "Contact: {detail}.",
+        "warning": "It names nobody to contact, and the installation has no contact address."
+      },
+      "privacy": {
+        "ok": "No privacy problem: it reads only published data and writes nothing.",
+        "writes": "Anyone could write into the space {detail} through it.",
+        "unpublished": "It shows anyone data of the space {detail}, which no public endpoint publishes.",
+        "personal": "It shows anyone the attribute {detail}, a person's own data."
+      },
+      "fix": {
+        "title": "Add a title",
+        "description": "Add a description",
+        "licence": "Name a licence",
+        "visibility": "Choose who may open it",
+        "checks": "See its checks",
+        "contact": "Name a contact",
+        "privacy": "Change what it reads or who may open it"
+      }
+    }
   },
   "appLifecycle": {
     "draft": "Draft",
