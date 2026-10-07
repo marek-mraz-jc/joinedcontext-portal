@@ -35,7 +35,7 @@ import { ResourcePageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/RolesAndMembers";
 import { proposeChecked } from "../../api/proposal";
-import type { ResourceProposal } from "../../api/proposal";
+import type { ResourceProposal } from "../../api/manifest";
 import { useOrgDomain, useProjects } from "../../api/projects";
 import { RadioGroup } from "../../components/ui/RadioGroup";
 import { INVITE_ROLES, inviteBinding, invitationState } from "./invite";
