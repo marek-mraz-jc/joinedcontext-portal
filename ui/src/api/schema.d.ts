@@ -688,6 +688,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/preferences/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Recent Pages
+         * @description Puts the pages the caller opened, newest first, at the top of their recent pages, each once, the newest ten kept; every other preference stays as stored. The browser sends them when its tab is hidden, so a visit is not a write.
+         */
+        post: operations["add_recent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -4703,6 +4723,13 @@ export interface components {
          * @enum {string}
          */
         PipelineTestSampleFormat: "text" | "csv" | "json";
+        /** @description A page of the Portal a person went to or starred: where it is and what it was called. */
+        Place: {
+            /** @description A path inside the Portal, with its query: `/projects/helsinki/pipelines/air?tab=runs`. */
+            path: string;
+            /** @description The page's title when it was opened, 1 to 200 characters. */
+            title: string;
+        };
         /** @description Summary and field-level changes between two resource revisions. */
         PlanDiff: {
             fields: components["schemas"]["FieldChange"][];
@@ -4747,8 +4774,12 @@ export interface components {
             dashboardLayouts?: Record<string, never>;
             /** @description The project the shell opens on. */
             defaultProject?: string | null;
+            /** @description The pages the person starred, at most 50 (UI-90). */
+            favourites?: components["schemas"]["Place"][];
             /** @description ISO 639-1 language code. */
             locale?: string | null;
+            /** @description The last pages the person opened, newest first, at most 10 (UI-90). */
+            recent?: components["schemas"]["Place"][];
             /** @description `light`, `dark` or `system`. */
             theme?: string | null;
         };
@@ -4928,6 +4959,11 @@ export interface components {
         Rebuild: {
             allowed: boolean;
             reason?: string | null;
+        };
+        /** @description The pages a person opened since the last report, newest first (UI-90). */
+        RecentPlaces: {
+            /** @description 1 to 10 places, newest first. */
+            places: components["schemas"]["Place"][];
         };
         /** @description What a registration's card shows (UI-27, PF-48). */
         RegistrationCard: {
@@ -7087,6 +7123,76 @@ export interface operations {
                 };
             };
             /** @description A field the Portal understands is invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing or mismatched CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No preferences database configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    add_recent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "places": [
+                 *         {
+                 *           "path": "/projects/helsinki/pipelines/air-quality/edit",
+                 *           "title": "air-quality · helsinki"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["RecentPlaces"];
+            };
+        };
+        responses: {
+            /** @description Stored; the body is what is now saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Preferences"];
+                };
+            };
+            /** @description No place, more than ten, or a place that is not a page of this Portal */
             400: {
                 headers: {
                     [name: string]: unknown;

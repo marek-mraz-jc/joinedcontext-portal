@@ -5909,5 +5909,48 @@
     "upstream-redirect": "Služba za platformou poslala presmerovanie, ktoré nesmie nasledovať; požiadajte jej vlastníka o konečnú adresu.",
     "service-unavailable": "Platforma na to ešte nie je pripravená; skúste to o minútu.",
     "delivery-timeout": "Príjemca neodpovedal včas; overte, že je dostupný, a skúste to znova."
+  },
+  "places": {
+    "star": "Označiť stránku hviezdičkou",
+    "copyLink": "Kopírovať odkaz",
+    "linkCopied": "Odkaz skopírovaný: kto smie čítať túto stránku, otvorí ju tak, ako ju vidíte vy.",
+    "linkNotCopied": "Prehliadač nedovolil kopírovanie; skopírujte adresu z panela s adresou."
+  },
+  "palette": {
+    "title": "Prejsť na",
+    "hint": "Napíšte názov: stránku, projekt, priestor, endpoint, pipelinu, aplikáciu, model, typ alebo URN entity. Ďalšie Ctrl+K sa spýta asistenta.",
+    "search": "Názov, kam prejsť",
+    "placeholder": "air-quality, Podujatia, urn:ngsi-ld:…",
+    "results": "Výsledky",
+    "nothing": "Nič, čo smiete čítať, sa takto nevolá. Ctrl+K sa namiesto toho spýta asistenta.",
+    "glossary": "Slovník pojmov",
+    "groups": {
+      "recent": "Naposledy otvorené",
+      "favourites": "S hviezdičkou",
+      "actions": "Akcie",
+      "pages": "Stránky",
+      "projects": "Projekty",
+      "types": "Typy entít"
+    },
+    "actions": {
+      "openEntity": "Otvoriť entitu {id}",
+      "findEntities": "Nájsť entity podľa „{q}“",
+      "ask": "Spýtať sa asistenta",
+      "newPipeline": "Vytvoriť pipelinu",
+      "invite": "Pozvať osobu",
+      "settings": "Otvoriť nastavenia projektu"
+    }
+  },
+  "shortcuts": {
+    "title": "Klávesové skratky",
+    "hint": "Čo funguje na tejto stránke. Písmeno nikdy nekoná, kým píšete do poľa.",
+    "palette": "Prejsť na stránku, položku alebo akciu; dvakrát sa spýta asistenta",
+    "save": "Uložiť formulár",
+    "new": "Vytvoriť nový",
+    "test": "Spustiť test",
+    "next": "Ďalší riadok zoznamu",
+    "previous": "Predchádzajúci riadok zoznamu",
+    "close": "Zavrieť dialóg alebo panel",
+    "help": "Zobraziť tieto skratky"
   }
 }

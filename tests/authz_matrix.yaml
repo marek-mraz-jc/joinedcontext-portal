@@ -178,6 +178,9 @@ routes:
   - route: PUT /preferences
     rule: "signed-in"
     expect: [403, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /preferences/recent
+    rule: "signed-in"
+    expect: [403, allow, allow, allow, allow, allow, allow, allow]
   - route: GET /endpoints
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
