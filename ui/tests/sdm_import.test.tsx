@@ -1,5 +1,5 @@
 /** T-0222: browsing the Smart Data Models catalogue and importing one model (DM-07…DM-12). */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -172,6 +172,7 @@ describe("Smart Data Models import wizard", () => {
     const { user, onImport } = renderWizard();
 
     await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
+    await user.click(await screen.findByRole("radio", { name: new RegExp(en.models.sdm.adapt) }));
     await user.click(await screen.findByLabelText("pm25"));
     await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
 
@@ -207,10 +208,44 @@ describe("Smart Data Models import wizard", () => {
   });
 
   /// T-1107: a model of the catalogue can carry two hundred attributes.
+  it("adopts a model as it is in two clicks, links its original, and adds the person's own attributes when adapted (T-3251)", async () => {
+    const { user, onImport } = renderWizard();
+
+    await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
+    expect(await screen.findByRole("link", { name: /commit 9f1c2b7/ })).toHaveAttribute(
+      "href",
+      "https://github.com/smart-data-models/dataModel.Environment/blob/9f1c2b7d4e6a8c0b2d4f6a8c0e2b4d6f8a0c2e4b/AirQualityObserved",
+    );
+    expect(screen.getByRole("radio", { name: new RegExp(en.models.sdm.asIs) })).toBeChecked();
+    expect(screen.queryByLabelText("pm10")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
+    expect(onImport.mock.calls[0][0]).toBe(IMPORTED);
+
+    await user.click(screen.getByRole("radio", { name: new RegExp(en.models.sdm.adapt) }));
+    const name = screen.getByLabelText(en.models.sdm.addName);
+    await user.type(name, "pm10");
+    await user.click(screen.getByRole("button", { name: en.models.sdm.add }));
+    expect(screen.getByText(en.models.sdm.addProblem.taken)).toBeInTheDocument();
+    await user.clear(name);
+    await user.type(name, "Noise level");
+    await user.click(screen.getByRole("button", { name: en.models.sdm.add }));
+    expect(screen.getByText(en.models.sdm.addProblem.name)).toBeInTheDocument();
+    await user.clear(name);
+    await user.type(name, "noiseLevel");
+    await user.selectOptions(screen.getByLabelText(en.models.sdm.addRange), "float");
+    await user.click(screen.getByRole("button", { name: en.models.sdm.add }));
+    expect(within(screen.getByRole("list", { name: en.models.sdm.addedList })).getByText("noiseLevel: float")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
+    const adapted = parseModel(onImport.mock.calls[1][0] as string);
+    expect(adapted.slots.find((slot) => slot.name === "noiseLevel")?.range).toBe("float");
+    expect(adapted.classes.find((klass) => klass.name === "AirQualityObserved")?.slots).toContain("noiseLevel");
+  });
+
   it("finds an attribute by name and puts the required ones first", async () => {
     const { user } = renderWizard();
 
     await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
+    await user.click(await screen.findByRole("radio", { name: new RegExp(en.models.sdm.adapt) }));
     await screen.findByLabelText("pm10");
 
     // The model's own order is pm10, pm25, dateObserved; required first regardless.
@@ -335,6 +370,7 @@ describe("Smart Data Models import wizard", () => {
     const { user, onImport } = renderWizard({ linkml: withRequired });
 
     await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
+    await user.click(await screen.findByRole("radio", { name: new RegExp(en.models.sdm.adapt) }));
     await screen.findByLabelText("pm10");
     expect(screen.getByText("3 of 3 attributes kept")).toBeInTheDocument();
 

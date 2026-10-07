@@ -156,6 +156,43 @@ describe("a model from a dropped file", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("drafts a model from an API's address through jc_model_infer, and refuses what is no address (T-3250)", async () => {
+    const { fetchMock } = renderDrop(
+      () => new Response(JSON.stringify(ANSWER), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    const address = screen.getByLabelText(en.models.infer.url);
+    await userEvent.type(address, "ftp://data.example.org/a.json");
+    await userEvent.click(screen.getByRole("button", { name: en.models.infer.readUrl }));
+    expect(screen.getByRole("alert")).toHaveTextContent(en.models.infer.urlInvalid);
+    const opCalls = () => fetchMock.mock.calls.filter((call) => urlOf(call[0]).includes("/ops/jc_model_infer"));
+    expect(opCalls()).toHaveLength(0);
+
+    await userEvent.clear(address);
+    await userEvent.type(address, "https://api.example.org/v2/networks/citybikes-helsinki{Enter}");
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getAllByText("plate").length).toBeGreaterThan(0);
+    expect(opCalls()).toHaveLength(1);
+    const request = opCalls()[0][0] as Request;
+    expect(new URL(request.url).pathname).toBe("/api/v1/projects/helsinki/ops/jc_model_infer");
+    expect(await request.clone().json()).toEqual({
+      url: "https://api.example.org/v2/networks/citybikes-helsinki",
+      name: "citybikes-helsinki",
+    });
+  });
+
+  it("says the runner's reason when the address cannot be read (T-3250)", async () => {
+    renderDrop(
+      () =>
+        new Response(JSON.stringify({ title: "Invalid input", status: 422, detail: "/url: the feed answered 404" }), {
+          status: 422,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+    );
+    await userEvent.type(screen.getByLabelText(en.models.infer.url), "https://api.example.org/missing{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent("the feed answered 404");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("refuses a file past 10 MiB before anything is sent", async () => {
     const { fetchMock } = renderDrop(() => new Response("{}", { status: 200 }));
     const huge = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "huge.csv", { type: "text/csv" });

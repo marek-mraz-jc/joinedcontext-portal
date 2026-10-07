@@ -2378,7 +2378,31 @@
       "count": "{count, plural, one {# model} few {# modely} other {# modelů}}",
       "allAttributes": "Všechny",
       "onlyRequired": "Jen povinné",
-      "kept": "Ponechané atributy: {kept} z {total}"
+      "kept": "Ponechané atributy: {kept} z {total}",
+      "origin": "Původní model na GitHubu (commit {commit})",
+      "mode": "Jak ho převzít",
+      "asIs": "Tak, jak je",
+      "asIsHint": "Všech {count} atributů beze změny; nejrychlejší cesta.",
+      "adapt": "Upravit ho",
+      "adaptHint": "Odškrtněte, co nepotřebujete, a přidejte vlastní atributy.",
+      "addTitle": "Vaše vlastní atributy",
+      "addedList": "Atributy, které jste přidali",
+      "addRemove": "Odstranit {name}",
+      "addName": "Název atributu",
+      "addNameHelp": "Malý camelCase, písmena a číslice, jak je pojmenovává Smart Data Models.",
+      "addRange": "Druh hodnoty",
+      "add": "Přidat",
+      "addProblem": {
+        "name": "Začněte malým písmenem a použijte jen písmena a číslice.",
+        "taken": "Model už má atribut s tímto názvem."
+      },
+      "range": {
+        "string": "Text",
+        "integer": "Celé číslo",
+        "float": "Číslo",
+        "boolean": "Ano nebo ne",
+        "datetime": "Datum a čas"
+      }
     },
     "addClass": "Přidat třídu",
     "addSlot": "Přidat atribut",
@@ -2427,7 +2451,11 @@
       "refused": "Editor odmítl {n} operací",
       "populate": "Naplnit editor",
       "cancel": "Zrušit",
-      "close": "Zavřít"
+      "close": "Zavřít",
+      "url": "Nebo adresa API, které odpovídá v JSON",
+      "urlHelp": "Jednou ji přečte runner projektu, jako ji čte ověření zdroje dat; model se odvodí ze záznamů, které vrátí.",
+      "readUrl": "Přečíst adresu",
+      "urlInvalid": "Zadejte celou adresu začínající na https:// nebo http://."
     },
     "source": {
       "loading": "Načítá se zdroj modelu…",

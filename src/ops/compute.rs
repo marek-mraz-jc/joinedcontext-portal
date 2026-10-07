@@ -73,6 +73,10 @@ pub struct ModelInferInput {
     pub sample: Option<String>,
     #[serde(default)]
     pub format: Option<String>,
+    /// An API or file address, fetched once on the project's runner as a data source's Check
+    /// fetches it, and inferred from the records it answers (T-3250).
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +176,12 @@ fn model_infer_input_schema() -> Value {
                 "type": "string",
                 "description": "The sample's format",
                 "enum": ["csv", "xlsx", "json", "pdf"]
+            },
+            "url": {
+                "type": "string",
+                "description": "An http(s) address answering JSON records, fetched once on the project's runner instead of a sample",
+                "pattern": "^https?://",
+                "maxLength": 2048
             }
         },
         "additionalProperties": false
@@ -458,12 +468,15 @@ pub fn operations() -> Vec<Operation> {
                         OpError::InvalidInput { path, message }
                     })
             },
-            run: |_, state, _, val| {
+            run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ModelInferInput = serde_json::from_value(val).map_err(|e| {
                         let (path, message) = serde_error_path_and_message(&e);
                         OpError::InvalidInput { path, message }
                     })?;
+                    if let Some(url) = input.url {
+                        return infer_from_url(&caller.identity, state, project, input.name.as_deref(), &url).await;
+                    }
                     let bytes = if let Some(b64) = input.content {
                         base64::engine::general_purpose::STANDARD
                             .decode(b64)
@@ -491,4 +504,50 @@ pub fn operations() -> Vec<Operation> {
             },
         },
     ]
+}
+
+/// A draft model from what an address answers (T-3250): one fetch on the project's runner, the
+/// way a data source's Check fetches (MF-39) and under the same grant, never from the Portal's
+/// own network; the records are found inside the envelope around them (AG-79) and inferred as
+/// JSON.
+async fn infer_from_url(
+    identity: &crate::auth::session::Identity,
+    state: &crate::state::AppState,
+    project: &str,
+    name: Option<&str>,
+    url: &str,
+) -> Result<Value, OpError> {
+    let invalid = |message: String| OpError::InvalidInput {
+        path: "/url".into(),
+        message,
+    };
+    let parsed = url::Url::parse(url).map_err(|err| invalid(format!("not an address: {err}")))?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(invalid("give an http or https address".into()));
+    }
+    crate::permissions::for_request(state, identity, project).check(
+        "DataSource",
+        Verb::Propose,
+        None,
+    )?;
+    let spec = json!({ "type": "http", "http": { "url": url } });
+    let probe = pipeline_test::probe_source(state, project, &spec)
+        .await
+        .ok_or_else(|| invalid("give an address the runner can fetch".into()))?;
+    // A feed that failed is the address's fault, said at the field; a probe that never ran (no
+    // runner, a test already running) is not, and says so as such.
+    if let Some(reason) = pipeline_test::feed_failed(&probe) {
+        return Err(invalid(reason.to_owned()));
+    }
+    if let Some(reason) = probe.skipped {
+        return Err(OpError::from(ApiError::Unavailable(reason)));
+    }
+    let whole = probe
+        .sample
+        .ok_or_else(|| invalid("the address answered no records".into()))?;
+    let sample = crate::ops::feed_shape::records(&whole)
+        .as_ref()
+        .map_or(whole, crate::ops::feed_shape::Records::inference_sample)
+        .to_string();
+    Ok(model_tools::infer_schema_from_bytes(state, name, sample.as_bytes(), Some("json")).await?)
 }

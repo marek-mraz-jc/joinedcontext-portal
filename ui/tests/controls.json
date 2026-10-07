@@ -1094,7 +1094,7 @@
     },
     "src/pages/models/ModelFileDrop.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
         "FilePicker": 2
       },
       "tests": [
@@ -1165,8 +1165,9 @@
     "src/pages/models/SmartDataModelsImport.tsx": {
       "controls": {
         "button": 1,
-        "Button": 7,
-        "Checkbox": 1
+        "Button": 9,
+        "Checkbox": 1,
+        "RadioGroup": 1
       },
       "tests": [
         "sdm_import.test.tsx"
