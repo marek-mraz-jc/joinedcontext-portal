@@ -16,6 +16,7 @@ import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
 import { errorAt, fromFormData, toFormData, useProcessorForms, withHelp } from "./processorForm";
 import { connect, laneOf, missingOf, move } from "./pipelineGraph";
+import { wireCount, wireKey } from "./pipelineDebug";
 import type { WireRefusal } from "./pipelineGraph";
 
 /** One processor of the pinned runner: the list jc-core admits a `processor` step from (PL-52). */
@@ -497,6 +498,9 @@ export interface PipelineFlowProps {
   onSelect: (id: FlowNodeId | null) => void;
   /** Opens a node's form: a double-click or Enter on the node, Open in the list (PL-68). */
   onOpen?: (id: FlowNodeId) => void;
+  /** The wires a Debug node taps, by `wireKey`, and the toggle of one (T-3222). */
+  taps?: string[];
+  onTap?: (key: string) => void;
   dataSources: Manifest[];
   endpoints: Manifest[];
 }
@@ -509,6 +513,8 @@ export function PipelineFlow({
   selected,
   onSelect,
   onOpen,
+  taps = [],
+  onTap,
 }: PipelineFlowProps): JSX.Element {
   const { t } = useTranslation();
   const { nodes, edges } = toFlow(form);
@@ -623,6 +629,15 @@ export function PipelineFlow({
     return { node, x: startX + (index - sourceCount + 1) * nodeSpacing, y: startY + columnHeight / 2 };
   });
   const place = (id: FlowNodeId) => placed.find(({ node }) => node.id === id);
+  const middleOf = (edge: FlowEdge): { x: number; y: number } | undefined => {
+    const from = place(edge.from);
+    const to = place(edge.to);
+    return from && to
+      ? { x: (from.x + nodeWidth + to.x) / 2, y: (from.y + to.y + nodeHeight) / 2 }
+      : undefined;
+  };
+  const distance = (at: { x: number; y: number } | undefined, x: number, y: number) =>
+    at ? Math.hypot(at.x - x, at.y - y) : Number.POSITIVE_INFINITY;
   const svgWidth = Math.max((laneCount + 2) * nodeSpacing + 40, 520);
   const svgHeight = 150 + columnHeight;
 
@@ -713,6 +728,27 @@ export function PipelineFlow({
         >
           {t("pipelines.flow.addOutput")}
         </Button>
+        {onTap ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            data-testid="palette-debug"
+            draggable
+            disabledReason={
+              selected === null || isSource(selected) ? t("pipelines.debug.pickWire") : undefined
+            }
+            disabled={selected === null || isSource(selected)}
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", "debug");
+            }}
+            onClick={() => {
+              const into = edges.find((edge) => edge.to === selected);
+              if (into) onTap(wireKey(into));
+            }}
+          >
+            {t("pipelines.debug.add")}
+          </Button>
+        ) : null}
         {form?.compute?.kind ? (
           <Button
             size="sm"
@@ -860,7 +896,19 @@ export function PipelineFlow({
           onDrop={(e) => {
             e.preventDefault();
             const kind = e.dataTransfer.getData("text/plain");
-            if (kind.startsWith("processor:")) {
+            if (kind === "debug" && onTap) {
+              const box = e.currentTarget.getBoundingClientRect();
+              const x = box.width > 0 ? ((e.clientX - box.left) / box.width) * svgWidth : -1;
+              const y = box.height > 0 ? ((e.clientY - box.top) / box.height) * svgHeight : -1;
+              const nearest =
+                x < 0
+                  ? edges.find((edge) => edge.to === selected)
+                  : edges
+                      .map((edge) => ({ edge, at: middleOf(edge) }))
+                      .filter((one) => one.at !== undefined)
+                      .sort((a, b) => distance(a.at, x, y) - distance(b.at, x, y))[0]?.edge;
+              if (nearest) onTap(wireKey(nearest));
+            } else if (kind.startsWith("processor:")) {
               // The node the drop landed on or behind. A canvas with no layout yet (no width, as
               // in a test) has no place to read, and the selection says where instead.
               const box = e.currentTarget.getBoundingClientRect();
@@ -899,17 +947,68 @@ export function PipelineFlow({
             const y1 = from.y + nodeHeight / 2;
             const x2 = to.x;
             const y2 = to.y + nodeHeight / 2;
+            const key = wireKey(edge);
+            const count = trace && !showsLive ? wireCount(trace, nodes, edge) : undefined;
+            const tapped = taps.includes(key);
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
             return (
-              <line
-                key={`${edge.from}-${edge.to}`}
-                x1={x1}
-                y1={y1}
-                x2={x2 - 4}
-                y2={y2}
-                className="stroke-border-strong"
-                strokeWidth={2}
-                markerEnd="url(#flow-arrow)"
-              />
+              <g key={`${edge.from}-${edge.to}`}>
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2 - 4}
+                  y2={y2}
+                  className={tapped ? "stroke-primary-soft-fg" : "stroke-border-strong"}
+                  strokeWidth={2}
+                  markerEnd="url(#flow-arrow)"
+                />
+                {/* A wider, invisible line takes the click: a wire opens the node it enters, whose
+                    drawer shows what crossed it (T-3222). The node itself is the keyboard path. */}
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  aria-hidden="true"
+                  data-testid={`flow-wire-${key}`}
+                  className="cursor-pointer stroke-transparent"
+                  strokeWidth={14}
+                  onClick={() => open(edge.to)}
+                />
+                {count !== undefined ? (
+                  <text
+                    x={mx}
+                    y={my - 6}
+                    textAnchor="middle"
+                    data-testid={`flow-wire-count-${key}`}
+                    className="pointer-events-none select-none fill-fg font-mono text-caption"
+                  >
+                    {count}
+                  </text>
+                ) : null}
+                {tapped ? (
+                  <g
+                    role="button"
+                    tabIndex={0}
+                    aria-label={t("pipelines.debug.remove")}
+                    data-testid={`flow-tap-${key}`}
+                    className="focus-ring cursor-pointer"
+                    onClick={() => onTap?.(key)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " " || e.key === "Delete") {
+                        e.preventDefault();
+                        onTap?.(key);
+                      }
+                    }}
+                  >
+                    <rect x={mx - 22} y={my + 4} width={44} height={16} rx={8} className="fill-primary-soft stroke-primary-soft-fg" />
+                    <text x={mx} y={my + 16} textAnchor="middle" className="select-none fill-primary-soft-fg text-caption">
+                      {t("pipelines.debug.badge")}
+                    </text>
+                  </g>
+                ) : null}
+              </g>
             );
           })}
 

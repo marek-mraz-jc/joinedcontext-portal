@@ -47,6 +47,8 @@ import type { FlowNodeId } from "./PipelineFlow";
 import { PipelineTest } from "./PipelineTest";
 import type { Trace } from "./PipelineTest";
 import { testPipeline } from "../../api/pipelineTest";
+import { DebugSidebar, NodeDebug } from "./DebugPanel";
+import type { DebugEntry } from "./DebugPanel";
 import { FormHeading } from "../../components/forms/FormRoute";
 import { TypePicker } from "../../components/pickers/TypePicker";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
@@ -305,6 +307,10 @@ export function PipelineStudio({
     draft?.compute?.kind ? "compute" : "source",
   );
   const [flowTrace, setFlowTrace] = useState<Trace | null>(null);
+  // The wires a Debug node taps and what each run sent across them (T-3222); a debug aid of the
+  // studio, never part of the manifest.
+  const [taps, setTaps] = useState<string[]>([]);
+  const [debugLog, setDebugLog] = useState<DebugEntry[]>([]);
   // The running stream's counters per node (PL-66), for a pipeline that exists: a new one, a
   // paused one or a runner that does not answer simply paints nothing live.
   const pipelineName = draft?.name ?? "";
@@ -937,6 +943,8 @@ export function PipelineStudio({
                     setSelectedNode(id);
                     setOpening((was) => ({ id, count: (was?.count ?? 0) + 1 }));
                   }}
+                  taps={taps}
+                  onTap={(key) => setTaps((was) => (was.includes(key) ? was.filter((one) => one !== key) : [...was, key]))}
                   dataSources={dataSources}
                   endpoints={endpoints}
                 />
@@ -1163,6 +1171,27 @@ export function PipelineStudio({
                     </div>
                   </div>
                 ) : null}
+                {flowTrace && selectedNode && draft && toManifest ? (
+                  <NodeDebug
+                    key={selectedNode}
+                    project={project}
+                    form={draft}
+                    trace={flowTrace}
+                    nodes={toFlow(draft).nodes}
+                    id={selectedNode}
+                    toManifest={toManifest}
+                  />
+                ) : null}
+                <DebugSidebar
+                  log={debugLog}
+                  nodes={toFlow(draft).nodes}
+                  edges={toFlow(draft).edges}
+                  taps={taps}
+                  nameOf={(id) =>
+                    `${t(`pipelines.flow.node.${id.startsWith("step-") ? "step" : id.startsWith("source") ? "source" : id.startsWith("output") ? "output" : "compute"}`)} ${toFlow(draft).nodes.find((node) => node.id === id)?.kind ?? ""}`.trim()
+                  }
+                  onClear={() => setDebugLog([])}
+                />
               </div>
             ) : null}
           </section>
@@ -1176,6 +1205,7 @@ export function PipelineStudio({
               sampleUrl={sampleUrlOf(draft, dataSources, endpoints)}
               onVerdict={onVerdict}
               onTrace={setFlowTrace}
+              onDebug={(entry) => setDebugLog((was) => [...was, entry].slice(-100))}
             />
           ) : null}
           <section className={sectionClass} aria-labelledby="studio-source">
