@@ -149,6 +149,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/notifications", "the signed-in person's notifications of mentions (API/01 §35)"),
 ("POST", "/notifications/{id}/read", "the signed-in person marks a notification read (API/01 §35)"),
 ("GET", "/projects/{project}/spaces/{space}/usage", "how many entities the space holds, the broker's count read with the space's own read rule: a reading about the data and not a manifest (T-2889)"),
+("GET", "/projects/{project}/spaces/{space}/types/{type}/attributes", "the pipeline editor's reading of a type's attributes in the space's data model (API/01): a person mapping a record onto a type, which an MCP client does with the model's own JSON Schema on the endpoint"),
 ("GET", "/projects/{project}/spaces/{space}/views", "the Portal UI's own saved views of a space (API/01 §30): a person's way of looking at entities, not data and not a manifest; MCP clients read the entities through endpoints"),
 ("POST", "/projects/{project}/spaces/{space}/views", "the Portal UI's own saved views of a space (API/01 §30): a person's way of looking at entities, not data and not a manifest; MCP clients read the entities through endpoints"),
 ("GET", "/projects/{project}/spaces/{space}/views/{id}", "the Portal UI's own saved views of a space (API/01 §30): a person's way of looking at entities, not data and not a manifest; MCP clients read the entities through endpoints"),
