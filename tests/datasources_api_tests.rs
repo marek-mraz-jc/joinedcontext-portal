@@ -410,3 +410,43 @@ async fn the_kind_is_addressable_by_its_plural_and_scoped_to_a_project() {
         "a project-scoped kind needs no space in its path"
     );
 }
+
+/// T-3167 (PL-07, PL-16): jc-core's runner-target and runner-variable refusals reach the Portal's
+/// door: a source pointing at the runner's own stream API, or a URL that reads another project's
+/// credential out of the runner, is refused before anything is written, and a public feed is not.
+#[tokio::test]
+async fn a_source_aimed_at_the_runner_or_its_environment_is_refused_at_the_door() {
+    let config = Config::for_tests();
+    let propose = |url: &str| {
+        let body = serde_json::to_vec(&json!({
+            "apiVersion": API_VERSION,
+            "kind": "DataSource",
+            "metadata": { "name": "feed", "namespace": "ovzdusie" },
+            "spec": { "type": "http", "http": { "url": url } }
+        }))
+        .expect("json");
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/projects/ovzdusie/datasources")
+            .header(header::COOKIE, cookies(&config))
+            .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .expect("request")
+    };
+    for (url, rule) in [
+        ("http://127.0.0.1:4195/streams/x", "PL-07"),
+        ("http://localhost:4180/token", "PL-07"),
+        ("https://feed.example/?k=${JC_CLIENT_SECRET_BBSK}", "PL-16"),
+    ] {
+        let response = server::app(AppState::new(config.clone(), None))
+            .oneshot(propose(url))
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{url}");
+        let problem: ProblemDetails = body_of(response).await;
+        let detail = problem.detail.unwrap_or_default();
+        assert!(detail.contains(rule), "{url}: {detail}");
+        assert!(!detail.contains("JC_CLIENT_SECRET_BBSK"), "{url}: {detail}");
+    }
+}
