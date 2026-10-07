@@ -54,7 +54,7 @@ const ROLES: [&str; 8] = [
 ];
 
 /// What every person reads (deployment's helsinki-role-viewer.yaml, verbatim).
-const READ_KINDS: [&str; 28] = [
+const READ_KINDS: [&str; 30] = [
     "Organization",
     "Project",
     "ContextSpace",
@@ -71,6 +71,8 @@ const READ_KINDS: [&str; 28] = [
     "DataSource",
     "App",
     "CkanInstance",
+    "KnowledgeSource",
+    "AssistantDeployment",
     "Blueprint",
     "AgentProfile",
     "DataSpaceParticipant",
@@ -124,7 +126,7 @@ const EDITOR_KINDS: [&str; 8] = [
     "DataSource",
 ];
 /// What the org-admin proposes, approves and deletes (helsinki-role-org-admin.yaml).
-const ADMIN_KINDS: [&str; 30] = [
+const ADMIN_KINDS: [&str; 32] = [
     "Organization",
     "Project",
     "ContextSpace",
@@ -141,6 +143,8 @@ const ADMIN_KINDS: [&str; 30] = [
     "DataSource",
     "App",
     "CkanInstance",
+    "KnowledgeSource",
+    "AssistantDeployment",
     "Blueprint",
     "DataSpaceParticipant",
     "DataOffer",
@@ -300,7 +304,7 @@ fn url(path: &str, row: &Row) -> (bool, String) {
 
 /// A route's placeholders, filled with what the fixture holds.
 fn fill(path: &str) -> String {
-    let values: [(&str, &str); 20] = [
+    let values: [(&str, &str); 23] = [
         ("{project}", PROJECT),
         ("{plural}", "endpoints"),
         ("{name}", EXISTING),
@@ -321,6 +325,9 @@ fn fill(path: &str) -> String {
         ("{artifact}", "schema.json"),
         ("{style_id}", "streets"),
         ("{slug}", "s1"),
+        ("{source}", EXISTING),
+        ("{page}", "1"),
+        ("{deployment}", EXISTING),
     ];
     values
         .iter()

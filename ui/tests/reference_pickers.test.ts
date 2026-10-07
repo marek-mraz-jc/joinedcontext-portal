@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import * as kinds from "../src/schemas/kinds";
 import { mappingSchema } from "../src/schemas/mapping";
 import { dataModelSchema } from "../src/schemas/datamodel";
+import { assistantDeploymentSchema, knowledgeSourceSchema } from "../src/schemas/knowledge";
 import { REFERENCE_PICKERS, UNPICKED, withPickers } from "../src/schemas/pickers";
 import type { JsonSchema } from "../src/components/forms/types";
 
@@ -32,6 +33,9 @@ const FORMS: Record<string, JsonSchema[]> = {
   App: [kinds.appSchema(t)],
   Organization: [kinds.organizationSchema(t)],
   Project: [kinds.projectSchema(t)],
+  // T-3057: a catalogue, the project's sources and its Endpoints are pickers.
+  KnowledgeSource: [knowledgeSourceSchema(t)],
+  AssistantDeployment: [assistantDeploymentSchema(t)],
 };
 
 /** A field name that names something that exists: a reference, a type, a person, a role, a group. */
