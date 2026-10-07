@@ -1264,6 +1264,27 @@
     "hub": {
       "title": "Alle verbinden",
       "lead": "Ein MCP-Connector für alle Endpunkte, die Sie lesen dürfen. Fügen Sie diese URL in eine KI-App ein, wählen Sie bei der Anmeldung die Endpunkte, und jeder Aufruf läuft unter der Richtlinie des jeweiligen Endpunkts."
+    },
+    "playground": {
+      "title": "Ausprobieren",
+      "reading": "Lese, was Sie aufrufen dürfen…",
+      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf.",
+      "operation": "Was lesen",
+      "operations": {
+        "list": "Entitäten eines Typs",
+        "count": "Wie viele eines Typs",
+        "one": "Eine Entität nach ID",
+        "types": "Die enthaltenen Typen"
+      },
+      "type": "Entitätstyp",
+      "q": "Filterausdruck (q)",
+      "qHint": "Optional, NGSI-LD-Abfragesprache, zum Beispiel temperature>20;status==\"open\".",
+      "limit": "Wie viele (1 bis 100)",
+      "id": "Entitäts-ID (URN)",
+      "send": "Senden",
+      "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
+      "answered": "Der Endpunkt antwortete {status}.",
+      "code": "Derselbe Aufruf als Code"
     }
   },
   "datasources": {

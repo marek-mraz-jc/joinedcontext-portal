@@ -941,6 +941,14 @@
         "part_model_picker.test.tsx"
       ]
     },
+    "src/pages/endpoints/Playground.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "endpoint_playground.test.tsx"
+      ]
+    },
     "src/pages/endpoints/SchemaProjectionPanel.tsx": {
       "controls": {
         "Button": 4,

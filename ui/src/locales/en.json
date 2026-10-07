@@ -1264,6 +1264,27 @@
     "hub": {
       "title": "Connect all",
       "lead": "One MCP connector over every endpoint you may read. Paste this URL into an AI app, pick the endpoints when you sign in, and each call runs under that endpoint's own policy."
+    },
+    "playground": {
+      "title": "Try it",
+      "reading": "Reading what you may call…",
+      "nothing": "Your access lets you call nothing through this endpoint.",
+      "operation": "What to read",
+      "operations": {
+        "list": "Entities of a type",
+        "count": "How many of a type",
+        "one": "One entity by its id",
+        "types": "The types it holds"
+      },
+      "type": "Entity type",
+      "q": "Filter (q)",
+      "qHint": "Optional, NGSI-LD query language, for example temperature>20;status==\"open\".",
+      "limit": "How many (1 to 100)",
+      "id": "Entity id (URN)",
+      "send": "Send",
+      "fill": "Fill in the fields the call needs first.",
+      "answered": "The endpoint answered {status}.",
+      "code": "The same call as code"
     }
   },
   "datasources": {

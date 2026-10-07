@@ -1264,6 +1264,27 @@
     "hub": {
       "title": "Pripojiť všetko",
       "lead": "Jeden MCP konektor pre všetky rozhrania, ktoré smiete čítať. Vložte túto URL do AI aplikácie, pri prihlásení vyberte rozhrania a každé volanie prebehne pod politikou daného rozhrania."
+    },
+    "playground": {
+      "title": "Vyskúšať",
+      "reading": "Zisťujem, čo smiete volať…",
+      "nothing": "Váš prístup vám cez tento endpoint nedovoľuje nič volať.",
+      "operation": "Čo čítať",
+      "operations": {
+        "list": "Entity typu",
+        "count": "Koľko je entít typu",
+        "one": "Jedna entita podľa id",
+        "types": "Typy, ktoré obsahuje"
+      },
+      "type": "Typ entity",
+      "q": "Filtrovací výraz (q)",
+      "qHint": "Nepovinné, dopytovací jazyk NGSI-LD, napríklad temperature>20;status==\"open\".",
+      "limit": "Koľko (1 až 100)",
+      "id": "Id entity (URN)",
+      "send": "Odoslať",
+      "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
+      "answered": "Endpoint odpovedal {status}.",
+      "code": "To isté volanie ako kód"
     }
   },
   "datasources": {
