@@ -2377,7 +2377,31 @@
       "count": "{count, plural, one {# model} few {# modely} other {# modelov}}",
       "allAttributes": "Všetky",
       "onlyRequired": "Len povinné",
-      "kept": "Ponechané atribúty: {kept} z {total}"
+      "kept": "Ponechané atribúty: {kept} z {total}",
+      "origin": "Pôvodný model na GitHube (commit {commit})",
+      "mode": "Ako ho prevziať",
+      "asIs": "Tak, ako je",
+      "asIsHint": "Všetkých {count} atribútov bez zmeny; najrýchlejšia cesta.",
+      "adapt": "Upraviť ho",
+      "adaptHint": "Odškrtnite, čo nepotrebujete, a pridajte vlastné atribúty.",
+      "addTitle": "Vaše vlastné atribúty",
+      "addedList": "Atribúty, ktoré ste pridali",
+      "addRemove": "Odstrániť {name}",
+      "addName": "Názov atribútu",
+      "addNameHelp": "Malý camelCase, písmená a číslice, ako ich pomenúva Smart Data Models.",
+      "addRange": "Druh hodnoty",
+      "add": "Pridať",
+      "addProblem": {
+        "name": "Začnite malým písmenom a použite iba písmená a číslice.",
+        "taken": "Model už má atribút s týmto názvom."
+      },
+      "range": {
+        "string": "Text",
+        "integer": "Celé číslo",
+        "float": "Číslo",
+        "boolean": "Áno alebo nie",
+        "datetime": "Dátum a čas"
+      }
     },
     "addClass": "Pridať triedu",
     "addSlot": "Pridať atribút",

@@ -2377,7 +2377,31 @@
       "count": "{count, plural, one {# Modell} other {# Modelle}}",
       "allAttributes": "Alle",
       "onlyRequired": "Nur erforderliche",
-      "kept": "{kept} von {total} Attributen behalten"
+      "kept": "{kept} von {total} Attributen behalten",
+      "origin": "Das Originalmodell auf GitHub (Commit {commit})",
+      "mode": "Wie übernehmen",
+      "asIs": "Unverändert",
+      "asIsHint": "Alle {count} Attribute, unverändert; der schnellste Weg.",
+      "adapt": "Anpassen",
+      "adaptHint": "Entfernen Sie das Häkchen bei Nicht-Benötigtem und fügen Sie eigene Attribute hinzu.",
+      "addTitle": "Ihre eigenen Attribute",
+      "addedList": "Von Ihnen hinzugefügte Attribute",
+      "addRemove": "{name} entfernen",
+      "addName": "Attributname",
+      "addNameHelp": "lowerCamelCase, Buchstaben und Ziffern, wie Smart Data Models sie benennt.",
+      "addRange": "Art des Werts",
+      "add": "Hinzufügen",
+      "addProblem": {
+        "name": "Beginnen Sie mit einem Kleinbuchstaben und verwenden Sie nur Buchstaben und Ziffern.",
+        "taken": "Das Modell hat schon ein Attribut dieses Namens."
+      },
+      "range": {
+        "string": "Text",
+        "integer": "Ganze Zahl",
+        "float": "Zahl",
+        "boolean": "Ja oder nein",
+        "datetime": "Datum und Uhrzeit"
+      }
     },
     "addClass": "Klasse hinzufügen",
     "addSlot": "Attribut hinzufügen",
