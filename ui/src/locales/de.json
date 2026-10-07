@@ -220,7 +220,28 @@
       "merged": "{change}, auf die diese Änderung wartet, ist zusammengeführt.",
       "rejected": "{change}, auf die diese Änderung wartet, wurde abgelehnt: Was diese Änderung nennt, entsteht nicht. Lehnen Sie sie ab oder schlagen Sie sie neu vor."
     },
-    "back": "Alle Freigaben"
+    "back": "Alle Freigaben",
+    "tabs": {
+      "open": "Wartet auf Entscheidung",
+      "history": "Verlauf"
+    },
+    "history": {
+      "filter": "Verlauf filtern",
+      "kind": "Art",
+      "name": "Name enthält",
+      "apply": "Filtern",
+      "clear": "Filter löschen",
+      "caption": "Abgeschlossene Änderungen",
+      "outcome": "Ergebnis",
+      "proposedBy": "Vorgeschlagen von",
+      "decidedBy": "Entschieden von",
+      "closed": "Abgeschlossen",
+      "reason": "Grund: {reason}",
+      "inForge": "Im Repository geschlossen",
+      "older": "Ältere Änderungen zeigen",
+      "empty": "Noch keine Änderung wurde zusammengeführt oder abgelehnt.",
+      "noneOnPage": "Keine dieser Änderungen dürfen Sie lesen. Ältere vielleicht schon."
+    }
   },
   "lane": {
     "green": "Grün",
@@ -268,23 +289,49 @@
   "glossary": {
     "endpoint": {
       "definition": "Eine veröffentlichte Adresse für die Daten eines Kontextraums, mit eigenen Regeln darüber, wer welche Entitäten und Attribute lesen darf.",
-      "term": "Endpunkt"
+      "term": "Endpunkt",
+      "example": "Der öffentliche Endpoint des Luftqualitätsbereichs antwortet allen; ein interner nur Ihrer Organisation."
     },
     "policy": {
       "definition": "Die Regel hinter einem Endpunkt: welche Operationen eine Aufruferin ausführen darf, auf welchen Entitätstypen, und welche Attribute zurückkommen.",
-      "term": "Richtlinie"
+      "term": "Richtlinie",
+      "example": "Jeder darf AirQualityObserved lesen, ohne das Attribut stationNote."
     },
     "contextSpace": {
       "definition": "Wo die lebenden Daten eines Projekts liegen, getrennt von jedem anderen Projekt; Endpunkte veröffentlichen sie, Pipelines füllen sie.",
-      "term": "Kontextraum"
+      "term": "Kontextraum",
+      "example": "Der Bereich air-quality hält die Stationen der Stadt und ihre Messungen."
     },
     "lane": {
       "definition": "Wie viel Prüfung eine Änderung braucht: Grün läuft allein durch, Gelb braucht eine Freigabe der Fachstelle, Rot mehrere Personen.",
-      "term": "Risikospur"
+      "term": "Risikospur",
+      "example": "Ein Dashboard umzubenennen ist grün; einen Endpoint für alle zu veröffentlichen ist rot."
     },
     "change": {
       "definition": "Ein vorgeschlagener Eingriff in die Konfiguration, festgehalten, damit ihn jemand liest und freigibt, bevor sich im Betrieb etwas bewegt.",
-      "term": "Änderung"
+      "term": "Änderung",
+      "example": "Endpoint public-air hinzufügen, vorgeschlagen von einem Steward, genehmigt von einem Administrator."
+    },
+    "entityType": {
+      "term": "Entitätstyp",
+      "definition": "Die Art des Dings, das eine Entität ist, etwa eine Station oder ein Bus; das Datenmodell des Bereichs sagt, welche Attribute jeder Typ hat.",
+      "example": "AirQualityObserved ist der Entitätstyp einer Luftqualitätsmessung."
+    },
+    "ngsiLd": {
+      "term": "NGSI-LD",
+      "definition": "Der offene Standard (ETSI), in dem die Plattform Kontextdaten speichert und bereitstellt: Entitäten mit Attributen, jedes Attribut mit Wert und Beobachtungszeit.",
+      "example": "GET /ngsi-ld/v1/entities?type=Vehicle listet die Busse, die ein Endpoint veröffentlicht."
+    },
+    "linkml": {
+      "term": "LinkML",
+      "definition": "Die Sprache, in der ein Datenmodell geschrieben ist: Klassen, ihre Attribute, Einheiten und erlaubten Werte. Der Modelleditor schreibt sie für Sie.",
+      "example": "Eine Klasse Station mit den Attributen name und location."
+    },
+    "page": {
+      "title": "Glossar",
+      "lead": "Die Wörter der Plattform, jedes in einem Satz mit einem Beispiel.",
+      "example": "Beispiel: {text}",
+      "more": "Was ist {term}? Glossar öffnen"
     }
   },
   "quota": {

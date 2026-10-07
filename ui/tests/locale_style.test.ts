@@ -91,7 +91,8 @@ describe("locale style", () => {
 
   // The editor is the Model editor (T-2876): LinkML is how it is built, not a word a person has to
   // know. The raw source view may name its format once, quietly; every other string says "model".
-  const LINKML_ALLOWED = new Set(["models.page.yaml"]);
+  // The glossary is where the word is explained to whoever meets it (T-3236).
+  const LINKML_ALLOWED = new Set(["models.page.yaml", "glossary.linkml.term", "glossary.linkml.definition"]);
 
   it.each([
     ["en", en],
@@ -118,7 +119,7 @@ describe("locale style", () => {
     expect(all.filter(([key, text]) => /linkml/i.test(text) && !/\.linkml\.yaml\b/i.test(text) && !LINKML_ALLOWED.has(key))).toEqual(
       [],
     );
-    expect(all.filter(([key]) => LINKML_ALLOWED.has(key)).length).toBe(1);
+    expect(all.filter(([key]) => LINKML_ALLOWED.has(key)).length).toBe(LINKML_ALLOWED.size);
   });
 
   it("calls it the Model editor in every locale (T-2876)", () => {

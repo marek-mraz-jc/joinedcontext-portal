@@ -403,7 +403,7 @@ export function EndpointPage({
               />
             </Fact>
           ) : null}
-          <Fact label={t("endpoints.field.types")}>
+          <Fact label={<Term name="entityType">{t("endpoints.field.types")}</Term>}>
             {projection ? (
               <ul className="flex flex-wrap gap-1">
                 {classesOf(projection).map((klass) => (

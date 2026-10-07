@@ -5,12 +5,20 @@ import { clsx } from "clsx";
 
 /** The platform words a page uses without a person having read the specification (UI-45). */
 export const TERMS = [
+  "contextSpace",
+  "entityType",
   "endpoint",
   "policy",
-  "contextSpace",
+  "ngsiLd",
+  "linkml",
   "lane",
   "change",
 ] as const;
+
+/** Where a term's entry is on the glossary page (T-3236). */
+export function glossaryHref(name: TermName): string {
+  return `/glossary#term-${name}`;
+}
 
 export type TermName = (typeof TERMS)[number];
 
@@ -66,6 +74,15 @@ export function Term({ name, children, className }: TermProps): React.JSX.Elemen
       >
         {children ?? t(`glossary.${name}.term`)}
       </span>
+      {/* The whole entry, with its example, one step away (T-3236). Beside the word, not inside
+          it: the word stays a term a screen reader reads with its definition. */}
+      <a
+        href={glossaryHref(name)}
+        className="focus-ring ml-0.5 align-super text-caption text-fg-muted no-underline hover:text-fg"
+        aria-label={t("glossary.page.more", { term: t(`glossary.${name}.term`) })}
+      >
+        ?
+      </a>
       <span
         id={definitionId}
         role="tooltip"

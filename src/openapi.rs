@@ -20,7 +20,9 @@ use crate::api::catalogue::{
     CatalogueEndpoint, CatalogueFacetValue, CatalogueFacets, CatalogueLicence, CataloguePage,
     CataloguePublisher, CatalogueResource, CatalogueSample, CatalogueTemporal, CatalogueTheme,
 };
-use crate::api::changes::{ChangeAuthor, ChangeList, ChangeProposal, ChangeSummary};
+use crate::api::changes::{
+    ChangeAuthor, ChangeDecision, ChangeList, ChangeProposal, ChangeSummary,
+};
 use crate::api::ckan::{
     CkanStatus, DataStoreStatus, InstanceSummary, PublicationStatus, ResourceLink,
 };
@@ -187,6 +189,7 @@ use crate::tools::model_tools::{
         crate::api::mutate::replace,
         crate::api::mutate::patch,
         crate::api::changes::list_changes,
+        crate::api::changes::list_change_history,
         crate::api::ckan::get_status,
         crate::api::catalogue::get_catalogue,
         crate::api::catalogue::get_dataset,
@@ -377,6 +380,7 @@ use crate::tools::model_tools::{
         OperationAnnotations,
         ChangeProposal,
         ChangeList,
+        ChangeDecision,
         ChangeSummary,
         ChangeAuthor,
         SyncStatus,

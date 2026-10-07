@@ -75,8 +75,17 @@ test("the change's page shows it merged with the policy it made, and the policy 
   const page = steward.page;
   await page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`);
   await expect(page.getByText(/Merged|Applied|Live/).first()).toBeVisible({ timeout: 90_000 });
-  // The change's own page is its history today; a list of past changes is T-3292's.
   await expect(page.getByText(NAME).first()).toBeVisible({ timeout: 60_000 });
+  // And the Approvals history lists it, found by the policy's name, with who approved it (T-3292).
+  await page.goto(`/projects/${PROJECT}/approvals?lang=en`);
+  await page.getByRole("tab", { name: "History" }).click();
+  const search = page.getByRole("search", { name: "Filter the history" });
+  await search.getByLabel("Name contains").fill(NAME);
+  await search.getByRole("button", { name: "Filter", exact: true }).click();
+  const row = page.getByRole("table", { name: "Closed changes" }).getByRole("row").filter({ hasText: change });
+  await expect(row).toBeVisible({ timeout: 60_000 });
+  await expect(row.getByText("Merged")).toBeVisible();
+  await expect(row.getByText(APPROVER.user)).toBeVisible();
   const stored = await page.request.get(`/api/v1/projects/${PROJECT}/policies/${NAME}`);
   expect(stored.status()).toBe(200);
   const spec = ((await stored.json()) as { spec?: { validity?: { to?: string } } }).spec;

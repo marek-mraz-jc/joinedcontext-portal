@@ -199,6 +199,7 @@ mod tests {
             mergeable: None,
             merged: false,
             repository: String::new(),
+            ..Default::default()
         }
     }
 

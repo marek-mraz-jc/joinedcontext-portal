@@ -60,5 +60,5 @@ export { RowActions } from "./RowActions";
 export type { RowAction } from "./RowActions";
 export { Tabs, tabPanelProps } from "./Tabs";
 export type { TabItem, TabsProps } from "./Tabs";
-export { Term, TERMS } from "./Term";
+export { Term, TERMS, glossaryHref } from "./Term";
 export type { TermName, TermProps } from "./Term";

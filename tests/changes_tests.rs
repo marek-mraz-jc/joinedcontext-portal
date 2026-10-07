@@ -1020,7 +1020,7 @@ async fn successful_approve_answers_202_deploying() {
 
     let config = Config::for_tests();
     let state = AppState::new(config.clone(), None).with_gitea(Arc::new(client));
-    let app = server::app(state);
+    let app = server::app(state.clone());
 
     // Green lane change proposal: create sandbox ContextSpace
     Mock::given(method("GET"))
@@ -1108,6 +1108,30 @@ spec:
     assert_eq!(change.metadata.name, "chg-00000003");
     assert_eq!(change.status.phase, ChangePhase::Deploying);
     assert_eq!(change.status.lane, Lane::Green);
+
+    // T-3292: the feed names the change, its resource and who approved it, on the object's page
+    // too, instead of only the commit the reconciler later applies.
+    let filter = joinedcontext_portal::activity::ActivityFilter {
+        kinds: vec!["change.merged".into()],
+        limit: 10,
+        ..Default::default()
+    };
+    let page = state
+        .activity
+        .list("ovzdusie", &filter)
+        .await
+        .expect("the feed reads");
+    let [event] = page.items.as_slice() else {
+        panic!("one change.merged event, got {:?}", page.items);
+    };
+    assert_eq!(event.correlation_id.as_deref(), Some("chg-00000003"));
+    assert_eq!(
+        event.details["approvedBy"],
+        json!("jana.approver@banskabystrica.sk")
+    );
+    assert_eq!(event.details["object"], json!("spaces/sandbox-space"));
+    assert_eq!(event.details["operation"], json!("create"));
+    assert!(event.summary.contains("sandbox-space"), "{}", event.summary);
 }
 
 /// T-3015: rejecting the Change that publishes an application ends the run that proposed it, so
