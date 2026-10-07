@@ -129,6 +129,8 @@ pub struct Syncer {
     /// The federated client of every ServiceAccount bound to a workload (PF-47). `None` without
     /// a login client: such an account then has no client, and its workload no identity.
     workload_clients: Option<Arc<super::workload_clients::WorkloadClientSync>>,
+    /// The pipelines' own Kubernetes ServiceAccounts and the namespace they live in (PL-19).
+    pipeline_service_accounts: Option<(Arc<crate::apps::kube::KubeClient>, String)>,
     /// The MCP hub client's `endpoint:{slug}` scopes (T-2490, EP-88).
     hub_scopes: Option<Arc<super::hub_scopes::HubScopeSync>>,
     /// The sign-in client of every named MCP server (EP-96, T-3156).
@@ -215,6 +217,7 @@ impl Syncer {
             app_clients: None,
             app_client_secrets: Arc::default(),
             workload_clients: None,
+            pipeline_service_accounts: None,
             hub_scopes: None,
             mcp_clients: None,
             edge_file: None,
@@ -341,7 +344,6 @@ impl Syncer {
         self
     }
 
-    /// Makes each run bring every workload-bound ServiceAccount's client to its manifest (PF-47).
     /// Renders the MCP hub client's `endpoint:{slug}` scopes each run (T-2490).
     pub fn with_hub_scopes(mut self, scopes: Arc<super::hub_scopes::HubScopeSync>) -> Self {
         self.hub_scopes = Some(scopes);
@@ -354,6 +356,18 @@ impl Syncer {
         self
     }
 
+    /// Makes each run keep one Kubernetes ServiceAccount per Pipeline in `namespace`, the
+    /// subject its federated client trusts (PL-19, T-1508).
+    pub fn with_pipeline_service_accounts(
+        mut self,
+        kube: Arc<crate::apps::kube::KubeClient>,
+        namespace: impl Into<String>,
+    ) -> Self {
+        self.pipeline_service_accounts = Some((kube, namespace.into()));
+        self
+    }
+
+    /// Makes each run bring every workload-bound ServiceAccount's client to its manifest (PF-47).
     pub fn with_workload_clients(
         mut self,
         clients: Arc<super::workload_clients::WorkloadClientSync>,
@@ -1085,7 +1099,19 @@ impl Syncer {
         }
 
         // 5d'. The federated client of every ServiceAccount bound to a workload (PF-47). Nothing
-        //      is read back: no secret opens such a client.
+        //      is read back: no secret opens such a client. A Pipeline's own account is bound
+        //      to a Kubernetes ServiceAccount the step before it keeps (PL-19).
+        if let Some((kube, namespace)) = self.pipeline_service_accounts.as_ref() {
+            for failure in super::workload_clients::converge_pipeline_service_accounts(
+                kube,
+                &fresh_mirror,
+                namespace,
+            )
+            .await
+            {
+                tracing::warn!(%namespace, %failure, "pipeline ServiceAccount did not converge");
+            }
+        }
         if let Some(clients) = self.workload_clients.as_ref() {
             for outcome in clients.converge(&fresh_mirror).await {
                 match (&outcome.error, outcome.drift.is_empty()) {

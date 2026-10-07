@@ -537,7 +537,13 @@ impl AppState {
                     oidc.client_id.clone(),
                     oidc.client_secret().to_owned(),
                 ) {
-                    Some(clients) => syncer = syncer.with_workload_clients(Arc::new(clients)),
+                    Some(clients) => {
+                        let clients = match state.config.pipeline_namespace.clone() {
+                            Some(namespace) => clients.with_pipelines(namespace),
+                            None => clients,
+                        };
+                        syncer = syncer.with_workload_clients(Arc::new(clients))
+                    }
                     None => tracing::warn!(
                         "the issuer is not a realm URL, so no workload client is managed"
                     ),
@@ -557,6 +563,22 @@ impl AppState {
                     oidc.client_secret().to_owned(),
                 ) {
                     syncer = syncer.with_mcp_clients(Arc::new(clients));
+                }
+            }
+            // Each Pipeline's own Kubernetes ServiceAccount (PL-19, T-1508), by the Portal's
+            // in-cluster identity, which the deployment lets write that one namespace.
+            if let Some(namespace) = state.config.pipeline_namespace.clone() {
+                match crate::apps::kube::KubeClient::in_cluster() {
+                    Ok(Some(kube)) => {
+                        syncer = syncer.with_pipeline_service_accounts(Arc::new(kube), namespace)
+                    }
+                    Ok(None) => tracing::warn!(
+                        "no ServiceAccount mount: the pipelines' Kubernetes accounts are not made"
+                    ),
+                    Err(err) => tracing::warn!(
+                        error = %err,
+                        "the ServiceAccount mount is unreadable, so the pipelines' Kubernetes accounts are not made"
+                    ),
                 }
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {

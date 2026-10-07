@@ -149,6 +149,135 @@ fn bound(mirror: &Mirror) -> Vec<BoundAccount> {
     accounts
 }
 
+/// Every Pipeline's own account, derived as the gateway derives it (PL-19): bound to its own
+/// Kubernetes ServiceAccount in the runner's `namespace`, its roles the spaces its outputs and
+/// Endpoint source touch, so its client's audiences are those spaces' Endpoints.
+fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
+    let mut accounts = Vec::new();
+    for project in mirror.namespaces() {
+        let space_of = |endpoint: &str| {
+            mirror
+                .get(&project, "Endpoint", endpoint)
+                .and_then(|envelope| {
+                    let reference = envelope.spec.get("contextSpaceRef")?;
+                    reference
+                        .as_str()
+                        .or_else(|| reference.get("name").and_then(Value::as_str))
+                        .map(str::to_owned)
+                })
+        };
+        for envelope in mirror
+            .list(&project, "Pipeline", &ListOptions::default())
+            .items
+        {
+            let Ok(spec) = serde_json::from_value::<jc_core::kinds::PipelineSpec>(envelope.spec)
+            else {
+                continue;
+            };
+            let derived = jc_core::kinds::pipeline_identity::derive(
+                &project,
+                &envelope.metadata.name,
+                &spec,
+                namespace,
+                // Only the account is read here; its Policies are the gateway's, assigned there.
+                "",
+                space_of,
+            );
+            let Some(binding) = derived
+                .account
+                .workload
+                .as_ref()
+                .map(|w| w.kubernetes.clone())
+            else {
+                continue;
+            };
+            accounts.push(BoundAccount {
+                project: project.clone(),
+                name: derived.name,
+                spec: derived.account,
+                binding,
+            });
+        }
+    }
+    accounts.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
+    accounts
+}
+
+/// The label every Kubernetes ServiceAccount of a Pipeline's account carries, so a run finds the
+/// ones it made and nothing else (PL-19, T-1508).
+pub const PIPELINE_IDENTITY_LABEL: &str = "joinedcontext.com/pipeline-identity";
+
+/// The Kubernetes ServiceAccount of every Pipeline's own account in `namespace`: no pod mounts
+/// it, the token service mints its tokens (Architecture/12 §3), so its own token is never
+/// automounted anywhere.
+pub fn pipeline_service_accounts(mirror: &Mirror, namespace: &str) -> Vec<Value> {
+    pipeline_accounts(mirror, namespace)
+        .into_iter()
+        .map(|account| {
+            json!({
+                "apiVersion": "v1",
+                "kind": "ServiceAccount",
+                "metadata": {
+                    "name": account.binding.service_account,
+                    "namespace": account.binding.namespace,
+                    "labels": {
+                        PIPELINE_IDENTITY_LABEL: "true",
+                        "app.kubernetes.io/managed-by": "joinedcontext-portal",
+                    },
+                    "annotations": { ACCOUNT_ATTRIBUTE: account.label() },
+                },
+                "automountServiceAccountToken": false,
+            })
+        })
+        .collect()
+}
+
+/// Brings the pipelines' Kubernetes ServiceAccounts in `namespace` to the mirror's Pipelines:
+/// applies each, deletes a labelled one no Pipeline names any more, and answers what failed. A
+/// ServiceAccount without the label, or not named `pl-…`, is never touched.
+pub async fn converge_pipeline_service_accounts(
+    kube: &crate::apps::kube::KubeClient,
+    mirror: &Mirror,
+    namespace: &str,
+) -> Vec<String> {
+    let wanted = pipeline_service_accounts(mirror, namespace);
+    let mut failed = Vec::new();
+    for account in &wanted {
+        if let Err(err) = kube.apply(account).await {
+            failed.push(format!("{}: {err}", account["metadata"]["name"]));
+        }
+    }
+    let names: BTreeSet<&str> = wanted
+        .iter()
+        .filter_map(|a| a["metadata"]["name"].as_str())
+        .collect();
+    let listed = match kube
+        .list(
+            "v1",
+            "ServiceAccount",
+            namespace,
+            &format!("{PIPELINE_IDENTITY_LABEL}=true"),
+        )
+        .await
+    {
+        Ok(listed) => listed,
+        Err(err) => {
+            failed.push(format!("listing {namespace}: {err}"));
+            return failed;
+        }
+    };
+    for stale in listed
+        .iter()
+        .filter_map(|a| a["metadata"]["name"].as_str())
+        .filter(|name| jc_core::kinds::pipeline_identity::is_derived(name) && !names.contains(name))
+    {
+        if let Err(err) = kube.delete("v1", "ServiceAccount", namespace, stale).await {
+            failed.push(format!("{stale}: {err}"));
+        }
+    }
+    failed
+}
+
 /// The accounts that may not have a client this run, with the reason: Keycloak finds a federated
 /// client by the assertion's subject, so one Kubernetes ServiceAccount opens one account at most.
 /// When several bind the same subject, the one whose managed client already holds it keeps it and
@@ -213,6 +342,9 @@ pub struct WorkloadClientSync {
     admin: Admin,
     /// The Portal's own audience, `portal-api`: what a token needs to act on the Portal.
     portal: String,
+    /// The pipeline runner's namespace, when every Pipeline's own account gets its client too
+    /// (PL-19); `None` leaves pipelines to their project's `pipelines` account.
+    pipelines: Option<String>,
 }
 
 impl WorkloadClientSync {
@@ -222,7 +354,15 @@ impl WorkloadClientSync {
         Some(Self {
             portal: client_id.clone(),
             admin: Admin::new(issuer, client_id, client_secret)?,
+            pipelines: None,
         })
+    }
+
+    /// Gives every Pipeline's own account its federated client, bound to its Kubernetes
+    /// ServiceAccount in the runner's namespace `namespace` (PL-19, T-1508).
+    pub fn with_pipelines(mut self, namespace: String) -> Self {
+        self.pipelines = Some(namespace);
+        self
     }
 
     /// Brings every bound account's client to what [`desired`] and [`audiences`] say, deletes the
@@ -258,7 +398,10 @@ impl WorkloadClientSync {
             }
         };
 
-        let accounts = bound(mirror);
+        let mut accounts = bound(mirror);
+        if let Some(namespace) = &self.pipelines {
+            accounts.extend(pipeline_accounts(mirror, namespace));
+        }
         let wanted: BTreeSet<String> = accounts.iter().map(BoundAccount::label).collect();
         let refused = contested(&accounts, &listed);
         for account in &accounts {
