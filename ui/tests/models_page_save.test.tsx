@@ -620,6 +620,40 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     }
   });
 
+  it("sends a new model to create a space first when no space is free for it (T-3213)", async () => {
+    const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
+    const air = { apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: "air" }, spec: {} };
+    const taken = {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "DataModel",
+      metadata: { name: "air-quality" },
+      spec: { contextSpaceRef: "air", linkml: "./air-quality.linkml.yaml" },
+    };
+    for (const [spaces, models, text] of [
+      [[], [], en.models.create.noSpace],
+      [[air], [taken], en.models.create.noFreeSpace],
+    ] as const) {
+      global.fetch = vi.fn().mockImplementation((req: RequestInfo | URL) => {
+        const urlStr = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
+        const body = urlStr.includes("/spaces") ? list([...spaces]) : urlStr.includes("/datamodels") ? list([...models]) : list([]);
+        return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+      });
+      window.history.replaceState(null, "", "/?new=blank");
+      try {
+        const { unmount } = renderWithClient(<ModelsPage project="ovzdusie" />);
+        const status = await screen.findByText(new RegExp(text.slice(0, 30)));
+        expect(status).toHaveAttribute("role", "status");
+        expect(screen.getByRole("link", { name: en.models.create.newSpace })).toHaveAttribute(
+          "href",
+          "/projects/ovzdusie/spaces/new",
+        );
+        unmount();
+      } finally {
+        window.history.replaceState(null, "", "/");
+      }
+    }
+  });
+
   /**
    * A model inferred from a file used to live in this component alone: a reload, a crash or the
    * assistant navigating away lost it silently. It is kept in the shared draft store instead

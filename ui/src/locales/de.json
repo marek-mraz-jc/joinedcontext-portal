@@ -2214,7 +2214,10 @@
       "held": "Als gemeinsamer Entwurf {name} gehalten; er ist nach einem Neuladen noch da, bis Sie das Modell speichern.",
       "heldConflict": "Jemand anderes hat diesen Entwurf gespeichert, während Sie bearbeitet haben. Laden Sie die Seite neu, um dessen Fassung zu sehen; bis dahin wird Ihre nicht gehalten.",
       "spaceHas": "{space} (hat schon {model})",
-      "spaceTaken": "Der Space {space} hat schon das Modell {model}, und ein Space hat ein Modell. Wählen Sie einen anderen Space, oder öffnen Sie {model} und fügen Sie Ihre Klassen dort hinzu."
+      "spaceTaken": "Der Space {space} hat schon das Modell {model}, und ein Space hat ein Modell. Wählen Sie einen anderen Space, oder öffnen Sie {model} und fügen Sie Ihre Klassen dort hinzu.",
+      "noSpace": "Ein Modell gehört zu einem Kontextraum, und das Projekt hat noch keinen.",
+      "noFreeSpace": "Jeder Raum des Projekts hat schon sein Modell; ein neues Modell braucht einen neuen Raum, oder fügen Sie Ihre Klassen dem Modell des Raums hinzu.",
+      "newSpace": "Kontextraum anlegen"
     },
     "infer": {
       "title": "Modell aus einer Datei",

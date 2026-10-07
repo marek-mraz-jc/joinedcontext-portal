@@ -172,7 +172,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("models.title")} description={t("models.page.listLead")} actions={create} />
+      <PageHeader title={t("nav.models")} description={t("models.page.listLead")} actions={create} />
 
       <section aria-labelledby="models-project" className="flex flex-col gap-4">
         <h2 id="models-project" className="text-title font-semibold text-fg">

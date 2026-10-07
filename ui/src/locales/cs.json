@@ -2214,7 +2214,10 @@
       "held": "Uloženo jako sdílený koncept {name}; po obnovení stránky je stále zde, dokud model neuložíte.",
       "heldConflict": "Tento koncept mezitím uložil někdo jiný. Obnovte stránku, abyste viděli jeho verzi; do té doby se vaše neukládá.",
       "spaceHas": "{space} (už má {model})",
-      "spaceTaken": "Prostor {space} už má model {model} a prostor má jeden model. Zvolte jiný prostor nebo otevřete {model} a přidejte do něj své třídy."
+      "spaceTaken": "Prostor {space} už má model {model} a prostor má jeden model. Zvolte jiný prostor nebo otevřete {model} a přidejte do něj své třídy.",
+      "noSpace": "Model patří jednomu kontextovému prostoru a projekt zatím žádný nemá.",
+      "noFreeSpace": "Každý prostor projektu už má svůj model; nový model potřebuje nový prostor, nebo přidejte třídy do modelu prostoru.",
+      "newSpace": "Vytvořit kontextový prostor"
     },
     "infer": {
       "title": "Model ze souboru",
