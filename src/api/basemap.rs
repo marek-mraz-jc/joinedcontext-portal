@@ -359,7 +359,7 @@ pub async fn get_tile(
         metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
         return problem_response(
             StatusCode::TOO_MANY_REQUESTS,
-            "rate-limit-exceeded",
+            "too-many-requests",
             "Too Many Requests",
             Some("rate limit of 600 requests per minute exceeded".to_string()),
         );
@@ -415,8 +415,8 @@ pub async fn get_tile(
         metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
         return problem_response(
             StatusCode::BAD_GATEWAY,
-            "bad-gateway",
-            "Bad Gateway",
+            "upstream-unavailable",
+            "Upstream Unavailable",
             Some("upstream URL scheme must be https".to_string()),
         );
     }
@@ -427,8 +427,8 @@ pub async fn get_tile(
             metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
             return problem_response(
                 StatusCode::BAD_GATEWAY,
-                "bad-gateway",
-                "Bad Gateway",
+                "upstream-unavailable",
+                "Upstream Unavailable",
                 // A reqwest error names its URL, and the URL carries the key.
                 Some(format!("upstream fetch failed: {}", e.without_url())),
             );
@@ -439,8 +439,8 @@ pub async fn get_tile(
         metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
         return problem_response(
             StatusCode::BAD_GATEWAY,
-            "bad-gateway",
-            "Bad Gateway",
+            "upstream-unavailable",
+            "Upstream Unavailable",
             Some(format!("upstream returned HTTP {}", response.status())),
         );
     }
@@ -457,8 +457,8 @@ pub async fn get_tile(
         metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
         return problem_response(
             StatusCode::BAD_GATEWAY,
-            "bad-gateway",
-            "Bad Gateway",
+            "upstream-unavailable",
+            "Upstream Unavailable",
             Some(format!(
                 "upstream returned non-image content: {content_type}"
             )),
@@ -471,8 +471,8 @@ pub async fn get_tile(
             metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
             return problem_response(
                 StatusCode::BAD_GATEWAY,
-                "bad-gateway",
-                "Bad Gateway",
+                "upstream-unavailable",
+                "Upstream Unavailable",
                 Some(format!("failed to read upstream body: {}", e.without_url())),
             );
         }
@@ -482,8 +482,8 @@ pub async fn get_tile(
         metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
         return problem_response(
             StatusCode::BAD_GATEWAY,
-            "bad-gateway",
-            "Bad Gateway",
+            "upstream-unavailable",
+            "Upstream Unavailable",
             Some("upstream tile exceeds 1 MiB limit".to_string()),
         );
     }

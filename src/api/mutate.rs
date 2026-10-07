@@ -1178,6 +1178,7 @@ async fn propose_engine(
                 )
             },
             awaited,
+            goes_with: Vec::new(),
         }));
     }
 
