@@ -149,6 +149,7 @@ describe("a public form", () => {
       hiddenAttributes: ["note"],
       writeAttributes: ["name", "capacity"],
       writeRelationships: ["refZone"],
+      createsPerDay: 200,
     });
   });
 
@@ -176,8 +177,34 @@ describe("a public form", () => {
     await userEvent.click(within(panel).getByText(en.spaces.form.shareTitle));
     await userEvent.click(within(panel).getByRole("button", { name: en.spaces.form.publish }));
     await waitFor(() => expect(sent.filter((s) => s.path.endsWith("/import") && !s.dryRun)).toHaveLength(1));
-    expect((sent[0].body as { access: string }).access).toBe("create");
+    expect(sent[0].body).toMatchObject({ access: "create", createsPerDay: 200 });
     expect(await within(panel).findByTestId("form-share-link")).toHaveTextContent(`${window.location.origin}/f/f7m2qz4tv6xh3n5jb2ryd3wcfa`);
+  });
+
+  it("takes the daily count of entries, within 1 to 10,000", async () => {
+    const sent: unknown[] = [];
+    renderPage(<FormSharePanel project="city" space="parking" type="ParkingSpot" attributes={["name"]} asked={["name"]} />, {
+      path: "/projects/city/spaces/parking",
+      answer: async (url, request) => {
+        if (request.method !== "POST" || !url.pathname.endsWith("/assistant/propose-endpoint")) return undefined;
+        sent.push(await request.json());
+        return json({ title: "stop here" }, 400);
+      },
+    });
+    const panel = await screen.findByTestId("form-share");
+    await userEvent.click(within(panel).getByText(en.spaces.form.shareTitle));
+    const count = within(panel).getByRole("textbox", { name: new RegExp(en.spaces.form.perDay) });
+    const publish = within(panel).getByRole("button", { name: en.spaces.form.publish });
+    for (const bad of ["0", "10001", "many"]) {
+      await userEvent.clear(count);
+      await userEvent.type(count, bad);
+      expect(publish).toHaveAttribute("aria-disabled", "true");
+    }
+    await userEvent.clear(count);
+    await userEvent.type(count, "25");
+    await userEvent.click(publish);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ createsPerDay: 25 });
   });
 
   it("builds its fields from the published schema and posts anonymously through the Endpoint", async () => {
