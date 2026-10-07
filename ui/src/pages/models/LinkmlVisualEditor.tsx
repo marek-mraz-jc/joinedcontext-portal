@@ -15,6 +15,7 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
+  Term,
 } from "../../components/ui";
 import {
   DEFAULT_KIND,
@@ -472,7 +473,9 @@ export function LinkmlVisualEditor({
             <TableHead>
               <TableHeaderCell>{t("models.slot")}</TableHeaderCell>
               <TableHeaderCell>{t("models.range")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.kind")}</TableHeaderCell>
+              <TableHeaderCell>
+                <Term name="ngsiLd">{t("models.kind")}</Term>
+              </TableHeaderCell>
               <TableHeaderCell>{t("models.unit")}</TableHeaderCell>
               <TableHeaderCell>{t("models.affordanceLabel")}</TableHeaderCell>
             </TableHead>

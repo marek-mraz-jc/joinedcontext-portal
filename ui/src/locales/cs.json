@@ -267,23 +267,49 @@
   "glossary": {
     "endpoint": {
       "definition": "Zveřejněná adresa dat jednoho kontextového prostoru s vlastními pravidly, kdo smí číst které entity a atributy.",
-      "term": "Endpoint"
+      "term": "Endpoint",
+      "example": "Veřejný endpoint prostoru ovzduší odpoví komukoli; interní jen vaší organizaci."
     },
     "policy": {
       "definition": "Pravidlo za endpointem: které operace smí volající provést, nad kterými typy entit a které atributy se vrátí.",
-      "term": "Politika"
+      "term": "Politika",
+      "example": "Kdokoli smí číst AirQualityObserved bez atributu stationNote."
     },
     "contextSpace": {
       "definition": "Místo, kde žijí živá data jednoho projektu, odděleně od ostatních projektů; endpointy je zveřejňují, linky je plní.",
-      "term": "Kontextový prostor"
+      "term": "Kontextový prostor",
+      "example": "Prostor air-quality drží městské stanice a jejich měření."
     },
     "lane": {
       "definition": "Kolik posouzení změna potřebuje, než se provede: zelená projde sama, žlutá potřebuje schválení gestora, červená více lidí.",
-      "term": "Riziková dráha"
+      "term": "Riziková dráha",
+      "example": "Přejmenování dashboardu je zelené; zveřejnění endpointu všem je červené."
     },
     "change": {
       "definition": "Navržená úprava konfigurace, zaznamenaná tak, aby si ji člověk přečetl a schválil dříve, než se cokoli v provozu pohne.",
-      "term": "Změna"
+      "term": "Změna",
+      "example": "Přidat endpoint public-air, navrhl správce, schválil administrátor."
+    },
+    "entityType": {
+      "term": "Typ entity",
+      "definition": "Druh věci, kterou entita je, třeba stanice nebo autobus; datový model prostoru určuje, jaké atributy každý typ má.",
+      "example": "AirQualityObserved je typ entity jednoho měření kvality ovzduší."
+    },
+    "ngsiLd": {
+      "term": "NGSI-LD",
+      "definition": "Otevřený standard (ETSI), ve kterém platforma ukládá a poskytuje kontextová data: entity s atributy, každý atribut s hodnotou a časem pozorování.",
+      "example": "GET /ngsi-ld/v1/entities?type=Vehicle vypíše autobusy, které endpoint zveřejňuje."
+    },
+    "linkml": {
+      "term": "LinkML",
+      "definition": "Jazyk, ve kterém je datový model napsán: třídy, jejich atributy, jednotky a povolené hodnoty. Editor modelu jej píše za vás.",
+      "example": "Třída Station s atributy name a location."
+    },
+    "page": {
+      "title": "Slovník",
+      "lead": "Slova, která platforma používá, každé jednou větou s jedním příkladem.",
+      "example": "Příklad: {text}",
+      "more": "Co je {term}? Otevřít slovník"
     }
   },
   "quota": {

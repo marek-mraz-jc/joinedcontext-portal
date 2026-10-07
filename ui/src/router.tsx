@@ -30,6 +30,7 @@ import { ModelsList } from "./pages/models/ModelsList";
 import { ModelPage } from "./pages/models/ModelPage";
 import { ExplorePage } from "./pages/explore/ExplorePage";
 import { CkanPage } from "./pages/ckan/CkanPage";
+import { GlossaryPage } from "./pages/glossary/GlossaryPage";
 import { KnowledgePage } from "./pages/knowledge/KnowledgePage";
 import { SourcePage } from "./pages/knowledge/SourcePage";
 import { McpServersPage } from "./pages/mcp/McpServersPage";
@@ -250,6 +251,15 @@ const catalogueDatasetRoute = createRoute({
     return (
       <CatalogueFrame>{() => <DatasetPage name={name} />}</CatalogueFrame>
     );
+  },
+});
+
+/** The platform's words with an example each (T-3236): public, every `Term` links here. */
+const glossaryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/glossary",
+  component: function GlossaryRoute() {
+    return <CatalogueFrame>{() => <GlossaryPage />}</CatalogueFrame>;
   },
 });
 
@@ -1047,6 +1057,7 @@ export const routeTree = rootRoute.addChildren([
   catalogueDatasetRoute,
   publicViewRoute,
   publicFormRoute,
+  glossaryRoute,
   ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,
