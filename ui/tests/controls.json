@@ -220,6 +220,24 @@
         "form_entity_filters.test.tsx"
       ]
     },
+    "src/components/entities/ViewBar.tsx": {
+      "controls": {
+        "Button": 7,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "view_bar.test.tsx"
+      ]
+    },
+    "src/components/entities/ViewOptions.tsx": {
+      "controls": {
+        "Button": 4,
+        "Checkbox": 1
+      },
+      "tests": [
+        "view_options.test.tsx"
+      ]
+    },
     "src/components/export/ExportButton.tsx": {
       "controls": {
         "Button": 1
