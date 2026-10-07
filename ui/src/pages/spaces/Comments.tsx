@@ -195,13 +195,13 @@ export function NotificationsMenu(): JSX.Element {
         <Button variant="ghost" className="relative px-1.5" aria-label={t("notifications.label", { count: unread })}>
           <Icon name="inbox" className="size-5" />
           {unread > 0 ? (
-            <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-danger px-1 text-center text-[10px] font-bold leading-4 text-white">
+            <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-danger px-1 text-center text-caption font-bold text-danger-fg">
               {unread > 99 ? "99+" : unread}
             </span>
           ) : null}
         </Button>
       </MenuTrigger>
-      <MenuContent align="end" className="w-80 max-w-[calc(100vw-1rem)]">
+      <MenuContent align="end" className="w-80 max-w-full">
         <MenuLabel>{t("notifications.title")}</MenuLabel>
         {inbox.isError ? <p className="px-2.5 py-1.5 text-body text-danger">{problem(inbox.error)}</p> : null}
         {items.length === 0 && !inbox.isError ? <p className="px-2.5 py-1.5 text-body text-fg-muted">{t("notifications.none")}</p> : null}

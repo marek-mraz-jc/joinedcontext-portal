@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { download } from "@joinedcontext/sdk";
-import { Alert, Button, Dialog, Field, FilePicker, Select } from "../../components/ui";
+import { Alert, Button, Dialog, Field, FilePicker, Select, safeHref } from "../../components/ui";
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui/Table";
 import type { Manifest } from "../../api/manifest";
 import {
@@ -211,7 +211,7 @@ function MapStep({
                     ))}
                   </Select>
                 </TableCell>
-                <TableCell className="max-w-[16rem] truncate text-fg-muted">
+                <TableCell className="max-w-64 truncate text-fg-muted">
                   {table.rows
                     .slice(0, PREVIEW)
                     .map((row) => row[column])
@@ -318,7 +318,7 @@ export function ExportLinks({
         <a
           key={format}
           className="focus-ring rounded-md border border-border px-3 py-1.5 text-body hover:bg-surface-muted"
-          href={exportUrl(endpoint.slug, format, type, q, attrs)}
+          href={safeHref(exportUrl(endpoint.slug, format, type, q, attrs))}
           download
         >
           {t(`spaces.export.format.${format}`)}

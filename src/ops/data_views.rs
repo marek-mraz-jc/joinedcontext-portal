@@ -300,7 +300,7 @@ fn new_id() -> String {
     )
 }
 
-/// Whether `id` has the shape [`new_id`] makes, so a path segment never reaches SQL unchecked.
+/// Whether `id` has the shape `new_id` makes, so a path segment never reaches SQL unchecked.
 pub fn is_id(id: &str) -> bool {
     id.len() == 36
         && id.char_indices().all(|(at, c)| match at {
