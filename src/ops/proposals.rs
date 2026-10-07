@@ -772,6 +772,7 @@ pub fn operations() -> Vec<Operation> {
                         access: None,
                         write_attributes: Vec::new(),
                         write_relationships: Vec::new(),
+                        creates_per_day: None,
                     };
                     let proposal = assistant::execute_propose_endpoint(
                         &caller.identity,

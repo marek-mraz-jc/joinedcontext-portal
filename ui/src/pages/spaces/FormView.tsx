@@ -386,6 +386,10 @@ export function FormSettingsEditor({
   );
 }
 
+/** The entries a public form takes a day unless its publisher says otherwise (API/01 §19). */
+export const DEFAULT_PER_DAY = 200;
+const MAX_PER_DAY = 10_000;
+
 /** What `propose-endpoint` is asked for a public form: anyone may create the type, nothing else. */
 export function formPublishRequest(
   space: string,
@@ -394,6 +398,7 @@ export function formPublishRequest(
   attributes: string[],
   asked: string[],
   relationships: string[] = [],
+  perDay = DEFAULT_PER_DAY,
 ): Record<string, unknown> {
   return {
     contextSpace: space,
@@ -406,6 +411,8 @@ export function formPublishRequest(
     // The Policy grants these and nothing else of the type: any other attribute is refused (T-3172).
     writeAttributes: asked.filter((attr) => !relationships.includes(attr)),
     writeRelationships: asked.filter((attr) => relationships.includes(attr)),
+    // The gateway mints each entry's id and stops at this count a day (EP-97).
+    createsPerDay: perDay,
   };
 }
 
@@ -440,6 +447,8 @@ export function FormSharePanel({
   const [failed, setFailed] = useState<string | null>(null);
   const proposal = useProposal(project, "endpoints", setChange);
   const nameOk = new RegExp(DNS1123).test(name) && name.length <= 63;
+  const [perDay, setPerDay] = useState(String(DEFAULT_PER_DAY));
+  const perDayOk = /^\d+$/.test(perDay) && Number(perDay) >= 1 && Number(perDay) <= MAX_PER_DAY;
 
   const publish = async () => {
     setFailed(null);
@@ -447,7 +456,7 @@ export function FormSharePanel({
       const rendering = (await unwrap(
         await api.POST("/api/v1/projects/{project}/assistant/propose-endpoint", {
           params: { path: { project } },
-          body: formPublishRequest(space, name, type, attributes, asked, relationships) as Record<string, never>,
+          body: formPublishRequest(space, name, type, attributes, asked, relationships, Number(perDay)) as Record<string, never>,
         }),
       )) as unknown as Rendering;
       setSlug(rendering.slug ?? null);
@@ -465,6 +474,9 @@ export function FormSharePanel({
         <Field id="form-share-name" label={t("spaces.share.name")} help={t("spaces.share.nameHint")} errors={nameOk ? undefined : [t("spaces.share.nameHint")]}>
           <Input id="form-share-name" value={name} onChange={(event) => setName(event.target.value)} />
         </Field>
+        <Field id="form-share-per-day" label={t("spaces.form.perDay")} help={t("spaces.form.perDayHint")} errors={perDayOk ? undefined : [t("spaces.form.perDayHint")]}>
+          <Input id="form-share-per-day" inputMode="numeric" value={perDay} onChange={(event) => setPerDay(event.target.value)} />
+        </Field>
         {failed || proposal.error ? (
           <Alert role="alert" tone="danger">
             {failed ?? proposal.error}
@@ -472,8 +484,8 @@ export function FormSharePanel({
         ) : null}
         <Button
           className="w-fit"
-          disabled={!nameOk || asked.length === 0 || proposal.mutation.isPending}
-          disabledReason={!nameOk ? t("spaces.share.nameHint") : asked.length === 0 ? t("spaces.form.noAsked") : t("app.loading")}
+          disabled={!nameOk || !perDayOk || asked.length === 0 || proposal.mutation.isPending}
+          disabledReason={!nameOk ? t("spaces.share.nameHint") : !perDayOk ? t("spaces.form.perDayHint") : asked.length === 0 ? t("spaces.form.noAsked") : t("app.loading")}
           onClick={() => void publish()}
         >
           {t("spaces.form.publish")}

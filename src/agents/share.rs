@@ -61,7 +61,13 @@ pub struct ProposeEndpoint {
     /// The relationships a public form asks for: its Policy's `relationshipNames` (T-3172).
     #[serde(default)]
     pub write_relationships: Vec<String>,
+    /// A public form's creates per UTC day: its Endpoint's `spec.creates.perDay` (EP-97).
+    #[serde(default)]
+    pub creates_per_day: Option<u32>,
 }
+
+/// The creates a public form takes a day when its request names no count (API/01 §19).
+pub const DEFAULT_CREATES_PER_DAY: u32 = 200;
 
 /// What an app may do through a new endpoint (AP-132). A read reaches the person's own grants on
 /// the space and adds none; a write preset grants its operations, which takes the red lane.
@@ -264,9 +270,21 @@ pub fn render(
                     .to_owned(),
             );
         }
-    } else if !params.write_attributes.is_empty() || !params.write_relationships.is_empty() {
+        if let Some(per_day) = params.creates_per_day {
+            if per_day == 0 || per_day > jc_core::kinds::endpoint::MAX_CREATES_PER_DAY {
+                return Err(format!(
+                    "createsPerDay {per_day} is outside 1..={}",
+                    jc_core::kinds::endpoint::MAX_CREATES_PER_DAY
+                ));
+            }
+        }
+    } else if !params.write_attributes.is_empty()
+        || !params.write_relationships.is_empty()
+        || params.creates_per_day.is_some()
+    {
         return Err(
-            "writeAttributes and writeRelationships are for a public form (access create)"
+            "writeAttributes, writeRelationships and createsPerDay are for a public form \
+             (access create)"
                 .to_owned(),
         );
     }
@@ -343,6 +361,13 @@ pub fn render(
     }
     if let Some(limits) = &params.rate_limits {
         spec["rateLimits"] = serde_json::to_value(limits).unwrap_or(Value::Null);
+    }
+    // A public form's caller chooses no id and has a daily count (EP-97, T-3177).
+    if params.access == Some(Preset::Create) {
+        spec["creates"] = json!({
+            "mintIds": true,
+            "perDay": params.creates_per_day.unwrap_or(DEFAULT_CREATES_PER_DAY),
+        });
     }
     let mut metadata = json!({
         "name": name,
@@ -826,7 +851,7 @@ pub fn edit_call(answer: &str) -> Option<Result<EditEndpoint, String>> {
 mod tests {
     use super::{
         edit, edit_call, form_values, prose_of, render, slug, tool_call, EditEndpoint, FieldChange,
-        Preset, ProposeEndpoint,
+        Preset, ProposeEndpoint, DEFAULT_CREATES_PER_DAY,
     };
     use crate::change::Lane;
     use serde_json::json;
@@ -1245,6 +1270,37 @@ mod tests {
             }])
         );
         assert_eq!(proposal.endpoint["spec"]["audience"], "public");
+        // T-3177: the gateway mints the id and counts the day, and the pinned jc-core takes it.
+        assert_eq!(
+            proposal.endpoint["spec"]["creates"],
+            json!({ "mintIds": true, "perDay": DEFAULT_CREATES_PER_DAY })
+        );
+        let spec: jc_core::kinds::EndpointSpec =
+            serde_json::from_value(proposal.endpoint["spec"].clone()).expect("an Endpoint spec");
+        spec.validate().expect("a valid Endpoint");
+    }
+
+    /// T-3177: a form's daily count is its own within 1..=10000; anything else is refused, and
+    /// only a form names one.
+    #[test]
+    fn a_public_form_names_its_daily_count_within_bounds() {
+        let mut form = public_form();
+        form.creates_per_day = Some(25);
+        let proposal = render("helsinki", "hel.fi", &form, &[]).expect("renders");
+        assert_eq!(proposal.endpoint["spec"]["creates"]["perDay"], 25);
+        for bad in [0, 10_001] {
+            form.creates_per_day = Some(bad);
+            assert!(render("helsinki", "hel.fi", &form, &[])
+                .expect_err("out of bounds")
+                .contains("createsPerDay"));
+        }
+        let mut not_a_form = app_endpoint(Preset::Full);
+        not_a_form.creates_per_day = Some(25);
+        assert!(render("helsinki", "hel.fi", &not_a_form, &[])
+            .expect_err("not a form")
+            .contains("public form"));
+        let read = render("helsinki", "hel.fi", &app_endpoint(Preset::Read), &[]).expect("read");
+        assert!(read.endpoint["spec"].get("creates").is_none());
     }
 
     /// T-3172: a form that names no field would grant every attribute of the type, a field that

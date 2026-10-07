@@ -738,6 +738,8 @@
       "shareTitle": "Als öffentliches Formular veröffentlichen",
       "shareLead": "Wer den Link hat, kann einen Datensatz {type} über einen öffentlichen Endpoint anlegen, der nur das Anlegen erlaubt. Er wird als Änderung vorgeschlagen und wirkt erst nach der Prüfung.",
       "publish": "Öffentliches Formular vorschlagen",
+      "perDay": "Einträge pro Tag",
+      "perDayHint": "Das Formular nimmt nach so vielen Einträgen am Tag (UTC) keine mehr an, 1 bis 10.000.",
       "noAsked": "Das Formular fragt kein Feld ab",
       "notPublished": "Dieses Formular ist nicht oder nicht mehr veröffentlicht.",
       "publicLead": "Ihre Antworten legen einen Datensatz an. Nichts davon wird Ihnen wieder angezeigt.",

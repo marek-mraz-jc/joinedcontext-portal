@@ -738,6 +738,8 @@
       "shareTitle": "Zveřejnit jako veřejný formulář",
       "shareLead": "Kdokoli s odkazem může vytvořit jeden záznam {type} přes veřejný endpoint, který dovoluje pouze vytváření. Navrhne se jako změna a funguje až po schválení.",
       "publish": "Navrhnout veřejný formulář",
+      "perDay": "Záznamů za den",
+      "perDayHint": "Formulář po tomto počtu za den (UTC) přestane přijímat záznamy, 1 až 10 000.",
       "noAsked": "Formulář se neptá na žádné pole",
       "notPublished": "Tento formulář není zveřejněn nebo už není.",
       "publicLead": "Vaše odpovědi vytvoří jeden záznam. Nic z toho, co pošlete, se vám nezobrazí zpět.",
