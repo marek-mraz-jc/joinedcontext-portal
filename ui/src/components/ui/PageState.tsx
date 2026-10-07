@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
@@ -86,13 +87,27 @@ export function PageFailed({
 }): JSX.Element {
   const { t } = useTranslation();
   const kind = failureKind(error);
+  const offline = kind === "network" && typeof navigator !== "undefined" && navigator.onLine === false;
   const said = error instanceof ApiError ? (error.problem?.detail ?? error.message) : undefined;
   const reason =
     children ??
-    (kind === "network" ? t("app.error.generic") : kind === "session" ? t("app.error.session") : said);
+    (offline
+      ? t("app.error.offline")
+      : kind === "network"
+        ? t("app.error.generic")
+        : kind === "session"
+          ? t("app.error.session")
+          : said);
   // After an ended session the sign-in dialog asks every read again itself.
   const retry = kind === "server" || kind === "network" ? onRetry : undefined;
-  const reference = kind === "server" && error instanceof ApiError ? error.requestId : undefined;
+  // Every answer the edge numbered can be quoted, a refusal as much as a failure (T-3244).
+  const reference = kind !== "session" && error instanceof ApiError ? error.requestId : undefined;
+  // A read that failed for want of a connection is asked again the moment it is back.
+  useEffect(() => {
+    if (kind !== "network" || !retry) return;
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [kind, retry]);
   return (
     <Alert
       tone="danger"
@@ -111,11 +126,7 @@ export function PageFailed({
     >
       {reason}
       {kind === "forbidden" ? <span className="mt-1 block">{t("app.error.forbiddenHint")}</span> : null}
-      {reference ? (
-        <span className="mt-1 block">
-          {t("app.error.reference")} <code className="font-mono">{reference}</code>
-        </span>
-      ) : null}
+      {reference ? <Reference value={reference} /> : null}
     </Alert>
   );
 }
@@ -152,5 +163,32 @@ export function ResourcePageFailed({
         {children}
       </PageFailed>
     </div>
+  );
+}
+
+/** The edge's request id, to quote when reporting, with a button that copies it (T-3244). */
+function Reference({ value }: { value: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-2">
+      {t("app.error.reference")} <code className="font-mono">{value}</code>
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-label={t("app.error.copyReference", { reference: value })}
+        onClick={() => {
+          void navigator.clipboard
+            ?.writeText(value)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false));
+        }}
+      >
+        {copied ? t("app.error.copied") : t("app.error.copy")}
+      </Button>
+      <span role="status" className="sr-only">
+        {copied ? t("app.error.copied") : ""}
+      </span>
+    </span>
   );
 }

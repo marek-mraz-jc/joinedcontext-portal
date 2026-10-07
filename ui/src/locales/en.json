@@ -12,7 +12,11 @@
       "crashHome": "Go to the start",
       "session": "Your session ended. Sign in again to see this.",
       "forbiddenHint": "A project owner or an organization administrator can give you access.",
-      "reference": "Quote this when you report it:"
+      "reference": "Quote this when you report it:",
+      "offline": "You are offline. The page reads again as soon as the connection is back.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyReference": "Copy the reference {reference}"
     },
     "notFound": {
       "title": "This page does not exist",
@@ -396,7 +400,8 @@
     "new": "New {kind}",
     "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
     "propose": "Propose change",
-    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form."
+    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form.",
+    "askAssistant": "Ask the assistant for one"
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -1043,7 +1048,8 @@
         "aliasHelp": "The name this project reads the shared space by; queries and pipelines here use it.",
         "interval": "Mirror interval",
         "intervalHelp": "How often the source's schema is mirrored here, such as 6h or 1d; leave empty for once a day."
-      }
+      },
+      "browse": "See what other projects publish"
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",
@@ -1796,6 +1802,8 @@
       "mode": "How each record becomes an entity",
       "modeMap": "Map fields",
       "modeCode": "Write Bloblang",
+      "modeMapHint": "Pick a record field, an expression, a fixed value or a point for each attribute.",
+      "modeCodeHint": "Write the Bloblang step yourself.",
       "type": "Entity type",
       "typeHint": "A type of the target space's data model; its attributes are listed below.",
       "loading": "Reading the type's attributes…",
@@ -1864,6 +1872,7 @@
       "rerunFailed": "Still failing",
       "rerunOk": "Passed; what it made:",
       "stepMode": "One message at a time",
+      "stepModeHint": "Runs the sample one message at a time, so you can follow each one through the steps.",
       "stepModeFile": "Step mode cuts a file sample into its messages; give a file instead of the URL.",
       "runMessage": "Run message {number} of {total}",
       "startOver": "Start over",
@@ -2027,7 +2036,8 @@
         "k8sServiceAccount": "Kubernetes service account"
       },
       "grantIn": "{role} in {where}",
-      "grantOrg": "{role} in the whole organization"
+      "grantOrg": "{role} in the whole organization",
+      "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each gets its own keys and only the role you give it."
     },
     "keys": {
       "create": "New API key ({credential})",
@@ -2927,7 +2937,8 @@
       "organization": "everyone in the organization",
       "public": "everyone, without signing in",
       "roles": "the people holding one of its roles"
-    }
+    },
+    "emptyTitle": "No applications yet"
   },
   "appLifecycle": {
     "draft": "Draft",

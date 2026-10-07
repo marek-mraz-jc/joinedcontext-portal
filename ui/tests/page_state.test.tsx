@@ -193,9 +193,39 @@ describe("the page's failed state", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("T-3244: the reference of any numbered answer is copied with one press, a refusal's too", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText }, onLine: true });
+    show(<PageFailed error={new ApiError(403, "Forbidden", problem(403, "Not yours."), "9d8c7b6a")} />);
+    expect(screen.getByText("9d8c7b6a")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Copy the reference 9d8c7b6a" }));
+    expect(writeText).toHaveBeenCalledWith("9d8c7b6a");
+    expect(await screen.findByRole("button", { name: "Copy the reference 9d8c7b6a" })).toHaveTextContent(en.app.error.copied);
+    vi.unstubAllGlobals();
+  });
+
+  it("T-3244: offline says so and reads again by itself once the connection is back", () => {
+    vi.stubGlobal("navigator", { ...navigator, onLine: false });
+    const retry = vi.fn();
+    show(<PageFailed error={new TypeError("Failed to fetch")} onRetry={retry} />);
+    expect(screen.getByText(en.app.error.offline)).toBeInTheDocument();
+    expect(screen.queryByText(en.app.error.generic)).toBeNull();
+    window.dispatchEvent(new Event("online"));
+    expect(retry).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("T-3244: a refusal never asks again when the connection comes back", () => {
+    const retry = vi.fn();
+    show(<PageFailed error={new ApiError(403, "Forbidden", problem(403, "Not yours."))} onRetry={retry} />);
+    window.dispatchEvent(new Event("online"));
+    expect(retry).not.toHaveBeenCalled();
+  });
+
   it("T-2747: every kind reads in every locale the Portal ships", async () => {
     await inEveryLocale(async (locale) => {
-      for (const key of ["app.error.session", "app.error.forbiddenHint", "app.error.reference"]) {
+      for (const key of ["app.error.session", "app.error.forbiddenHint", "app.error.reference", "app.error.offline", "app.error.copy"]) {
         expect(i18n.t(key), `${locale} ${key}`).not.toMatch(/^app\./);
       }
     });

@@ -12,7 +12,11 @@
       "crashHome": "Zpět na začátek",
       "session": "Vaše přihlášení skončilo. Přihlaste se znovu, abyste to viděli.",
       "forbiddenHint": "Přístup vám může dát vlastník projektu nebo správce organizace.",
-      "reference": "Uveďte toto, až to budete hlásit:"
+      "reference": "Uveďte toto, až to budete hlásit:",
+      "offline": "Jste offline. Stránka se načte znovu, jakmile bude připojení zpět.",
+      "copy": "Kopírovat",
+      "copied": "Zkopírováno",
+      "copyReference": "Kopírovat referenci {reference}"
     },
     "notFound": {
       "title": "Tato stránka neexistuje",
@@ -396,7 +400,8 @@
     "new": "Nový {kind}",
     "newHint": "Vyplňte formulář, zkontrolujte jej a navrhněte; změnu posoudí schvalovatel.",
     "propose": "Navrhnout změnu",
-    "emptyHintCreate": "V projektu zatím nic tohoto druhu není. Nový {kind} otevře formulář."
+    "emptyHintCreate": "V projektu zatím nic tohoto druhu není. Nový {kind} otevře formulář.",
+    "askAssistant": "Požádat asistenta o návrh"
   },
   "spaces": {
     "entitiesUnknown": "Počet není k dispozici: {reason}",
@@ -1043,7 +1048,8 @@
         "aliasHelp": "Název, pod kterým tento projekt čte sdílený prostor; používají jej zdejší dotazy a pipeliny.",
         "interval": "Interval zrcadlení",
         "intervalHelp": "Jak často se sem zrcadlí schéma zdroje, například 6h nebo 1d; prázdné znamená jednou denně."
-      }
+      },
+      "browse": "Podívat se, co zveřejňují jiné projekty"
     },
     "audienceOption": {
       "project-list": "Vybrané projekty: pouze projekty, které označíte",
@@ -1796,6 +1802,8 @@
       "mode": "Jak se z každého záznamu stane entita",
       "modeMap": "Přiřadit pole",
       "modeCode": "Napsat Bloblang",
+      "modeMapHint": "Pro každý atribut vyberte pole záznamu, výraz, pevnou hodnotu nebo bod.",
+      "modeCodeHint": "Krok v Bloblangu napište sami.",
       "type": "Typ entity",
       "typeHint": "Typ z datového modelu cílového prostoru; jeho atributy jsou níže.",
       "loading": "Načítají se atributy typu…",
@@ -1864,6 +1872,7 @@
       "rerunFailed": "Stále selhává",
       "rerunOk": "Prošlo; co vytvořil:",
       "stepMode": "Jedna zpráva najednou",
+      "stepModeHint": "Spustí vzorek po jedné zprávě, abyste mohli sledovat každou skrz kroky.",
       "stepModeFile": "Krokování dělí vzorek ze souboru na zprávy; místo URL dejte soubor.",
       "runMessage": "Spustit zprávu {number} z {total}",
       "startOver": "Od začátku",
@@ -2027,7 +2036,8 @@
         "k8sServiceAccount": "Servisní účet Kubernetes"
       },
       "grantIn": "{role} v {where}",
-      "grantOrg": "{role} v celé organizaci"
+      "grantOrg": "{role} v celé organizaci",
+      "emptyHint": "Servisní účet je způsob, jak program mimo Portál čte nebo zapisuje tento projekt: skript, pipeline jinde, jiná platforma. Každý dostane vlastní klíče a jen roli, kterou mu dáte."
     },
     "keys": {
       "create": "Nový API klíč ({credential})",
@@ -2927,7 +2937,8 @@
       "organization": "všichni v organizaci",
       "public": "všichni, i bez přihlášení",
       "roles": "lidé s některou z jejích rolí"
-    }
+    },
+    "emptyTitle": "Zatím žádné aplikace"
   },
   "appLifecycle": {
     "draft": "Návrh",

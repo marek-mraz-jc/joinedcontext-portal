@@ -12,7 +12,11 @@
       "crashHome": "Zum Anfang",
       "session": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um das zu sehen.",
       "forbiddenHint": "Wer das Projekt verantwortet oder die Organisation verwaltet, kann Ihnen Zugriff geben.",
-      "reference": "Nennen Sie das, wenn Sie es melden:"
+      "reference": "Nennen Sie das, wenn Sie es melden:",
+      "offline": "Sie sind offline. Die Seite lädt neu, sobald die Verbindung zurück ist.",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "copyReference": "Referenz {reference} kopieren"
     },
     "notFound": {
       "title": "Diese Seite gibt es nicht",
@@ -396,7 +400,8 @@
     "new": "Neu: {kind}",
     "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
     "propose": "Änderung vorschlagen",
-    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular."
+    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular.",
+    "askAssistant": "Den Assistenten um einen Vorschlag bitten"
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
@@ -1023,7 +1028,8 @@
         "aliasHelp": "Der Name, unter dem dieses Projekt den geteilten Raum liest; Abfragen und Pipelines hier nutzen ihn.",
         "interval": "Spiegelintervall",
         "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
-      }
+      },
+      "browse": "Ansehen, was andere Projekte veröffentlichen"
     },
     "slugHint": "Die Adresse wird für Sie erzeugt und ändert sich nie, auch wenn der Endpunkt umbenannt wird.",
     "picker": {
@@ -1796,6 +1802,8 @@
       "mode": "Wie aus jedem Datensatz eine Entität wird",
       "modeMap": "Felder zuordnen",
       "modeCode": "Bloblang schreiben",
+      "modeMapHint": "Wählen Sie für jedes Attribut ein Feld des Datensatzes, einen Ausdruck, einen festen Wert oder einen Punkt.",
+      "modeCodeHint": "Schreiben Sie den Bloblang-Schritt selbst.",
       "type": "Entitätstyp",
       "typeHint": "Ein Typ aus dem Datenmodell des Zielraums; seine Attribute stehen unten.",
       "loading": "Die Attribute des Typs werden gelesen…",
@@ -1864,6 +1872,7 @@
       "rerunFailed": "Scheitert weiterhin",
       "rerunOk": "Bestanden; was er erzeugt hat:",
       "stepMode": "Eine Nachricht nach der anderen",
+      "stepModeHint": "Führt die Probe Nachricht für Nachricht aus, damit Sie jede durch die Schritte verfolgen können.",
       "stepModeFile": "Der Schrittmodus teilt eine Dateiprobe in Nachrichten; geben Sie statt der URL eine Datei.",
       "runMessage": "Nachricht {number} von {total} ausführen",
       "startOver": "Von vorn",
@@ -2027,7 +2036,8 @@
         "k8sServiceAccount": "Kubernetes-Dienstkonto"
       },
       "grantIn": "{role} in {where}",
-      "grantOrg": "{role} in der ganzen Organisation"
+      "grantOrg": "{role} in der ganzen Organisation",
+      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes bekommt eigene Schlüssel und nur die Rolle, die Sie ihm geben."
     },
     "keys": {
       "create": "Neuer API-Schlüssel ({credential})",
@@ -2927,7 +2937,8 @@
       "organization": "alle in der Organisation",
       "public": "alle, auch ohne Anmeldung",
       "roles": "Personen mit einer ihrer Rollen"
-    }
+    },
+    "emptyTitle": "Noch keine Anwendungen"
   },
   "appLifecycle": {
     "draft": "Entwurf",

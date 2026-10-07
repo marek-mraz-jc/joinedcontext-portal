@@ -675,8 +675,8 @@ export function PipelineWorkbench({
           value={mappingMode}
           layout="row"
           options={[
-            { value: "map", label: t("pipelines.mapper.modeMap") },
-            { value: "code", label: t("pipelines.mapper.modeCode") },
+            { value: "map", label: t("pipelines.mapper.modeMap"), description: t("pipelines.mapper.modeMapHint") },
+            { value: "code", label: t("pipelines.mapper.modeCode"), description: t("pipelines.mapper.modeCodeHint") },
           ]}
           onChange={setMappingMode}
         />
