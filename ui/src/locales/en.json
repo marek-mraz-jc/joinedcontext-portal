@@ -1963,6 +1963,47 @@
       "next": "Next five runs, in your time",
       "never": "This schedule names no time that comes in the next four years.",
       "tooOften": "This schedule runs more often than the source changes (its catalogue record says: {frequency}), so most runs will find nothing new."
+    },
+    "recipe": {
+      "title": "Start from a recipe",
+      "lead": "Pick what the pipeline does and give its source and where it writes; the steps below sample the source, draft the mapping and test it before anything is proposed.",
+      "use": "Fill the pipeline",
+      "choose": "Choose…",
+      "target": "Where it writes",
+      "targetHelp": "The endpoint the records go through; its space's model is what they are checked against.",
+      "none": {
+        "datasource": "The project has no data source yet: add one under Data sources, from a template.",
+        "endpoint": "The project has no endpoint to read from yet."
+      },
+      "csv": {
+        "title": "CSV file to entities",
+        "what": "A table published as a file, loaded every day at 03:00 UTC.",
+        "source": "The data source of the file"
+      },
+      "api": {
+        "title": "Poll an API",
+        "what": "A JSON API read every 15 minutes.",
+        "source": "The data source of the API"
+      },
+      "ckan": {
+        "title": "Harvest a CKAN dataset",
+        "what": "A resource of an open-data catalogue, loaded every day at 04:00 UTC.",
+        "source": "The data source of the CKAN resource"
+      },
+      "kpi": {
+        "title": "A KPI aggregation",
+        "what": "The average of one attribute across a type, every 15 minutes, as a KPI entity.",
+        "source": "The endpoint to read",
+        "type": "Entity type",
+        "attribute": "Attribute to average",
+        "attributeHelp": "A numeric attribute of the type, by its name in the model."
+      },
+      "problem": {
+        "source": "Choose the source.",
+        "target": "Choose where the pipeline writes.",
+        "type": "Name the entity type to aggregate.",
+        "attribute": "Name a numeric attribute: letters, digits and underscores."
+      }
     }
   },
   "dashboards": {

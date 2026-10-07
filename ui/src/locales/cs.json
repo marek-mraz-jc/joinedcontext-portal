@@ -1963,6 +1963,47 @@
       "next": "Dalších pět běhů ve vašem čase",
       "never": "Tento rozvrh nejmenuje žádný čas v příštích čtyřech letech.",
       "tooOften": "Tento rozvrh běží častěji, než se zdroj mění (záznam v katalogu říká: {frequency}), takže většina běhů nenajde nic nového."
+    },
+    "recipe": {
+      "title": "Začít z receptu",
+      "lead": "Vyberte, co pipeline dělá, a zadejte její zdroj a kam zapisuje; kroky níže zdroj ochutnají, navrhnou mapování a otestují ho dřív, než cokoli navrhnete.",
+      "use": "Vyplnit pipeline",
+      "choose": "Vyberte…",
+      "target": "Kam zapisuje",
+      "targetHelp": "Endpoint, přes který jdou záznamy; kontrolují se proti modelu jeho prostoru.",
+      "none": {
+        "datasource": "Projekt zatím nemá zdroj dat: přidejte ho ve Zdrojích dat ze šablony.",
+        "endpoint": "Projekt zatím nemá endpoint, ze kterého číst."
+      },
+      "csv": {
+        "title": "Soubor CSV na entity",
+        "what": "Tabulka zveřejněná jako soubor, načítaná každý den ve 03:00 UTC.",
+        "source": "Zdroj dat se souborem"
+      },
+      "api": {
+        "title": "Pravidelně číst API",
+        "what": "API v JSON čtené každých 15 minut.",
+        "source": "Zdroj dat s API"
+      },
+      "ckan": {
+        "title": "Sklízet dataset z CKAN",
+        "what": "Zdroj z katalogu otevřených dat, načítaný každý den ve 04:00 UTC.",
+        "source": "Zdroj dat se zdrojem CKAN"
+      },
+      "kpi": {
+        "title": "Agregace KPI",
+        "what": "Průměr jednoho atributu napříč typem každých 15 minut jako entita KPI.",
+        "source": "Endpoint ke čtení",
+        "type": "Typ entity",
+        "attribute": "Atribut k průměru",
+        "attributeHelp": "Číselný atribut typu, podle jeho názvu v modelu."
+      },
+      "problem": {
+        "source": "Vyberte zdroj.",
+        "target": "Vyberte, kam pipeline zapisuje.",
+        "type": "Zadejte typ entity k agregaci.",
+        "attribute": "Zadejte číselný atribut: písmena, číslice a podtržítka."
+      }
     }
   },
   "dashboards": {

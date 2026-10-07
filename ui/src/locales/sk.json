@@ -1963,6 +1963,47 @@
       "next": "Ďalších päť behov vo vašom čase",
       "never": "Tento rozvrh nemenuje žiadny čas v nasledujúcich štyroch rokoch.",
       "tooOften": "Tento rozvrh beží častejšie, než sa zdroj mení (záznam v katalógu hovorí: {frequency}), takže väčšina behov nenájde nič nové."
+    },
+    "recipe": {
+      "title": "Začať z receptu",
+      "lead": "Vyberte, čo pipeline robí, a zadajte jej zdroj a kam zapisuje; kroky nižšie zdroj ochutnajú, navrhnú mapovanie a otestujú ho skôr, než čokoľvek navrhnete.",
+      "use": "Vyplniť pipeline",
+      "choose": "Vyberte…",
+      "target": "Kam zapisuje",
+      "targetHelp": "Endpoint, cez ktorý idú záznamy; kontrolujú sa voči modelu jeho priestoru.",
+      "none": {
+        "datasource": "Projekt ešte nemá zdroj dát: pridajte ho v Zdrojoch dát zo šablóny.",
+        "endpoint": "Projekt ešte nemá endpoint, z ktorého čítať."
+      },
+      "csv": {
+        "title": "Súbor CSV na entity",
+        "what": "Tabuľka zverejnená ako súbor, načítaná každý deň o 03:00 UTC.",
+        "source": "Zdroj dát so súborom"
+      },
+      "api": {
+        "title": "Pravidelne čítať API",
+        "what": "API v JSON čítané každých 15 minút.",
+        "source": "Zdroj dát s API"
+      },
+      "ckan": {
+        "title": "Zbierať dataset z CKAN",
+        "what": "Zdroj z katalógu otvorených dát, načítaný každý deň o 04:00 UTC.",
+        "source": "Zdroj dát so zdrojom CKAN"
+      },
+      "kpi": {
+        "title": "Agregácia KPI",
+        "what": "Priemer jedného atribútu naprieč typom každých 15 minút ako entita KPI.",
+        "source": "Endpoint na čítanie",
+        "type": "Typ entity",
+        "attribute": "Atribút na priemer",
+        "attributeHelp": "Číselný atribút typu, podľa jeho názvu v modeli."
+      },
+      "problem": {
+        "source": "Vyberte zdroj.",
+        "target": "Vyberte, kam pipeline zapisuje.",
+        "type": "Zadajte typ entity na agregáciu.",
+        "attribute": "Zadajte číselný atribút: písmená, číslice a podčiarkovníky."
+      }
     }
   },
   "dashboards": {
