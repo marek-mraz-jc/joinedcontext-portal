@@ -770,6 +770,8 @@ pub fn operations() -> Vec<Operation> {
                         entity_types: input.entity_types,
                         rate_limits: input.rate_limits,
                         access: None,
+                        write_attributes: Vec::new(),
+                        write_relationships: Vec::new(),
                     };
                     let proposal = assistant::execute_propose_endpoint(
                         &caller.identity,

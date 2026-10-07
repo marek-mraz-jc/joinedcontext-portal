@@ -611,6 +611,7 @@ function SpaceData({
             type={type}
             attributes={attributes}
             asked={(formSettings.fields?.length ? formSettings.fields.map((field) => field.attr) : typeSlots.map((slot) => slot.name))}
+            relationships={typeSlots.filter((slot) => slot.kind === "Relationship").map((slot) => slot.name)}
           />
         </div>
       ) : null}

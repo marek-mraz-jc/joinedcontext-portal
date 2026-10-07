@@ -741,6 +741,8 @@
       "noAsked": "Das Formular fragt kein Feld ab",
       "notPublished": "Dieses Formular ist nicht oder nicht mehr veröffentlicht.",
       "publicLead": "Ihre Antworten legen einen Datensatz an. Nichts davon wird Ihnen wieder angezeigt.",
+      "publicData": "Ihre Antworten werden öffentliche Daten dieses Bereichs: Jeder, dem der Bereich Daten veröffentlicht, kann sie lesen. Senden Sie keine persönlichen Angaben.",
+      "trap": "Lassen Sie dieses Feld leer",
       "labelOf": "Beschriftung von {attr}",
       "helpOf": "Hilfe zu {attr}",
       "requiredOf": "{attr} Pflicht"

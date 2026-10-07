@@ -288,3 +288,19 @@ export function fieldsOfSchema(definition: unknown, defs: Record<string, unknown
   }
   return fields;
 }
+
+/**
+ * The name of a public form's trap field: a person never sees it, a bot fills it, and the
+ * gateway refuses the create because the form's Policy does not grant it (T-3172).
+ */
+export function trapName(fields: FormField[]): string {
+  return ["website", "homepageUrl", "contactUrl"].find((name) => !fields.some((field) => field.attr === name)) ?? "trapField";
+}
+
+/** The id a create's `Location` names, or none when the answer carries no such header. */
+export function createdId(location: string | null): string | undefined {
+  const at = location?.lastIndexOf("/entities/") ?? -1;
+  if (!location || at < 0) return undefined;
+  const id = location.slice(at + "/entities/".length).split(/[?#]/)[0];
+  return id ? decodeURIComponent(id) : undefined;
+}

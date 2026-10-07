@@ -23,7 +23,7 @@ import { Alert, Button, Checkbox, Field, Input, Select } from "../../components/
 import { DNS1123 } from "../../schemas/kinds";
 import { fetchJson } from "../endpoints/SchemaProjectionPanel";
 import type { LinkmlSlot } from "../models/linkml";
-import { askable, entityOf, fieldsOf, fieldsOfSchema, prefilled, problemsOf, visibleFields } from "./formView";
+import { askable, createdId, entityOf, fieldsOf, fieldsOfSchema, prefilled, problemsOf, trapName, visibleFields } from "./formView";
 import type { Answers, Condition, FieldOption, FieldSetting, FormField, FormSettings, Problem } from "./formView";
 import { publicName } from "./PublicView";
 
@@ -143,6 +143,7 @@ function EntityFormBody({
   initial,
   locale,
   send,
+  trap,
 }: {
   idPrefix: string;
   type: string;
@@ -150,10 +151,14 @@ function EntityFormBody({
   conditions?: Condition[];
   initial: Answers;
   locale: string;
-  send: (entity: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
+  /** Sends the entity; `id` is the one the server minted, when it names one. */
+  send: (entity: Record<string, unknown>) => Promise<{ status: number; body: unknown; id?: string }>;
+  /** A public form's trap field: hidden from people, sent as an attribute no Policy grants. */
+  trap?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   const { answers, set, reset } = useAnswers(initial);
+  const [trapped, setTrapped] = useState("");
   const [tried, setTried] = useState(false);
   const [sent, setSent] = useState<Sent>({ status: "idle" });
   const shown = visibleFields(fields, conditions, answers);
@@ -166,10 +171,11 @@ function EntityFormBody({
     if (count > 0) return;
     setSent({ status: "sending" });
     const entity = entityOf(type, shown, answers, locale);
+    if (trap && trapped !== "") entity[trap] = { type: "Property", value: trapped };
     try {
       const answer = await send(entity);
       if (answer.status >= 200 && answer.status < 300) {
-        setSent({ status: "created", id: String(entity.id) });
+        setSent({ status: "created", id: answer.id ?? String(entity.id) });
         setTried(false);
         reset();
       } else {
@@ -183,6 +189,12 @@ function EntityFormBody({
   return (
     <form className="flex max-w-xl flex-col gap-3" noValidate onSubmit={(event) => void submit(event)}>
       <FormFields idPrefix={idPrefix} fields={shown} answers={answers} problems={tried ? problems : {}} onAnswer={set} />
+      {trap ? (
+        <div aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
+          <label htmlFor={`${idPrefix}-${trap}`}>{t("spaces.form.trap")}</label>
+          <Input id={`${idPrefix}-${trap}`} name={trap} tabIndex={-1} autoComplete="off" value={trapped} onChange={(event) => setTrapped(event.target.value)} />
+        </div>
+      ) : null}
       {tried && count > 0 ? (
         <Alert role="alert" tone="danger">
           {t("spaces.form.fix", { count })}
@@ -381,6 +393,7 @@ export function formPublishRequest(
   type: string,
   attributes: string[],
   asked: string[],
+  relationships: string[] = [],
 ): Record<string, unknown> {
   return {
     contextSpace: space,
@@ -390,6 +403,9 @@ export function formPublishRequest(
     access: "create",
     // The schema the public page builds its fields from lists what the Endpoint does not hide.
     hiddenAttributes: attributes.filter((attr) => !asked.includes(attr)),
+    // The Policy grants these and nothing else of the type: any other attribute is refused (T-3172).
+    writeAttributes: asked.filter((attr) => !relationships.includes(attr)),
+    writeRelationships: asked.filter((attr) => relationships.includes(attr)),
   };
 }
 
@@ -406,13 +422,16 @@ export function FormSharePanel({
   type,
   attributes,
   asked,
+  relationships = [],
 }: {
   project: string;
   space: string;
   type: string;
   attributes: string[];
-  /** The attributes the form asks for: the only ones the public form may show. */
+  /** The attributes the form asks for: the only ones the public form may show or set. */
   asked: string[];
+  /** Which of the type's attributes are relationships. */
+  relationships?: string[];
 }): JSX.Element {
   const { t } = useTranslation();
   const [name, setName] = useState(() => publicName(space, type).replace(/-public$/, "-form"));
@@ -428,7 +447,7 @@ export function FormSharePanel({
       const rendering = (await unwrap(
         await api.POST("/api/v1/projects/{project}/assistant/propose-endpoint", {
           params: { path: { project } },
-          body: formPublishRequest(space, name, type, attributes, asked) as Record<string, never>,
+          body: formPublishRequest(space, name, type, attributes, asked, relationships) as Record<string, never>,
         }),
       )) as unknown as Rendering;
       setSlug(rendering.slug ?? null);
@@ -520,12 +539,14 @@ export function PublicFormPage({
     <div className="flex flex-col gap-3" data-testid="public-form">
       <h1 className="text-title font-semibold text-fg">{type}</h1>
       <p className="text-body text-fg-muted">{t("spaces.form.publicLead")}</p>
+      <Alert tone="info">{t("spaces.form.publicData")}</Alert>
       <EntityFormBody
         idPrefix="public-form"
         type={type}
         fields={fields}
         initial={initial}
         locale={i18n.language}
+        trap={trapName(fields)}
         send={async (entity) => {
           // Anonymous: no Portal session goes with it; the gateway decides and rate-limits it.
           const response = await globalThis.fetch(
@@ -543,7 +564,7 @@ export function PublicFormPage({
           } catch {
             body = { title: text };
           }
-          return { status: response.status, body };
+          return { status: response.status, body, id: createdId(response.headers.get("Location")) };
         }}
       />
     </div>

@@ -55,6 +55,12 @@ pub struct ProposeEndpoint {
     /// The access preset of an endpoint Build an app proposes inline (AP-132); absent for a share.
     #[serde(default)]
     pub access: Option<Preset>,
+    /// The properties a public form asks for: its Policy's `propertyNames` (T-3172).
+    #[serde(default)]
+    pub write_attributes: Vec<String>,
+    /// The relationships a public form asks for: its Policy's `relationshipNames` (T-3172).
+    #[serde(default)]
+    pub write_relationships: Vec<String>,
 }
 
 /// What an app may do through a new endpoint (AP-132). A read reaches the person's own grants on
@@ -250,7 +256,21 @@ pub fn render(
                     .to_owned(),
             );
         }
-    } else if let Some(preset) = params.access {
+        // An anonymous caller sets the form's fields and nothing else of the type (T-3172).
+        if params.write_attributes.is_empty() && params.write_relationships.is_empty() {
+            return Err(
+                "a public form names the fields it asks for in writeAttributes or \
+                 writeRelationships, the only attributes an anonymous caller may set"
+                    .to_owned(),
+            );
+        }
+    } else if !params.write_attributes.is_empty() || !params.write_relationships.is_empty() {
+        return Err(
+            "writeAttributes and writeRelationships are for a public form (access create)"
+                .to_owned(),
+        );
+    }
+    if let Some(preset) = params.access.filter(|preset| *preset != Preset::Create) {
         if audience != "project-list" || projects != own_project {
             return Err(format!(
                 "an access preset is for an endpoint this project's apps read: audience must be \
@@ -287,6 +307,14 @@ pub fn render(
         return Err(format!(
             "hiddenAttributes entry '{bad}' is not an attribute name"
         ));
+    }
+    if let Some(bad) = params
+        .write_attributes
+        .iter()
+        .chain(&params.write_relationships)
+        .find(|a| !is_identifier(a))
+    {
+        return Err(format!("form field '{bad}' is not an attribute name"));
     }
     if let Some(bad) = params.entity_types.iter().find(|t| !is_identifier(t)) {
         return Err(format!("entityTypes entry '{bad}' is not a type name"));
@@ -373,6 +401,17 @@ pub fn render(
         .iter()
         .map(|t| json!({ "type": t }))
         .collect();
+    let mut information = json!({ "entities": entities });
+    if params.access == Some(Preset::Create) {
+        let properties = without_repeats(params.write_attributes.clone());
+        let relationships = without_repeats(params.write_relationships.clone());
+        if !properties.is_empty() {
+            information["propertyNames"] = json!(properties);
+        }
+        if !relationships.is_empty() {
+            information["relationshipNames"] = json!(relationships);
+        }
+    }
     // A read preset grants nothing: the person reads through the endpoint what they already
     // read in the space. A write preset grants exactly its operations (AP-132).
     let operations = match params.access {
@@ -396,7 +435,7 @@ pub fn render(
                         "assigner": "did:web:{orgDomain}",
                         "assignee": assignee,
                         "operations": operations,
-                        "information": [{ "entities": entities }],
+                        "information": [information],
                     },
                 })
             })
@@ -1174,12 +1213,19 @@ mod tests {
         }
     }
 
-    /// T-3103: a public form's endpoint grants the public role `createEntity` on its one type and
-    /// nothing else, and takes the red lane like every public endpoint.
-    #[test]
-    fn a_public_form_grants_anyone_the_create_of_its_one_type_alone() {
+    fn public_form() -> ProposeEndpoint {
         let mut form = app_endpoint(Preset::Create);
         form.audience = Some("public".into());
+        form.write_attributes = vec!["freeSlots".into(), "name".into(), "name".into()];
+        form.write_relationships = vec!["refDevice".into()];
+        form
+    }
+
+    /// T-3103, T-3172: a public form's endpoint grants the public role `createEntity` on its one
+    /// type and the form's fields alone, and takes the red lane like every public endpoint.
+    #[test]
+    fn a_public_form_grants_anyone_the_create_of_its_one_type_alone() {
+        let form = public_form();
         let proposal = render("helsinki", "hel.fi", &form, &[]).expect("renders");
         assert_eq!(proposal.lane, Lane::Red);
         let [policy] = proposal.policies.as_slice() else {
@@ -1192,9 +1238,35 @@ mod tests {
         assert_eq!(policy["spec"]["operations"], json!(["createEntity"]));
         assert_eq!(
             policy["spec"]["information"],
-            json!([{ "entities": [{ "type": "BikeHireDockingStation" }] }])
+            json!([{
+                "entities": [{ "type": "BikeHireDockingStation" }],
+                "propertyNames": ["freeSlots", "name"],
+                "relationshipNames": ["refDevice"],
+            }])
         );
         assert_eq!(proposal.endpoint["spec"]["audience"], "public");
+    }
+
+    /// T-3172: a form that names no field would grant every attribute of the type, a field that
+    /// is not an attribute name is refused, and the fields belong to a form alone.
+    #[test]
+    fn a_public_form_names_its_fields_and_only_a_form_may() {
+        let mut no_fields = public_form();
+        no_fields.write_attributes.clear();
+        no_fields.write_relationships.clear();
+        assert!(render("helsinki", "hel.fi", &no_fields, &[])
+            .expect_err("no fields")
+            .contains("writeAttributes"));
+        let mut bad = public_form();
+        bad.write_attributes.push("not a name".into());
+        assert!(render("helsinki", "hel.fi", &bad, &[])
+            .expect_err("bad field")
+            .contains("'not a name'"));
+        let mut not_a_form = app_endpoint(Preset::Full);
+        not_a_form.write_attributes = vec!["name".into()];
+        assert!(render("helsinki", "hel.fi", &not_a_form, &[])
+            .expect_err("not a form")
+            .contains("public form"));
     }
 
     /// T-3103: a public form is public and names exactly one type; anything else is refused with
@@ -1206,8 +1278,7 @@ mod tests {
             .expect_err("project-list")
             .contains("audience public"));
         for types in [vec![], vec!["A".to_owned(), "B".to_owned()]] {
-            let mut form = app_endpoint(Preset::Create);
-            form.audience = Some("public".into());
+            let mut form = public_form();
             form.entity_types = types;
             assert!(render("helsinki", "hel.fi", &form, &[])
                 .expect_err("one type")
