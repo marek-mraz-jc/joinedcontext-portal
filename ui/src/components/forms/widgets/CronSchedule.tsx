@@ -54,7 +54,7 @@ function switched(kind: Choice["kind"], from: Choice): Choice {
 
 const two = (n: number) => String(n).padStart(2, "0");
 
-/** `HH:MM` of an `<input type="time">`, or `undefined` when it is not one. */
+/** `HH:MM` as a time field gives it, or `undefined` when it is not one. */
 function timeOf(text: string): { hour: number; minute: number } | undefined {
   const match = /^(\d{2}):(\d{2})$/.exec(text);
   return match ? { hour: Number(match[1]), minute: Number(match[2]) } : undefined;
