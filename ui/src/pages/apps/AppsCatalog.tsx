@@ -26,7 +26,7 @@ import type { components } from "../../api/schema";
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
-import { Alert, Button, buttonClass, PageHeader, recordCard, safeHref } from "../../components/ui";
+import { Alert, Button, buttonClass, EmptyState, PageHeader, recordCard, safeHref } from "../../components/ui";
 import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
 import { RenameShapesNotice } from "./RenameShapesNotice";
 
@@ -392,7 +392,18 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
       )}
       <div aria-live="polite">{notice ? <p className="text-sm">{notice}</p> : null}</div>
 
-      {apps.length === 0 && draftRuns.length === 0 && <p>{t("apps.empty")}</p>}
+      {apps.length === 0 && draftRuns.length === 0 && (
+        <EmptyState
+          title={t("apps.emptyTitle")}
+          description={t("apps.empty")}
+          icon="apps"
+          action={
+            <PermissionGuard project={project} kind="App" verb="propose">
+              <Button onClick={() => requestOpen("build")}>{t("apps.newAction")}</Button>
+            </PermissionGuard>
+          }
+        />
+      )}
 
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-3">
         {apps.map((app) => {

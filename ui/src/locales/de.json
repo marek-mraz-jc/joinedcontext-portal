@@ -12,7 +12,11 @@
       "crashHome": "Zum Anfang",
       "session": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um das zu sehen.",
       "forbiddenHint": "Wer das Projekt verantwortet oder die Organisation verwaltet, kann Ihnen Zugriff geben.",
-      "reference": "Nennen Sie das, wenn Sie es melden:"
+      "reference": "Nennen Sie das, wenn Sie es melden:",
+      "offline": "Sie sind offline. Die Seite lädt neu, sobald die Verbindung zurück ist.",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "copyReference": "Referenz {reference} kopieren"
     },
     "notFound": {
       "title": "Diese Seite gibt es nicht",
@@ -397,7 +401,8 @@
     "new": "Neu: {kind}",
     "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
     "propose": "Änderung vorschlagen",
-    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular."
+    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular.",
+    "askAssistant": "Den Assistenten um einen Vorschlag bitten"
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
@@ -844,7 +849,20 @@
       "writing": "{sent} von {total} angelegt…",
       "done": "{created, plural, =0 {Keine Zeile angelegt} one {# Zeile angelegt} other {# Zeilen angelegt}}, {refused, plural, =0 {keine abgelehnt.} one {# abgelehnt.} other {# abgelehnt.}}",
       "downloadRefused": "Abgelehnte Zeilen herunterladen (CSV)",
-      "close": "Schließen"
+      "close": "Schließen",
+      "preview": "Vorschau der {count, plural, one {ersten # Zeile} other {ersten # Zeilen}}",
+      "previewCaption": "Die ersten Zeilen der Datei, wie gelesen",
+      "detected": {
+        "encoding": "Kodierung {encoding}",
+        "separator": {
+          "comma": "durch Kommas getrennt",
+          "semicolon": "durch Semikolons getrennt",
+          "tab": "durch Tabulatoren getrennt"
+        },
+        "decimalComma": "Dezimalkomma",
+        "decimalPoint": "Dezimalpunkt",
+        "dates": "Datum als {format}"
+      }
     },
     "export": {
       "label": "Exportieren:",
@@ -1011,7 +1029,8 @@
         "aliasHelp": "Der Name, unter dem dieses Projekt den geteilten Raum liest; Abfragen und Pipelines hier nutzen ihn.",
         "interval": "Spiegelintervall",
         "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
-      }
+      },
+      "browse": "Ansehen, was andere Projekte veröffentlichen"
     },
     "slugHint": "Die Adresse wird für Sie erzeugt und ändert sich nie, auch wenn der Endpunkt umbenannt wird.",
     "picker": {
@@ -1313,7 +1332,51 @@
       "known": "Bekannte Secrets"
     },
     "emptyHint": "Eine Datenquelle ist der Ort, von dem die Plattform abruft: ein Feed, ein Broker, eine API. Fügen Sie eine hinzu, und eine Pipeline kann sie in einen Kontextraum lesen.",
-    "newPipeline": "Neue Pipeline aus dieser Quelle"
+    "newPipeline": "Neue Pipeline aus dieser Quelle",
+    "template": {
+      "title": "Mit einer Vorlage beginnen",
+      "lead": "Wählen Sie, was die Quelle ist, und geben Sie ihre Adresse an: Das Formular wird ausgefüllt und sofort geprüft, und die ersten Datensätze erscheinen, bevor etwas vorgeschlagen wird.",
+      "use": "Formular ausfüllen und prüfen",
+      "nameHelp": "Kleinbuchstaben, Ziffern und Bindestriche; aus der Adresse übernommen, bis Sie einen eigenen eingeben.",
+      "csv": {
+        "title": "CSV-Datei unter einer Adresse",
+        "what": "Eine als .csv veröffentlichte Tabelle, bei jedem Lauf gelesen.",
+        "url": "Adresse der CSV-Datei",
+        "urlHelp": "Die Adresse, die die Datei selbst herunterlädt, beginnend mit https://."
+      },
+      "json": {
+        "title": "REST-API (JSON)",
+        "what": "Eine API, die JSON liefert, bei jedem Lauf gelesen.",
+        "url": "Adresse der API",
+        "urlHelp": "Die vollständige Adresse mit Parametern, beginnend mit https://; einen API-Schlüssel geben Sie im Formular unten an."
+      },
+      "ckan": {
+        "title": "Datensatz aus einem CKAN-Portal",
+        "what": "Eine Ressource eines Open-Data-Katalogs wie data.gov.sk.",
+        "url": "Download-Adresse der Ressource",
+        "urlHelp": "Öffnen Sie auf der Datensatzseite die CSV- oder JSON-Ressource und kopieren Sie ihre Download-Adresse."
+      },
+      "wfs": {
+        "title": "WFS-Layer oder GeoJSON",
+        "what": "Features eines Kartendienstes, als GeoJSON gelesen.",
+        "url": "Adresse des WFS-Dienstes oder der GeoJSON-Datei",
+        "urlHelp": "Die Dienstadresse bis vor das Fragezeichen, oder eine GeoJSON-Datei.",
+        "layer": "Layername",
+        "layerHelp": "Der Feature-Typ, den der Dienst in seinen Capabilities nennt; bei einer GeoJSON-Datei nicht nötig."
+      },
+      "gtfs-rt": {
+        "title": "GTFS-Realtime-Feed",
+        "what": "Fahrzeugpositionen eines Verkehrsunternehmens.",
+        "url": "Adresse des GTFS-Realtime-Feeds",
+        "urlHelp": "Der Protobuf-Feed, den das Unternehmen veröffentlicht, beginnend mit https://. Ein statischer GTFS-Fahrplan (.zip) ist kein Live-Feed."
+      },
+      "problem": {
+        "name": "Geben Sie einen Namen aus Kleinbuchstaben, Ziffern und Bindestrichen an, höchstens 63 Zeichen.",
+        "url": "Geben Sie eine vollständige Adresse an, die mit https:// oder http:// beginnt.",
+        "ckanDataset": "Das ist die Datensatzseite, keine Datei. Öffnen Sie dort die CSV- oder JSON-Ressource und kopieren Sie ihre Download-Adresse.",
+        "layer": "Nennen Sie den zu lesenden Layer oder geben Sie die Adresse einer GeoJSON-Datei an."
+      }
+    }
   },
   "pipelines": {
     "lead": "Was Daten hereinbringt: jede Pipeline liest eine Quelle, wandelt sie um und schreibt über einen Endpunkt.",
@@ -1740,6 +1803,8 @@
       "mode": "Wie aus jedem Datensatz eine Entität wird",
       "modeMap": "Felder zuordnen",
       "modeCode": "Bloblang schreiben",
+      "modeMapHint": "Wählen Sie für jedes Attribut ein Feld des Datensatzes, einen Ausdruck, einen festen Wert oder einen Punkt.",
+      "modeCodeHint": "Schreiben Sie den Bloblang-Schritt selbst.",
       "type": "Entitätstyp",
       "typeHint": "Ein Typ aus dem Datenmodell des Zielraums; seine Attribute stehen unten.",
       "loading": "Die Attribute des Typs werden gelesen…",
@@ -1808,6 +1873,7 @@
       "rerunFailed": "Scheitert weiterhin",
       "rerunOk": "Bestanden; was er erzeugt hat:",
       "stepMode": "Eine Nachricht nach der anderen",
+      "stepModeHint": "Führt die Probe Nachricht für Nachricht aus, damit Sie jede durch die Schritte verfolgen können.",
       "stepModeFile": "Der Schrittmodus teilt eine Dateiprobe in Nachrichten; geben Sie statt der URL eine Datei.",
       "runMessage": "Nachricht {number} von {total} ausführen",
       "startOver": "Von vorn",
@@ -1971,7 +2037,8 @@
         "k8sServiceAccount": "Kubernetes-Dienstkonto"
       },
       "grantIn": "{role} in {where}",
-      "grantOrg": "{role} in der ganzen Organisation"
+      "grantOrg": "{role} in der ganzen Organisation",
+      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes bekommt eigene Schlüssel und nur die Rolle, die Sie ihm geben."
     },
     "keys": {
       "create": "Neuer API-Schlüssel ({credential})",
@@ -2871,7 +2938,8 @@
       "organization": "alle in der Organisation",
       "public": "alle, auch ohne Anmeldung",
       "roles": "Personen mit einer ihrer Rollen"
-    }
+    },
+    "emptyTitle": "Noch keine Anwendungen"
   },
   "appLifecycle": {
     "draft": "Entwurf",

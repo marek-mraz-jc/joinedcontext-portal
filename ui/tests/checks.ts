@@ -104,6 +104,9 @@ export async function expectNoViolations(
 
 const FOCUSABLE = [
   "a[href]",
+  // A disclosure's own summary is a stop of its own, as the browser and jsdom tab to it (T-3220
+  // put the form help in a <details> on every edit dialog).
+  "details > summary:first-of-type",
   "button:not([disabled])",
   "input:not([disabled]):not([type=hidden])",
   "select:not([disabled])",

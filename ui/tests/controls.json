@@ -141,15 +141,6 @@
         "resource_form_dialog.test.tsx"
       ]
     },
-    "src/components/ResourceList.tsx": {
-      "controls": {
-        "Button": 1
-      },
-      "tests": [
-        "part_resource_list.test.tsx",
-        "resource_list.test.tsx"
-      ]
-    },
     "src/components/SaveAsDialog.tsx": {
       "controls": {
         "Button": 5,
@@ -471,7 +462,7 @@
     },
     "src/components/ui/PageState.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "browser_security.test.tsx",
@@ -613,7 +604,7 @@
     },
     "src/pages/access/RoleBindings.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "form_role_bindings.test.tsx"
@@ -621,7 +612,7 @@
     },
     "src/pages/access/Roles.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "access_forms.test.tsx",
@@ -703,7 +694,7 @@
     },
     "src/pages/apps/AppsCatalog.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 6
       },
       "tests": [
         "apps_catalog.test.tsx"
@@ -904,6 +895,14 @@
         "page_data_sources_page.test.tsx",
         "raw_values_on_pages.test.tsx",
         "runner_input_schema.test.ts"
+      ]
+    },
+    "src/pages/datasources/TemplateGallery.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "datasource_templates.test.tsx"
       ]
     },
     "src/pages/endpoints/CatalogSection.tsx": {
@@ -1402,7 +1401,7 @@
     },
     "src/pages/sync/SyncSourcesPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "form_errors_after_touch.test.tsx",

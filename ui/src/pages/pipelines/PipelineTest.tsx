@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { testPipeline } from "../../api/pipelineTest";
@@ -198,6 +198,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
   const bloblang = draft?.compute?.bloblang ?? "";
   // Step mode: one message of the sample per run, in order (T-3222).
   const [stepping, setStepping] = useState(false);
+  const stepHint = useId();
   const [at, setAt] = useState(0);
   const messages = stepping && sample?.text !== undefined ? messagesOf(sample.text, sample.format) : [];
 
@@ -344,6 +345,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         </Button>
         <Checkbox
           label={t("pipelines.debug.stepMode")}
+          aria-describedby={stepHint}
           checked={stepping}
           disabled={sample?.url !== undefined}
           disabledReason={sample?.url !== undefined ? t("pipelines.debug.stepModeFile") : undefined}
@@ -352,6 +354,9 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
             setAt(0);
           }}
         />
+        <span id={stepHint} className="text-caption text-fg-muted">
+          {t("pipelines.debug.stepModeHint")}
+        </span>
         {stepping && messages.length > 0 ? (
           <>
             <Button size="sm" variant="ghost" disabled={at === 0} onClick={() => setAt(0)}>

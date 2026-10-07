@@ -134,7 +134,8 @@ describe("work on a copy", () => {
     const onOpenChange = vi.fn();
     show(<WorkOnCopyDialog project="helsinki" scope={{ kind: "project" }} open onOpenChange={onOpenChange} />);
     await userEvent.click(screen.getByRole("button", { name: "Start the copy" }));
-    expect(await screen.findAllByText("A copy named copy exists already. Choose another name.")).not.toHaveLength(0);
+    // The taken name is answered at the name field in the dialog's own words (T-3219).
+    expect(await screen.findByRole("alert")).toHaveTextContent(/exists already/);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });
