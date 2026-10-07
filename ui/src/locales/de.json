@@ -2387,7 +2387,7 @@
   "apps": {
     "title": "Anwendungen",
     "subtitle": "Anwendungen für dieses Projekt. Eine Vorschau läuft gegen einen Sandbox-Raum, das Veröffentlichen ist ein Merge Request.",
-    "empty": "Dieses Projekt hat noch keine Anwendungen.",
+    "empty": "Dieses Projekt hat noch keine Apps. Drücken Sie „Eigene Anwendung erzeugen“, wählen Sie den Endpunkt, den sie liest, und beschreiben Sie sie: der Builder schreibt sie und öffnet einen Merge Request zur Prüfung.",
     "visibility": "Sichtbar für {visibility}",
     "dataNeeds": "Liest {types} in {spaces}",
     "previewAction": "Vorschau öffnen",
@@ -2522,6 +2522,12 @@
         "cancel": "Abbrechen",
         "close": "Schließen",
         "waiting": "{name} ist vorgeschlagen (Spur {lane}). Sobald die Änderung zusammengeführt ist und der Endpunkt bereitsteht, liest der Builder ihn; die Beschreibung können Sie inzwischen weiterschreiben."
+      },
+      "missing": {
+        "endpoint": "Wählen Sie zuerst den Endpunkt, den die App liest.",
+        "prompt": "Beschreiben Sie, was die App tun soll.",
+        "name": "Korrigieren Sie den App-Namen unter den Details: Kleinbuchstaben, Ziffern und Bindestriche.",
+        "needs": "Lassen Sie unter den Details mindestens ein Attribut angehakt: die App braucht etwas zum Lesen."
       }
     },
     "newAction": "Eigene Anwendung erzeugen",
@@ -2680,6 +2686,13 @@
       "notice": "{count, plural, one {# App verwendet noch einen Formnamen, den das nächste Release ablehnt.} other {# Apps verwenden noch Formnamen, die das nächste Release ablehnt.}} Eine Änderung in Ihrem Namen schreibt die neuen Namen und ändert sonst nichts.",
       "item": "{name}: aus {from} wird {to}",
       "action": "Umbenennung vorschlagen"
+    },
+    "audience": {
+      "private": "nur ihr Autor",
+      "project": "Mitglieder dieses Projekts",
+      "organization": "alle in der Organisation",
+      "public": "alle, auch ohne Anmeldung",
+      "roles": "Personen mit einer ihrer Rollen"
     }
   },
   "appLifecycle": {

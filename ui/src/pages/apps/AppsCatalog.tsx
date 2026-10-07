@@ -83,6 +83,11 @@ export function openBlockedReason(app: Manifest, run: WorkflowRun | null, t: TFu
   return t("apps.openDisabled.notBuilt");
 }
 
+/** Who an app is visible to, in the reader's words rather than the manifest's enum (T-3214). */
+export function visibilityLabel(visibility: string, t: TFunction): string {
+  return t(`apps.audience.${visibility}`, { defaultValue: visibility });
+}
+
 export function draftState(
   status: string,
 ): "building" | "needsYou" | "failed" | "readyToPublish" | "waitingApproval" | null {
@@ -413,7 +418,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
               {spec.lifecycle === "published" ? <AppCheckChip check={appChecks.get(app.metadata.name)} /> : null}
               {spec.visibility ? (
                 <p className="text-xs text-fg-muted">
-                  {t("apps.visibility", { visibility: spec.visibility })}
+                  {t("apps.visibility", { visibility: visibilityLabel(spec.visibility, t) })}
                 </p>
               ) : null}
               {needs.length > 0 && (
@@ -588,7 +593,7 @@ function LifecycleDialog({
     >
       <h2 className="font-semibold">{t(`apps.${copy}.title`, { name: title })}</h2>
       <p className="mt-2 text-sm">
-        {t(`apps.${copy}.body`, { visibility: spec.visibility ?? "project" })}
+        {t(`apps.${copy}.body`, { visibility: visibilityLabel(spec.visibility ?? "project", t) })}
       </p>
       <p className="mt-1 text-sm text-fg-muted">{t(`apps.${copy}.hint`)}</p>
       <div className="mt-3 flex gap-2">

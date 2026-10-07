@@ -181,4 +181,19 @@ describe("the application generator (T-1760)", () => {
     expect(APP_NAME.test("-air")).toBe(false);
     expect(APP_NAME.test("a".repeat(41))).toBe(false);
   });
+  it("names_what_the_grey_submit_still_waits_for_in_the_order_a_new_user_fills_it", async () => {
+    // T-3214: a new user met a grey "Generate the app" with nothing saying why.
+    const user = userEvent.setup();
+    renderPage(generator(), { path: `/projects/${PROJECT}`, answer: reads() });
+    const submit = await screen.findByRole("button", { name: i18n.t("apps.generate.submit") });
+    expectDenied(submit, i18n.t("apps.generate.missing.endpoint"));
+    await user.selectOptions(
+      screen.getByLabelText(i18n.t("apps.generate.endpoint"), { exact: false }),
+      "ovzdusie-public",
+    );
+    await waitFor(() => expectDenied(submit, i18n.t("apps.generate.missing.prompt")));
+    await user.type(screen.getByLabelText(i18n.t("apps.generate.prompt"), { exact: false }), "Show air quality");
+    await user.type(screen.getByLabelText(i18n.t("apps.generate.name"), { exact: false }), "Bad Name");
+    await waitFor(() => expectDenied(submit, i18n.t("apps.generate.missing.name")));
+  });
 });

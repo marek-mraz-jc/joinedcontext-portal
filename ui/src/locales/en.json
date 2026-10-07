@@ -2387,7 +2387,7 @@
   "apps": {
     "title": "Applications",
     "subtitle": "Apps built for this project. A preview runs against a sandbox space; publishing is a merge request.",
-    "empty": "This project has no applications yet.",
+    "empty": "This project has no applications yet. Press \"Generate your own app\", pick the endpoint it reads and describe it: the builder writes it and opens a merge request for review.",
     "visibility": "Visible to {visibility}",
     "dataNeeds": "Reads {types} in {spaces}",
     "previewAction": "Open preview",
@@ -2522,6 +2522,12 @@
         "cancel": "Cancel",
         "close": "Close",
         "waiting": "{name} is proposed ({lane} lane). Once the change is merged and the endpoint is served, the builder reads it; you can keep writing the description meanwhile."
+      },
+      "missing": {
+        "endpoint": "Choose the endpoint the app reads first.",
+        "prompt": "Describe what the app should do.",
+        "name": "Correct the app name under the details: lowercase letters, digits and dashes.",
+        "needs": "Keep at least one attribute ticked under the details: the app needs something to read."
       }
     },
     "newAction": "Generate your own app",
@@ -2680,6 +2686,13 @@
       "notice": "{count, plural, one {# app still uses a shape name the next release refuses.} other {# apps still use shape names the next release refuses.}} One Change, proposed in your name, writes the new names and changes nothing else.",
       "item": "{name}: {from} becomes {to}",
       "action": "Propose the rename"
+    },
+    "audience": {
+      "private": "only its author",
+      "project": "members of this project",
+      "organization": "everyone in the organization",
+      "public": "everyone, without signing in",
+      "roles": "the people holding one of its roles"
     }
   },
   "appLifecycle": {
