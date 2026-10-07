@@ -32,6 +32,7 @@ import { ExplorePage } from "./pages/explore/ExplorePage";
 import { CkanPage } from "./pages/ckan/CkanPage";
 import { KnowledgePage } from "./pages/knowledge/KnowledgePage";
 import { SourcePage } from "./pages/knowledge/SourcePage";
+import { McpServersPage } from "./pages/mcp/McpServersPage";
 import { CataloguePage } from "./pages/catalogue/CataloguePage";
 import { DatasetPage } from "./pages/catalogue/DatasetPage";
 import { parseCatalogueSearch } from "./pages/catalogue/search";
@@ -765,6 +766,20 @@ const knowledgeRoute = createRoute({
   },
 });
 
+/** The project's named MCP servers over chosen Endpoints (T-3156, ADR-N-043). */
+const mcpServersRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/mcp",
+  component: function McpServersRoute() {
+    const { project } = mcpServersRoute.useParams();
+    return (
+      <Shell project={project}>
+        <McpServersPage project={project} />
+      </Shell>
+    );
+  },
+});
+
 /** One source's pages, documents and passages, included and excluded (T-3057). */
 const knowledgeSourceRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -1053,6 +1068,7 @@ export const routeTree = rootRoute.addChildren([
     ckanRoute,
     knowledgeRoute,
     knowledgeSourceRoute,
+    mcpServersRoute,
     importRoute,
     federationRoute,
     spaceCompleteRoute,

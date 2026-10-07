@@ -82,7 +82,8 @@
     "dataspaceparticipants": "Datový prostor",
     "environments": "Prostředí",
     "projections": "Projekce modelů",
-    "knowledge": "Zdroje znalostí"
+    "knowledge": "Zdroje znalostí",
+    "mcp": "MCP servery"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -4076,7 +4077,8 @@
       "dataspaceparticipants": "Datový prostor",
       "environments": "Prostředí",
       "health": "Stav ověření",
-      "endpoints": "Všechny koncové body"
+      "endpoints": "Všechny koncové body",
+      "mcp-servers": "MCP servery organizace"
     },
     "settings": {
       "title": "Nastavení",
@@ -5390,5 +5392,82 @@
       "origins": "Adresa webu musí být mezi povolenými původy asistenta; rámec na jiném webu zůstane prázdný.",
       "noDomain": "Tento Portál nezná svou doménu, proto neumí napsat adresu stránky asistenta."
     }
+  },
+  "mcp": {
+    "title": "MCP servery",
+    "lead": "Jedna adresa, kterou si AI klient nastaví jednou, nad více endpointy tohoto i jiných projektů. Každé volání stejně čte každý endpoint s vlastními právy osoby.",
+    "new": "Nový MCP server",
+    "empty": "Tento projekt zatím nemá MCP server",
+    "emptyHint": "MCP server spojí endpointy, které patří k sobě, například data o dopravě ve městě, pod jednu adresu.",
+    "listFailed": "MCP servery se nepodařilo načíst: {reason}",
+    "memberCount": "Členové: {count}",
+    "edit": "Upravit",
+    "editOf": "Upravit {name}",
+    "remove": "Odstranit",
+    "removeOf": "Odstranit {name}",
+    "address": "Adresa",
+    "client": "Přihlašovací klient",
+    "config": "Záznam do konfigurace AI klienta",
+    "signIn": "AI klient najde přihlášení podle adresy a přihlásí osobu klientem {client} (bez tajemství, PKCE). Do konfigurace nejde žádný token.",
+    "copy": "Kopírovat",
+    "copied": "Zkopírováno",
+    "copyOf": "Kopírovat: {what}",
+    "audience": {
+      "project-list": "Vybrané projekty",
+      "organization": "Organizace",
+      "public": "Veřejný"
+    },
+    "field": {
+      "name": "Název",
+      "title": "Titulek",
+      "description": "Popis",
+      "members": "Členské endpointy ({count} z nejvýše {max})",
+      "search": "Najít endpoint",
+      "audience": "Kdo se smí připojit",
+      "allowedProjects": "Projekty, které připouští"
+    },
+    "help": {
+      "name": "Malá písmena, číslice a pomlčky; je součástí adresy, proto ho později nelze změnit.",
+      "title": "Jak server nazývá AI klient, například Data o dopravě.",
+      "description": "Co server obsahuje, v jedné či dvou větách; AI klient to čte jako své pokyny.",
+      "members": "Nabízejí se jen endpointy, které smíte číst. Každé volání člena je vlastní volání toho endpointu, o kterém rozhoduje jeho vlastní politika.",
+      "audience": "Ne širší než nejužší člen. Veřejný server potřebuje všechny členy veřejné a schvalovatele, který smí publikovat.",
+      "allowedProjects": "Názvy projektů oddělené čárkami; prázdné připouští jen tento projekt."
+    },
+    "form": {
+      "newTitle": "Nový MCP server",
+      "editTitle": "Upravit {name}",
+      "lead": "Navrhne se jako změna: schvalovatel rozhodne dřív, než server začne odpovídat.",
+      "propose": "Zkontrolovat a navrhnout",
+      "noEndpoints": "Žádný endpoint neodpovídá, nebo žádný nesmíte číst.",
+      "servesNoMcp": "Tento endpoint neposkytuje MCP (spec.mcp je false).",
+      "full": "Server jmenuje nejvýše {max} členů.",
+      "unseen": "Členové, které nesmíte číst, zůstávají beze změny: {count}",
+      "publicLane": "Veřejný server jde červeným pruhem: rozhoduje schvalovatel, který smí publikovat."
+    },
+    "problem": {
+      "name": "Použijte malá písmena, číslice a pomlčky, nejvýše 63 znaků.",
+      "members": "Vyberte jeden až {max} členských endpointů.",
+      "noMcp": "Vybraný endpoint neposkytuje MCP; odstraňte ho.",
+      "audience": "Publikum je širší, než dovoluje nejužší člen; vyberte užší.",
+      "projects": "Každý název projektu tvoří malá písmena, číslice a pomlčky."
+    },
+    "health": {
+      "checking": "Ověřuji…",
+      "answers": "Odpovídá, nástroje: {count}",
+      "refused": "Vám odmítnuto (HTTP {status})",
+      "failed": "Neodpovídá: {reason}"
+    },
+    "preview": {
+      "title": "Nástroje, které byste dostali",
+      "members": "Členové a jak vám odpovídají",
+      "tools": "Nástroje serveru",
+      "none": "Vyberte člena, abyste viděli nástroje.",
+      "noTools": "Žádný člen vám neodpovídá nástrojem.",
+      "reads": "Čte",
+      "writes": "Zapisuje",
+      "offeredBy": "Nabízí: {members}"
+    },
+    "leadOrganization": "MCP servery organizace: jedna adresa nad endpointy více projektů pro všechny, které publikum připouští."
   }
 }

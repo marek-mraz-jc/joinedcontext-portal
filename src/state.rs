@@ -550,6 +550,14 @@ impl AppState {
                 ) {
                     syncer = syncer.with_hub_scopes(Arc::new(scopes));
                 }
+                // Each named MCP server's sign-in client (EP-96, T-3156), by the same identity.
+                if let Some(clients) = crate::reconciler::mcp_clients::McpClientSync::new(
+                    oidc.issuer.as_str(),
+                    oidc.client_id.clone(),
+                    oidc.client_secret().to_owned(),
+                ) {
+                    syncer = syncer.with_mcp_clients(Arc::new(clients));
+                }
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
                 let deployer = StreamDeployer::new(url);
