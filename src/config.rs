@@ -91,9 +91,11 @@ pub struct Config {
     /// the only caller the run callbacks on the internal listener answer (AG-52, T-2271). It replaced `JC_AGENT_PROXY_TOKEN`, one string both
     /// sides held. `None` leaves those routes refusing every call.
     pub agent_proxy_client_id: Option<String>,
-    /// The Keycloak client the project's pipeline runner holds
-    /// (`JC_PORTAL_PIPELINE_RUNNER_CLIENT_ID`), which is the only caller
-    /// `POST /internal/pipeline-tests/{id}` answers (AG-52, T-2271). `None` refuses every call.
+    /// The Keycloak client the pipeline runner holds (`JC_PORTAL_PIPELINE_RUNNER_CLIENT_ID`), which
+    /// `POST /internal/pipeline-tests/{id}` answers beside the running test's own project's
+    /// `pipelines` client (AG-52, T-2271, T-3193). It opens no pipeline's outcome or rejection
+    /// route: those answer only their own project's pipeline clients. `None` admits the test's
+    /// project alone.
     pub pipeline_runner_client_id: Option<String>,
     /// The context broker as the Portal reaches it inside the cluster, which is where a
     /// declared `ContextSourceRegistration` is written, in the tenant of its hub space

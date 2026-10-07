@@ -63,7 +63,7 @@ pub async fn rejected(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    if crate::auth::internal::authenticate_pipeline_runner(&state, &headers)
+    if crate::auth::internal::authenticate_pipeline_of(&state, &headers, &project, &name)
         .await
         .is_err()
     {
@@ -160,7 +160,7 @@ pub async fn outcomes(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    if crate::auth::internal::authenticate_pipeline_runner(&state, &headers)
+    if crate::auth::internal::authenticate_pipeline_of(&state, &headers, &project, &name)
         .await
         .is_err()
     {
