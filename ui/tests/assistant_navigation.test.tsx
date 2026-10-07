@@ -360,7 +360,8 @@ describe("the assistant dock", () => {
       window.history.pushState({}, "", `/projects/${PROJECT}/access`);
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
-    await screen.findByRole("button", { name: en.access.roles.grant });
+    // The page's own button; an empty list offers the same first grant beside it (T-3246).
+    await waitFor(() => expect(screen.getAllByRole("button", { name: en.access.roles.grant }).length).toBeGreaterThan(0));
     await waitFor(() => {
       expect(StubEventSource.opened.length).toBeGreaterThan(0);
     });
