@@ -111,15 +111,26 @@ pub async fn restore_change_for(
                 "'{path}' is not in the commit change {id} was cut from; it cannot be restored"
             ))
         })?;
-        // A native file (a LinkML source, a bento.yaml) travels with its manifest; a manifest
-        // says which kind the caller must be allowed to propose.
-        if let Ok(envelope) = serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content) {
-            if !effective.may(&envelope.kind, Verb::Propose) {
-                return Err(ApiError::Denied(format!(
-                    "restoring {} '{}' needs `propose` on {} in project '{project}'",
-                    envelope.kind, envelope.metadata.name, envelope.kind
-                )));
-            }
+        // Every file answers to a kind: a manifest to its own, a native file (a LinkML source, a
+        // bento.yaml) to the kind its directory names, the way an approval reads it (T-1400). A
+        // file of no kind is restored by nobody, as it is approved by nobody.
+        let manifest = serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content).ok();
+        let kind = match &manifest {
+            Some(envelope) => envelope.kind.clone(),
+            None => crate::api::import::native_kind(path)
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    ApiError::Conflict(format!(
+                        "'{path}' belongs to no kind this platform serves, so it cannot be restored"
+                    ))
+                })?,
+        };
+        if !effective.may(&kind, Verb::Propose) {
+            return Err(ApiError::Denied(format!(
+                "restoring '{path}' needs `propose` on {kind} in project '{project}'"
+            )));
+        }
+        if let Some(envelope) = manifest {
             restored.push(envelope);
         }
         uploads.push((path.clone(), file.content));

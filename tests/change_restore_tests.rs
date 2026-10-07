@@ -15,6 +15,10 @@ use joinedcontext_portal::state::AppState;
 const PROJECT: &str = "ovzdusie";
 const MANIFEST: &str = "projects/ovzdusie/spaces/air/pipelines/air-ingest/pipeline.yaml";
 const NATIVE: &str = "projects/ovzdusie/spaces/air/pipelines/air-ingest/bento.yaml";
+/// A model's LinkML source: no manifest, so it answers to the kind its folder names.
+const LINKML: &str = "projects/ovzdusie/datamodels/air/model.linkml.yaml";
+/// A file under no kind's folder.
+const NOTE: &str = "projects/ovzdusie/notes/readme.md";
 const YAML: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: Pipeline\nmetadata:\n  name: air-ingest\n  namespace: ovzdusie\nspec:\n  contextSpaceRef:\n    name: air\n";
 
 fn pull(number: u64, branch: &str, merged: bool) -> Value {
@@ -63,6 +67,18 @@ async fn world() -> (MockServer, AppState) {
             true,
             json!([{ "filename": MANIFEST, "status": "modified" }]),
         ),
+        (
+            5,
+            "portal/delete-datamodel-air-0a1b2c3d",
+            true,
+            json!([{ "filename": LINKML, "status": "deleted" }]),
+        ),
+        (
+            4,
+            "portal/import-notes-0a1b2c3d",
+            true,
+            json!([{ "filename": NOTE, "status": "deleted" }]),
+        ),
     ] {
         Mock::given(method("GET"))
             .and(path(format!("{REPO}/pulls/{number}")))
@@ -75,7 +91,12 @@ async fn world() -> (MockServer, AppState) {
             .mount(&gitea)
             .await;
     }
-    for (file, content) in [(MANIFEST, YAML), (NATIVE, "input:\n  generate: {}\n")] {
+    for (file, content) in [
+        (MANIFEST, YAML),
+        (NATIVE, "input:\n  generate: {}\n"),
+        (LINKML, "id: https://example.org/air\nname: air\n"),
+        (NOTE, "# notes\n"),
+    ] {
         Mock::given(method("GET"))
             .and(path(format!("{REPO}/contents/{file}")))
             .and(query_param("ref", "base-7"))
@@ -248,6 +269,34 @@ async fn a_resource_that_is_back_on_main_is_not_restored_over() {
             .as_str()
             .unwrap_or_default()
             .contains("in the project again"),
+        "{body}"
+    );
+    assert!(writes(&gitea).await.is_empty());
+}
+
+/// Every file answers to a kind (integrator review of T-3247): a native file to its folder's, so a
+/// caller who may propose Pipelines does not bring back a DataModel's LinkML; a file of no kind is
+/// restored by nobody.
+#[tokio::test]
+async fn a_file_without_a_manifest_is_held_to_the_kind_of_its_folder() {
+    let (gitea, state) = world().await;
+    let (status, body) = restore(&state, "restorer", "chg-00000005").await;
+    assert_eq!(status, 403, "{body}");
+    assert!(
+        body["detail"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("DataModel"),
+        "{body}"
+    );
+
+    let (status, body) = restore(&state, "restorer", "chg-00000004").await;
+    assert_eq!(status, 409, "{body}");
+    assert!(
+        body["detail"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("no kind"),
         "{body}"
     );
     assert!(writes(&gitea).await.is_empty());
