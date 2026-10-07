@@ -679,8 +679,8 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
                 // builder (40 rem itself) from 2xl; at 768 px the docked builder left the page
                 // one letter wide (T-3145).
                 building
-                  ? "2xl:sticky 2xl:inset-auto 2xl:top-14 2xl:z-auto 2xl:h-[calc(100vh-3.5rem)] 2xl:shrink-0 2xl:border-l 2xl:border-border 2xl:w-160"
-                  : "xl:sticky xl:inset-auto xl:top-14 xl:z-auto xl:h-[calc(100vh-3.5rem)] xl:shrink-0 xl:border-l xl:border-border xl:w-96",
+                  ? "2xl:sticky 2xl:inset-auto 2xl:top-14 2xl:z-auto 2xl:h-below-header 2xl:shrink-0 2xl:border-l 2xl:border-border 2xl:w-160"
+                  : "xl:sticky xl:inset-auto xl:top-14 xl:z-auto xl:h-below-header xl:shrink-0 xl:border-l xl:border-border xl:w-96",
               )
       }
     >

@@ -132,6 +132,8 @@
      the viewport allows and never falls below a phone's screen. The building state uses the
      same box, so the column does not jump when the preview arrives (AP-63, UI-42). */
   --portal-preview-height: 82vh;
+  /* What a docked panel fills below the 3.5rem header, beside the page (xl and up). */
+  --portal-below-header: calc(100vh - 3.5rem);
   --portal-preview-min-height: 28rem;
 
   /* Radius. */

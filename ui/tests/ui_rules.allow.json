@@ -69,9 +69,9 @@
     }
   },
   "size_is_on_the_scale": {
-    "_max": 13,
+    "_max": 12,
     "src/assistant/AssistantDock.tsx": {
-      "lines": 3,
+      "lines": 2,
       "group": "ui-forms",
       "reason": "two computed sizes, each commented on the line: the floating panel is min(40rem, the viewport less the gaps) tall and the viewport less two 1 rem gaps wide, and the side panel is the viewport's height less the 14 header it sticks under."
     },
