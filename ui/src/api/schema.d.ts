@@ -1285,6 +1285,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/changes/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Closed Changes
+         * @description One page of the merged and rejected changes, most recently closed first, each naming who decided it; `next` is the page that continues it.
+         */
+        get: operations["list_change_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/changes/{id}": {
         parameters: {
             query?: never;
@@ -3374,6 +3394,14 @@ export interface components {
             email?: string | null;
             name: string;
         };
+        /** @description Who decided a closed change: the approver of a merge, the rejecter of a closed one. */
+        ChangeDecision: {
+            /** @description RFC 3339, when the forge merged or closed it. */
+            at?: string | null;
+            by: string;
+            /** @description The rejecter's reason, when they gave one. */
+            reason?: string | null;
+        };
         /**
          * @description One file of the merge request behind a change (T-0861, MF-21, CC-63).
          *
@@ -3401,6 +3429,11 @@ export interface components {
             apiVersion: string;
             items: components["schemas"]["ChangeProposal"][];
             kind: string;
+            /**
+             * Format: int32
+             * @description The `page` that continues a history listing, while the forge has older ones.
+             */
+            next?: number | null;
         };
         /** @description Metadata identifying the change. */
         ChangeMeta: {
@@ -3421,6 +3454,7 @@ export interface components {
             apiVersion: string;
             author: components["schemas"]["ChangeAuthor"];
             createdAt: string;
+            decision?: null | components["schemas"]["ChangeDecision"];
             /** @description How many files the merge request changes, the headline manifest included. */
             fileCount?: number | null;
             /**
@@ -9025,6 +9059,72 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Git forge unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_change_history: {
+        parameters: {
+            query?: {
+                /** @description The page of closed changes, from 1; `next` of the previous answer. */
+                page?: number;
+                /** @description Closed changes to one kind only, as `Endpoint`. */
+                kind?: string;
+                /** @description Closed changes whose resource name contains this, any case. */
+                name?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of closed changes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeList"];
+                };
+            };
+            /** @description An unknown parameter or page 0 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Project not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

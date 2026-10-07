@@ -411,6 +411,9 @@ routes:
   - route: GET /projects/{project}/changes
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/changes/history
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/changes/{id}
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

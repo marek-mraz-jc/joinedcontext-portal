@@ -306,7 +306,7 @@ pub struct FileDelete<'a> {
 }
 
 /// Pull request representation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PullRequest {
     pub number: u64,
     pub url: String,
@@ -326,6 +326,12 @@ pub struct PullRequest {
     pub merged: bool,
     /// The repository the pull request is in, as the client that read it names it (CC-87).
     pub repository: String,
+    /// The commit a merge made, whose message names who approved it; empty while open.
+    #[serde(default)]
+    pub merge_commit_sha: String,
+    /// When it was merged or closed, RFC 3339; empty while open.
+    #[serde(default)]
+    pub closed_at: String,
 }
 
 impl PullRequest {
@@ -507,6 +513,10 @@ struct GiteaPullResponse {
     mergeable: Option<bool>,
     #[serde(default)]
     merged: bool,
+    #[serde(default)]
+    merge_commit_sha: Option<String>,
+    #[serde(default)]
+    closed_at: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -559,6 +569,8 @@ impl From<GiteaPullResponse> for PullRequest {
             mergeable: raw.mergeable,
             merged: raw.merged,
             repository: String::new(),
+            merge_commit_sha: raw.merge_commit_sha.unwrap_or_default(),
+            closed_at: raw.closed_at.unwrap_or_default(),
         }
     }
 }
@@ -1880,11 +1892,22 @@ impl GiteaClient {
 
     /// `GET /pulls?state={state}&sort=recentupdate&limit=50` — retrieves pull requests.
     pub async fn list_pull_requests(&self, state: &str) -> Result<Vec<PullRequest>, GitError> {
+        self.list_pull_requests_page(state, 1, 50).await
+    }
+
+    /// `GET /pulls` — one page of pull requests in `state`, most recently updated first.
+    pub async fn list_pull_requests_page(
+        &self,
+        state: &str,
+        page: u32,
+        limit: u32,
+    ) -> Result<Vec<PullRequest>, GitError> {
         let mut url = self.repo_url("pulls")?;
         url.query_pairs_mut()
             .append_pair("state", state)
             .append_pair("sort", "recentupdate")
-            .append_pair("limit", "50");
+            .append_pair("page", &page.to_string())
+            .append_pair("limit", &limit.to_string());
 
         let res = self.send(self.http.get(url)).await?;
         let res = Self::check_status(res).await?;
@@ -2002,6 +2025,38 @@ impl GiteaClient {
             .await
             .map_err(|e| GitError::Transport(format!("failed to parse pull request: {e}")))?;
         Ok(self.pull(raw))
+    }
+
+    /// `GET /git/commits/{sha}` — the whole message of one commit, body included.
+    pub async fn commit_message(&self, sha: &str) -> Result<String, GitError> {
+        let url = self.repo_url(&format!("git/commits/{sha}"))?;
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        let raw: CommitDto = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse commit: {e}")))?;
+        Ok(raw
+            .commit
+            .map(|details| details.message)
+            .unwrap_or_default())
+    }
+
+    /// `GET /pulls/{number}/reviews` — the text of every review on the pull request, oldest first.
+    pub async fn review_bodies(&self, number: u64) -> Result<Vec<String>, GitError> {
+        #[derive(Deserialize)]
+        struct ReviewDto {
+            #[serde(default)]
+            body: String,
+        }
+        let url = self.repo_url(&format!("pulls/{number}/reviews"))?;
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        let raw: Vec<ReviewDto> = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse reviews: {e}")))?;
+        Ok(raw.into_iter().map(|review| review.body).collect())
     }
 
     /// `POST /pulls/{number}/reviews` — submits a review on the pull request.
