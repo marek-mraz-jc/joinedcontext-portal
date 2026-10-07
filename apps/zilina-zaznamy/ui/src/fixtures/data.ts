@@ -461,7 +461,7 @@ export const WORKS = [
     },
     "source": {
       "type": "Property",
-      "value": "http://127.0.0.1:46759/server/api/"
+      "value": "https://dspace.uniza.sk/server/api/"
     },
     "type": "CreativeWork",
     "url": {
@@ -503,7 +503,7 @@ export const WORKS = [
     },
     "source": {
       "type": "Property",
-      "value": "http://127.0.0.1:46759/server/api/"
+      "value": "https://dspace.uniza.sk/server/api/"
     },
     "type": "CreativeWork",
     "url": {
@@ -545,7 +545,7 @@ export const WORKS = [
     },
     "source": {
       "type": "Property",
-      "value": "http://127.0.0.1:46759/server/api/"
+      "value": "https://dspace.uniza.sk/server/api/"
     },
     "type": "CreativeWork",
     "url": {
@@ -587,7 +587,7 @@ export const WORKS = [
     },
     "source": {
       "type": "Property",
-      "value": "http://127.0.0.1:46759/server/api/"
+      "value": "https://dspace.uniza.sk/server/api/"
     },
     "type": "CreativeWork",
     "url": {
@@ -629,7 +629,7 @@ export const WORKS = [
     },
     "source": {
       "type": "Property",
-      "value": "http://127.0.0.1:46759/server/api/"
+      "value": "https://dspace.uniza.sk/server/api/"
     },
     "type": "CreativeWork",
     "url": {
@@ -671,7 +671,7 @@ export const WORKS = [
     },
     "source": {
       "type": "Property",
-      "value": "http://127.0.0.1:46759/server/api/"
+      "value": "https://dspace.uniza.sk/server/api/"
     },
     "type": "CreativeWork",
     "url": {
@@ -713,7 +713,7 @@ export const WORKS = [
     },
     "source": {
       "type": "Property",
-      "value": "http://127.0.0.1:46759/server/api/"
+      "value": "https://dspace.uniza.sk/server/api/"
     },
     "type": "CreativeWork",
     "url": {
@@ -755,7 +755,7 @@ export const WORKS = [
     },
     "source": {
       "type": "Property",
-      "value": "http://127.0.0.1:46759/server/api/"
+      "value": "https://dspace.uniza.sk/server/api/"
     },
     "type": "CreativeWork",
     "url": {
