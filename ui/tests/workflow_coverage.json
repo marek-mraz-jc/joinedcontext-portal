@@ -379,6 +379,18 @@
           "test": "the verdict gate: unchecked refuses, a check opens it, an edit closes it again"
         },
         "assistant": "jc_space_propose"
+      },
+      "comments": {
+        "live": {
+          "spec": "space-comments.spec.ts",
+          "test": "a person comments with a mention, the colleague is notified, and the comment leaves with its notification"
+        },
+        "personOnly": "a person's note on an entity and the colleagues it names; mentioning someone is a person speaking to a person, so no assistant comments, mentions or reads another's notifications on their behalf (API/01 §35, ADR-N-042 §3.1)",
+        "routes": [
+          "POST /api/v1/projects/{project}/spaces/{space}/comments",
+          "DELETE /api/v1/projects/{project}/spaces/{space}/comments/{id}",
+          "POST /api/v1/notifications/{id}/read"
+        ]
       }
     },
     "datamodel": {

@@ -1275,12 +1275,21 @@
         "ai_field.test.tsx"
       ]
     },
+    "src/pages/spaces/Comments.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "comments.test.tsx"
+      ]
+    },
     "src/pages/spaces/DataViews.tsx": {
       "controls": {
         "Button": 13,
         "Checkbox": 1
       },
       "tests": [
+        "comments.test.tsx",
         "data_views.test.tsx"
       ]
     },
@@ -1291,6 +1300,15 @@
       },
       "tests": [
         "form_view.test.tsx"
+      ]
+    },
+    "src/pages/spaces/ImportRows.tsx": {
+      "controls": {
+        "Button": 4,
+        "FilePicker": 1
+      },
+      "tests": [
+        "import_rows.test.tsx"
       ]
     },
     "src/pages/spaces/PublicView.tsx": {
@@ -1320,7 +1338,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "endpoint_admits_person.test.ts",
