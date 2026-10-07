@@ -21,7 +21,7 @@ test("a steward reads what each assistant and settings form needs, and proposes 
   try {
     await page.getByRole("main").getByRole("button", { name: "New KnowledgeSource" }).first().click();
     let form = await openedForm(page);
-    await expect(form.getByText("A PDF is read from the page that links it, so give that page.")).toBeVisible();
+    await expect(form.getByText("The address of a PDF or another document is read as that document.")).toBeVisible();
     await form.locator("#root_schedule").fill("every night");
     await form.locator("#root_schedule").blur();
     await expect(form.getByText(/Five fields separated by spaces/)).toBeVisible();

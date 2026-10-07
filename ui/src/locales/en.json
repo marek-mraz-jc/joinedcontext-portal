@@ -159,7 +159,8 @@
     "origin": "https:// and a host, a port at most, such as https://www.example.org; no path and no wildcard.",
     "language": "A two-letter language code in lower case, such as sk or en.",
     "sitePath": "A path of the site starting with a slash, such as /news/**.",
-    "color": "A colour as # and six hexadecimal digits, such as #0b5394."
+    "color": "A colour as # and six hexadecimal digits, such as #0b5394.",
+    "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",

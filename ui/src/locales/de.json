@@ -159,7 +159,8 @@
     "origin": "https:// und ein Host, höchstens mit Port, wie https://www.example.org; ohne Pfad und Platzhalter.",
     "language": "Ein zweibuchstabiger Sprachcode in Kleinbuchstaben, wie sk oder en.",
     "sitePath": "Ein Pfad der Website, der mit einem Schrägstrich beginnt, wie /news/**.",
-    "color": "Eine Farbe als # und sechs Hexadezimalziffern, wie #0b5394."
+    "color": "Eine Farbe als # und sechs Hexadezimalziffern, wie #0b5394.",
+    "notAnAttribute": "{name} ist kein Attribut von {types} in den Modellen des Projekts; prüfen Sie die Schreibweise."
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
