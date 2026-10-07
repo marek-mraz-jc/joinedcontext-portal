@@ -79,8 +79,12 @@ function renderList(options: { verbs: string[]; answer?: "change" | "referenced"
   return fetchMock;
 }
 
+// The removals proposed: the dialog's own dry run, which says what goes with the resource
+// (T-3247), removes nothing and is not one.
 const deletes = (fetchMock: ReturnType<typeof vi.fn>) =>
-  fetchMock.mock.calls.map((call) => call[0] as Request).filter((request) => request.method === "DELETE");
+  fetchMock.mock.calls
+    .map((call) => call[0] as Request)
+    .filter((request) => request.method === "DELETE" && !new URL(request.url).searchParams.has("dryRun"));
 
 describe("removing a resource from its list", () => {
   beforeEach(async () => {
