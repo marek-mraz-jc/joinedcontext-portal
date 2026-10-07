@@ -670,10 +670,11 @@ impl StreamDeployer {
         &self,
         ns: &str,
         name: &str,
-        stream_json: Value,
+        mut stream_json: Value,
         running: &mut Option<Option<HashMap<String, bool>>>,
         current_live: &mut HashSet<(String, String)>,
     ) -> StreamOutcome {
+        own_credential(&mut stream_json, ns);
         let key = (ns.to_owned(), name.to_owned());
         let hash = config_hash(&stream_json);
         let stored = self
@@ -1883,6 +1884,36 @@ pub(crate) fn pipeline_oauth2(project: &str) -> serde_json::Value {
     })
 }
 
+/// Rewrites an author's `${JC_CLIENT_ID}` and `${JC_CLIENT_SECRET}` into the stream's own
+/// project's pipeline client (PL-16, T-3163).
+///
+/// The runner's environment holds every project's client secret, and its plain
+/// `JC_CLIENT_SECRET` is one project's, so a step that wrote it as it stands would present that
+/// project's client from any other. jc-core lets a step name only these two aliases of a
+/// credential; here they become the same client [`pipeline_oauth2`] renders for the project.
+pub(crate) fn own_credential(value: &mut Value, project: &str) {
+    match value {
+        Value::String(text) if text.contains("${JC_CLIENT_") => {
+            *text = text
+                .replace(
+                    "${JC_CLIENT_ID}",
+                    &jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT),
+                )
+                .replace(
+                    "${JC_CLIENT_SECRET}",
+                    &format!("${{{}}}", client_secret_var(project)),
+                );
+        }
+        Value::Array(items) => items
+            .iter_mut()
+            .for_each(|item| own_credential(item, project)),
+        Value::Object(map) => map
+            .values_mut()
+            .for_each(|item| own_credential(item, project)),
+        _ => {}
+    }
+}
+
 /// Where every stream writes: the endpoint's batch upsert, as the pipeline's service account.
 /// It is the one output a stream has, so no pipeline answers a caller: a client-facing API is
 /// the Context Gateway's (PL-06, EP-05).
@@ -2695,6 +2726,40 @@ output:
             }
             other => panic!("expected Error, got {other:?}"),
         }
+    }
+
+    /// T-3163: the reaper's `${JC_CLIENT_ID}`/`${JC_CLIENT_SECRET}` become the stream's own
+    /// project's client, never the runner's plain variable, which is one project's; a name that
+    /// only starts the same is left alone, and the platform's own write is unchanged.
+    #[test]
+    fn an_authors_credential_alias_becomes_the_streams_own_project() {
+        let mut spec = helsinki_pipeline_spec();
+        spec.compute = None;
+        let ds = helsinki_datasource_spec();
+        let bento = "pipeline:\n  processors:\n    - http:\n        url: ${JC_GATEWAY_URL}/api/endpoint/x/ngsi-ld/v1/entityOperations/delete\n        oauth2: { enabled: true, client_key: '${JC_CLIENT_ID}', client_secret: '${JC_CLIENT_SECRET}', token_url: '${JC_TOKEN_URL}' }\n        headers: { X-Other: '${JC_CLIENT_SECRET_HELSINKI}' }\n";
+        let mut rendered =
+            render_stream(&spec, "p", "bbsk", &ds, "src", "abc123", Some(bento)).expect("renders");
+        let before_output = rendered["output"].clone();
+        own_credential(&mut rendered, "bbsk");
+        let whole = rendered.to_string();
+        assert!(!whole.contains("${JC_CLIENT_SECRET}"), "{whole}");
+        assert!(!whole.contains("${JC_CLIENT_ID}"), "{whole}");
+        let step = rendered["pipeline"]["processors"]
+            .as_array()
+            .expect("processors")
+            .iter()
+            .find(|p| {
+                p.get("http")
+                    .is_some_and(|h| h.get("headers").is_some_and(|h| h.get("X-Other").is_some()))
+            })
+            .expect("the author's step")
+            .clone();
+        assert_eq!(step["http"]["oauth2"], pipeline_oauth2("bbsk"));
+        assert_eq!(
+            step["http"]["headers"]["X-Other"],
+            "${JC_CLIENT_SECRET_HELSINKI}"
+        );
+        assert_eq!(rendered["output"], before_output);
     }
 
     /// PL-06: a `bento.yaml` cannot turn a pipeline into a request/response service: an input
