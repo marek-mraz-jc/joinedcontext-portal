@@ -236,6 +236,12 @@ pub fn classify(kind: &str, op: Operation, spec: &serde_json::Value) -> Lane {
         return Lane::Red;
     }
 
+    // A named MCP server open to anyone is public exposure of its member Endpoints: declaring or
+    // widening one to `public` takes a publisher's approval (MF-53, ADR-N-043).
+    if kind == "McpServer" && spec.get("audience").and_then(|v| v.as_str()) == Some("public") {
+        return Lane::Red;
+    }
+
     if kind == "AssistantDeployment"
         && spec
             .get("channel")
