@@ -3374,7 +3374,6 @@
     "removeConfirm": "Delete",
     "removeNote": "The endpoint's Policy decides: the deletion runs with your session, not with a service identity, and it cannot be undone.",
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
-    "export": "Export this page",
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
     "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
@@ -3396,6 +3395,23 @@
       "outlierCount": "{count, plural, one {# value} other {# values}}",
       "pipelines": "Pipelines writing this type",
       "rejected": "Open {pipeline} for its rejected records"
+    },
+    "exportView": {
+      "format": "Export format",
+      "formats": {
+        "csv-excel": "CSV for Excel (Slovak number and date formats)",
+        "csv": "CSV",
+        "json": "JSON",
+        "geojson": "GeoJSON (located entities)"
+      },
+      "start": "Export the view",
+      "cancel": "Cancel the export",
+      "progress": "{done} rows read…",
+      "progressOf": "{done} of {total} rows read…",
+      "download": "Download {name} ({rows, plural, one {# row} other {# rows}})",
+      "truncated": "Only the first {max} rows: narrow the filter for the rest.",
+      "empty": "The view holds no rows to export.",
+      "noGeometry": "No entity of the view has a location, so there is no GeoJSON to export."
     }
   },
   "agentRun": {

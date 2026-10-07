@@ -3374,7 +3374,6 @@
     "removeConfirm": "Zmazať",
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
     "deleteDenied": "Grant tejto koncovky ti nedovoľuje mazať {type}",
-    "export": "Exportovať túto stranu",
     "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
     "noSpace": "Vyberte kontextový priestor na čítanie",
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
@@ -3396,6 +3395,23 @@
       "outlierCount": "{count, plural, one {# hodnota} few {# hodnoty} other {# hodnôt}}",
       "pipelines": "Pipeline, ktoré zapisujú tento typ",
       "rejected": "Otvoriť {pipeline} a jej odmietnuté záznamy"
+    },
+    "exportView": {
+      "format": "Formát exportu",
+      "formats": {
+        "csv-excel": "CSV pre Excel (slovenské čísla a dátumy)",
+        "csv": "CSV",
+        "json": "JSON",
+        "geojson": "GeoJSON (entity s polohou)"
+      },
+      "start": "Exportovať pohľad",
+      "cancel": "Zrušiť export",
+      "progress": "Načítaných {done} riadkov…",
+      "progressOf": "Načítaných {done} z {total} riadkov…",
+      "download": "Stiahnuť {name} ({rows, plural, one {# riadok} few {# riadky} other {# riadkov}})",
+      "truncated": "Iba prvých {max} riadkov: pre ostatné zúžte filter.",
+      "empty": "Pohľad nemá žiadne riadky na export.",
+      "noGeometry": "Žiadna entita pohľadu nemá polohu, preto niet čo exportovať do GeoJSON."
     }
   },
   "agentRun": {

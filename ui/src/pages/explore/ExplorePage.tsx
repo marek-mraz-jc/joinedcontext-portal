@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { useTranslation } from "react-i18next";
 import { parseGridConfig } from "@joinedcontext/sdk";
-import type { ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
+import type { GridState, ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
 import { AccessPanel, deniedAttributes, useAccess } from "../../components/entities/AccessPanel";
@@ -16,6 +16,8 @@ import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tab
 import { TypeQuality } from "./TypeQuality";
 import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
+import { ExportView } from "./ExportView";
+import type { ViewSort } from "./exportView";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 import { useIdentity } from "../../auth/AuthProvider";
 import { replaceOwnSearch } from "../../assistant/HandOff";
@@ -86,8 +88,9 @@ export function ExplorePage({
   // The type's entities, or its data-quality report (T-3252).
   const [view, setView] = useState<"entities" | "quality">("entities");
   const [removing, setRemoving] = useState(false);
-  /** The page the grid holds right now, for the export: the rows on screen and where they start. */
-  const [shown, setShown] = useState<{ rows: RichRow[]; offset: number }>({ rows: [], offset: 0 });
+  /** What the grid's filter row asks and its order, for the export of the whole view (T-3253). */
+  const [gridAsk, setGridAsk] = useState<{ q?: string; idPattern?: string }>({});
+  const [gridSort, setGridSort] = useState<ViewSort | null>(null);
   /** Bumped when an entity is removed, so the grid reads the endpoint again. */
   const [generation, setGeneration] = useState(0);
   const queryClient = useQueryClient();
@@ -214,9 +217,12 @@ export function ExplorePage({
   // A stable callback and the same object back when nothing moved: the grid hands its page over
   // from an effect, so a new function or a new object on every render would read and re-render
   // without end.
-  const onRows = useCallback((rows: RichRow[], offset: number) => {
-    setShown((previous) =>
-      previous.rows === rows && previous.offset === offset ? previous : { rows, offset },
+  const onQuery = useCallback((asked: { q?: string; idPattern?: string }) => {
+    setGridAsk((previous) => (previous.q === asked.q && previous.idPattern === asked.idPattern ? previous : asked));
+  }, []);
+  const onGridState = useCallback((next: GridState) => {
+    setGridSort((previous) =>
+      previous?.attr === next.sort?.attr && previous?.dir === next.sort?.dir ? previous : next.sort,
     );
   }, []);
   const renderers = useMemo(
@@ -260,20 +266,6 @@ export function ExplorePage({
   });
   const removeFailed =
     remove.error instanceof ApiError ? remove.error.message : remove.error ? t("app.error.generic") : null;
-
-  // UI-33: the page the person is looking at, as the file they can keep. It is written from
-  // the rows already in hand rather than fetched again: a second read through the endpoint
-  // would be a second answer, and a person exporting "this page" means this one.
-  const download = () => {
-    const entities = shown.rows.map((row) => row.raw);
-    const file = new Blob([JSON.stringify(entities, null, 2)], { type: "application/json" });
-    const href = URL.createObjectURL(file);
-    const link = document.createElement("a");
-    link.href = href;
-    link.download = `${query.type}-${shown.offset + 1}-${shown.offset + entities.length}.json`;
-    link.click();
-    URL.revokeObjectURL(href);
-  };
 
   function changeQuery(next: EntityQuery) {
     setQuery(next);
@@ -401,12 +393,11 @@ export function ExplorePage({
             relations={relations}
             rules={rules}
             onOpenRelationship={setSelected}
-            onRows={onRows}
+            onQuery={onQuery}
+            onGridState={onGridState}
             renderers={renderers}
             toolbar={
-              <Button size="sm" disabled={shown.rows.length === 0} onClick={download}>
-                {t("explore.export")}
-              </Button>
+              slug ? <ExportView slug={slug} query={query} grid={gridAsk} sort={gridSort} /> : null
             }
           />
         </div>
