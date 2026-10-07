@@ -1,23 +1,26 @@
 import { useId, useState } from "react";
 import type { FormEvent, JSX } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../api/client";
+import { api, ApiError, queryKeys, unwrap } from "../api/client";
+import { ChangeNotice } from "../components/ChangeNotice";
 import { ResourceList } from "../components/ResourceList";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
+  Alert,
   Button,
   EmptyState,
   Field,
   Input,
+  PermissionGuard,
   TableCell,
   TableHead,
   TableHeaderCell,
   TableRow,
 } from "../components/ui";
 
-const COLUMNS = 5;
+const COLUMNS = 6;
 
 interface Filter {
   kind: string;
@@ -40,6 +43,19 @@ export function ApprovalsHistory({
   // What the form holds, and what the list was last asked for: a keystroke asks the forge nothing.
   const [draft, setDraft] = useState<Filter>({ kind: "", name: "" });
   const [filter, setFilter] = useState<Filter>({ kind: "", name: "" });
+  const queryClient = useQueryClient();
+  // A merged removal can be proposed again (T-3247): the new change waits for an approver.
+  const restore = useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(
+        await api.POST("/api/v1/projects/{project}/changes/{id}/restore", {
+          params: { path: { project, id } },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
+    },
+  });
 
   const history = useInfiniteQuery({
     queryKey: [
@@ -90,6 +106,14 @@ export function ApprovalsHistory({
 
   return (
     <div className="flex flex-col gap-4">
+      {restore.data ? <ChangeNotice change={restore.data} project={project} /> : null}
+      {restore.error ? (
+        <Alert tone="danger" role="alert">
+          {restore.error instanceof ApiError
+            ? (restore.error.problem?.detail ?? restore.error.message)
+            : t("app.error.generic")}
+        </Alert>
+      ) : null}
       <form
         role="search"
         aria-label={t("approvals.history.filter")}
@@ -144,6 +168,7 @@ export function ApprovalsHistory({
               {t("approvals.history.decidedBy")}
             </TableHeaderCell>
             <TableHeaderCell>{t("approvals.history.closed")}</TableHeaderCell>
+            <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
           </TableHead>
         }
         columns={COLUMNS}
@@ -206,6 +231,28 @@ export function ApprovalsHistory({
               {dateFormatter.format(
                 new Date(change.decision?.at ?? change.createdAt),
               )}
+            </TableCell>
+            <TableCell align="right">
+              {change.status.phase === "Merged" &&
+              change.summary.key === "change.summary.delete" ? (
+                <PermissionGuard
+                  project={project}
+                  kind={String((change.summary.params as Record<string, unknown>).kind ?? "")}
+                  verb="propose"
+                >
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={restore.isPending && restore.variables === change.metadata.name}
+                    aria-label={t("approvals.history.restoreOf", {
+                      name: String((change.summary.params as Record<string, unknown>).name ?? change.metadata.name),
+                    })}
+                    onClick={() => restore.mutate(change.metadata.name)}
+                  >
+                    {t("approvals.history.restore")}
+                  </Button>
+                </PermissionGuard>
+              ) : null}
             </TableCell>
           </TableRow>
         ))}

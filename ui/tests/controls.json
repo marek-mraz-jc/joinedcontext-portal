@@ -1445,7 +1445,7 @@
     },
     "src/routes/ApprovalsHistory.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 4
       },
       "tests": [
         "approvals_history.test.tsx"

@@ -1282,6 +1282,16 @@
           "POST /api/v1/projects/{project}/changes/{id}/reject"
         ]
       },
+      "restore": {
+        "live": {
+          "spec": "delete-restore.spec.ts",
+          "test": "the history brings it back as a new change, and once approved the space is there again"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/changes/{id}/restore"
+        ]
+      },
       "drift-adopt": {
         "liveOwed": "T-2867",
         "personOnly": "which side of a drift wins is a resolution a person picks, held to propose on Entity",

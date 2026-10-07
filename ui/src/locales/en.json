@@ -245,7 +245,9 @@
       "older": "Show older changes",
       "empty": "No change has been merged or rejected yet.",
       "emptyHint": "A change lands here with who decided it once it is approved or rejected on the Open tab.",
-      "noneOnPage": "None of these changes is one you may read. Older ones may be."
+      "noneOnPage": "None of these changes is one you may read. Older ones may be.",
+      "restore": "Restore",
+      "restoreOf": "Restore {name}"
     }
   },
   "lane": {
@@ -374,7 +376,16 @@
     "close": "Close",
     "exact": "Exactly as it is written, without spaces.",
     "mismatch": "This is not {name}.",
-    "needName": "Type {name} to propose its removal."
+    "needName": "Type {name} to propose its removal.",
+    "goesWith": {
+      "title": "What goes with it",
+      "entities": "{count, plural, one {# entity} other {# entities}} in this space: no longer served once it is removed; restoring the space serves them again",
+      "rejectedRecords": "{count, plural, one {# refused record} other {# refused records}} waiting to be fixed and replayed: they do not come back",
+      "runs": "{count, plural, one {the history of # run} other {the history of # runs}}: it does not come back",
+      "grants": "{count, plural, one {# endpoint or policy} other {# endpoints and policies}} the app was given",
+      "bindings": "{count, plural, one {# role binding} other {# role bindings}} that name it, changed or removed"
+    },
+    "restorable": "Once an approver confirms the removal, you can bring the configuration back from Approvals → History."
   },
   "resourceEdit": {
     "title": "Edit {name}",

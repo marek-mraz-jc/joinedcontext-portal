@@ -245,7 +245,9 @@
       "older": "Ältere Änderungen zeigen",
       "empty": "Noch keine Änderung wurde zusammengeführt oder abgelehnt.",
       "emptyHint": "Eine Änderung erscheint hier mit der Person, die entschieden hat, sobald sie im Reiter Offen genehmigt oder abgelehnt wurde.",
-      "noneOnPage": "Keine dieser Änderungen dürfen Sie lesen. Ältere vielleicht schon."
+      "noneOnPage": "Keine dieser Änderungen dürfen Sie lesen. Ältere vielleicht schon.",
+      "restore": "Wiederherstellen",
+      "restoreOf": "{name} wiederherstellen"
     }
   },
   "lane": {
@@ -374,7 +376,16 @@
     "close": "Schließen",
     "exact": "Genau so, wie er geschrieben steht, ohne Leerzeichen.",
     "mismatch": "Das ist nicht {name}.",
-    "needName": "Geben Sie {name} ein, um das Entfernen vorzuschlagen."
+    "needName": "Geben Sie {name} ein, um das Entfernen vorzuschlagen.",
+    "goesWith": {
+      "title": "Was damit geht",
+      "entities": "{count, plural, one {# Entität} other {# Entitäten}} in diesem Raum: nach dem Entfernen nicht mehr bereitgestellt; das Wiederherstellen des Raums stellt sie wieder bereit",
+      "rejectedRecords": "{count, plural, one {# abgelehnter Datensatz} other {# abgelehnte Datensätze}}, die auf Korrektur warten: sie kommen nicht zurück",
+      "runs": "{count, plural, one {der Verlauf von # Lauf} other {der Verlauf von # Läufen}}: er kommt nicht zurück",
+      "grants": "{count, plural, one {# Endpunkt oder Richtlinie} other {# Endpunkte und Richtlinien}}, die die App erhalten hat",
+      "bindings": "{count, plural, one {# Rollenzuweisung} other {# Rollenzuweisungen}}, die ihn nennen, werden geändert oder entfernt"
+    },
+    "restorable": "Sobald eine Freigabe das Entfernen bestätigt, können Sie die Konfiguration unter Freigaben → Verlauf zurückholen."
   },
   "resourceEdit": {
     "title": "{name} bearbeiten",
