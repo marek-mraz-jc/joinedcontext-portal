@@ -376,12 +376,12 @@ it("shows what a value is measured in, and when it was observed", async () => {
 describe("correcting a value from the explorer", () => {
   const CELL = `${en.entityGrid.edit} availableBikeNumber`;
 
-  async function openWith(actions: string[]) {
+  async function openWith(actions: string[], models = MODELS_INLINE) {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.list("helsinki", "endpoints"), ENDPOINTS);
     client.setQueryData(queryKeys.list("helsinki", "spaces"), SPACES);
     // Inline LinkML: the attributes a person may correct are the model's own slots.
-    client.setQueryData(queryKeys.list("helsinki", "datamodels"), MODELS_INLINE);
+    client.setQueryData(queryKeys.list("helsinki", "datamodels"), models);
     vi.stubGlobal(
       "fetch",
       vi.fn((input: unknown) => {
@@ -430,6 +430,25 @@ describe("correcting a value from the explorer", () => {
     await userEvent.type(cell, "6");
     // What applying would send is announced before anything is written.
     expect(await screen.findByText(`1 ${en.entityGrid.pending}`)).toBeInTheDocument();
+  });
+
+  // DM-80, T-3133: a formula field is its pipeline's to write, so even a writer gets no cell for it.
+  it("offers no cell for a formula field, whatever the grant", async () => {
+    await i18n.changeLanguage("en");
+    const formula = BIKES_MODEL.replace(
+      "availableBikeNumber: { range: integer, minimum_value: 0 }",
+      'availableBikeNumber: { range: float, equals_expression: "{capacity} - 1" }\n  capacity: { range: integer }',
+    ).replace("slots: [id, availableBikeNumber]", "slots: [id, availableBikeNumber, capacity]");
+    await openWith(["queryEntity", "updateAttrs"], list([
+        {
+          apiVersion: "joinedcontext.com/v1alpha1",
+          kind: "DataModel",
+          metadata: { name: "helsinki-mobility", namespace: "helsinki" },
+          spec: { classes: ["BikeHireDockingStation"], linkml: formula },
+        },
+      ]));
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.queryByLabelText(CELL)).toBeNull();
   });
 
   it("offers a viewer nothing to type in", async () => {

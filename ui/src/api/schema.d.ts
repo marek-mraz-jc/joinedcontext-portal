@@ -372,6 +372,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Notifications
+         * @description The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).
+         */
+        get: operations["list_notifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark A Notification Read
+         * @description Marks one of the caller's notifications read (API/01 §35). Another caller's is 404.
+         */
+        post: operations["read_notification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/openapi.json": {
         parameters: {
             query?: never;
@@ -2065,6 +2105,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List The Comments On An Entity
+         * @description The comments on one entity of the space, oldest first (API/01 §35).
+         */
+        get: operations["list_comments"];
+        put?: never;
+        /**
+         * Comment On An Entity
+         * @description Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §35). Changes no data.
+         */
+        post: operations["add_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/comments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove My Comment
+         * @description Removes one of the caller's own comments and the notifications it sent (API/01 §35). Another caller's comment is 404.
+         */
+        delete: operations["remove_comment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/live": {
         parameters: {
             query?: never;
@@ -3407,6 +3491,38 @@ export interface components {
              */
             text: string;
         };
+        /** @description One comment as stored. */
+        Comment: {
+            /** @description Who wrote it: their username, as the Portal knows them. */
+            author: string;
+            /** @description What the Portal shows for the author. */
+            authorName: string;
+            /** @description RFC 3339. */
+            createdAt: string;
+            /** Format: int64 */
+            id: number;
+            /** @description The people the comment notified, by identifier. */
+            mentions: string[];
+            text: string;
+            urn: string;
+        };
+        /** @description A comment to write. */
+        CommentRequest: {
+            /** @description 1 to 4,000 characters; `@identifier` mentions a person. */
+            text: string;
+            /** @description The entity's NGSI-LD URN. */
+            urn: string;
+        };
+        /** @description One comment as the caller reads it. */
+        CommentView: components["schemas"]["Comment"] & {
+            /** @description The caller wrote it, so they may remove it. */
+            mine: boolean;
+        };
+        /** @description A new comment, with the mentions that notified nobody. */
+        Commented: components["schemas"]["CommentView"] & {
+            /** @description Mentions of people who may not read the space: kept in the text, notified to nobody. */
+            unknownMentions: string[];
+        };
         /** @description What a workspace changes against its base, and where main changed the same files (API/01 §22). */
         Comparison: {
             conflicts: components["schemas"]["FileConflict"][];
@@ -4131,6 +4247,29 @@ export interface components {
          * @enum {string}
          */
         NodeHealth: "ok" | "degraded" | "unknown";
+        /** @description One notification of a mention. */
+        Notification: {
+            author: string;
+            authorName: string;
+            /** Format: int64 */
+            commentId: number;
+            /** @description RFC 3339. */
+            createdAt: string;
+            /** @description The first [`EXCERPT`] characters of the comment. */
+            excerpt: string;
+            /** Format: int64 */
+            id: number;
+            project: string;
+            read: boolean;
+            space: string;
+            urn: string;
+        };
+        /** @description The caller's notifications. */
+        Notifications: {
+            items: components["schemas"]["Notification"][];
+            /** Format: int64 */
+            unread: number;
+        };
         /**
          * ObjectMeta
          * @description Metadata envelope attached to every platform resource (MF-02).
@@ -5849,6 +5988,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    list_notifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's notifications */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Notifications"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The notifications are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    read_notification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The notification's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Read */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such notification of the caller's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The notifications are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };
@@ -11768,6 +12002,221 @@ export interface operations {
                 };
             };
             /** @description No key database configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_comments: {
+        parameters: {
+            query: {
+                /** @description The entity's NGSI-LD URN. */
+                urn: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The comments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentView"][];
+                };
+            };
+            /** @description Not an NGSI-LD URN */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The comments are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    add_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        /** @description The entity and the text. */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "text": "@demo.editor@hel.fi the count looks stale since Monday",
+                 *       "urn": "urn:ngsi-ld:BikeHireDockingStation:hel.fi:bikes:7"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CommentRequest"];
+            };
+        };
+        responses: {
+            /** @description The comment */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Commented"];
+                };
+            };
+            /** @description Not an NGSI-LD URN, or no text, or more than 4,000 characters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The entity holds the most comments it keeps */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The comments are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    remove_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The comment's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such comment of the caller's, or no such space */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The comments are not reachable */
             503: {
                 headers: {
                     [name: string]: unknown;

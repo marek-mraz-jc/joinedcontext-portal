@@ -4,7 +4,7 @@
  * drawn as cards, as a board or on a calendar. Nothing is copied out of the space: each view is a
  * renderer over one page of the type, and a click opens the row whole.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -73,6 +73,9 @@ export function imageOf(
   }
 }
 
+/** What the page adds under every row a view opens, such as its comments (T-3106). */
+export const RowExtra = createContext<((row: RichRow) => ReactNode) | null>(null);
+
 /** The whole row as attribute and value, opened from any view (T-3100). */
 export function RowDialog({
   row,
@@ -95,6 +98,7 @@ export function RowDialog({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
+  const extra = useContext(RowExtra);
   if (!row) return null;
   const attrs = Object.keys(row.cells).sort();
   return (
@@ -147,6 +151,7 @@ export function RowDialog({
         />
       ) : null}
       {children}
+      {extra?.(row)}
       {refused ? (
         <Alert role="alert" tone="danger">
           {refused}

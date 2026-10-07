@@ -504,7 +504,8 @@
         "valueTwice": "Niektorá možnosť je uvedená dvakrát.",
         "targetMissing": "Vyberte typ, na ktorý odkazuje.",
         "inverseInvalid": "Použite iba písmená, číslice a _ a iný názov než má pole.",
-        "inverseTaken": "Cieľový typ už má atribút s týmto názvom."
+        "inverseTaken": "Cieľový typ už má atribút s týmto názvom.",
+        "formulaInvalid": "Vzorec sa nedá vypočítať: {reason}"
       },
       "types": {
         "text": "Text",
@@ -519,7 +520,15 @@
         "email": "E-mail",
         "file": "Odkaz na súbor",
         "location": "Poloha",
-        "relationship": "Odkaz na iný typ"
+        "relationship": "Odkaz na iný typ",
+        "formula": "Vzorec"
+      },
+      "formula": {
+        "expression": "Vzorec",
+        "help": "Počíta sa z polí tejto entity každých päť minút a ukladá sa ako jej hodnota, napríklad {example}. Môžete použiť {slots}, čísla, text v úvodzovkách, + - * / %, porovnania, and, or, not, abs, round, min a max.",
+        "noEndpoint": "Žiadny endpoint tohto priestoru neodpovedá podľa všetkých politík priestoru, takže kanál vzorca nemá kde čítať a zapisovať. Najprv pridajte endpoint bez policyRef.",
+        "noAccount": "Tento projekt nemá servisný účet pipelines, ktorý spúšťa kanál vzorca. Najprv ho pridajte.",
+        "pipelineRefused": "Pole je navrhnuté, jeho kanál však nie: {reason}"
       }
     },
     "views": {
@@ -748,6 +757,53 @@
       "labelOf": "Názov poľa {attr}",
       "helpOf": "Pomoc k {attr}",
       "requiredOf": "{attr} povinné"
+    },
+    "import": {
+      "open": "Importovať riadky",
+      "title": "Import riadkov do {type}",
+      "lead": "Vyberte súbor CSV, Excel, JSON alebo XML, určte, ktorý stĺpec plní ktoré pole, a platné riadky sa vytvoria cez bránu pod vaším menom. Existujúca entita sa nikdy neprepíše.",
+      "choose": "Vybrať súbor",
+      "empty": "Súbor nemá pod hlavičkou žiadne riadky.",
+      "unreadable": "Súbor sa nedá prečítať: {reason}",
+      "read": "{name}: {rows, plural, one {# riadok} few {# riadky} other {# riadkov}}, {columns, plural, one {# stĺpec} few {# stĺpce} other {# stĺpcov}}.",
+      "mapping": "Ktoré pole plní každý stĺpec",
+      "column": "Stĺpec",
+      "field": "Pole",
+      "sample": "Prvé hodnoty",
+      "skip": "Neimportovať",
+      "id": "id (URN entity alebo jeho posledná časť)",
+      "required": "{name} (povinné)",
+      "missing": "Žiadny stĺpec neplní povinné {names}: každý riadok bude odmietnutý.",
+      "checked": "{valid, plural, one {# riadok je pripravený} few {# riadky sú pripravené} other {# riadkov je pripravených}}, {refused, plural, =0 {žiadny odmietnutý} one {# odmietnutý} few {# odmietnuté} other {# odmietnutých}}.",
+      "refusedList": "Riadky, ktoré sa nevytvoria",
+      "row": "Riadok {row}:",
+      "more": "a ďalších {count} v stiahnutom súbore",
+      "back": "Vybrať iný súbor",
+      "create": "{count, plural, =0 {Nie je čo vytvoriť} one {Vytvoriť # riadok} few {Vytvoriť # riadky} other {Vytvoriť # riadkov}}",
+      "writing": "Vytvorených {sent} z {total}…",
+      "done": "{created, plural, =0 {Nevytvoril sa žiadny riadok} one {Vytvorený # riadok} few {Vytvorené # riadky} other {Vytvorených # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} one {# odmietnutý.} few {# odmietnuté.} other {# odmietnutých.}}",
+      "downloadRefused": "Stiahnuť odmietnuté riadky (CSV)",
+      "close": "Zavrieť"
+    },
+    "export": {
+      "label": "Exportovať:",
+      "endpoint": "Exportovať cez",
+      "none": "Žiadny endpoint tohto priestoru neposkytuje CSV, Excel ani JSON, takže nie je cez čo exportovať.",
+      "format": {
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "json": "JSON"
+      }
+    },
+    "comments": {
+      "title": "Komentáre",
+      "none": "Zatiaľ žiadne komentáre.",
+      "label": "Pridať komentár",
+      "help": "Napíšte @ a identifikátor kolegu, napríklad @demo.editor@hel.fi, a dostane upozornenie. Upozornení sú len ľudia, ktorí môžu čítať tento priestor.",
+      "post": "Komentovať",
+      "remove": "Odstrániť",
+      "removeOne": "Odstrániť váš komentár z {when}",
+      "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}"
     }
   },
   "endpoints": {
@@ -5473,5 +5529,11 @@
       "offeredBy": "Ponúka: {members}"
     },
     "leadOrganization": "MCP servery organizácie: jedna adresa nad endpointmi viacerých projektov pre všetkých, ktorých publikum pripúšťa."
+  },
+  "notifications": {
+    "label": "{count, plural, =0 {Upozornenia} one {Upozornenia, # neprečítané} few {Upozornenia, # neprečítané} other {Upozornenia, # neprečítaných}}",
+    "title": "Upozornenia",
+    "none": "Nič nové.",
+    "mentioned": "{name} vás spomenul(a) v {space}"
   }
 }

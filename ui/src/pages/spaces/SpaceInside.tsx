@@ -46,6 +46,7 @@ import {
   GalleryView,
   KanbanView,
   LiveNotice,
+  RowExtra,
   TimelineView,
   TrashPanel,
   trashKey,
@@ -57,6 +58,10 @@ import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
 import { SharePanel } from "./PublicView";
+import { ExportLinks, ImportRowsDialog } from "./ImportRows";
+import { CommentsPanel } from "./Comments";
+import { importSlotsOf } from "./importRows";
+import { useOrgDomain } from "../../api/projects";
 import { FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
 import type { FormSettings } from "./formView";
 import { AiFieldPanel } from "./AiField";
@@ -373,7 +378,14 @@ function SpaceData({
     [modelSource, type],
   );
   const [adding, setAdding] = useState(false);
-  const [proposed, setProposed] = useState<Change | null>(null);
+  // Every Change the field dialog proposed: a formula field is two (DM-80).
+  const [proposed, setProposed] = useState<Change[]>([]);
+  // Import and export of the type (T-3109): rows created through the gateway with this session.
+  const orgDomain = useOrgDomain(project);
+  const importSlots = useMemo(() => importSlotsOf(modelSource, type), [modelSource, type]);
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState(0);
+  const queryClient = useQueryClient();
 
   // The saved view applied, and what of the grid a view keeps: the typed query and the order
   // (API/01 §30). The filter row's query arrives through `onQuery`.
@@ -514,10 +526,18 @@ function SpaceData({
             source={modelSource}
             type={type}
             open={adding}
-            onOpenChange={setAdding}
-            onProposed={setProposed}
+            onOpenChange={(next) => {
+              if (next) setProposed([]);
+              setAdding(next);
+            }}
+            onProposed={(change) => setProposed((before) => [...before, change])}
+            space={space}
+            endpoints={endpoints}
+            orgDomain={orgDomain}
           />
-          {proposed ? <ChangeNotice change={proposed} project={project} /> : null}
+          {proposed.map((change) => (
+            <ChangeNotice key={change.metadata.name} change={change} project={project} />
+          ))}
         </div>
       ) : null}
 
@@ -550,6 +570,32 @@ function SpaceData({
           value={view}
           onChange={setView}
         />
+      ) : null}
+      {probe.isSuccess && view !== "api" ? (
+        <div className="flex flex-wrap items-end gap-3">
+          {importSlots.length > 0 ? (
+            <Button variant="secondary" onClick={() => setImporting(true)}>
+              {t("spaces.import.open")}
+            </Button>
+          ) : null}
+          <ExportLinks
+            endpoints={endpoints}
+            type={type}
+            q={view === "grid" ? undefined : q}
+            attrs={slots.map((slot) => slot.name)}
+          />
+          <ImportRowsDialog
+            open={importing}
+            onOpenChange={setImporting}
+            target={{ type, orgDomain, space }}
+            slots={importSlots}
+            send={originTransport()}
+            onImported={() => {
+              setImported((n) => n + 1);
+              void queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
+            }}
+          />
+        </div>
       ) : null}
       {probe.isSuccess ? (
         <TrashPanel
@@ -638,8 +684,10 @@ function SpaceData({
       ) : null}
       {probe.isSuccess && config && view === "grid" ? (
         <PortalEntityGrid
-          // A view applied is a fresh grid: nothing typed under the last one carries over.
-          key={`${space}-${type}-${saved?.id ?? ""}`}
+          // A new key after an import, or a view applied, reads the type again: nothing typed under
+          // the last one carries over.
+          key={`${space}-${type}-${saved?.id ?? ""}-${imported}`}
+          detailExtra={(row) => <CommentsPanel project={project} space={space} urn={row.id} />}
           project={project}
           config={config}
           source={source}
@@ -717,14 +765,14 @@ function OtherView({
   }
   const shown = rows.data.rows;
   return (
-    <>
+    <RowExtra.Provider value={(row) => <CommentsPanel project={project} space={space} urn={row.id} />}>
       <LiveNotice change={live} />
       {view === "gallery" ? <GalleryView rows={shown} source={source} onDelete={onDelete} /> : null}
       {view === "kanban" ? <KanbanView rows={shown} source={source} enums={enums} onDelete={onDelete} /> : null}
       {view === "calendar" ? <CalendarView rows={shown} source={source} onDelete={onDelete} /> : null}
       {view === "timeline" ? <TimelineView rows={shown} source={source} onDelete={onDelete} /> : null}
       <AiFieldPanel space={space} type={type} endpoints={endpoints} rows={shown} />
-    </>
+    </RowExtra.Provider>
   );
 }
 

@@ -261,6 +261,25 @@ routes:
     rule: "space-read"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
     note: "the caller's own copy only; the fixture holds none, so a caller the rule allows meets 404 after the space check passed"
+  - route: GET /projects/{project}/spaces/{space}/comments
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    query: "urn=urn:ngsi-ld:AirQualityObserved:x:1"
+  - route: POST /projects/{project}/spaces/{space}/comments
+    rule: "space-read"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    body: {"urn": "urn:ngsi-ld:AirQualityObserved:x:1", "text": "a note"}
+  - route: DELETE /projects/{project}/spaces/{space}/comments/{id}
+    rule: "space-read"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the caller's own comment only; the fixture holds none, so a caller the rule allows meets 404 after the space check passed"
+  - route: GET /notifications
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /notifications/{id}/read
+    rule: "signed-in"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the caller's own notification only; the fixture holds none, so every signed-in caller meets 404"
   - route: GET /projects/{project}/knowledge/sources
     rule: "project-verb:read:KnowledgeSource"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

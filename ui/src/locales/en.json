@@ -504,7 +504,8 @@
         "valueTwice": "A choice is listed twice.",
         "targetMissing": "Pick the type it points to.",
         "inverseInvalid": "Use letters, digits and _ only, and a name other than the field's.",
-        "inverseTaken": "The target type already has an attribute of this name."
+        "inverseTaken": "The target type already has an attribute of this name.",
+        "formulaInvalid": "The formula cannot be computed: {reason}"
       },
       "types": {
         "text": "Text",
@@ -519,7 +520,15 @@
         "email": "E-mail",
         "file": "File link",
         "location": "Location",
-        "relationship": "Link to another type"
+        "relationship": "Link to another type",
+        "formula": "Formula"
+      },
+      "formula": {
+        "expression": "Formula",
+        "help": "Computed from this entity's slots, every five minutes, and stored as its value: for example {example}. You may use {slots}, numbers, quoted text, + - * / %, comparisons, and, or, not, abs, round, min and max.",
+        "noEndpoint": "No Endpoint of this space answers by every Policy of the space, so a formula's pipeline has nowhere to read and write. Add one without policyRef first.",
+        "noAccount": "This project has no pipelines ServiceAccount, which runs a formula's pipeline. Add it first.",
+        "pipelineRefused": "The field is proposed, but its pipeline was not: {reason}"
       }
     },
     "views": {
@@ -748,6 +757,53 @@
       "labelOf": "Label of {attr}",
       "helpOf": "Help for {attr}",
       "requiredOf": "{attr} required"
+    },
+    "import": {
+      "open": "Import rows",
+      "title": "Import rows into {type}",
+      "lead": "Choose a CSV, Excel, JSON or XML file, say which column feeds which field, and the valid rows are created through the gateway as you. An entity that already exists is never overwritten.",
+      "choose": "Choose a file",
+      "empty": "The file holds no rows under its header.",
+      "unreadable": "The file could not be read: {reason}",
+      "read": "{name}: {rows, plural, one {# row} other {# rows}}, {columns, plural, one {# column} other {# columns}}.",
+      "mapping": "Which field each column feeds",
+      "column": "Column",
+      "field": "Field",
+      "sample": "First values",
+      "skip": "Do not import",
+      "id": "id (the entity's URN or its last part)",
+      "required": "{name} (required)",
+      "missing": "No column feeds the required {names}: every row will be refused.",
+      "checked": "{valid, plural, one {# row is ready} other {# rows are ready}}, {refused, plural, =0 {none refused} one {# refused} other {# refused}}.",
+      "refusedList": "Rows that will not be created",
+      "row": "Row {row}:",
+      "more": "and {count} more in the download",
+      "back": "Choose another file",
+      "create": "{count, plural, =0 {Nothing to create} one {Create # row} other {Create # rows}}",
+      "writing": "Created {sent} of {total}…",
+      "done": "{created, plural, =0 {No row was created} one {# row created} other {# rows created}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
+      "downloadRefused": "Download the refused rows (CSV)",
+      "close": "Close"
+    },
+    "export": {
+      "label": "Export:",
+      "endpoint": "Export through",
+      "none": "No Endpoint of this space serves CSV, Excel or JSON, so there is nothing to export through.",
+      "format": {
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "json": "JSON"
+      }
+    },
+    "comments": {
+      "title": "Comments",
+      "none": "No comments yet.",
+      "label": "Add a comment",
+      "help": "Write @ and a colleague's identifier, such as @demo.editor@hel.fi, to notify them. Only people who may read this space are notified.",
+      "post": "Comment",
+      "remove": "Remove",
+      "removeOne": "Remove your comment of {when}",
+      "unknown": "Not notified, because they may not read this space: {names}"
     }
   },
   "endpoints": {
@@ -5473,5 +5529,11 @@
       "offeredBy": "Offered by: {members}"
     },
     "leadOrganization": "The organization's MCP servers: one address over Endpoints of several projects, for everyone the audience admits."
+  },
+  "notifications": {
+    "label": "{count, plural, =0 {Notifications} one {Notifications, # unread} other {Notifications, # unread}}",
+    "title": "Notifications",
+    "none": "Nothing new.",
+    "mentioned": "{name} mentioned you in {space}"
   }
 }

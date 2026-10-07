@@ -504,7 +504,8 @@
         "valueTwice": "Ein Auswahlwert steht doppelt in der Liste.",
         "targetMissing": "Wählen Sie den Typ, auf den verwiesen wird.",
         "inverseInvalid": "Nur Buchstaben, Ziffern und _, und ein anderer Name als der des Feldes.",
-        "inverseTaken": "Der Zieltyp hat bereits ein Attribut mit diesem Namen."
+        "inverseTaken": "Der Zieltyp hat bereits ein Attribut mit diesem Namen.",
+        "formulaInvalid": "Die Formel lässt sich nicht berechnen: {reason}"
       },
       "types": {
         "text": "Text",
@@ -519,7 +520,15 @@
         "email": "E-Mail",
         "file": "Dateilink",
         "location": "Standort",
-        "relationship": "Verweis auf einen anderen Typ"
+        "relationship": "Verweis auf einen anderen Typ",
+        "formula": "Formel"
+      },
+      "formula": {
+        "expression": "Formel",
+        "help": "Wird alle fünf Minuten aus den Feldern dieser Entität berechnet und als ihr Wert gespeichert, etwa {example}. Erlaubt sind {slots}, Zahlen, Text in Anführungszeichen, + - * / %, Vergleiche, and, or, not, abs, round, min und max.",
+        "noEndpoint": "Kein Endpoint dieses Raums antwortet nach allen Policies des Raums, daher hat die Pipeline einer Formel keinen Ort zum Lesen und Schreiben. Legen Sie zuerst einen ohne policyRef an.",
+        "noAccount": "Dieses Projekt hat kein ServiceAccount pipelines, das die Pipeline einer Formel ausführt. Legen Sie es zuerst an.",
+        "pipelineRefused": "Das Feld ist vorgeschlagen, seine Pipeline aber nicht: {reason}"
       }
     },
     "views": {
@@ -748,6 +757,53 @@
       "labelOf": "Beschriftung von {attr}",
       "helpOf": "Hilfe zu {attr}",
       "requiredOf": "{attr} Pflicht"
+    },
+    "import": {
+      "open": "Zeilen importieren",
+      "title": "Zeilen in {type} importieren",
+      "lead": "Wählen Sie eine CSV-, Excel-, JSON- oder XML-Datei, legen Sie fest, welche Spalte welches Feld füllt, und die gültigen Zeilen werden in Ihrem Namen über das Gateway angelegt. Eine vorhandene Entität wird nie überschrieben.",
+      "choose": "Datei wählen",
+      "empty": "Die Datei enthält unter ihrer Kopfzeile keine Zeilen.",
+      "unreadable": "Die Datei lässt sich nicht lesen: {reason}",
+      "read": "{name}: {rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}}.",
+      "mapping": "Welches Feld jede Spalte füllt",
+      "column": "Spalte",
+      "field": "Feld",
+      "sample": "Erste Werte",
+      "skip": "Nicht importieren",
+      "id": "id (die URN der Entität oder ihr letzter Teil)",
+      "required": "{name} (Pflicht)",
+      "missing": "Keine Spalte füllt die Pflichtfelder {names}: jede Zeile wird abgelehnt.",
+      "checked": "{valid, plural, one {# Zeile ist bereit} other {# Zeilen sind bereit}}, {refused, plural, =0 {keine abgelehnt} one {# abgelehnt} other {# abgelehnt}}.",
+      "refusedList": "Zeilen, die nicht angelegt werden",
+      "row": "Zeile {row}:",
+      "more": "und {count} weitere in der Datei zum Herunterladen",
+      "back": "Andere Datei wählen",
+      "create": "{count, plural, =0 {Nichts anzulegen} one {# Zeile anlegen} other {# Zeilen anlegen}}",
+      "writing": "{sent} von {total} angelegt…",
+      "done": "{created, plural, =0 {Keine Zeile angelegt} one {# Zeile angelegt} other {# Zeilen angelegt}}, {refused, plural, =0 {keine abgelehnt.} one {# abgelehnt.} other {# abgelehnt.}}",
+      "downloadRefused": "Abgelehnte Zeilen herunterladen (CSV)",
+      "close": "Schließen"
+    },
+    "export": {
+      "label": "Exportieren:",
+      "endpoint": "Exportieren über",
+      "none": "Kein Endpoint dieses Raums liefert CSV, Excel oder JSON, daher gibt es nichts, worüber exportiert werden kann.",
+      "format": {
+        "csv": "CSV",
+        "xlsx": "Excel",
+        "json": "JSON"
+      }
+    },
+    "comments": {
+      "title": "Kommentare",
+      "none": "Noch keine Kommentare.",
+      "label": "Kommentar hinzufügen",
+      "help": "Schreiben Sie @ und die Kennung einer Kollegin oder eines Kollegen, etwa @demo.editor@hel.fi, um sie zu benachrichtigen. Benachrichtigt wird nur, wer diesen Raum lesen darf.",
+      "post": "Kommentieren",
+      "remove": "Entfernen",
+      "removeOne": "Ihren Kommentar vom {when} entfernen",
+      "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}"
     }
   },
   "endpoints": {
@@ -5473,5 +5529,11 @@
       "offeredBy": "Angeboten von: {members}"
     },
     "leadOrganization": "Die MCP-Server der Organisation: eine Adresse über Endpoints mehrerer Projekte, für alle, die die Zielgruppe zulässt."
+  },
+  "notifications": {
+    "label": "{count, plural, =0 {Benachrichtigungen} one {Benachrichtigungen, # ungelesen} other {Benachrichtigungen, # ungelesen}}",
+    "title": "Benachrichtigungen",
+    "none": "Nichts Neues.",
+    "mentioned": "{name} hat Sie in {space} erwähnt"
   }
 }

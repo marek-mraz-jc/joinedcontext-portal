@@ -1,0 +1,398 @@
+//! Comments on a space's entities with `@mentions`, and the caller's notifications (API/01 §35,
+//! ADR-N-042 §3.1, T-3106). Commenting needs a read of the space and changes no data; a mention
+//! notifies only a person a binding in force lets read the space.
+
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::routing::{delete, get, post};
+use axum::{Json, Router};
+use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
+
+use crate::api::entity_trash::readable;
+use crate::auth::CurrentUser;
+use crate::entity_comments::{Author, Comment, NewComment, Notification, MAX_TEXT};
+use crate::error::ApiError;
+use crate::state::AppState;
+
+/// One comment as the caller reads it.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentView {
+    #[serde(flatten)]
+    pub comment: Comment,
+    /// The caller wrote it, so they may remove it.
+    pub mine: bool,
+}
+
+/// A new comment, with the mentions that notified nobody.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Commented {
+    #[serde(flatten)]
+    pub comment: CommentView,
+    /// Mentions of people who may not read the space: kept in the text, notified to nobody.
+    pub unknown_mentions: Vec<String>,
+}
+
+/// The caller's notifications.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Notifications {
+    pub items: Vec<Notification>,
+    pub unread: i64,
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(deny_unknown_fields)]
+pub struct EntityQuery {
+    /// The entity's NGSI-LD URN.
+    pub urn: String,
+}
+
+/// A comment to write.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CommentRequest {
+    /// The entity's NGSI-LD URN.
+    pub urn: String,
+    /// 1 to 4,000 characters; `@identifier` mentions a person.
+    pub text: String,
+}
+
+fn stored(err: sqlx::Error) -> ApiError {
+    tracing::warn!(error = %err, "entity comments not reachable");
+    ApiError::Unavailable("the comments could not be read or written".into())
+}
+
+/// An NGSI-LD URN (PF-43): `urn:ngsi-ld:{Type}:` and an id, no whitespace, at most 1 KiB.
+fn urn_of(urn: &str) -> Result<&str, ApiError> {
+    let rest = urn.strip_prefix("urn:ngsi-ld:").unwrap_or_default();
+    let ok = urn.len() <= 1024
+        && rest
+            .split_once(':')
+            .is_some_and(|(kind, id)| !kind.is_empty() && !id.is_empty())
+        && !urn.chars().any(|c| c.is_whitespace() || c.is_control());
+    if ok {
+        Ok(urn)
+    } else {
+        Err(ApiError::BadRequest(
+            "urn must be an NGSI-LD URN, urn:ngsi-ld:{Type}:{id} (PF-43)".into(),
+        ))
+    }
+}
+
+/// The identifiers a text mentions, lower case, each once, in order: `@` at the start or after a
+/// character that is not part of a word, then the identifier's characters, without a trailing
+/// full stop or comma. An e-mail address written inside a sentence (`a@b.org`) is no mention.
+pub fn mentions_in(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut found: Vec<String> = Vec::new();
+    let part =
+        |c: char| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '%' | '+' | '-' | '@');
+    let mut at = 0;
+    while at < chars.len() {
+        let starts = chars[at] == '@'
+            && (at == 0 || !(chars[at - 1].is_alphanumeric() || chars[at - 1] == '_'));
+        if !starts {
+            at += 1;
+            continue;
+        }
+        let mut end = at + 1;
+        while end < chars.len() && part(chars[end]) {
+            end += 1;
+        }
+        let token: String = chars[at + 1..end].iter().collect();
+        let token = token.trim_end_matches(['.', '-', '@']).to_ascii_lowercase();
+        if !token.is_empty() && token.len() <= 256 && !found.contains(&token) {
+            found.push(token);
+        }
+        at = end;
+    }
+    found
+}
+
+/// The identifiers a notification for the caller may be addressed to: their username and their
+/// e-mail, lower case.
+fn recipients(user: &CurrentUser) -> Vec<String> {
+    let identity = &user.0.identity;
+    let mut ids = vec![identity.username.to_ascii_lowercase()];
+    if let Some(email) = identity.email.as_deref() {
+        let email = email.to_ascii_lowercase();
+        if !ids.contains(&email) {
+            ids.push(email);
+        }
+    }
+    ids
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/spaces/{space}/comments",
+    summary = "List The Comments On An Entity",
+    description = "The comments on one entity of the space, oldest first (API/01 §35).",
+    tag = "spaces",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("space" = String, Path, description = "Context Space name"),
+        EntityQuery,
+    ),
+    responses(
+        (status = 200, description = "The comments", body = [CommentView]),
+        (status = 400, description = "Not an NGSI-LD URN", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
+        (status = 503, description = "The comments are not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn list_comments(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, space)): Path<(String, String)>,
+    Query(query): Query<EntityQuery>,
+) -> Result<Json<Vec<CommentView>>, ApiError> {
+    readable(&state, &user, &project, &space)?;
+    let urn = urn_of(&query.urn)?;
+    let me = user.0.identity.username.as_str();
+    let comments = state
+        .comments
+        .list(&project, &space, urn)
+        .await
+        .map_err(stored)?;
+    Ok(Json(
+        comments
+            .into_iter()
+            .map(|comment| CommentView {
+                mine: comment.author == me,
+                comment,
+            })
+            .collect(),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/spaces/{space}/comments",
+    summary = "Comment On An Entity",
+    description = "Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §35). Changes no data.",
+    tag = "spaces",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("space" = String, Path, description = "Context Space name"),
+    ),
+    request_body(
+        content = CommentRequest,
+        description = "The entity and the text.",
+        content_type = "application/json",
+        example = json!({
+            "urn": "urn:ngsi-ld:BikeHireDockingStation:hel.fi:bikes:7",
+            "text": "@demo.editor@hel.fi the count looks stale since Monday"
+        })
+    ),
+    responses(
+        (status = 201, description = "The comment", body = Commented),
+        (status = 400, description = "Not an NGSI-LD URN, or no text, or more than 4,000 characters", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
+        (status = 409, description = "The entity holds the most comments it keeps", body = crate::error::ProblemDetails),
+        (status = 503, description = "The comments are not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn add_comment(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, space)): Path<(String, String)>,
+    Json(request): Json<CommentRequest>,
+) -> Result<(StatusCode, Json<Commented>), ApiError> {
+    readable(&state, &user, &project, &space)?;
+    let urn = urn_of(&request.urn)?;
+    let text = request.text.trim();
+    let length = text.chars().count();
+    if length == 0 || length > MAX_TEXT {
+        return Err(ApiError::BadRequest(format!(
+            "text must be 1 to {MAX_TEXT} characters; it is {length}"
+        )));
+    }
+    let identity = &user.0.identity;
+    let now = chrono::Utc::now();
+    let me = recipients(&user);
+    let (notified, unknown): (Vec<String>, Vec<String>) = mentions_in(text)
+        .into_iter()
+        .filter(|person| !me.contains(person))
+        .partition(|person| {
+            crate::permissions::may_read_space(&state.mirror, &project, &space, person, now)
+        });
+    let name = identity
+        .name
+        .as_deref()
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or(&identity.username);
+    let comment = state
+        .comments
+        .add(
+            Author {
+                id: &identity.username,
+                name,
+            },
+            NewComment {
+                project: &project,
+                space: &space,
+                urn,
+                text,
+                mentions: &notified,
+            },
+        )
+        .await
+        .map_err(stored)?
+        .ok_or_else(|| {
+            ApiError::Conflict(format!(
+                "this entity holds the most comments it keeps ({})",
+                crate::entity_comments::MAX_PER_ENTITY
+            ))
+        })?;
+    Ok((
+        StatusCode::CREATED,
+        Json(Commented {
+            comment: CommentView {
+                comment,
+                mine: true,
+            },
+            unknown_mentions: unknown,
+        }),
+    ))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/projects/{project}/spaces/{space}/comments/{id}",
+    summary = "Remove My Comment",
+    description = "Removes one of the caller's own comments and the notifications it sent (API/01 §35). Another caller's comment is 404.",
+    tag = "spaces",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("space" = String, Path, description = "Context Space name"),
+        ("id" = i64, Path, description = "The comment's id"),
+    ),
+    responses(
+        (status = 204, description = "Removed"),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such comment of the caller's, or no such space", body = crate::error::ProblemDetails),
+        (status = 503, description = "The comments are not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn remove_comment(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, space, id)): Path<(String, String, i64)>,
+) -> Result<StatusCode, ApiError> {
+    readable(&state, &user, &project, &space)?;
+    if state
+        .comments
+        .remove(&project, &space, &user.0.identity.username, id)
+        .await
+        .map_err(stored)?
+    {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound(format!("no comment {id} of yours here")))
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/notifications",
+    summary = "List My Notifications",
+    description = "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).",
+    tag = "auth",
+    responses(
+        (status = 200, description = "The caller's notifications", body = Notifications),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 503, description = "The notifications are not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn list_notifications(
+    user: CurrentUser,
+    State(state): State<AppState>,
+) -> Result<Json<Notifications>, ApiError> {
+    let (items, unread) = state
+        .comments
+        .notifications(&recipients(&user))
+        .await
+        .map_err(stored)?;
+    Ok(Json(Notifications { items, unread }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/notifications/{id}/read",
+    summary = "Mark A Notification Read",
+    description = "Marks one of the caller's notifications read (API/01 §35). Another caller's is 404.",
+    tag = "auth",
+    params(("id" = i64, Path, description = "The notification's id")),
+    responses(
+        (status = 204, description = "Read"),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such notification of the caller's", body = crate::error::ProblemDetails),
+        (status = 503, description = "The notifications are not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn read_notification(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, ApiError> {
+    if state
+        .comments
+        .mark_read(&recipients(&user), id)
+        .await
+        .map_err(stored)?
+    {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound(format!("no notification {id} of yours")))
+    }
+}
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/projects/{project}/spaces/{space}/comments",
+            get(list_comments).post(add_comment),
+        )
+        .route(
+            "/projects/{project}/spaces/{space}/comments/{id}",
+            delete(remove_comment),
+        )
+        .route("/notifications", get(list_notifications))
+        .route("/notifications/{id}/read", post(read_notification))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_mention_is_an_at_sign_after_no_word_and_an_address_inside_a_word_is_none() {
+        assert_eq!(
+            mentions_in(
+                "@Demo.Editor@hel.fi, see this. Also (@ana) and @ana again; mail x@y.org or @."
+            ),
+            vec!["demo.editor@hel.fi", "ana"]
+        );
+        assert!(mentions_in("no one here").is_empty());
+        assert_eq!(mentions_in("end with @bob."), vec!["bob"]);
+    }
+
+    #[test]
+    fn only_an_ngsi_ld_urn_names_an_entity() {
+        assert!(urn_of("urn:ngsi-ld:Station:hel.fi:bikes:7").is_ok());
+        for bad in [
+            "urn:ngsi-ld:Station",
+            "urn:ngsi-ld::7",
+            "station 7",
+            "urn:ngsi-ld:Station:a b",
+        ] {
+            assert!(urn_of(bad).is_err(), "{bad}");
+        }
+    }
+}

@@ -283,6 +283,28 @@ describe("EntityGrid", () => {
     expect(screen.getByDisplayValue("4")).toBeInTheDocument();
   });
 
+  // T-3106: the host adds what belongs under a row, such as its comments, to the panel.
+  it("draws what the host adds under the opened row's attributes", async () => {
+    const config = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [{ attr: "name", label: "Name" }],
+      pageSize: 10,
+    }).config!;
+    render(
+      <EntityGrid
+        config={config}
+        source={fixtureSource(bikeEntities)}
+        detailExtra={(row) => <p>{`notes on ${row.id}`}</p>}
+      />,
+    );
+    await screen.findByText("Kamppi");
+    expect(screen.queryByText(/^notes on/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open: Kamppi" }));
+    const panel = screen.getByRole("complementary", { name: "Details: Kamppi" });
+    expect(panel).toHaveTextContent(/notes on urn:ngsi-ld:BikeHireDockingStation:/);
+  });
+
   // T-3097, ADR-N-042: a pinned column is the primary field. It takes the identifier's place as the
   // first column, its value opens the row (the id on hover and in the panel), and in the panel it is
   // edited like any other attribute.
