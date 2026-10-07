@@ -525,6 +525,14 @@ async fn infer_from_url(
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err(invalid("give an http or https address".into()));
     }
+    // The address reaches the runner and its logs: a credential in it would sit there in the clear
+    // (T-3250). A source that needs one is a DataSource with a secretRef; the message never repeats
+    // the address.
+    if credential_in_address(&parsed) {
+        return Err(invalid(
+            "the address carries a user name, a password or a key; give one without, or connect it as a data source whose credential is a secret".into(),
+        ));
+    }
     crate::permissions::for_request(state, identity, project).check(
         "DataSource",
         Verb::Propose,
@@ -550,4 +558,30 @@ async fn infer_from_url(
         .map_or(whole, crate::ops::feed_shape::Records::inference_sample)
         .to_string();
     Ok(model_tools::infer_schema_from_bytes(state, name, sample.as_bytes(), Some("json")).await?)
+}
+
+/// Whether an address carries a credential: a user name or password before the host, or a query
+/// parameter named like one (`token`, `apiKey`, `key`, `sig`, …) or holding a credential-shaped
+/// value.
+fn credential_in_address(url: &url::Url) -> bool {
+    const ALSO: [&str; 6] = ["key", "apikey", "sig", "signature", "auth", "credential"];
+    let named = |name: &str| {
+        let bare: String = name
+            .chars()
+            .filter(|c| *c != '_' && *c != '-')
+            .collect::<String>()
+            .to_ascii_lowercase();
+        ALSO.contains(&bare.as_str())
+            || crate::api::mutate::SECRET_KEYS.iter().any(|key| {
+                key.chars()
+                    .filter(|c| *c != '_')
+                    .collect::<String>()
+                    .eq_ignore_ascii_case(&bare)
+            })
+    };
+    !url.username().is_empty()
+        || url.password().is_some()
+        || url.query_pairs().any(|(name, value)| {
+            named(&name) || crate::pipeline_outcomes::credential_shaped(&value)
+        })
 }

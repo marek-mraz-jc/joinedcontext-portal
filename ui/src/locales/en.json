@@ -2471,7 +2471,8 @@
       "url": "Or the address of an API that answers JSON",
       "urlHelp": "Read once by the project's runner, as a data source check reads it; the model is drawn from the records it answers.",
       "readUrl": "Read the address",
-      "urlInvalid": "Give a full address starting with https:// or http://."
+      "urlInvalid": "Give a full address starting with https:// or http://.",
+      "urlCredential": "The address carries a user name, a password or a key. Give one without, or connect the source as a data source whose credential is a secret."
     },
     "classParent": "The class it specialises",
     "classParentNone": "None",

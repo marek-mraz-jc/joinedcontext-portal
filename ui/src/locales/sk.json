@@ -2456,7 +2456,8 @@
       "url": "Alebo adresa API, ktoré odpovedá v JSON",
       "urlHelp": "Raz ju prečíta runner projektu, ako ju číta overenie zdroja dát; model sa odvodí zo záznamov, ktoré vráti.",
       "readUrl": "Prečítať adresu",
-      "urlInvalid": "Zadajte celú adresu začínajúcu na https:// alebo http://."
+      "urlInvalid": "Zadajte celú adresu začínajúcu na https:// alebo http://.",
+      "urlCredential": "Adresa obsahuje meno, heslo alebo kľúč. Zadajte ju bez nich, alebo zdroj pripojte ako zdroj dát, ktorého prihlasovací údaj je secret."
     },
     "source": {
       "loading": "Načítava sa zdroj modelu…",
