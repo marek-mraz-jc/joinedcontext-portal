@@ -76,7 +76,7 @@ const ADMIN_GRANTS = {
       role: "org-admin",
       binding: "admins",
       scope: "organization",
-      rule: { kinds: ["Role", "RoleBinding", "CkanInstance", "Endpoint"], verbs: ["read", "propose", "approve", "delete"] },
+      rule: { kinds: ["Role", "RoleBinding", "Group", "CkanInstance", "Endpoint"], verbs: ["read", "propose", "approve", "delete"] },
     },
   ],
 };

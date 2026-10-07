@@ -103,7 +103,7 @@ const APPS = list([
       description: { en: "Stations coloured by PM10" },
     },
     spec: {
-      kind: "static",
+      kind: "ui",
       visibility: "project",
       lifecycle: "preview",
       embeddable: true,
