@@ -1387,6 +1387,38 @@
         },
         "assistant": "jc_resource_propose"
       }
+    },
+    "knowledge": {
+      "leave-out": {
+        "live": {
+          "spec": "knowledge.spec.ts",
+          "test": "taking back a page already in the answers changes nothing, and a viewer may not leave one out"
+        },
+        "personOnly": "leaving a page or a document out of every answer is an administrator's judgement of what the city's assistant may cite; an agent would decide that for them (AG-11, AG-113)",
+        "routes": [
+          "POST /api/v1/projects/{project}/knowledge/sources/{source}/inclusion"
+        ]
+      },
+      "recrawl": {
+        "live": {
+          "spec": "knowledge.spec.ts",
+          "test": "a viewer may not queue a crawl, and a steward's crawl now is queued once"
+        },
+        "personOnly": "a crawl now reaches out to a city's website ahead of its schedule; the administrator who changed the site decides when, not an agent (AG-113)",
+        "routes": [
+          "POST /api/v1/projects/{project}/knowledge/sources/{source}/recrawl"
+        ]
+      },
+      "ask": {
+        "live": {
+          "spec": "knowledge.spec.ts",
+          "test": "a question outside the contract and an unknown assistant are refused before anything is spent"
+        },
+        "personOnly": "the assistant reads as the signed-in person with their own token (AG-115); an agent holds no person's token to pass on, so it never asks on someone's behalf",
+        "routes": [
+          "POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat"
+        ]
+      }
     }
   },
   "unclaimed": {
