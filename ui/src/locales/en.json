@@ -147,7 +147,14 @@
     "dropOne": "Drop a file here or choose one",
     "dropMany": "Drop files here or choose them",
     "chosenFiles": "Chosen: {names}",
-    "advancedModeHint": "Also shows the fields most manifests leave at their defaults; the choice is remembered for you."
+    "advancedModeHint": "Also shows the fields most manifests leave at their defaults; the choice is remembered for you.",
+    "gitUrl": "A clone address starting with https://, ssh:// or git@, such as https://git.example.org/city/config.git.",
+    "httpsUrl": "A full address starting with https://.",
+    "interval": "A whole number and a unit: s, m, h or d, such as 30m or 6h.",
+    "entityUrn": "An entity id: urn:ngsi-ld: then its type and name, such as urn:ngsi-ld:Vehicle:bus-12.",
+    "notificationUri": "A full address starting with http:// or https://, with no user name or password in it.",
+    "instant": "A date and time with its zone, such as 2026-12-31T23:59:00Z.",
+    "headerName": "A header name of letters, digits and hyphens. Authorization, Cookie and Proxy-Authorization are refused: put a credential in Credential instead."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -3890,7 +3897,9 @@
       "submit": "Start the copy",
       "titleField": "Title",
       "titleHint": "Optional; shown instead of the name.",
-      "denied": "Your role may not propose anything in this project, so it cannot open a copy."
+      "denied": "Your role may not propose anything in this project, so it cannot open a copy.",
+      "ttlHint": "When the time is up, the copy and whatever it holds that was not brought back are deleted. The project is never touched.",
+      "nameTaken": "A copy named {name} exists already. Choose another name."
     },
     "bar": {
       "label": "Copy",
