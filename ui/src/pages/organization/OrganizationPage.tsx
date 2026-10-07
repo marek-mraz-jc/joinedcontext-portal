@@ -3,7 +3,8 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap } from "../../api/client";
+import { PageFailed } from "../../components/ui/PageState";
 import { asManifests, localized, ORG_NAMESPACE } from "../../api/manifest";
 import { mayRead, useAdministers, usePermissions } from "../../api/permissions";
 import { useProjects } from "../../api/projects";
@@ -190,12 +191,19 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
         </div>
         <ImportProjectDialog open={importing} onOpenChange={setImporting} />
       </div>
+      {/* The titles and the people counts come from their own reads: a count that could not be
+          read is not shown as zero without saying so (T-3300). */}
+      {!projects.isError && (manifests.isError || bindings.isError) ? (
+        <PageFailed
+          error={manifests.error ?? bindings.error}
+          onRetry={() => {
+            if (manifests.isError) void manifests.refetch();
+            if (bindings.isError) void bindings.refetch();
+          }}
+        />
+      ) : null}
       {projects.isError ? (
-        <Alert tone="danger" role="alert">
-          {projects.error instanceof ApiError
-            ? (projects.error.problem?.detail ?? projects.error.message)
-            : t("app.error.generic")}
-        </Alert>
+        <PageFailed error={projects.error} onRetry={() => void projects.refetch()} />
       ) : (
         <Table
           data-records=""

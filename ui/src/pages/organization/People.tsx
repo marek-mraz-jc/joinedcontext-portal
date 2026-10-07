@@ -31,7 +31,7 @@ import {
   TableRow,
   TableSkeleton,
 } from "../../components/ui";
-import { ResourcePageFailed } from "../../components/ui/PageState";
+import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/RolesAndMembers";
 
@@ -393,9 +393,7 @@ export function People(): JSX.Element {
           </form>
 
           {people.error ? (
-            <Alert tone="danger" role="alert">
-              {reasonOf(people.error, t("app.error.generic"))}
-            </Alert>
+            <PageFailed error={people.error} onRetry={() => void people.refetch()} />
           ) : (
             <Table
               data-records=""
