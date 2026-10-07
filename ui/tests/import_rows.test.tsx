@@ -12,6 +12,10 @@ import { ExportLinks, ImportRowsDialog } from "../src/pages/spaces/ImportRows";
 import {
   BATCH,
   createInBatches,
+  decodeText,
+  detectedOf,
+  isoDateOf,
+  numberOf,
   exportUrl,
   importSlotsOf,
   parseCsv,
@@ -154,6 +158,54 @@ describe("reading a file", () => {
 
   it("refuses a file of another kind by name", async () => {
     await expect(readTable(new File(["x"], "rows.pdf"))).rejects.toThrow("CSV, Excel");
+  });
+});
+
+describe("a Slovak file (T-3248)", () => {
+  it("reads numbers with a decimal comma and a space or dot between thousands", () => {
+    expect(numberOf("4,5")).toBe(4.5);
+    expect(numberOf("1 234,5")).toBe(1234.5);
+    expect(numberOf("1\u00a0234,5")).toBe(1234.5);
+    expect(numberOf("1.234,5")).toBe(1234.5);
+    expect(numberOf("1,234.5")).toBe(1234.5);
+    expect(numberOf("-0,25")).toBe(-0.25);
+    expect(numberOf("12")).toBe(12);
+    expect(numberOf("")).toBeNaN();
+    expect(numberOf("veľa")).toBeNaN();
+  });
+
+  it("reads a day.month.year date, with or without the time and the spaces", () => {
+    expect(isoDateOf("7.10.2026")).toBe("2026-10-07");
+    expect(isoDateOf("07. 10. 2026 8:05")).toBe("2026-10-07T08:05:00");
+    expect(isoDateOf("7.10.2026 14:30:15")).toBe("2026-10-07T14:30:15");
+    expect(isoDateOf("2026-10-07")).toBe("2026-10-07");
+  });
+
+  it("decodes Windows-1250 when the bytes are not UTF-8, and UTF-8 when they are", () => {
+    // "Žilina" in Windows-1250: Ž is 0x8E.
+    expect(decodeText(new Uint8Array([0x8e, 0x69, 0x6c, 0x69, 0x6e, 0x61]))).toEqual({ text: "Žilina", encoding: "windows-1250" });
+    expect(decodeText(new TextEncoder().encode("Žilina"))).toEqual({ text: "Žilina", encoding: "utf-8" });
+  });
+
+  it("detects the decimal comma and the date format, and shows them", async () => {
+    const table = parseCsv("názov;bicykle;videné\nNámestie SNP;1 204,5;7.10.2026 8:00\n");
+    expect(detectedOf(table)).toEqual({ decimalComma: true, dateFormat: "d.m.yyyy" });
+    const file = new File([new Uint8Array([0x6e, 0x3b, 0x62, 0x0a, 0x8e, 0x3b, 0x34, 0x2c, 0x35, 0x0a])], "s.csv");
+    const read = await readTable(file);
+    expect(read.rows).toEqual([{ n: "Ž", b: "4,5" }]);
+    expect(read.detected).toEqual({ encoding: "windows-1250", separator: ";", decimalComma: true, dateFormat: undefined });
+  });
+
+  it("loads a Slovak row: decimal comma, day.month.year and a semicolon", () => {
+    const table = parseCsv("id;názov;bicykle;videné\ns1;Námestie SNP;4;7.10.2026 8:00\n");
+    const mapping = { id: "id", "názov": "name", bicykle: "availableBikeNumber", "videné": "dateObserved" };
+    const { entities, rejected } = toEntities(table, mapping, SLOTS, TARGET);
+    expect(rejected).toEqual([]);
+    expect(entities[0].entity).toMatchObject({
+      name: { value: "Námestie SNP" },
+      availableBikeNumber: { value: 4 },
+      dateObserved: { value: new Date("2026-10-07T08:00:00").toISOString() },
+    });
   });
 });
 
@@ -318,6 +370,22 @@ describe("the import dialog", () => {
     expect(String(created.id)).toMatch(/^urn:ngsi-ld:BikeHireDockingStation:hel\.fi:helsinki:/);
     expect(onImported).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Download the refused rows (CSV)" })).toBeInTheDocument();
+  });
+
+  it("shows how the file was read and previews its first rows (T-3248)", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ImportRowsDialog open onOpenChange={() => {}} target={TARGET} slots={SLOTS} send={vi.fn<Send>()} onImported={() => {}} />
+      </I18nextProvider>,
+    );
+    await user.upload(screen.getByLabelText("Choose a file"), new File(["Title;bikes\nKamppi;4,5\n"], "stations.csv"));
+    expect(await screen.findByTestId("import-detected")).toHaveTextContent(
+      "Encoding UTF-8 · separated by semicolons · decimal comma",
+    );
+    await user.click(screen.getByText("Preview the first 1 row"));
+    const preview = screen.getByRole("table", { name: "The file's first rows as read" });
+    expect(within(preview).getByText("Kamppi")).toBeInTheDocument();
   });
 
   it("says why a file cannot be read and stays on the first step", async () => {

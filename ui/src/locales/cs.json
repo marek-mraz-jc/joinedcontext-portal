@@ -843,7 +843,20 @@
       "writing": "Vytvořeno {sent} z {total}…",
       "done": "{created, plural, =0 {Nevytvořil se žádný řádek} one {Vytvořen # řádek} few {Vytvořeny # řádky} other {Vytvořeno # řádků}}, {refused, plural, =0 {žádný odmítnut.} one {# odmítnut.} few {# odmítnuty.} other {# odmítnuto.}}",
       "downloadRefused": "Stáhnout odmítnuté řádky (CSV)",
-      "close": "Zavřít"
+      "close": "Zavřít",
+      "preview": "Ukázka {count, plural, one {prvního # řádku} other {prvních # řádků}}",
+      "previewCaption": "První řádky souboru tak, jak byly přečteny",
+      "detected": {
+        "encoding": "Kódování {encoding}",
+        "separator": {
+          "comma": "odděleno čárkami",
+          "semicolon": "odděleno středníky",
+          "tab": "odděleno tabulátory"
+        },
+        "decimalComma": "desetinná čárka",
+        "decimalPoint": "desetinná tečka",
+        "dates": "data jako {format}"
+      }
     },
     "export": {
       "label": "Exportovat:",
