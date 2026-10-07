@@ -1632,6 +1632,48 @@
         "landsUnmodelled": "Záznamy pristanú v priestore {space}, ktorý zatiaľ nemenuje dátový model.",
         "save": "Pomenujte pipeline nižšie a navrhnite ju: nič sa nezapíše, kým zmenu neschvália."
       }
+    },
+    "mapper": {
+      "mode": "Ako sa z každého záznamu stane entita",
+      "modeMap": "Priradiť polia",
+      "modeCode": "Napísať Bloblang",
+      "type": "Typ entity",
+      "typeHint": "Typ z dátového modelu cieľového priestoru; jeho atribúty sú nižšie.",
+      "loading": "Načítavajú sa atribúty typu…",
+      "failed": "Atribúty typu sa nepodarilo načítať: {reason}",
+      "handWritten": "Toto mapovanie je napísané ručne. Priradenie polí ho nahradí vygenerovaným.",
+      "replace": "Priradiť polia namiesto toho",
+      "restore": "Obnoviť ručne napísaný kód",
+      "noSample": "Načítajte vzorku v kroku 2, aby ste mohli vyberať z jej polí.",
+      "id": "Id z poľa",
+      "idHint": "Id každej entity je urn:ngsi-ld:{type}:organizácia:{space}:hodnota tohto poľa.",
+      "attributes": "Atribúty typu {type}",
+      "required": "povinný",
+      "unit": "v {code}",
+      "target": "odkazuje na {target}",
+      "sourceOf": "Zdroj pre {name}",
+      "notMapped": "— nepriradené —",
+      "fields": "Polia vzorky",
+      "expression": "Výraz v Bloblangu…",
+      "fixedValue": "Pevná hodnota…",
+      "point": "Bod zo zemepisnej dĺžky a šírky…",
+      "expressionOf": "Výraz v Bloblangu pre {name}",
+      "valueOf": "Pevná hodnota pre {name}",
+      "longitude": "Pole zemepisnej dĺžky",
+      "latitude": "Pole zemepisnej šírky",
+      "missingAttribute": "Chýba modelu atribút?",
+      "openModel": "Pridajte ho do dátového modelu {model}",
+      "preview": "Čo sa stane z prvých záznamov",
+      "previewHint": "Vypočítané tu zo vzorky; skúšobný beh v kroku 4 spustí skutočné mapovanie.",
+      "previewEmpty": "Zatiaľ nie je čo zobraziť.",
+      "problem": {
+        "required": "{name} je povinný: priraďte mu pole alebo zadajte hodnotu.",
+        "notInSample": "Vzorka nemá pole {field}.",
+        "notNumber": "{field} obsahuje „{value}“, čo nie je číslo; {name} očakáva číslo.",
+        "notBoolean": "{field} obsahuje „{value}“, čo nie je true ani false; {name} očakáva true alebo false.",
+        "notValue": "{field} obsahuje „{value}“; {name} očakáva jednu z hodnôt {values}.",
+        "noId": "Vyberte pole, z ktorého vznikne id každej entity."
+      }
     }
   },
   "dashboards": {

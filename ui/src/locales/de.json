@@ -1632,6 +1632,48 @@
         "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
         "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist."
       }
+    },
+    "mapper": {
+      "mode": "Wie aus jedem Datensatz eine Entität wird",
+      "modeMap": "Felder zuordnen",
+      "modeCode": "Bloblang schreiben",
+      "type": "Entitätstyp",
+      "typeHint": "Ein Typ aus dem Datenmodell des Zielraums; seine Attribute stehen unten.",
+      "loading": "Die Attribute des Typs werden gelesen…",
+      "failed": "Die Attribute des Typs konnten nicht gelesen werden: {reason}",
+      "handWritten": "Diese Abbildung wurde von Hand geschrieben. Felder zuordnen ersetzt sie durch eine erzeugte.",
+      "replace": "Stattdessen Felder zuordnen",
+      "restore": "Den handgeschriebenen Code wiederherstellen",
+      "noSample": "Lesen Sie in Schritt 2 eine Stichprobe, um aus ihren Feldern zu wählen.",
+      "id": "Id aus Feld",
+      "idHint": "Die Id jeder Entität ist urn:ngsi-ld:{type}:Organisation:{space}:Wert dieses Felds.",
+      "attributes": "Attribute von {type}",
+      "required": "Pflicht",
+      "unit": "Einheit {code}",
+      "target": "verweist auf {target}",
+      "sourceOf": "Quelle für {name}",
+      "notMapped": "— nicht zugeordnet —",
+      "fields": "Felder der Stichprobe",
+      "expression": "Bloblang-Ausdruck…",
+      "fixedValue": "Fester Wert…",
+      "point": "Punkt aus Längen- und Breitengrad…",
+      "expressionOf": "Bloblang-Ausdruck für {name}",
+      "valueOf": "Fester Wert für {name}",
+      "longitude": "Feld des Längengrads",
+      "latitude": "Feld des Breitengrads",
+      "missingAttribute": "Fehlt dem Modell ein Attribut?",
+      "openModel": "Im Datenmodell {model} hinzufügen",
+      "preview": "Was aus den ersten Datensätzen wird",
+      "previewHint": "Hier aus der Stichprobe berechnet; der Testlauf in Schritt 4 führt die echte Abbildung aus.",
+      "previewEmpty": "Noch nichts zur Vorschau.",
+      "problem": {
+        "required": "{name} ist Pflicht: ordnen Sie ein Feld zu oder geben Sie einen Wert an.",
+        "notInSample": "Die Stichprobe hat kein Feld {field}.",
+        "notNumber": "{field} enthält „{value}“, keine Zahl; {name} erwartet eine Zahl.",
+        "notBoolean": "{field} enthält „{value}“, weder true noch false; {name} erwartet true oder false.",
+        "notValue": "{field} enthält „{value}“; {name} erwartet einen der Werte {values}.",
+        "noId": "Wählen Sie das Feld, aus dem die Id jeder Entität entsteht."
+      }
     }
   },
   "dashboards": {

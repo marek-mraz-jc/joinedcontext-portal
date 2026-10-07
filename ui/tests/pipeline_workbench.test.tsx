@@ -375,6 +375,9 @@ describe("the pipeline workbench", () => {
     expect(screen.getByLabelText(en.pipelines.workbench.source.pick)).toHaveFocus();
     await userEvent.tab();
     expect(screen.getByLabelText(en.pipelines.workbench.source.file)).toHaveFocus();
+    // Step 3 asks first how a record becomes an entity: fields mapped or Bloblang (T-3224).
+    await userEvent.tab();
+    expect(screen.getByRole("radio", { name: en.pipelines.mapper.modeCode })).toHaveFocus();
     await userEvent.tab();
     expect(screen.getByLabelText(en.pipelines.field.bloblang)).toHaveFocus();
     await userEvent.tab();
