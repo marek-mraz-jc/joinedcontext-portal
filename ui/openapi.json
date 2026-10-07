@@ -5266,6 +5266,108 @@
         }
       }
     },
+    "/api/v1/projects/{project}/changes/{id}/restore": {
+      "post": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "Restore What a Change Removed",
+        "description": "Proposes again, as one new change, every file a merged change deleted, read at the commit its branch was cut from. Needs `propose` on every kind it brings back.",
+        "operationId": "restore_change",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The merged change that removed something: chg- + 8 hex digits",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The restoring change, waiting for an approver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a change id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No `propose` on a kind it brings back",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such change the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not merged, removed nothing, or the resource is there again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Git forge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/ckan/status": {
       "get": {
         "tags": [
@@ -15114,6 +15216,32 @@
           "rename"
         ]
       },
+      "Consequence": {
+        "type": "object",
+        "description": "One thing that leaves with a removed resource (T-3247).",
+        "required": [
+          "what",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The resources it names, as `Kind/name`, when they are resources."
+          },
+          "what": {
+            "type": "string",
+            "description": "`entities`, `rejectedRecords`, `runs`, `grants` or `bindings`."
+          }
+        }
+      },
       "Counts": {
         "type": "object",
         "description": "How many results of one run ended in each verdict.",
@@ -15626,6 +15754,13 @@
               "type": "string"
             },
             "description": "Values the manifest writes out where the loader renders them (CC-83): each names the\npath and what to write instead. Nothing here blocks the proposal; a copy of the\nmanifest into another organization would carry the literal with it."
+          },
+          "goesWith": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Consequence"
+            },
+            "description": "What leaves with a removed resource, with how many (T-3247): a space's entities, a\npipeline's refused records and runs, an App's endpoint and policies, the bindings a\nGroup's removal edits. Empty for every write that is not a removal."
           },
           "lane": {
             "$ref": "#/components/schemas/Lane"

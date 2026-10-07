@@ -223,6 +223,61 @@ describe("the change history", () => {
     expect(table.querySelector("img")).toBeNull();
   });
 
+  it("a_merged_removal_offers_restore_and_the_new_change_waits_for_an_approver", async () => {
+    const removal = closed("chg-00000007", {
+      summary: { key: "change.summary.delete", params: { kind: "Pipeline", name: "air-ingest", fields: 0 } },
+    });
+    const restored: string[] = [];
+    const { answer } = historyOf({ "1": { items: [removal, REJECTED, closed("chg-00000001")] } });
+    await renderRoute({
+      path: PATH,
+      answer: (path, request) => {
+        if (path.endsWith("/restore") && request.method === "POST") {
+          restored.push(path);
+          return jsonResponse(
+            {
+              apiVersion: "joinedcontext.com/v1alpha1",
+              kind: "Change",
+              metadata: { name: "chg-00000009", namespace: "helsinki" },
+              status: { lane: "yellow", phase: "PendingApproval", plan: { create: 1, update: 0, delete: 0 } },
+            },
+            202,
+          );
+        }
+        return answer(path, request);
+      },
+    });
+    const table = await openHistory();
+    // Only the merged removal: a rejected change removed nothing, a create has nothing to bring back.
+    const buttons = await within(table).findAllByRole("button", { name: /^Restore/ });
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleName("Restore air-ingest");
+    await userEvent.click(buttons[0]);
+    expect(restored).toEqual(["/api/v1/projects/helsinki/changes/chg-00000007/restore"]);
+    expect(await screen.findByText("chg-00000009")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.changes.review })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/approvals/chg-00000009",
+    );
+  });
+
+  it("a_restore_the_server_refuses_is_said_in_its_words", async () => {
+    const removal = closed("chg-00000007", {
+      summary: { key: "change.summary.delete", params: { kind: "Pipeline", name: "air-ingest", fields: 0 } },
+    });
+    const { answer } = historyOf({ "1": { items: [removal] } });
+    await renderRoute({
+      path: PATH,
+      answer: (path, request) =>
+        path.endsWith("/restore")
+          ? problem(409, "'pipeline.yaml' is in the project again, so change chg-00000007 has nothing left to restore")
+          : answer(path, request),
+    });
+    const table = await openHistory();
+    await userEvent.click(await within(table).findByRole("button", { name: "Restore air-ingest" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("is in the project again");
+  });
+
   it("the_tabs_are_walked_by_arrow_keys", async () => {
     const { answer } = historyOf({ "1": { items: [] } });
     await renderRoute({ path: PATH, answer });

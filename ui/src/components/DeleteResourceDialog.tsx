@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { PermissionGuard } from "./ui/PermissionGuard";
 import type { JSX } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { isChange } from "../api/manifest";
@@ -45,6 +45,22 @@ export function DeleteResourceDialog({
   const { project, plural, name } = target;
   const home = target.home ?? project;
 
+  // What leaves with it, asked before the name is typed (T-3247): the same `DELETE` as a dry run,
+  // which writes nothing. A refusal here (still referenced) is said now rather than after typing.
+  const preview = useQuery({
+    queryKey: [...queryKeys.list(home, plural), name, "removal"] as const,
+    enabled: open,
+    retry: false,
+    queryFn: async () =>
+      unwrap(
+        await api.DELETE("/api/v1/projects/{project}/{plural}/{name}", {
+          params: { path: { project: home, plural, name }, query: { dryRun: "All" } },
+        }),
+      ),
+  });
+  const goesWith =
+    preview.data && !isChange(preview.data) && "goesWith" in preview.data ? (preview.data.goesWith ?? []) : [];
+
   const remove = useMutation({
     mutationFn: async () =>
       unwrap(
@@ -77,7 +93,8 @@ export function DeleteResourceDialog({
       : remove.error
         ? t("app.error.generic")
         : null;
-  const referenced = remove.error instanceof ApiError && remove.error.status === 409;
+  const blocked = preview.error instanceof ApiError && preview.error.status === 409 ? preview.error : null;
+  const referenced = (remove.error instanceof ApiError && remove.error.status === 409) || blocked !== null;
 
   return (
     <Dialog
@@ -115,6 +132,28 @@ export function DeleteResourceDialog({
         <ChangeNotice change={change} project={project} />
       ) : (
         <div className="flex flex-col gap-4">
+          {goesWith.length > 0 ? (
+            <section aria-labelledby={`${inputId}-goes`} className="flex flex-col gap-1">
+              <h3 id={`${inputId}-goes`} className="text-body font-semibold text-fg">
+                {t("resourceDelete.goesWith.title")}
+              </h3>
+              <ul className="list-disc pl-5 text-body text-fg">
+                {goesWith.map((consequence) => (
+                  <li key={consequence.what}>
+                    {t(`resourceDelete.goesWith.${consequence.what}`, {
+                      count: consequence.count,
+                      defaultValue: `${consequence.what}: ${consequence.count}`,
+                    })}
+                    {consequence.names && consequence.names.length > 0 ? (
+                      <span className="block font-mono text-caption text-fg-muted">{consequence.names.join(", ")}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {/* What comes back and what does not, before anyone types the name (T-3247). */}
+          <p className="text-body text-fg-muted">{t("resourceDelete.restorable")}</p>
           <Field
             id={inputId}
             label={t("resourceDelete.typeName", { name })}
@@ -133,9 +172,9 @@ export function DeleteResourceDialog({
               onChange={(event) => setTyped(event.target.value)}
             />
           </Field>
-          {failure ? (
+          {failure || blocked ? (
             <Alert tone="danger" role="alert" title={referenced ? t("resourceDelete.referenced") : undefined}>
-              {failure}
+              {failure ?? blocked?.problem?.detail ?? blocked?.message}
             </Alert>
           ) : null}
         </div>
