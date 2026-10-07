@@ -1604,7 +1604,9 @@
         "sourceUnit": "Source in another unit?",
         "sourceUnitOf": "Source unit of {slot}",
         "addConversion": "Add to mapping",
-        "bloblangHint": "Bloblang that turns one record into one entity: set its id, its type and the slots listed beside it."
+        "bloblangHint": "Bloblang that turns one record into one entity: set its id, its type and the slots listed beside it.",
+        "addLine": "Add to the mapping",
+        "addLineOf": "Add the line for {slot} to the mapping"
       },
       "output": {
         "title": "Mapped output",
@@ -4933,6 +4935,11 @@
     "connectorEngine": {
       "rainbow": "Rainbow",
       "edc": "Eclipse Dataspace Components"
+    },
+    "mqttQos": {
+      "0": "0: at most once (may lose a message)",
+      "1": "1: at least once (may repeat a message)",
+      "2": "2: exactly once (slowest)"
     }
   },
   "picker": {

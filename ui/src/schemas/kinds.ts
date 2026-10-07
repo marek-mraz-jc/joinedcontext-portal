@@ -408,7 +408,9 @@ export function generateSlug(): string {
 }
 
 /** The four feeds a `DataSource` connects to, in the order the wizard offers them (MF-35). */
-export const DATA_SOURCE_TYPES = ["mqtt", "http", "websocket", "gtfs-rt"] as const;
+// HTTP first: a person adding their first source most often has the address of a file or an API,
+// and the first type is the one a new form opens on (T-3211).
+export const DATA_SOURCE_TYPES = ["http", "mqtt", "websocket", "gtfs-rt"] as const;
 
 export type TypedDataSourceType = (typeof DATA_SOURCE_TYPES)[number];
 
@@ -497,7 +499,12 @@ export function dataSourceSchema(
           minItems: 1,
           items: { type: "string", minLength: 1 },
         },
-        qos: { type: "integer", title: t("datasources.field.qos"), minimum: 0, maximum: 2 },
+        // Three levels, each named for what it guarantees, never a number a newcomer has to look up.
+        qos: {
+          type: "integer",
+          title: t("datasources.field.qos"),
+          oneOf: [0, 1, 2].map((level) => ({ const: level, title: t(`choice.mqttQos.${level}`) })),
+        },
         cleanSession: { type: "boolean", title: t("datasources.field.cleanSession") },
         username: { type: "string", title: t("datasources.field.username") },
         passwordRef: secretRef(t, t("datasources.field.password"), secrets),

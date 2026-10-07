@@ -1604,7 +1604,9 @@
         "sourceUnit": "Zdroj v inej jednotke?",
         "sourceUnitOf": "Jednotka zdroja pre {slot}",
         "addConversion": "Pridať do mapovania",
-        "bloblangHint": "Bloblang, ktorý z jedného záznamu urobí jednu entitu: nastavte jej id, typ a sloty uvedené vedľa."
+        "bloblangHint": "Bloblang, ktorý z jedného záznamu urobí jednu entitu: nastavte jej id, typ a sloty uvedené vedľa.",
+        "addLine": "Pridať do mapovania",
+        "addLineOf": "Pridať riadok pre {slot} do mapovania"
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -4933,6 +4935,11 @@
     "connectorEngine": {
       "rainbow": "Rainbow",
       "edc": "Eclipse Dataspace Components"
+    },
+    "mqttQos": {
+      "0": "0: najviac raz (správa sa môže stratiť)",
+      "1": "1: aspoň raz (správa sa môže zopakovať)",
+      "2": "2: práve raz (najpomalšie)"
     }
   },
   "picker": {

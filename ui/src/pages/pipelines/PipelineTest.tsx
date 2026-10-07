@@ -105,14 +105,26 @@ export function firstRecordOf(text: string, format: SampleFormat): Record<string
 export function draftFromSample(name: string, text: string, space: string): Draft | null {
   const format = formatOf(name, text);
   const record = firstRecordOf(text, format);
-  if (!record) {
-    return null;
-  }
-  const columns = Object.keys(record).filter((c) => c !== "");
+  return record ? draftFromRecord(name, record, space, format) : null;
+}
+
+/**
+ * The same draft from one record a source already answered (T-3211): a data source or an
+ * endpoint picked as the source drafts like a dropped file does, so a person new to Bloblang
+ * starts from a mapping that runs. `type` names the entity type when the target model gives one;
+ * otherwise it comes from `name`.
+ */
+export function draftFromRecord(
+  name: string,
+  record: Record<string, unknown>,
+  space: string,
+  format: SampleFormat = "json",
+  type: string = typeOf(name),
+): Draft | null {
+  const columns = Object.keys(record).filter((c) => c !== "" && c !== "@context");
   if (columns.length === 0) {
     return null;
   }
-  const type = typeOf(name);
   const idColumn = idColumnOf(columns);
   const path = (column: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(column) ? `this.${column}` : `this.${JSON.stringify(column)}`);
   const lines = [
@@ -121,7 +133,7 @@ export function draftFromSample(name: string, text: string, space: string): Draf
     `root.id = "urn:ngsi-ld:%v:%v:%v:%v".format(${JSON.stringify(type)}, $domain, ${JSON.stringify(space)}, ${path(idColumn)}.string())`,
     `root.type = ${JSON.stringify(type)}`,
     ...columns
-      .filter((column) => column !== idColumn)
+      .filter((column) => column !== idColumn && column !== "type")
       .map((column) => {
         const value = isNumeric(record[column]) ? `${path(column)}.number().catch(${path(column)})` : path(column);
         const property = column.replace(/[^A-Za-z0-9_]/g, "_");

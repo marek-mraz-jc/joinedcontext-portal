@@ -1604,7 +1604,9 @@
         "sourceUnit": "Quelle in einer anderen Einheit?",
         "sourceUnitOf": "Quelleinheit von {slot}",
         "addConversion": "Zum Mapping hinzufügen",
-        "bloblangHint": "Bloblang, das aus einem Datensatz eine Entität macht: Setzen Sie ihre id, ihren Typ und die daneben aufgeführten Slots."
+        "bloblangHint": "Bloblang, das aus einem Datensatz eine Entität macht: Setzen Sie ihre id, ihren Typ und die daneben aufgeführten Slots.",
+        "addLine": "Zum Mapping hinzufügen",
+        "addLineOf": "Die Zeile für {slot} zum Mapping hinzufügen"
       },
       "output": {
         "title": "Abgebildete Ausgabe",
@@ -4933,6 +4935,11 @@
     "connectorEngine": {
       "rainbow": "Rainbow",
       "edc": "Eclipse Dataspace Components"
+    },
+    "mqttQos": {
+      "0": "0: höchstens einmal (eine Nachricht kann verloren gehen)",
+      "1": "1: mindestens einmal (eine Nachricht kann doppelt kommen)",
+      "2": "2: genau einmal (am langsamsten)"
     }
   },
   "picker": {

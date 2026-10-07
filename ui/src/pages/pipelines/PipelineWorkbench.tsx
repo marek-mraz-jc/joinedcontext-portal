@@ -11,6 +11,7 @@ import { FormHeading } from "../../components/forms/FormRoute";
 import {
   Alert,
   Badge,
+  Button,
   Field,
   FilePicker,
   Select,
@@ -28,7 +29,7 @@ import { entityTypesOf, spaceOf } from "../spaces/SpaceInside";
 import type { PipelineForm } from "./PipelineEditor";
 import { inlineEndpointSample } from "../../api/pipelineTest";
 import { sampleUrlOf } from "./PipelineStudio";
-import { MAX_SAMPLE_BYTES, draftFromSample, formatOf } from "./PipelineTest";
+import { MAX_SAMPLE_BYTES, draftFromRecord, draftFromSample, formatOf } from "./PipelineTest";
 import type { SampleFormat } from "./PipelineTest";
 import { SlotUnit } from "./SlotUnit";
 
@@ -496,6 +497,30 @@ export function PipelineWorkbench({
   const klass = parsed?.classes.find((c) => c.name === writtenClass);
   const slots = parsed && klass ? classSlots(parsed, klass).filter((slot) => !["id", "type"].includes(slot.name)) : [];
 
+  // T-3211: a source picked from the project drafts the mapping from its first record, once, as a
+  // dropped file does, so a person new to Bloblang starts from a mapping that runs; whatever the
+  // person has typed is never replaced. The type is the target model's when it has only one class.
+  const firstRecord = file ? undefined : sampled.data?.records[0];
+  const sourceLabel = draft?.source?.dataSourceRef ?? draft?.source?.endpointRef;
+  const onlyClass = classNames.length === 1 ? classNames[0] : undefined;
+  const targetSpaceOfUrn = targets.find((candidate) => candidate.urn === draft?.targetEndpoint)?.urn?.split(":")[4] ?? "";
+  const draftedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!firstRecord || !sourceLabel || bloblang.trim() !== "" || draftedFor.current === sourceLabel) return;
+    draftedFor.current = sourceLabel;
+    const drafted = draftFromRecord(sourceLabel, firstRecord, targetSpaceOfUrn, "json", onlyClass);
+    if (drafted) onChange({ ...(draft ?? {}), compute: { kind: "bloblang", bloblang: drafted.bloblang } });
+  }, [firstRecord, sourceLabel, bloblang, onlyClass, targetSpaceOfUrn, draft, onChange]);
+  const addLine = (line: string) =>
+    onChange({
+      ...(draft ?? {}),
+      compute: {
+        ...(draft?.compute ?? {}),
+        kind: "bloblang",
+        bloblang: bloblang.trimEnd() === "" ? line : `${bloblang.trimEnd()}\n${line}`,
+      },
+    });
+
   const failedText = (error: unknown) => (error instanceof Error ? error.message : t("pipelines.workbench.failed"));
 
   return (
@@ -660,25 +685,24 @@ export function PipelineWorkbench({
                           })}
                         </p>
                       ) : null}
-                      <p className="font-mono text-fg-subtle">
-                        {t("pipelines.workbench.mapping.example", {
-                          example: `root.${slot.name} = { "type": "${slot.kind}", "${slot.kind === "Relationship" ? "object" : "value"}": ${exampleOf(slot, values[0])}${unit && slot.kind === "Property" ? `, "unitCode": "${unit}"` : ""} }`,
-                        })}
-                      </p>
+                      {(() => {
+                        const line = `root.${slot.name} = { "type": "${slot.kind}", "${slot.kind === "Relationship" ? "object" : "value"}": ${exampleOf(slot, values[0])}${unit && slot.kind === "Property" ? `, "unitCode": "${unit}"` : ""} }`;
+                        return (
+                          <div className="flex flex-wrap items-start gap-2">
+                            <p className="min-w-0 flex-1 font-mono text-fg-subtle [overflow-wrap:anywhere]">
+                              {t("pipelines.workbench.mapping.example", { example: line })}
+                            </p>
+                            <Button size="xs" variant="secondary" onClick={() => addLine(line)} aria-label={t("pipelines.workbench.mapping.addLineOf", { slot: slot.name })}>
+                              {t("pipelines.workbench.mapping.addLine")}
+                            </Button>
+                          </div>
+                        );
+                      })()}
                       {unit && slot.kind === "Property" ? (
                         <SlotUnit
                           slot={slot.name}
                           code={unit}
-                          onAdd={(line) =>
-                            onChange({
-                              ...(draft ?? {}),
-                              compute: {
-                                ...(draft?.compute ?? {}),
-                                kind: "bloblang",
-                                bloblang: bloblang.trimEnd() === "" ? line : `${bloblang.trimEnd()}\n${line}`,
-                              },
-                            })
-                          }
+                          onAdd={addLine}
                         />
                       ) : null}
                     </li>
