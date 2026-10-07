@@ -1,0 +1,53 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Policy
+metadata:
+  name: app-bbsk-mapa-1
+  namespace: bbsk
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+spec:
+  assignee:
+    id: endpoint:bbsk/app-bbsk-mapa
+    kind: role
+  assigner: did:web:hel.fi
+  contextSpaceRef:
+    kind: ContextSpace
+    name: bbsk-registre
+  information:
+  - entities:
+    - type: Hospital
+    - type: SocialService
+    - type: PublicOrganization
+    propertyNames:
+    - name
+    - location
+    - address
+    - districtName
+    - url
+    - hospitalKind
+    - serviceForm
+    - organizationCategory
+    - operatorName
+    - medicalSpecialties
+    - serviceKind
+    - targetGroup
+    - capacity
+    - providerKind
+    relationshipNames:
+    - name
+    - location
+    - address
+    - districtName
+    - url
+    - hospitalKind
+    - serviceForm
+    - organizationCategory
+    - operatorName
+    - medicalSpecialties
+    - serviceKind
+    - targetGroup
+    - capacity
+    - providerKind
+  operations:
+  - queryEntity
+  - retrieveEntity

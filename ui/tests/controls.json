@@ -971,6 +971,32 @@
         "import_wizard.test.tsx"
       ]
     },
+    "src/pages/knowledge/AssistantChat.tsx": {
+      "controls": {
+        "Button": 2,
+        "Checkbox": 1
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
+    "src/pages/knowledge/KnowledgePage.tsx": {
+      "controls": {
+        "Button": 6
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
+    "src/pages/knowledge/SourcePage.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 3
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
     "src/pages/models/LinkmlGraphView.tsx": {
       "controls": {
         "Button": 3

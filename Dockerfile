@@ -45,6 +45,15 @@ COPY apps/banskabystrica-zaznamy/ui/package.json apps/banskabystrica-zaznamy/ui/
 COPY apps/banskabystrica-ovzdusie/ui/package.json apps/banskabystrica-ovzdusie/ui/pnpm-lock.yaml ./apps/banskabystrica-ovzdusie/ui/
 COPY apps/banskabystrica-mapa/ui/package.json apps/banskabystrica-mapa/ui/pnpm-lock.yaml ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/package.json apps/banskabystrica-data/ui/pnpm-lock.yaml ./apps/banskabystrica-data/ui/
+COPY apps/banskabystrica-skoly/ui/package.json apps/banskabystrica-skoly/ui/pnpm-lock.yaml ./apps/banskabystrica-skoly/ui/
+COPY apps/bbsk-mapa/ui/package.json apps/bbsk-mapa/ui/pnpm-lock.yaml ./apps/bbsk-mapa/ui/
+COPY apps/bbsk-data/ui/package.json apps/bbsk-data/ui/pnpm-lock.yaml ./apps/bbsk-data/ui/
+COPY apps/bbsk-mosty/ui/package.json apps/bbsk-mosty/ui/pnpm-lock.yaml ./apps/bbsk-mosty/ui/
+COPY apps/praha-mapa/ui/package.json apps/praha-mapa/ui/pnpm-lock.yaml ./apps/praha-mapa/ui/
+COPY apps/praha-data/ui/package.json apps/praha-data/ui/pnpm-lock.yaml ./apps/praha-data/ui/
+COPY apps/praha-odpad/ui/package.json apps/praha-odpad/ui/pnpm-lock.yaml ./apps/praha-odpad/ui/
+COPY apps/helsinki-kartta/ui/package.json apps/helsinki-kartta/ui/pnpm-lock.yaml ./apps/helsinki-kartta/ui/
+COPY apps/helsinki-data/ui/package.json apps/helsinki-data/ui/pnpm-lock.yaml ./apps/helsinki-data/ui/
 COPY apps/praha-mesto/ui/package.json apps/praha-mesto/ui/pnpm-lock.yaml ./apps/praha-mesto/ui/
 COPY apps/zilina-mapa/ui/package.json apps/zilina-mapa/ui/pnpm-lock.yaml ./apps/zilina-mapa/ui/
 COPY apps/zilina-ukazovatele/ui/package.json apps/zilina-ukazovatele/ui/pnpm-lock.yaml ./apps/zilina-ukazovatele/ui/
@@ -56,6 +65,15 @@ RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-ovzdusie/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-data/ui && pnpm install --frozen-lockfile \
+    && cd ../../banskabystrica-skoly/ui && pnpm install --frozen-lockfile \
+    && cd ../../bbsk-mapa/ui && pnpm install --frozen-lockfile \
+    && cd ../../bbsk-data/ui && pnpm install --frozen-lockfile \
+    && cd ../../bbsk-mosty/ui && pnpm install --frozen-lockfile \
+    && cd ../../praha-mapa/ui && pnpm install --frozen-lockfile \
+    && cd ../../praha-data/ui && pnpm install --frozen-lockfile \
+    && cd ../../praha-odpad/ui && pnpm install --frozen-lockfile \
+    && cd ../../helsinki-kartta/ui && pnpm install --frozen-lockfile \
+    && cd ../../helsinki-data/ui && pnpm install --frozen-lockfile \
     && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile \
     && cd ../../zilina-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../zilina-ukazovatele/ui && pnpm install --frozen-lockfile \
@@ -67,6 +85,15 @@ COPY apps/banskabystrica-zaznamy/ui/ ./apps/banskabystrica-zaznamy/ui/
 COPY apps/banskabystrica-ovzdusie/ui/ ./apps/banskabystrica-ovzdusie/ui/
 COPY apps/banskabystrica-mapa/ui/ ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/ ./apps/banskabystrica-data/ui/
+COPY apps/banskabystrica-skoly/ui/ ./apps/banskabystrica-skoly/ui/
+COPY apps/bbsk-mapa/ui/ ./apps/bbsk-mapa/ui/
+COPY apps/bbsk-data/ui/ ./apps/bbsk-data/ui/
+COPY apps/bbsk-mosty/ui/ ./apps/bbsk-mosty/ui/
+COPY apps/praha-mapa/ui/ ./apps/praha-mapa/ui/
+COPY apps/praha-data/ui/ ./apps/praha-data/ui/
+COPY apps/praha-odpad/ui/ ./apps/praha-odpad/ui/
+COPY apps/helsinki-kartta/ui/ ./apps/helsinki-kartta/ui/
+COPY apps/helsinki-data/ui/ ./apps/helsinki-data/ui/
 COPY apps/praha-mesto/ui/ ./apps/praha-mesto/ui/
 COPY apps/zilina-mapa/ui/ ./apps/zilina-mapa/ui/
 COPY apps/zilina-ukazovatele/ui/ ./apps/zilina-ukazovatele/ui/
@@ -88,6 +115,33 @@ RUN cd apps/banskabystrica-mapa/ui && pnpm build \
 RUN cd apps/banskabystrica-data/ui && pnpm build \
     && cp -r dist /srv/apps/banskabystrica-data \
     && node /work/scripts/app-integrity.mjs /srv/apps/banskabystrica-data
+RUN cd apps/banskabystrica-skoly/ui && pnpm build \
+    && cp -r dist /srv/apps/banskabystrica-skoly \
+    && node /work/scripts/app-integrity.mjs /srv/apps/banskabystrica-skoly
+RUN cd apps/bbsk-mapa/ui && pnpm build \
+    && cp -r dist /srv/apps/bbsk-mapa \
+    && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-mapa
+RUN cd apps/bbsk-data/ui && pnpm build \
+    && cp -r dist /srv/apps/bbsk-data \
+    && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-data
+RUN cd apps/bbsk-mosty/ui && pnpm build \
+    && cp -r dist /srv/apps/bbsk-mosty \
+    && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-mosty
+RUN cd apps/praha-mapa/ui && pnpm build \
+    && cp -r dist /srv/apps/praha-mapa \
+    && node /work/scripts/app-integrity.mjs /srv/apps/praha-mapa
+RUN cd apps/praha-data/ui && pnpm build \
+    && cp -r dist /srv/apps/praha-data \
+    && node /work/scripts/app-integrity.mjs /srv/apps/praha-data
+RUN cd apps/praha-odpad/ui && pnpm build \
+    && cp -r dist /srv/apps/praha-odpad \
+    && node /work/scripts/app-integrity.mjs /srv/apps/praha-odpad
+RUN cd apps/helsinki-kartta/ui && pnpm build \
+    && cp -r dist /srv/apps/helsinki-kartta \
+    && node /work/scripts/app-integrity.mjs /srv/apps/helsinki-kartta
+RUN cd apps/helsinki-data/ui && pnpm build \
+    && cp -r dist /srv/apps/helsinki-data \
+    && node /work/scripts/app-integrity.mjs /srv/apps/helsinki-data
 RUN cd apps/praha-mesto/ui && pnpm build \
     && cp -r dist /srv/apps/praha-mesto \
     && node /work/scripts/app-integrity.mjs /srv/apps/praha-mesto
