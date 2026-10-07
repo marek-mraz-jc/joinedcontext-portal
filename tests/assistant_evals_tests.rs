@@ -51,6 +51,11 @@ const UNRECORDED_ON_2026_09_25: usize = 23;
 /// first ones were written (T-2742). It only ever falls, like the count above.
 const UNRECORDED_CASES_ON_2026_10_06: usize = 5;
 
+/// Workflows the matrix gained after 2026-09-25, each still owing its first recording, with the
+/// task that added it. They are counted apart, so the 23 of that day can still only fall; an entry
+/// goes the moment its recording lands, and the guard below refuses one that is recorded.
+const UNRECORDED_LATER: [(&str, &str); 1] = [("knowledge", "T-3057")];
+
 /// What separates a workflow from its case in a conversation's file name.
 const CASE: &str = "--";
 
@@ -594,6 +599,19 @@ fn every_workflow_has_its_conversation_and_every_expected_call_is_a_tool() {
         missing.is_empty(),
         "workflows with no conversation: {missing:?}"
     );
+    // A workflow counted apart is one of the matrix, has its conversation, and names its task.
+    for (workflow, task) in UNRECORDED_LATER {
+        assert!(
+            workflows.iter().any(|w| w == workflow) && conversations.contains_key(workflow),
+            "UNRECORDED_LATER names {workflow}, which is no workflow with a conversation"
+        );
+        assert!(
+            task.len() == 6
+                && task.starts_with("T-")
+                && task[2..].bytes().all(|b| b.is_ascii_digit()),
+            "UNRECORDED_LATER: {task} is no task id"
+        );
+    }
     for (name, conversation) in &conversations {
         assert!(
             workflows.iter().any(|w| w == workflow_of(name)),
@@ -796,15 +814,24 @@ async fn a_viewer_is_refused_every_conversation() {
 #[tokio::test]
 async fn every_recorded_conversation_did_on_dev_and_still_does_what_it_expects() {
     let (mut unrecorded, mut unrecorded_cases) = (0, 0);
+    let later = |name: &str| {
+        UNRECORDED_LATER
+            .iter()
+            .any(|(workflow, _)| *workflow == name)
+    };
     for (name, conversation) in conversations() {
         let Some(recorded) = recording(&name) else {
             if name.contains(CASE) {
                 unrecorded_cases += 1;
-            } else {
+            } else if !later(&name) {
                 unrecorded += 1;
             }
             continue;
         };
+        assert!(
+            !later(&name),
+            "{name} is recorded now: remove it from UNRECORDED_LATER"
+        );
         assert_eq!(
             recorded.workflow, conversation.workflow,
             "recordings/{name}.json is another workflow's"
