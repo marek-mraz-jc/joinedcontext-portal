@@ -395,3 +395,23 @@ describe("Smart Data Models import wizard", () => {
     ]);
   });
 });
+
+describe("an attribute added to an imported model (T-3251)", () => {
+  it("refuses a name the document or NGSI-LD already holds, and never overwrites one", async () => {
+    const { addedProblem, withAttributes } = await import("../src/pages/models/SmartDataModelsImport");
+    expect(addedProblem("pm10", ["pm10"])).toBe("taken");
+    expect(addedProblem("location", [])).toBe("taken");
+    expect(addedProblem("observedAt", [])).toBe("taken");
+    expect(addedProblem("noiseLevel", ["pm10"])).toBeUndefined();
+    const source = "id: x\nname: x\nclasses:\n  A:\n    slots: [address]\n  B:\n    slots: [shared]\nslots:\n  address: { range: string }\n  shared: { range: integer, description: kept }\n";
+    const out = withAttributes(source, "A", [
+      { name: "shared", range: "string" },
+      { name: "location", range: "string" },
+      { name: "noiseLevel", range: "float" },
+    ]);
+    const model = parseModel(out);
+    expect(model.slots.find((slot) => slot.name === "shared")).toMatchObject({ range: "integer", description: "kept" });
+    expect(model.slots.find((slot) => slot.name === "location")).toBeUndefined();
+    expect(model.classes.find((klass) => klass.name === "A")?.slots).toEqual(["address", "noiseLevel"]);
+  });
+});

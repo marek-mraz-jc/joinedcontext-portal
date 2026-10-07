@@ -24,6 +24,7 @@ import {
   tabPanelProps,
   Term,
 } from "../components/ui";
+import { useUrlParam } from "../navigation/urlState";
 
 const COLUMNS = 6;
 
@@ -34,7 +35,8 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
   const [mine, setMine] = useState(false);
   const [phase, setPhase] = useState("");
   // Open changes wait for a decision; the history is what was decided (T-3292).
-  const [view, setView] = useState<"open" | "history">("open");
+  // The tab is in the address, so back, reload and a sent link open it (T-3239).
+  const [view, setView] = useUrlParam<"open" | "history">("tab", "open", ["open", "history"]);
 
   const list = useQuery({
     queryKey: queryKeys.changes(project),

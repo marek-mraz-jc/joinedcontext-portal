@@ -12,6 +12,8 @@
 let page: string[] = [];
 /** The installation's name, which ends every title and is the whole of it before a page names itself. */
 let instance = "";
+/** Who wants to know when the page names itself: the page's star and link (UI-90). */
+const listeners = new Set<() => void>();
 
 function write(doc: Document): void {
   const title = [...page, instance].filter((part) => part.length > 0).join(" · ");
@@ -30,10 +32,23 @@ export function setInstanceName(name: string, doc: Document = document): void {
 export function setPageTitle(parts: (string | undefined)[], doc: Document = document): void {
   page = parts.filter((part): part is string => typeof part === "string" && part.length > 0);
   write(doc);
+  for (const listener of listeners) listener();
+}
+
+/** The page's own name as its header gave it, `undefined` before one did. */
+export function pageTitle(): string | undefined {
+  return page[0];
+}
+
+/** Calls `listener` whenever a page names itself; answers how to stop. */
+export function onPageTitle(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 /** For tests: forget both, so one case cannot read the title another one left. */
 export function resetDocumentTitle(): void {
   page = [];
+  for (const listener of listeners) listener();
   instance = "";
 }

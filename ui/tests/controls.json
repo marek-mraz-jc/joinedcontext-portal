@@ -585,6 +585,14 @@
         "ui_tabs_checkbox.test.tsx"
       ]
     },
+    "src/navigation/PageTools.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "navigation_ease.test.tsx"
+      ]
+    },
     "src/pages/access/GroupPage.tsx": {
       "controls": {
         "Button": 6

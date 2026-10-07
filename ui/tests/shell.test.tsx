@@ -315,6 +315,62 @@ describe("the trail of a copy's page", () => {
   });
 });
 
+// T-3239, T-3241: every item page reads organization › project › section › item, each a link,
+// and an item's bare address opens it, on its form where its kind has no page of its own.
+describe("the trail to one item", () => {
+  function open(path: string, organisation: string) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const body = url.includes("/auth/me")
+          ? IDENTITY
+          : url.endsWith("/api/v1/projects")
+            ? PROJECTS
+            : url.endsWith("/api/v1/branding")
+              ? { instanceName: "joinedcontext", organisation }
+              : EMPTY_LIST;
+        return Promise.resolve(
+          new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+        );
+      }),
+    );
+    window.history.pushState({}, "", path);
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reads organization › project › Pipelines › the pipeline, each part a link", async () => {
+    open("/projects/helsinki/pipelines/air-quality/edit", "City of Helsinki");
+    const crumbs = await screen.findByRole("navigation", { name: "Breadcrumb" });
+    await waitFor(() => expect(within(crumbs).getByText("City of Helsinki")).toBeInTheDocument());
+    expect(within(crumbs).getByRole("link", { name: "helsinki" })).toHaveAttribute("href", "/projects/helsinki/spaces");
+    expect(within(crumbs).getByRole("link", { name: "Pipelines" })).toHaveAttribute("href", "/projects/helsinki/pipelines");
+    const item = within(crumbs).getByRole("link", { name: "air-quality" });
+    expect(item).toHaveAttribute("href", "/projects/helsinki/pipelines/air-quality");
+    expect(item).toHaveAttribute("aria-current", "page");
+  });
+
+  it("names no organization an installation does not name, and opens an item's bare address on its form", async () => {
+    open("/projects/helsinki/pipelines/air-quality", "");
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/pipelines/air-quality/edit"));
+    const crumbs = await screen.findByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getAllByRole("listitem")[0]).toHaveTextContent("helsinki");
+  });
+});
+
 // T-2908: the App's Open page takes the whole working area. The Shell drops what caps or pads a
 // page, and folds the project navigation behind the menu button at every width.
 describe("portal shell around a page that fills it", () => {
