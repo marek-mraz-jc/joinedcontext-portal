@@ -6414,5 +6414,138 @@
     "tooLong": "Höchstens {max} Zeichen.",
     "screenshotRefused": "Kein Screenshot erstellt: der Browser durfte die Seite nicht teilen. Entfernen Sie den Haken, um nur den Text zu senden.",
     "screenshotUnsupported": "Dieser Browser kann keinen Screenshot der Seite erstellen. Entfernen Sie den Haken, um nur den Text zu senden."
+  },
+  "pageHelp": {
+    "menu": "Hilfe zu dieser Seite",
+    "steps": "So geht es",
+    "guide": "Mehr im Benutzerhandbuch",
+    "ask": "Hilf mir mit der Seite {page}: wofür ist sie da und was sollte ich zuerst tun?",
+    "askButton": "Den Assistenten zu dieser Seite fragen",
+    "home": {
+      "title": "Start",
+      "purpose": "Hier beginnen Sie: was Sie in Ihren Projekten als Nächstes tun können und was Sie zuletzt besucht haben.",
+      "one": "Wählen Sie ein Projekt, oder folgen Sie als neue Person den ersten Schritten.",
+      "two": "Öffnen Sie eine zuletzt besuchte oder markierte Seite und machen Sie dort weiter.",
+      "three": "Drücken Sie Strg+K, um jede Seite, jeden Raum oder jede Ressource nach Namen zu finden."
+    },
+    "organization": {
+      "title": "Organisation",
+      "purpose": "Die Einstellungen, Personen, Gruppen und Rollen der ganzen Organisation, für ihre Verwaltung.",
+      "one": "Laden Sie Personen ein und ordnen Sie sie Gruppen zu.",
+      "two": "Geben Sie einer Gruppe eine Rolle in der Organisation oder in einem Projekt.",
+      "three": "Prüfen Sie die Grenzen der Organisation und den Zustand ihrer Konfiguration."
+    },
+    "spaces": {
+      "title": "Kontexträume",
+      "purpose": "Ein Kontextraum enthält die Daten eines Themas, etwa der Luftqualität, als Entitäten der Typen, die sein Datenmodell festlegt.",
+      "one": "Legen Sie einen Raum an und geben Sie ihm ein Datenmodell.",
+      "two": "Bringen Sie Daten mit einer Pipeline oder durch das Laden einer Datei hinein.",
+      "three": "Sehen Sie in einen Raum, um seine Entitäten zu lesen, zu filtern und zu korrigieren."
+    },
+    "models": {
+      "title": "Datenmodelle",
+      "purpose": "Ein Datenmodell sagt, welche Entitätstypen ein Raum enthält und welche Attribute jeder Typ hat.",
+      "one": "Beginnen Sie mit einem Smart-Data-Models-Typ oder schreiben Sie einen eigenen.",
+      "two": "Fügen Sie Attribute mit Typ, Einheit und Pflichtangabe hinzu.",
+      "three": "Schlagen Sie das Modell vor; Pipelines prüfen ihre Daten dann dagegen."
+    },
+    "datasources": {
+      "title": "Datenquellen",
+      "purpose": "Eine Datenquelle ist, woher Daten kommen: eine Webadresse, ein CKAN-Datensatz, ein MQTT-Broker, ein GTFS-Feed.",
+      "one": "Fügen Sie eine Quelle aus einer Vorlage hinzu oder tragen Sie ihre Adresse ein.",
+      "two": "Speichern Sie ein Passwort als Geheimnisverweis, nie im Formular.",
+      "three": "Prüfen Sie die Quelle: das Portal ruft sie einmal ab und zeigt ein Beispiel."
+    },
+    "pipelines": {
+      "title": "Pipelines",
+      "purpose": "Eine Pipeline liest eine Datenquelle nach Zeitplan, ordnet jeden Datensatz zu und schreibt die Entitäten in einen Raum.",
+      "one": "Wählen Sie die Quelle und den Raum, in den sie schreibt.",
+      "two": "Ordnen Sie die Felder den Attributen des Entitätstyps zu.",
+      "three": "Testen Sie sie an einem Beispiel und schlagen Sie sie vor; eine Freigabe startet sie."
+    },
+    "endpoints": {
+      "title": "Endpunkte",
+      "purpose": "Ein Endpunkt öffnet einen Raum für die Menschen und Anwendungen, die ihn lesen, als NGSI-LD, GeoJSON, CSV und mehr.",
+      "one": "Wählen Sie den Raum, die Darstellungen und wer ihn lesen darf.",
+      "two": "Probieren Sie ihn im Browser aus und kopieren Sie die Anfrage als curl.",
+      "three": "Schlagen Sie ihn vor; ein öffentlicher Endpunkt braucht die Freigabe einer veröffentlichenden Person."
+    },
+    "policies": {
+      "title": "Richtlinien",
+      "purpose": "Eine Richtlinie sagt, wer in einem Raum was lesen oder schreiben darf, bis hin zu Typen, Attributen und Gebieten.",
+      "one": "Wählen Sie den Raum und die Person, Gruppe oder Anwendung, für die sie gilt.",
+      "two": "Kreuzen Sie die Operationen an und beschränken Sie sie auf Typen oder Attribute.",
+      "three": "Geben Sie ihr Daten, wenn sie enden soll, und schlagen Sie sie vor."
+    },
+    "ckan": {
+      "title": "Open-Data-Katalog",
+      "purpose": "Veröffentlichen Sie den Endpunkt eines Raums als Datensatz in einem CKAN-Katalog, mit Metadaten und Lizenz.",
+      "one": "Verbinden Sie die CKAN-Instanz, in der die Organisation veröffentlicht.",
+      "two": "Veröffentlichen Sie einen Endpunkt in einem Schritt als Datensatz.",
+      "three": "Prüfen Sie, was veröffentlicht ist, und halten Sie es aktuell."
+    },
+    "dashboards": {
+      "title": "Dashboards",
+      "purpose": "Ein Dashboard zeigt die Daten eines Raums auf Karten, in Diagrammen und Tabellen, die sich selbst aktualisieren.",
+      "one": "Legen Sie ein Dashboard an und fügen Sie für jeden Typ eine Ebene hinzu.",
+      "two": "Wählen Sie, wie jede Ebene aussieht: Punkte, eine Heatmap, ein Diagramm.",
+      "three": "Teilen Sie das Dashboard oder platzieren Sie es in einer Anwendung."
+    },
+    "explore": {
+      "title": "Erkunden",
+      "purpose": "Sehen Sie die Daten eines Endpunkts mit Filtern und Karte durch, bevor Sie etwas darauf bauen.",
+      "one": "Wählen Sie einen Raum und einen Endpunkt, den Sie lesen dürfen.",
+      "two": "Filtern Sie nach Typ, Attribut oder Gebiet.",
+      "three": "Exportieren Sie, was Sie sehen, oder kopieren Sie ein Snippet, um die Daten anderswo zu nutzen."
+    },
+    "approvals": {
+      "title": "Freigaben",
+      "purpose": "Jede Änderung eines Projekts wartet hier, bis eine Freigabe entscheidet; der Verlauf zeigt, was entschieden wurde.",
+      "one": "Öffnen Sie eine Änderung, um genau zu lesen, was sie tun würde.",
+      "two": "Geben Sie sie frei oder lehnen Sie sie ab, bei einer riskanten mit eingetipptem Namen.",
+      "three": "Im Verlauf sehen Sie, wer was entschieden hat, und können Entferntes wiederherstellen."
+    },
+    "activity": {
+      "title": "Aktivität",
+      "purpose": "Was im Projekt geschah: angewendete Änderungen, Pipeline-Läufe, abgelehnte Anfragen und mehr, das Neueste zuerst.",
+      "one": "Filtern Sie nach Art, Quelle oder Schwere.",
+      "two": "Verfolgen Sie den Live-Verlauf während der Arbeit.",
+      "three": "Öffnen Sie das Objekt oder die Änderung eines Ereignisses, um mehr zu sehen."
+    },
+    "assistant": {
+      "title": "Assistent",
+      "purpose": "Der Assistent hilft beim Bauen: er entwirft Ressourcen und Formulare, die Sie prüfen, und beantwortet Fragen zum Projekt.",
+      "one": "Beschreiben Sie in einem Satz, was Sie wollen.",
+      "two": "Prüfen Sie den Entwurf, den er öffnet; nichts wird gespeichert, bevor Sie es vorschlagen.",
+      "three": "Änderungen geben Sie selbst frei; der Assistent gibt nie frei."
+    },
+    "knowledge": {
+      "title": "Wissen",
+      "purpose": "Die Seiten und Dokumente, aus denen ein Wissensassistent antwortet, und wo dieser Assistent platziert ist.",
+      "one": "Fügen Sie eine Website oder einen Katalog als Wissensquelle hinzu.",
+      "two": "Durchsuchen Sie sie und wählen Sie, welche Seiten aufgenommen werden.",
+      "three": "Platzieren Sie den Assistenten auf Ihrer Website oder im Portal."
+    },
+    "workspaces": {
+      "title": "Kopien",
+      "purpose": "Eine Kopie hält mehrere Änderungen zusammen, damit Sie sie ausprobieren und auf einmal zurückbringen können.",
+      "one": "Beginnen Sie eine Kopie des Projekts.",
+      "two": "Machen und testen Sie darin Ihre Änderungen; nichts ist live.",
+      "three": "Bringen Sie sie als eine Änderung für eine Freigabe zurück."
+    },
+    "apps": {
+      "title": "Anwendungen",
+      "purpose": "Anwendungen auf den Endpunkten des Projekts, vom Assistenten erzeugt oder mit dem SDK gebaut.",
+      "one": "Erzeugen Sie eine App durch eine Beschreibung, oder öffnen Sie eine vorhandene.",
+      "two": "Prüfen Sie sie in der Vorschau mit echten Daten.",
+      "three": "Veröffentlichen Sie sie, sobald die Checkliste vollständig ist."
+    },
+    "settings": {
+      "title": "Projekteinstellungen",
+      "purpose": "Die eigenen Einstellungen des Projekts: seine Mitglieder und ihre Rollen, seine Dienstkonten und Ihr eigener Zugang.",
+      "one": "Geben Sie Personen und Gruppen eine Rolle im Projekt.",
+      "two": "Legen Sie Dienstkonten für Programme an, die es lesen oder schreiben.",
+      "three": "Sehen Sie Ihren eigenen Zugang und was jede Rolle erlaubt."
+    }
   }
 }

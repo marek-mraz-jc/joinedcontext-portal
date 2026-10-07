@@ -6414,5 +6414,138 @@
     "tooLong": "Nejvýše {max} znaků.",
     "screenshotRefused": "Snímek se nevytvořil: prohlížeč nedostal povolení sdílet stránku. Zrušte snímek a pošlete jen text.",
     "screenshotUnsupported": "Tento prohlížeč neumí udělat snímek stránky. Zrušte snímek a pošlete jen text."
+  },
+  "pageHelp": {
+    "menu": "Nápověda k této stránce",
+    "steps": "Jak na to",
+    "guide": "Více v uživatelské příručce",
+    "ask": "Pomoz mi se stránkou {page}: k čemu slouží a co mám udělat nejdřív?",
+    "askButton": "Zeptat se asistenta na tuto stránku",
+    "home": {
+      "title": "Domů",
+      "purpose": "Odtud začínáte: co můžete ve svých projektech udělat dál a co jste nedávno navštívili.",
+      "one": "Vyberte projekt, nebo pokud jste nový, projděte prvními kroky.",
+      "two": "Otevřete nedávnou nebo označenou stránku a pokračujte, kde jste skončili.",
+      "three": "Stiskněte Ctrl+K a najděte stránku, prostor nebo zdroj podle názvu."
+    },
+    "organization": {
+      "title": "Organizace",
+      "purpose": "Nastavení, lidé, skupiny a role celé organizace, pro její správce.",
+      "one": "Pozvěte lidi a zařaďte je do skupin.",
+      "two": "Dejte skupině roli v organizaci nebo v projektu.",
+      "three": "Zkontrolujte limity organizace a stav její konfigurace."
+    },
+    "spaces": {
+      "title": "Kontextové prostory",
+      "purpose": "Kontextový prostor drží data jednoho tématu, například kvality ovzduší, jako entity typů, které definuje jeho datový model.",
+      "one": "Vytvořte prostor a dejte mu datový model.",
+      "two": "Přineste data přes pipeline nebo nahráním souboru.",
+      "three": "Podívejte se do prostoru, čtěte, filtrujte a opravujte jeho entity."
+    },
+    "models": {
+      "title": "Datové modely",
+      "purpose": "Datový model říká, které typy entit prostor drží a jaké atributy má každý typ.",
+      "one": "Začněte z typu Smart Data Models nebo napište vlastní.",
+      "two": "Přidejte atributy s typem, jednotkou a zda jsou povinné.",
+      "three": "Navrhněte model; pipeliny pak svá data ověřují proti němu."
+    },
+    "datasources": {
+      "title": "Zdroje dat",
+      "purpose": "Zdroj dat je místo, odkud data přicházejí: webová adresa, dataset CKAN, broker MQTT, feed GTFS.",
+      "one": "Přidejte zdroj ze šablony nebo vyplňte jeho adresu.",
+      "two": "Heslo uložte jako odkaz na tajemství, nikdy ne do formuláře.",
+      "three": "Ověřte zdroj: Portál ho jednou stáhne a ukáže vzorek."
+    },
+    "pipelines": {
+      "title": "Pipeliny",
+      "purpose": "Pipeline podle plánu čte zdroj dat, mapuje každý záznam a zapisuje entity do prostoru.",
+      "one": "Vyberte zdroj a prostor, do kterého zapisuje.",
+      "two": "Přiřaďte pole k atributům typu entity.",
+      "three": "Otestujte ji na vzorku a navrhněte; schvalovatel ji spustí."
+    },
+    "endpoints": {
+      "title": "Endpointy",
+      "purpose": "Endpoint otevře prostor lidem a aplikacím, které ho čtou, jako NGSI-LD, GeoJSON, CSV a další.",
+      "one": "Vyberte prostor, reprezentace a kdo ho smí číst.",
+      "two": "Vyzkoušejte ho v prohlížeči a zkopírujte požadavek jako curl.",
+      "three": "Navrhněte ho; veřejný endpoint potřebuje schválení publikujícího."
+    },
+    "policies": {
+      "title": "Politiky",
+      "purpose": "Politika říká, kdo smí co v prostoru číst nebo zapisovat, až po typy, atributy a oblasti.",
+      "one": "Vyberte prostor a člověka, skupinu nebo aplikaci, na kterou platí.",
+      "two": "Zaškrtněte operace a zužte je na typy nebo atributy.",
+      "three": "Pokud má skončit, dejte jí data platnosti, a navrhněte ji."
+    },
+    "ckan": {
+      "title": "Katalog otevřených dat",
+      "purpose": "Zveřejněte endpoint prostoru jako dataset v katalogu CKAN, s metadaty a licencí.",
+      "one": "Připojte instanci CKAN, do které organizace publikuje.",
+      "two": "Zveřejněte endpoint jako dataset jedním krokem.",
+      "three": "Zkontrolujte, co je zveřejněné, a udržujte to aktuální."
+    },
+    "dashboards": {
+      "title": "Dashboardy",
+      "purpose": "Dashboard ukazuje data prostoru na mapách, v grafech a tabulkách, které se samy aktualizují.",
+      "one": "Vytvořte dashboard a přidejte vrstvu pro každý typ, který má ukázat.",
+      "two": "Vyberte, jak každá vrstva vypadá: body, teplotní mapa, graf.",
+      "three": "Sdílejte dashboard nebo ho umístěte do aplikace."
+    },
+    "explore": {
+      "title": "Průzkum",
+      "purpose": "Prohlédněte si data endpointu s filtry a mapou dřív, než na nich něco postavíte.",
+      "one": "Vyberte prostor a endpoint, který smíte číst.",
+      "two": "Filtrujte podle typu, atributu nebo oblasti.",
+      "three": "Exportujte, co vidíte, nebo zkopírujte úryvek pro použití dat jinde."
+    },
+    "approvals": {
+      "title": "Schvalování",
+      "purpose": "Každá změna projektu tu čeká, až o ní schvalovatel rozhodne; historie ukazuje, co se rozhodlo.",
+      "one": "Otevřete změnu a přečtěte si přesně, co udělá.",
+      "two": "Schvalte nebo zamítněte ji, u riskantní s opsaným názvem.",
+      "three": "Na kartě Historie uvidíte, kdo co rozhodl, a můžete obnovit odstraněné."
+    },
+    "activity": {
+      "title": "Aktivita",
+      "purpose": "Co se v projektu stalo: použité změny, běhy pipelinů, odmítnuté požadavky a další, od nejnovějšího.",
+      "one": "Filtrujte podle druhu, zdroje nebo závažnosti.",
+      "two": "Sledujte živý přehled během práce.",
+      "three": "Otevřete objekt nebo změnu události a uvidíte víc."
+    },
+    "assistant": {
+      "title": "Asistent",
+      "purpose": "Asistent vám pomáhá stavět: navrhuje zdroje a formuláře, které zkontrolujete, a odpovídá na otázky o projektu.",
+      "one": "Popište jednou větou, co chcete.",
+      "two": "Zkontrolujte návrh, který otevře; nic se neuloží, dokud ho nenavrhnete.",
+      "three": "Změny schvalujete sami; asistent nikdy neschvaluje."
+    },
+    "knowledge": {
+      "title": "Znalosti",
+      "purpose": "Stránky a dokumenty, ze kterých znalostní asistent odpovídá, a kde je umístěný.",
+      "one": "Přidejte web nebo katalog jako zdroj znalostí.",
+      "two": "Projděte ho a vyberte stránky, které zahrnout.",
+      "three": "Umístěte asistenta na svůj web nebo do Portálu."
+    },
+    "workspaces": {
+      "title": "Kopie",
+      "purpose": "Kopie drží více změn pohromadě, abyste je mohli vyzkoušet a vrátit najednou.",
+      "one": "Začněte kopii projektu.",
+      "two": "Udělejte a otestujte v ní změny; nic není v provozu.",
+      "three": "Vraťte ji jako jednu změnu pro schvalovatele."
+    },
+    "apps": {
+      "title": "Aplikace",
+      "purpose": "Aplikace postavené na endpointech projektu, vygenerované asistentem nebo postavené ze SDK.",
+      "one": "Vygenerujte aplikaci popisem, nebo otevřete existující.",
+      "two": "Ověřte ji se skutečnými daty v náhledu.",
+      "three": "Zveřejněte ji, až bude kontrolní seznam hotový."
+    },
+    "settings": {
+      "title": "Nastavení projektu",
+      "purpose": "Vlastní nastavení projektu: jeho členové a jejich role, servisní účty a váš vlastní přístup.",
+      "one": "Dejte lidem a skupinám roli v projektu.",
+      "two": "Vytvořte servisní účty pro programy, které ho čtou nebo zapisují.",
+      "three": "Podívejte se na svůj přístup a co která role dovoluje."
+    }
   }
 }

@@ -120,9 +120,10 @@
     },
     "src/components/HelpMenu.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
+        "page_help.test.tsx",
         "whats_new.test.tsx"
       ]
     },

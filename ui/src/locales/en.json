@@ -6414,5 +6414,138 @@
     "tooLong": "At most {max} characters.",
     "screenshotRefused": "No screenshot was taken: the browser was not allowed to share the page. Untick the screenshot to send the text alone.",
     "screenshotUnsupported": "This browser cannot take a screenshot of the page. Untick the screenshot to send the text alone."
+  },
+  "pageHelp": {
+    "menu": "Help for this page",
+    "steps": "How it goes",
+    "guide": "Read more in the User Guide",
+    "ask": "Help me with the {page} page: what is it for, and what comes first?",
+    "askButton": "Ask the assistant about this page",
+    "home": {
+      "title": "Home",
+      "purpose": "Where you start: what you can do next in your projects, and what you visited lately.",
+      "one": "Pick a project, or follow the first-run steps if you are new.",
+      "two": "Open a recent or starred page to carry on where you left off.",
+      "three": "Press Ctrl+K to find any page, space or resource by name."
+    },
+    "organization": {
+      "title": "Organization",
+      "purpose": "The settings, people, groups and roles of the whole organization, for its administrators.",
+      "one": "Invite people and put them in groups.",
+      "two": "Give a group a role in the organization or in a project.",
+      "three": "Check the organization's limits and the health of its configuration."
+    },
+    "spaces": {
+      "title": "Context spaces",
+      "purpose": "A context space holds the data of one topic, such as air quality, as entities of the types its data model defines.",
+      "one": "Create a space and give it a data model.",
+      "two": "Bring data in with a pipeline or by loading a file.",
+      "three": "Look inside a space to read, filter and correct its entities."
+    },
+    "models": {
+      "title": "Data models",
+      "purpose": "A data model says which entity types a space holds and what attributes each type has.",
+      "one": "Start from a Smart Data Models type or write your own.",
+      "two": "Add attributes with their type, unit and whether they are required.",
+      "three": "Propose the model; pipelines then check their data against it."
+    },
+    "datasources": {
+      "title": "Data sources",
+      "purpose": "A data source is where data comes from: a web address, a CKAN dataset, an MQTT broker, a GTFS feed.",
+      "one": "Add a source from a template, or fill in its address.",
+      "two": "Store any password as a secret reference, never in the form.",
+      "three": "Check the source: the Portal fetches it once and shows a sample."
+    },
+    "pipelines": {
+      "title": "Pipelines",
+      "purpose": "A pipeline reads a data source on a schedule, maps each record and writes the entities into a space.",
+      "one": "Pick the source and the space it writes to.",
+      "two": "Map the fields to the entity type's attributes.",
+      "three": "Test it on a sample, then propose it; an approver starts it."
+    },
+    "endpoints": {
+      "title": "Endpoints",
+      "purpose": "An endpoint opens a space to the people and applications that read it, as NGSI-LD, GeoJSON, CSV and more.",
+      "one": "Choose the space, the representations and who may read it.",
+      "two": "Try it in the browser and copy the request as curl.",
+      "three": "Propose it; a public endpoint needs a publisher's approval."
+    },
+    "policies": {
+      "title": "Policies",
+      "purpose": "A policy says who may read or write what in a space, down to types, attributes and areas.",
+      "one": "Pick the space and the person, group or application it applies to.",
+      "two": "Tick the operations and narrow them to types or attributes.",
+      "three": "Give it dates if it should end, and propose it."
+    },
+    "ckan": {
+      "title": "Open-data catalogue",
+      "purpose": "Publish a space's endpoint as a dataset in a CKAN catalogue, with its metadata and licence.",
+      "one": "Connect the CKAN instance the organization publishes to.",
+      "two": "Publish an endpoint as a dataset in one step.",
+      "three": "Check what is published and keep it up to date."
+    },
+    "dashboards": {
+      "title": "Dashboards",
+      "purpose": "A dashboard shows a space's data on maps, charts and tables that update by themselves.",
+      "one": "Create a dashboard and add a layer for each type to show.",
+      "two": "Choose how each layer looks: points, a heat map, a chart.",
+      "three": "Share the dashboard or place it in an application."
+    },
+    "explore": {
+      "title": "Explore",
+      "purpose": "Look through an endpoint's data with filters and a map before you build anything on it.",
+      "one": "Pick a space and an endpoint you may read.",
+      "two": "Filter by type, attribute or area.",
+      "three": "Export what you see or copy a snippet to use the data elsewhere."
+    },
+    "approvals": {
+      "title": "Approvals",
+      "purpose": "Every change to a project waits here until an approver decides it; the history shows what was decided.",
+      "one": "Open a change to read exactly what it would do.",
+      "two": "Approve or reject it, with the name typed back for a risky one.",
+      "three": "Read the history tab to see who decided what, and restore a removal."
+    },
+    "activity": {
+      "title": "Activity",
+      "purpose": "What happened in the project: changes applied, pipeline runs, refused requests and more, newest first.",
+      "one": "Filter by kind, source or severity.",
+      "two": "Follow the live tail while you work.",
+      "three": "Open an event's object or change to see more."
+    },
+    "assistant": {
+      "title": "Assistant",
+      "purpose": "The assistant helps you build: it drafts resources and forms you review, and answers questions about the project.",
+      "one": "Describe what you want in a sentence.",
+      "two": "Review the draft it opens; nothing is saved until you propose it.",
+      "three": "Approve changes yourself; the assistant never approves."
+    },
+    "knowledge": {
+      "title": "Knowledge",
+      "purpose": "The pages and documents a knowledge assistant answers from, and where that assistant is placed.",
+      "one": "Add a website or a catalogue as a knowledge source.",
+      "two": "Crawl it and choose which pages to include.",
+      "three": "Place the assistant on your site or in the Portal."
+    },
+    "workspaces": {
+      "title": "Copies",
+      "purpose": "A copy holds several changes together, so you can try them before bringing them back at once.",
+      "one": "Start a copy of the project.",
+      "two": "Make and test your changes in it; nothing is live.",
+      "three": "Bring it back as one change for an approver."
+    },
+    "apps": {
+      "title": "Applications",
+      "purpose": "Applications built on the project's endpoints, generated by the assistant or built from the SDK.",
+      "one": "Generate an app by describing it, or open one that exists.",
+      "two": "Check it with real data in the preview.",
+      "three": "Publish it once the checklist is complete."
+    },
+    "settings": {
+      "title": "Project settings",
+      "purpose": "The project's own settings: its members and their roles, its service accounts and its own access.",
+      "one": "Grant people and groups a role in the project.",
+      "two": "Create service accounts for programs that read or write it.",
+      "three": "See your own access and what each role allows."
+    }
   }
 }
