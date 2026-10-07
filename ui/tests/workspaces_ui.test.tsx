@@ -128,12 +128,13 @@ describe("work on a copy", () => {
     expect(requests).toEqual([]);
   });
 
-  it("shows the server's reason and stays open when the name is taken", async () => {
+  // A taken name is answered at the name, where it is fixed (T-3219), and the dialog stays open.
+  it("says at the name that it is taken and stays open", async () => {
     handler = () => json({ title: "Conflict", status: 409, detail: "a workspace named 'copy' already exists" }, 409);
     const onOpenChange = vi.fn();
     show(<WorkOnCopyDialog project="helsinki" scope={{ kind: "project" }} open onOpenChange={onOpenChange} />);
     await userEvent.click(screen.getByRole("button", { name: "Start the copy" }));
-    expect(await screen.findByText(/already exists/)).toBeInTheDocument();
+    expect(await screen.findAllByText("A copy named copy exists already. Choose another name.")).not.toHaveLength(0);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });

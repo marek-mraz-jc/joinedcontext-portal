@@ -83,7 +83,8 @@
     "environments": "Umgebungen",
     "projections": "Modellprojektionen",
     "knowledge": "Wissensquellen",
-    "mcp": "MCP-Server"
+    "mcp": "MCP-Server",
+    "home": "Start"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -5660,5 +5661,63 @@
     "title": "Benachrichtigungen",
     "none": "Nichts Neues.",
     "mentioned": "{name} hat Sie in {space} erwähnt"
+  },
+  "home": {
+    "title": "Start",
+    "leadLoading": "Was dieses Projekt enthält und was Sie als Nächstes tun können.",
+    "lead": {
+      "steward": "Was auf Ihre Genehmigung wartet und was in diesem Projekt Ihre Aufmerksamkeit braucht.",
+      "editor": "Woran Sie gearbeitet haben und was als Nächstes zu beheben ist.",
+      "viewer": "Die Daten und Dashboards dieses Projekts, die Sie lesen können."
+    },
+    "next": "Als Nächstes für Sie",
+    "firstRun": {
+      "title": "Erste Schritte",
+      "progress": "{done} von {total} erledigt",
+      "done": "Erledigt",
+      "todo": "Noch offen",
+      "dismiss": "Checkliste ausblenden",
+      "restore": "Checkliste für den Einstieg zeigen",
+      "step": {
+        "space": "Einen Kontextbereich anlegen",
+        "source": "Eine Datenquelle verbinden",
+        "pipeline": "Eine Pipeline ausführen",
+        "data": "Die Daten ansehen",
+        "share": "Über einen Endpoint teilen"
+      },
+      "go": {
+        "space": "Bereich anlegen",
+        "source": "Quelle verbinden",
+        "pipeline": "Pipelines öffnen",
+        "data": "Bereich öffnen",
+        "share": "Endpoint anlegen"
+      }
+    },
+    "card": {
+      "approvals": {
+        "title": "{count, plural, one {# Änderung wartet auf Genehmigung} other {# Änderungen warten auf Genehmigung}}",
+        "action": "Prüfen"
+      },
+      "failing": {
+        "title": "{count, plural, one {# Pipeline schlägt fehl} other {# Pipelines schlagen fehl}}",
+        "action": "Ansehen, was schiefging"
+      },
+      "invites": {
+        "title": "{count, plural, one {# Einladung ist noch nicht angenommen} other {# Einladungen sind noch nicht angenommen}}",
+        "action": "Personen öffnen"
+      },
+      "drafts": {
+        "title": "{count, plural, one {# Entwurf in Arbeit} other {# Entwürfe in Arbeit}}",
+        "action": "Den letzten fortsetzen"
+      },
+      "data": {
+        "title": "Daten, die Sie lesen können",
+        "action": "Bereich öffnen"
+      },
+      "dashboards": {
+        "title": "{count, plural, one {# Dashboard} other {# Dashboards}}",
+        "action": "Das erste öffnen"
+      }
+    }
   }
 }

@@ -83,7 +83,8 @@
     "environments": "Environments",
     "projections": "Model projections",
     "knowledge": "Knowledge sources",
-    "mcp": "MCP servers"
+    "mcp": "MCP servers",
+    "home": "Home"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -5660,5 +5661,63 @@
     "title": "Notifications",
     "none": "Nothing new.",
     "mentioned": "{name} mentioned you in {space}"
+  },
+  "home": {
+    "title": "Home",
+    "leadLoading": "What this project holds and what you can do next.",
+    "lead": {
+      "steward": "What waits for your approval and what needs your attention in this project.",
+      "editor": "What you were working on, and what to fix next.",
+      "viewer": "The data and dashboards of this project you can read."
+    },
+    "next": "Next for you",
+    "firstRun": {
+      "title": "Getting started",
+      "progress": "{done} of {total} done",
+      "done": "Done",
+      "todo": "Still to do",
+      "dismiss": "Put the checklist away",
+      "restore": "Show the getting-started checklist",
+      "step": {
+        "space": "Create a context space",
+        "source": "Connect a data source",
+        "pipeline": "Run a pipeline",
+        "data": "See the data",
+        "share": "Share it through an endpoint"
+      },
+      "go": {
+        "space": "Create a space",
+        "source": "Connect a source",
+        "pipeline": "Open pipelines",
+        "data": "Open the space",
+        "share": "Create an endpoint"
+      }
+    },
+    "card": {
+      "approvals": {
+        "title": "{count, plural, one {# change waits for approval} other {# changes wait for approval}}",
+        "action": "Review them"
+      },
+      "failing": {
+        "title": "{count, plural, one {# pipeline is failing} other {# pipelines are failing}}",
+        "action": "See what went wrong"
+      },
+      "invites": {
+        "title": "{count, plural, one {# invitation is not accepted yet} other {# invitations are not accepted yet}}",
+        "action": "Open people"
+      },
+      "drafts": {
+        "title": "{count, plural, one {# draft in progress} other {# drafts in progress}}",
+        "action": "Continue the latest"
+      },
+      "data": {
+        "title": "Data you can read",
+        "action": "Open the space"
+      },
+      "dashboards": {
+        "title": "{count, plural, one {# dashboard} other {# dashboards}}",
+        "action": "Open the first"
+      }
+    }
   }
 }

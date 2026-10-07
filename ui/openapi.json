@@ -17746,6 +17746,13 @@
             ],
             "description": "The project the shell opens on."
           },
+          "firstRunDismissed": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the person put the first-run checklist away (T-3233). Absent shows it; the help\nmenu clears it. The steps tick themselves from the project, never from this record."
+          },
           "locale": {
             "type": [
               "string",

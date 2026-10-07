@@ -4655,6 +4655,11 @@ export interface components {
             dashboardLayouts?: Record<string, never>;
             /** @description The project the shell opens on. */
             defaultProject?: string | null;
+            /**
+             * @description Whether the person put the first-run checklist away (T-3233). Absent shows it; the help
+             *     menu clears it. The steps tick themselves from the project, never from this record.
+             */
+            firstRunDismissed?: boolean | null;
             /** @description ISO 639-1 language code. */
             locale?: string | null;
             /** @description `light`, `dark` or `system`. */

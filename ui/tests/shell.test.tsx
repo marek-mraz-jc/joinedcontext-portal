@@ -100,7 +100,8 @@ describe("portal shell", () => {
 
   it("marks the section the router is on with aria-current", async () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).getByRole("link", { name: "Context Spaces" })).toHaveAttribute(
+    // "/" lands on the project's home (T-3233).
+    expect(within(nav).getByRole("link", { name: "Home" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -113,7 +114,7 @@ describe("portal shell", () => {
         "page",
       );
     });
-    expect(within(nav).getByRole("link", { name: "Context Spaces" })).not.toHaveAttribute(
+    expect(within(nav).getByRole("link", { name: "Home" })).not.toHaveAttribute(
       "aria-current",
     );
   });
@@ -135,7 +136,7 @@ describe("portal shell", () => {
     // A route change remounts the shell, so the breadcrumb node has to be looked up again.
     const crumbs = () => screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(crumbs()).getByRole("link", { name: "helsinki" })).toBeInTheDocument();
-    expect(within(crumbs()).getByText("Context Spaces")).toHaveAttribute("aria-current", "page");
+    expect(within(crumbs()).getByText("Home")).toHaveAttribute("aria-current", "page");
 
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     await userEvent.click(within(nav).getByRole("link", { name: "Approvals" }));
@@ -143,7 +144,7 @@ describe("portal shell", () => {
     await waitFor(() => {
       expect(within(crumbs()).getByText("Approvals")).toHaveAttribute("aria-current", "page");
     });
-    expect(within(crumbs()).queryByText("Context Spaces")).not.toBeInTheDocument();
+    expect(within(crumbs()).queryByText("Home")).not.toBeInTheDocument();
   });
 
   // T-2760: the floating assistant button covered a table's last column with nothing to scroll.
@@ -169,7 +170,7 @@ describe("portal shell", () => {
     await user.click(screen.getByRole("menuitem", { name: "banskabystrica" }));
 
     await waitFor(() => {
-      expect(window.location.pathname).toBe("/projects/banskabystrica/spaces");
+      expect(window.location.pathname).toBe("/projects/banskabystrica/home");
     });
     expect(screen.getByRole("button", { name: "Projects" })).toHaveTextContent("banskabystrica");
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
@@ -179,7 +180,8 @@ describe("portal shell", () => {
         const input = call[0] as RequestInfo | URL;
         return typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       });
-      expect(urls.some((url) => url.includes("/projects/banskabystrica/spaces"))).toBe(true);
+      // The home asks what the person may do in the project it switched to (T-3233).
+      expect(urls.some((url) => url.includes("/projects/banskabystrica/permissions/me"))).toBe(true);
     });
   });
 

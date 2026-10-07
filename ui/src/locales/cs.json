@@ -83,7 +83,8 @@
     "environments": "Prostředí",
     "projections": "Projekce modelů",
     "knowledge": "Zdroje znalostí",
-    "mcp": "MCP servery"
+    "mcp": "MCP servery",
+    "home": "Domů"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -5660,5 +5661,63 @@
     "title": "Upozornění",
     "none": "Nic nového.",
     "mentioned": "{name} vás zmínil(a) v {space}"
+  },
+  "home": {
+    "title": "Domů",
+    "leadLoading": "Co tento projekt obsahuje a co můžete udělat dál.",
+    "lead": {
+      "steward": "Co čeká na vaše schválení a co v tomto projektu potřebuje vaši pozornost.",
+      "editor": "Na čem jste pracovali a co opravit dál.",
+      "viewer": "Data a dashboardy tohoto projektu, které můžete číst."
+    },
+    "next": "Dál pro vás",
+    "firstRun": {
+      "title": "Začínáme",
+      "progress": "Hotovo {done} z {total}",
+      "done": "Hotovo",
+      "todo": "Ještě zbývá",
+      "dismiss": "Skrýt seznam kroků",
+      "restore": "Zobrazit seznam kroků na začátek",
+      "step": {
+        "space": "Vytvořte kontextový prostor",
+        "source": "Připojte zdroj dat",
+        "pipeline": "Spusťte pipeline",
+        "data": "Prohlédněte si data",
+        "share": "Sdílejte je přes endpoint"
+      },
+      "go": {
+        "space": "Vytvořit prostor",
+        "source": "Připojit zdroj",
+        "pipeline": "Otevřít pipeliny",
+        "data": "Otevřít prostor",
+        "share": "Vytvořit endpoint"
+      }
+    },
+    "card": {
+      "approvals": {
+        "title": "{count, plural, one {# změna čeká na schválení} few {# změny čekají na schválení} other {# změn čeká na schválení}}",
+        "action": "Posoudit je"
+      },
+      "failing": {
+        "title": "{count, plural, one {# pipeline selhává} other {# pipelin selhává}}",
+        "action": "Podívat se, co se pokazilo"
+      },
+      "invites": {
+        "title": "{count, plural, one {# pozvánka ještě není přijata} few {# pozvánky ještě nejsou přijaty} other {# pozvánek ještě není přijato}}",
+        "action": "Otevřít lidi"
+      },
+      "drafts": {
+        "title": "{count, plural, one {# rozpracovaný návrh} few {# rozpracované návrhy} other {# rozpracovaných návrhů}}",
+        "action": "Pokračovat v posledním"
+      },
+      "data": {
+        "title": "Data, která můžete číst",
+        "action": "Otevřít prostor"
+      },
+      "dashboards": {
+        "title": "{count, plural, one {# dashboard} few {# dashboardy} other {# dashboardů}}",
+        "action": "Otevřít první"
+      }
+    }
   }
 }

@@ -992,6 +992,14 @@
         "gallery_axe.test.tsx"
       ]
     },
+    "src/pages/home/HomePage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "home_page.test.tsx"
+      ]
+    },
     "src/pages/import/ImportPage.tsx": {
       "controls": {
         "Button": 2,
