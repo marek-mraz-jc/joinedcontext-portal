@@ -7,7 +7,7 @@ import { api, unwrap } from "../../api/client";
 import { isSeq, parseDocument } from "yaml";
 import { edit, parseModel } from "./linkml";
 import type { Artifacts } from "./LinkmlPreviewPanel";
-import { Alert, Button, Checkbox, Field, Input, RadioGroup, Select, Skeleton } from "../../components/ui";
+import { Alert, Button, Checkbox, Field, Input, RadioGroup, Select, Skeleton, safeHref } from "../../components/ui";
 
 /**
  * The primary path into a model: take an official Smart Data Model and adapt it (DM-07).
@@ -397,9 +397,10 @@ export function SmartDataModelsImport({
           </Alert>
         ) : imported ? (
           <>
-            {origin ? (
+            {origin && safeHref(origin.href) ? (
               <p className="text-caption text-fg-muted">
-                <a href={origin.href} target="_blank" rel="noreferrer noopener" className="underline">
+                {/* The address comes from the imported model, so it is linked only when it is one (UI-41). */}
+                <a href={safeHref(origin.href)} target="_blank" rel="noreferrer noopener" className="underline">
                   {t("models.sdm.origin", { commit: origin.commit.slice(0, 7) })}
                 </a>
               </p>
