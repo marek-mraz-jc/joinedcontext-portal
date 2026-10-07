@@ -3361,7 +3361,6 @@
     "removeConfirm": "Löschen",
     "removeNote": "Die Policy des Endpunkts entscheidet: Die Löschung läuft mit Ihrer Anmeldung, nicht mit einer Dienstidentität, und lässt sich nicht rückgängig machen.",
     "deleteDenied": "Die Freigabe dieses Endpunkts erlaubt Ihnen nicht, {type} zu löschen",
-    "export": "Diese Seite exportieren",
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
     "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
@@ -3383,6 +3382,23 @@
       "outlierCount": "{count, plural, one {# Wert} other {# Werte}}",
       "pipelines": "Pipelines, die diesen Typ schreiben",
       "rejected": "{pipeline} mit seinen abgelehnten Datensätzen öffnen"
+    },
+    "exportView": {
+      "format": "Exportformat",
+      "formats": {
+        "csv-excel": "CSV für Excel (slowakische Zahlen- und Datumsformate)",
+        "csv": "CSV",
+        "json": "JSON",
+        "geojson": "GeoJSON (Entitäten mit Ort)"
+      },
+      "start": "Ansicht exportieren",
+      "cancel": "Export abbrechen",
+      "progress": "{done} Zeilen gelesen…",
+      "progressOf": "{done} von {total} Zeilen gelesen…",
+      "download": "{name} herunterladen ({rows, plural, one {# Zeile} other {# Zeilen}})",
+      "truncated": "Nur die ersten {max} Zeilen: grenzen Sie den Filter für den Rest ein.",
+      "empty": "Die Ansicht enthält keine Zeilen zum Exportieren.",
+      "noGeometry": "Keine Entität der Ansicht hat einen Ort, daher gibt es kein GeoJSON zu exportieren."
     }
   },
   "agentRun": {

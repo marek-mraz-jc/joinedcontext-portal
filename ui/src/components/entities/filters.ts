@@ -20,6 +20,8 @@ export interface EntityQuery {
   attrs?: string[];
   q?: string;
   scopeQ?: string;
+  /** A regular expression the ids match, as the grid's id filter asks (T-3253). */
+  idPattern?: string;
 }
 
 /** One attribute a filter row may name, typed by its LinkML slot when the model declares it. */
@@ -324,6 +326,9 @@ export async function fetchEntities(
   }
   if (query.scopeQ?.trim()) {
     params.set("scopeQ", query.scopeQ.trim());
+  }
+  if (query.idPattern?.trim()) {
+    params.set("idPattern", query.idPattern.trim());
   }
   if (query.attrs && query.attrs.length > 0) {
     params.set("attrs", query.attrs.join(","));
