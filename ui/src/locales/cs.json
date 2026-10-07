@@ -5988,6 +5988,35 @@
     "service-unavailable": "Platforma na to ještě není připravená; zkuste to za minutu.",
     "delivery-timeout": "Příjemce neodpověděl včas; ověřte, že je dostupný, a zkuste to znovu."
   },
+  "jobs": {
+    "title": "Co jste spustili",
+    "label": "Co jste spustili: {running, plural, =0 {nic neběží} one {# běží} few {# běží} other {# běží}}{finished, plural, =0 {} one {, # dokončeno} other {, # dokončených}}",
+    "queued": "Čeká na spuštění",
+    "running": "Běží {minutes, plural, =0 {méně než minutu} one {# minutu} few {# minuty} other {# minut}}",
+    "runningWithEstimate": "Běží {minutes, plural, =0 {méně než minutu} one {# minutu} few {# minuty} other {# minut}}, zbývá asi {left, plural, =0 {chvilka} one {# minuta} few {# minuty} other {# minut}}",
+    "unknown": "Teď se nedá zjistit",
+    "outcome": {
+      "succeeded": "Dokončeno",
+      "failed": "Selhalo: otevřete, proč",
+      "cancelled": "Zrušeno"
+    },
+    "kind": {
+      "appBuild": "Sestavení {name}",
+      "knowledgeCrawl": "Procházení {name}"
+    },
+    "finished": {
+      "appBuild": {
+        "succeeded": "Sestavení {name} se dokončilo.",
+        "failed": "Sestavení {name} selhalo.",
+        "cancelled": "Sestavení {name} bylo zrušeno."
+      },
+      "knowledgeCrawl": {
+        "succeeded": "Procházení {name} se dokončilo.",
+        "failed": "Procházení {name} selhalo.",
+        "cancelled": "Procházení {name} bylo zrušeno."
+      }
+    }
+  },
   "places": {
     "star": "Označit stránku hvězdičkou",
     "copyLink": "Kopírovat odkaz",

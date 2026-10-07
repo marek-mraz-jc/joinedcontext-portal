@@ -36,6 +36,10 @@ pub struct AppBuild {
     pub configuration_url: Option<String>,
     /// The newest workflow run, `null` before the first.
     pub run: Option<WorkflowRun>,
+    /// How long the newest finished successful run took, in seconds: the estimate a running
+    /// build is shown against (T-3245); `null` before the first one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub typical_seconds: Option<u64>,
     /// The package of `status.build.commit`, `null` while the App has no build.
     pub package_url: Option<String>,
     pub rebuild: Rebuild,
@@ -147,6 +151,7 @@ pub async fn build(
             repository_url: None,
             configuration_url,
             run: None,
+            typical_seconds: None,
             package_url: None,
             rebuild: Rebuild {
                 allowed: false,
@@ -154,15 +159,22 @@ pub async fn build(
             },
         }));
     };
-    let run = match repo.latest_run().await {
-        Ok(run) => run,
+    // ponytail: the estimate is the newest successful run of the last five; a median when one
+    // slow run makes it lie.
+    let runs = match repo.latest_runs(5).await {
+        Ok(runs) => runs,
         // A repository with Actions off, or not created yet, has no run to link.
-        Err(GitError::NotFound) => None,
+        Err(GitError::NotFound) => Vec::new(),
         Err(err) => {
             tracing::warn!(app = %name, error = %err, "the application's workflow runs were not read");
-            None
+            Vec::new()
         }
     };
+    let typical_seconds = runs
+        .iter()
+        .filter(|run| run.conclusion.as_deref() == Some("success"))
+        .find_map(WorkflowRun::seconds);
+    let run = runs.into_iter().next();
     let build = |field: &str| {
         app.pointer(&format!("/status/build/{field}"))
             .and_then(serde_json::Value::as_str)
@@ -182,6 +194,7 @@ pub async fn build(
         repository_url: Some(repo.repository_page_url()),
         configuration_url,
         run,
+        typical_seconds,
         package_url,
         rebuild: Rebuild {
             allowed: refusal.is_none(),

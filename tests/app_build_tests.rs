@@ -141,6 +141,7 @@ async fn the_build_links_the_repository_the_run_and_the_package_behind_the_forge
             "conclusion": "success",
             "commit": COMMIT,
             "url": login("%2Ftest-owner%2Fhelsinki_bikes%2Factions%2Fruns%2F7"),
+            "number": 7,
         })
     );
     assert_eq!(
@@ -389,4 +390,66 @@ async fn in_layout_2_the_configuration_link_is_the_projects_own_repository_for_i
         renamed["configurationUrl"],
         login(&gitea, "%2Ftest-owner%2Fhelsinki-city")
     );
+}
+
+/// T-3245: a running build is shown against the newest finished successful run, and the run
+/// carries its number and times, so a client tells the run it started from the one before.
+#[tokio::test]
+async fn a_build_carries_its_runs_number_and_times_and_the_estimate_of_the_last_success() {
+    let gitea = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO}/actions/runs")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "workflow_runs": [
+                { "run_number": 9, "status": "in_progress", "head_sha": COMMIT, "started_at": "2026-10-07T10:00:00Z" },
+                { "run_number": 8, "status": "completed", "conclusion": "failure", "head_sha": COMMIT,
+                  "started_at": "2026-10-07T09:00:00Z", "completed_at": "2026-10-07T09:00:20Z" },
+                { "run_number": 7, "status": "completed", "conclusion": "success", "head_sha": COMMIT,
+                  "started_at": "2026-10-07T08:00:00Z", "completed_at": "2026-10-07T08:03:05Z" }
+            ],
+        })))
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea, true);
+    let answer = send(
+        &state,
+        person("jana"),
+        "GET",
+        "/api/v1/projects/helsinki/apps/bikes/build",
+        None,
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    let build = body(&answer.text);
+    assert_eq!(build["run"]["number"], json!(9));
+    assert_eq!(build["run"]["status"], json!("in_progress"));
+    assert_eq!(build["run"]["startedAt"], json!("2026-10-07T10:00:00Z"));
+    assert!(build["run"].get("completedAt").is_none(), "{build}");
+    // The failed run is no estimate; the last success took 3 min 5 s.
+    assert_eq!(build["typicalSeconds"], json!(185), "{build}");
+}
+
+/// No successful run yet is no estimate rather than a guess.
+#[tokio::test]
+async fn without_a_finished_success_there_is_no_estimate() {
+    let gitea = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO}/actions/runs")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "workflow_runs": [{ "run_number": 1, "status": "queued", "head_sha": COMMIT }],
+        })))
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea, true);
+    let answer = send(
+        &state,
+        person("jana"),
+        "GET",
+        "/api/v1/projects/helsinki/apps/bikes/build",
+        None,
+    )
+    .await;
+    let build = body(&answer.text);
+    assert!(build.get("typicalSeconds").is_none(), "{build}");
+    assert_eq!(build["run"]["number"], json!(1));
 }
