@@ -69,3 +69,45 @@ async fn no_runner_to_fetch_with_is_unavailable_not_the_address_s_fault() {
         answer.text()
     );
 }
+
+#[tokio::test]
+async fn an_address_carrying_a_credential_is_refused_without_repeating_it() {
+    let state = state();
+    for url in [
+        "https://user:hunter2hunter2@data.example.org/a.json",
+        "https://user@data.example.org/a.json",
+        "https://data.example.org/a.json?api_key=hunter2hunter2",
+        "https://data.example.org/a.json?access-token=hunter2hunter2",
+        "https://data.example.org/a.json?KEY=hunter2hunter2",
+        "https://data.example.org/a.json?q=Bearer%20hunter2hunter2",
+    ] {
+        let answer = doors::call(
+            "jc_model_infer",
+            &session(steward()),
+            &state,
+            json!({ "url": url }),
+        )
+        .await;
+        assert_eq!(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            answer.status,
+            "{url}: {}",
+            answer.text()
+        );
+        assert!(!answer.text().contains("hunter2"), "{}", answer.text());
+    }
+    // An ordinary query stays an ordinary query: it reaches the runner, which is absent here.
+    let plain = doors::call(
+        "jc_model_infer",
+        &session(steward()),
+        &state,
+        json!({ "url": "https://data.example.org/a.json?type=AirQualityObserved&limit=10" }),
+    )
+    .await;
+    assert_eq!(
+        StatusCode::SERVICE_UNAVAILABLE,
+        plain.status,
+        "{}",
+        plain.text()
+    );
+}

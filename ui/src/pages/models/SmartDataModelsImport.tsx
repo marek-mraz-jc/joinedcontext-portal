@@ -99,10 +99,16 @@ export interface AddedAttribute {
 /** An attribute name as Smart Data Models writes them: lower camel case, letters and digits. */
 const ATTRIBUTE_NAME = /^[a-z][A-Za-z0-9]{0,62}$/;
 
-/** Why a new attribute cannot be added, as a key under `models.sdm.addProblem`. */
+/** What every entity has from NGSI-LD and the `Entity` class of `ngsi-ld-core`: never redeclared. */
+const CORE_ATTRIBUTES = ["id", "type", "location", "observedAt", "createdAt", "modifiedAt"];
+
+/**
+ * Why a new attribute cannot be added, as a key under `models.sdm.addProblem`: `existing` is every
+ * slot the imported document declares, its other classes' included, and the names already added.
+ */
 export function addedProblem(name: string, existing: string[]): "name" | "taken" | undefined {
   if (!ATTRIBUTE_NAME.test(name)) return "name";
-  return existing.includes(name) ? "taken" : undefined;
+  return existing.includes(name) || CORE_ATTRIBUTES.includes(name) ? "taken" : undefined;
 }
 
 /** The imported source with the person's own attributes on its class, each a slot of its own. */
@@ -110,6 +116,8 @@ export function withAttributes(source: string, className: string, added: AddedAt
   if (added.length === 0) return source;
   return edit(source, (document) => {
     for (const attribute of added) {
+      // A slot of that name is somebody's already: never overwritten, whatever the caller checked.
+      if (document.hasIn(["slots", attribute.name]) || CORE_ATTRIBUTES.includes(attribute.name)) continue;
       document.setIn(["slots", attribute.name], document.createNode({ range: attribute.range }));
       const slots = document.getIn(["classes", className, "slots"]);
       const listed = isSeq(slots) ? (slots.toJSON() as unknown[]) : [];
@@ -254,7 +262,9 @@ export function SmartDataModelsImport({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <section aria-labelledby="sdm-browse" className="flex flex-col gap-3">
+      {/* `min-w-0` on both columns: a grid item is as wide as its widest content, and the source's
+          long lines made the page scroll sideways at 375 px (T-3251). */}
+      <section aria-labelledby="sdm-browse" className="flex min-w-0 flex-col gap-3">
         <h2 id="sdm-browse" className="text-base font-semibold">
           {t("models.sdm.browse")}
         </h2>
@@ -374,7 +384,7 @@ export function SmartDataModelsImport({
 
       <section
         aria-labelledby="sdm-preview"
-        className="flex flex-col gap-3 lg:sticky lg:top-4 lg:self-start"
+        className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-4 lg:self-start"
       >
         <h2 id="sdm-preview" className="text-base font-semibold">
           {t("models.sdm.preview")}

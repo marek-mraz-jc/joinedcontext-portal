@@ -149,6 +149,20 @@ export function slotRows(operations: Operation[]): SlotRow[] {
   return rows;
 }
 
+/**
+ * Whether an address carries a credential: a user name or password, or a query parameter named
+ * like one. A courtesy before anything is sent; `credential_in_address` in `src/ops/compute.rs`
+ * is the refusal that counts (T-3250).
+ */
+export function credentialInAddress(url: URL): boolean {
+  const names = ["password", "token", "secret", "clientsecret", "apikey", "apitoken", "accesstoken", "key", "sig", "signature", "auth", "credential"];
+  return (
+    url.username !== "" ||
+    url.password !== "" ||
+    [...url.searchParams.keys()].some((name) => names.includes(name.replace(/[-_]/g, "").toLowerCase()))
+  );
+}
+
 export function ModelFileDrop({
   project,
   onPopulate,
@@ -220,6 +234,10 @@ export function ModelFileDrop({
     }
     if (url.protocol !== "https:" && url.protocol !== "http:") {
       setProblem(t("models.infer.urlInvalid"));
+      return;
+    }
+    if (credentialInAddress(url)) {
+      setProblem(t("models.infer.urlCredential"));
       return;
     }
     const name = nameFrom(url.toString()) || "sample";

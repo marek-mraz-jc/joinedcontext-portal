@@ -2467,7 +2467,8 @@
       "url": "Oder die Adresse einer API, die JSON liefert",
       "urlHelp": "Einmal vom Runner des Projekts gelesen, wie die Prüfung einer Datenquelle sie liest; das Modell entsteht aus den Datensätzen der Antwort.",
       "readUrl": "Adresse lesen",
-      "urlInvalid": "Geben Sie eine vollständige Adresse an, die mit https:// oder http:// beginnt."
+      "urlInvalid": "Geben Sie eine vollständige Adresse an, die mit https:// oder http:// beginnt.",
+      "urlCredential": "Die Adresse enthält einen Benutzernamen, ein Passwort oder einen Schlüssel. Geben Sie sie ohne an, oder binden Sie die Quelle als Datenquelle an, deren Zugangsdaten ein Secret sind."
     },
     "source": {
       "loading": "Modellquelle wird geladen…",
