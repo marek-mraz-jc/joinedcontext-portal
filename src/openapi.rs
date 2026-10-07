@@ -132,6 +132,7 @@ use crate::tools::model_tools::{
         crate::api::people::disable_person,
         crate::api::people::enable_person,
         crate::api::people::reset_password,
+        crate::api::people::resend_invitation,
         crate::api::people::remove_second_factor,
         crate::api::people::sign_out_person,
         crate::api::people::delete_person,

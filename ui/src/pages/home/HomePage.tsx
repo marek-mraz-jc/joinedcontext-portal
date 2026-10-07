@@ -11,7 +11,7 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { mayRead, usePermissions } from "../../api/permissions";
 import { spaceUsageQuery } from "../../api/spaceUsage";
 import { Button, PageHeader } from "../../components/ui";
-import { cardsFor, draftPage, firstRunSteps, roleOf } from "./home";
+import { cardsFor, draftPage, firstRunSteps, roleOf, welcomeStep } from "./home";
 import type { Facts } from "./home";
 import { useFirstRun } from "./firstRun";
 
@@ -32,10 +32,22 @@ function useList(project: string, plural: string, enabled: boolean) {
 /** How many spaces are counted for entities, so a project of many spaces asks a few. */
 const COUNTED_SPACES = 5;
 
-export function HomePage({ project }: { project: string }): JSX.Element {
+export function HomePage({
+  project,
+  welcome = false,
+  onWelcomeClosed,
+}: {
+  project: string;
+  /** Greets a person an invitation brought here (PF-108). */
+  welcome?: boolean;
+  onWelcomeClosed?: () => void;
+}): JSX.Element {
   const { t } = useTranslation();
   const permissions = usePermissions(project);
   const role = roleOf(permissions.data);
+  // No grant here yet: the role an invitation proposed waits for its approval.
+  const holdsNothing =
+    permissions.data !== undefined && permissions.data.bootstrap !== true && (permissions.data.grants ?? []).length === 0;
   const reads = (kind: string) => mayRead(permissions.data, kind) === true;
 
   const spaces = useList(project, "spaces", reads("ContextSpace"));
@@ -96,6 +108,27 @@ export function HomePage({ project }: { project: string }): JSX.Element {
   return (
     <section className="space-y-8" aria-label={t("home.title")}>
       <PageHeader title={t("home.title")} description={role ? t(`home.lead.${role}`) : t("home.leadLoading")} />
+
+      {welcome && permissions.data !== undefined ? (
+        <section aria-labelledby="welcome-heading" className="space-y-3 rounded-lg border border-primary bg-surface p-4">
+          <h2 id="welcome-heading" className="text-title font-semibold text-fg">
+            {t("home.welcome.title", { project })}
+          </h2>
+          <p className="text-body text-fg">{holdsNothing || !role ? t("home.welcome.unknown") : t(`home.welcome.role.${role}`)}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            {holdsNothing || !role ? null : (
+              <Link to={welcomeStep(project, role)} className="text-body font-medium text-primary underline">
+                {t(`home.welcome.first.${role}`)}
+              </Link>
+            )}
+            {onWelcomeClosed ? (
+              <Button variant="secondary" size="sm" onClick={onWelcomeClosed}>
+                {t("home.welcome.close")}
+              </Button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       {firstRun.shown && doneCount < steps.length ? (
         <section aria-labelledby="first-run-heading" className="space-y-3 rounded-lg border border-border bg-surface p-4">

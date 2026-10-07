@@ -4477,7 +4477,8 @@
         "reset-password": "Obnoviť heslo",
         "remove-second-factor": "Odstrániť druhý faktor",
         "sign-out": "Odhlásiť všade",
-        "delete": "Zmazať"
+        "delete": "Zmazať",
+        "resend-invitation": "Poslať pozvánku znova"
       },
       "done": {
         "disable": "Vypnuté. Všetky relácie osoby skončili.",
@@ -4485,7 +4486,8 @@
         "reset-password": "Doména poslala osobe odkaz na nastavenie nového hesla.",
         "remove-second-factor": "Druhý faktor odstránený. Osoba si pri ďalšom prihlásení nastaví nový.",
         "sign-out": "Všetky relácie osoby skončili.",
-        "delete": "Zmazané."
+        "delete": "Zmazané.",
+        "resend-invitation": "Realm poslal pozvánku znova, s novým odkazom."
       },
       "confirm": {
         "disable": {
@@ -4511,6 +4513,10 @@
         "delete": {
           "title": "Zmazať {name}?",
           "body": "Osoba sa hneď vypne. Ak ju menujú skupiny alebo väzby, Zmena ju z každej vyberie; účet zanikne po schválení tejto Zmeny. Nedá sa to vrátiť."
+        },
+        "resend-invitation": {
+          "title": "Poslať pozvánku pre {name} znova?",
+          "body": "Realm pošle e-mailom nový odkaz na kroky, ktoré človek ešte neurobil. Bez e-mailu dostanete jedenkrát dočasné heslo."
         }
       },
       "password": {
@@ -4521,6 +4527,46 @@
         "copy": "Kopírovať",
         "copied": "Skopírované do schránky.",
         "done": "Hotovo"
+      },
+      "invitedInto": "Realm poslal na {email} e-mail na overenie adresy a nastavenie hesla. Odkaz potom otvorí projekt {project}.",
+      "invite": {
+        "project": "Projekt",
+        "projectHelp": "Projekt, do ktorého pozvánka vedie. Po nastavení hesla človek pristane na jeho domovskej stránke.",
+        "noProject": "Bez projektu: iba organizácia",
+        "role": "Rola v projekte",
+        "roleHelp": "Čo smie človek robiť v projekte {project}. Rola sa navrhne ako zmena a platí po jej schválení.",
+        "roles": {
+          "viewer": {
+            "label": "Čitateľ",
+            "may": "Číta priestory, dáta, pipelines a dashboardy projektu. Nič nemení."
+          },
+          "editor": {
+            "label": "Editor",
+            "may": "Navrhuje a schvaľuje zmeny priestorov, modelov, mapovaní, politík, zdrojov dát, pipelines a endpointov. Nič nemaže."
+          },
+          "steward": {
+            "label": "Správca",
+            "may": "Navrhuje a schvaľuje zmeny všetkého v projekte vrátane aplikácií, dashboardov a dátových ponúk a schvaľuje, čo navrhnú iní."
+          }
+        },
+        "roleProposed": "Rola {role} pre {email} v projekte {project} je navrhnutá. Platí po schválení zmeny.",
+        "roleFailed": "Človek je pozvaný, ale rola {role} v projekte {project} navrhnutá nebola: {reason} Pridajte ju v Členoch projektu."
+      },
+      "pending": {
+        "title": "Neprijaté pozvánky",
+        "link": "Odkaz pozvánky",
+        "expires": "Odkaz platí do {at}.",
+        "expired": "Platnosť odkazu skončila {at}. Pošlite ho znova.",
+        "expiryUnknown": "Portál si nezaznamenal, kedy platnosť odkazu skončí.",
+        "resent": "Realm poslal pozvánku na {email} znova, s novým odkazom.",
+        "revoked": "Pozvánka pre {email} je zrušená a účet zmazaný.",
+        "revoke": "Zrušiť",
+        "resendFor": "Poslať pozvánku na {email} znova",
+        "revokeFor": "Zrušiť pozvánku pre {email}",
+        "confirmRevoke": {
+          "title": "Zrušiť pozvánku pre {email}?",
+          "body": "Účet sa zmaže a odkaz prestane fungovať. Ak človeka už menuje väzba, najprv ho z nej vyberie zmena."
+        }
       }
     },
     "setup": {
@@ -5809,6 +5855,21 @@
         "title": "{count, plural, one {# dashboard} few {# dashboardy} other {# dashboardov}}",
         "action": "Otvoriť prvý"
       }
+    },
+    "welcome": {
+      "title": "Vitajte v projekte {project}",
+      "role": {
+        "viewer": "Ste tu čitateľ: čítate dáta a dashboardy projektu.",
+        "editor": "Ste tu editor: navrhujete zmeny konfigurácie projektu.",
+        "steward": "Ste tu správca: schvaľujete, čo navrhnú iní, a zodpovedáte za dáta projektu."
+      },
+      "unknown": "Vašu rolu tu ešte nemáte: platí po schválení zmeny, ktorá ju navrhuje.",
+      "first": {
+        "viewer": "Otvoriť priestory projektu",
+        "editor": "Pripojiť zdroj dát",
+        "steward": "Prezrieť čakajúce zmeny"
+      },
+      "close": "Zavrieť privítanie"
     }
   }
 }

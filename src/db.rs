@@ -815,6 +815,63 @@ pub async fn person_deletions(pool: &PgPool) -> Result<Vec<PersonDeletion>, sqlx
     .await
 }
 
+/// Remembers when the link of the invitation just sent to `person_id` expires, and the project
+/// it leads into; sent again without one, it keeps the project it had (PF-108).
+pub async fn set_person_invitation(
+    pool: &PgPool,
+    person_id: &str,
+    expires_at: OffsetDateTime,
+    project: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO person_invitations (person_id, expires_at, project) VALUES ($1, $2, $3) \
+         ON CONFLICT (person_id) DO UPDATE SET expires_at = EXCLUDED.expires_at, \
+         project = COALESCE(EXCLUDED.project, person_invitations.project)",
+    )
+    .bind(person_id)
+    .bind(expires_at)
+    .bind(project)
+    .execute(pool)
+    .await
+    .map(drop)
+}
+
+/// The invitation expiries of the given people, by id; a person the Portal sent none is absent.
+pub async fn person_invitations(
+    pool: &PgPool,
+    person_ids: &[String],
+) -> Result<std::collections::HashMap<String, OffsetDateTime>, sqlx::Error> {
+    let rows: Vec<(String, OffsetDateTime)> = sqlx::query_as(
+        "SELECT person_id, expires_at FROM person_invitations WHERE person_id = ANY($1)",
+    )
+    .bind(person_ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
+/// The project the invitation of `person_id` leads into, when it names one.
+pub async fn person_invitation_project(
+    pool: &PgPool,
+    person_id: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, Option<String>>(
+        "SELECT project FROM person_invitations WHERE person_id = $1",
+    )
+    .bind(person_id)
+    .fetch_optional(pool)
+    .await
+    .map(Option::flatten)
+}
+
+pub async fn remove_person_invitation(pool: &PgPool, person_id: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM person_invitations WHERE person_id = $1")
+        .bind(person_id)
+        .execute(pool)
+        .await
+        .map(drop)
+}
+
 pub async fn remove_person_deletion(pool: &PgPool, person_id: &str) -> Result<(), sqlx::Error> {
     sqlx::query("DELETE FROM person_deletions WHERE person_id = $1")
         .bind(person_id)

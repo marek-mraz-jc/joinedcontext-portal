@@ -326,12 +326,14 @@ impl Admin<'_> {
     /// Asks the realm to send its execute-actions e-mail, its link living `lifespan` (the
     /// organization's `invitationHours`; `None` keeps the realm's own). `Ok(false)` when the realm
     /// cannot send mail (it answers 5xx), which is when the Portal falls back to a temporary
-    /// password (PF-92).
+    /// password (PF-92). `back` is the client and the page the link returns to once the actions
+    /// are done (PF-108); `None` ends it on the realm's own page.
     pub async fn send_actions(
         &self,
         id: &str,
         actions: &[&str],
         lifespan: Option<std::time::Duration>,
+        back: Option<(&str, &str)>,
     ) -> Result<bool, PeopleError> {
         let mut request = self
             .people
@@ -340,6 +342,9 @@ impl Admin<'_> {
             .json(&actions);
         if let Some(lifespan) = lifespan {
             request = request.query(&[("lifespan", lifespan.as_secs())]);
+        }
+        if let Some((client_id, redirect_uri)) = back {
+            request = request.query(&[("client_id", client_id), ("redirect_uri", redirect_uri)]);
         }
         match self.send(request).await {
             Ok(_) => Ok(true),

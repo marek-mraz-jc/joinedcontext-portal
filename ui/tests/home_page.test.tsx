@@ -18,11 +18,14 @@ interface World {
   entities?: number;
   pipelines?: string[];
   dismissed?: boolean;
+  /** Arrived through an invitation's link (PF-108). */
+  welcome?: boolean;
+  onWelcomeClosed?: () => void;
 }
 
 function show(world: World) {
   const sent: { method: string; path: string; body: unknown }[] = [];
-  const result = renderPage(<HomePage project="helsinki" />, {
+  const result = renderPage(<HomePage project="helsinki" welcome={world.welcome} onWelcomeClosed={world.onWelcomeClosed} />, {
     path: "/projects/helsinki/home",
     answer: async (url, request) => {
       if (request.method !== "GET") {
@@ -31,7 +34,8 @@ function show(world: World) {
       }
       const path = url.pathname;
       if (path.endsWith("/permissions/me")) {
-        return json({ project: "helsinki", grants: [{ rule: { kinds: ["ContextSpace", "DataSource", "Pipeline", "Endpoint", "Dashboard"], verbs: world.verbs } }] });
+        const grants = world.verbs.length > 0 ? [{ rule: { kinds: ["ContextSpace", "DataSource", "Pipeline", "Endpoint", "Dashboard"], verbs: world.verbs } }] : [];
+        return json({ project: "helsinki", grants });
       }
       if (path === "/api/v1/preferences") return json(world.dismissed ? { firstRunDismissed: true } : {});
       if (path === "/api/v1/projects/helsinki/spaces") return json(list((world.spaces ?? []).map((s) => named(s))));
@@ -97,5 +101,41 @@ describe("the project home (T-3233, T-3235)", () => {
     show({ verbs: ["read"], dismissed: true });
     await screen.findByText(en.home.lead.viewer);
     expect(screen.queryByRole("region", { name: en.home.next })).toBeNull();
+  });
+});
+
+describe("the welcome an invitation leads to (PF-108)", () => {
+  it("greets a viewer with their role and their first step, one click away", async () => {
+    const closed = vi.fn();
+    const { container } = show({ verbs: ["read"], welcome: true, onWelcomeClosed: closed });
+    const welcome = await screen.findByRole("region", { name: "Welcome to helsinki" });
+    expect(welcome).toHaveTextContent(en.home.welcome.role.viewer);
+    expect(within(welcome).getByRole("link", { name: en.home.welcome.first.viewer })).toHaveAttribute("href", "/projects/helsinki/spaces");
+    await expectNoViolations(container);
+    await userEvent.click(within(welcome).getByRole("button", { name: en.home.welcome.close }));
+    expect(closed).toHaveBeenCalledOnce();
+  });
+
+  it("sends an editor to connect a source and a steward to the changes waiting", async () => {
+    show({ verbs: ["read", "propose"], welcome: true });
+    let welcome = await screen.findByRole("region", { name: "Welcome to helsinki" });
+    expect(within(welcome).getByRole("link", { name: en.home.welcome.first.editor })).toHaveAttribute("href", "/projects/helsinki/datasources/new");
+    cleanup();
+    show({ verbs: ["read", "propose", "approve"], welcome: true });
+    welcome = await screen.findByRole("region", { name: "Welcome to helsinki" });
+    expect(within(welcome).getByRole("link", { name: en.home.welcome.first.steward })).toHaveAttribute("href", "/projects/helsinki/approvals");
+  });
+
+  it("says the role waits for its approval while the person holds nothing here, and offers no step", async () => {
+    show({ verbs: [], welcome: true });
+    const welcome = await screen.findByRole("region", { name: "Welcome to helsinki" });
+    expect(welcome).toHaveTextContent(en.home.welcome.unknown);
+    expect(within(welcome).queryByRole("link")).toBeNull();
+  });
+
+  it("greets nobody who came without the invitation's link", async () => {
+    show({ verbs: ["read"] });
+    await screen.findByRole("heading", { name: en.home.title });
+    expect(screen.queryByRole("region", { name: "Welcome to helsinki" })).toBeNull();
   });
 });

@@ -121,3 +121,12 @@ export function draftPage(project: string, kind: string, name: string): string |
   const where = plural[kind];
   return where ? `/projects/${project}/${where}?draft=${encodeURIComponent(name)}` : undefined;
 }
+
+/**
+ * Where a newcomer's first step for their role is taken (PF-108): a viewer opens the data, an
+ * editor connects a source, a steward reviews what waits for them.
+ */
+export function welcomeStep(project: string, role: Role): string {
+  const base = `/projects/${project}`;
+  return { viewer: `${base}/spaces`, editor: `${base}/datasources/new`, steward: `${base}/approvals` }[role];
+}

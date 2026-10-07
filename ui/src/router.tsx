@@ -259,11 +259,16 @@ const catalogueDatasetRoute = createRoute({
 const homeRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/home",
+  // `?welcome=1` is where an invitation's link ends (PF-108): the page greets the newcomer.
+  validateSearch: (search: Record<string, unknown>): { welcome?: boolean } =>
+    search.welcome === 1 || search.welcome === "1" || search.welcome === true ? { welcome: true } : {},
   component: function HomeRoute() {
     const { project } = homeRoute.useParams();
+    const { welcome } = homeRoute.useSearch();
+    const navigate = homeRoute.useNavigate();
     return (
       <Shell project={project}>
-        <HomePage project={project} />
+        <HomePage project={project} welcome={welcome === true} onWelcomeClosed={() => void navigate({ search: {} })} />
       </Shell>
     );
   },

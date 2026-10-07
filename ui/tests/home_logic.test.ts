@@ -1,7 +1,7 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/home/home.ts,
 // the first-run steps and the role cards of the project home (T-3233, T-3235).
 import { describe, expect, it } from "vitest";
-import { cardsFor, draftPage, firstRunSteps, roleOf } from "../src/pages/home/home";
+import { cardsFor, draftPage, firstRunSteps, roleOf, welcomeStep } from "../src/pages/home/home";
 import type { Effective } from "../src/api/permissions";
 
 const grants = (...verbs: string[]): Effective =>
@@ -52,5 +52,13 @@ describe("the role and its cards (T-3235)", () => {
   it("resumes a draft on its kind's page, and names no page for a kind without one", () => {
     expect(draftPage("helsinki", "Pipeline", "air feed")).toBe("/projects/helsinki/pipelines?draft=air%20feed");
     expect(draftPage("helsinki", "Role", "x")).toBeUndefined();
+  });
+});
+
+describe("a newcomer's first step (PF-108)", () => {
+  it("takes each role where it starts", () => {
+    expect(welcomeStep("helsinki", "viewer")).toBe("/projects/helsinki/spaces");
+    expect(welcomeStep("helsinki", "editor")).toBe("/projects/helsinki/datasources/new");
+    expect(welcomeStep("helsinki", "steward")).toBe("/projects/helsinki/approvals");
   });
 });

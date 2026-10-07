@@ -949,3 +949,170 @@ async fn an_invitation_link_never_outlives_the_operators_bound() {
         Some("86400")
     );
 }
+
+fn with_invitation_client(state: &mut AppState) {
+    let mut config = (*state.config).clone();
+    config.invitation_client_id = Some("portal-ui".into());
+    config.public_base_url = "https://portal.example.org".parse().expect("url");
+    state.config = Arc::new(config);
+    state.mirror.upsert(envelope(
+        "ContextSpace",
+        "air",
+        "helsinki",
+        json!({ "description": "air" }),
+    ));
+}
+
+/// The link the Portal asked the realm's e-mail to return through, as (client, page).
+async fn returns_to(kc: &MockServer, id: &str) -> Option<(String, String)> {
+    let asked = received(kc, "PUT", &format!("/{id}/execute-actions-email")).await;
+    let query: std::collections::HashMap<String, String> =
+        asked.last()?.url.query_pairs().into_owned().collect();
+    Some((
+        query.get("client_id")?.clone(),
+        query.get("redirect_uri")?.clone(),
+    ))
+}
+
+/// PF-108: an invitation into a project returns, once the password is set, to that project's
+/// home page through the client the operator named; a project the caller cannot read is `404`
+/// and nobody is created. With a database the person's expiry is the organization's lifespan.
+#[tokio::test]
+async fn an_invitation_into_a_project_links_to_its_home_and_says_when_it_expires() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let mut state = state_with(&kc, &gitea);
+    with_invitation_client(&mut state);
+
+    let unknown = json!({ "email": "new@example.org", "firstName": "N", "lastName": "N", "project": "nowhere" });
+    let refused = send(&state, person("pia"), "POST", PEOPLE, Some(unknown)).await;
+    assert_eq!(refused.status, StatusCode::NOT_FOUND, "{}", refused.text);
+    assert!(received(&kc, "POST", "/users").await.is_empty());
+
+    let body = json!({ "email": "new@example.org", "firstName": "N", "lastName": "N", "project": "helsinki" });
+    let created = send(&state, person("pia"), "POST", PEOPLE, Some(body)).await;
+    assert_eq!(created.status, StatusCode::CREATED, "{}", created.text);
+    assert_eq!(
+        returns_to(&kc, "new-id").await,
+        Some((
+            "portal-ui".to_owned(),
+            "https://portal.example.org/projects/helsinki/home?welcome=1".to_owned()
+        ))
+    );
+
+    let Some(url) = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+        .ok()
+        .filter(|u| !u.trim().is_empty())
+    else {
+        eprintln!("the expiry half needs JC_PORTAL_TEST_DATABASE_URL");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    joinedcontext_portal::db::remove_person_invitation(&pool, "wait-id")
+        .await
+        .expect("a clean row");
+    let waiting = pending_person(&kc).await;
+    state.db = Some(pool.clone());
+    let before = chrono::Utc::now();
+    let resent = send(
+        &state,
+        person("pia"),
+        "POST",
+        &format!("{PEOPLE}/{waiting}/resend-invitation"),
+        None,
+    )
+    .await;
+    assert_eq!(resent.status, StatusCode::ACCEPTED, "{}", resent.text);
+    let page = send(&state, person("pia"), "GET", PEOPLE, None).await;
+    let listed: Value = serde_json::from_str(&page.text).expect("json");
+    let expires = listed["items"]
+        .as_array()
+        .and_then(|items| items.iter().find(|p| p["id"] == waiting))
+        .and_then(|p| p["invitationExpires"].as_str())
+        .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+        .expect("the pending invitation's expiry");
+    let twelve_hours = chrono::Duration::hours(12);
+    assert!(
+        expires >= before + twelve_hours - chrono::Duration::seconds(5)
+            && expires <= chrono::Utc::now() + twelve_hours,
+        "{expires}"
+    );
+    // A person who took every step shows no expiry.
+    let ada = listed["items"]
+        .as_array()
+        .and_then(|items| items.iter().find(|p| p["id"] == "ada-id"))
+        .expect("ada");
+    assert_eq!(ada["invitationExpires"], Value::Null);
+}
+
+/// A person who has not accepted their invitation yet: both steps still required.
+async fn pending_person(kc: &MockServer) -> &'static str {
+    let mut waiting = user("wait-id", "wait@example.org");
+    waiting["requiredActions"] = json!(["VERIFY_EMAIL", "UPDATE_PASSWORD"]);
+    Mock::given(method("GET"))
+        .and(path(format!("{ADMIN}/users/wait-id")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(waiting.clone()))
+        .with_priority(1)
+        .mount(kc)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{ADMIN}/users")))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!([user("ada-id", "ada@hel.fi"), waiting,])),
+        )
+        .with_priority(1)
+        .mount(kc)
+        .await;
+    "wait-id"
+}
+
+/// PF-108: a pending invitation is sent again for the steps still left; one already accepted is
+/// `409` and sends nothing; a caller without `create` on Person is refused.
+#[tokio::test]
+async fn a_pending_invitation_is_sent_again_and_an_accepted_one_is_not() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+    let waiting = pending_person(&kc).await;
+
+    let resent = send(
+        &state,
+        person("pia"),
+        "POST",
+        &format!("{PEOPLE}/{waiting}/resend-invitation"),
+        None,
+    )
+    .await;
+    assert_eq!(resent.status, StatusCode::ACCEPTED, "{}", resent.text);
+    let answer: Value = serde_json::from_str(&resent.text).expect("json");
+    assert_eq!(answer["emailSent"], true);
+    let actions = received(&kc, "PUT", "/wait-id/execute-actions-email").await;
+    let asked: Value = serde_json::from_slice(&actions[0].body).expect("actions");
+    assert_eq!(asked, json!(["VERIFY_EMAIL", "UPDATE_PASSWORD"]));
+    // No client was named for the way back: the link ends on the realm's own page.
+    assert_eq!(returns_to(&kc, "wait-id").await, None);
+
+    let accepted = send(
+        &state,
+        person("ada"),
+        "POST",
+        &format!("{PEOPLE}/jana-id/resend-invitation"),
+        None,
+    )
+    .await;
+    assert_eq!(accepted.status, StatusCode::CONFLICT, "{}", accepted.text);
+    assert!(received(&kc, "PUT", "/jana-id/execute-actions-email")
+        .await
+        .is_empty());
+
+    let refused = send(
+        &state,
+        person("jana"),
+        "POST",
+        &format!("{PEOPLE}/{waiting}/resend-invitation"),
+        None,
+    )
+    .await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);
+}
