@@ -166,6 +166,17 @@ async function gatewayGet(slug: string, query: URLSearchParams): Promise<Respons
   return response;
 }
 
+/**
+ * The reads of one Endpoint, one after the other (T-3161): a space of fifteen types asked its
+ * public Endpoint thirty questions at once, and the Endpoint's rate limit refused some with 429.
+ */
+const queues = new Map<string, Promise<unknown>>();
+export function inTurn<T>(slug: string, read: () => Promise<T>): Promise<T> {
+  const turn = (queues.get(slug) ?? Promise.resolve()).then(read, read);
+  queues.set(slug, turn.catch(() => undefined));
+  return turn;
+}
+
 /** What the gateway holds under one type: the live count and a few keyValues samples. */
 async function fetchTypeInside(slug: string, type: string): Promise<TypeInside> {
   const counted = await gatewayGet(
@@ -243,7 +254,7 @@ function TypeRow({
     queryKey: ["gateway", slug ?? "", "inside", type],
     enabled: slug !== undefined,
     retry: false,
-    queryFn: () => fetchTypeInside(slug ?? "", type),
+    queryFn: () => inTurn(slug ?? "", () => fetchTypeInside(slug ?? "", type)),
   });
 
   let count: JSX.Element | string;
@@ -253,13 +264,22 @@ function TypeRow({
     count = <span className="text-fg-subtle">{t("app.loading")}</span>;
   } else if (inside.isError) {
     const status = inside.error instanceof ApiError ? inside.error.status : undefined;
-    count = (
-      <span className="text-fg-muted">
-        {status === 403 || status === 404 || status === 401
-          ? t("spaces.inside.notReadable")
-          : t("app.error.generic")}
-      </span>
-    );
+    count =
+      status === 429 ? (
+        // The Endpoint's own rate limit, not a refusal: said, with the read one press away.
+        <span className="inline-flex flex-wrap items-center gap-2 text-fg-muted">
+          {t("spaces.inside.tooMany")}
+          <Button size="sm" variant="ghost" onClick={() => void inside.refetch()}>
+            {t("app.error.retry")}
+          </Button>
+        </span>
+      ) : (
+        <span className="text-fg-muted">
+          {status === 403 || status === 404 || status === 401
+            ? t("spaces.inside.notReadable")
+            : t("app.error.generic")}
+        </span>
+      );
   } else {
     count = inside.data.count === undefined ? "—" : String(inside.data.count);
   }

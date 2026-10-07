@@ -392,7 +392,8 @@
       "modelEmpty": "Tento priestor zatiaľ nemá dátový model",
       "modelEmptyLead": "Dátový model pomenúva typy entít priestoru a ich atribúty. Vytvorte ho alebo importujte Smart Data Model pre tento priestor.",
       "modelCreate": "Vytvoriť dátový model",
-      "modelImport": "Importovať Smart Data Model"
+      "modelImport": "Importovať Smart Data Model",
+      "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz)."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

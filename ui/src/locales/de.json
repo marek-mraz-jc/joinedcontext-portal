@@ -392,7 +392,8 @@
       "modelEmpty": "Dieser Raum hat noch kein Datenmodell",
       "modelEmptyLead": "Ein Datenmodell benennt die Entitätstypen des Raums und ihre Attribute. Legen Sie eines an oder importieren Sie ein Smart Data Model für diesen Raum.",
       "modelCreate": "Datenmodell anlegen",
-      "modelImport": "Smart Data Model importieren"
+      "modelImport": "Smart Data Model importieren",
+      "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal)."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
