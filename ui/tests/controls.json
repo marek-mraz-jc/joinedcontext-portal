@@ -1015,6 +1015,31 @@
         "knowledge_pages.test.tsx"
       ]
     },
+    "src/pages/mcp/McpServerDialog.tsx": {
+      "controls": {
+        "Button": 3,
+        "Checkbox": 1
+      },
+      "tests": [
+        "mcp_servers.test.tsx"
+      ]
+    },
+    "src/pages/mcp/McpServerPanels.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "mcp_servers.test.tsx"
+      ]
+    },
+    "src/pages/mcp/McpServersPage.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "mcp_servers.test.tsx"
+      ]
+    },
     "src/pages/models/LinkmlGraphView.tsx": {
       "controls": {
         "Button": 3
