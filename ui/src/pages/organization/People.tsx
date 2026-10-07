@@ -34,6 +34,12 @@ import {
 import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/RolesAndMembers";
+import { proposeChecked } from "../../api/proposal";
+import type { ResourceProposal } from "../../api/manifest";
+import { useOrgDomain, useProjects } from "../../api/projects";
+import { RadioGroup } from "../../components/ui/RadioGroup";
+import { INVITE_ROLES, inviteBinding, invitationState } from "./invite";
+import type { InviteRole } from "./invite";
 
 type Person = components["schemas"]["Person"];
 type PersonDetail = components["schemas"]["PersonDetail"];
@@ -221,7 +227,20 @@ function PersonFields({
 
 const EMPTY: PersonForm = { email: "", firstName: "", lastName: "", locale: "" };
 
-/** New person, a routed form (UI-27): the realm e-mails the invitation, or hands a password once. */
+/** What an invitation did: the person, and the Change proposing their role or why it failed. */
+export interface Invitation {
+  created: components["schemas"]["CreatedPerson"];
+  project?: string;
+  role?: InviteRole;
+  change?: Change;
+  grantError?: string;
+}
+
+/**
+ * New person, a routed form (UI-27): the realm e-mails the invitation, or hands a password once.
+ * A project and a role make the link lead into that project and propose the role there as a
+ * RoleBinding, which holds once approved (PF-108).
+ */
 function NewPersonForm({
   open,
   onOpenChange,
@@ -229,39 +248,62 @@ function NewPersonForm({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (created: components["schemas"]["CreatedPerson"]) => void;
+  onCreated: (invitation: Invitation) => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const formId = useId();
+  const projectField = useId();
   const queryClient = useQueryClient();
+  const projects = useProjects();
+  const orgDomain = useOrgDomain(ORG_NAMESPACE);
   const [form, setForm] = useState<PersonForm>(EMPTY);
+  const [project, setProject] = useState("");
+  const [role, setRole] = useState<InviteRole>("viewer");
   const [tried, setTried] = useState(false);
   const errors = tried ? validate(form, t) : {};
 
   const create = useMutation({
     // The answer may carry the temporary password: it is not kept in the mutation cache.
     gcTime: 0,
-    mutationFn: async (person: PersonForm) =>
-      unwrap(
+    mutationFn: async (person: PersonForm): Promise<Invitation> => {
+      const created = await unwrap(
         await api.POST("/api/v1/organization/people", {
           body: {
             email: person.email.trim(),
             firstName: person.firstName.trim(),
             lastName: person.lastName.trim(),
             ...(person.locale ? { locale: person.locale } : {}),
+            ...(project ? { project } : {}),
           },
         }),
-      ),
-    onSuccess: (created) => {
+      );
+      if (!project) return { created };
+      try {
+        const change = (await proposeChecked(
+          ORG_NAMESPACE,
+          "rolebindings",
+          inviteBinding(created.person.email, role, project, orgDomain) as ResourceProposal,
+          true,
+        )) as Change;
+        return { created, project, role, change };
+      } catch (error) {
+        // The person exists and the e-mail went: the role is what is left to give.
+        return { created, project, role, grantError: reasonOf(error, t("app.error.generic")) };
+      }
+    },
+    onSuccess: (invitation) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.people() });
+      if (invitation.change) void queryClient.invalidateQueries({ queryKey: queryKeys.changes(ORG_NAMESPACE) });
       close(false);
-      onCreated(created);
+      onCreated(invitation);
     },
   });
 
   const close = (next: boolean) => {
     if (!next) {
       setForm(EMPTY);
+      setProject("");
+      setRole("viewer");
       setTried(false);
       create.reset();
     }
@@ -297,6 +339,34 @@ function NewPersonForm({
         }}
       >
         <PersonFields form={form} errors={errors} onChange={setForm} />
+        <Field
+          id={projectField}
+          label={t("organization.people.invite.project")}
+          description={t("organization.people.invite.projectHelp")}
+        >
+          <Select id={projectField} value={project} onChange={(event) => setProject(event.target.value)}>
+            <option value="">{t("organization.people.invite.noProject")}</option>
+            {(projects.data ?? []).map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {project ? (
+          <RadioGroup<InviteRole>
+            name={`${formId}-role`}
+            legend={t("organization.people.invite.role")}
+            description={t("organization.people.invite.roleHelp", { project })}
+            value={role}
+            onChange={setRole}
+            options={INVITE_ROLES.map((value) => ({
+              value,
+              label: t(`organization.people.invite.roles.${value}.label`),
+              description: t(`organization.people.invite.roles.${value}.may`),
+            }))}
+          />
+        ) : null}
         {create.error ? (
           <Alert tone="danger" role="alert">
             {reasonOf(create.error, t("app.error.generic"))}
@@ -324,7 +394,7 @@ export function People(): JSX.Element {
   const [first, setFirst] = useState(0);
   const [writing, setWriting] = useCreateForm();
   const [secret, setSecret] = useState<{ email: string; password: string } | null>(null);
-  const [invited, setInvited] = useState<string | null>(null);
+  const [invited, setInvited] = useState<Invitation | null>(null);
 
   const people = useQuery({
     queryKey: queryKeys.peoplePage(search, first),
@@ -359,11 +429,7 @@ export function People(): JSX.Element {
         </PermissionGuard>
       </div>
 
-      {invited ? (
-        <Alert tone="success" role="status">
-          {t("organization.people.invited", { email: invited })}
-        </Alert>
-      ) : null}
+      {invited ? <InvitedNotice invitation={invited} /> : null}
 
       {reads !== true ? (
         <Alert tone="info">{t("organization.people.hidden")}</Alert>
@@ -391,6 +457,8 @@ export function People(): JSX.Element {
               {t("organization.people.searchButton")}
             </Button>
           </form>
+
+          <PendingInvitations people={people.data?.items ?? []} locale={locale} />
 
           {people.error ? (
             <PageFailed error={people.error} onRetry={() => void people.refetch()} />
@@ -476,13 +544,174 @@ export function People(): JSX.Element {
       <NewPersonForm
         open={writing}
         onOpenChange={setWriting}
-        onCreated={(created) => {
+        onCreated={(invitation) => {
+          const { created } = invitation;
+          setInvited(invitation);
           if (created.temporaryPassword) {
-            setInvited(null);
             setSecret({ email: created.person.email, password: created.temporaryPassword });
-          } else {
-            setInvited(created.person.email);
           }
+        }}
+      />
+      <OneTimePassword secret={secret} onClose={() => setSecret(null)} />
+    </section>
+  );
+}
+
+/** What an invitation did, said once above the list: the e-mail, the role proposed, or why not. */
+function InvitedNotice({ invitation }: { invitation: Invitation }): JSX.Element {
+  const { t } = useTranslation();
+  const { created, project, role } = invitation;
+  const email = created.person.email;
+  const roleName = role ? t(`organization.people.invite.roles.${role}.label`) : "";
+  return (
+    <div className="space-y-2">
+      {created.emailSent ? (
+        <Alert tone="success" role="status">
+          {project ? t("organization.people.invitedInto", { email, project }) : t("organization.people.invited", { email })}
+        </Alert>
+      ) : null}
+      {invitation.change ? (
+        <>
+          <Alert tone="info">{t("organization.people.invite.roleProposed", { email, role: roleName, project })}</Alert>
+          <ChangeNotice change={invitation.change} project={ORG_NAMESPACE} />
+        </>
+      ) : null}
+      {invitation.grantError ? (
+        <Alert tone="danger" role="alert">
+          {t("organization.people.invite.roleFailed", { role: roleName, project, reason: invitation.grantError })}
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The invitations of this page nobody has accepted yet (PF-108): when each link expires, and
+ * sending it again or revoking it. Revoking deletes the person, which a person no manifest
+ * names yet undergoes at once; one a binding already names gets the removal Change instead.
+ */
+function PendingInvitations({ people, locale }: { people: Person[]; locale: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [asking, setAsking] = useState<{ person: Person; action: "resend-invitation" | "delete" } | null>(null);
+  const [done, setDone] = useState<{ text?: string; change?: Change } | null>(null);
+  const [secret, setSecret] = useState<{ email: string; password: string } | null>(null);
+  const act = useMutation({
+    // A resend's answer may carry the temporary password: it is not kept in the mutation cache.
+    gcTime: 0,
+    mutationFn: ({ person, action }: { person: Person; action: "resend-invitation" | "delete" }) => perform(person.id, action),
+    onMutate: () => setDone(null),
+    onSuccess: (outcome, { person }) => {
+      setAsking(null);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.people() });
+      if (outcome.action === "deleted") {
+        setDone({ text: t("organization.people.pending.revoked", { email: person.email }) });
+      } else if (outcome.password) {
+        setSecret({ email: person.email, password: outcome.password });
+      } else if (outcome.change) {
+        setDone({ change: outcome.change });
+      } else {
+        setDone({ text: t("organization.people.pending.resent", { email: person.email }) });
+      }
+      act.reset();
+    },
+  });
+  const waiting = people.filter((person) => person.requiredActions.length > 0 && !person.pendingDeletion);
+  if (waiting.length === 0 && !done) return null;
+  const now = new Date();
+  return (
+    <section aria-labelledby="pending-invitations" className="space-y-3 rounded border border-border p-4">
+      <h3 id="pending-invitations" className="text-body font-semibold text-fg">
+        {t("organization.people.pending.title")}
+      </h3>
+      {done?.text ? (
+        <Alert tone="success" role="status">
+          {done.text}
+        </Alert>
+      ) : null}
+      {done?.change ? <ChangeNotice change={done.change} project={ORG_NAMESPACE} /> : null}
+      {act.error ? (
+        <Alert tone="danger" role="alert">
+          {reasonOf(act.error, t("app.error.generic"))}
+        </Alert>
+      ) : null}
+      {waiting.length === 0 ? null : (
+        <ul className="divide-y divide-border">
+          {waiting.map((person) => {
+            const standing = invitationState(person, now);
+            const at = standing.state === "accepted" ? null : when(standing.expires?.toISOString(), locale);
+            return (
+              <li key={person.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="min-w-0">
+                  <span className="block text-body text-fg">{fullName(person)}</span>
+                  <span className="block font-mono text-caption text-fg-muted">{person.email}</span>
+                  <span className={standing.state === "expired" ? "block text-caption text-danger" : "block text-caption text-fg-muted"}>
+                    {standing.state === "expired"
+                      ? t("organization.people.pending.expired", { at })
+                      : at
+                        ? t("organization.people.pending.expires", { at })
+                        : t("organization.people.pending.expiryUnknown")}
+                  </span>
+                </span>
+                <span className="flex flex-wrap gap-2">
+                  <PermissionGuard project={ORG_NAMESPACE} kind="Person" verb="create">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={act.isPending}
+                      aria-label={t("organization.people.pending.resendFor", { email: person.email })}
+                      onClick={() => setAsking({ person, action: "resend-invitation" })}
+                    >
+                      {t("organization.people.action.resend-invitation")}
+                    </Button>
+                  </PermissionGuard>
+                  <PermissionGuard project={ORG_NAMESPACE} kind="Person" verb="delete">
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      disabled={act.isPending}
+                      aria-label={t("organization.people.pending.revokeFor", { email: person.email })}
+                      onClick={() => setAsking({ person, action: "delete" })}
+                    >
+                      {t("organization.people.pending.revoke")}
+                    </Button>
+                  </PermissionGuard>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <ConfirmDialog
+        open={asking !== null}
+        onOpenChange={(open) => {
+          if (!open) setAsking(null);
+        }}
+        title={
+          asking
+            ? asking.action === "delete"
+              ? t("organization.people.pending.confirmRevoke.title", { email: asking.person.email })
+              : t("organization.people.confirm.resend-invitation.title", { name: fullName(asking.person) })
+            : ""
+        }
+        description={
+          asking
+            ? asking.action === "delete"
+              ? t("organization.people.pending.confirmRevoke.body")
+              : t("organization.people.confirm.resend-invitation.body", { name: fullName(asking.person) })
+            : undefined
+        }
+        confirmLabel={
+          asking
+            ? asking.action === "delete"
+              ? t("organization.people.pending.revoke")
+              : t("organization.people.action.resend-invitation")
+            : ""
+        }
+        tone={asking?.action === "delete" ? "danger" : "primary"}
+        pending={act.isPending}
+        onConfirm={() => {
+          if (asking) act.mutate(asking);
         }}
       />
       <OneTimePassword secret={secret} onClose={() => setSecret(null)} />
@@ -508,12 +737,13 @@ function PersonState({ person }: { person: Person }): JSX.Element {
 }
 
 /** The lifecycle actions of a person's page, each with the verb on `Person` it needs (PF-91). */
-type Action = "disable" | "enable" | "reset-password" | "remove-second-factor" | "sign-out" | "delete";
+type Action = "disable" | "enable" | "reset-password" | "resend-invitation" | "remove-second-factor" | "sign-out" | "delete";
 
 const NEEDS: Record<Action, Verb> = {
   disable: "disable",
   enable: "disable",
   "reset-password": "update",
+  "resend-invitation": "create",
   "remove-second-factor": "disable",
   "sign-out": "disable",
   delete: "delete",
@@ -535,6 +765,10 @@ async function perform(id: string, action: Action): Promise<Outcome> {
     case "reset-password": {
       const reset = await unwrap(await api.POST("/api/v1/organization/people/{id}/reset-password", path));
       return { action, emailSent: reset.emailSent, password: reset.temporaryPassword ?? undefined };
+    }
+    case "resend-invitation": {
+      const sent = await unwrap(await api.POST("/api/v1/organization/people/{id}/resend-invitation", path));
+      return { action, emailSent: sent.emailSent, password: sent.temporaryPassword ?? undefined };
     }
     case "remove-second-factor":
       await unwrap(await api.POST("/api/v1/organization/people/{id}/remove-second-factor", path));
@@ -628,6 +862,7 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
   const name = fullName(person);
   const actions: Action[] = [
     person.enabled ? "disable" : "enable",
+    ...(person.requiredActions.length > 0 ? (["resend-invitation"] as const) : []),
     "reset-password",
     "remove-second-factor",
     "sign-out",
@@ -676,6 +911,15 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
                 {person.requiredActions
                   .map((step) => t(`organization.people.step.${step}`, { defaultValue: step }))
                   .join(", ")}
+              </dd>
+              <dt className="text-fg-muted">{t("organization.people.pending.link")}</dt>
+              <dd>
+                {(() => {
+                  const standing = invitationState(person, new Date());
+                  const at = standing.state === "accepted" ? null : when(standing.expires?.toISOString(), locale);
+                  if (standing.state === "expired") return t("organization.people.pending.expired", { at });
+                  return at ? t("organization.people.pending.expires", { at }) : t("organization.people.pending.expiryUnknown");
+                })()}
               </dd>
             </>
           ) : null}

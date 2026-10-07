@@ -42,6 +42,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/v/$slug": ["/v/air-board"],
   "/f/$slug": ["/f/air-form"],
   "/glossary": ["/glossary"],
+  "/projects/$project/home": ["/projects/helsinki/home"],
   "/playground": ["/playground"],
   "/organization": ["/organization"],
   "/organization/$tab": ORGANIZATION_TABS.map((tab) => `/organization/${tab}`),
