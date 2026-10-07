@@ -118,6 +118,14 @@
         "project_duplicate_import.test.tsx"
       ]
     },
+    "src/components/JobsMenu.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "jobs.test.tsx"
+      ]
+    },
     "src/components/LanguageSwitcher.tsx": {
       "controls": {
         "Button": 1
@@ -978,6 +986,14 @@
       },
       "tests": [
         "explore_export_view.test.tsx"
+      ]
+    },
+    "src/pages/explore/UseThisData.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "explore_use_data.test.tsx"
       ]
     },
     "src/pages/flows/Gallery.tsx": {

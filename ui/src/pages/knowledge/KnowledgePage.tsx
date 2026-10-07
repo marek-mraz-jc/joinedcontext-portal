@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { startJob } from "../../jobs";
 import { RecordLink } from "../../components/RecordLink";
 import {
   Alert,
@@ -63,6 +64,8 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
     mutationFn: (source: string) => recrawl(project, source),
     onSuccess: (_, source) => {
       setQueued(source);
+      // The person may leave: the Shell says when the crawl is done (T-3245).
+      startJob({ kind: "knowledgeCrawl", project, name: source });
       void queryClient.invalidateQueries({ queryKey: knowledgeKeys.sources(project) });
     },
   });
