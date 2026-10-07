@@ -1,11 +1,12 @@
+import { PageFailed } from "../../components/ui/PageState";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, ORG_NAMESPACE } from "../../api/manifest";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import type { EditableForm } from "../../components/EditResourceDialog";
-import { Alert, EmptyState, Skeleton } from "../../components/ui";
+import { EmptyState, Skeleton } from "../../components/ui";
 import { organizationSchema } from "../../schemas/kinds";
 import { OrganizationDomain } from "../access/OrganizationDomain";
 import { OrganizationLimitsView } from "./OrganizationLimitsView";
@@ -124,11 +125,7 @@ export function OrganizationSettings(): JSX.Element {
             <Skeleton className="h-4 w-1/2" />
           </div>
         ) : organizations.isError ? (
-          <Alert tone="danger" role="alert">
-            {organizations.error instanceof ApiError
-              ? (organizations.error.problem?.detail ?? organizations.error.message)
-              : t("app.error.generic")}
-          </Alert>
+          <PageFailed error={organizations.error} onRetry={() => void organizations.refetch()} />
         ) : !organization ? (
           <EmptyState
             title={t("organization.settings.empty")}
@@ -182,11 +179,7 @@ export function OrganizationSettings(): JSX.Element {
             <Skeleton className="h-4 w-2/3" />
           </div>
         ) : limits.isError ? (
-          <Alert tone="danger" role="alert">
-            {limits.error instanceof ApiError
-              ? (limits.error.problem?.detail ?? limits.error.message)
-              : t("app.error.generic")}
-          </Alert>
+          <PageFailed error={limits.error} onRetry={() => void limits.refetch()} />
         ) : (
           <OrganizationLimitsView
             limits={limits.data}

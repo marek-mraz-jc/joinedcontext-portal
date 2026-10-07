@@ -1,3 +1,4 @@
+import { PageFailed } from "../../components/ui/PageState";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -219,9 +220,7 @@ function PageLevel({
   if (level.isLoading) return <p role="status">{t("app.loading")}</p>;
   if (level.isError) {
     return (
-      <Alert role="alert" tone="danger">
-        {reasonOf(level.error, t("app.error.generic"))}
-      </Alert>
+      <PageFailed error={level.error} onRetry={() => void level.refetch()} />
     );
   }
   const rows = level.data ?? [];
@@ -333,9 +332,7 @@ function Documents({
   if (documents.isLoading) return <p role="status">{t("app.loading")}</p>;
   if (documents.isError) {
     return (
-      <Alert role="alert" tone="danger">
-        {reasonOf(documents.error, t("app.error.generic"))}
-      </Alert>
+      <PageFailed error={documents.error} onRetry={() => void documents.refetch()} />
     );
   }
   const rows: DocumentRow[] = documents.data ?? [];
@@ -415,9 +412,7 @@ function Passages({ project, source, page, document }: { project: string; source
   if (passages.isLoading) return <p role="status">{t("app.loading")}</p>;
   if (passages.isError) {
     return (
-      <Alert role="alert" tone="danger">
-        {reasonOf(passages.error, t("app.error.generic"))}
-      </Alert>
+      <PageFailed error={passages.error} onRetry={() => void passages.refetch()} />
     );
   }
   const rows = passages.data ?? [];
@@ -444,9 +439,7 @@ function Links({ project, source, page }: { project: string; source: string; pag
   if (links.isLoading) return <p role="status">{t("app.loading")}</p>;
   if (links.isError) {
     return (
-      <Alert role="alert" tone="danger">
-        {reasonOf(links.error, t("app.error.generic"))}
-      </Alert>
+      <PageFailed error={links.error} onRetry={() => void links.refetch()} />
     );
   }
   const rows = links.data ?? [];

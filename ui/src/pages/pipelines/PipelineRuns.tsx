@@ -1,12 +1,12 @@
+import { PageFailed } from "../../components/ui/PageState";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import type { BadgeTone } from "../../components/ui/Badge";
 import {
-  Alert,
   Badge,
   Button,
   Dialog,
@@ -94,9 +94,7 @@ export function PipelineRunsDialog({
     >
       <div className="flex flex-col gap-4">
         {runs.isError ? (
-          <Alert role="alert" tone="danger">
-            {runs.error instanceof ApiError ? runs.error.message : t("app.error.generic")}
-          </Alert>
+          <PageFailed error={runs.error} onRetry={() => void runs.refetch()} />
         ) : runs.isPending ? (
           <Table caption={t("pipelines.runs.caption")} status={t("app.loading")}>
             <TableSkeleton columns={5} />
@@ -209,9 +207,7 @@ function RunLog({
     <section aria-label={caption} className="flex flex-col gap-2">
       <h3 className="text-body font-medium text-fg">{caption}</h3>
       {page.isError ? (
-        <Alert role="alert" tone="danger">
-          {page.error instanceof ApiError ? page.error.message : t("app.error.generic")}
-        </Alert>
+        <PageFailed error={page.error} onRetry={() => void page.refetch()} />
       ) : page.isPending ? (
         <Table caption={caption} status={t("app.loading")}>
           <TableSkeleton columns={4} />

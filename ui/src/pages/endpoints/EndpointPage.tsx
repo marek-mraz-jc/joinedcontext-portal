@@ -54,7 +54,7 @@ import {
   Icon,
   safeHref,
 } from "../../components/ui";
-import { ResourcePageFailed } from "../../components/ui/PageState";
+import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
 
@@ -487,7 +487,17 @@ export function EndpointPage({
             asManifests(spaces.data?.items ?? []),
           )}
           pending={policies.isPending || spaces.isPending}
-          failed={policies.isError || spaces.isError}
+          failure={
+            policies.isError || spaces.isError
+              ? {
+                  error: policies.error ?? spaces.error,
+                  retry: () => {
+                    if (policies.isError) void policies.refetch();
+                    if (spaces.isError) void spaces.refetch();
+                  },
+                }
+              : undefined
+          }
         />
         <Link
           to="/projects/$project/$plural"
@@ -1387,12 +1397,13 @@ function PolicyGrants({
   project,
   binding,
   pending,
-  failed,
+  failure,
 }: {
   project: string;
   binding: Binding;
   pending: boolean;
-  failed: boolean;
+  /** The policies or the spaces could not be read, and how to ask again. */
+  failure?: { error: unknown; retry: () => void };
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
@@ -1406,8 +1417,8 @@ function PolicyGrants({
   }
   // A list that failed is not a space with no policies: saying "the grants of the space decide"
   // when the grants could not be read would be the Portal guessing on a security page.
-  if (failed) {
-    return <Alert tone="danger">{t("app.error.generic")}</Alert>;
+  if (failure) {
+    return <PageFailed error={failure.error} onRetry={failure.retry} />;
   }
   if (binding.kind === "unbound") {
     // A state of the page rather than something that just happened, so it is a `status` like the
