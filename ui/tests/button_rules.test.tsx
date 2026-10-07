@@ -61,7 +61,7 @@ const PAGES = [
   "/catalogue/ovzdusie",
   "/v/ovzdusie-board",
   "/f/ovzdusie-form",
-  "/d/ovzdusie-docs",
+  "/d/abcdefghijklmnopqrstuvwxyz234567",
   "/glossary",
   `/projects/${PROJECT}/home`,
   `/projects/${PROJECT}/import`,

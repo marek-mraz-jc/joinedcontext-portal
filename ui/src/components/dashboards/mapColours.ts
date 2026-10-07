@@ -19,13 +19,34 @@
  * are the only colour values left in the `dashboards` folder, and this is their reason.
  */
 
+/** A colour MapLibre and deck.gl read as written: hex, or the rgb, rgba, hsl and hsla notations. */
+const PLAIN_COLOUR = /^(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\))$/i;
+
+/**
+ * `colour` in the plain rgb notation (rgba with an alpha). A theme token may be written in CSS a map style does not
+ * parse, `color-mix()` or `oklab()` above all: a style holding one is refused whole, and the plain
+ * ground never drew a layer (T-3256). The browser resolves it on a one-pixel canvas; where there
+ * is no canvas (jsdom), `fallback` stands in.
+ */
+export function plainColourOf(colour: string, fallback: string): string {
+  if (PLAIN_COLOUR.test(colour)) return colour;
+  if (typeof document === "undefined") return fallback;
+  const context = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!context) return fallback;
+  context.fillStyle = fallback;
+  context.fillStyle = colour;
+  context.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
+  return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${Math.round((a / 255) * 1000) / 1000})`;
+}
+
 /** The value of a CSS custom property on the document, or `fallback` where there is no document. */
 export function themeColour(token: string, fallback: string): string {
   if (typeof document === "undefined") {
     return fallback;
   }
   const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
-  return value === "" ? fallback : value;
+  return value === "" ? fallback : plainColourOf(value, fallback);
 }
 
 /** The ground under a map with no basemap: the page's own surface. */
