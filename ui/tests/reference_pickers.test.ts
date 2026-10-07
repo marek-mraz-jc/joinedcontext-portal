@@ -101,7 +101,17 @@ describe("every field that names a resource is a picker (T-2702)", () => {
 
   it("keeps the page's own select when the schema already offers the choices", () => {
     const ui = withPickers("Policy", kinds.policySchema(t, ["air"], ["AirQualityObserved"]), {}) as Record<string, unknown>;
-    expect(ui).toEqual({});
+    // The space and the type keep the page's selects; the free-text fields get their suggestions
+    // (T-3217): the grantee by kind, the attributes of the covered types.
+    expect(ui).toEqual({
+      assignee: { id: { "ui:widget": "assigneePicker" } },
+      information: {
+        items: {
+          propertyNames: { items: { "ui:widget": "attributeSuggest", "ui:options": { kind: "Property" } } },
+          relationshipNames: { items: { "ui:widget": "attributeSuggest", "ui:options": { kind: "Relationship" } } },
+        },
+      },
+    });
     expect(withPickers("Unknown", {}, undefined)).toBeUndefined();
   });
 
