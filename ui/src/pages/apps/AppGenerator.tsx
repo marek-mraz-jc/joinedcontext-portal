@@ -13,7 +13,8 @@ import { EndpointPreview } from "./EndpointPreview";
 import { NewEndpointPanel } from "./NewEndpointPanel";
 import { useAccess } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
-import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Textarea } from "../../components/ui";
+import { Alert, Button, Checkbox, ExternalLink, Field, Input, PageHeader, Select, Textarea } from "../../components/ui";
+import { guideUrl, useBranding } from "../../branding";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { takePrefill } from "../../assistant/state";
 
@@ -33,6 +34,9 @@ export const EXAMPLE_APPS = ["hsl-transport", "air-quality"] as const;
 
 /** How many endpoints one application may read (AP-44), the first one the primary. */
 export const MAX_ENDPOINTS = 5;
+
+/** The User Guide page of apps, linked from the builder when the installation serves a guide. */
+const GUIDE = "User-Guide/11-apps";
 
 /** The published model of one endpoint, read with the person's own session. */
 export async function endpointSchema(slug: string): Promise<unknown> {
@@ -322,6 +326,7 @@ export function AppGenerator({
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const guideHref = guideUrl(useBranding(), GUIDE);
   const [name, setName] = useState(initialName ?? "");
   const [kind, setKind] = useState<AppKind>("ui");
   const [prompt, setPrompt] = useState("");
@@ -466,8 +471,19 @@ export function AppGenerator({
   // `/projects/$project/apps/$name` and into the served URL, so spaces, slashes, upper case and
   // two hundred characters all used to travel (T-1760).
   const nameFault = APP_NAME.test(chosen) ? null : "apps.generate.nameInvalid";
-  const ready =
-    chosen !== "" && nameFault === null && prompt.trim() !== "" && endpointName !== "" && needs.length > 0;
+  // The first thing still missing, named, so a new user is told what the grey button waits for
+  // instead of guessing (T-3214).
+  const missing =
+    endpointName === ""
+      ? "apps.generate.missing.endpoint"
+      : prompt.trim() === ""
+        ? "apps.generate.missing.prompt"
+        : nameFault !== null || chosen === ""
+          ? "apps.generate.missing.name"
+          : needs.length === 0
+            ? "apps.generate.missing.needs"
+            : null;
+  const ready = missing === null;
 
   return (
     <form
@@ -476,12 +492,19 @@ export function AppGenerator({
         event.preventDefault();
         // `generate.isPending` reaches the button one render later than a second click does,
         // and two clicks started two runs — two applications, two agents, two bills (T-1760).
-        if (starting.current || generate.isPending) return;
+        if (!ready || starting.current || generate.isPending) return;
         starting.current = true;
         generate.mutate();
       }}
     >
       <PageHeader title={t("apps.generate.title")} description={t("apps.generate.subtitle")} />
+      {guideHref ? (
+        <p className="text-body">
+          <ExternalLink data-testid="form-guide" href={guideHref} className="text-primary-soft-fg underline-offset-2">
+            {t("form.guideLink", { kind: "App" })}
+          </ExternalLink>
+        </p>
+      ) : null}
 
       {change && <ChangeNotice change={change} project={project} />}
       {error && (
@@ -720,7 +743,13 @@ export function AppGenerator({
           guard a viewer wrote the whole brief, curated the checklist, pressed the button and
           met a raw 403 (UI-44, T-1760). */}
       <PermissionGuard project={project} kind="App" verb="propose">
-        <Button type="submit" variant="primary" loading={generate.isPending} disabled={!ready}>
+        <Button
+          type="submit"
+          variant="primary"
+          loading={generate.isPending}
+          disabled={!ready}
+          disabledReason={missing ? t(missing) : undefined}
+        >
           {t("apps.generate.submit")}
         </Button>
       </PermissionGuard>
