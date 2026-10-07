@@ -71,6 +71,12 @@ pub struct Config {
     /// sidecar (`JC_PORTAL_PIPELINE_IDENTITY=pipeline`) rather than its project's `pipelines`
     /// account (`project`, the default), PL-19. Set once the federated mechanism is seen working.
     pub pipeline_identity: bool,
+    /// The namespace the pipelines' own Kubernetes ServiceAccounts live in
+    /// (`JC_PORTAL_PIPELINE_NAMESPACE`, `{instance}-pipeline-identities`): set, the reconciler
+    /// keeps one there per Pipeline and gives each derived account its federated client (PL-19,
+    /// T-1508). `pipeline_identity` needs it, since a stream would otherwise present an account
+    /// nothing created.
+    pub pipeline_namespace: Option<String>,
     /// The platform host the context spaces are served on, which is where a declared
     /// `Subscription` is written (`JC_PORTAL_GATEWAY_URL`,
     /// `/cs/{space}/ngsi-ld/v1/subscriptions`, T-0931). `None`
@@ -247,6 +253,7 @@ impl std::fmt::Debug for Config {
             )
             .field("pipeline_runner_url", &self.pipeline_runner_url)
             .field("pipeline_identity", &self.pipeline_identity)
+            .field("pipeline_namespace", &self.pipeline_namespace)
             .field("gateway_url", &self.gateway_url)
             .field("gateway_client_id", &self.gateway_client_id)
             .field("agent_proxy_client_id", &self.agent_proxy_client_id)
@@ -1190,6 +1197,26 @@ impl Config {
             }
         };
 
+        let pipeline_namespace = lookup("JC_PORTAL_PIPELINE_NAMESPACE")
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty());
+        if let Some(namespace) = &pipeline_namespace {
+            if jc_core::names::validate_dns1123_label(namespace).is_err() {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_PIPELINE_NAMESPACE",
+                    reason: format!("`{namespace}` is not a DNS-1123 label"),
+                });
+            }
+        }
+        if pipeline_identity && pipeline_namespace.is_none() {
+            return Err(ConfigError::Invalid {
+                var: "JC_PORTAL_PIPELINE_IDENTITY",
+                reason: "`pipeline` needs JC_PORTAL_PIPELINE_NAMESPACE, where the pipelines' \
+                         accounts are made"
+                    .to_owned(),
+            });
+        }
+
         // The template is not a URL until `{project}` is filled in, so it is checked against a
         // stand-in: an operator learns about a typo at startup, not on the first scrape.
         let pipeline_runner_url = match lookup("JC_PORTAL_PIPELINE_RUNNER_URL") {
@@ -1351,6 +1378,7 @@ impl Config {
             gitea_webhook_secret_previous,
             pipeline_runner_url,
             pipeline_identity,
+            pipeline_namespace,
             gateway_url,
             gateway_client_id: lookup("JC_PORTAL_GATEWAY_CLIENT_ID")
                 .filter(|v| !v.trim().is_empty()),
@@ -1403,6 +1431,7 @@ impl Config {
             gitea_webhook_secret_previous: None,
             pipeline_runner_url: None,
             pipeline_identity: false,
+            pipeline_namespace: None,
             gateway_url: None,
             gateway_client_id: None,
             agent_proxy_client_id: None,
@@ -1610,10 +1639,10 @@ mod tests {
     #[test]
     fn the_pipeline_identity_is_the_projects_until_switched_and_nothing_else_is_read() {
         let with = |value: Option<&str>| {
-            Config::from_vars(|k| {
-                (k == "JC_PORTAL_PIPELINE_IDENTITY")
-                    .then(|| value.map(str::to_owned))
-                    .flatten()
+            Config::from_vars(|k| match k {
+                "JC_PORTAL_PIPELINE_IDENTITY" => value.map(str::to_owned),
+                "JC_PORTAL_PIPELINE_NAMESPACE" => Some("jc-pipeline-identities".to_owned()),
+                _ => None,
             })
         };
         assert!(!with(None).expect("default").pipeline_identity);
@@ -1623,6 +1652,33 @@ mod tests {
             .expect_err("a typo is refused")
             .to_string();
         assert!(err.contains("JC_PORTAL_PIPELINE_IDENTITY"), "{err}");
+    }
+
+    /// T-1508: the switch needs the namespace its accounts are made in, and the namespace is a
+    /// DNS-1123 label or the Portal does not start.
+    #[test]
+    fn the_pipeline_switch_needs_a_valid_namespace() {
+        let with = |identity: &str, namespace: Option<&str>| {
+            Config::from_vars(|k| match k {
+                "JC_PORTAL_PIPELINE_IDENTITY" => Some(identity.to_owned()),
+                "JC_PORTAL_PIPELINE_NAMESPACE" => namespace.map(str::to_owned),
+                _ => None,
+            })
+        };
+        let err = with("pipeline", None)
+            .expect_err("no namespace")
+            .to_string();
+        assert!(err.contains("JC_PORTAL_PIPELINE_NAMESPACE"), "{err}");
+        let err = with("project", Some("Not_A_Label"))
+            .expect_err("bad namespace")
+            .to_string();
+        assert!(err.contains("JC_PORTAL_PIPELINE_NAMESPACE"), "{err}");
+        let config = with("project", Some("jc-pipeline-identities")).expect("dormant");
+        assert!(!config.pipeline_identity);
+        assert_eq!(
+            config.pipeline_namespace.as_deref(),
+            Some("jc-pipeline-identities")
+        );
     }
 
     #[test]

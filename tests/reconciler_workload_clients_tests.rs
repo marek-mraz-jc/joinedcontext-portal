@@ -529,3 +529,144 @@ async fn two_new_bindings_of_one_subject_both_wait() {
     }
     assert!(wrote(&keycloak).await.is_empty());
 }
+
+const PIPELINES: &str = "jc-pipeline-identities";
+
+fn drepo() -> ResourceEnvelope {
+    envelope(
+        "Pipeline",
+        "zilina",
+        "drepo",
+        json!({
+            "class": "scheduled",
+            "schedule": "23 3 * * 2",
+            "source": { "dataSourceRef": { "kind": "DataSource", "name": "uniza-drepo" } },
+            "targetEndpoint": "urn:ngsi-ld:Endpoint:zilina.sk:zilina-uniza:zilina-uniza",
+            "output": { "type": "CreativeWork", "mode": "upsert" },
+        }),
+    )
+}
+
+/// PL-19 (T-1508): with the pipelines' namespace set, a Pipeline's derived account gets its
+/// federated client `{project}-pl-{pipeline}` for its own Kubernetes subject in that namespace,
+/// audienced to the Endpoint it writes through; without it the Pipeline gets none.
+#[tokio::test]
+async fn a_pipeline_gets_its_own_federated_client_only_when_the_namespace_is_set() {
+    let mirror = mirror_with(vec![
+        drepo(),
+        endpoint("zilina", "zilina-uniza", "zilina-uniza", SLUG),
+    ]);
+    let keycloak = realm(json!([])).await;
+    assert!(sync(&keycloak).converge(&mirror).await.is_empty());
+    assert!(wrote(&keycloak).await.is_empty());
+
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", "zilina-pl-drepo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .up_to_n_times(1)
+        .mount(&keycloak)
+        .await;
+    client_lookup(
+        &keycloak,
+        "zilina-pl-drepo",
+        json!([managed_client(
+            "uuid-pl",
+            "zilina",
+            "pl-drepo",
+            PIPELINES,
+            "pl-zilina-drepo"
+        )]),
+    )
+    .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/clients")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&keycloak)
+        .await;
+    mappers(&keycloak, "uuid-pl", json!([])).await;
+
+    let outcomes = sync(&keycloak)
+        .with_pipelines(PIPELINES.to_owned())
+        .converge(&mirror)
+        .await;
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].app, "zilina/pl-drepo");
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let created = &bodies(&keycloak, "POST", &format!("{REALM}/clients")).await[0];
+    assert_eq!(created["clientId"], "zilina-pl-drepo");
+    assert_eq!(
+        created["attributes"]["jwt.credential.sub"],
+        format!("system:serviceaccount:{PIPELINES}:pl-zilina-drepo")
+    );
+    let mapper = &bodies(
+        &keycloak,
+        "POST",
+        &format!("{REALM}/clients/uuid-pl/protocol-mappers/models"),
+    )
+    .await[0];
+    assert_eq!(mapper["config"]["included.custom.audience"], SLUG);
+}
+
+/// PL-19 (T-1508): each Pipeline's Kubernetes ServiceAccount is applied in the pipelines'
+/// namespace, labelled and never automounted; a labelled `pl-` account no Pipeline names is
+/// deleted, and one without the `pl-` prefix is left alone.
+#[tokio::test]
+async fn the_pipelines_kubernetes_accounts_follow_the_pipelines() {
+    use joinedcontext_portal::apps::kube::KubeClient;
+    use joinedcontext_portal::reconciler::workload_clients::converge_pipeline_service_accounts;
+
+    let api = MockServer::start().await;
+    let base = format!("/api/v1/namespaces/{PIPELINES}/serviceaccounts");
+    Mock::given(method("PATCH"))
+        .and(path_regex(format!("^{base}/[^/]+$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&api)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(base.clone()))
+        .and(query_param(
+            "labelSelector",
+            "joinedcontext.com/pipeline-identity=true",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [
+            { "metadata": { "name": "pl-zilina-drepo" } },
+            { "metadata": { "name": "pl-zilina-gone" } },
+            { "metadata": { "name": "pipeline-tokens" } },
+        ] })))
+        .mount(&api)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path_regex(format!("^{base}/[^/]+$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&api)
+        .await;
+
+    let kube = KubeClient::with_token(&api.uri(), "token").expect("a client");
+    let failed =
+        converge_pipeline_service_accounts(&kube, &mirror_with(vec![drepo()]), PIPELINES).await;
+    assert!(failed.is_empty(), "{failed:?}");
+
+    let requests = api.received_requests().await.unwrap_or_default();
+    let applied: Vec<Value> = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "PATCH")
+        .map(|r| serde_json::from_slice(&r.body).expect("json"))
+        .collect();
+    let [account] = applied.as_slice() else {
+        panic!("one applied: {applied:?}");
+    };
+    assert_eq!(account["metadata"]["name"], "pl-zilina-drepo");
+    assert_eq!(account["metadata"]["namespace"], PIPELINES);
+    assert_eq!(
+        account["metadata"]["labels"]["joinedcontext.com/pipeline-identity"],
+        "true"
+    );
+    assert_eq!(account["automountServiceAccountToken"], false);
+    let deleted: Vec<String> = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "DELETE")
+        .map(|r| r.url.path().to_owned())
+        .collect();
+    assert_eq!(deleted, vec![format!("{base}/pl-zilina-gone")]);
+}
