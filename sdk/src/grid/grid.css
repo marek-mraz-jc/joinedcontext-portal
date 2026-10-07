@@ -657,6 +657,12 @@
   background: var(--jc-color-surface, #fff);
 }
 
+/* A header cell whose metadata menu is open lies above the filter row below it, which is as
+   sticky and would otherwise paint over the menu and take its clicks (T-3170). */
+.jc-grid thead th:has(.jc-grid-meta-menu) {
+  z-index: 4;
+}
+
 .jc-grid-spacer td {
   padding: 0;
   border: none;

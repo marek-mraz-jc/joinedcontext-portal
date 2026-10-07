@@ -45,8 +45,10 @@ jobs:
       # mode, for the tests that replace and delete a stream whose write fails (T-2983). A
       # service container cannot be given the `streams` argument, so it is started here. The
       # three variables are placeholders the outcome sink names; nothing answers at that URL.
+      # On the host network, not a published port: the paging tests' gateway is a mock on the
+      # runner's 127.0.0.1, which a bridged container cannot reach (T-3132, T-3170).
       - run: >-
-          docker run -d --name pipeline-runner -p 4195:4195
+          docker run -d --name pipeline-runner --network host
           -e JC_CLIENT_ID=ci -e JC_CLIENT_SECRET=ci -e JC_TOKEN_URL=http://127.0.0.1:9/token
           ghcr.io/warpstreamlabs/bento@sha256:656c55de3f8deddd4ee743f3c76f3b497e67324e940f2bc1769693cd8b906364
           streams
