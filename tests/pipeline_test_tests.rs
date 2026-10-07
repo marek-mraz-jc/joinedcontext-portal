@@ -698,29 +698,52 @@ async fn asked(runner: &MockServer, verb: &str) -> Vec<String> {
         .collect()
 }
 
+/// A runner answer that says when its request arrived, before any delay it holds.
+struct Arrival(Arc<tokio::sync::Notify>, ResponseTemplate);
+
+impl wiremock::Respond for Arrival {
+    fn respond(&self, _: &wiremock::Request) -> ResponseTemplate {
+        self.0.notify_one();
+        self.1.clone()
+    }
+}
+
 /// T-2520, PL-43: one test at a time per project; the second is refused before it reaches the
 /// runner, and the first finishes and removes its stream.
 #[tokio::test]
 async fn a_second_test_of_the_same_project_while_one_is_running_is_409() {
     // The runner holds its answer, so the first test is still running when the second arrives;
     // an instant answer let the first finish and free the slot first on a slow CI host (T-2673).
-    let (runner, state) = world_of(
-        "t2520-one",
-        ResponseTemplate::new(200).set_delay(Duration::from_secs(1)),
-        ResponseTemplate::new(200),
-    )
-    .await;
+    // The second is sent the moment the runner has the first's create, which the first asks only
+    // once it holds the project's slot. wiremock lists a request among the received ones only
+    // after it answered, so waiting on that list let the first finish before the second was sent
+    // on a busy CI host (T-3195); the responder below says so as the request arrives.
+    let arrived = Arc::new(tokio::sync::Notify::new());
+    let runner = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path_regex(STREAM))
+        .respond_with(Arrival(
+            arrived.clone(),
+            // Long enough for the second's refusal, which needs no network, and well under the
+            // Portal's 2 s runner timeout, past which the first would be a 503.
+            ResponseTemplate::new(200).set_delay(Duration::from_secs(1)),
+        ))
+        .mount(&runner)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path_regex(STREAM))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&runner)
+        .await;
+    let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror("t2520-one"));
     let body = request("root = this");
     let first = {
         let (state, body) = (state.clone(), body.clone());
         tokio::spawn(async move { post(&state, "dev@hel.fi", "t2520-one", &body).await })
     };
-    for _ in 0..100 {
-        if !asked(&runner, "POST").await.is_empty() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
+    tokio::time::timeout(Duration::from_secs(20), arrived.notified())
+        .await
+        .expect("the first test never reached the runner");
     let (status, answer) = post(&state, "dev@hel.fi", "t2520-one", &body).await;
     assert_eq!(status, StatusCode::CONFLICT, "{answer}");
     assert_eq!(

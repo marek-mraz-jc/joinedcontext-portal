@@ -196,11 +196,19 @@ pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMe
     metrics
 }
 
+/// The client every call to the pipeline runner goes through.
+///
+/// It keeps no idle connection: a pooled connection belongs to the runtime that opened it, so one
+/// reused after that runtime stopped fails with "runtime dropped the dispatch task". That is every
+/// test of this process, each on its own runtime, once the OS hands a later test's runner the
+/// port of an earlier one's (T-3195). A call to the runner is an occasional request inside the
+/// cluster, so opening its connection each time costs nothing a person sees.
 pub(crate) fn http() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .timeout(SCRAPE_TIMEOUT)
+            .pool_max_idle_per_host(0)
             .build()
             .unwrap_or_default()
     })
