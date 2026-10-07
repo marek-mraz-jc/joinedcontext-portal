@@ -12056,7 +12056,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No such space the caller may read */
+            /** @description No such space, or no entity of it the caller may read (API/01 §35, T-3284) */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12137,7 +12137,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No such space the caller may read */
+            /** @description No such space, or no entity of it the caller may read (API/01 §35, T-3284) */
             404: {
                 headers: {
                     [name: string]: unknown;
