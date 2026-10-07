@@ -217,10 +217,11 @@ describe("closing forgets what was typed, whichever way it is closed", () => {
 
 describe("the dialog meets the UI contract", () => {
   it("posts_what_was_typed_once_and_says_the_servers_words_when_it_is_refused", async () => {
-    answerPost = () => json({ title: "Conflict", status: 409, detail: "a workspace named 'copy' exists" }, 409);
+    // A taken name is answered at the name (T-3219); any other refusal in the server's words.
+    answerPost = () => json({ title: "Forbidden", status: 403, detail: "the project's quota of copies is spent" }, 403);
     dialog();
     await userEvent.click(start());
-    expect(await screen.findByRole("alert")).toHaveTextContent("a workspace named 'copy' exists");
+    expect(await screen.findByRole("alert")).toHaveTextContent("the project's quota of copies is spent");
     expect(posted).toHaveLength(1);
     expect(posted[0].path).toBe(`/api/v1/projects/${PROJECT}/workspaces`);
   });
@@ -246,5 +247,27 @@ describe("the dialog meets the UI contract", () => {
     // translates; this copy covers the whole project, so nothing here is data.
     expectNoRawKeys(await screen.findByRole("dialog"));
     expect(within(await screen.findByRole("dialog")).getAllByRole("textbox").length).toBe(2);
+  });
+});
+
+describe("what a new user is not left to guess (T-3219)", () => {
+  it("a_name_another_copy_holds_is_answered_at_the_name_and_the_button_says_why", async () => {
+    answerPost = () => json({ title: "Conflict", status: 409, detail: "a workspace of that name exists" }, 409);
+    dialog();
+    await userEvent.click(start());
+    const name = screen.getByLabelText(/^Name/);
+    const taken = en.workspaces.open.nameTaken.replace("{name}", "copy");
+    await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
+    expect(name).toHaveAccessibleDescription(new RegExp(taken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    expectDenied(start(), taken);
+    // A new name clears it.
+    await userEvent.type(name, "-2");
+    expect(name).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("the_keep_for_choice_says_what_happens_when_the_time_is_up", () => {
+    dialog();
+    expect(screen.getByLabelText(en.workspaces.open.ttl)).toHaveAccessibleDescription(en.workspaces.open.ttlHint);
   });
 });

@@ -91,10 +91,10 @@ spec:
     git.url:
       placeholder: "https://git.example.org/city/context.git"
       help:
-        en: Clone web address or SSH connection string of the remote Git repository.
-        sk: Webová adresa na klonovanie alebo pripojenie SSH vzdialeného repozitára Git.
-        cs: Webová adresa pro klonování nebo připojení SSH vzdáleného repozitáře Git.
-        de: Klonadresse über HTTPS oder SSH-Verbindung zum entfernten Git-Repository.
+        en: The address you would clone the repository from, https:// or ssh://. A private repository also needs the credential below.
+        sk: Adresa, z ktorej by ste repozitár klonovali, https:// alebo ssh://. Súkromný repozitár potrebuje aj prístupový údaj nižšie.
+        cs: Adresa, ze které byste repozitář klonovali, https:// nebo ssh://. Soukromý repozitář potřebuje i přístupový údaj níže.
+        de: Die Adresse, von der Sie das Repository klonen würden, https:// oder ssh://. Ein privates Repository braucht auch die Zugangsdaten unten.
     git.ref:
       help:
         en: Branch name, tag, or specific commit hash to check out from the repository.
@@ -103,10 +103,10 @@ spec:
         de: Name des Zweigs, Schlagwort oder bestimmter Versionsstand des Repositorys.
     git.path:
       help:
-        en: Optional relative directory path to synchronize only a subtree of the repository.
-        sk: Voliteľná relatívna cesta k priečinku na synchronizáciu iba časti repozitára.
-        cs: Volitelná relativní cesta ke složce pro synchronizaci pouze části repozitáře.
-        de: Optionaler relativer Pfad, um nur ein Unterverzeichnis des Repositorys einzubinden.
+        en: Only this folder of the repository is read, such as projects/helsinki; empty reads the whole repository.
+        sk: Číta sa len tento priečinok repozitára, ako projects/helsinki; prázdne číta celý repozitár.
+        cs: Čte se jen tato složka repozitáře, jako projects/helsinki; prázdné čte celý repozitář.
+        de: Nur dieser Ordner des Repositorys wird gelesen, wie projects/helsinki; leer liest das ganze Repository.
     git.secretRef.name:
       help:
         en: Name of the stored secret holding access tokens or SSH keys for the repository.
@@ -182,10 +182,10 @@ spec:
     prune:
       advanced: true
       help:
-        en: Automatically removes resources in this project that were deleted in upstream source.
-        sk: Automaticky odstráni prostriedky v tomto projekte, ktoré boli vymazané v nadradenom zdroji.
-        cs: Automaticky odstraní prostředky v tomto projektu, které byly smazány v nadřazeném zdroji.
-        de: Entfernt automatisch Ressourcen in diesem Projekt, die in der übergeordneten Quelle gelöscht wurden.
+        en: When the source drops a resource, the run proposes removing it here too; a person approves the removal unless the next switch is on.
+        sk: Keď zdroj prostriedok vypustí, beh navrhne jeho odstránenie aj tu; odstránenie schvaľuje človek, ak nie je zapnutý nasledujúci prepínač.
+        cs: Když zdroj prostředek vypustí, běh navrhne jeho odstranění i zde; odstranění schvaluje člověk, pokud není zapnutý následující přepínač.
+        de: Wenn die Quelle eine Ressource entfernt, schlägt der Lauf ihr Entfernen auch hier vor; eine Person genehmigt es, außer der nächste Schalter ist an.
     autoMerge:
       advanced: true
       help:
