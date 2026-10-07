@@ -12,6 +12,7 @@ import { EditResourceAction } from "../../components/EditResourceDialog";
 import { RecordLink } from "../../components/RecordLink";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { CkanAccessPanel } from "./CkanAccessPanel";
+import { PublishDatasetDialog } from "../catalogue/PublishDataset";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 import {
@@ -91,7 +92,7 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
           ...(instance.organizationDefault
             ? { organizationDefault: instance.organizationDefault }
             : {}),
-          apiTokenRef: { name: instance.secretName, key: instance.secretKey || "apiToken" },
+          apiTokenRef: { name: instance.secretName.trim(), key: instance.secretKey.trim() || "apiToken" },
         },
       };
       return proposeChecked(project, "ckaninstances", body as ResourceProposal, true);
@@ -157,6 +158,8 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
         </section>
       ) : null}
       <Publications
+        project={project}
+        hasCatalogue={(status.data?.instances ?? []).length > 0}
         publications={status.data?.publications ?? []}
         loading={status.isLoading}
         failed={status.isError}
@@ -166,7 +169,7 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
   );
 }
 
-interface InstanceDraft {
+export interface InstanceDraft {
   name: string;
   url: string;
   organizationDefault: string;
@@ -182,15 +185,29 @@ const EMPTY_DRAFT: InstanceDraft = {
   secretKey: "apiToken",
 };
 
+/** A Kubernetes Secret's name: what the secret store accepts (a DNS subdomain). */
+const SECRET_NAME = /^[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?$/;
+/**
+ * A value that reads as a CKAN API token rather than a secret's name: a JWT (CKAN 2.9+) or the
+ * UUID of a legacy API key. Refused with its own sentence, so a token pasted into the name field
+ * never travels into a proposal and a Git commit (T-3215).
+ */
+const LOOKS_LIKE_TOKEN = /^eyJ|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type Fault = "name" | "url" | "secretName" | "secretKey";
+
 /** What the form itself refuses, before anything is proposed (UI-04). */
-function faults(draft: InstanceDraft): Partial<Record<"name" | "url" | "secretName", string>> {
-  const found: Partial<Record<"name" | "url" | "secretName", string>> = {};
+export function faults(draft: InstanceDraft): Partial<Record<Fault, string>> {
+  const found: Partial<Record<Fault, string>> = {};
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(draft.name)) found.name = "ckan.instances.nameInvalid";
   // `type="url"` accepts `javascript:alert(1)` and `file:///etc/passwd`: the browser checks the
   // shape of a URL and not its scheme. A catalogue is fetched over HTTP by the reconciler, so
   // anything else is refused here rather than by a reconciler the steward cannot see (T-1765).
   if (!/^https?:\/\/[^\s/]+/i.test(draft.url.trim())) found.url = "ckan.instances.urlInvalid";
-  if (draft.secretName.trim() === "") found.secretName = "ckan.instances.secretRequired";
+  const secret = draft.secretName.trim();
+  if (secret === "") found.secretName = "ckan.instances.secretRequired";
+  else if (LOOKS_LIKE_TOKEN.test(secret)) found.secretName = "ckan.instances.secretIsToken";
+  else if (!SECRET_NAME.test(secret)) found.secretName = "ckan.instances.secretInvalid";
+  if (!/^[-._a-zA-Z0-9]+$/.test(draft.secretKey.trim())) found.secretKey = "ckan.instances.secretKeyInvalid";
   return found;
 }
 
@@ -212,7 +229,7 @@ function Instances({
 }): JSX.Element {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<InstanceDraft>(EMPTY_DRAFT);
-  const [shown, setShown] = useState<Partial<Record<"name" | "url" | "secretName", string>>>({});
+  const [shown, setShown] = useState<Partial<Record<Fault, string>>>({});
   const fields = useRef<Record<string, HTMLInputElement | null>>({});
   // A second press while the first proposal is in flight. `submitting` arrives with the render
   // after the mutation starts, which is one render too late for a double click: measured, two
@@ -280,7 +297,7 @@ function Instances({
           if (sending.current || submitting) return;
           const found = faults(draft);
           setShown(found);
-          const first = (["name", "url", "secretName"] as const).find((field) => found[field]);
+          const first = (["name", "url", "secretName", "secretKey"] as const).find((field) => found[field]);
           if (first) {
             fields.current[first]?.focus();
             return;
@@ -349,7 +366,27 @@ function Instances({
               fields.current.secretName = node;
             }}
             value={draft.secretName}
+            autoComplete="off"
+            spellCheck={false}
             onChange={(event) => setDraft({ ...draft, secretName: event.target.value })}
+          />
+        </Field>
+        <Field
+          id="ckan-instance-secret-key"
+          label={t("ckan.instances.secretKey")}
+          description={t("ckan.instances.secretKeyHelp")}
+          required
+          errors={shown.secretKey ? [t(shown.secretKey)] : undefined}
+        >
+          <Input
+            id="ckan-instance-secret-key"
+            ref={(node) => {
+              fields.current.secretKey = node;
+            }}
+            value={draft.secretKey}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => setDraft({ ...draft, secretKey: event.target.value })}
           />
         </Field>
         {/* The catalogue is proposed as this project's `CkanInstance`, so that is the permission
@@ -378,11 +415,16 @@ export function lastRunByEndpoint(events: ActivityEvent[]): Record<string, Activ
 }
 
 function Publications({
+  project,
+  hasCatalogue,
   publications,
   loading,
   failed,
   lastRuns,
 }: {
+  project: string;
+  /** Publishing needs a catalogue to land in; without one the button says so (T-3215). */
+  hasCatalogue: boolean;
   publications: PublicationStatus[];
   loading: boolean;
   failed: boolean;
@@ -390,11 +432,25 @@ function Publications({
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const time = new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" });
+  const [publishing, setPublishing] = useState(false);
   return (
     <section aria-labelledby="ckan-publications" className="space-y-3">
-      <h2 id="ckan-publications" className="text-lg font-semibold">
-        {t("ckan.publications.title")}
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="ckan-publications" className="text-lg font-semibold">
+          {t("ckan.publications.title")}
+        </h2>
+        {/* The one-step flow of the endpoint page, started here with its endpoint picker (EP-83). */}
+        <PermissionGuard project={project} kind="Endpoint" verb="propose">
+          <Button
+            onClick={() => setPublishing(true)}
+            disabled={!hasCatalogue}
+            disabledReason={t("ckan.publications.needsCatalogue")}
+          >
+            {t("catalogue.publish.open")}
+          </Button>
+        </PermissionGuard>
+      </div>
+      <PublishDatasetDialog project={project} open={publishing} onOpenChange={setPublishing} />
       {loading ? <p role="status">{t("app.loading")}</p> : null}
       {!loading && !failed && publications.length === 0 ? (
         <EmptyState

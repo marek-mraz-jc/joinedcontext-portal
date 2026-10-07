@@ -2712,11 +2712,16 @@
       "propose": "Propose catalogue",
       "nameHelp": "The short name this catalogue is known by here. Lowercase letters, digits and dashes.",
       "urlHelp": "The address of the CKAN portal the datasets are published to, with its scheme.",
-      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own.",
+      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own: the short name at the end of its address in CKAN, /organization/<name>.",
       "emptyHint": "A catalogue is a CKAN portal this project publishes to. Name one below and the reconciler registers its datasets.",
       "nameInvalid": "A name is lowercase letters, digits and dashes, and starts and ends with a letter or a digit.",
       "urlInvalid": "The address starts with http:// or https://.",
-      "secretRequired": "Name the secret the operator loaded; the token itself is never entered here."
+      "secretRequired": "Name the secret the operator loaded; the token itself is never entered here.",
+      "secretKey": "Key inside the secret",
+      "secretKeyHelp": "The entry of that secret that holds the token. Leave apiToken unless the operator says otherwise.",
+      "secretKeyInvalid": "A key is letters, digits, dots, dashes and underscores, such as apiToken.",
+      "secretInvalid": "A secret's name is lowercase letters, digits, dashes and dots, such as ckan-api-token.",
+      "secretIsToken": "This looks like the API token itself. Do not paste it here: ask the operator to load it into the secret store and type that secret's name."
     },
     "publications": {
       "title": "Published endpoints",
@@ -2724,13 +2729,14 @@
       "datastore": "DataStore mirror from {representation}, {refresh}.",
       "publishedTo": "published to {instance}",
       "missingInstance": "catalogue {instance} is missing",
-      "emptyHint": "An endpoint publishes when its manifest declares a publication. Open an endpoint and add one to see it here.",
+      "emptyHint": "Press \"Publish a dataset\", pick an endpoint, check its description and propose it. The dataset appears here and in CKAN after the approval.",
       "refreshed": {
         "onChange": "refreshed when an entity changes",
         "onReconcile": "refreshed each time the configuration is applied"
       },
       "lastChange": "Last change {time}: {summary}",
-      "lastFailed": "Last run failed {time}: {summary}"
+      "lastFailed": "Last run failed {time}: {summary}",
+      "needsCatalogue": "Add a catalogue above first: a dataset needs a CKAN portal to land in."
     },
     "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}",
     "access": {
