@@ -5,6 +5,7 @@ import { clsx } from "clsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ASSISTANT_EVENT } from "../navigation/shortcuts";
 import { useHiddenSections } from "../branding";
 import { isHiddenSection } from "../components/layout/navigation";
 import { api, ApiError, unwrap } from "../api/client";
@@ -202,24 +203,6 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
       document.querySelector<HTMLElement>("#assistant-empty-composer, #run-message")?.focus();
     }
   });
-  // Ctrl/Cmd+K from any page opens the assistant and a second press closes it. The shortcut only
-  // moves the focus: nothing is sent and no conversation starts by it.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "k" || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) {
-        return;
-      }
-      event.preventDefault();
-      setOpen((was) => {
-        focusBox.current = !was;
-        return !was;
-      });
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
   // The endpoints the data bar offers are read while the page is idle, so opening does not wait.
   const queryClient = useQueryClient();
   useEffect(() => {
@@ -259,6 +242,20 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
   }
 
   const [composerMessage, setComposerMessage] = useState("");
+  // The palette's second Ctrl/Cmd+K, or its "Ask the assistant", opens the assistant with what
+  // was typed in the composer (UI-88). Nothing is sent: the person still presses Send.
+  useEffect(() => {
+    const onAsk = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: string }>).detail?.text ?? "";
+      if (text !== "") setComposerMessage((was) => (was.trim() === "" ? text : was));
+      focusBox.current = true;
+      setOpen(true);
+    };
+    window.addEventListener(ASSISTANT_EVENT, onAsk);
+    return () => {
+      window.removeEventListener(ASSISTANT_EVENT, onAsk);
+    };
+  }, []);
   const [startError, setStartError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   // The endpoints the next conversation may query (AG-75), remembered per project for the tab.
@@ -304,6 +301,25 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
       setBuilding(false);
     });
   }, []);
+
+  // Escape from inside the panel hides it, as its minimize button does, and the bubble takes the
+  // focus back (UI-92); full screen first goes back to the side.
+  useEffect(() => {
+    if (!open || full) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      // A menu, a list or a picker inside the panel takes its own Escape first and marks it handled.
+      if (event.key === "Escape" && !event.defaultPrevented && event.target instanceof Element && event.target.closest("aside[data-layout]")) {
+        setOpen(false);
+        window.setTimeout(() => document.querySelector<HTMLElement>("[data-assistant-bubble]")?.focus(), 0);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, full]);
 
   useEffect(() => {
     if (!full) {
@@ -475,7 +491,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
         aria-expanded={false}
         aria-label={t("assistant.open")}
         title={t("assistant.open")}
-        aria-keyshortcuts="Control+K Meta+K"
+        data-assistant-bubble=""
         onClick={() => {
           focusBox.current = true;
           setOpen(true);

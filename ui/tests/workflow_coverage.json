@@ -1451,6 +1451,18 @@
           "POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat"
         ]
       }
+    },
+    "navigation": {
+      "find-and-return": {
+        "live": {
+          "spec": "navigation.spec.ts",
+          "test": "Ctrl+K and a name reach a pipeline; its link opens the same page for a colleague"
+        },
+        "personOnly": "finding a page with the keyboard, starring it and sending its link are a person's own way around the Portal; the assistant reaches data through its own tools",
+        "routes": [
+          "POST /api/v1/preferences/recent"
+        ]
+      }
     }
   },
   "unclaimed": {

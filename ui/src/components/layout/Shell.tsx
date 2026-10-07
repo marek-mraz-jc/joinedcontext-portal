@@ -7,6 +7,8 @@ import { LanguageSwitcher } from "../LanguageSwitcher";
 import { NotificationsMenu } from "../../pages/spaces/Comments";
 import { useFirstRun } from "../../pages/home/firstRun";
 import { AssistantDock } from "../../assistant/AssistantDock";
+import { CommandPalette } from "../../navigation/CommandPalette";
+import { PageTools } from "../../navigation/PageTools";
 import { useAuth } from "../../auth/AuthProvider";
 import { rememberProject, useProjects } from "../../api/projects";
 import { useQuery } from "@tanstack/react-query";
@@ -374,6 +376,10 @@ export function Shell({
     matchRoute({ to: "/projects/$project/workspaces/$name/compare" }) ||
     matchRoute({ to: "/projects/$project/workspaces/$name/bring-back" }) ||
     matchRoute({ to: "/projects/$project/workspaces/$name/try-it" });
+  // The one thing the page is about, from the address (T-3239): an approval, a copy, or any
+  // item of a section at `/projects/{project}/{plural}/{name}…`, whose own address opens it.
+  const segments = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  const itemName = segments[0] === "projects" && segments.length >= 4 && segments[3] !== "new" ? segments[3] : undefined;
   const detail = approvalDetail
     ? { to: "/projects/$project/approvals" as const, name: approvalDetail.id }
     : copyDetail
@@ -417,6 +423,8 @@ export function Shell({
             matchRoute({
               to: "/projects/$project/$plural",
               params: { project, plural: section.plural },
+              // An item of the section is in the section: its edit form, its page (T-3239).
+              fuzzy: true,
             }),
           ),
   );
@@ -667,8 +675,23 @@ export function Shell({
                 16 px from the corner): it sat on the last column of a table at 1440 with nothing
                 below it to scroll to (T-2760). */}
             <div className="mx-auto flex max-w-content flex-col gap-section px-4 pb-24 pt-5 sm:px-gutter sm:pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
               <nav aria-label={t("nav.breadcrumb")} className="text-caption text-fg-muted">
                 <ol className="flex flex-wrap items-center gap-1">
+                  {/* The organization first (T-3239): its page for an administrator, its name
+                      for everyone else; an installation that names none has no such crumb. */}
+                  {branding.organisation ? (
+                    <li className="flex items-center gap-1">
+                      {administers ? (
+                        <Link to="/organization/$tab" params={{ tab: "settings" }} className="focus-ring rounded-sm hover:text-fg hover:underline">
+                          {branding.organisation}
+                        </Link>
+                      ) : (
+                        <span>{branding.organisation}</span>
+                      )}
+                      <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                    </li>
+                  ) : null}
                   <li>
                     <Link
                       to="/projects/$project/$plural"
@@ -695,6 +718,25 @@ export function Shell({
                             {detail.name}
                           </span>
                         </>
+                      ) : itemName && activeSection.plural !== "settings" ? (
+                        <>
+                          <Link
+                            to="/projects/$project/$plural"
+                            params={{ project, plural: activeSection.plural }}
+                            className="focus-ring rounded-sm hover:text-fg hover:underline"
+                          >
+                            {t(activeSection.labelKey)}
+                          </Link>
+                          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                          <Link
+                            to="/projects/$project/$plural/$name"
+                            params={{ project, plural: activeSection.plural, name: itemName }}
+                            aria-current="page"
+                            className="focus-ring rounded-sm font-mono font-medium text-fg hover:underline"
+                          >
+                            {itemName}
+                          </Link>
+                        </>
                       ) : (
                         <span aria-current="page" className="font-medium text-fg">
                           {t(activeSection.labelKey)}
@@ -704,6 +746,9 @@ export function Shell({
                   ) : null}
                 </ol>
               </nav>
+              {/* The page's star and its link to send (UI-90, UI-91). */}
+              <PageTools />
+              </div>
               <WorkspaceBar project={project} />
               {/* The page, and the panel that takes its place when it throws. `resetKey` is the
                   path, so walking away from a failed page with the sidebar that is still there
@@ -722,6 +767,7 @@ export function Shell({
         {/* The assistant is on the right of every page a run is remembered: a column beside
             the page, or a bubble at the bottom right when hidden (UI-45). */}
         <AssistantDock project={project} />
+        <CommandPalette project={project} />
       </div>
 
       {!fill && (branding.organisation || branding.contactEmail) ? (
