@@ -1990,6 +1990,86 @@
         }
       }
     },
+    "/api/v1/preferences/recent": {
+      "post": {
+        "tags": [
+          "preferences"
+        ],
+        "summary": "Add Recent Pages",
+        "description": "Puts the pages the caller opened, newest first, at the top of their recent pages, each once, the newest ten kept; every other preference stays as stored. The browser sends them when its tab is hidden, so a visit is not a write.",
+        "operationId": "add_recent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecentPlaces"
+              },
+              "example": {
+                "places": [
+                  {
+                    "path": "/projects/helsinki/pipelines/air-quality/edit",
+                    "title": "air-quality · helsinki"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Stored; the body is what is now saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No place, more than ten, or a place that is not a page of this Portal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or mismatched CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No preferences database configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects": {
       "get": {
         "tags": [
@@ -17956,6 +18036,25 @@
           "json"
         ]
       },
+      "Place": {
+        "type": "object",
+        "description": "A page of the Portal a person went to or starred: where it is and what it was called.",
+        "required": [
+          "path",
+          "title"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "A path inside the Portal, with its query: `/projects/helsinki/pipelines/air?tab=runs`."
+          },
+          "title": {
+            "type": "string",
+            "description": "The page's title when it was opened, 1 to 200 characters."
+          }
+        },
+        "additionalProperties": false
+      },
       "PlanDiff": {
         "type": "object",
         "description": "Summary and field-level changes between two resource revisions.",
@@ -18077,12 +18176,26 @@
             ],
             "description": "The project the shell opens on."
           },
+          "favourites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Place"
+            },
+            "description": "The pages the person starred, at most 50 (UI-90)."
+          },
           "locale": {
             "type": [
               "string",
               "null"
             ],
             "description": "ISO 639-1 language code."
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Place"
+            },
+            "description": "The last pages the person opened, newest first, at most 10 (UI-90)."
           },
           "theme": {
             "type": [
@@ -18609,6 +18722,23 @@
             ]
           }
         }
+      },
+      "RecentPlaces": {
+        "type": "object",
+        "description": "The pages a person opened since the last report, newest first (UI-90).",
+        "required": [
+          "places"
+        ],
+        "properties": {
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Place"
+            },
+            "description": "1 to 10 places, newest first."
+          }
+        },
+        "additionalProperties": false
       },
       "RegistrationCard": {
         "type": "object",

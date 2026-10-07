@@ -162,9 +162,11 @@ describe("a kind's forms at their own addresses", () => {
     expect(await screen.findByRole("heading", { level: 1, name: en.policies.title })).toBeInTheDocument();
   });
 
-  it("gives a kind with no page of its own for one resource the Portal's not-found page", async () => {
+  // T-3241, UI-91: every item has its bare address; a kind with no page of its own opens its form.
+  it("opens a kind with no page of its own on its form at the item's bare address", async () => {
     await open(`${LIST}/open-read`);
-    expect(await screen.findByText(en.app.notFound.title)).toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname).toBe(`${LIST}/open-read/edit`));
+    expect(screen.queryByText(en.app.notFound.title)).toBeNull();
   });
 });
 

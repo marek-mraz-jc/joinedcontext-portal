@@ -42,6 +42,7 @@ import type { LinkmlModel } from "./linkml";
 import { OrganizationCopyOffer, ShareWithOrganization } from "./ShareModel";
 import { spaceOfModel, USING_KINDS, usesOfModel } from "./modelUsage";
 import type { ModelUse } from "./modelUsage";
+import { useUrlParam } from "../../navigation/urlState";
 
 type View = "overview" | "form" | "yaml" | "used" | "history" | "mappings";
 const VIEWS: View[] = ["overview", "form", "yaml", "used", "history", "mappings"];
@@ -169,7 +170,8 @@ export function ModelPage({
   initialClass?: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
-  const [view, setView] = useState<View>(initialClass ? "form" : "overview");
+  // The tab is in the address, so back, reload and a sent link open it (T-3239).
+  const [view, setView] = useUrlParam<View>("tab", initialClass ? "form" : "overview", VIEWS);
   const models = useProjectList(project, "datamodels");
   const all = useProjectManifests(project);
   const model = models.data?.find((one) => one.metadata.name === name);
