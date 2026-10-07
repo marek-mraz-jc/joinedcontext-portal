@@ -1731,7 +1731,9 @@
       "spacesFailed": "Die Kontexträume dieses Projekts konnten nicht geladen werden, daher fehlen in dieser Liste die Vergaben, die für einen einzelnen Raum gelten: {reason}",
       "discardTitle": "Diese Vergabe verwerfen?",
       "discardConfirm": "Was Sie eingegeben haben, geht verloren und es wird nichts vorgeschlagen. Bereits vergebene Rollen bleiben unberührt.",
-      "discard": "Vergabe verwerfen"
+      "discard": "Vergabe verwerfen",
+      "grants": "Diese Rolle darf: {rights}.",
+      "grantsNothing": "Diese Rolle gewährt noch nichts: sie hat keine Regeln."
     },
     "projectRoles": {
       "title": "Rollen",
@@ -4213,7 +4215,7 @@
       "lead": "Die Personen der Anmeldedomäne der Organisation. Was jede darf, geben die Bindungen und Gruppen vor, die sie nennen.",
       "new": "Neue Person",
       "hidden": "Diese Liste sieht nur, wessen Rolle Personen liest. Eine Organisationsadministration kann sie vergeben.",
-      "invited": "Die Domäne hat {email} eine E-Mail zum Bestätigen der Adresse und Setzen eines Passworts geschickt.",
+      "invited": "Die Domäne hat {email} eine E-Mail zum Bestätigen der Adresse und Setzen eines Passworts geschickt. Die Person kann sich anmelden, aber nichts tun, bis sie eine Rolle hat: vergeben Sie eine unter Mitglieder eines Projekts oder der Organisation.",
       "search": "Personen suchen",
       "searchPlaceholder": "Name oder E-Mail",
       "searchButton": "Suchen",
