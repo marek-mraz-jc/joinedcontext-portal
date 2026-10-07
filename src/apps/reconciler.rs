@@ -287,15 +287,15 @@ pub enum RenderError {
         image: String,
     },
     /// Data needs reaching into a space the App cannot read: a pod-backed App reads its own space
-    /// alone, a `ui` App one further space besides (AP-04).
-    #[error("an app reads its own space {first}, and only a `ui` app one further space besides; its data needs also name {second} (AP-04)")]
+    /// alone, a `ui` App two further spaces besides (AP-04).
+    #[error("an app reads its own space {first}, and only a `ui` app up to two further spaces besides; its data needs also name {second} (AP-04)")]
     SeveralSpaces {
         /// The space the first need names.
         first: String,
         /// The first space that differs from it.
         second: String,
     },
-    /// A need on the further space writes or names a role: that space is read through its public
+    /// A need on a further space writes or names a role: that space is read through its public
     /// Endpoints and granted nothing (AP-04).
     #[error("the further space {space} is read only through its public endpoints: a need on it names read operations and no roles (AP-04)")]
     FurtherSpace {
@@ -431,13 +431,16 @@ fn compiled_grants(
 /// The App's own space and its needs, each with its position in `dataNeeds`.
 type OwnNeeds<'a> = (&'a str, Vec<(usize, &'a DataNeed)>);
 
+/// How many further spaces a `ui` App may read besides its own (AP-04, T-2934).
+const FURTHER_SPACES: usize = 2;
+
 /// The App's own space, the first need's, with the needs on it and their positions (AP-04). A
-/// `ui` App may name one further space of its project, read only and holding no role: those needs
-/// compile into nothing, since the page reads that space through its public Endpoints, which
-/// answer anyone already (Architecture/16 §2).
+/// `ui` App may name up to two further spaces of its project, read only and holding no role: those
+/// needs compile into nothing, since the page reads those spaces through their public Endpoints,
+/// which answer anyone already (Architecture/16 §2).
 fn own_needs(spec: &AppSpec) -> Result<OwnNeeds<'_>, RenderError> {
     let own = spec.data_needs[0].context_space_ref.name();
-    let mut further: Option<&str> = None;
+    let mut further: Vec<&str> = Vec::new();
     let mut needs = Vec::new();
     for (index, need) in spec.data_needs.iter().enumerate() {
         let space = need.context_space_ref.name();
@@ -445,7 +448,8 @@ fn own_needs(spec: &AppSpec) -> Result<OwnNeeds<'_>, RenderError> {
             needs.push((index, need));
             continue;
         }
-        if spec.class != AppClass::Ui || further.is_some_and(|seen| seen != space) {
+        let seen = further.contains(&space);
+        if spec.class != AppClass::Ui || (!seen && further.len() == FURTHER_SPACES) {
             return Err(RenderError::SeveralSpaces {
                 first: own.to_owned(),
                 second: space.to_owned(),
@@ -456,7 +460,9 @@ fn own_needs(spec: &AppSpec) -> Result<OwnNeeds<'_>, RenderError> {
                 space: space.to_owned(),
             });
         }
-        further = Some(space);
+        if !seen {
+            further.push(space);
+        }
     }
     Ok((own, needs))
 }

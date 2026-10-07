@@ -38,6 +38,9 @@ export interface Strings {
   mapIndicator: string;
   mapHint: string;
   mapUnavailable: string;
+  /** The years a card's trend line covers and its first and last value, for a screen reader. */
+  trend: (from: string, to: string, first: string, last: string) => string;
+  trendUnavailable: string;
 }
 
 const TERRITORY_SK: Record<string, string> = {
@@ -117,6 +120,8 @@ const SK: Strings = {
   mapIndicator: "Ukazovateľ na mape",
   mapHint: "Okres vyberiete kliknutím na mape alebo na jeho názov v grafe.",
   mapUnavailable: "Hranice okresov sa nepodarilo načítať",
+  trend: (from, to, first, last) => `Vývoj ${from} – ${to}: od ${first} po ${last}`,
+  trendUnavailable: "Ročné rady údajov kraja sa nepodarilo načítať, karty ukazujú posledné obdobie",
 };
 
 const EN: Strings = {
@@ -160,6 +165,8 @@ const EN: Strings = {
   mapIndicator: "Indicator on the map",
   mapHint: "Pick a district by clicking it on the map or its name in the chart.",
   mapUnavailable: "The district outlines could not be read",
+  trend: (from, to, first, last) => `Trend ${from} – ${to}: from ${first} to ${last}`,
+  trendUnavailable: "The region's yearly rows could not be read; the cards show the latest period",
 };
 
 export const LOCALES: Readonly<Record<string, Strings>> = { sk: SK, en: EN };

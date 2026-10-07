@@ -832,8 +832,8 @@ fn a_ui_apps_further_space_compiles_into_no_grant() {
     assert!(!format!("{:?}", rendered.policies).contains("AdministrativeArea"));
 }
 
-/// AP-04 (T-2933): a further space is read only, holds no role, is one space and only a `ui`
-/// App's: every other shape is refused and names the space.
+/// AP-04 (T-2933, T-2934): a further space is read only, holds no role, is one of at most two
+/// and only a `ui` App's: every other shape is refused and names the space.
 #[test]
 fn a_further_space_that_writes_holds_a_role_is_a_third_or_a_pods_is_refused() {
     let own = json!({
@@ -889,12 +889,21 @@ fn a_further_space_that_writes_holds_a_role_is_a_third_or_a_pods_is_refused() {
         matches!(role, RenderError::FurtherSpace { .. }),
         "got {role:?}"
     );
+    // Two further spaces are read (T-2934); a third further one is refused by name.
+    ui(vec![
+        own.clone(),
+        further("registre", json!({})),
+        further("kraj", json!({})),
+        further("registre", json!({ "types": ["Road"] })),
+    ])
+    .expect("a ui app may read two further spaces");
     let third = ui(vec![
         own.clone(),
         further("registre", json!({})),
+        further("kraj", json!({})),
         further("doprava", json!({})),
     ])
-    .expect_err("one further space, not two");
+    .expect_err("two further spaces, not three");
     assert!(
         matches!(&third, RenderError::SeveralSpaces { second, .. } if second == "doprava"),
         "got {third:?}"
