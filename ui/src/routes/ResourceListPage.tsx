@@ -172,6 +172,7 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
   }),
 };
 
+
 /**
  * The kinds a person creates from their list with the form above, by the kind's name (T-1542). A
  * Mapping is created on the Models page's Mappings view, which writes its transformation and golden
@@ -189,6 +190,11 @@ const CREATE_KINDS: Record<string, string> = {
   knowledgesources: "KnowledgeSource",
   assistantdeployments: "AssistantDeployment",
 };
+
+/** Whether `plural` is a kind this page lists, so `/{plural}/{name}/edit` is a page (UI-91). */
+export function hasEditForm(plural: string): boolean {
+  return Object.hasOwn(VIEWS, plural) || Object.hasOwn(EDIT_FORMS, plural) || Object.hasOwn(CREATE_KINDS, plural);
+}
 
 /**
  * Kinds jc-core keeps one of per organization, at one path whatever the name (T-1544): New is offered
@@ -284,6 +290,7 @@ export function KindList({
       <PermissionGuard project={project} kind={createKind} verb="propose">
         <Button
           variant="primary"
+          data-shortcut="new"
           icon={<Icon name="plus" className="size-4" />}
           onClick={() => {
             setFormError(null);

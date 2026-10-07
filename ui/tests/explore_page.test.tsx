@@ -156,30 +156,25 @@ afterEach(() => {
 });
 
 describe("the explorer", () => {
-  /// T-1116, UI-33: the page a person is looking at, as a file they can keep. It is written
-  /// from the rows in hand, so the file is the view and not a second answer.
-  it("writes the page it shows to a file", async () => {
+  /// T-1116, UI-33, T-3253: the view as a file a person keeps: every row its filters match, read
+  /// through the endpoint with their session, offered as a link once it is written.
+  it("exports the whole view to a file it offers as a download", async () => {
     const captured: Blob[] = [];
-    const revoked: string[] = [];
-    let named = "";
     const urls = URL as unknown as Record<string, unknown>;
     const realCreate = urls.createObjectURL;
     const realRevoke = urls.revokeObjectURL;
     urls.createObjectURL = (blob: Blob) => {
       captured.push(blob);
-      return "blob:the-page";
+      return "blob:the-view";
     };
-    urls.revokeObjectURL = (href: string) => revoked.push(href);
-    const clicked = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(function (this: HTMLAnchorElement) {
-        named = this.download;
-      });
+    urls.revokeObjectURL = () => undefined;
+    const asked: string[] = [];
 
     vi.stubGlobal(
       "fetch",
       vi.fn((input: unknown) => {
         if (urlOf(input).includes("/entities?")) {
+          asked.push(urlOf(input));
           return Promise.resolve(
             new Response(JSON.stringify([ROW]), {
               status: 200,
@@ -204,23 +199,19 @@ describe("the explorer", () => {
       </QueryClientProvider>,
     );
 
-    await userEvent.selectOptions(
-      await screen.findByLabelText(/Entity type/i),
-      "BikeHireDockingStation",
-    );
-    const button = await screen.findByRole("button", { name: en.explore.export });
-    await waitFor(() => {
-      expect(button).toBeEnabled();
-    });
-    await userEvent.click(button);
+    await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
+    await userEvent.selectOptions(await screen.findByLabelText(en.explore.exportView.format), "json");
+    await userEvent.click(await screen.findByRole("button", { name: en.explore.exportView.start }));
 
+    const link = await screen.findByRole("link", { name: "Download BikeHireDockingStation.json (1 row)" });
+    expect(link).toHaveAttribute("href", "blob:the-view");
+    expect(link).toHaveAttribute("download", "BikeHireDockingStation.json");
     expect(captured).toHaveLength(1);
-    expect(captured[0].type).toBe("application/json");
     expect(JSON.parse(await captured[0].text())).toEqual([ROW]);
-    expect(named).toBe("BikeHireDockingStation-1-1.json");
-    expect(revoked).toEqual(["blob:the-page"]);
+    // The export asks from the first row, with the count, whatever page the grid shows.
+    const exported = asked.find((url) => url.includes("count=true") && url.includes("limit=500"));
+    expect(exported, asked.join("\n")).toBeDefined();
 
-    clicked.mockRestore();
     urls.createObjectURL = realCreate;
     urls.revokeObjectURL = realRevoke;
   });

@@ -87,7 +87,8 @@
     "environments": "Prostředí",
     "projections": "Projekce modelů",
     "knowledge": "Zdroje znalostí",
-    "mcp": "MCP servery"
+    "mcp": "MCP servery",
+    "home": "Domů"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -3443,7 +3444,6 @@
     "removeConfirm": "Smazat",
     "removeNote": "Rozhoduje Policy endpointu: smazání běží s vaším přihlášením, ne se servisní identitou, a nelze je vrátit.",
     "deleteDenied": "Oprávnění tohoto koncového bodu vám nedovoluje smazat {type}",
-    "export": "Exportovat tuto stránku",
     "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše.",
     "noSpace": "Vyberte kontextový prostor ke čtení",
     "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:",
@@ -3465,6 +3465,23 @@
       "outlierCount": "{count, plural, one {# hodnota} few {# hodnoty} other {# hodnot}}",
       "pipelines": "Pipeline, které zapisují tento typ",
       "rejected": "Otevřít {pipeline} a její odmítnuté záznamy"
+    },
+    "exportView": {
+      "format": "Formát exportu",
+      "formats": {
+        "csv-excel": "CSV pro Excel (česká čísla a data)",
+        "csv": "CSV",
+        "json": "JSON",
+        "geojson": "GeoJSON (entity s polohou)"
+      },
+      "start": "Exportovat pohled",
+      "cancel": "Zrušit export",
+      "progress": "Načteno {done} řádků…",
+      "progressOf": "Načteno {done} z {total} řádků…",
+      "download": "Stáhnout {name} ({rows, plural, one {# řádek} few {# řádky} other {# řádků}})",
+      "truncated": "Jen prvních {max} řádků: pro ostatní zužte filtr.",
+      "empty": "Pohled nemá žádné řádky k exportu.",
+      "noGeometry": "Žádná entita pohledu nemá polohu, proto není co exportovat do GeoJSON."
     }
   },
   "agentRun": {
@@ -4674,7 +4691,8 @@
         "reset-password": "Obnovit heslo",
         "remove-second-factor": "Odstranit druhý faktor",
         "sign-out": "Odhlásit všude",
-        "delete": "Smazat"
+        "delete": "Smazat",
+        "resend-invitation": "Poslat pozvánku znovu"
       },
       "done": {
         "disable": "Vypnuto. Všechny relace osoby skončily.",
@@ -4682,7 +4700,8 @@
         "reset-password": "Doména poslala osobě odkaz k nastavení nového hesla.",
         "remove-second-factor": "Druhý faktor odstraněn. Osoba si při dalším přihlášení nastaví nový.",
         "sign-out": "Všechny relace osoby skončily.",
-        "delete": "Smazáno."
+        "delete": "Smazáno.",
+        "resend-invitation": "Realm poslal pozvánku znovu, s novým odkazem."
       },
       "confirm": {
         "disable": {
@@ -4708,6 +4727,10 @@
         "delete": {
           "title": "Smazat {name}?",
           "body": "Osoba se hned vypne. Pokud ji jmenují skupiny nebo vazby, Změna ji z každé vyjme; účet zanikne po schválení této Změny. Nelze to vrátit."
+        },
+        "resend-invitation": {
+          "title": "Poslat pozvánku pro {name} znovu?",
+          "body": "Realm pošle e-mailem nový odkaz na kroky, které člověk ještě neudělal. Bez e-mailu dostanete jednou dočasné heslo."
         }
       },
       "password": {
@@ -4718,6 +4741,46 @@
         "copy": "Kopírovat",
         "copied": "Zkopírováno do schránky.",
         "done": "Hotovo"
+      },
+      "invitedInto": "Realm poslal na {email} e-mail k ověření adresy a nastavení hesla. Odkaz pak otevře projekt {project}.",
+      "invite": {
+        "project": "Projekt",
+        "projectHelp": "Projekt, do kterého pozvánka vede. Po nastavení hesla člověk přistane na jeho domovské stránce.",
+        "noProject": "Bez projektu: jen organizace",
+        "role": "Role v projektu",
+        "roleHelp": "Co smí člověk dělat v projektu {project}. Role se navrhne jako změna a platí po jejím schválení.",
+        "roles": {
+          "viewer": {
+            "label": "Čtenář",
+            "may": "Čte prostory, data, pipelines a dashboardy projektu. Nic nemění."
+          },
+          "editor": {
+            "label": "Editor",
+            "may": "Navrhuje a schvaluje změny prostorů, modelů, mapování, politik, zdrojů dat, pipelines a endpointů. Nic nemaže."
+          },
+          "steward": {
+            "label": "Správce",
+            "may": "Navrhuje a schvaluje změny všeho v projektu včetně aplikací, dashboardů a datových nabídek a schvaluje, co navrhnou jiní."
+          }
+        },
+        "roleProposed": "Role {role} pro {email} v projektu {project} je navržena. Platí po schválení změny.",
+        "roleFailed": "Člověk je pozván, ale role {role} v projektu {project} navržena nebyla: {reason} Přidejte ji v Členech projektu."
+      },
+      "pending": {
+        "title": "Nepřijaté pozvánky",
+        "link": "Odkaz pozvánky",
+        "expires": "Odkaz platí do {at}.",
+        "expired": "Platnost odkazu skončila {at}. Pošlete ho znovu.",
+        "expiryUnknown": "Portál si nezaznamenal, kdy platnost odkazu skončí.",
+        "resent": "Realm poslal pozvánku na {email} znovu, s novým odkazem.",
+        "revoked": "Pozvánka pro {email} je zrušena a účet smazán.",
+        "revoke": "Zrušit",
+        "resendFor": "Poslat pozvánku na {email} znovu",
+        "revokeFor": "Zrušit pozvánku pro {email}",
+        "confirmRevoke": {
+          "title": "Zrušit pozvánku pro {email}?",
+          "body": "Účet se smaže a odkaz přestane fungovat. Pokud člověka už jmenuje vazba, nejprve ho z ní vyjme změna."
+        }
       }
     },
     "setup": {
@@ -5979,5 +6042,121 @@
     "upstream-redirect": "Služba za platformou poslala přesměrování, které nesmí následovat; požádejte jejího vlastníka o konečnou adresu.",
     "service-unavailable": "Platforma na to ještě není připravená; zkuste to za minutu.",
     "delivery-timeout": "Příjemce neodpověděl včas; ověřte, že je dostupný, a zkuste to znovu."
+  },
+  "places": {
+    "star": "Označit stránku hvězdičkou",
+    "copyLink": "Kopírovat odkaz",
+    "linkCopied": "Odkaz zkopírován: kdo smí číst tuto stránku, otevře ji tak, jak ji vidíte vy.",
+    "linkNotCopied": "Prohlížeč nedovolil kopírování; zkopírujte adresu z adresního řádku."
+  },
+  "palette": {
+    "title": "Přejít na",
+    "hint": "Napište název: stránku, projekt, prostor, endpoint, pipeline, aplikaci, model, typ nebo URN entity. Další Ctrl+K se zeptá asistenta.",
+    "search": "Název, kam přejít",
+    "placeholder": "air-quality, Akce, urn:ngsi-ld:…",
+    "results": "Výsledky",
+    "nothing": "Nic, co smíte číst, se takto nejmenuje. Ctrl+K se místo toho zeptá asistenta.",
+    "glossary": "Slovník pojmů",
+    "groups": {
+      "recent": "Naposledy otevřené",
+      "favourites": "S hvězdičkou",
+      "actions": "Akce",
+      "pages": "Stránky",
+      "projects": "Projekty",
+      "types": "Typy entit"
+    },
+    "actions": {
+      "openEntity": "Otevřít entitu {id}",
+      "findEntities": "Najít entity podle „{q}“",
+      "ask": "Zeptat se asistenta",
+      "newPipeline": "Vytvořit pipeline",
+      "invite": "Pozvat osobu",
+      "settings": "Otevřít nastavení projektu"
+    }
+  },
+  "shortcuts": {
+    "title": "Klávesové zkratky",
+    "hint": "Co funguje na této stránce. Písmeno nikdy nejedná, když píšete do pole.",
+    "palette": "Přejít na stránku, položku nebo akci; dvakrát se zeptá asistenta",
+    "save": "Uložit formulář",
+    "new": "Vytvořit nový",
+    "test": "Spustit test",
+    "next": "Další řádek seznamu",
+    "previous": "Předchozí řádek seznamu",
+    "close": "Zavřít dialog nebo panel",
+    "help": "Zobrazit tyto zkratky"
+  },
+  "home": {
+    "title": "Domů",
+    "leadLoading": "Co tento projekt obsahuje a co můžete udělat dál.",
+    "lead": {
+      "steward": "Co čeká na vaše schválení a co v tomto projektu potřebuje vaši pozornost.",
+      "editor": "Na čem jste pracovali a co opravit dál.",
+      "viewer": "Data a dashboardy tohoto projektu, které můžete číst."
+    },
+    "next": "Dál pro vás",
+    "firstRun": {
+      "title": "Začínáme",
+      "progress": "Hotovo {done} z {total}",
+      "done": "Hotovo",
+      "todo": "Ještě zbývá",
+      "dismiss": "Skrýt seznam kroků",
+      "restore": "Zobrazit seznam kroků na začátek",
+      "step": {
+        "space": "Vytvořte kontextový prostor",
+        "source": "Připojte zdroj dat",
+        "pipeline": "Spusťte pipeline",
+        "data": "Prohlédněte si data",
+        "share": "Sdílejte je přes endpoint"
+      },
+      "go": {
+        "space": "Vytvořit prostor",
+        "source": "Připojit zdroj",
+        "pipeline": "Otevřít pipeliny",
+        "data": "Otevřít prostor",
+        "share": "Vytvořit endpoint"
+      }
+    },
+    "card": {
+      "approvals": {
+        "title": "{count, plural, one {# změna čeká na schválení} few {# změny čekají na schválení} other {# změn čeká na schválení}}",
+        "action": "Posoudit je"
+      },
+      "failing": {
+        "title": "{count, plural, one {# pipeline selhává} other {# pipelin selhává}}",
+        "action": "Podívat se, co se pokazilo"
+      },
+      "invites": {
+        "title": "{count, plural, one {# pozvánka ještě není přijata} few {# pozvánky ještě nejsou přijaty} other {# pozvánek ještě není přijato}}",
+        "action": "Otevřít lidi"
+      },
+      "drafts": {
+        "title": "{count, plural, one {# rozpracovaný návrh} few {# rozpracované návrhy} other {# rozpracovaných návrhů}}",
+        "action": "Pokračovat v posledním"
+      },
+      "data": {
+        "title": "Data, která můžete číst",
+        "action": "Otevřít prostor"
+      },
+      "dashboards": {
+        "title": "{count, plural, one {# dashboard} few {# dashboardy} other {# dashboardů}}",
+        "action": "Otevřít první"
+      }
+    },
+    "welcome": {
+      "title": "Vítejte v projektu {project}",
+      "role": {
+        "viewer": "Jste tu čtenář: čtete data a dashboardy projektu.",
+        "editor": "Jste tu editor: navrhujete změny konfigurace projektu.",
+        "steward": "Jste tu správce: schvalujete, co navrhnou jiní, a odpovídáte za data projektu."
+      },
+      "unknown": "Svou roli tu ještě nemáte: platí po schválení změny, která ji navrhuje.",
+      "first": {
+        "viewer": "Otevřít prostory projektu",
+        "editor": "Připojit zdroj dat",
+        "steward": "Projít čekající změny"
+      },
+      "close": "Zavřít uvítání"
+    }
   }
 }

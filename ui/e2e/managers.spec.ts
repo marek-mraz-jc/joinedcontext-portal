@@ -126,8 +126,9 @@ test.describe("managers", () => {
   test("a space links to its manifest in the forge", async ({ page }) => {
     await stubApi(page);
 
-    await page.goto("/?lang=en");
-    await expect(page).toHaveURL(/\/projects\/helsinki\/spaces$/);
+    // The home is where "/" lands now (T-3233); the spaces are one page further.
+    await page.goto("/projects/helsinki/spaces?lang=en");
+    await expect(page).toHaveURL(/\/projects\/helsinki\/spaces/);
     await expect(page.getByText("Air quality")).toBeVisible();
     // `exact`, because getByRole matches the accessible name as a case-insensitive SUBSTRING by
     // default: the nav's "Data sources" link contains "source" and made this locator ambiguous

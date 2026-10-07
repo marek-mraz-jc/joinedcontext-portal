@@ -28,6 +28,10 @@ const PATHS = {
   plus: "M12 5v14M5 12h14",
   external: "M14 4h6v6M20 4l-9 9M18 13v6H5V6h6",
   copy: "M9 9h10v11H9zM5 15V4h10",
+  // A page starred to come back to (UI-90).
+  star: "M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3l-5.5 2.9 1-6.2L3 9.6l6.2-.9z",
+  // A page's own address, to send to someone (UI-91).
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
   check: "m5 12 5 5 9-10",
   warning: "M12 4 2 20h20zM12 10v4M12 17v.5",
   info: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v5M12 8v.5",

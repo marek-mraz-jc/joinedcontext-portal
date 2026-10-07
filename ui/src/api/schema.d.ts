@@ -604,6 +604,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/people/{id}/resend-invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Invitation
+         * @description Sends the realm's e-mail again for the steps the person has not taken, with a fresh link that leads into the project the first one did. Needs `create` on Person and every right the person holds.
+         */
+        post: operations["resend_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/people/{id}/reset-password": {
         parameters: {
             query?: never;
@@ -682,6 +702,26 @@ export interface paths {
          */
         put: operations["put_preferences"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/preferences/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Recent Pages
+         * @description Puts the pages the caller opened, newest first, at the top of their recent pages, each once, the newest ten kept; every other preference stays as stored. The browser sends them when its tab is hidden, so a visit is not a write.
+         */
+        post: operations["add_recent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3720,6 +3760,11 @@ export interface components {
             firstName: string;
             lastName: string;
             locale?: string | null;
+            /**
+             * @description The project the invitation leads into: its home page greets the person once their
+             *     password is set (PF-108). It grants nothing.
+             */
+            project?: string | null;
         };
         /** @description What a person asks for when they start a run (AP-51). */
         CreateRunRequest: {
@@ -4569,6 +4614,11 @@ export interface components {
             enabled: boolean;
             firstName: string;
             id: string;
+            /**
+             * @description When the link of the last invitation the Portal sent stops working, while a step is left
+             *     (RFC 3339, PF-108); `null` once none is, or without a database to remember it in.
+             */
+            invitationExpires?: string | null;
             lastName: string;
             /** @description The last access of the person's newest open session; `null` when none is open. */
             lastSeen?: string | null;
@@ -4703,6 +4753,13 @@ export interface components {
          * @enum {string}
          */
         PipelineTestSampleFormat: "text" | "csv" | "json";
+        /** @description A page of the Portal a person went to or starred: where it is and what it was called. */
+        Place: {
+            /** @description A path inside the Portal, with its query: `/projects/helsinki/pipelines/air?tab=runs`. */
+            path: string;
+            /** @description The page's title when it was opened, 1 to 200 characters. */
+            title: string;
+        };
         /** @description Summary and field-level changes between two resource revisions. */
         PlanDiff: {
             fields: components["schemas"]["FieldChange"][];
@@ -4747,8 +4804,17 @@ export interface components {
             dashboardLayouts?: Record<string, never>;
             /** @description The project the shell opens on. */
             defaultProject?: string | null;
+            /** @description The pages the person starred, at most 50 (UI-90). */
+            favourites?: components["schemas"]["Place"][];
+            /**
+             * @description Whether the person put the first-run checklist away (T-3233). Absent shows it; the help
+             *     menu clears it. The steps tick themselves from the project, never from this record.
+             */
+            firstRunDismissed?: boolean | null;
             /** @description ISO 639-1 language code. */
             locale?: string | null;
+            /** @description The last pages the person opened, newest first, at most 10 (UI-90). */
+            recent?: components["schemas"]["Place"][];
             /** @description `light`, `dark` or `system`. */
             theme?: string | null;
         };
@@ -4928,6 +4994,11 @@ export interface components {
         Rebuild: {
             allowed: boolean;
             reason?: string | null;
+        };
+        /** @description The pages a person opened since the last report, newest first (UI-90). */
+        RecentPlaces: {
+            /** @description 1 to 10 places, newest first. */
+            places: components["schemas"]["Place"][];
         };
         /** @description What a registration's card shows (UI-27, PF-48). */
         RegistrationCard: {
@@ -6478,7 +6549,8 @@ export interface operations {
                  *       "email": "jana.kovacova@example.org",
                  *       "firstName": "Jana",
                  *       "lastName": "Kováčová",
-                 *       "locale": "sk"
+                 *       "locale": "sk",
+                 *       "project": "helsinki"
                  *     }
                  */
                 "application/json": components["schemas"]["CreatePerson"];
@@ -6505,6 +6577,15 @@ export interface operations {
             };
             /** @description The caller lacks create on Person */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No project of that name the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6882,6 +6963,74 @@ export interface operations {
             };
         };
     };
+    resend_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The realm cannot send mail: a temporary password, once */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordReset"];
+                };
+            };
+            /** @description The e-mail went */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordReset"];
+                };
+            };
+            /** @description The caller lacks create on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The person has no step left: the invitation was accepted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     reset_password: {
         parameters: {
             query?: never;
@@ -7087,6 +7236,76 @@ export interface operations {
                 };
             };
             /** @description A field the Portal understands is invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing or mismatched CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No preferences database configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    add_recent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "places": [
+                 *         {
+                 *           "path": "/projects/helsinki/pipelines/air-quality/edit",
+                 *           "title": "air-quality · helsinki"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["RecentPlaces"];
+            };
+        };
+        responses: {
+            /** @description Stored; the body is what is now saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Preferences"];
+                };
+            };
+            /** @description No place, more than ten, or a place that is not a page of this Portal */
             400: {
                 headers: {
                     [name: string]: unknown;

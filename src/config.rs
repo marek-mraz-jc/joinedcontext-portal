@@ -97,6 +97,11 @@ pub struct Config {
     /// route: those answer only their own project's pipeline clients. `None` admits the test's
     /// project alone.
     pub pipeline_runner_client_id: Option<String>,
+    /// The Keycloak client an invitation's link returns through
+    /// (`JC_PORTAL_INVITATION_CLIENT_ID`): one whose redirect URIs already cover the Portal's
+    /// pages, so the invitee lands on the project's home page once their password is set
+    /// (PF-108). `None` leaves the link ending on the realm's own page.
+    pub invitation_client_id: Option<String>,
     /// The context broker as the Portal reaches it inside the cluster, which is where a
     /// declared `ContextSourceRegistration` is written, in the tenant of its hub space
     /// (`POST /ngsi-ld/v1/csourceRegistrations`, T-0345, SP-08). It is also the address the
@@ -260,6 +265,7 @@ impl std::fmt::Debug for Config {
             .field("gateway_client_id", &self.gateway_client_id)
             .field("agent_proxy_client_id", &self.agent_proxy_client_id)
             .field("pipeline_runner_client_id", &self.pipeline_runner_client_id)
+            .field("invitation_client_id", &self.invitation_client_id)
             .field("broker_url", &self.broker_url)
             .field("org_domain", &self.org_domain)
             .field("pipeline_test_capture_url", &self.pipeline_test_capture_url)
@@ -1388,6 +1394,9 @@ impl Config {
                 .filter(|v| !v.trim().is_empty()),
             pipeline_runner_client_id: lookup("JC_PORTAL_PIPELINE_RUNNER_CLIENT_ID")
                 .filter(|v| !v.trim().is_empty()),
+            invitation_client_id: lookup("JC_PORTAL_INVITATION_CLIENT_ID")
+                .map(|v| v.trim().to_owned())
+                .filter(|v| !v.is_empty()),
             broker_url,
             org_domain: lookup("JC_PORTAL_ORG_DOMAIN").filter(|v| !v.trim().is_empty()),
             pipeline_test_capture_url,
@@ -1438,6 +1447,7 @@ impl Config {
             gateway_client_id: None,
             agent_proxy_client_id: None,
             pipeline_runner_client_id: None,
+            invitation_client_id: None,
             broker_url: None,
             org_domain: None,
             pipeline_test_capture_url: None,
