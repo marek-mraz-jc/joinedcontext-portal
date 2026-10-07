@@ -67,6 +67,10 @@ pub struct Config {
     /// (`JC_PORTAL_PIPELINE_RUNNER_URL`). `None` leaves the metrics route answering 503
     /// instead of guessing a service name.
     pub pipeline_runner_url: Option<String>,
+    /// Whether every stream presents its own pipeline's identity through the runner's token
+    /// sidecar (`JC_PORTAL_PIPELINE_IDENTITY=pipeline`) rather than its project's `pipelines`
+    /// account (`project`, the default), PL-19. Set once the federated mechanism is seen working.
+    pub pipeline_identity: bool,
     /// The platform host the context spaces are served on, which is where a declared
     /// `Subscription` is written (`JC_PORTAL_GATEWAY_URL`,
     /// `/cs/{space}/ngsi-ld/v1/subscriptions`, T-0931). `None`
@@ -242,6 +246,7 @@ impl std::fmt::Debug for Config {
                     .map(|_| "[redacted]"),
             )
             .field("pipeline_runner_url", &self.pipeline_runner_url)
+            .field("pipeline_identity", &self.pipeline_identity)
             .field("gateway_url", &self.gateway_url)
             .field("gateway_client_id", &self.gateway_client_id)
             .field("agent_proxy_client_id", &self.agent_proxy_client_id)
@@ -1170,6 +1175,21 @@ impl Config {
             None => None,
         };
 
+        // PL-19: a value nobody meant is refused at start-up, not read as either identity.
+        let pipeline_identity = match lookup("JC_PORTAL_PIPELINE_IDENTITY")
+            .as_deref()
+            .map(str::trim)
+        {
+            None | Some("") | Some("project") => false,
+            Some("pipeline") => true,
+            Some(other) => {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_PIPELINE_IDENTITY",
+                    reason: format!("`{other}` is neither `project` nor `pipeline`"),
+                })
+            }
+        };
+
         // The template is not a URL until `{project}` is filled in, so it is checked against a
         // stand-in: an operator learns about a typo at startup, not on the first scrape.
         let pipeline_runner_url = match lookup("JC_PORTAL_PIPELINE_RUNNER_URL") {
@@ -1330,6 +1350,7 @@ impl Config {
             gitea_webhook_secret,
             gitea_webhook_secret_previous,
             pipeline_runner_url,
+            pipeline_identity,
             gateway_url,
             gateway_client_id: lookup("JC_PORTAL_GATEWAY_CLIENT_ID")
                 .filter(|v| !v.trim().is_empty()),
@@ -1381,6 +1402,7 @@ impl Config {
             gitea_webhook_secret: None,
             gitea_webhook_secret_previous: None,
             pipeline_runner_url: None,
+            pipeline_identity: false,
             gateway_url: None,
             gateway_client_id: None,
             agent_proxy_client_id: None,
@@ -1581,6 +1603,26 @@ mod tests {
             "0.0.0.0:8080".parse().expect("parse default bind")
         );
         assert_eq!(config.public_base_url.as_str(), "http://localhost:8080/");
+    }
+
+    /// PL-19 (T-1508): streams keep the project's account until the switch says `pipeline`, and a
+    /// value nobody meant stops the Portal at start-up instead of picking either identity.
+    #[test]
+    fn the_pipeline_identity_is_the_projects_until_switched_and_nothing_else_is_read() {
+        let with = |value: Option<&str>| {
+            Config::from_vars(|k| {
+                (k == "JC_PORTAL_PIPELINE_IDENTITY")
+                    .then(|| value.map(str::to_owned))
+                    .flatten()
+            })
+        };
+        assert!(!with(None).expect("default").pipeline_identity);
+        assert!(!with(Some("project")).expect("project").pipeline_identity);
+        assert!(with(Some("pipeline")).expect("pipeline").pipeline_identity);
+        let err = with(Some("pipelines"))
+            .expect_err("a typo is refused")
+            .to_string();
+        assert!(err.contains("JC_PORTAL_PIPELINE_IDENTITY"), "{err}");
     }
 
     #[test]
