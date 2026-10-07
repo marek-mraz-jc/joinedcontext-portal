@@ -354,6 +354,18 @@
           "DELETE /api/v1/projects/{project}/spaces/{space}/trash/{id}"
         ]
       },
+      "views": {
+        "live": {
+          "spec": "space-views.spec.ts",
+          "test": "a person saves a view, changes it against its version and deletes it again"
+        },
+        "personOnly": "a person's saved ways of looking at a space's data (filters, hidden fields, colour rules, grouping); a view shapes what the person sees and changes no data, and the assistant reads the data itself, never a person's views (API/01, ADR-N-042 §3.2)",
+        "routes": [
+          "POST /api/v1/projects/{project}/spaces/{space}/views",
+          "PUT /api/v1/projects/{project}/spaces/{space}/views/{id}",
+          "DELETE /api/v1/projects/{project}/spaces/{space}/views/{id}"
+        ]
+      },
       "refused-no-permission": {
         "live": {
           "spec": "viewer-refused.spec.ts",
