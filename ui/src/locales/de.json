@@ -4032,7 +4032,8 @@
       "dataspaceparticipants": "Datenraum",
       "environments": "Umgebungen",
       "health": "Prüfstatus",
-      "endpoints": "Alle Endpunkte"
+      "endpoints": "Alle Endpunkte",
+      "mcp-servers": "MCP-Server der Organisation"
     },
     "settings": {
       "title": "Einstellungen",
@@ -5421,6 +5422,7 @@
       "reads": "Liest",
       "writes": "Schreibt",
       "offeredBy": "Angeboten von: {members}"
-    }
+    },
+    "leadOrganization": "Die MCP-Server der Organisation: eine Adresse über Endpoints mehrerer Projekte, für alle, die die Zielgruppe zulässt."
   }
 }

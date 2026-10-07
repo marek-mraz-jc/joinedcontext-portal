@@ -4032,7 +4032,8 @@
       "dataspaceparticipants": "Dátový priestor",
       "environments": "Prostredia",
       "health": "Stav overenia",
-      "endpoints": "Všetky koncové body"
+      "endpoints": "Všetky koncové body",
+      "mcp-servers": "MCP servery organizácie"
     },
     "settings": {
       "title": "Nastavenia",
@@ -5421,6 +5422,7 @@
       "reads": "Číta",
       "writes": "Zapisuje",
       "offeredBy": "Ponúka: {members}"
-    }
+    },
+    "leadOrganization": "MCP servery organizácie: jedna adresa nad endpointmi viacerých projektov pre všetkých, ktorých publikum pripúšťa."
   }
 }

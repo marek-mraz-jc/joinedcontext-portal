@@ -4032,7 +4032,8 @@
       "dataspaceparticipants": "Data space",
       "environments": "Environments",
       "health": "Health",
-      "endpoints": "All endpoints"
+      "endpoints": "All endpoints",
+      "mcp-servers": "Organization MCP servers"
     },
     "settings": {
       "title": "Settings",
@@ -5421,6 +5422,7 @@
       "reads": "Reads",
       "writes": "Writes",
       "offeredBy": "Offered by: {members}"
-    }
+    },
+    "leadOrganization": "The organization's MCP servers: one address over Endpoints of several projects, for everyone the audience admits."
   }
 }

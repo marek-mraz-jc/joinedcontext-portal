@@ -355,6 +355,26 @@ describe("the parts on their own", () => {
     expect(within(dialog).getByRole("checkbox", { name: "bikes (helsinki/bikes)" })).toBeChecked();
   });
 
+  it("as the organization's tab it sits under the page's h1, and its servers live at /api/mcp/org", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL((input as Request).url);
+        if (url.pathname === "/api/v1/projects/org/mcpservers") {
+          return new Response(JSON.stringify(list([{ ...SERVER, metadata: { ...SERVER.metadata, namespace: "org", name: "city" } }])), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify(list([])), { headers: { "Content-Type": "application/json" } });
+      }),
+    );
+    wrap(<McpServersPage project="org" embedded />);
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.getByRole("heading", { level: 2, name: "MCP servers" })).toBeInTheDocument();
+    expect(await screen.findByText(/\/api\/mcp\/org\/city$/)).toBeInTheDocument();
+    expect(screen.getByText("mcp-org-city")).toBeInTheDocument();
+  });
+
   it("the page asks for the project's servers and every member list it may offer", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL((input as Request).url);

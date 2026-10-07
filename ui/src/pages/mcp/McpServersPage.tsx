@@ -22,7 +22,7 @@ import type { MemberChoice } from "./mcp";
  * its members' health and the tools this person would get; creating, editing and removing one is
  * a Change like every other manifest.
  */
-export function McpServersPage({ project }: { project: string }): JSX.Element {
+export function McpServersPage({ project, embedded = false }: { project: string; embedded?: boolean }): JSX.Element {
   const { t, i18n } = useTranslation();
   const branding = useBranding();
   const [editing, setEditing] = useState<Manifest | "new" | null>(null);
@@ -54,18 +54,26 @@ export function McpServersPage({ project }: { project: string }): JSX.Element {
   );
   const choicesLoading = projects.isLoading || endpointLists.some((list) => list.isLoading);
   const items = asManifests(servers.data?.items ?? []);
+  const create = (
+    <PermissionGuard project={project} kind="McpServer" verb="propose">
+      <Button onClick={() => setEditing("new")}>{t("mcp.new")}</Button>
+    </PermissionGuard>
+  );
 
   return (
     <section aria-label={t("mcp.title")} className="space-y-6">
-      <PageHeader
-        title={t("mcp.title")}
-        description={t("mcp.lead")}
-        actions={
-          <PermissionGuard project={project} kind="McpServer" verb="propose">
-            <Button onClick={() => setEditing("new")}>{t("mcp.new")}</Button>
-          </PermissionGuard>
-        }
-      />
+      {embedded ? (
+        // A tab of the organization's page, under its own h1.
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-title font-semibold text-fg">{t("mcp.title")}</h2>
+            <p className="text-body text-fg-muted">{t("mcp.leadOrganization")}</p>
+          </div>
+          {create}
+        </div>
+      ) : (
+        <PageHeader title={t("mcp.title")} description={t("mcp.lead")} actions={create} />
+      )}
       {servers.isError ? (
         <Alert tone="danger" role="alert">
           {t("mcp.listFailed", { reason: reasonOf(servers.error, t("app.error.generic")) })}
