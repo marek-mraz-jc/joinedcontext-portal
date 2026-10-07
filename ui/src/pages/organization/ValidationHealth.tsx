@@ -1,7 +1,8 @@
+import { PageFailed } from "../../components/ui/PageState";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, unwrap } from "../../api/client";
+import { api, unwrap } from "../../api/client";
 import { ORG_NAMESPACE } from "../../api/manifest";
 import { administersOrganization, usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
@@ -96,11 +97,7 @@ export function ValidationHealth(): JSX.Element {
       {!administers ? (
         <Alert tone="info">{t("organization.health.hidden")}</Alert>
       ) : health.isError ? (
-        <Alert tone="danger" role="alert">
-          {health.error instanceof ApiError
-            ? (health.error.problem?.detail ?? health.error.message)
-            : t("app.error.generic")}
-        </Alert>
+        <PageFailed error={health.error} onRetry={() => void health.refetch()} />
       ) : (
         <>
           {health.isSuccess && checks.length > 0 ? (
