@@ -30,6 +30,8 @@ import { ModelsList } from "./pages/models/ModelsList";
 import { ModelPage } from "./pages/models/ModelPage";
 import { ExplorePage } from "./pages/explore/ExplorePage";
 import { CkanPage } from "./pages/ckan/CkanPage";
+import { KnowledgePage } from "./pages/knowledge/KnowledgePage";
+import { SourcePage } from "./pages/knowledge/SourcePage";
 import { CataloguePage } from "./pages/catalogue/CataloguePage";
 import { DatasetPage } from "./pages/catalogue/DatasetPage";
 import { parseCatalogueSearch } from "./pages/catalogue/search";
@@ -738,6 +740,34 @@ const ckanRoute = createRoute({
   },
 });
 
+/** What the knowledge assistant holds of the project's sources (T-3057, API/01 §34). */
+const knowledgeRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/knowledge",
+  component: function KnowledgeRoute() {
+    const { project } = knowledgeRoute.useParams();
+    return (
+      <Shell project={project}>
+        <KnowledgePage project={project} />
+      </Shell>
+    );
+  },
+});
+
+/** One source's pages, documents and passages, included and excluded (T-3057). */
+const knowledgeSourceRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/knowledge/$source",
+  component: function KnowledgeSourceRoute() {
+    const { project, source } = knowledgeSourceRoute.useParams();
+    return (
+      <Shell project={project}>
+        <SourcePage project={project} source={source} />
+      </Shell>
+    );
+  },
+});
+
 /** Reading a bundle another instance exported into this project (MF-20…MF-24, T-0217). */
 const importRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -1009,6 +1039,8 @@ export const routeTree = rootRoute.addChildren([
     modelRoute,
     exploreRoute,
     ckanRoute,
+    knowledgeRoute,
+    knowledgeSourceRoute,
     importRoute,
     federationRoute,
     spaceCompleteRoute,

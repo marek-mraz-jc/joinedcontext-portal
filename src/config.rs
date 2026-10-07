@@ -111,6 +111,11 @@ pub struct Config {
     /// `http://jc-functions.jc-system.svc.cluster.local:8080`. `None` leaves the function routes
     /// answering 503 (SDK-23).
     pub functions_url: Option<String>,
+    /// Base URL of the knowledge assistant `jc-assistant` (`JC_PORTAL_KNOWLEDGE_URL`), e.g.
+    /// `http://jc-assistant.jc-system.svc.cluster.local:8080`, whose administration paths the
+    /// knowledge routes ask with the Portal's own token (API/01 §34, T-3057). `None` leaves those
+    /// routes answering 503.
+    pub knowledge_url: Option<String>,
     /// Root of the built app bundles, one directory per app (`JC_PORTAL_APPS_DIR`). `None`
     /// leaves every
     /// `/apps/{name}/` path answering 404 rather than reading a guessed directory (AP-14).
@@ -251,6 +256,7 @@ impl std::fmt::Debug for Config {
             .field("pipeline_test_capture_url", &self.pipeline_test_capture_url)
             .field("model_tools_url", &self.model_tools_url)
             .field("functions_url", &self.functions_url)
+            .field("knowledge_url", &self.knowledge_url)
             .field("apps_dir", &self.apps_dir)
             .field("apps_cache_dir", &self.apps_cache_dir)
             .field("apps_url", &self.apps_url.as_ref().map(Url::as_str))
@@ -1224,6 +1230,25 @@ impl Config {
             None => None,
         };
 
+        let knowledge_url = match lookup("JC_PORTAL_KNOWLEDGE_URL") {
+            Some(raw) => {
+                let url: Url = raw
+                    .parse()
+                    .map_err(|e: url::ParseError| ConfigError::Invalid {
+                        var: "JC_PORTAL_KNOWLEDGE_URL",
+                        reason: e.to_string(),
+                    })?;
+                if url.scheme() != "http" && url.scheme() != "https" {
+                    return Err(ConfigError::Invalid {
+                        var: "JC_PORTAL_KNOWLEDGE_URL",
+                        reason: format!("scheme '{}' is not http or https", url.scheme()),
+                    });
+                }
+                Some(raw.trim_end_matches('/').to_owned())
+            }
+            None => None,
+        };
+
         let functions_url = match lookup("JC_FUNCTIONS_URL") {
             Some(raw) => {
                 let url: Url = raw
@@ -1338,6 +1363,7 @@ impl Config {
             pipeline_test_capture_url,
             model_tools_url,
             functions_url,
+            knowledge_url,
             apps_dir,
             apps_cache_dir,
             apps_url,
@@ -1386,6 +1412,7 @@ impl Config {
             pipeline_test_capture_url: None,
             model_tools_url: None,
             functions_url: None,
+            knowledge_url: None,
             app_settings: None,
             build_pods: None,
             agent_settings: None,

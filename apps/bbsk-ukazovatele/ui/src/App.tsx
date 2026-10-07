@@ -32,6 +32,8 @@ import { byKey, districtBars, isWhole, toIndicator, unitAsContracted } from "./i
 import type { Body, Indicator, State } from "./indicators";
 import { stringsFor } from "./locales";
 import type { Strings } from "./locales";
+import { linePoints, RAW_SPACE, SERIES_QUERY, seriesKey, seriesOf } from "./trends";
+import type { Point } from "./trends";
 
 /** The space each body publishes its indicators in (`Development/10` §2). */
 const SPACE_OF: Record<Body, string> = {
@@ -67,13 +69,19 @@ type Load =
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  const trends = useTrends();
 
   return (
     <main>
       <Page>
         <Header level={1} title={s.title} subtitle={s.subtitle} />
+        {trends.status === "failed" && (
+          <p role="status" className="failed">
+            {s.trendUnavailable}: {trends.reason}
+          </p>
+        )}
         {BODIES.map((body) => (
-          <BodySection key={body} body={body} s={s} />
+          <BodySection key={body} body={body} s={s} series={body === "bbsk" && trends.status === "ready" ? trends.series : undefined} />
         ))}
       </Page>
     </main>
@@ -182,12 +190,62 @@ function useDistricts(wanted: boolean): Districts {
   return districts;
 }
 
+type Trends = { status: "none" } | { status: "ready"; series: Map<string, Point[]> } | { status: "failed"; reason: string };
+
+/** The most rows the trend read takes: 14 territories × ~35 years of two cells. */
+const RAW_MOST = 4000;
+const RAW_PAGE = 1000;
+
+/**
+ * The region's yearly rows, read through the public endpoint of `bbsk-kraj` when the served
+ * configuration names one (AP-04, T-2934); without it every card keeps its one window.
+ */
+function useTrends(): Trends {
+  const { config } = useClient();
+  const [trends, setTrends] = useState<Trends>({ status: "none" });
+  const slug = (config.endpoints ?? []).find((candidate) => candidate.space === RAW_SPACE)?.slug;
+
+  useEffect(() => {
+    if (!slug) {
+      setTrends({ status: "none" });
+      return;
+    }
+    let live = true;
+    const source = endpointSource(slug, transportFor(config), "sk");
+    (async () => {
+      const rows: RichRow[] = [];
+      for (let offset = 0; offset < RAW_MOST; offset += RAW_PAGE) {
+        const page = await source.query(
+          { type: "StatisticalObservation", q: SERIES_QUERY, attrs: ["dataSet", "indicator", "refArea", "refPeriod", "dimensionKey", "value"] },
+          { offset, limit: RAW_PAGE },
+        );
+        rows.push(...page.rows);
+        if (page.rows.length < RAW_PAGE) break;
+      }
+      return rows;
+    })()
+      .then((rows) => {
+        if (live) setTrends({ status: "ready", series: seriesOf(rows) });
+      })
+      .catch((cause: unknown) => {
+        if (live) setTrends({ status: "failed", reason: reasonOf(cause) });
+      });
+    return () => {
+      live = false;
+    };
+    // As in `useIndicators`: the served configuration is read once, the slug is what changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  return trends;
+}
+
 function reasonOf(cause: unknown): string {
   if (cause instanceof SourceError) return cause.message;
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-function BodySection({ body, s }: { body: Body; s: Strings }) {
+function BodySection({ body, s, series }: { body: Body; s: Strings; series?: Map<string, Point[]> }) {
   const load = useIndicators(body);
   const { config } = useClient();
   const districts = useDistricts(body === "bbsk");
@@ -264,6 +322,7 @@ function BodySection({ body, s }: { body: Body; s: Strings }) {
           rows={group.rows}
           s={s}
           body={body}
+          series={series}
           marked={shapes && group.key === mapped?.key ? marked : undefined}
           onMark={shapes && group.key === mapped?.key ? setMarked : undefined}
           // Under a map every chart takes its scale: the mapped indicator the map's own range, the
@@ -291,11 +350,13 @@ function Group({
   marked,
   onMark,
   ramp,
+  series,
 }: {
   groupKey: string;
   rows: Indicator[];
   s: Strings;
   body: Body;
+  series?: Map<string, Point[]>;
   marked?: string | null;
   onMark?: (territory: string) => void;
   ramp?: [number, number] | null;
@@ -321,7 +382,7 @@ function Group({
       )}
       <Grid columns={4}>
         {rows.map((indicator) => (
-          <IndicatorCard key={indicator.id} indicator={indicator} s={s} />
+          <IndicatorCard key={indicator.id} indicator={indicator} s={s} points={series?.get(seriesKey(indicator.key, indicator.territory))} />
         ))}
       </Grid>
     </section>
@@ -332,7 +393,7 @@ function Group({
  * One indicator. Everything a reader needs to place the number is on the card and not in a
  * legend: whose it is, what it is measured in, the window it covers and when it was computed.
  */
-function IndicatorCard({ indicator, s }: { indicator: Indicator; s: Strings }) {
+function IndicatorCard({ indicator, s, points }: { indicator: Indicator; s: Strings; points?: Point[] }) {
   const territory = s.territory[indicator.territory] ?? indicator.territory;
   const unit = s.indicator[indicator.key]?.unit;
   const contracted = unitAsContracted(indicator);
@@ -369,6 +430,8 @@ function IndicatorCard({ indicator, s }: { indicator: Indicator; s: Strings }) {
 
       {indicator.state && <StateBadge state={indicator.state} s={s} />}
 
+      {points && <Trend points={points} s={s} />}
+
       <details className="more">
         <summary>{s.details}</summary>
         <dl className="facts">
@@ -398,6 +461,28 @@ function IndicatorCard({ indicator, s }: { indicator: Indicator; s: Strings }) {
         </dl>
       </details>
     </article>
+  );
+}
+
+const TREND_WIDTH = 120;
+const TREND_HEIGHT = 32;
+
+/**
+ * The indicator's published years as a line, drawn only where there are two or more (T-2934): one
+ * point is no trend. The line is a picture; its years and end values are said in words beside it.
+ */
+function Trend({ points, s }: { points: Point[]; s: Strings }) {
+  const line = linePoints(points, TREND_WIDTH, TREND_HEIGHT);
+  if (!line) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  return (
+    <p className="trend">
+      <svg viewBox={`-2 -2 ${TREND_WIDTH + 4} ${TREND_HEIGHT + 4}`} width={TREND_WIDTH} height={TREND_HEIGHT} aria-hidden="true">
+        <polyline points={line} fill="none" stroke="var(--body)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span className="trend-words">{s.trend(first.period, last.period, number(first.value, s), number(last.value, s))}</span>
+    </p>
   );
 }
 
