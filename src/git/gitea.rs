@@ -332,6 +332,9 @@ pub struct PullRequest {
     /// When it was merged or closed, RFC 3339; empty while open.
     #[serde(default)]
     pub closed_at: String,
+    /// The commit the head branch was cut from: what a removal removed is still there (T-3247).
+    #[serde(default)]
+    pub merge_base: String,
 }
 
 impl PullRequest {
@@ -517,6 +520,8 @@ struct GiteaPullResponse {
     merge_commit_sha: Option<String>,
     #[serde(default)]
     closed_at: Option<String>,
+    #[serde(default)]
+    merge_base: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -571,6 +576,7 @@ impl From<GiteaPullResponse> for PullRequest {
             repository: String::new(),
             merge_commit_sha: raw.merge_commit_sha.unwrap_or_default(),
             closed_at: raw.closed_at.unwrap_or_default(),
+            merge_base: raw.merge_base.unwrap_or_default(),
         }
     }
 }

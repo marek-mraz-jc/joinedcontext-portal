@@ -60,6 +60,23 @@ pub struct DryRunResult {
     /// this check records says so, and the proposal records the changes in its merge request.
     #[serde(skip)]
     pub awaited: Vec<crate::references::Awaited>,
+    /// What leaves with a removed resource, with how many (T-3247): a space's entities, a
+    /// pipeline's refused records and runs, an App's endpoint and policies, the bindings a
+    /// Group's removal edits. Empty for every write that is not a removal.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub goes_with: Vec<Consequence>,
+}
+
+/// One thing that leaves with a removed resource (T-3247).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Consequence {
+    /// `entities`, `rejectedRecords`, `runs`, `grants` or `bindings`.
+    pub what: String,
+    pub count: u64,
+    /// The resources it names, as `Kind/name`, when they are resources.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub names: Vec<String>,
 }
 
 /**
@@ -115,6 +132,7 @@ pub fn refused_check(err: &ApiError, manifest: &serde_json::Value) -> Option<Dry
         verdict: Some(Verdict::new(false, findings, None, manifest)),
         findings: Vec::new(),
         awaited: Vec::new(),
+        goes_with: Vec::new(),
     })
 }
 

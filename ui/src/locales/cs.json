@@ -244,7 +244,9 @@
       "inForge": "Uzavřeno v repozitáři",
       "older": "Zobrazit starší změny",
       "empty": "Zatím nebyla sloučena ani zamítnuta žádná změna.",
-      "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano."
+      "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano.",
+      "restore": "Obnovit",
+      "restoreOf": "Obnovit {name}"
     }
   },
   "lane": {
@@ -373,7 +375,16 @@
     "close": "Zavřít",
     "exact": "Přesně tak, jak je napsáno, bez mezer.",
     "mismatch": "Toto není {name}.",
-    "needName": "Odstranění navrhnete napsáním {name}."
+    "needName": "Odstranění navrhnete napsáním {name}.",
+    "goesWith": {
+      "title": "Co odejde spolu s tím",
+      "entities": "{count, plural, one {# entita} few {# entity} other {# entit}} v tomto prostoru: po odstranění se už nebudou poskytovat; obnovení prostoru je zpřístupní znovu",
+      "rejectedRecords": "{count, plural, one {# odmítnutý záznam} few {# odmítnuté záznamy} other {# odmítnutých záznamů}} čekajících na opravu: nevrátí se",
+      "runs": "{count, plural, one {historie # běhu} few {historie # běhů} other {historie # běhů}}: nevrátí se",
+      "grants": "{count, plural, one {# endpoint nebo politika} few {# endpointy a politiky} other {# endpointů a politik}}, které aplikace dostala",
+      "bindings": "{count, plural, one {# přiřazení role} few {# přiřazení rolí} other {# přiřazení rolí}}, která ho uvádějí, se změní nebo odstraní"
+    },
+    "restorable": "Jakmile schvalovatel odstranění potvrdí, konfiguraci můžete vrátit ve Schvalování → Historie."
   },
   "resourceEdit": {
     "title": "Upravit {name}",

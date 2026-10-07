@@ -480,12 +480,14 @@ fn workspace_of(branch: &str) -> Option<String> {
 /// The branch prefixes of a change that carries several resources and names none of them:
 /// `blueprints::flow_branch`, `import`'s headless bundle, `projects`' deletion.
 // `rename-app-shapes-`: every old-shape App of a project in one Change (AP-124, T-2940).
-const BUNDLE_PREFIXES: [&str; 5] = [
+// `restore-`: what a merged removal took, proposed again (T-3247).
+const BUNDLE_PREFIXES: [&str; 6] = [
     "flow-",
     "import-",
     "delete-project-",
     "remove-person-",
     "rename-app-shapes-",
+    "restore-",
 ];
 
 /// The headline of a bundle: the first manifest among its files that lives in `project`, the
@@ -2156,6 +2158,8 @@ mod tests {
 
     #[test]
     fn test_parse_branch_name() {
+        // A restore names no one resource: its files head it, as a bundle's do (T-3247).
+        assert_eq!(parse_branch_name("portal/restore-00000007"), None);
         let b1 = parse_branch_name("portal/create-contextspace-mobility-12345678").unwrap();
         assert_eq!(b1.operation, Operation::Create);
         assert_eq!(b1.kind_lower, "contextspace");

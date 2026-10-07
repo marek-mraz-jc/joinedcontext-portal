@@ -42,6 +42,7 @@ pub mod preferences;
 pub mod projects;
 pub mod quality;
 pub mod resources;
+pub mod restore;
 pub mod service_accounts;
 pub mod setup;
 pub mod space_usage;
@@ -76,6 +77,7 @@ pub fn router() -> Router<AppState> {
         .merge(catalogue::router())
         .merge(catalogue_draft::router())
         .merge(changes::router())
+        .merge(restore::router())
         .merge(ckan::router())
         .merge(datamodels::router())
         .merge(drafts::router())
