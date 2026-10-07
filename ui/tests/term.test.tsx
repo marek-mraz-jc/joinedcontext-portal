@@ -91,6 +91,24 @@ describe("a domain word and its definition", () => {
       expect(new Set(written).size, `${name} is translated, not copied`).toBe(4);
     }
   });
+
+  // T-3236: every word has an example, and its whole entry is one step away.
+  it("gives every word an example in all four languages", () => {
+    for (const name of TERMS) {
+      for (const bundle of [en, sk, cs, de]) {
+        const entry = (bundle as unknown as Record<string, Record<string, { example?: string }>>).glossary[name];
+        expect(entry.example?.length ?? 0, `${name} has an example`).toBeGreaterThan(10);
+      }
+    }
+  });
+
+  it("links the word to its glossary entry, named for a screen reader", () => {
+    show("entityType");
+    const link = screen.getByRole("link", { name: "What is Entity type? Open the glossary" });
+    expect(link).toHaveAttribute("href", "/glossary#term-entityType");
+    // The word keeps its own definition; the link is beside it, not inside it.
+    expect(screen.getByRole("term")).not.toContainElement(link);
+  });
 });
 
 /** Every `.tsx` under `ui/src`, which is where a `Term` can be placed. */
@@ -140,6 +158,8 @@ describe("where a domain word may stand", () => {
     expect([...used.keys()].filter((name) => !TERMS.includes(name as never))).toEqual([]);
     // The four words the pages write as a heading or a column of their own. `Change` is written
     // only inside sentences, which a tooltip cannot reach without splitting the sentence.
-    expect([...used.keys()].sort()).toEqual(["contextSpace", "endpoint", "lane", "policy"]);
+    // `LinkML` is written only on the Model editor's source tab, a button (T-3236); the glossary
+    // page explains it.
+    expect([...used.keys()].sort()).toEqual(["contextSpace", "endpoint", "entityType", "lane", "ngsiLd", "policy"]);
   });
 });
