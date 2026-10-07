@@ -61,6 +61,28 @@ export function failureKind(error: unknown): FailureKind {
 }
 
 /**
+ * What to do about a refusal, by its problem type (T-3243, API/00 §4): the Portal's translation
+ * of the slug in `type`, or in `code` where the NGSI-LD surface put the ETSI type there, else
+ * the API's own English `hint`; nothing for a failure that is not a problem document.
+ */
+export function problemHint(
+  error: unknown,
+  t: (key: string) => string,
+  exists: (key: string) => boolean,
+): string | undefined {
+  if (!(error instanceof ApiError) || !error.problem) return undefined;
+  const problem = error.problem as { type?: unknown; code?: unknown; hint?: unknown };
+  const slug =
+    typeof problem.code === "string"
+      ? problem.code
+      : typeof problem.type === "string"
+        ? problem.type.split("/").pop()
+        : undefined;
+  if (slug && /^[a-z-]+$/.test(slug) && exists(`problem.${slug}`)) return t(`problem.${slug}`);
+  return typeof problem.hint === "string" && problem.hint.trim() !== "" ? problem.hint : undefined;
+}
+
+/**
  * Why the page could not be read, in the API's own sentence, and the one thing to do about it
  * (UI-16, T-2747):
  * - an ended session says so; the Portal's sign-in dialog is already open over the page;
@@ -85,8 +107,14 @@ export function PageFailed({
   /** A sentence to show instead of the API's, where the page knows better (a run that is gone). */
   children?: ReactNode;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const kind = failureKind(error);
+  // A refusal already says who gives access; an ended session and a lost connection have their
+  // own sentence. Every other problem says what to do about it (T-3243).
+  const hint =
+    kind === "refused" || kind === "notFound" || kind === "server"
+      ? problemHint(error, t, (key) => i18n.exists(key))
+      : undefined;
   const offline = kind === "network" && typeof navigator !== "undefined" && navigator.onLine === false;
   const said = error instanceof ApiError ? (error.problem?.detail ?? error.message) : undefined;
   const reason =
@@ -126,6 +154,7 @@ export function PageFailed({
     >
       {reason}
       {kind === "forbidden" ? <span className="mt-1 block">{t("app.error.forbiddenHint")}</span> : null}
+      {hint ? <span className="mt-1 block">{hint}</span> : null}
       {reference ? <Reference value={reference} /> : null}
     </Alert>
   );

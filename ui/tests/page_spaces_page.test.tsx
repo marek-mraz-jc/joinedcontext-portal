@@ -99,10 +99,10 @@ describe("the Context Spaces page", () => {
     const { calls } = await renderRoute({
       path: PATH,
       answer: (path) =>
-        path.endsWith("/spaces") ? problem(403, "You may not read this project's spaces.") : undefined,
+        path.endsWith("/spaces") ? problem(503, "The spaces could not be read right now.") : undefined,
     });
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("You may not read this project's spaces.");
+    expect(alert).toHaveTextContent("The spaces could not be read right now.");
     expect(screen.queryByText(en.spaces.empty)).toBeNull();
 
     const before = calls().filter((call) => call.endsWith("/spaces")).length;

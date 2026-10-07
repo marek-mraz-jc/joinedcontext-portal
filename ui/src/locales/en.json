@@ -244,6 +244,7 @@
       "inForge": "Closed in the repository",
       "older": "Show older changes",
       "empty": "No change has been merged or rejected yet.",
+      "emptyHint": "A change lands here with who decided it once it is approved or rejected on the Open tab.",
       "noneOnPage": "None of these changes is one you may read. Older ones may be."
     }
   },
@@ -5865,5 +5866,35 @@
     "title": "Notifications",
     "none": "Nothing new.",
     "mentioned": "{name} mentioned you in {space}"
+  },
+  "problem": {
+    "bad-request": "Correct the request as the detail says and send it again.",
+    "invalid-request": "Correct the marked fields and send it again.",
+    "invalid-body": "Send a body of the documented shape; the detail names what is wrong.",
+    "urn-scheme": "Use an entity id of the form urn:ngsi-ld:Type:id, such as urn:ngsi-ld:Vehicle:bus-12.",
+    "unauthorized": "Sign in again, or send a valid token for this service.",
+    "forbidden": "Ask a project owner or an organization administrator for the role this needs.",
+    "domain-not-verified": "Verify the domain in the organization settings first.",
+    "self-approval": "Ask another approver to decide your own change.",
+    "resource-not-found": "Check the name in the address; it does not exist or is not shared with you.",
+    "method-not-allowed": "Use one of the methods this address allows.",
+    "read-only-view": "This view only reads; change the data through the endpoint it is built on.",
+    "conflict": "Load it again and repeat the change on what is there now.",
+    "verdict-required": "Run the test first; a green result lets the change be proposed.",
+    "precondition-failed": "Load the entity again; someone changed it since you read it.",
+    "payload-too-large": "Send less at once: split the request or the file.",
+    "unsupported-media-type": "Send the content as JSON.",
+    "too-many-requests": "Wait a moment, then try again.",
+    "daily-budget": "Today's allowance is used up; try again tomorrow or ask an administrator to raise it.",
+    "egress-budget-spent": "This run's outbound allowance is used up; start a new run or ask an administrator to raise it.",
+    "internal-error": "Try again; if it happens again, report the reference below.",
+    "not-implemented": "This installation does not offer it; ask an administrator.",
+    "subscription-not-routable": "Use a receiver address the platform can reach over HTTP(S).",
+    "federation-identity-unavailable": "This installation has no federation identity; ask an administrator to configure one.",
+    "broker-failure": "The data store failed this request; try again in a minute, and report the reference if it repeats.",
+    "upstream-unavailable": "A service behind the platform did not answer; try again in a minute.",
+    "upstream-redirect": "The service behind the platform sent a redirect it may not follow; ask its owner for the final address.",
+    "service-unavailable": "The platform is not ready for this yet; try again in a minute.",
+    "delivery-timeout": "The receiver did not answer in time; check that it is reachable and try again."
   }
 }

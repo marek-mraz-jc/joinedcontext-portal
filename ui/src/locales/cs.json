@@ -244,6 +244,7 @@
       "inForge": "Uzavřeno v repozitáři",
       "older": "Zobrazit starší změny",
       "empty": "Zatím nebyla sloučena ani zamítnuta žádná změna.",
+      "emptyHint": "Změna se tu objeví i s tím, kdo o ní rozhodl, jakmile ji na kartě Otevřené schválíte nebo zamítnete.",
       "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano."
     }
   },
@@ -5865,5 +5866,35 @@
     "title": "Upozornění",
     "none": "Nic nového.",
     "mentioned": "{name} vás zmínil(a) v {space}"
+  },
+  "problem": {
+    "bad-request": "Opravte požadavek podle popisu a pošlete jej znovu.",
+    "invalid-request": "Opravte označená pole a pošlete to znovu.",
+    "invalid-body": "Pošlete tělo v dokumentovaném tvaru; popis říká, co je špatně.",
+    "urn-scheme": "Použijte identifikátor entity ve tvaru urn:ngsi-ld:Type:id, např. urn:ngsi-ld:Vehicle:bus-12.",
+    "unauthorized": "Přihlaste se znovu nebo pošlete platný token pro tuto službu.",
+    "forbidden": "Požádejte vlastníka projektu nebo správce organizace o roli, kterou to vyžaduje.",
+    "domain-not-verified": "Nejprve ověřte doménu v nastavení organizace.",
+    "self-approval": "Požádejte jiného schvalovatele, aby rozhodl o vaší změně.",
+    "resource-not-found": "Zkontrolujte název v adrese; neexistuje nebo s vámi není sdílený.",
+    "method-not-allowed": "Použijte některou z metod, které tato adresa povoluje.",
+    "read-only-view": "Tento pohled jen čte; data měňte přes endpoint, na kterém stojí.",
+    "conflict": "Načtěte to znovu a zopakujte změnu nad aktuálním stavem.",
+    "verdict-required": "Nejprve spusťte test; zelený výsledek umožní změnu navrhnout.",
+    "precondition-failed": "Načtěte entitu znovu; od vašeho čtení ji někdo změnil.",
+    "payload-too-large": "Pošlete najednou méně: rozdělte požadavek nebo soubor.",
+    "unsupported-media-type": "Pošlete obsah jako JSON.",
+    "too-many-requests": "Chvíli počkejte a zkuste to znovu.",
+    "daily-budget": "Dnešní limit je vyčerpán; zkuste to zítra nebo požádejte správce o navýšení.",
+    "egress-budget-spent": "Odchozí limit tohoto běhu je vyčerpán; spusťte nový běh nebo požádejte správce o navýšení.",
+    "internal-error": "Zkuste to znovu; pokud se to opakuje, nahlaste referenci níže.",
+    "not-implemented": "Tato instalace to nenabízí; obraťte se na správce.",
+    "subscription-not-routable": "Použijte adresu příjemce, kterou platforma dosáhne přes HTTP(S).",
+    "federation-identity-unavailable": "Tato instalace nemá federační identitu; požádejte správce, aby ji nastavil.",
+    "broker-failure": "Úložiště dat tento požadavek nezvládlo; zkuste to za minutu a pokud se to opakuje, nahlaste referenci.",
+    "upstream-unavailable": "Služba za platformou neodpověděla; zkuste to za minutu.",
+    "upstream-redirect": "Služba za platformou poslala přesměrování, které nesmí následovat; požádejte jejího vlastníka o konečnou adresu.",
+    "service-unavailable": "Platforma na to ještě není připravená; zkuste to za minutu.",
+    "delivery-timeout": "Příjemce neodpověděl včas; ověřte, že je dostupný, a zkuste to znovu."
   }
 }
