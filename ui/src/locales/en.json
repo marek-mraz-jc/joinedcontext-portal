@@ -244,6 +244,7 @@
       "inForge": "Closed in the repository",
       "older": "Show older changes",
       "empty": "No change has been merged or rejected yet.",
+      "emptyHint": "A change lands here with who decided it once it is approved or rejected on the Open tab.",
       "noneOnPage": "None of these changes is one you may read. Older ones may be.",
       "restore": "Restore",
       "restoreOf": "Restore {name}"
@@ -2403,7 +2404,31 @@
       "count": "{count, plural, one {# model} other {# models}}",
       "allAttributes": "All",
       "onlyRequired": "Only required",
-      "kept": "{kept} of {total} attributes kept"
+      "kept": "{kept} of {total} attributes kept",
+      "origin": "The original model on GitHub (commit {commit})",
+      "mode": "How to take it",
+      "asIs": "As it is",
+      "asIsHint": "All {count} attributes, unchanged; the quickest way in.",
+      "adapt": "Adapt it",
+      "adaptHint": "Untick what you do not need and add your own attributes.",
+      "addTitle": "Your own attributes",
+      "addedList": "Attributes you added",
+      "addRemove": "Remove {name}",
+      "addName": "Attribute name",
+      "addNameHelp": "Lower camel case, letters and digits, as Smart Data Models names them.",
+      "addRange": "Kind of value",
+      "add": "Add",
+      "addProblem": {
+        "name": "Start with a lowercase letter and use only letters and digits.",
+        "taken": "The model already has an attribute of this name."
+      },
+      "range": {
+        "string": "Text",
+        "integer": "Whole number",
+        "float": "Number",
+        "boolean": "Yes or no",
+        "datetime": "Date and time"
+      }
     },
     "addClass": "Add class",
     "addSlot": "Add slot",
@@ -2452,7 +2477,11 @@
       "refused": "{n} operations were refused by the editor",
       "populate": "Populate the editor",
       "cancel": "Cancel",
-      "close": "Close"
+      "close": "Close",
+      "url": "Or the address of an API that answers JSON",
+      "urlHelp": "Read once by the project's runner, as a data source check reads it; the model is drawn from the records it answers.",
+      "readUrl": "Read the address",
+      "urlInvalid": "Give a full address starting with https:// or http://."
     },
     "classParent": "The class it specialises",
     "classParentNone": "None",
