@@ -4,13 +4,13 @@
 //! stewards never need to switch to the forge to review and approve proposals.
 
 use axum::body::Bytes;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::CurrentUser;
 use crate::change::{self, Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation};
@@ -67,6 +67,23 @@ pub struct ChangeProposal {
     /// create, so it merges after them, and a `Rejected` one flags it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub waits_on: Vec<AwaitedChange>,
+    /// Who merged or rejected a closed change, when and why, as the Portal recorded it on the
+    /// forge (T-3292); absent on an open change and on one closed in the forge itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision: Option<ChangeDecision>,
+}
+
+/// Who decided a closed change: the approver of a merge, the rejecter of a closed one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeDecision {
+    pub by: String,
+    /// RFC 3339, when the forge merged or closed it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<String>,
+    /// The rejecter's reason, when they gave one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// A change another one waits on (MF-48).
@@ -155,6 +172,9 @@ pub struct ChangeList {
     pub api_version: String,
     pub kind: String,
     pub items: Vec<ChangeProposal>,
+    /// The `page` that continues a history listing, while the forge has older ones.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<u32>,
 }
 
 impl ChangeList {
@@ -165,9 +185,28 @@ impl ChangeList {
             api_version: crate::resource::API_VERSION.to_string(),
             kind: Self::KIND.to_string(),
             items,
+            next: None,
         }
     }
 }
+
+/// Which closed changes `GET …/changes/history` lists (T-3292).
+#[derive(Debug, Clone, Default, Deserialize, IntoParams)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[into_params(parameter_in = Query)]
+pub struct HistoryQuery {
+    /// The page of closed changes, from 1; `next` of the previous answer.
+    pub page: Option<u32>,
+    /// Closed changes to one kind only, as `Endpoint`.
+    pub kind: Option<String>,
+    /// Closed changes whose resource name contains this, any case.
+    pub name: Option<String>,
+}
+
+/// Closed merge requests the forge is asked for per history page; each costs up to three reads.
+// ponytail: three forge reads per closed change on a page; keep a decided-change table if the
+// history page gets slow.
+const HISTORY_PAGE: u32 = 20;
 
 /// Request body for approving or rejecting a change proposal.
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
@@ -681,7 +720,8 @@ async fn load_manifest_data(
 /// answer.
 // ponytail: one forge call per open change; a cache keyed by head sha if the list grows.
 async fn human_author(gitea: &GiteaClient, pr: &crate::git::gitea::PullRequest) -> ChangeAuthor {
-    match gitea.list_commits(&pr.head_branch, "", 1).await {
+    // The head commit, not the branch: a merged change's branch may be gone (T-3292).
+    match gitea.list_commits(pr.head_ref(), "", 1).await {
         Ok(commits) if commits.first().is_some_and(|c| !c.author.trim().is_empty()) => {
             ChangeAuthor {
                 name: commits[0].author.clone(),
@@ -795,6 +835,7 @@ fn build_proposal(
         workspace: workspace_of(&pr.head_branch),
         // Filled by the caller, which asks the forge (MF-48).
         waits_on: Vec::new(),
+        decision: None,
     }
 }
 
@@ -821,6 +862,237 @@ pub async fn list_changes(
     Ok(Json(
         list_changes_readable(&state, &user.0.identity, &project).await?,
     ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/changes/history",
+    summary = "List Closed Changes",
+    description = "One page of the merged and rejected changes, most recently closed first, each \
+                   naming who decided it; `next` is the page that continues it.",
+    tag = "changes",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        HistoryQuery,
+    ),
+    responses(
+        (status = 200, description = "One page of closed changes", body = ChangeList),
+        (status = 400, description = "An unknown parameter or page 0", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Project not found", body = ProblemDetails),
+        (status = 503, description = "Git forge unavailable", body = ProblemDetails),
+    )
+)]
+pub async fn list_change_history(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+    query: Result<Query<HistoryQuery>, axum::extract::rejection::QueryRejection>,
+) -> Result<Json<ChangeList>, ApiError> {
+    let Query(query) = query.map_err(|e| ApiError::BadRequest(e.body_text()))?;
+    Ok(Json(
+        change_history_readable(&state, &user.0.identity, &project, &query).await?,
+    ))
+}
+
+/// One page of the closed changes this caller may read, with the read filter of the open list
+/// (PF-59, T-3292): a project no binding covers is `404`, a change to a kind the caller does not
+/// read is not listed.
+pub async fn change_history_readable(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    query: &HistoryQuery,
+) -> Result<ChangeList, ApiError> {
+    let effective = crate::permissions::for_request(state, identity, project);
+    if !effective.may_read_project() {
+        return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    let page = query.page.unwrap_or(1);
+    if page == 0 {
+        return Err(ApiError::BadRequest("page counts from 1".into()));
+    }
+    let gitea = state
+        .forge_for(project)
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &GiteaClient = &gitea;
+    let name = query.name.as_deref().map(str::trim).map(str::to_lowercase);
+
+    let prs = gitea
+        .list_pull_requests_page("closed", page, HISTORY_PAGE)
+        .await?;
+    let next = (prs.len() == HISTORY_PAGE as usize).then_some(page + 1);
+    let mut items = Vec::new();
+    for pr in &prs {
+        if !is_change_branch(&pr.head_branch) {
+            continue;
+        }
+        let files = gitea.pull_request_files(pr.number).await?;
+        let Some(data) = closed_headline(gitea, pr, project, &files).await? else {
+            continue;
+        };
+        if !effective.may_read(&data.kind)
+            || query
+                .kind
+                .as_deref()
+                .is_some_and(|kind| !kind.eq_ignore_ascii_case(&data.kind))
+            || name
+                .as_deref()
+                .is_some_and(|name| !data.name.to_lowercase().contains(name))
+        {
+            continue;
+        }
+        let plan = plan::diff(None, None);
+        let mut proposal = build_proposal(pr, project, &data, plan, None, lane_of_paths(&files));
+        proposal.metadata = change_meta(state, gitea, pr.number, project);
+        proposal.author = human_author(gitea, pr).await;
+        proposal.file_count = Some(files.len());
+        proposal.decision = decision_of(gitea, pr).await?;
+        items.push(proposal);
+    }
+    Ok(ChangeList {
+        next,
+        ..ChangeList::new(items)
+    })
+}
+
+/// The resource a closed change was about, from its files: the base of a merged change already
+/// holds what it made, so the open list's base-against-head read says nothing any more. The
+/// branch names the resource when it is a single one; a bundle is headed by its first manifest in
+/// the project, the `Project` first, as `bundle_headline` heads an open one.
+async fn closed_headline(
+    gitea: &GiteaClient,
+    pr: &PullRequest,
+    project: &str,
+    files: &[crate::git::gitea::ChangedFile],
+) -> Result<Option<ManifestData>, ApiError> {
+    let home = if project == crate::permissions::ORG_NAMESPACE {
+        "users/".to_owned()
+    } else {
+        format!("projects/{project}/")
+    };
+    let mut ours: Vec<_> = files
+        .iter()
+        .filter(|file| file.path.starts_with(&home))
+        .collect();
+    if ours.is_empty() {
+        return Ok(None);
+    }
+    if let Some(branch) = parse_branch_name(&pr.head_branch) {
+        let kind = crate::resource::kinds()
+            .find(|k| k.kind.to_ascii_lowercase() == branch.kind_lower)
+            .map(|k| k.kind.to_string())
+            .unwrap_or(branch.kind_lower);
+        return Ok(Some(ManifestData {
+            kind,
+            name: branch.resource_name,
+            operation: branch.operation,
+            base_envelope: None,
+            head_envelope: None,
+        }));
+    }
+    ours.sort_by_key(|file| !file.path.ends_with("/project.yaml"));
+    for file in ours {
+        let operation = if file.deleted {
+            Operation::Delete
+        } else if file.added {
+            Operation::Create
+        } else {
+            Operation::Update
+        };
+        // What the head holds names itself; a deleted file is gone from every ref a merge
+        // leaves, so its path is all there is.
+        let named = if file.deleted {
+            named_by_path(&file.path)
+        } else {
+            gitea
+                .get_file(&file.path, pr.head_ref())
+                .await?
+                .and_then(|content| {
+                    serde_yaml_ng::from_str::<ResourceEnvelope>(&content.content).ok()
+                })
+                .map(|envelope| (envelope.kind, envelope.metadata.name))
+        };
+        if let Some((kind, name)) = named {
+            return Ok(Some(ManifestData {
+                kind,
+                name,
+                operation,
+                base_envelope: None,
+                head_envelope: None,
+            }));
+        }
+    }
+    Ok(None)
+}
+
+/// The kind and name a manifest's path gives: `…/{plural}/{name}.yaml`, or the directory of a
+/// kind kept as `{name}/space.yaml`, `{name}/pipeline.yaml`, `{name}/app.yaml`, and the project's
+/// own `projects/{name}/project.yaml`.
+fn named_by_path(path: &str) -> Option<(String, String)> {
+    let mut segments: Vec<&str> = path.split('/').collect();
+    let file = segments.pop()?;
+    let stem = file
+        .strip_suffix(".yaml")
+        .or_else(|| file.strip_suffix(".yml"))?;
+    let directory = |segments: &[&str]| segments.last().map(|s| (*s).to_owned());
+    match stem {
+        "project" => Some(("Project".to_owned(), directory(&segments)?)),
+        "space" => Some(("ContextSpace".to_owned(), directory(&segments)?)),
+        "pipeline" | "app" => {
+            let kind = crate::api::import::native_kind(path)?;
+            Some((kind.to_owned(), directory(&segments)?))
+        }
+        _ => Some((
+            crate::api::import::native_kind(path)?.to_owned(),
+            stem.to_owned(),
+        )),
+    }
+}
+
+/// Who merged or rejected `pr`, read back from what the Portal wrote on the forge: the merge
+/// commit's "Approved in the Portal by …" line, or the rejection review. A change merged or closed
+/// in the forge itself names nobody.
+async fn decision_of(
+    gitea: &GiteaClient,
+    pr: &PullRequest,
+) -> Result<Option<ChangeDecision>, ApiError> {
+    let at = Some(pr.closed_at.clone()).filter(|at| !at.is_empty());
+    if pr.merged {
+        if pr.merge_commit_sha.is_empty() {
+            return Ok(None);
+        }
+        let message = gitea.commit_message(&pr.merge_commit_sha).await?;
+        return Ok(approver_in(&message).map(|by| ChangeDecision {
+            by,
+            at,
+            reason: None,
+        }));
+    }
+    let reviews = gitea.review_bodies(pr.number).await?;
+    Ok(reviews
+        .iter()
+        .rev()
+        .find_map(|body| rejection_in(body))
+        .map(|(by, reason)| ChangeDecision { by, at, reason }))
+}
+
+/// The approver a merge commit names, as `approve_change_for` writes it.
+fn approver_in(message: &str) -> Option<String> {
+    let rest = message.split("Approved in the Portal by ").nth(1)?;
+    let by = rest.split([',', '\n']).next()?.trim();
+    (!by.is_empty()).then(|| by.to_owned())
+}
+
+/// The rejecter and reason a review names, as `reject_change_for` writes them.
+fn rejection_in(body: &str) -> Option<(String, Option<String>)> {
+    let rest = body.strip_prefix("Change proposal rejected in the Portal by ")?;
+    let (by, reason) = match rest.split_once(": ") {
+        Some((by, reason)) => (by, Some(reason.trim().to_owned()).filter(|r| !r.is_empty())),
+        None => (rest, None),
+    };
+    let by = by.trim();
+    (!by.is_empty()).then(|| (by.to_owned(), reason))
 }
 
 /// The open changes this caller may read: the ones whose resource a binding of theirs reads
@@ -1407,6 +1679,7 @@ pub async fn approve_change_for(
         )
     };
     merge_when_ready(gitea, pr_number, &merge_msg, &pr.head_sha, id).await?;
+    say_merged(state, project, id, &data, approver).await;
 
     // A published application's own repository merges once its Change has (AP-77).
     crate::api::agent_runs::merge_published_application(
@@ -1427,6 +1700,49 @@ pub async fn approve_change_for(
     let change = Change::new(change_meta, change_status);
 
     Ok(change)
+}
+
+/// The `change.merged` activity event of an approval (UI-31, T-3292): the feed names the change,
+/// its resource and who approved it, and an object page finds it under `{plural}/{name}`.
+async fn say_merged(
+    state: &AppState,
+    project: &str,
+    id: &str,
+    data: &ManifestData,
+    approver: &str,
+) {
+    let operation = match data.operation {
+        Operation::Create => "create",
+        Operation::Update => "update",
+        Operation::Delete => "delete",
+    };
+    let mut details = serde_json::json!({
+        "change": id,
+        "resourceKind": data.kind,
+        "name": data.name,
+        "operation": operation,
+        "approvedBy": approver,
+    });
+    if let Some(info) = crate::resource::by_kind(&data.kind) {
+        details["object"] = Value::String(format!("{}/{}", info.plural, data.name));
+    }
+    let event = crate::activity::ActivityEvent {
+        time: chrono::Utc::now(),
+        project: project.to_owned(),
+        space: None,
+        kind: "change.merged".to_owned(),
+        source: "portal".to_owned(),
+        summary: format!(
+            "Change {id} merged: {operation} {} {}, approved by {approver}.",
+            data.kind, data.name
+        ),
+        severity: "info".to_owned(),
+        correlation_id: Some(id.to_owned()),
+        details,
+    };
+    if let Err(err) = state.activity.append(&[event]).await {
+        tracing::warn!(change = %id, error = %err, "the merge is not on the activity feed");
+    }
 }
 
 /// Merges an approved pull request at the commit its approval read (PF-57, T-1683).
@@ -1768,6 +2084,11 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/changes",
             axum::routing::get(list_changes),
         )
+        // A static segment outranks `{id}`, and `history` is no change id (`chg-…`).
+        .route(
+            "/projects/{project}/changes/history",
+            axum::routing::get(list_change_history),
+        )
         .route(
             "/projects/{project}/changes/{id}",
             axum::routing::get(get_change),
@@ -1969,6 +2290,59 @@ mod tests {
         }]);
         assert_eq!(removed[0].from, Some(json!("[REDACTED]")));
         assert_eq!(removed[0].to, None);
+    }
+
+    /// T-3292: who decided a closed change is read back from what the Portal wrote, and a text
+    /// the Portal did not write names nobody.
+    #[test]
+    fn the_decider_is_read_from_the_portals_own_words_only() {
+        assert_eq!(
+            approver_in("Merge change proposal chg-1: x\n\nApproved in the Portal by eva@bb.sk"),
+            Some("eva@bb.sk".into())
+        );
+        assert_eq!(
+            approver_in("Merge change proposal chg-1: x\n\nApproved in the Portal by eva@bb.sk, its author, as an administrator of Endpoint (PF-58)"),
+            Some("eva@bb.sk".into())
+        );
+        assert_eq!(approver_in("Merge branch 'portal/x' into main"), None);
+        assert_eq!(approver_in("Approved in the Portal by \n"), None);
+
+        assert_eq!(
+            rejection_in("Change proposal rejected in the Portal by eva@bb.sk: wrong: url"),
+            Some(("eva@bb.sk".into(), Some("wrong: url".into())))
+        );
+        assert_eq!(
+            rejection_in("Change proposal rejected in the Portal by eva@bb.sk"),
+            Some(("eva@bb.sk".into(), None))
+        );
+        assert_eq!(
+            rejection_in("looks fine, but Change proposal rejected in the Portal by x"),
+            None
+        );
+        assert_eq!(
+            rejection_in("Change proposal rejected in the Portal by "),
+            None
+        );
+    }
+
+    #[test]
+    fn a_deleted_manifest_is_named_by_its_path() {
+        let named = |path: &str| named_by_path(path);
+        assert_eq!(
+            named("projects/p/spaces/air/endpoints/public-air.yaml"),
+            Some(("Endpoint".into(), "public-air".into()))
+        );
+        assert_eq!(
+            named("projects/p/spaces/air/space.yaml"),
+            Some(("ContextSpace".into(), "air".into()))
+        );
+        assert_eq!(
+            named("projects/p/project.yaml"),
+            Some(("Project".into(), "p".into()))
+        );
+        assert_eq!(named("projects/p/spaces/air/endpoints/README.md"), None);
+        assert_eq!(named("projects/p/nothing/x.yaml"), None);
+        assert_eq!(named(""), None);
     }
 
     #[tokio::test]

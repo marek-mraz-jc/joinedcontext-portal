@@ -176,4 +176,99 @@ test.describe("pipeline flow canvas", () => {
     // Compute node reflects green ok state
     await expect(computeNode).toHaveAttribute("data-state", "ok");
   });
+  // T-3221 (PL-56, PL-68): built by drag and wire, no YAML. A processor found by search and the
+  // compute kind are dragged onto the canvas, a wire from the source's port puts the compute step
+  // at the head of the lane, the list view shows that order, undo takes the wire back, and a test
+  // run paints every node green.
+  test("builds a pipeline by dragging nodes and drawing a wire, and its test run is green", async ({ page }) => {
+    const trace = {
+      input: { events: 1, bytes: 64, sample: { id: "sensor-01", pm10: 42 } },
+      mapping: [{ id: "urn:ngsi-ld:AirQualityObserved:hel.fi:air:sensor-01", type: "AirQualityObserved" }],
+      validation: [{ index: 0, ok: true, problems: [] }],
+      errors: [],
+    };
+    await stubApi(page, () => trace);
+    await page.goto("/projects/helsinki/pipelines?lang=en");
+    await page.getByRole("button", { name: "New pipeline" }).first().click();
+    const dialog = page.getByTestId("form-page");
+    await dialog.getByText("Advanced editor").click();
+    const canvas = page.getByTestId("flow-canvas");
+    await canvas.scrollIntoViewIfNeeded();
+
+    // A node says what it lacks before any test.
+    await expect(page.getByTestId("flow-node-state-source")).toHaveText("Needs a source");
+
+    await page.getByLabel("Find a processor").fill("log");
+    const found = page.getByTestId("palette-found-log");
+    await found.scrollIntoViewIfNeeded();
+    await found.dragTo(canvas);
+    await expect(page.getByTestId("flow-node-step-0")).toBeVisible();
+    await page.getByTestId("palette-bloblang").dragTo(canvas);
+    await expect(page.getByTestId("flow-node-compute")).toBeVisible();
+
+    // The lane runs log, then compute; a wire from the source into compute puts it first.
+    await page.getByTestId("flow-port-out-source").dragTo(page.getByTestId("flow-port-in-compute"));
+    await expect(page.getByTestId("flow-said")).toHaveText("Step moved: the wire set the order the steps run in.");
+    await page.getByRole("button", { name: "Show as a list" }).click();
+    const items = page.getByRole("list", { name: "The pipeline's nodes in the order they run" }).getByRole("listitem");
+    await expect(items.nth(1)).toContainText("bloblang");
+    await expect(items.nth(2)).toContainText("log");
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(items.nth(1)).toContainText("log");
+    await page.getByRole("button", { name: "Redo" }).click();
+    await expect(items.nth(1)).toContainText("bloblang");
+    await page.getByRole("button", { name: "Show as a list" }).click();
+
+    await dialog.getByTestId("pipeline-studio").locator('input[type="file"]').setInputFiles({
+      name: "sample.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify([{ id: "sensor-01", pm10: 42 }])),
+    });
+    await page.getByTestId("flow-bloblang").fill('root = this\nroot.type = "AirQualityObserved"');
+    await page.getByRole("button", { name: "Test mapping" }).click();
+    await expect(page.getByTestId("flow-node-compute")).toHaveAttribute("data-state", "ok");
+  });
+  // T-3222: a deliberately broken step is found from the graph alone: the node turns red with the
+  // error in words, its drawer shows the input that broke it, and a Debug node on the wire into it
+  // lists what crossed that wire.
+  test("finds the broken step from the graph: red node, its error and the input that broke it", async ({ page }) => {
+    const trace = {
+      input: { events: 2, bytes: 40, sample: { id: "s1", pm10: 4 } },
+      mapping: [],
+      validation: [],
+      errors: [{ stage: "mapping", step: 1, message: "expected number, got string" }],
+      stages: [
+        { step: 0, reached: 2, sample: { id: "s2", pm10: "many" } },
+        { step: 1, reached: 2 },
+      ],
+    };
+    await stubApi(page, () => trace);
+    await page.goto("/projects/helsinki/pipelines?lang=en");
+    await page.getByRole("button", { name: "New pipeline" }).first().click();
+    const dialog = page.getByTestId("form-page");
+    await dialog.getByText("Advanced editor").click();
+    const canvas = page.getByTestId("flow-canvas");
+    await canvas.scrollIntoViewIfNeeded();
+    await page.getByLabel("Find a processor").fill("log");
+    await page.getByTestId("palette-found-log").click();
+    await page.getByTestId("palette-bloblang").click();
+
+    await dialog.getByTestId("pipeline-studio").locator('input[type="file"]').setInputFiles({
+      name: "sample.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify([{ id: "s1", pm10: 4 }, { id: "s2", pm10: "many" }])),
+    });
+    await page.getByTestId("flow-bloblang").fill("root = this\nroot.pm10 = this.pm10.number()");
+    await page.getByTestId("flow-node-compute").click();
+    await page.getByTestId("palette-debug").click();
+    await page.getByRole("button", { name: "Test mapping" }).click();
+
+    const compute = page.getByTestId("flow-node-compute");
+    await expect(compute).toHaveAttribute("data-state", "error");
+    await expect(compute).toContainText("expected number, got string");
+    await expect(page.getByTestId("flow-wire-count-step-0>compute")).toHaveText("2");
+    await page.getByTestId("flow-wire-step-0>compute").click({ force: true });
+    await expect(page.getByTestId("flow-breaking-input")).toContainText('"pm10": "many"');
+    await expect(page.getByTestId("flow-debug").getByRole("listitem").first()).toContainText('"pm10": "many"');
+  });
 });

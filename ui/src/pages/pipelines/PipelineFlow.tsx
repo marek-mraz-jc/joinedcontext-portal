@@ -15,6 +15,9 @@ import { spaceOf } from "../spaces/SpaceInside";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
 import { errorAt, fromFormData, toFormData, useProcessorForms, withHelp } from "./processorForm";
+import { connect, laneOf, missingOf, move } from "./pipelineGraph";
+import { wireCount, wireKey } from "./pipelineDebug";
+import type { WireRefusal } from "./pipelineGraph";
 
 /** One processor of the pinned runner: the list jc-core admits a `processor` step from (PL-52). */
 export interface Processor {
@@ -493,6 +496,11 @@ export interface PipelineFlowProps {
   live?: NodeCounters;
   selected: FlowNodeId | null;
   onSelect: (id: FlowNodeId | null) => void;
+  /** Opens a node's form: a double-click or Enter on the node, Open in the list (PL-68). */
+  onOpen?: (id: FlowNodeId) => void;
+  /** The wires a Debug node taps, by `wireKey`, and the toggle of one (T-3222). */
+  taps?: string[];
+  onTap?: (key: string) => void;
   dataSources: Manifest[];
   endpoints: Manifest[];
 }
@@ -504,9 +512,93 @@ export function PipelineFlow({
   live,
   selected,
   onSelect,
+  onOpen,
+  taps = [],
+  onTap,
 }: PipelineFlowProps): JSX.Element {
   const { t } = useTranslation();
   const { nodes, edges } = toFlow(form);
+  const open = onOpen ?? onSelect;
+  // Undo and redo of the graph's own edits (PL-68). An edit made elsewhere (a node's form, the
+  // YAML view) is not the graph's to take back, so it ends the history instead of being undone.
+  const [history, setHistory] = useState<{ past: PipelineForm[]; future: PipelineForm[]; at: string }>({
+    past: [],
+    future: [],
+    at: "",
+  });
+  const now = JSON.stringify(form ?? null);
+  const own = history.at === now;
+  const past = own ? history.past : [];
+  const future = own ? history.future : [];
+  const change = (next: PipelineForm) => {
+    setHistory({ past: [...past, form ?? { class: "auto" }].slice(-50), future: [], at: JSON.stringify(next) });
+    onChange(next);
+  };
+  const undo = () => {
+    const previous = past[past.length - 1];
+    if (!previous) return;
+    setHistory({ past: past.slice(0, -1), future: [form ?? { class: "auto" }, ...future], at: JSON.stringify(previous) });
+    onChange(previous);
+  };
+  const redo = () => {
+    const [next, ...rest] = future;
+    if (!next) return;
+    setHistory({ past: [...past, form ?? { class: "auto" }], future: rest, at: JSON.stringify(next) });
+    onChange(next);
+  };
+  // `null` fits the canvas to the width it has; a number is a zoom the person chose.
+  const [zoom, setZoom] = useState<number | null>(null);
+  const [view, setView] = useState<"canvas" | "list">("canvas");
+  const [query, setQuery] = useState("");
+  const [wiring, setWiring] = useState<{ from: FlowNodeId; x: number; y: number } | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  const wire = (from: FlowNodeId, to: FlowNodeId) => {
+    const result = connect(form, from, to);
+    if ("refused" in result) {
+      setSaid(t(`pipelines.flow.wire.${result.refused satisfies WireRefusal}`));
+    } else if ("form" in result) {
+      change(result.form);
+      onSelect(result.id);
+      setSaid(t("pipelines.flow.wire.moved"));
+    } else {
+      setSaid(t("pipelines.flow.wire.already"));
+    }
+  };
+  const shift = (id: FlowNodeId, by: -1 | 1) => {
+    const moved = move(form, id, by);
+    if (moved) {
+      change(moved.form);
+      onSelect(moved.id);
+    }
+  };
+  const lane = laneOf(form);
+  const missing: Record<string, string | undefined> = Object.fromEntries(
+    nodes.map((node) => [node.id, missingOf(form, node.id)]),
+  );
+  const stateWords = (id: FlowNodeId): string =>
+    missing[id] ? t(`pipelines.flow.state.missing.${missing[id]}`) : t("pipelines.flow.state.configured");
+  const nodeName = (node: FlowNode): string =>
+    t(
+      `pipelines.flow.node.${
+        stepIndexOf(node.id) !== undefined
+          ? "step"
+          : sourceIndexOf(node.id) !== undefined
+            ? "source"
+            : outputIndexOf(node.id) !== undefined
+              ? "output"
+              : node.id
+      }`,
+      { defaultValue: node.label },
+    );
+  const needle = query.trim().toLowerCase();
+  const found = needle
+    ? (processorCatalogue as Processor[]).filter(
+        ({ name, category, summary }) =>
+          name.toLowerCase().includes(needle) ||
+          category.toLowerCase().includes(needle) ||
+          summary.toLowerCase().includes(needle),
+      )
+    : [];
   // A test result is what the author just asked for; without one, the running stream speaks.
   const showsLive = !trace && live !== undefined && Object.keys(live).length > 0;
   const paint = showsLive
@@ -537,13 +629,22 @@ export function PipelineFlow({
     return { node, x: startX + (index - sourceCount + 1) * nodeSpacing, y: startY + columnHeight / 2 };
   });
   const place = (id: FlowNodeId) => placed.find(({ node }) => node.id === id);
+  const middleOf = (edge: FlowEdge): { x: number; y: number } | undefined => {
+    const from = place(edge.from);
+    const to = place(edge.to);
+    return from && to
+      ? { x: (from.x + nodeWidth + to.x) / 2, y: (from.y + to.y + nodeHeight) / 2 }
+      : undefined;
+  };
+  const distance = (at: { x: number; y: number } | undefined, x: number, y: number) =>
+    at ? Math.hypot(at.x - x, at.y - y) : Number.POSITIVE_INFINITY;
   const svgWidth = Math.max((laneCount + 2) * nodeSpacing + 40, 520);
   const svgHeight = 150 + columnHeight;
 
   const insert = (name: string, after: FlowNodeId | null) => {
     const added = addStep(form, after, name);
     if (added) {
-      onChange(added.form);
+      change(added.form);
       onSelect(added.id);
     }
   };
@@ -552,7 +653,7 @@ export function PipelineFlow({
     const source = sourceIndexOf(id);
     const output = outputIndexOf(id);
     if (!form) return;
-    onChange(
+    change(
       step !== undefined
         ? removeStep(form, step)
         : source !== undefined
@@ -565,7 +666,17 @@ export function PipelineFlow({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className="flex flex-col gap-3"
+      onKeyDown={(e) => {
+        const target = e.target as HTMLElement;
+        if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
+        if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }}
+    >
       {/* Palette */}
       <div
         role="toolbar"
@@ -586,7 +697,7 @@ export function PipelineFlow({
               e.dataTransfer.setData("text/plain", kind);
             }}
             onClick={() => {
-              onChange(setComputeKind(form, kind));
+              change(setComputeKind(form, kind));
               onSelect("compute");
             }}
           >
@@ -599,7 +710,7 @@ export function PipelineFlow({
           data-testid="palette-source"
           onClick={() => {
             const added = addSource(form);
-            onChange(added.form);
+            change(added.form);
             onSelect(added.id);
           }}
         >
@@ -611,18 +722,39 @@ export function PipelineFlow({
           data-testid="palette-output"
           onClick={() => {
             const added = addOutput(form);
-            onChange(added.form);
+            change(added.form);
             onSelect(added.id);
           }}
         >
           {t("pipelines.flow.addOutput")}
         </Button>
+        {onTap ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            data-testid="palette-debug"
+            draggable
+            disabledReason={
+              selected === null || isSource(selected) ? t("pipelines.debug.pickWire") : undefined
+            }
+            disabled={selected === null || isSource(selected)}
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", "debug");
+            }}
+            onClick={() => {
+              const into = edges.find((edge) => edge.to === selected);
+              if (into) onTap(wireKey(into));
+            }}
+          >
+            {t("pipelines.debug.add")}
+          </Button>
+        ) : null}
         {form?.compute?.kind ? (
           <Button
             size="sm"
             variant="ghost"
             onClick={() => {
-              onChange(setComputeKind(form, null));
+              change(setComputeKind(form, null));
               if (selected === "compute") onSelect(null);
             }}
           >
@@ -631,13 +763,106 @@ export function PipelineFlow({
         ) : null}
       </div>
 
+      <div
+        role="toolbar"
+        aria-label={t("pipelines.flow.tools")}
+        className="flex flex-wrap items-center gap-2"
+      >
+        <Button size="sm" variant="ghost" disabled={past.length === 0} onClick={undo} aria-keyshortcuts="Control+Z">
+          {t("pipelines.flow.undo")}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={future.length === 0} onClick={redo} aria-keyshortcuts="Control+Shift+Z">
+          {t("pipelines.flow.redo")}
+        </Button>
+        <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={t("pipelines.flow.zoomOut")}
+          disabled={view !== "canvas" || (zoom ?? 1) <= 0.5}
+          onClick={() => setZoom(Math.max(0.5, (zoom ?? 1) - 0.25))}
+        >
+          −
+        </Button>
+        <span className="min-w-12 text-center font-mono text-caption text-fg-muted" aria-live="polite">
+          {zoom === null ? t("pipelines.flow.fitted") : `${Math.round(zoom * 100)} %`}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={t("pipelines.flow.zoomIn")}
+          disabled={view !== "canvas" || (zoom ?? 1) >= 2}
+          onClick={() => setZoom(Math.min(2, (zoom ?? 1) + 0.25))}
+        >
+          +
+        </Button>
+        <Button size="sm" variant="ghost" disabled={view !== "canvas" || zoom === null} onClick={() => setZoom(null)}>
+          {t("pipelines.flow.fit")}
+        </Button>
+        <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
+        <Button size="sm" variant="ghost" aria-pressed={view === "list"} onClick={() => setView(view === "list" ? "canvas" : "list")}>
+          {t("pipelines.flow.asList")}
+        </Button>
+      </div>
+      <p role="status" className="min-h-5 text-caption text-fg-muted" data-testid="flow-said">
+        {said ?? ""}
+      </p>
+
       {/* SVG Canvas */}
       {showsLive ? (
         <p className="text-caption text-fg-muted" data-testid="flow-live">
           {t("pipelines.flow.live")}
         </p>
       ) : null}
-      <div className="w-full overflow-x-auto rounded-md border border-border bg-surface-subtle p-2">
+      {view === "list" ? (
+        <ol aria-label={t("pipelines.flow.listLabel")} className="flex flex-col gap-1" data-testid="flow-list">
+          {nodes.map((node) => {
+            const at = lane.indexOf(node.id);
+            const nodePaint = paint[node.id] ?? { state: "idle" };
+            return (
+              <li
+                key={node.id}
+                className={`flex flex-wrap items-center gap-2 rounded-md border px-2 py-1 ${selected === node.id ? "border-primary-soft-fg" : "border-border"}`}
+              >
+                <span className="font-semibold text-fg">{nodeName(node)}</span>
+                <span className="font-mono text-caption text-fg-muted">{node.kind}</span>
+                {node.summary ? <span className="truncate text-caption text-fg-muted">{node.summary}</span> : null}
+                <span className={`text-caption ${nodePaint.state === "error" ? "text-danger-fg" : missing[node.id] ? "font-semibold text-fg" : "text-fg-muted"}`}>
+                  {nodePaint.error ?? (nodePaint.state === "idle" ? stateWords(node.id) : nodePaint.state)}
+                </span>
+                <span className="ml-auto flex gap-1">
+                  <Button size="sm" variant="secondary" onClick={() => open(node.id)}>
+                    {t("pipelines.flow.open")}
+                    <span className="sr-only"> {nodeName(node)} {node.kind}</span>
+                  </Button>
+                  {at >= 0 ? (
+                    <>
+                      <Button size="sm" variant="ghost" disabled={at === 0} onClick={() => shift(node.id, -1)}>
+                        {t("pipelines.flow.moveUp")}
+                        <span className="sr-only"> {nodeName(node)} {node.kind}</span>
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={at === lane.length - 1} onClick={() => shift(node.id, 1)}>
+                        {t("pipelines.flow.moveDown")}
+                        <span className="sr-only"> {nodeName(node)} {node.kind}</span>
+                      </Button>
+                    </>
+                  ) : null}
+                  {node.id !== "source" && node.id !== "output" ? (
+                    <Button size="sm" variant="ghost" onClick={() => remove(node.id)}>
+                      {t("pipelines.flow.removeNode")}
+                      <span className="sr-only"> {nodeName(node)} {node.kind}</span>
+                    </Button>
+                  ) : null}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+      <div
+        hidden={view !== "canvas"}
+        className="w-full overflow-auto rounded-md border border-border bg-surface-subtle p-2"
+      >
         {/*
           A group, not an image: the canvas holds the pipeline's nodes, and every node is a
           control a person tabs to and presses. `role="img"` promised a picture with nothing
@@ -649,7 +874,21 @@ export function PipelineFlow({
           data-testid="flow-canvas"
           aria-label={t("pipelines.flow.canvas", { defaultValue: "Pipeline canvas" })}
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          className="h-40 min-w-full"
+          className={zoom === null ? "h-40 min-w-full" : undefined}
+          width={zoom === null ? undefined : svgWidth * zoom}
+          height={zoom === null ? undefined : svgHeight * zoom}
+          onPointerMove={(e) => {
+            if (!wiring) return;
+            const box = e.currentTarget.getBoundingClientRect();
+            if (box.width <= 0 || box.height <= 0) return;
+            setWiring({
+              ...wiring,
+              x: ((e.clientX - box.left) / box.width) * svgWidth,
+              y: ((e.clientY - box.top) / box.height) * svgHeight,
+            });
+          }}
+          onPointerUp={() => setWiring(null)}
+          onPointerLeave={() => setWiring(null)}
           onDragOver={(e) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
@@ -657,7 +896,19 @@ export function PipelineFlow({
           onDrop={(e) => {
             e.preventDefault();
             const kind = e.dataTransfer.getData("text/plain");
-            if (kind.startsWith("processor:")) {
+            if (kind === "debug" && onTap) {
+              const box = e.currentTarget.getBoundingClientRect();
+              const x = box.width > 0 ? ((e.clientX - box.left) / box.width) * svgWidth : -1;
+              const y = box.height > 0 ? ((e.clientY - box.top) / box.height) * svgHeight : -1;
+              const nearest =
+                x < 0
+                  ? edges.find((edge) => edge.to === selected)
+                  : edges
+                      .map((edge) => ({ edge, at: middleOf(edge) }))
+                      .filter((one) => one.at !== undefined)
+                      .sort((a, b) => distance(a.at, x, y) - distance(b.at, x, y))[0]?.edge;
+              if (nearest) onTap(wireKey(nearest));
+            } else if (kind.startsWith("processor:")) {
               // The node the drop landed on or behind. A canvas with no layout yet (no width, as
               // in a test) has no place to read, and the selection says where instead.
               const box = e.currentTarget.getBoundingClientRect();
@@ -668,7 +919,7 @@ export function PipelineFlow({
               );
               insert(kind.slice(10), x < 0 ? selected : (under?.node.id ?? "source"));
             } else if (COMPUTE_KINDS.includes(kind as (typeof COMPUTE_KINDS)[number])) {
-              onChange(setComputeKind(form, kind));
+              change(setComputeKind(form, kind));
               onSelect("compute");
             }
           }}
@@ -696,17 +947,68 @@ export function PipelineFlow({
             const y1 = from.y + nodeHeight / 2;
             const x2 = to.x;
             const y2 = to.y + nodeHeight / 2;
+            const key = wireKey(edge);
+            const count = trace && !showsLive ? wireCount(trace, nodes, edge) : undefined;
+            const tapped = taps.includes(key);
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
             return (
-              <line
-                key={`${edge.from}-${edge.to}`}
-                x1={x1}
-                y1={y1}
-                x2={x2 - 4}
-                y2={y2}
-                className="stroke-border-strong"
-                strokeWidth={2}
-                markerEnd="url(#flow-arrow)"
-              />
+              <g key={`${edge.from}-${edge.to}`}>
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2 - 4}
+                  y2={y2}
+                  className={tapped ? "stroke-primary-soft-fg" : "stroke-border-strong"}
+                  strokeWidth={2}
+                  markerEnd="url(#flow-arrow)"
+                />
+                {/* A wider, invisible line takes the click: a wire opens the node it enters, whose
+                    drawer shows what crossed it (T-3222). The node itself is the keyboard path. */}
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  aria-hidden="true"
+                  data-testid={`flow-wire-${key}`}
+                  className="cursor-pointer stroke-transparent"
+                  strokeWidth={14}
+                  onClick={() => open(edge.to)}
+                />
+                {count !== undefined ? (
+                  <text
+                    x={mx}
+                    y={my - 6}
+                    textAnchor="middle"
+                    data-testid={`flow-wire-count-${key}`}
+                    className="pointer-events-none select-none fill-fg font-mono text-caption"
+                  >
+                    {count}
+                  </text>
+                ) : null}
+                {tapped ? (
+                  <g
+                    role="button"
+                    tabIndex={0}
+                    aria-label={t("pipelines.debug.remove")}
+                    data-testid={`flow-tap-${key}`}
+                    className="focus-ring cursor-pointer"
+                    onClick={() => onTap?.(key)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " " || e.key === "Delete") {
+                        e.preventDefault();
+                        onTap?.(key);
+                      }
+                    }}
+                  >
+                    <rect x={mx - 22} y={my + 4} width={44} height={16} rx={8} className="fill-primary-soft stroke-primary-soft-fg" />
+                    <text x={mx} y={my + 16} textAnchor="middle" className="select-none fill-primary-soft-fg text-caption">
+                      {t("pipelines.debug.badge")}
+                    </text>
+                  </g>
+                ) : null}
+              </g>
             );
           })}
 
@@ -743,11 +1045,15 @@ export function PipelineFlow({
                 data-testid={`flow-node-${node.id}`}
                 data-state={nodePaint.state}
                 aria-pressed={isSelected}
-                aria-label={`${node.label}: ${node.kind}`}
+                aria-label={`${node.label}: ${node.kind}, ${nodePaint.state === "idle" ? stateWords(node.id) : nodePaint.state}`}
                 className="focus-ring cursor-pointer"
                 onClick={() => onSelect(node.id)}
+                onDoubleClick={() => open(node.id)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    open(node.id);
+                  } else if (e.key === " ") {
                     e.preventDefault();
                     onSelect(node.id);
                   } else if (
@@ -784,18 +1090,7 @@ export function PipelineFlow({
                   y={y + 22}
                   className="select-none fill-fg text-body font-semibold"
                 >
-                  {t(
-                    `pipelines.flow.node.${
-                      stepIndexOf(node.id) !== undefined
-                        ? "step"
-                        : sourceIndexOf(node.id) !== undefined
-                          ? "source"
-                          : outputIndexOf(node.id) !== undefined
-                            ? "output"
-                            : node.id
-                    }`,
-                    { defaultValue: node.label },
-                  )}
+                  {nodeName(node)}
                 </text>
                 <text
                   x={x + nodeWidth - 12}
@@ -849,10 +1144,70 @@ export function PipelineFlow({
                   >
                     skipped
                   </text>
-                ) : null}
+                ) : (
+                  <text
+                    x={x + 12}
+                    y={y + 86}
+                    data-testid={`flow-node-state-${node.id}`}
+                    className={`select-none text-caption font-medium ${missing[node.id] ? "fill-fg font-semibold" : "fill-fg-muted"}`}
+                  >
+                    {stateWords(node.id)}
+                  </text>
+                )}
               </g>
             );
           })}
+
+          {/* Ports: drag from a node's output port (right) to another's input port (left). The
+              wire only sets the order (PL-56); the list view below does the same by keyboard. */}
+          {placed.map(({ node, x, y }) => (
+            <g key={`ports-${node.id}`} aria-hidden="true">
+              {isSource(node.id) ? null : (
+                <circle
+                  cx={x}
+                  cy={y + nodeHeight / 2}
+                  r={7}
+                  data-testid={`flow-port-in-${node.id}`}
+                  className={`fill-surface stroke-2 ${wiring ? "stroke-primary-soft-fg" : "stroke-border-strong"}`}
+                  onPointerUp={(e) => {
+                    e.stopPropagation();
+                    if (wiring) wire(wiring.from, node.id);
+                    setWiring(null);
+                  }}
+                />
+              )}
+              {isOutput(node.id) ? null : (
+                <circle
+                  cx={x + nodeWidth}
+                  cy={y + nodeHeight / 2}
+                  r={7}
+                  data-testid={`flow-port-out-${node.id}`}
+                  className="cursor-crosshair fill-surface stroke-border-strong stroke-2"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setSaid(null);
+                    setWiring({ from: node.id, x: x + nodeWidth, y: y + nodeHeight / 2 });
+                  }}
+                />
+              )}
+            </g>
+          ))}
+          {wiring
+            ? (() => {
+                const from = place(wiring.from);
+                return from ? (
+                  <line
+                    x1={from.x + nodeWidth}
+                    y1={from.y + nodeHeight / 2}
+                    x2={wiring.x}
+                    y2={wiring.y}
+                    className="pointer-events-none stroke-primary-soft-fg"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                  />
+                ) : null;
+              })()
+            : null}
         </svg>
       </div>
 
@@ -862,7 +1217,44 @@ export function PipelineFlow({
           the canvas now. */}
       {/* One fold for all of them, shut: most pipelines take none, and nine open groups were
           the tallest thing on the form (T-2754). */}
-      <details className="flex flex-col gap-1" data-testid="palette-processors">
+      <Field id="flow-palette-search" label={t("pipelines.flow.search")}>
+        <Input
+          id="flow-palette-search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("pipelines.flow.searchPlaceholder")}
+        />
+      </Field>
+      {needle ? (
+        found.length === 0 ? (
+          <p className="text-caption text-fg-muted">{t("pipelines.flow.searchNone", { query: query.trim() })}</p>
+        ) : (
+          <ul className="flex flex-col gap-1" aria-label={t("pipelines.flow.searchFound", { count: found.length })}>
+            {found.map((processor) => (
+              <li key={processor.name} className="flex items-baseline gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0 font-mono"
+                  data-testid={`palette-found-${processor.name}`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", `processor:${processor.name}`);
+                  }}
+                  onClick={() => insert(processor.name, selected)}
+                >
+                  + {processor.name}
+                </Button>
+                <span className="text-caption text-fg-muted">
+                  {processor.category} · {plainSummary(processor.summary)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+      <details className="flex flex-col gap-1" data-testid="palette-processors" hidden={needle !== ""}>
         <summary
           id="flow-processors"
           className="focus-ring cursor-pointer rounded-md text-caption font-semibold text-fg"

@@ -221,7 +221,28 @@
       "merged": "{change}, na ktorú táto zmena čaká, je zlúčená.",
       "rejected": "{change}, na ktorú táto zmena čaká, bola zamietnutá: to, čo táto zmena menuje, nevznikne. Zamietnite ju alebo ju navrhnite znova."
     },
-    "back": "Všetky schvaľovania"
+    "back": "Všetky schvaľovania",
+    "tabs": {
+      "open": "Čaká na rozhodnutie",
+      "history": "História"
+    },
+    "history": {
+      "filter": "Filtrovať históriu",
+      "kind": "Druh",
+      "name": "Názov obsahuje",
+      "apply": "Filtrovať",
+      "clear": "Zrušiť filter",
+      "caption": "Uzavreté zmeny",
+      "outcome": "Výsledok",
+      "proposedBy": "Navrhol(a)",
+      "decidedBy": "Rozhodol(a)",
+      "closed": "Uzavreté",
+      "reason": "Dôvod: {reason}",
+      "inForge": "Uzavreté v repozitári",
+      "older": "Zobraziť staršie zmeny",
+      "empty": "Zatiaľ nebola zlúčená ani zamietnutá žiadna zmena.",
+      "noneOnPage": "Žiadnu z týchto zmien nemáte právo čítať. Staršie možno áno."
+    }
   },
   "lane": {
     "green": "Zelená",
@@ -1541,7 +1562,42 @@
       "functionHint": "Vstupný bod modulu, ktorý krok volá pre každý záznam.",
       "computeNotRun": "Platforma krok tohto druhu zatiaľ nespúšťa ({kind}): pipeline sa prijme a zostane v stave Pending, kým to nebude možné. Krok Bloblang beží už dnes.",
       "live": "Živé počty bežiaceho prúdu od spustenia jeho runnera; ukážku uvidíte po spustení testu.",
-      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chýb}} od spustenia runnera"
+      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chýb}} od spustenia runnera",
+      "tools": "Nástroje grafu",
+      "undo": "Späť",
+      "redo": "Znova",
+      "zoomOut": "Oddialiť",
+      "zoomIn": "Priblížiť",
+      "fitted": "Na šírku",
+      "fit": "Prispôsobiť šírke",
+      "asList": "Zobraziť ako zoznam",
+      "listLabel": "Uzly pipeline v poradí, v akom bežia",
+      "open": "Otvoriť",
+      "moveUp": "Posunúť vyššie",
+      "moveDown": "Posunúť nižšie",
+      "removeNode": "Odstrániť",
+      "search": "Nájsť procesor",
+      "searchPlaceholder": "Názov, kategória alebo čo robí",
+      "searchNone": "Žiadny procesor nezodpovedá „{query}“.",
+      "searchFound": "{count, plural, one {Nájdený # procesor} few {Nájdené # procesory} other {Nájdených # procesorov}}",
+      "wire": {
+        "intoSource": "Zdroj číta mimo pipeline; nič doň nevedie.",
+        "outOfOutput": "Po výstupe už nič nebeží; ťahajte drôt z kroku.",
+        "self": "Uzol nemôže napájať sám seba.",
+        "middleIntoOutput": "Výstupy napája iba posledný krok. Presuňte tento krok na koniec, alebo pred výstup dajte krok branch či switch, ktorý pošle časť správ inam.",
+        "moved": "Krok presunutý: drôt určil poradie, v akom kroky bežia.",
+        "already": "Tieto dva uzly už sú prepojené."
+      },
+      "state": {
+        "configured": "Nastavený",
+        "missing": {
+          "source": "Chýba zdroj",
+          "output": "Chýba endpoint",
+          "mapping": "Chýba mapovanie",
+          "mappingRef": "Chýba názov mapovania",
+          "module": "Chýba modul"
+        }
+      }
     },
     "emptyHint": "Pridajte dátový zdroj a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
@@ -1640,7 +1696,7 @@
         "slotsOf": "Čo berie {type}",
         "slots": "Čo berie model",
         "noModel": "Cieľový priestor nemenuje dátový model, takže žiadny slot nie je známy.",
-        "pickTarget": "Vyberte cieľový endpoint v kroku 6 a uvidíte, čo berie jeho model.",
+        "pickTarget": "Vyberte cieľový endpoint v kroku 3 a uvidíte, čo berie jeho model.",
         "required": "povinné",
         "many": "viac hodnôt",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
@@ -1673,7 +1729,7 @@
         "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušujú} other {# záznamov porušuje}} {model} {version} a nezapíše sa; platných: {valid}."
       },
       "target": {
-        "title": "Cieľ a uloženie",
+        "title": "Cieľ",
         "hint": "Určte endpoint, cez ktorý sa záznamy zapíšu; uloženie navrhne zmenu.",
         "lands": "Záznamy pristanú v priestore {space}, kontrolované voči modelu {model}.",
         "landsUnmodelled": "Záznamy pristanú v priestore {space}, ktorý zatiaľ nemenuje dátový model.",
@@ -1721,6 +1777,41 @@
         "notValue": "{field} obsahuje „{value}“; {name} očakáva jednu z hodnôt {values}.",
         "noId": "Vyberte pole, z ktorého vznikne id každej entity."
       }
+    },
+    "debug": {
+      "add": "+ Ladenie",
+      "pickWire": "Najprv vyberte uzol: ladiaci uzol odpočúva drôt, ktorý doň vedie, alebo ho pretiahnite na drôt.",
+      "remove": "Odstrániť tento ladiaci uzol",
+      "badge": "ladenie",
+      "title": "Ladenie",
+      "clear": "Vymazať",
+      "noTaps": "Pustite ladiaci uzol na drôt a uvidíte, čo ním pri každom teste prejde.",
+      "filter": "Zobraziť drôty uzla",
+      "everyNode": "Každý uzol",
+      "nothingYet": "Spustite test a uvidíte, čo prejde odpočúvanými drôtmi.",
+      "messages": "Čo prešlo odpočúvanými drôtmi, najnovšie prvé",
+      "wholeSample": "Celá vzorka",
+      "message": "Správa {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Tento drôt nič nedosiahlo.",
+      "failedHere": "Tento uzol zlyhal",
+      "brokeIt": "Vstup, na ktorom zlyhal:",
+      "changed": "Čo tento uzol zmenil",
+      "unchanged": "Nič: správa odišla tak, ako prišla.",
+      "kind": {
+        "added": "pridané",
+        "removed": "odstránené",
+        "changed": "zmenené"
+      },
+      "rerun": "Spustiť tento uzol znova na tomto vstupe",
+      "rerunHint": "Beží iba tento uzol, na vstupe vyššie; nič sa nezapíše.",
+      "rerunFailed": "Stále zlyháva",
+      "rerunOk": "Prešlo; čo vytvoril:",
+      "stepMode": "Jedna správa naraz",
+      "stepModeFile": "Krokovanie delí vzorku zo súboru na správy; namiesto URL dajte súbor.",
+      "runMessage": "Spustiť správu {number} z {total}",
+      "startOver": "Od začiatku",
+      "position": "Správa {number} z {total}"
     }
   },
   "dashboards": {

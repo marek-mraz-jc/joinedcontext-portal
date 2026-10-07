@@ -1210,6 +1210,14 @@
         "people_page.test.tsx"
       ]
     },
+    "src/pages/pipelines/DebugPanel.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "pipeline_debug_view.test.tsx"
+      ]
+    },
     "src/pages/pipelines/OutputMapper.tsx": {
       "controls": {
         "Button": 2
@@ -1220,14 +1228,18 @@
     },
     "src/pages/pipelines/PipelineFlow.tsx": {
       "controls": {
-        "Button": 8
+        "Button": 20
       },
       "tests": [
         "part_pipeline_flow.test.tsx",
+        "pipeline_debug.test.ts",
+        "pipeline_debug_view.test.tsx",
         "pipeline_flow.test.tsx",
+        "pipeline_flow_graph.test.tsx",
         "pipeline_flow_live.test.tsx",
         "pipeline_flow_outputs.test.tsx",
         "pipeline_flow_steps.test.tsx",
+        "pipeline_graph.test.ts",
         "pipeline_step_form.test.tsx"
       ]
     },
@@ -1265,12 +1277,14 @@
     },
     "src/pages/pipelines/PipelineTest.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
+        "Checkbox": 1,
         "FilePicker": 1
       },
       "tests": [
         "part_pipeline_flow.test.tsx",
         "part_pipeline_test.test.tsx",
+        "pipeline_debug_view.test.tsx",
         "pipeline_flow.test.tsx",
         "pipeline_flow_live.test.tsx",
         "pipeline_flow_outputs.test.tsx",
@@ -1434,6 +1448,14 @@
       },
       "tests": [
         "approval_actions.test.tsx"
+      ]
+    },
+    "src/routes/ApprovalsHistory.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "approvals_history.test.tsx"
       ]
     },
     "src/routes/ApprovalsPage.tsx": {

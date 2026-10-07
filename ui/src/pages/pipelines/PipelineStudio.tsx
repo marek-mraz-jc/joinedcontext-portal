@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -47,6 +47,8 @@ import type { FlowNodeId } from "./PipelineFlow";
 import { PipelineTest } from "./PipelineTest";
 import type { Trace } from "./PipelineTest";
 import { testPipeline } from "../../api/pipelineTest";
+import { DebugSidebar, NodeDebug } from "./DebugPanel";
+import type { DebugEntry } from "./DebugPanel";
 import { FormHeading } from "../../components/forms/FormRoute";
 import { TypePicker } from "../../components/pickers/TypePicker";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
@@ -287,10 +289,28 @@ export function PipelineStudio({
   const [loading, setLoading] = useState(false);
   const [aggregateAttribute, setAggregateAttribute] = useState("");
   const [studioView, setStudioView] = useState<"flow" | "form">("flow");
+  // Opening a node (a double-click, Enter, Open in the list; PL-68) takes the person to its form:
+  // the node's own editor under the canvas, or the source section for the first source.
+  const [opening, setOpening] = useState<{ id: FlowNodeId; count: number } | null>(null);
+  useEffect(() => {
+    if (opening === null) return;
+    const editor =
+      document.querySelector<HTMLElement>('[data-testid^="flow-node-editor"]') ??
+      (opening.id === "source" ? document.getElementById("studio-source-kind") : null);
+    editor?.scrollIntoView?.({ block: "nearest" });
+    (editor?.matches("input, select, textarea")
+      ? editor
+      : editor?.querySelector<HTMLElement>("input, select, textarea, button")
+    )?.focus();
+  }, [opening]);
   const [selectedNode, setSelectedNode] = useState<FlowNodeId | null>(() =>
     draft?.compute?.kind ? "compute" : "source",
   );
   const [flowTrace, setFlowTrace] = useState<Trace | null>(null);
+  // The wires a Debug node taps and what each run sent across them (T-3222); a debug aid of the
+  // studio, never part of the manifest.
+  const [taps, setTaps] = useState<string[]>([]);
+  const [debugLog, setDebugLog] = useState<DebugEntry[]>([]);
   // The running stream's counters per node (PL-66), for a pipeline that exists: a new one, a
   // paused one or a runner that does not answer simply paints nothing live.
   const pipelineName = draft?.name ?? "";
@@ -919,6 +939,12 @@ export function PipelineStudio({
                   live={liveCounters.data?.nodes}
                   selected={selectedNode}
                   onSelect={setSelectedNode}
+                  onOpen={(id) => {
+                    setSelectedNode(id);
+                    setOpening((was) => ({ id, count: (was?.count ?? 0) + 1 }));
+                  }}
+                  taps={taps}
+                  onTap={(key) => setTaps((was) => (was.includes(key) ? was.filter((one) => one !== key) : [...was, key]))}
                   dataSources={dataSources}
                   endpoints={endpoints}
                 />
@@ -1145,6 +1171,27 @@ export function PipelineStudio({
                     </div>
                   </div>
                 ) : null}
+                {flowTrace && selectedNode && draft && toManifest ? (
+                  <NodeDebug
+                    key={selectedNode}
+                    project={project}
+                    form={draft}
+                    trace={flowTrace}
+                    nodes={toFlow(draft).nodes}
+                    id={selectedNode}
+                    toManifest={toManifest}
+                  />
+                ) : null}
+                <DebugSidebar
+                  log={debugLog}
+                  nodes={toFlow(draft).nodes}
+                  edges={toFlow(draft).edges}
+                  taps={taps}
+                  nameOf={(id) =>
+                    `${t(`pipelines.flow.node.${id.startsWith("step-") ? "step" : id.startsWith("source") ? "source" : id.startsWith("output") ? "output" : "compute"}`)} ${toFlow(draft).nodes.find((node) => node.id === id)?.kind ?? ""}`.trim()
+                  }
+                  onClear={() => setDebugLog([])}
+                />
               </div>
             ) : null}
           </section>
@@ -1158,6 +1205,7 @@ export function PipelineStudio({
               sampleUrl={sampleUrlOf(draft, dataSources, endpoints)}
               onVerdict={onVerdict}
               onTrace={setFlowTrace}
+              onDebug={(entry) => setDebugLog((was) => [...was, entry].slice(-100))}
             />
           ) : null}
           <section className={sectionClass} aria-labelledby="studio-source">

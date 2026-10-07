@@ -455,7 +455,7 @@ test("4. a data source and a pipeline through the workbench's steps, and its dat
   await expect(step("Mapped output").getByRole("table", { name: "Mapped records" })).toBeVisible({ timeout: 90_000 });
   await expect(step("Validation").getByText(/All \d+ records are valid against helsinki/)).toBeVisible({ timeout: 90_000 });
   await expect(
-    step("Target and save").getByText("The records land in the space helsinki, checked against the model helsinki."),
+    step("Target").getByText("The records land in the space helsinki, checked against the model helsinki."),
   ).toBeVisible();
   await proposeFrom(form);
   await approveAsked(approver, PROJECT, await proposedChange(page));

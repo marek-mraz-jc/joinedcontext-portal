@@ -221,7 +221,28 @@
       "merged": "{change}, which this change waits on, is merged.",
       "rejected": "{change}, which this change waits on, was rejected: what this change names will not be created. Reject it, or propose it again."
     },
-    "back": "All approvals"
+    "back": "All approvals",
+    "tabs": {
+      "open": "Waiting for a decision",
+      "history": "History"
+    },
+    "history": {
+      "filter": "Filter the history",
+      "kind": "Kind",
+      "name": "Name contains",
+      "apply": "Filter",
+      "clear": "Clear",
+      "caption": "Closed changes",
+      "outcome": "Outcome",
+      "proposedBy": "Proposed by",
+      "decidedBy": "Decided by",
+      "closed": "Closed",
+      "reason": "Reason: {reason}",
+      "inForge": "Closed in the repository",
+      "older": "Show older changes",
+      "empty": "No change has been merged or rejected yet.",
+      "noneOnPage": "None of these changes is one you may read. Older ones may be."
+    }
   },
   "lane": {
     "green": "Green",
@@ -1541,7 +1562,42 @@
       "functionHint": "The module's entry point the step calls for each record.",
       "computeNotRun": "The platform does not run a step of this kind yet ({kind}): the pipeline is accepted and stays Pending until it does. A Bloblang step runs today.",
       "live": "Live counts of the running stream since its runner started; run a test to see a sample instead.",
-      "liveErrors": "{count, plural, one {# error} other {# errors}} since the runner started"
+      "liveErrors": "{count, plural, one {# error} other {# errors}} since the runner started",
+      "tools": "Graph tools",
+      "undo": "Undo",
+      "redo": "Redo",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "fitted": "Fitted",
+      "fit": "Fit to width",
+      "asList": "Show as a list",
+      "listLabel": "The pipeline's nodes in the order they run",
+      "open": "Open",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "removeNode": "Remove",
+      "search": "Find a processor",
+      "searchPlaceholder": "Name, category or what it does",
+      "searchNone": "No processor matches \"{query}\".",
+      "searchFound": "{count, plural, one {# processor found} other {# processors found}}",
+      "wire": {
+        "intoSource": "A source reads from outside the pipeline; nothing wires into it.",
+        "outOfOutput": "Nothing runs after an output; draw the wire from a step instead.",
+        "self": "A node cannot feed itself.",
+        "middleIntoOutput": "Only the last step feeds the outputs. Move this step to the end, or put a branch or switch step before the output to send part of the messages elsewhere.",
+        "moved": "Step moved: the wire set the order the steps run in.",
+        "already": "These two are already wired."
+      },
+      "state": {
+        "configured": "Configured",
+        "missing": {
+          "source": "Needs a source",
+          "output": "Needs an endpoint",
+          "mapping": "Needs a mapping",
+          "mappingRef": "Needs a mapping name",
+          "module": "Needs a module"
+        }
+      }
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
@@ -1640,7 +1696,7 @@
         "slotsOf": "What {type} takes",
         "slots": "What the model takes",
         "noModel": "The target space names no data model, so no slot is known.",
-        "pickTarget": "Pick the target endpoint in step 6 to see what its model takes.",
+        "pickTarget": "Pick the target endpoint in step 3 to see what its model takes.",
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
@@ -1673,7 +1729,7 @@
         "someRejected": "{count, plural, one {# record breaks} other {# records break}} {model} {version} and would not be written; {valid} valid."
       },
       "target": {
-        "title": "Target and save",
+        "title": "Target",
         "hint": "Name the endpoint the records are written through; saving proposes a change.",
         "lands": "The records land in the space {space}, checked against the model {model}.",
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
@@ -1721,6 +1777,41 @@
         "notValue": "{field} holds “{value}”; {name} takes one of {values}.",
         "noId": "Choose the field each entity's id comes from."
       }
+    },
+    "debug": {
+      "add": "+ Debug",
+      "pickWire": "Select a node first: the Debug node taps the wire into it, or drag it onto a wire.",
+      "remove": "Remove this Debug node",
+      "badge": "debug",
+      "title": "Debug",
+      "clear": "Clear",
+      "noTaps": "Drop a Debug node on a wire to watch what crosses it on every test run.",
+      "filter": "Show the wires of",
+      "everyNode": "Every node",
+      "nothingYet": "Run the test to see what crosses the tapped wires.",
+      "messages": "What crossed the tapped wires, newest first",
+      "wholeSample": "Whole sample",
+      "message": "Message {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Nothing reached this wire.",
+      "failedHere": "This node failed",
+      "brokeIt": "The input that broke it:",
+      "changed": "What this node changed",
+      "unchanged": "Nothing: the message left as it came in.",
+      "kind": {
+        "added": "added",
+        "removed": "removed",
+        "changed": "changed"
+      },
+      "rerun": "Rerun this node on this input",
+      "rerunHint": "Only this node runs, on the input above; nothing is written.",
+      "rerunFailed": "Still failing",
+      "rerunOk": "Passed; what it made:",
+      "stepMode": "One message at a time",
+      "stepModeFile": "Step mode cuts a file sample into its messages; give a file instead of the URL.",
+      "runMessage": "Run message {number} of {total}",
+      "startOver": "Start over",
+      "position": "Message {number} of {total}"
     }
   },
   "dashboards": {

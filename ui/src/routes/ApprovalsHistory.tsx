@@ -1,0 +1,229 @@
+import { useId, useState } from "react";
+import type { FormEvent, JSX } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import { api, queryKeys, unwrap } from "../api/client";
+import { ResourceList } from "../components/ResourceList";
+import { LifecycleBadge } from "../components/status/LifecycleBadge";
+import {
+  Button,
+  EmptyState,
+  Field,
+  Input,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from "../components/ui";
+
+const COLUMNS = 5;
+
+interface Filter {
+  kind: string;
+  name: string;
+}
+
+/**
+ * The closed changes of a project (T-3292): what was merged or rejected, by whom and when,
+ * newest first, a page at a time. The API applies the read rule of the open list, so a change to
+ * a kind this person does not read is not here.
+ */
+export function ApprovalsHistory({
+  project,
+}: {
+  project: string;
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  const id = useId();
+  // What the form holds, and what the list was last asked for: a keystroke asks the forge nothing.
+  const [draft, setDraft] = useState<Filter>({ kind: "", name: "" });
+  const [filter, setFilter] = useState<Filter>({ kind: "", name: "" });
+
+  const history = useInfiniteQuery({
+    queryKey: [
+      ...queryKeys.changes(project),
+      "history",
+      filter.kind,
+      filter.name,
+    ] as const,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/changes/history", {
+          params: {
+            path: { project },
+            query: {
+              page: pageParam,
+              kind: filter.kind || undefined,
+              name: filter.name || undefined,
+            },
+          },
+        }),
+      ),
+    getNextPageParam: (last) => last.next ?? undefined,
+  });
+
+  const items = history.data?.pages.flatMap((page) => page.items) ?? [];
+  const kinds = [
+    ...new Set(
+      items
+        .map((item) => (item.summary.params as Record<string, unknown>).kind)
+        .filter((kind): kind is string => typeof kind === "string"),
+    ),
+  ];
+  const filtered = filter.kind !== "" || filter.name !== "";
+  const dateFormatter = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFilter({ kind: draft.kind.trim(), name: draft.name.trim() });
+  };
+  const clear = () => {
+    setDraft({ kind: "", name: "" });
+    setFilter({ kind: "", name: "" });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <form
+        role="search"
+        aria-label={t("approvals.history.filter")}
+        onSubmit={submit}
+        className="flex flex-wrap items-end gap-4"
+      >
+        <Field id={`${id}-kind`} label={t("approvals.history.kind")}>
+          <Input
+            id={`${id}-kind`}
+            list={`${id}-kinds`}
+            value={draft.kind}
+            placeholder="Endpoint"
+            onChange={(event) =>
+              setDraft({ ...draft, kind: event.target.value })
+            }
+          />
+        </Field>
+        <datalist id={`${id}-kinds`}>
+          {kinds.map((kind) => (
+            <option key={kind} value={kind} />
+          ))}
+        </datalist>
+        <Field id={`${id}-name`} label={t("approvals.history.name")}>
+          <Input
+            id={`${id}-name`}
+            value={draft.name}
+            onChange={(event) =>
+              setDraft({ ...draft, name: event.target.value })
+            }
+          />
+        </Field>
+        <Button type="submit" variant="primary">
+          {t("approvals.history.apply")}
+        </Button>
+        {filtered ? (
+          <Button type="button" variant="ghost" onClick={clear}>
+            {t("approvals.history.clear")}
+          </Button>
+        ) : null}
+      </form>
+      <ResourceList
+        query={history}
+        caption={t("approvals.history.caption")}
+        head={
+          <TableHead>
+            <TableHeaderCell>{t("approvals.summary")}</TableHeaderCell>
+            <TableHeaderCell>{t("approvals.history.outcome")}</TableHeaderCell>
+            <TableHeaderCell>
+              {t("approvals.history.proposedBy")}
+            </TableHeaderCell>
+            <TableHeaderCell>
+              {t("approvals.history.decidedBy")}
+            </TableHeaderCell>
+            <TableHeaderCell>{t("approvals.history.closed")}</TableHeaderCell>
+          </TableHead>
+        }
+        columns={COLUMNS}
+        count={items.length}
+        empty={
+          <EmptyState
+            bare
+            icon="approvals"
+            title={
+              filtered
+                ? t("approvals.noneMatch")
+                : history.hasNextPage
+                  ? t("approvals.history.noneOnPage")
+                  : t("approvals.history.empty")
+            }
+          />
+        }
+      >
+        {items.map((change) => (
+          <TableRow key={change.metadata.name}>
+            <TableCell primary>
+              <Link
+                to="/projects/$project/approvals/$id"
+                params={{ project, id: change.metadata.name }}
+                className="focus-ring rounded-sm text-primary-soft-fg hover:underline"
+              >
+                {t(
+                  change.summary.key,
+                  change.summary.params as Record<string, unknown>,
+                )}
+              </Link>
+              <div className="mt-0.5 font-mono text-caption text-fg-subtle">
+                {change.metadata.name}
+              </div>
+            </TableCell>
+            <TableCell>
+              <LifecycleBadge kind="phase" value={change.status.phase} />
+            </TableCell>
+            <TableCell>{change.author.name}</TableCell>
+            <TableCell>
+              {change.decision ? (
+                <>
+                  {change.decision.by}
+                  {change.decision.reason ? (
+                    <div className="mt-0.5 text-caption text-fg-muted">
+                      {t("approvals.history.reason", {
+                        reason: change.decision.reason,
+                      })}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <span className="text-fg-muted">
+                  {t("approvals.history.inForge")}
+                </span>
+              )}
+            </TableCell>
+            <TableCell className="whitespace-nowrap text-fg-muted">
+              {dateFormatter.format(
+                new Date(change.decision?.at ?? change.createdAt),
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </ResourceList>
+      {history.hasNextPage ? (
+        <div>
+          <Button
+            variant="secondary"
+            disabled={history.isFetchingNextPage}
+            onClick={() => {
+              void history.fetchNextPage();
+            }}
+          >
+            {history.isFetchingNextPage
+              ? t("app.loading")
+              : t("approvals.history.older")}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
