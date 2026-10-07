@@ -1963,6 +1963,47 @@
       "next": "Die nächsten fünf Läufe, in Ihrer Zeit",
       "never": "Dieser Zeitplan nennt keine Zeit in den nächsten vier Jahren.",
       "tooOften": "Dieser Zeitplan läuft öfter, als sich die Quelle ändert (ihr Katalogeintrag sagt: {frequency}), die meisten Läufe finden also nichts Neues."
+    },
+    "recipe": {
+      "title": "Mit einem Rezept beginnen",
+      "lead": "Wählen Sie, was die Pipeline tut, und geben Sie Quelle und Ziel an; die Schritte unten lesen eine Probe, entwerfen das Mapping und testen es, bevor etwas vorgeschlagen wird.",
+      "use": "Pipeline ausfüllen",
+      "choose": "Auswählen…",
+      "target": "Wohin sie schreibt",
+      "targetHelp": "Der Endpoint, über den die Datensätze gehen; geprüft wird gegen das Modell seines Raums.",
+      "none": {
+        "datasource": "Das Projekt hat noch keine Datenquelle: Legen Sie unter Datenquellen eine aus einer Vorlage an.",
+        "endpoint": "Das Projekt hat noch keinen Endpoint zum Lesen."
+      },
+      "csv": {
+        "title": "CSV-Datei zu Entitäten",
+        "what": "Eine als Datei veröffentlichte Tabelle, täglich um 03:00 UTC geladen.",
+        "source": "Die Datenquelle der Datei"
+      },
+      "api": {
+        "title": "Eine API abfragen",
+        "what": "Eine JSON-API, alle 15 Minuten gelesen.",
+        "source": "Die Datenquelle der API"
+      },
+      "ckan": {
+        "title": "Einen CKAN-Datensatz einsammeln",
+        "what": "Eine Ressource eines Open-Data-Katalogs, täglich um 04:00 UTC geladen.",
+        "source": "Die Datenquelle der CKAN-Ressource"
+      },
+      "kpi": {
+        "title": "Eine KPI-Aggregation",
+        "what": "Der Durchschnitt eines Attributs über einen Typ, alle 15 Minuten, als KPI-Entität.",
+        "source": "Der zu lesende Endpoint",
+        "type": "Entitätstyp",
+        "attribute": "Zu mittelndes Attribut",
+        "attributeHelp": "Ein numerisches Attribut des Typs, mit seinem Namen im Modell."
+      },
+      "problem": {
+        "source": "Wählen Sie die Quelle.",
+        "target": "Wählen Sie, wohin die Pipeline schreibt.",
+        "type": "Nennen Sie den zu aggregierenden Entitätstyp.",
+        "attribute": "Nennen Sie ein numerisches Attribut: Buchstaben, Ziffern und Unterstriche."
+      }
     }
   },
   "dashboards": {

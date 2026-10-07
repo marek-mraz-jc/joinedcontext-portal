@@ -1346,6 +1346,14 @@
         "pipeline_workbench.test.tsx"
       ]
     },
+    "src/pages/pipelines/RecipeGallery.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "pipeline_recipes.test.tsx"
+      ]
+    },
     "src/pages/pipelines/SlotUnit.tsx": {
       "controls": {
         "Button": 1
