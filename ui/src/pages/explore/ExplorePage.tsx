@@ -18,6 +18,7 @@ import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
 import { ExportView } from "./ExportView";
 import { UseThisData } from "./UseThisData";
+import { ExploreMap, isLocated } from "./ExploreMap";
 import { andQ } from "./exportView";
 import type { ViewSort } from "./exportView";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
@@ -88,7 +89,7 @@ export function ExplorePage({
   );
   const [selected, setSelected] = useState<string | null>(initialEntityId ?? null);
   // The type's entities, or its data-quality report (T-3252).
-  const [view, setView] = useState<"entities" | "quality">("entities");
+  const [view, setView] = useState<"entities" | "quality" | "map">("entities");
   const [removing, setRemoving] = useState(false);
   /** What the grid's filter row asks and its order, for the export of the whole view (T-3253). */
   const [gridAsk, setGridAsk] = useState<{ q?: string; idPattern?: string }>({});
@@ -139,6 +140,17 @@ export function ExplorePage({
   // and on. It also stops the LinkML being parsed once per render.
   const modelSource = useModelSource(project, model);
   const slots = useMemo(() => filterSlotsOf(modelSource, query.type), [modelSource, query.type]);
+  const located = isLocated(slots);
+  const geoAttrs = useMemo(() => {
+    // The model's GeoProperties, `location` first; a model that marks none still has `location`.
+    const named = slots.filter((slot) => slot.kind === "GeoProperty").map((slot) => slot.name);
+    return named.length === 0 ? ["location"] : [...named].sort((a, b) => Number(b === "location") - Number(a === "location"));
+  }, [slots]);
+  const popupColumns = useMemo(() => {
+    const plain = slots.filter((slot) => slot.kind !== "GeoProperty" && slot.kind !== "Relationship").map((slot) => slot.name);
+    const chosen = (query.attrs ?? []).filter((attr) => plain.includes(attr));
+    return [...new Set(["name", ...chosen, ...plain])].filter((attr) => plain.includes(attr));
+  }, [slots, query.attrs]);
   // An enum slot is edited and filtered in the grid by picking its values (UI-86).
   const enums = useMemo(() => enumsOfModel(modelSource, query.type, locale), [modelSource, query.type, locale]);
   const rules = useMemo(() => rulesOfModel(modelSource, query.type), [modelSource, query.type]);
@@ -373,6 +385,8 @@ export function ExplorePage({
           label={t("explore.views")}
           tabs={[
             { value: "entities", label: t("explore.entities") },
+            // A type with a place opens on the map too (T-3256).
+            ...(located ? [{ value: "map" as const, label: t("explore.map.tab") }] : []),
             { value: "quality", label: t("explore.quality.tab") },
           ]}
           value={view}
@@ -383,8 +397,23 @@ export function ExplorePage({
         <div {...tabPanelProps("explore-view", "quality")}>
           <TypeQuality project={project} space={space} type={query.type} />
         </div>
-      ) : config ? (
-        <div {...(space && query.type ? tabPanelProps("explore-view", "entities") : {})}>
+      ) : null}
+      {config && space && query.type && slug && located && view === "map" ? (
+        <div {...tabPanelProps("explore-view", "map")}>
+          <ExploreMap
+            project={project}
+            slug={slug}
+            query={{ ...query, q: andQ(query.q, gridAsk.q), idPattern: gridAsk.idPattern }}
+            columns={popupColumns}
+            geo={geoAttrs}
+            onOpen={setSelected}
+          />
+        </div>
+      ) : null}
+      {config ? (
+        // The table stays mounted under the other views: its filter row is the map's filter too,
+        // and coming back finds it as it was left (T-3256).
+        <div hidden={Boolean(space && query.type) && view !== "entities"} {...(space && query.type ? tabPanelProps("explore-view", "entities") : {})}>
           <PortalEntityGrid
             key={`${slug}-${query.type}-${generation}`}
             project={project}

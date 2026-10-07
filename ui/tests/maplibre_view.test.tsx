@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { MapLibreView } from "../src/components/dashboards/MapLibreView";
 
 // jsdom has no WebGL, so the map itself is a recorder: the assertions are about what the
 // view asks MapLibre for — the sources, the layers, the click handlers.
@@ -13,9 +14,10 @@ const calls = vi.hoisted(() => ({
   sources: [] as { id: string; source: Record<string, unknown> }[],
   layers: [] as Record<string, unknown>[],
   clickHandlers: new Map<string, (event: unknown) => void>(),
-  popups: [] as { html: string }[],
+  popups: [] as { html: string; node?: HTMLElement }[],
   errorHandlers: [] as (() => void)[],
   styles: [] as unknown[],
+  once: [] as string[],
   throwOnConstruct: false,
   workerUrls: [] as string[],
 }));
@@ -48,6 +50,9 @@ vi.mock("maplibre-gl", () => {
         calls.clickHandlers.set(second, third as (event: unknown) => void);
       }
     }
+    once(event: string) {
+      calls.once.push(event);
+    }
     remove() {}
     isStyleLoaded() {
       return false;
@@ -60,6 +65,7 @@ vi.mock("maplibre-gl", () => {
     }
     removeLayer() {}
     removeSource() {}
+    easeTo() {}
     fitBounds() {}
     getBounds() {
       return { getWest: () => 0, getSouth: () => 0, getEast: () => 1, getNorth: () => 1 };
@@ -71,6 +77,10 @@ vi.mock("maplibre-gl", () => {
     }
     setHTML(html: string) {
       calls.popups.push({ html });
+      return this;
+    }
+    setDOMContent(node: HTMLElement) {
+      calls.popups.push({ html: node.innerHTML, node });
       return this;
     }
     addTo() {
@@ -187,6 +197,7 @@ describe("map dashboard", () => {
     calls.constructed.length = 0;
     calls.errorHandlers.length = 0;
     calls.styles.length = 0;
+    calls.once.length = 0;
     calls.sources.length = 0;
     calls.layers.length = 0;
     calls.popups.length = 0;
@@ -230,6 +241,9 @@ describe("map dashboard", () => {
     calls.errorHandlers.forEach((handler) => handler());
     expect(calls.styles).toHaveLength(1);
     expect(calls.styles[0]).toMatchObject({ version: 8, sources: {} });
+    // The map's own `load` never comes after its first style failed: the plain ground's
+    // `style.load` is what lets the layers be added (T-3256).
+    expect(calls.once).toEqual(["style.load"]);
   });
 
   it("loads the layer as GeoJSON from the endpoint, filters included (UI-22)", async () => {
@@ -291,5 +305,52 @@ describe("map dashboard", () => {
 
     const legend = await screen.findByText("air-quality-stations");
     expect(within(legend.closest("li") as HTMLElement).getByText(/pm10/)).toBeInTheDocument();
+  });
+});
+
+describe("a clustered point layer (T-3256)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    calls.sources.length = 0;
+    calls.layers.length = 0;
+    calls.popups.length = 0;
+    calls.clickHandlers.clear();
+    calls.throwOnConstruct = false;
+  });
+
+  it("clusters the points, draws the clusters apart, and opens a popup with the entity's button", async () => {
+    const opened: string[] = [];
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MapLibreView
+          label="Map of BikeStation"
+          layers={[
+            {
+              name: "explore-entities",
+              url: "",
+              data: { type: "FeatureCollection", features: [] },
+              style: "circle",
+              cluster: true,
+              popupProperties: ["name"],
+              open: { label: "Open the entity", onOpen: (id) => opened.push(id) },
+            },
+          ]}
+        />
+      </I18nextProvider>,
+    );
+    await waitFor(() => expect(calls.sources).toHaveLength(1));
+    expect(calls.sources[0].source).toMatchObject({ cluster: true, clusterRadius: 48, clusterMaxZoom: 14 });
+    expect(calls.layers.map((layer) => [layer.id, layer.filter])).toEqual([
+      ["explore-entities", ["!", ["has", "point_count"]]],
+      ["explore-entities--clusters", ["has", "point_count"]],
+    ]);
+    calls.clickHandlers.get("explore-entities")?.({
+      lngLat: { lng: 24.9, lat: 60.2 },
+      features: [{ properties: { id: "urn:ngsi-ld:BikeStation:1", name: "Kamppi" } }],
+    });
+    const node = calls.popups[0].node as HTMLElement;
+    expect(node.textContent).toContain("Kamppi");
+    within(node).getByRole("button", { name: "Open the entity" }).click();
+    expect(opened).toEqual(["urn:ngsi-ld:BikeStation:1"]);
   });
 });

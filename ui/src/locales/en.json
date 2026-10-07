@@ -2214,7 +2214,10 @@
         "confirmRotate": "Rotate and show the key",
         "cancel": "Not now",
         "gone": "This link has expired, was already used, or belongs to someone else. Ask for the key again from your MCP client."
-      }
+      },
+      "expiresIn": "{count, plural, one {expires in # day} other {expires in # days}}",
+      "expired": "expired",
+      "ending": "Keys that expire within {days} days or have expired: {count}. Rotate them before the programs that use them fail."
     },
     "matrix": {
       "title": "Data access",
@@ -3609,6 +3612,15 @@
         "python": "Python 3 (no packages needed)",
         "javascript": "JavaScript (Node 18 or later)"
       }
+    },
+    "map": {
+      "tab": "Map",
+      "loading": "Reading the located entities…",
+      "none": "No entity of this view has a location.",
+      "count": "{shown} of {total} on the map",
+      "truncated": "Only the first {max}: narrow the filter to see the rest.",
+      "label": "Map of {type}",
+      "open": "Open the entity"
     }
   },
   "agentRun": {
