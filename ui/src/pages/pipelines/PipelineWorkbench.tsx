@@ -35,6 +35,7 @@ import type { SampleFormat } from "./PipelineTest";
 import { SlotUnit } from "./SlotUnit";
 import { OutputMapper } from "./OutputMapper";
 import { HEADER } from "./outputMapper";
+import { SpaceChanges } from "./SpaceChanges";
 
 /** How long the mapping rests before the workbench tries it again: one pause in typing. */
 export const QUIET_MS = 600;
@@ -877,6 +878,9 @@ export function PipelineWorkbench({
                   version: validated.data.version,
                 })}
           </Alert>
+        ) : null}
+        {draft?.targetEndpoint && targetSpace && records.length > 0 ? (
+          <SpaceChanges key={targetSpace} space={targetSpace} records={records} />
         ) : null}
       </Step>
       <p className="text-caption text-fg-subtle">{t("pipelines.workbench.target.save")}</p>

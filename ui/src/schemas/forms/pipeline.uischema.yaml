@@ -88,12 +88,11 @@ spec:
         cs: Způsob běhu pipeline; automaticky zvolí stálý běh nebo rozvrh podle periody.
         de: Ausführungsart der Pipeline; automatisch wählt anhand der Periode zwischen Dauerbetrieb und Zeitplan.
     schedule:
-      placeholder: "0 4 * * *"
       help:
-        en: When the runs start, as five cron fields; 0 4 * * * is every day at 04:00.
-        sk: Kedy sa behy spúšťajú, ako päť polí cron; 0 4 * * * je každý deň o 04:00.
-        cs: Kdy se běhy spouštějí, jako pět polí cron; 0 4 * * * je každý den ve 04:00.
-        de: Wann die Läufe starten, als fünf Cron-Felder; 0 4 * * * ist täglich um 04:00.
+        en: When the runs start. Pick how often, or write the five cron fields; times are UTC, and the next runs show in your own time.
+        sk: Kedy sa behy spúšťajú. Vyberte, ako často, alebo napíšte päť polí cron; časy sú v UTC a ďalšie behy sa ukážu vo vašom čase.
+        cs: Kdy se běhy spouštějí. Vyberte, jak často, nebo napište pět polí cron; časy jsou v UTC a další běhy se ukážou ve vašem čase.
+        de: Wann die Läufe starten. Wählen Sie, wie oft, oder schreiben Sie die fünf Cron-Felder; Zeiten sind UTC, die nächsten Läufe erscheinen in Ihrer Zeit.
     period:
       help:
         en: Polling interval between successive fetches, such as 60s, 15m, or 1h.
