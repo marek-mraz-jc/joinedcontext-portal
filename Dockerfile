@@ -157,9 +157,6 @@ COPY --from=sdk /sdk/dist ./sdk/dist
 COPY sdk/template ./sdk/template
 # So is the gallery a run adapts when the request is of a sample's kind (src/agents/samples.rs).
 COPY sdk/samples ./sdk/samples
-# The kit's capabilities file is compiled into the binary (`include_str!` in
-# src/agents/oneshot.rs, AP-65), so it is a build input of the Rust stage too.
-COPY sdk/kit.json ./sdk/kit.json
 # A code run's prompt carries the SDK's API and export list (`include_str!` in src/agents/code.rs).
 COPY sdk/API.md ./sdk/API.md
 COPY sdk/src/sdk/index.ts ./sdk/src/sdk/index.ts

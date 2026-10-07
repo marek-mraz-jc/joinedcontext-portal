@@ -893,7 +893,7 @@ export interface paths {
         /**
          * The preview of a run in one document, because the frame it is shown in has no origin to
          *     fetch anything else with (AP-50, AP-60, UI-41): a code run's `src/**` transpiled onto the SDK
-         *     runtime (SDK-16), else the kit bundle rendering `spec.json`.
+         *     runtime (SDK-16).
          */
         get: operations["preview"];
         put?: never;
@@ -7515,7 +7515,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description One document: a code run's interface on the SDK runtime, or the kit rendering a kit run's specification */
+            /** @description One document: a code run's interface on the SDK runtime */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7551,7 +7551,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description This Portal was built without the kit or the SDK runtime */
+            /** @description This Portal was built without the SDK runtime */
             503: {
                 headers: {
                     [name: string]: unknown;
