@@ -220,7 +220,28 @@
       "merged": "{change}, na ktorú táto zmena čaká, je zlúčená.",
       "rejected": "{change}, na ktorú táto zmena čaká, bola zamietnutá: to, čo táto zmena menuje, nevznikne. Zamietnite ju alebo ju navrhnite znova."
     },
-    "back": "Všetky schvaľovania"
+    "back": "Všetky schvaľovania",
+    "tabs": {
+      "open": "Čaká na rozhodnutie",
+      "history": "História"
+    },
+    "history": {
+      "filter": "Filtrovať históriu",
+      "kind": "Druh",
+      "name": "Názov obsahuje",
+      "apply": "Filtrovať",
+      "clear": "Zrušiť filter",
+      "caption": "Uzavreté zmeny",
+      "outcome": "Výsledok",
+      "proposedBy": "Navrhol(a)",
+      "decidedBy": "Rozhodol(a)",
+      "closed": "Uzavreté",
+      "reason": "Dôvod: {reason}",
+      "inForge": "Uzavreté v repozitári",
+      "older": "Zobraziť staršie zmeny",
+      "empty": "Zatiaľ nebola zlúčená ani zamietnutá žiadna zmena.",
+      "noneOnPage": "Žiadnu z týchto zmien nemáte právo čítať. Staršie možno áno."
+    }
   },
   "lane": {
     "green": "Zelená",

@@ -7,6 +7,7 @@ import {
   ACTIVITY_KINDS,
   ACTIVITY_SOURCES,
   activitySearch,
+  changeOf,
   mergeActivity,
   objectOf,
   subscribeActivity,
@@ -44,7 +45,9 @@ export function kindLabel(
 ): string {
   const what = t(`activity.kinds.${event.kind}`, { defaultValue: event.kind });
   const namesFailure = /\.(error|denied)$/.test(event.kind);
-  return event.severity === "error" && !namesFailure ? t("activity.failed", { what }) : what;
+  return event.severity === "error" && !namesFailure
+    ? t("activity.failed", { what })
+    : what;
 }
 
 /** One row of the feed: an event, and how often the same thing happened again (T-2760). */
@@ -66,7 +69,13 @@ export function groupRepeats(events: ActivityEvent[]): ActivityRow[] {
   const rows: ActivityRow[] = [];
   const byKey = new Map<string, ActivityRow>();
   for (const event of events) {
-    const key = JSON.stringify([event.kind, event.source, event.severity, event.summary, objectOf(event) ?? ""]);
+    const key = JSON.stringify([
+      event.kind,
+      event.source,
+      event.severity,
+      event.summary,
+      objectOf(event) ?? "",
+    ]);
     const seen = byKey.get(key);
     if (seen) {
       seen.count += 1;
@@ -156,7 +165,11 @@ export function ActivityFeed({
   }, [project, tailing, filterKey, query]);
 
   const items = useMemo(
-    () => mergeActivity((page.data?.items ?? []) as ActivityEvent[], live).slice(0, limit),
+    () =>
+      mergeActivity((page.data?.items ?? []) as ActivityEvent[], live).slice(
+        0,
+        limit,
+      ),
     [page.data, live, limit],
   );
 
@@ -204,11 +217,18 @@ export function ActivityFeed({
     );
   }
 
-  const time = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium" });
+  const time = new Intl.DateTimeFormat(locale, {
+    dateStyle: "short",
+    timeStyle: "medium",
+  });
 
   const filters = compact ? null : (
     <div className="flex flex-wrap items-end gap-3">
-      <Field id={`${ids}-kind`} label={t("activity.filter.kind")} className="w-56">
+      <Field
+        id={`${ids}-kind`}
+        label={t("activity.filter.kind")}
+        className="w-56"
+      >
         <Select
           id={`${ids}-kind`}
           value={kind}
@@ -222,7 +242,11 @@ export function ActivityFeed({
           ))}
         </Select>
       </Field>
-      <Field id={`${ids}-source`} label={t("activity.filter.source")} className="w-44">
+      <Field
+        id={`${ids}-source`}
+        label={t("activity.filter.source")}
+        className="w-44"
+      >
         <Select
           id={`${ids}-source`}
           value={source}
@@ -236,7 +260,11 @@ export function ActivityFeed({
           ))}
         </Select>
       </Field>
-      <Field id={`${ids}-severity`} label={t("activity.filter.severity")} className="w-44">
+      <Field
+        id={`${ids}-severity`}
+        label={t("activity.filter.severity")}
+        className="w-44"
+      >
         <Select
           id={`${ids}-severity`}
           value={severity}
@@ -292,6 +320,7 @@ export function ActivityFeed({
           <TableBody>
             {groupRepeats(items).map(({ event, count, since }) => {
               const object = objectOf(event);
+              const change = changeOf(event);
               return (
                 <TableRow key={`${event.time}-${event.kind}-${event.summary}`}>
                   <TableCell className="whitespace-nowrap text-fg-muted">
@@ -308,23 +337,42 @@ export function ActivityFeed({
                   <TableCell primary>
                     {event.summary}
                     {count > 1 ? (
-                      <div className="mt-0.5 text-caption text-fg-muted" data-testid="activity-repeats">
-                        {t("activity.repeated", { count, since: time.format(new Date(since)) })}
+                      <div
+                        className="mt-0.5 text-caption text-fg-muted"
+                        data-testid="activity-repeats"
+                      >
+                        {t("activity.repeated", {
+                          count,
+                          since: time.format(new Date(since)),
+                        })}
                       </div>
                     ) : null}
-                    {object ? (
-                      <div className="mt-0.5">
-                        <a
-                          href={`/projects/${encodeURIComponent(project)}/${object}`}
-                          className="focus-ring rounded-sm font-mono text-caption text-primary-soft-fg hover:underline"
-                        >
-                          {object}
-                        </a>
+                    {object || change ? (
+                      <div className="mt-0.5 flex flex-wrap gap-x-3">
+                        {object ? (
+                          <a
+                            href={`/projects/${encodeURIComponent(project)}/${object}`}
+                            className="focus-ring rounded-sm font-mono text-caption text-primary-soft-fg hover:underline"
+                          >
+                            {object}
+                          </a>
+                        ) : null}
+                        {/* What went live, and who approved it, is on the change's own page (T-3292). */}
+                        {change ? (
+                          <a
+                            href={`/projects/${encodeURIComponent(project)}/approvals/${change}`}
+                            className="focus-ring rounded-sm font-mono text-caption text-primary-soft-fg hover:underline"
+                          >
+                            {change}
+                          </a>
+                        ) : null}
                       </div>
                     ) : null}
                   </TableCell>
                   <TableCell className="text-fg-muted">
-                    {t(`activity.sources.${event.source}`, { defaultValue: event.source })}
+                    {t(`activity.sources.${event.source}`, {
+                      defaultValue: event.source,
+                    })}
                   </TableCell>
                 </TableRow>
               );

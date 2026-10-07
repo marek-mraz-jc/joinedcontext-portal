@@ -220,7 +220,28 @@
       "merged": "{change}, na kterou tato změna čeká, je sloučená.",
       "rejected": "{change}, na kterou tato změna čeká, byla zamítnuta: to, co tato změna jmenuje, nevznikne. Zamítněte ji nebo ji navrhněte znovu."
     },
-    "back": "Všechna schvalování"
+    "back": "Všechna schvalování",
+    "tabs": {
+      "open": "Čeká na rozhodnutí",
+      "history": "Historie"
+    },
+    "history": {
+      "filter": "Filtrovat historii",
+      "kind": "Druh",
+      "name": "Název obsahuje",
+      "apply": "Filtrovat",
+      "clear": "Zrušit filtr",
+      "caption": "Uzavřené změny",
+      "outcome": "Výsledek",
+      "proposedBy": "Navrhl(a)",
+      "decidedBy": "Rozhodl(a)",
+      "closed": "Uzavřeno",
+      "reason": "Důvod: {reason}",
+      "inForge": "Uzavřeno v repozitáři",
+      "older": "Zobrazit starší změny",
+      "empty": "Zatím nebyla sloučena ani zamítnuta žádná změna.",
+      "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano."
+    }
   },
   "lane": {
     "green": "Zelená",

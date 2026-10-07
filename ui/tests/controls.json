@@ -1430,6 +1430,14 @@
         "approval_actions.test.tsx"
       ]
     },
+    "src/routes/ApprovalsHistory.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "approvals_history.test.tsx"
+      ]
+    },
     "src/routes/ApprovalsPage.tsx": {
       "controls": {
         "Checkbox": 1

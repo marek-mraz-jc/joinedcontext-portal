@@ -220,7 +220,28 @@
       "merged": "{change}, which this change waits on, is merged.",
       "rejected": "{change}, which this change waits on, was rejected: what this change names will not be created. Reject it, or propose it again."
     },
-    "back": "All approvals"
+    "back": "All approvals",
+    "tabs": {
+      "open": "Waiting for a decision",
+      "history": "History"
+    },
+    "history": {
+      "filter": "Filter the history",
+      "kind": "Kind",
+      "name": "Name contains",
+      "apply": "Filter",
+      "clear": "Clear",
+      "caption": "Closed changes",
+      "outcome": "Outcome",
+      "proposedBy": "Proposed by",
+      "decidedBy": "Decided by",
+      "closed": "Closed",
+      "reason": "Reason: {reason}",
+      "inForge": "Closed in the repository",
+      "older": "Show older changes",
+      "empty": "No change has been merged or rejected yet.",
+      "noneOnPage": "None of these changes is one you may read. Older ones may be."
+    }
   },
   "lane": {
     "green": "Green",

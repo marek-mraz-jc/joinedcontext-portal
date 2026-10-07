@@ -4778,6 +4778,108 @@
         }
       }
     },
+    "/api/v1/projects/{project}/changes/history": {
+      "get": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "List Closed Changes",
+        "description": "One page of the merged and rejected changes, most recently closed first, each naming who decided it; `next` is the page that continues it.",
+        "operationId": "list_change_history",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "The page of closed changes, from 1; `next` of the previous answer.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "Closed changes to one kind only, as `Endpoint`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Closed changes whose resource name contains this, any case.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of closed changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown parameter or page 0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Git forge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/changes/{id}": {
       "get": {
         "tags": [
@@ -14215,6 +14317,32 @@
           }
         }
       },
+      "ChangeDecision": {
+        "type": "object",
+        "description": "Who decided a closed change: the approver of a merge, the rejecter of a closed one.",
+        "required": [
+          "by"
+        ],
+        "properties": {
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC 3339, when the forge merged or closed it."
+          },
+          "by": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The rejecter's reason, when they gave one."
+          }
+        }
+      },
       "ChangeFile": {
         "type": "object",
         "description": "One file of the merge request behind a change (T-0861, MF-21, CC-63).\n\nA bundle merge request carries more than its headline: the approval walks every file and\nthe strictest lane among them decides the confirmation (T-0832), so the page has to show\nthe same list. What the approver reads is what the server checks.",
@@ -14273,6 +14401,15 @@
           },
           "kind": {
             "type": "string"
+          },
+          "next": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The `page` that continues a history listing, while the forge has older ones.",
+            "minimum": 0
           }
         }
       },
@@ -14325,6 +14462,17 @@
           },
           "createdAt": {
             "type": "string"
+          },
+          "decision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChangeDecision",
+                "description": "Who merged or rejected a closed change, when and why, as the Portal recorded it on the\nforge (T-3292); absent on an open change and on one closed in the forge itself."
+              }
+            ]
           },
           "fileCount": {
             "type": [

@@ -61,7 +61,8 @@ export function isActivityEvent(value: unknown): value is ActivityEvent {
     return false;
   }
   const event = value as Record<string, unknown>;
-  const said = (field: string) => typeof event[field] === "string" && event[field] !== "";
+  const said = (field: string) =>
+    typeof event[field] === "string" && event[field] !== "";
   return (
     ["kind", "severity", "source", "summary", "time"].every(said) &&
     !Number.isNaN(Date.parse(event.time as string))
@@ -85,7 +86,8 @@ export function subscribeActivity(
   query: ActivityQuery,
   onEvent: (event: ActivityEvent) => void,
 ): () => void {
-  const Source = (globalThis as { EventSource?: typeof EventSource }).EventSource;
+  const Source = (globalThis as { EventSource?: typeof EventSource })
+    .EventSource;
   if (!Source) {
     return () => {};
   }
@@ -128,7 +130,9 @@ export function mergeActivity(
 ): ActivityEvent[] {
   const readable = known.filter(isActivityEvent);
   const seen = new Set(readable.map(identity));
-  const fresh = arriving.filter((event) => isActivityEvent(event) && !seen.has(identity(event)));
+  const fresh = arriving.filter(
+    (event) => isActivityEvent(event) && !seen.has(identity(event)),
+  );
   if (fresh.length === 0) {
     return readable.length === known.length ? known : readable;
   }
@@ -153,11 +157,24 @@ function identity(event: ActivityEvent): string {
 const LABEL = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 
 /** The object page an event opens, as `{plural}/{name}`, or nothing when it is not one. */
+/** The Change a `change.merged` event names (T-3292), when it is a change id. */
+export function changeOf(event: ActivityEvent): string | undefined {
+  const details = event.details as Record<string, unknown> | undefined;
+  const change = details?.change;
+  return event.kind === "change.merged" &&
+    typeof change === "string" &&
+    /^chg-(org-)?[0-9a-f]{8}$/.test(change)
+    ? change
+    : undefined;
+}
+
 export function objectOf(event: ActivityEvent): string | undefined {
   const details = event.details as Record<string, unknown> | undefined;
   const object = details?.object;
   if (typeof object !== "string") return undefined;
   const parts = object.split("/");
   if (parts.length !== 2) return undefined;
-  return parts.every((part) => part.length <= 63 && LABEL.test(part)) ? object : undefined;
+  return parts.every((part) => part.length <= 63 && LABEL.test(part))
+    ? object
+    : undefined;
 }

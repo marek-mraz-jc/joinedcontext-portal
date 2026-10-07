@@ -784,6 +784,7 @@ mod tests {
             file_count: None,
             workspace: None,
             waits_on: Vec::new(),
+            decision: None,
         }
     }
 
