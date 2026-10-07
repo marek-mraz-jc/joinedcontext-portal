@@ -1644,6 +1644,48 @@
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
         "save": "Name the pipeline below and propose it: nothing is written until the change is approved."
       }
+    },
+    "mapper": {
+      "mode": "How each record becomes an entity",
+      "modeMap": "Map fields",
+      "modeCode": "Write Bloblang",
+      "type": "Entity type",
+      "typeHint": "A type of the target space's data model; its attributes are listed below.",
+      "loading": "Reading the type's attributes…",
+      "failed": "The type's attributes could not be read: {reason}",
+      "handWritten": "This mapping was written by hand. Mapping fields replaces it with a generated one.",
+      "replace": "Map fields instead",
+      "restore": "Restore the hand-written code",
+      "noSample": "Read a sample in step 2 to choose among its fields.",
+      "id": "Id from field",
+      "idHint": "Each entity's id is urn:ngsi-ld:{type}:organization:{space}:value of this field.",
+      "attributes": "Attributes of {type}",
+      "required": "required",
+      "unit": "in {code}",
+      "target": "points at {target}",
+      "sourceOf": "Source of {name}",
+      "notMapped": "— not mapped —",
+      "fields": "Fields of the sample",
+      "expression": "Bloblang expression…",
+      "fixedValue": "Fixed value…",
+      "point": "Point from longitude and latitude…",
+      "expressionOf": "Bloblang expression for {name}",
+      "valueOf": "Fixed value of {name}",
+      "longitude": "Longitude field",
+      "latitude": "Latitude field",
+      "missingAttribute": "An attribute the model lacks?",
+      "openModel": "Add it to the data model {model}",
+      "preview": "What the first records become",
+      "previewHint": "Computed here from the sample; the test run in step 4 runs the real mapping.",
+      "previewEmpty": "No record to preview yet.",
+      "problem": {
+        "required": "{name} is required: map a field to it or give it a value.",
+        "notInSample": "The sample has no field {field}.",
+        "notNumber": "{field} holds “{value}”, which is not a number; {name} takes a number.",
+        "notBoolean": "{field} holds “{value}”, which is not true or false; {name} takes true or false.",
+        "notValue": "{field} holds “{value}”; {name} takes one of {values}.",
+        "noId": "Choose the field each entity's id comes from."
+      }
     }
   },
   "dashboards": {
