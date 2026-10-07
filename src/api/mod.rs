@@ -47,6 +47,7 @@ pub mod setup;
 pub mod space_usage;
 pub mod sync;
 pub mod sync_sources;
+pub mod type_attributes;
 pub mod validation;
 pub mod webhook;
 pub mod workspaces;
@@ -96,6 +97,7 @@ pub fn router() -> Router<AppState> {
         .merge(quality::router())
         .merge(space_usage::router())
         .merge(data_views::router())
+        .merge(type_attributes::router())
         .merge(entity_trash::router())
         .merge(entity_comments::router())
         .merge(knowledge::router())

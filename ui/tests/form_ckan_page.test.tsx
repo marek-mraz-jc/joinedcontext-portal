@@ -209,6 +209,80 @@ describe("the catalogue form (T-1765)", () => {
     expect(screen.getByLabelText(/^URL/)).toHaveAttribute("aria-invalid", "true");
   });
 
+  it.each([
+    ["a JWT", "eyJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJ4In0.c2ln", /looks like the API token itself/],
+    ["a legacy API key", "3f2b8c1e-9a4d-4e2f-8b1c-7d6e5f4a3b2c", /looks like the API token itself/],
+    ["an upper-case name", "CKAN_Token", /lowercase letters, digits, dashes and dots/],
+  ])("refuses_%s_in_the_secret_name_and_sends_nothing (T-3215)", async (_what, typed, sentence) => {
+    const sent: string[] = [];
+    const user = userEvent.setup();
+    renderPage(page(), {
+      path: `/projects/${PROJECT}`,
+      answer: (url) => {
+        const own = reads()(url);
+        if (own) return own;
+        if (url.pathname === INSTANCES) sent.push("proposed");
+        return undefined;
+      },
+    });
+    await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
+    await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
+    await user.type(screen.getByLabelText(/API token secret/), typed);
+    await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
+
+    expect(await screen.findByText(sentence)).toBeInTheDocument();
+    expect(sent, "a token or an invalid secret name was proposed").toEqual([]);
+    expect(screen.getByLabelText(/API token secret/)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText(/API token secret/)).toHaveFocus();
+  });
+
+  it("names_the_key_inside_the_secret_and_sends_what_was_typed (T-3215)", async () => {
+    const bodies: unknown[] = [];
+    const user = userEvent.setup();
+    renderPage(page(), {
+      path: `/projects/${PROJECT}`,
+      answer: async (url, request) => {
+        const own = reads()(url);
+        if (own) return own;
+        if (url.pathname === INSTANCES) {
+          bodies.push(await request.clone().json());
+          return json({ apiVersion: API, kind: "Change", metadata: { name: "chg-9" } }, 201);
+        }
+        return undefined;
+      },
+    });
+    await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
+    await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
+    await user.type(screen.getByLabelText(/API token secret/), "ckan-api-token");
+    const key = screen.getByLabelText(/Key inside the secret/);
+    expect(key).toHaveValue("apiToken");
+    await user.clear(key);
+    await user.type(key, "token");
+    await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
+
+    await waitFor(() => expect(bodies.length).toBeGreaterThan(0));
+    expect(JSON.stringify(bodies.at(-1))).toContain('"apiTokenRef":{"name":"ckan-api-token","key":"token"}');
+  });
+
+  it("offers_the_publish_flow_once_a_catalogue_exists_and_says_why_not_before (T-3215)", async () => {
+    const first = renderPage(page(), {
+      path: `/projects/${PROJECT}`,
+      answer: reads({ status: () => json({ instances: [], publications: [] }) }),
+    });
+    expectDenied(
+      await screen.findByRole("button", { name: i18n.t("catalogue.publish.open") }),
+      i18n.t("ckan.publications.needsCatalogue"),
+    );
+    first.unmount();
+
+    const user = userEvent.setup();
+    renderPage(page(), { path: `/projects/${PROJECT}`, answer: reads() });
+    const open = await screen.findByRole("button", { name: i18n.t("catalogue.publish.open") });
+    await waitFor(() => expect(open).not.toHaveAttribute("aria-disabled"));
+    await user.click(open);
+    expect(await screen.findByRole("dialog", { name: i18n.t("catalogue.publish.title") })).toBeInTheDocument();
+  });
+
   it("says_the_status_could_not_be_read_instead_of_claiming_there_is_nothing", async () => {
     renderPage(page(), {
       path: `/projects/${PROJECT}`,

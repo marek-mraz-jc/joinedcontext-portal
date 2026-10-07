@@ -147,7 +147,14 @@
     "dropOne": "Datei hierher ziehen oder auswählen",
     "dropMany": "Dateien hierher ziehen oder auswählen",
     "chosenFiles": "Ausgewählt: {names}",
-    "advancedModeHint": "Zeigt auch die Felder, die die meisten Manifeste auf ihren Standardwerten lassen; die Wahl wird für Sie gespeichert."
+    "advancedModeHint": "Zeigt auch die Felder, die die meisten Manifeste auf ihren Standardwerten lassen; die Wahl wird für Sie gespeichert.",
+    "gitUrl": "Eine Klon-Adresse, die mit https://, ssh:// oder git@ beginnt, wie https://git.example.org/city/config.git.",
+    "httpsUrl": "Eine vollständige Adresse, die mit https:// beginnt.",
+    "interval": "Eine ganze Zahl und eine Einheit s, m, h oder d, wie 30m oder 6h.",
+    "entityUrn": "Eine Entitäts-ID: urn:ngsi-ld:, dann ihr Typ und Name, wie urn:ngsi-ld:Vehicle:bus-12.",
+    "notificationUri": "Eine vollständige Adresse, die mit http:// oder https:// beginnt, ohne Benutzername und Passwort.",
+    "instant": "Datum und Uhrzeit mit Zeitzone, wie 2026-12-31T23:59:00Z.",
+    "headerName": "Ein Header-Name aus Buchstaben, Ziffern und Bindestrichen. Authorization, Cookie und Proxy-Authorization werden abgelehnt: Zugangsdaten gehören in das Feld Zugangsdaten."
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -1733,7 +1740,9 @@
       "spacesFailed": "Die Kontexträume dieses Projekts konnten nicht geladen werden, daher fehlen in dieser Liste die Vergaben, die für einen einzelnen Raum gelten: {reason}",
       "discardTitle": "Diese Vergabe verwerfen?",
       "discardConfirm": "Was Sie eingegeben haben, geht verloren und es wird nichts vorgeschlagen. Bereits vergebene Rollen bleiben unberührt.",
-      "discard": "Vergabe verwerfen"
+      "discard": "Vergabe verwerfen",
+      "grants": "Diese Rolle darf: {rights}.",
+      "grantsNothing": "Diese Rolle gewährt noch nichts: sie hat keine Regeln."
     },
     "projectRoles": {
       "title": "Rollen",
@@ -2382,7 +2391,7 @@
   "apps": {
     "title": "Anwendungen",
     "subtitle": "Anwendungen für dieses Projekt. Eine Vorschau läuft gegen einen Sandbox-Raum, das Veröffentlichen ist ein Merge Request.",
-    "empty": "Dieses Projekt hat noch keine Anwendungen.",
+    "empty": "Dieses Projekt hat noch keine Apps. Drücken Sie „Eigene Anwendung erzeugen“, wählen Sie den Endpunkt, den sie liest, und beschreiben Sie sie: der Builder schreibt sie und öffnet einen Merge Request zur Prüfung.",
     "visibility": "Sichtbar für {visibility}",
     "dataNeeds": "Liest {types} in {spaces}",
     "previewAction": "Vorschau öffnen",
@@ -2517,6 +2526,12 @@
         "cancel": "Abbrechen",
         "close": "Schließen",
         "waiting": "{name} ist vorgeschlagen (Spur {lane}). Sobald die Änderung zusammengeführt ist und der Endpunkt bereitsteht, liest der Builder ihn; die Beschreibung können Sie inzwischen weiterschreiben."
+      },
+      "missing": {
+        "endpoint": "Wählen Sie zuerst den Endpunkt, den die App liest.",
+        "prompt": "Beschreiben Sie, was die App tun soll.",
+        "name": "Korrigieren Sie den App-Namen unter den Details: Kleinbuchstaben, Ziffern und Bindestriche.",
+        "needs": "Lassen Sie unter den Details mindestens ein Attribut angehakt: die App braucht etwas zum Lesen."
       }
     },
     "newAction": "Eigene Anwendung erzeugen",
@@ -2675,6 +2690,13 @@
       "notice": "{count, plural, one {# App verwendet noch einen Formnamen, den das nächste Release ablehnt.} other {# Apps verwenden noch Formnamen, die das nächste Release ablehnt.}} Eine Änderung in Ihrem Namen schreibt die neuen Namen und ändert sonst nichts.",
       "item": "{name}: aus {from} wird {to}",
       "action": "Umbenennung vorschlagen"
+    },
+    "audience": {
+      "private": "nur ihr Autor",
+      "project": "Mitglieder dieses Projekts",
+      "organization": "alle in der Organisation",
+      "public": "alle, auch ohne Anmeldung",
+      "roles": "Personen mit einer ihrer Rollen"
     }
   },
   "appLifecycle": {
@@ -2701,11 +2723,16 @@
       "propose": "Katalog vorschlagen",
       "nameHelp": "Der kurze Name, unter dem dieser Katalog hier bekannt ist. Kleinbuchstaben, Ziffern und Bindestriche.",
       "urlHelp": "Die Adresse des CKAN-Portals, auf dem die Datensätze veröffentlicht werden, mit Schema.",
-      "organizationHelp": "Die CKAN-Organisation, in der ein Datensatz landet, wenn ein Endpunkt keine eigene nennt.",
+      "organizationHelp": "Die CKAN-Organisation, in die ein Datensatz kommt, wenn ein Endpunkt keine eigene nennt: der Kurzname am Ende ihrer Adresse in CKAN, /organization/<name>.",
       "emptyHint": "Ein Katalog ist ein CKAN-Portal, in das dieses Projekt veröffentlicht. Benennen Sie unten eines, und der Reconciler registriert seine Datensätze.",
       "nameInvalid": "Ein Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen und beginnt und endet mit einem Buchstaben oder einer Ziffer.",
       "urlInvalid": "Die Adresse beginnt mit http:// oder https://.",
-      "secretRequired": "Benennen Sie das Secret, das die Betreiberin geladen hat; das Token selbst wird hier nie eingegeben."
+      "secretRequired": "Benennen Sie das Secret, das die Betreiberin geladen hat; das Token selbst wird hier nie eingegeben.",
+      "secretKey": "Schlüssel im Secret",
+      "secretKeyHelp": "Der Eintrag dieses Secrets, der das Token enthält. Lassen Sie apiToken, wenn der Betreiber nichts anderes sagt.",
+      "secretKeyInvalid": "Ein Schlüssel besteht aus Buchstaben, Ziffern, Punkten, Bindestrichen und Unterstrichen, etwa apiToken.",
+      "secretInvalid": "Der Name eines Secrets besteht aus Kleinbuchstaben, Ziffern, Bindestrichen und Punkten, etwa ckan-api-token.",
+      "secretIsToken": "Das sieht nach dem API-Token selbst aus. Fügen Sie es hier nicht ein: bitten Sie den Betreiber, es in den Secret-Speicher zu laden, und geben Sie den Namen dieses Secrets ein."
     },
     "publications": {
       "title": "Veröffentlichte Endpunkte",
@@ -2713,13 +2740,14 @@
       "datastore": "DataStore-Spiegel aus {representation}, {refresh}.",
       "publishedTo": "veröffentlicht in {instance}",
       "missingInstance": "Katalog {instance} fehlt",
-      "emptyHint": "Ein Endpoint veröffentlicht, wenn sein Manifest es erklärt. Öffnen Sie einen Endpoint und fügen Sie eine Veröffentlichung hinzu, damit sie hier erscheint.",
+      "emptyHint": "Drücken Sie „Datensatz veröffentlichen“, wählen Sie einen Endpunkt, prüfen Sie seine Beschreibung und schlagen Sie ihn vor. Der Datensatz erscheint hier und in CKAN nach der Freigabe.",
       "refreshed": {
         "onChange": "aktualisiert, wenn sich eine Entität ändert",
         "onReconcile": "aktualisiert, sooft die Konfiguration angewendet wird"
       },
       "lastChange": "Letzte Änderung {time}: {summary}",
-      "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}"
+      "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}",
+      "needsCatalogue": "Fügen Sie zuerst oben einen Katalog hinzu: ein Datensatz braucht ein CKAN-Portal."
     },
     "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}",
     "access": {
@@ -3892,7 +3920,9 @@
       "submit": "Kopie starten",
       "titleField": "Titel",
       "titleHint": "Optional; wird anstelle des Namens angezeigt.",
-      "denied": "Ihre Rolle darf in diesem Projekt nichts vorschlagen und kann daher keine Kopie öffnen."
+      "denied": "Ihre Rolle darf in diesem Projekt nichts vorschlagen und kann daher keine Kopie öffnen.",
+      "ttlHint": "Ist die Zeit um, werden die Kopie und alles, was nicht zurückgeholt wurde, gelöscht. Das Projekt bleibt unberührt.",
+      "nameTaken": "Eine Kopie namens {name} gibt es schon. Wählen Sie einen anderen Namen."
     },
     "bar": {
       "label": "Kopie",
@@ -4196,7 +4226,7 @@
       "lead": "Die Personen der Anmeldedomäne der Organisation. Was jede darf, geben die Bindungen und Gruppen vor, die sie nennen.",
       "new": "Neue Person",
       "hidden": "Diese Liste sieht nur, wessen Rolle Personen liest. Eine Organisationsadministration kann sie vergeben.",
-      "invited": "Die Domäne hat {email} eine E-Mail zum Bestätigen der Adresse und Setzen eines Passworts geschickt.",
+      "invited": "Die Domäne hat {email} eine E-Mail zum Bestätigen der Adresse und Setzen eines Passworts geschickt. Die Person kann sich anmelden, aber nichts tun, bis sie eine Rolle hat: vergeben Sie eine unter Mitglieder eines Projekts oder der Organisation.",
       "search": "Personen suchen",
       "searchPlaceholder": "Name oder E-Mail",
       "searchButton": "Suchen",

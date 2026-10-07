@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { components } from "../api/schema";
-import { api, unwrap } from "../api/client";
+import { api, ApiError, unwrap } from "../api/client";
 import { usePermissions } from "../api/permissions";
 import { Alert, Button, Dialog, Field, Input, Select } from "./ui";
 import { useWorkspace } from "./layout/WorkspaceContext";
@@ -53,6 +53,8 @@ export function WorkOnCopyDialog({
   const [title, setTitle] = useState("");
   const [ttlDays, setTtlDays] = useState(7);
   const [error, setError] = useState<string | null>(null);
+  // A name another copy holds is answered at the name, where it is fixed (T-3219).
+  const [taken, setTaken] = useState<string | null>(null);
 
   const scopeText = useMemo(() => {
     if (scope.kind === "project") return t("workspaces.open.scopeProject");
@@ -88,11 +90,15 @@ export function WorkOnCopyDialog({
       onOpenChange(false);
     },
     onError: (err: Error) => {
-      setError(err.message);
+      if (err instanceof ApiError && err.status === 409) {
+        setTaken(name);
+        return;
+      }
+      setError(err instanceof ApiError ? (err.problem?.detail ?? err.message) : err.message);
     },
   });
 
-  const canSubmit = isValidName(name);
+  const canSubmit = isValidName(name) && taken !== name;
 
   // Closing forgets what was typed, whichever way it is closed. Cancel used to call
   // `onOpenChange(false)` straight past this, so only the Escape key and the X reset the dialog
@@ -103,6 +109,7 @@ export function WorkOnCopyDialog({
       setTitle("");
       setTtlDays(7);
       setError(null);
+      setTaken(null);
     }
     onOpenChange(next);
   };
@@ -126,7 +133,9 @@ export function WorkOnCopyDialog({
             variant="primary"
             disabled={!canSubmit}
             // Reachable while it is refused, saying what the name has to be (UI-44).
-            disabledReason={canSubmit ? undefined : t("workspaces.open.nameInvalid")}
+            disabledReason={
+              canSubmit ? undefined : taken === name ? t("workspaces.open.nameTaken", { name }) : t("workspaces.open.nameInvalid")
+            }
             loading={create.isPending}
             onClick={() => create.mutate()}
           >
@@ -149,7 +158,13 @@ export function WorkOnCopyDialog({
           label={t("workspaces.open.name")}
           required
           help={t("workspaces.open.nameHint")}
-          errors={name !== "" && !isValidName(name) ? [t("workspaces.open.nameInvalid")] : undefined}
+          errors={
+            name !== "" && !isValidName(name)
+              ? [t("workspaces.open.nameInvalid")]
+              : taken === name
+                ? [t("workspaces.open.nameTaken", { name })]
+                : undefined
+          }
         >
           <Input
             id="ws-name"
@@ -175,7 +190,7 @@ export function WorkOnCopyDialog({
           <p className="text-body font-medium text-fg">{t("workspaces.open.scope")}</p>
           <p className="text-body text-fg-muted">{scopeText}</p>
         </div>
-        <Field id="ws-ttl" label={t("workspaces.open.ttl")}>
+        <Field id="ws-ttl" label={t("workspaces.open.ttl")} help={t("workspaces.open.ttlHint")}>
           <Select
             id="ws-ttl"
             value={ttlDays}

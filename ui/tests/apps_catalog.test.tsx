@@ -182,7 +182,7 @@ describe("apps catalog", () => {
     expect(within(card).getByTitle(en.appLifecycle.previewHelp)).toHaveTextContent(
       en.appLifecycle.preview,
     );
-    expect(within(card).getByText("Visible to project")).toBeInTheDocument();
+    expect(within(card).getByText("Visible to members of this project")).toBeInTheDocument();
     expect(within(card).getByText(/AirQualityObserved/)).toBeInTheDocument();
     expect(within(card).getByText(/ovzdusie/)).toBeInTheDocument();
     // A card keeps its width however narrow the page beside the assistant is: the grid fits as
@@ -242,7 +242,7 @@ describe("apps catalog", () => {
       expect(screen.queryByRole("menu")).toBeNull();
     });
 
-    await user.click(within(card).getByText("Visible to project"));
+    await user.click(within(card).getByText("Visible to members of this project"));
     await waitFor(() => {
       expect(window.location.pathname).toBe("/projects/banskabystrica/apps/hluk/open");
     });
@@ -548,7 +548,7 @@ describe("apps catalog", () => {
 
     // The confirmation says what publishing does, and nothing has been sent yet.
     const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveTextContent("reachable by project");
+    expect(dialog).toHaveTextContent("reachable by members of this project");
     expect(writes(fetchMock)).toHaveLength(0);
 
     await user.click(within(dialog).getByRole("button", { name: en.apps.publish.confirm }));

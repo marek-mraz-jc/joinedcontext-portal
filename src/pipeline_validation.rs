@@ -118,6 +118,47 @@ pub fn load(
     compiled
 }
 
+/// What a pipeline's spec alone says against the models of the spaces it writes (T-3223): every
+/// output whose entity type is not a class of the model its Endpoint's space pins, named at that
+/// output, before any sample is run. An output that names no type, an Endpoint not in the mirror
+/// and a space with no compiled model say nothing here; the runner's stage and the gateway still
+/// hold those (PL-59, DM-61).
+pub fn output_type_problems(
+    schemas: &ModelSchemas,
+    mirror: &crate::store::Mirror,
+    project: &str,
+    spec: &jc_core::kinds::PipelineSpec,
+) -> Vec<Problem> {
+    let second_shape = !spec.outputs.is_empty();
+    spec.outputs()
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, output)| {
+            let entity_type = output.entity_type?;
+            let endpoint = mirror.get(project, "Endpoint", output.target_endpoint.local_id())?;
+            let space = crate::api::assistant::ref_name(endpoint.spec.get("contextSpaceRef")?)?;
+            let model = schemas.get(project, &space)?;
+            if model.classes.contains_key(&entity_type) {
+                return None;
+            }
+            let classes: Vec<&str> = model.classes.keys().map(String::as_str).collect();
+            Some(Problem {
+                rule: "type".to_owned(),
+                path: if second_shape {
+                    format!("spec.outputs[{index}].type")
+                } else {
+                    "spec.output.type".to_owned()
+                },
+                message: format!(
+                    "{entity_type} is not a class of the data model {} of space {space}; its classes are {} (DM-61)",
+                    model.model,
+                    classes.join(", ")
+                ),
+            })
+        })
+        .collect()
+}
+
 /// One JSON artifact beside its manifest, never outside the staged tree.
 fn beside(root: &Path, manifest: &Path, relative: &str) -> Option<Value> {
     if relative.starts_with('/') || relative.split('/').any(|part| part == "..") {
@@ -163,6 +204,81 @@ pub struct ModelSchema {
     pub classes: BTreeMap<String, Value>,
     /// The stored relationship ends of each class, by class and attribute (DM-64).
     ends: BTreeMap<String, BTreeMap<String, End>>,
+    /// The model's JSON Schema definitions as Model Tools wrote them (key-value form), which the
+    /// attribute list reads its descriptions, units and enums from (T-3223).
+    definitions: Map<String, Value>,
+}
+
+/// One attribute of a class as the space's model states it (T-3223): what an editor needs to map
+/// a field onto it.
+#[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Attribute {
+    /// The attribute's name.
+    pub name: String,
+    /// `Property`, `Relationship`, `GeoProperty`, `LanguageProperty` or `VocabProperty`.
+    pub kind: String,
+    /// The JSON type of its value (`string`, `number`, `integer`, `boolean`, `object`, `array`),
+    /// absent when the model leaves it open.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_type: Option<String>,
+    /// The value's format, such as `date-time`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+    /// Whether every entity of the class must carry it.
+    pub required: bool,
+    /// What it means, in the model's words.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// The unit a quantity is in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit: Option<Unit>,
+    /// The values a coded attribute may take.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub values: Option<Vec<String>>,
+    /// The entity type a relationship points at, and whether it holds several.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relationship: Option<RelationshipTarget>,
+    /// The smallest and the largest value a number may have.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minimum: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub maximum: Option<f64>,
+}
+
+/// A quantity's unit: the UN/CEFACT code NGSI-LD's `unitCode` carries, and its UCUM spelling.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Unit {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ucum: Option<String>,
+}
+
+/// The type a relationship points at.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RelationshipTarget {
+    pub target: String,
+    pub many: bool,
+}
+
+/// A class of the space's model and its attributes (T-3223).
+#[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassAttributes {
+    /// The model's manifest name and the version the space pins.
+    pub model: String,
+    pub version: String,
+    /// The class, which is the entity type.
+    #[serde(rename = "type")]
+    pub class: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Required attributes first, then by name; `id` and `type` are the entity's own and not
+    /// listed.
+    pub attributes: Vec<Attribute>,
 }
 
 /// One stored end of a relationship, as the model's JSON Schema states it (T-2739) and the
@@ -261,6 +377,174 @@ impl ModelSchema {
             version: version.to_owned(),
             classes: compiled,
             ends,
+            definitions,
+        }
+    }
+
+    /// The attributes of `class` as the model states them, or `None` for a type the model does not
+    /// declare (T-3223). A declared class the artifact has no definition for (a draft model) has
+    /// no attributes beyond its identity.
+    pub fn attributes(&self, class: &str) -> Option<ClassAttributes> {
+        if !self.classes.contains_key(class) {
+            return None;
+        }
+        let definition = self.definitions.get(class);
+        let required: Vec<&str> = definition
+            .and_then(|d| d.get("required"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect();
+        let mut attributes: Vec<Attribute> = definition
+            .and_then(|d| d.get("properties"))
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+            .filter(|(name, _)| name.as_str() != "id" && name.as_str() != "type")
+            .map(|(name, property)| {
+                self.attribute(name, property, required.contains(&name.as_str()))
+            })
+            .collect();
+        attributes.sort_by(|a, b| {
+            b.required
+                .cmp(&a.required)
+                .then_with(|| a.name.cmp(&b.name))
+        });
+        Some(ClassAttributes {
+            model: self.model.clone(),
+            version: self.version.clone(),
+            class: class.to_owned(),
+            description: definition
+                .and_then(|d| d.get("description"))
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            attributes,
+        })
+    }
+
+    /// A record in key-value form as the normalized NGSI-LD entity a write of `class` carries:
+    /// each attribute wrapped as the kind its slot declares, a quantity with its model's unit code
+    /// (T-3223, T-3224). A member already normalized, and `id`, `type` and `@context`, pass
+    /// unchanged; a `null` is left out, since NGSI-LD has no null attribute.
+    pub fn normalize(&self, class: &str, record: &Value) -> Value {
+        let Some(object) = record.as_object() else {
+            return record.clone();
+        };
+        let attributes = self
+            .attributes(class)
+            .map(|a| a.attributes)
+            .unwrap_or_default();
+        let mut normalized = Map::new();
+        for (name, value) in object {
+            if matches!(name.as_str(), "id" | "type" | "@context") {
+                normalized.insert(name.clone(), value.clone());
+                continue;
+            }
+            if value.is_null() {
+                continue;
+            }
+            let already = value
+                .get("type")
+                .and_then(Value::as_str)
+                .is_some_and(|kind| KINDS.iter().any(|(k, _)| *k == kind));
+            if already {
+                normalized.insert(name.clone(), value.clone());
+                continue;
+            }
+            let attribute = attributes.iter().find(|a| a.name == *name);
+            let kind = attribute.map_or("Property", |a| a.kind.as_str());
+            let member = KINDS
+                .iter()
+                .find(|(k, _)| *k == kind)
+                .map_or("value", |(_, member)| *member);
+            let mut wrapped = Map::from_iter([
+                ("type".to_owned(), json!(kind)),
+                (member.to_owned(), value.clone()),
+            ]);
+            if let Some(code) = attribute
+                .filter(|_| kind == "Property" && value.is_number())
+                .and_then(|a| a.unit.as_ref())
+                .and_then(|u| u.code.clone())
+            {
+                wrapped.insert("unitCode".to_owned(), json!(code));
+            }
+            normalized.insert(name.clone(), Value::Object(wrapped));
+        }
+        Value::Object(normalized)
+    }
+
+    fn attribute(&self, name: &str, property: &Value, required: bool) -> Attribute {
+        // A coded slot is a `$ref` to an enum definition; follow it once for its values and type.
+        let referenced = property
+            .get("$ref")
+            .and_then(Value::as_str)
+            .and_then(|r| r.rsplit('/').next())
+            .and_then(|target| self.definitions.get(target));
+        let typed = referenced.unwrap_or(property);
+        let value_type = match typed.get("type") {
+            Some(Value::String(one)) => Some(one.clone()),
+            Some(Value::Array(many)) => many
+                .iter()
+                .filter_map(Value::as_str)
+                .find(|t| *t != "null")
+                .map(str::to_owned),
+            _ => None,
+        };
+        let values = typed.get("enum").and_then(Value::as_array).map(|values| {
+            values
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        });
+        let unit = property.get("x-unit").map(|unit| Unit {
+            code: unit
+                .get("exactMappings")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .find_map(|m| m.strip_prefix("ucefact:"))
+                .map(str::to_owned),
+            ucum: unit
+                .get("ucumCode")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        });
+        let relationship = property
+            .pointer("/x-ngsi-ld-relationship/target")
+            .and_then(Value::as_str)
+            .filter(|target| !target.is_empty())
+            .map(|target| RelationshipTarget {
+                target: target.to_owned(),
+                many: value_type.as_deref() == Some("array"),
+            });
+        Attribute {
+            name: name.to_owned(),
+            kind: property
+                .get("x-ngsi-ld-kind")
+                .and_then(Value::as_str)
+                .unwrap_or(if relationship.is_some() {
+                    "Relationship"
+                } else {
+                    "Property"
+                })
+                .to_owned(),
+            value_type,
+            format: typed
+                .get("format")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            required,
+            description: property
+                .get("description")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            unit,
+            values,
+            relationship,
+            minimum: property.get("minimum").and_then(Value::as_f64),
+            maximum: property.get("maximum").and_then(Value::as_f64),
         }
     }
 
@@ -284,8 +568,24 @@ impl ModelSchema {
         };
         let mut problems = id_problems(object, class);
         match jsonschema::draft7::new(schema) {
-            Ok(validator) => problems.extend(validator.iter_errors(record).map(|error| {
+            Ok(validator) => problems.extend(validator.iter_errors(record).flat_map(|error| {
                 let mut path = attribute_of(&error.instance_path().to_string());
+                // An attribute the class does not declare is named on its own, one problem each,
+                // so the editor marks that attribute and not the whole entity (T-3223).
+                if let (
+                    true,
+                    jsonschema::error::ValidationErrorKind::AdditionalProperties { unexpected },
+                ) = (path.is_empty(), error.kind())
+                {
+                    return unexpected
+                        .iter()
+                        .map(|name| Problem {
+                            rule: "sh:closed".to_owned(),
+                            path: name.clone(),
+                            message: format!("{name} is not an attribute the class declares"),
+                        })
+                        .collect::<Vec<_>>();
+                }
                 let (rule, message) = named(&error, &path);
                 // A missing attribute is about that attribute, so the workbench points at it.
                 if let (true, jsonschema::error::ValidationErrorKind::Required { property }) =
@@ -293,11 +593,11 @@ impl ModelSchema {
                 {
                     path = property.as_str().unwrap_or_default().to_owned();
                 }
-                Problem {
+                vec![Problem {
                     rule: rule.to_owned(),
                     path,
                     message,
-                }
+                }]
             })),
             Err(error) => {
                 tracing::warn!(model = %self.model, class, %error, "a compiled class schema does not compile");
@@ -891,6 +1191,223 @@ mod tests {
             .is_empty());
     }
 
+    /// A model with every shape an attribute can take: a required quantity with its unit, a coded
+    /// slot by `$ref`, a relationship with its target, a language map and a geometry.
+    fn attributed() -> ModelSchema {
+        ModelSchema::compile(
+            "stations",
+            "2.1.0",
+            &json!({ "definitions": {
+                "Status": { "enum": ["working", "closed"], "type": "string" },
+                "Station": {
+                    "description": "One docking station.",
+                    "required": ["id", "type", "bikes"],
+                    "properties": {
+                        "id": { "type": "string" },
+                        "type": { "type": "string" },
+                        "bikes": { "type": ["integer", "null"], "minimum": 0, "description": "Free bikes.",
+                                   "x-ngsi-ld-kind": "Property",
+                                   "x-unit": { "exactMappings": ["ucefact:C62"], "ucumCode": "1" } },
+                        "status": { "$ref": "#/definitions/Status", "x-ngsi-ld-kind": "Property" },
+                        "refArea": { "type": ["string", "null"], "x-ngsi-ld-kind": "Relationship",
+                                     "x-ngsi-ld-relationship": { "target": "AdministrativeArea" } },
+                        "name": { "type": ["object", "null"], "x-ngsi-ld-kind": "LanguageProperty" },
+                        "location": { "type": ["object", "null"], "x-ngsi-ld-kind": "GeoProperty" },
+                        "seen": { "type": ["string", "null"], "format": "date-time", "x-ngsi-ld-kind": "Property" }
+                    }
+                }
+            }}),
+            &["Station".into(), "Draft".into()],
+            false,
+        )
+    }
+
+    /// T-3223: a type's attributes as an editor maps onto them, required first, identity left out.
+    #[test]
+    fn a_types_attributes_carry_kind_type_unit_values_and_target_required_first() {
+        let listed = attributed()
+            .attributes("Station")
+            .expect("a class of the model");
+        assert_eq!(
+            (listed.model.as_str(), listed.version.as_str()),
+            ("stations", "2.1.0")
+        );
+        assert_eq!(listed.description.as_deref(), Some("One docking station."));
+        let names: Vec<&str> = listed.attributes.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["bikes", "location", "name", "refArea", "seen", "status"]
+        );
+        let bikes = &listed.attributes[0];
+        assert!(bikes.required);
+        assert_eq!(bikes.value_type.as_deref(), Some("integer"));
+        assert_eq!(
+            bikes.unit.as_ref().and_then(|u| u.code.as_deref()),
+            Some("C62")
+        );
+        assert_eq!(bikes.minimum, Some(0.0));
+        let by = |n: &str| listed.attributes.iter().find(|a| a.name == n).expect(n);
+        assert_eq!(
+            by("status").values.as_deref(),
+            Some(&["working".to_owned(), "closed".to_owned()][..])
+        );
+        assert_eq!(by("status").value_type.as_deref(), Some("string"));
+        assert_eq!(
+            by("refArea")
+                .relationship
+                .as_ref()
+                .map(|r| (r.target.as_str(), r.many)),
+            Some(("AdministrativeArea", false))
+        );
+        assert_eq!(by("refArea").kind, "Relationship");
+        assert_eq!(by("seen").format.as_deref(), Some("date-time"));
+        // A type the model does not declare has no attributes; a draft class has its identity only.
+        assert!(attributed().attributes("Bus").is_none());
+        assert!(attributed()
+            .attributes("Draft")
+            .expect("declared")
+            .attributes
+            .is_empty());
+    }
+
+    /// T-3223, T-3224: a record in key-value form becomes the entity a write carries, and that
+    /// entity passes the check the runner makes.
+    #[test]
+    fn a_key_value_record_normalizes_into_an_entity_the_check_accepts() {
+        let model = attributed();
+        let record = json!({
+            "id": "urn:ngsi-ld:Station:hel.fi:bikes:1",
+            "type": "Station",
+            "bikes": 7,
+            "status": "working",
+            "refArea": "urn:ngsi-ld:AdministrativeArea:hel.fi:areas:1",
+            "name": { "fi": "Kaivopuisto" },
+            "location": { "type": "Point", "coordinates": [24.95, 60.16] },
+            "seen": null
+        });
+        let entity = model.normalize("Station", &record);
+        assert_eq!(
+            entity["bikes"],
+            json!({ "type": "Property", "value": 7, "unitCode": "C62" })
+        );
+        assert_eq!(entity["refArea"]["type"], "Relationship");
+        assert_eq!(
+            entity["refArea"]["object"],
+            "urn:ngsi-ld:AdministrativeArea:hel.fi:areas:1"
+        );
+        assert_eq!(
+            entity["name"],
+            json!({ "type": "LanguageProperty", "languageMap": { "fi": "Kaivopuisto" } })
+        );
+        assert_eq!(entity["location"]["type"], "GeoProperty");
+        assert!(
+            entity.get("seen").is_none(),
+            "NGSI-LD has no null attribute"
+        );
+        assert!(
+            model.check(&entity).is_empty(),
+            "{:?}",
+            model.check(&entity)
+        );
+        // An entity already normalized passes through as it is.
+        assert_eq!(model.normalize("Station", &entity), entity);
+        // A record missing the required count is named at the attribute.
+        let mut short = record.clone();
+        short.as_object_mut().map(|r| r.remove("bikes"));
+        let problems = model.check(&model.normalize("Station", &short));
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.rule == "sh:minCount" && p.path == "bikes"),
+            "{problems:?}"
+        );
+    }
+
+    /// T-3223: an output whose type the target space's model lacks is named before any sample
+    /// runs, at that output, with the classes the model does have.
+    #[test]
+    fn an_output_type_the_target_spaces_model_lacks_is_named_at_that_output() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let mirror = crate::store::Mirror::new();
+        for (name, space) in [("bikes-in", "bikes"), ("plain-in", "plain")] {
+            mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: "Endpoint".to_owned(),
+                metadata: ObjectMeta {
+                    name: name.to_owned(),
+                    namespace: Some("helsinki".to_owned()),
+                    ..Default::default()
+                },
+                spec: json!({ "contextSpaceRef": space, "slug": format!("{name}slug") }),
+                status: None,
+            });
+        }
+        let schemas = ModelSchemas::default();
+        schemas.replace(HashMap::from([(
+            ("helsinki".to_owned(), "bikes".to_owned()),
+            Arc::new(attributed()),
+        )]));
+        let spec = |value: Value| -> jc_core::kinds::PipelineSpec {
+            serde_json::from_value(value).expect("a pipeline spec")
+        };
+        let first = |entity_type: &str, endpoint: &str| {
+            spec(json!({
+                "class": "resident",
+                "source": { "dataSourceRef": { "kind": "DataSource", "name": "feed" } },
+                "compute": { "kind": "bloblang", "bloblang": "root = this" },
+                "targetEndpoint": format!("urn:ngsi-ld:Endpoint:hel.fi:helsinki:{endpoint}"),
+                "output": { "type": entity_type, "mode": "upsert" }
+            }))
+        };
+        let problems =
+            output_type_problems(&schemas, &mirror, "helsinki", &first("Bus", "bikes-in"));
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert_eq!(
+            (problems[0].rule.as_str(), problems[0].path.as_str()),
+            ("type", "spec.output.type")
+        );
+        assert!(
+            problems[0]
+                .message
+                .contains("Bus is not a class of the data model stations of space bikes"),
+            "{}",
+            problems[0].message
+        );
+        assert!(
+            problems[0].message.contains("Draft, Station"),
+            "{}",
+            problems[0].message
+        );
+        // A class of the model, a space with no compiled model and an Endpoint nobody holds say
+        // nothing; the runner's stage and the gateway still hold those.
+        assert!(
+            output_type_problems(&schemas, &mirror, "helsinki", &first("Station", "bikes-in"))
+                .is_empty()
+        );
+        assert!(
+            output_type_problems(&schemas, &mirror, "helsinki", &first("Bus", "plain-in"))
+                .is_empty()
+        );
+        assert!(
+            output_type_problems(&schemas, &mirror, "helsinki", &first("Bus", "gone")).is_empty()
+        );
+        // In the second shape the problem names the output it is about.
+        let second = spec(json!({
+            "class": "resident",
+            "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "feed" } }],
+            "steps": [{ "kind": "bloblang", "bloblang": "root = this" }],
+            "outputs": [
+                { "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:bikes-in", "type": "Station" },
+                { "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:bikes-in", "type": "Tram" }
+            ]
+        }));
+        let problems = output_type_problems(&schemas, &mirror, "helsinki", &second);
+        assert_eq!(
+            problems.iter().map(|p| p.path.as_str()).collect::<Vec<_>>(),
+            ["spec.outputs[1].type"]
+        );
+    }
+
     #[test]
     fn a_valid_record_has_no_problem() {
         assert_eq!(rules(&valid()), Vec::<(String, String)>::new());
@@ -915,7 +1432,16 @@ mod tests {
 
         let mut record = valid();
         record["colour"] = json!({ "type": "Property", "value": "blue" });
-        assert_eq!(rules(&record), [("sh:closed".into(), String::new())]);
+        assert_eq!(rules(&record), [("sh:closed".into(), "colour".into())]);
+        // Two of them are two problems, each naming its attribute (T-3223).
+        record["shade"] = json!({ "type": "Property", "value": "dark" });
+        assert_eq!(
+            rules(&record),
+            [
+                ("sh:closed".into(), "colour".into()),
+                ("sh:closed".into(), "shade".into())
+            ]
+        );
 
         let mut record = valid();
         record["refDevice"] = json!({ "type": "Property", "value": "urn:x" });
