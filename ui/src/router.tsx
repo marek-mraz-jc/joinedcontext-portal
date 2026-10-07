@@ -36,6 +36,7 @@ import { CataloguePage } from "./pages/catalogue/CataloguePage";
 import { DatasetPage } from "./pages/catalogue/DatasetPage";
 import { parseCatalogueSearch } from "./pages/catalogue/search";
 import { PublicViewPage } from "./pages/spaces/PublicView";
+import { PublicFormPage } from "./pages/spaces/FormView";
 import { useAuth } from "./auth/AuthProvider";
 import { Button } from "./components/ui";
 import { ImportPage } from "./pages/import/ImportPage";
@@ -258,6 +259,16 @@ const publicViewRoute = createRoute({
   component: function PublicViewRoute() {
     const { slug } = publicViewRoute.useParams();
     return <PublicFrame>{<PublicViewPage slug={slug} />}</PublicFrame>;
+  },
+});
+
+/** A form view published as a public form (T-3103, API/01 §33): anyone creates, no sign-in. */
+const publicFormRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/f/$slug",
+  component: function PublicFormRoute() {
+    const { slug } = publicFormRoute.useParams();
+    return <PublicFrame>{<PublicFormPage slug={slug} />}</PublicFrame>;
   },
 });
 
@@ -1020,6 +1031,7 @@ export const routeTree = rootRoute.addChildren([
   catalogueRoute,
   catalogueDatasetRoute,
   publicViewRoute,
+  publicFormRoute,
   ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,

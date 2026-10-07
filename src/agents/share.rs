@@ -59,12 +59,15 @@ pub struct ProposeEndpoint {
 
 /// What an app may do through a new endpoint (AP-132). A read reaches the person's own grants on
 /// the space and adds none; a write preset grants its operations, which takes the red lane.
+/// `Create` is a public form's (T-3103, API/01 §33): anyone may create one entity of one type and
+/// do nothing else.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Preset {
     Read,
     Update,
     Full,
+    Create,
 }
 
 impl Preset {
@@ -84,6 +87,7 @@ impl Preset {
             Preset::Read => &FULL[..4],
             Preset::Update => &FULL[..6],
             Preset::Full => &FULL,
+            Preset::Create => &["createEntity"],
         }
     }
 }
@@ -236,7 +240,17 @@ pub fn render(
             "audience project-list needs at least one project in allowedProjects".to_owned(),
         );
     }
-    if let Some(preset) = params.access {
+    if params.access == Some(Preset::Create) {
+        // A public form: anyone creates one entity of one type, so the endpoint is public and
+        // names the type it takes (T-3103).
+        if audience != "public" || params.entity_types.len() != 1 {
+            return Err(
+                "a public form (access create) is a public endpoint over exactly one entity type: \
+                 audience public and one entry in entityTypes"
+                    .to_owned(),
+            );
+        }
+    } else if let Some(preset) = params.access {
         if audience != "project-list" || projects != own_project {
             return Err(format!(
                 "an access preset is for an endpoint this project's apps read: audience must be \
@@ -1157,6 +1171,47 @@ mod tests {
             entity_types: vec!["BikeHireDockingStation".into()],
             access: Some(access),
             ..Default::default()
+        }
+    }
+
+    /// T-3103: a public form's endpoint grants the public role `createEntity` on its one type and
+    /// nothing else, and takes the red lane like every public endpoint.
+    #[test]
+    fn a_public_form_grants_anyone_the_create_of_its_one_type_alone() {
+        let mut form = app_endpoint(Preset::Create);
+        form.audience = Some("public".into());
+        let proposal = render("helsinki", "hel.fi", &form, &[]).expect("renders");
+        assert_eq!(proposal.lane, Lane::Red);
+        let [policy] = proposal.policies.as_slice() else {
+            panic!("one policy: {:?}", proposal.policies);
+        };
+        assert_eq!(
+            policy["spec"]["assignee"],
+            json!({ "kind": "role", "id": "public" })
+        );
+        assert_eq!(policy["spec"]["operations"], json!(["createEntity"]));
+        assert_eq!(
+            policy["spec"]["information"],
+            json!([{ "entities": [{ "type": "BikeHireDockingStation" }] }])
+        );
+        assert_eq!(proposal.endpoint["spec"]["audience"], "public");
+    }
+
+    /// T-3103: a public form is public and names exactly one type; anything else is refused with
+    /// the reason, never rendered as a wider write.
+    #[test]
+    fn a_public_form_that_is_not_public_or_not_one_type_is_refused() {
+        let not_public = app_endpoint(Preset::Create);
+        assert!(render("helsinki", "hel.fi", &not_public, &[])
+            .expect_err("project-list")
+            .contains("audience public"));
+        for types in [vec![], vec!["A".to_owned(), "B".to_owned()]] {
+            let mut form = app_endpoint(Preset::Create);
+            form.audience = Some("public".into());
+            form.entity_types = types;
+            assert!(render("helsinki", "hel.fi", &form, &[])
+                .expect_err("one type")
+                .contains("exactly one entity type"));
         }
     }
 
