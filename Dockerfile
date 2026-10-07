@@ -55,6 +55,10 @@ COPY apps/praha-odpad/ui/package.json apps/praha-odpad/ui/pnpm-lock.yaml ./apps/
 COPY apps/helsinki-kartta/ui/package.json apps/helsinki-kartta/ui/pnpm-lock.yaml ./apps/helsinki-kartta/ui/
 COPY apps/helsinki-data/ui/package.json apps/helsinki-data/ui/pnpm-lock.yaml ./apps/helsinki-data/ui/
 COPY apps/praha-mesto/ui/package.json apps/praha-mesto/ui/pnpm-lock.yaml ./apps/praha-mesto/ui/
+COPY apps/zilina-mapa/ui/package.json apps/zilina-mapa/ui/pnpm-lock.yaml ./apps/zilina-mapa/ui/
+COPY apps/zilina-ukazovatele/ui/package.json apps/zilina-ukazovatele/ui/pnpm-lock.yaml ./apps/zilina-ukazovatele/ui/
+COPY apps/zilina-zaznamy/ui/package.json apps/zilina-zaznamy/ui/pnpm-lock.yaml ./apps/zilina-zaznamy/ui/
+COPY apps/zilina-vyskum/ui/package.json apps/zilina-vyskum/ui/pnpm-lock.yaml ./apps/zilina-vyskum/ui/
 RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-zaznamy/ui && pnpm install --frozen-lockfile \
@@ -70,7 +74,11 @@ RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../../praha-odpad/ui && pnpm install --frozen-lockfile \
     && cd ../../helsinki-kartta/ui && pnpm install --frozen-lockfile \
     && cd ../../helsinki-data/ui && pnpm install --frozen-lockfile \
-    && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile
+    && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile \
+    && cd ../../zilina-mapa/ui && pnpm install --frozen-lockfile \
+    && cd ../../zilina-ukazovatele/ui && pnpm install --frozen-lockfile \
+    && cd ../../zilina-zaznamy/ui && pnpm install --frozen-lockfile \
+    && cd ../../zilina-vyskum/ui && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
 COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
 COPY apps/banskabystrica-zaznamy/ui/ ./apps/banskabystrica-zaznamy/ui/
@@ -87,6 +95,10 @@ COPY apps/praha-odpad/ui/ ./apps/praha-odpad/ui/
 COPY apps/helsinki-kartta/ui/ ./apps/helsinki-kartta/ui/
 COPY apps/helsinki-data/ui/ ./apps/helsinki-data/ui/
 COPY apps/praha-mesto/ui/ ./apps/praha-mesto/ui/
+COPY apps/zilina-mapa/ui/ ./apps/zilina-mapa/ui/
+COPY apps/zilina-ukazovatele/ui/ ./apps/zilina-ukazovatele/ui/
+COPY apps/zilina-zaznamy/ui/ ./apps/zilina-zaznamy/ui/
+COPY apps/zilina-vyskum/ui/ ./apps/zilina-vyskum/ui/
 COPY scripts/app-integrity.mjs ./scripts/
 RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
     && mkdir -p /srv/apps && cp -r dist /srv/apps/bbsk-ukazovatele \
@@ -133,6 +145,18 @@ RUN cd apps/helsinki-data/ui && pnpm build \
 RUN cd apps/praha-mesto/ui && pnpm build \
     && cp -r dist /srv/apps/praha-mesto \
     && node /work/scripts/app-integrity.mjs /srv/apps/praha-mesto
+RUN cd apps/zilina-mapa/ui && pnpm build \
+    && cp -r dist /srv/apps/zilina-mapa \
+    && node /work/scripts/app-integrity.mjs /srv/apps/zilina-mapa
+RUN cd apps/zilina-ukazovatele/ui && pnpm build \
+    && cp -r dist /srv/apps/zilina-ukazovatele \
+    && node /work/scripts/app-integrity.mjs /srv/apps/zilina-ukazovatele
+RUN cd apps/zilina-zaznamy/ui && pnpm build \
+    && cp -r dist /srv/apps/zilina-zaznamy \
+    && node /work/scripts/app-integrity.mjs /srv/apps/zilina-zaznamy
+RUN cd apps/zilina-vyskum/ui && pnpm build \
+    && cp -r dist /srv/apps/zilina-vyskum \
+    && node /work/scripts/app-integrity.mjs /srv/apps/zilina-vyskum
 
 FROM rust:1.97-slim-bookworm AS build
 WORKDIR /src
