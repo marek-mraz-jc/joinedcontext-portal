@@ -21,6 +21,7 @@ exclude = [
   "apps/praha-odpad",
   "apps/helsinki-kartta",
   "apps/helsinki-data",
+  "apps/bike-stations",
   "apps/banskabystrica-zaznamy",
   "apps/bbsk-zaznamy",
   "apps/helsinki-alerts",
