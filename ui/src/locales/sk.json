@@ -245,6 +245,7 @@
       "inForge": "Uzavreté v repozitári",
       "older": "Zobraziť staršie zmeny",
       "empty": "Zatiaľ nebola zlúčená ani zamietnutá žiadna zmena.",
+      "emptyHint": "Zmena sa tu objaví aj s tým, kto o nej rozhodol, keď ju na karte Otvorené schválite alebo zamietnete.",
       "noneOnPage": "Žiadnu z týchto zmien nemáte právo čítať. Staršie možno áno."
     }
   },
@@ -2378,7 +2379,31 @@
       "count": "{count, plural, one {# model} few {# modely} other {# modelov}}",
       "allAttributes": "Všetky",
       "onlyRequired": "Len povinné",
-      "kept": "Ponechané atribúty: {kept} z {total}"
+      "kept": "Ponechané atribúty: {kept} z {total}",
+      "origin": "Pôvodný model na GitHube (commit {commit})",
+      "mode": "Ako ho prevziať",
+      "asIs": "Tak, ako je",
+      "asIsHint": "Všetkých {count} atribútov bez zmeny; najrýchlejšia cesta.",
+      "adapt": "Upraviť ho",
+      "adaptHint": "Odškrtnite, čo nepotrebujete, a pridajte vlastné atribúty.",
+      "addTitle": "Vaše vlastné atribúty",
+      "addedList": "Atribúty, ktoré ste pridali",
+      "addRemove": "Odstrániť {name}",
+      "addName": "Názov atribútu",
+      "addNameHelp": "Malý camelCase, písmená a číslice, ako ich pomenúva Smart Data Models.",
+      "addRange": "Druh hodnoty",
+      "add": "Pridať",
+      "addProblem": {
+        "name": "Začnite malým písmenom a použite iba písmená a číslice.",
+        "taken": "Model už má atribút s týmto názvom."
+      },
+      "range": {
+        "string": "Text",
+        "integer": "Celé číslo",
+        "float": "Číslo",
+        "boolean": "Áno alebo nie",
+        "datetime": "Dátum a čas"
+      }
     },
     "addClass": "Pridať triedu",
     "addSlot": "Pridať atribút",
@@ -2427,7 +2452,11 @@
       "refused": "Editor odmietol {n} operácií",
       "populate": "Naplniť editor",
       "cancel": "Zrušiť",
-      "close": "Zavrieť"
+      "close": "Zavrieť",
+      "url": "Alebo adresa API, ktoré odpovedá v JSON",
+      "urlHelp": "Raz ju prečíta runner projektu, ako ju číta overenie zdroja dát; model sa odvodí zo záznamov, ktoré vráti.",
+      "readUrl": "Prečítať adresu",
+      "urlInvalid": "Zadajte celú adresu začínajúcu na https:// alebo http://."
     },
     "source": {
       "loading": "Načítava sa zdroj modelu…",
@@ -5866,6 +5895,36 @@
     "title": "Upozornenia",
     "none": "Nič nové.",
     "mentioned": "{name} vás spomenul(a) v {space}"
+  },
+  "problem": {
+    "bad-request": "Opravte požiadavku podľa popisu a pošlite ju znova.",
+    "invalid-request": "Opravte označené polia a pošlite to znova.",
+    "invalid-body": "Pošlite telo v zdokumentovanom tvare; popis hovorí, čo je zle.",
+    "urn-scheme": "Použite identifikátor entity v tvare urn:ngsi-ld:Type:id, napr. urn:ngsi-ld:Vehicle:bus-12.",
+    "unauthorized": "Prihláste sa znova alebo pošlite platný token pre túto službu.",
+    "forbidden": "Požiadajte vlastníka projektu alebo správcu organizácie o rolu, ktorú to vyžaduje.",
+    "domain-not-verified": "Najprv overte doménu v nastaveniach organizácie.",
+    "self-approval": "Požiadajte iného schvaľovateľa, aby rozhodol o vašej zmene.",
+    "resource-not-found": "Skontrolujte názov v adrese; neexistuje alebo s vami nie je zdieľaný.",
+    "method-not-allowed": "Použite niektorú z metód, ktoré táto adresa povoľuje.",
+    "read-only-view": "Tento pohľad iba číta; údaje meňte cez endpoint, na ktorom stojí.",
+    "conflict": "Načítajte to znova a zopakujte zmenu nad aktuálnym stavom.",
+    "verdict-required": "Najprv spustite test; zelený výsledok umožní zmenu navrhnúť.",
+    "precondition-failed": "Načítajte entitu znova; od vášho čítania ju niekto zmenil.",
+    "payload-too-large": "Pošlite naraz menej: rozdeľte požiadavku alebo súbor.",
+    "unsupported-media-type": "Pošlite obsah ako JSON.",
+    "too-many-requests": "Chvíľu počkajte a skúste to znova.",
+    "daily-budget": "Dnešný limit je vyčerpaný; skúste to zajtra alebo požiadajte správcu o zvýšenie.",
+    "egress-budget-spent": "Odchádzajúci limit tohto behu je vyčerpaný; spustite nový beh alebo požiadajte správcu o zvýšenie.",
+    "internal-error": "Skúste to znova; ak sa to zopakuje, nahláste referenciu nižšie.",
+    "not-implemented": "Táto inštalácia to neponúka; obráťte sa na správcu.",
+    "subscription-not-routable": "Použite adresu príjemcu, ktorú platforma dosiahne cez HTTP(S).",
+    "federation-identity-unavailable": "Táto inštalácia nemá federačnú identitu; požiadajte správcu, aby ju nastavil.",
+    "broker-failure": "Úložisko údajov túto požiadavku nezvládlo; skúste to o minútu a ak sa to zopakuje, nahláste referenciu.",
+    "upstream-unavailable": "Služba za platformou neodpovedala; skúste to o minútu.",
+    "upstream-redirect": "Služba za platformou poslala presmerovanie, ktoré nesmie nasledovať; požiadajte jej vlastníka o konečnú adresu.",
+    "service-unavailable": "Platforma na to ešte nie je pripravená; skúste to o minútu.",
+    "delivery-timeout": "Príjemca neodpovedal včas; overte, že je dostupný, a skúste to znova."
   },
   "home": {
     "title": "Domov",

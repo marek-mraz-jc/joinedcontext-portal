@@ -159,6 +159,7 @@ export function ApprovalsHistory({
                   ? t("approvals.history.noneOnPage")
                   : t("approvals.history.empty")
             }
+            description={filtered || history.hasNextPage ? undefined : t("approvals.history.emptyHint")}
           />
         }
       >

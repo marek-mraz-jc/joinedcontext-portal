@@ -108,10 +108,10 @@ describe("the approvals queue", () => {
     const { calls } = await renderRoute({
       path: PATH,
       answer: (path) =>
-        path.endsWith("/changes") ? problem(403, "You may not read this project's changes.") : undefined,
+        path.endsWith("/changes") ? problem(503, "The changes could not be read right now.") : undefined,
     });
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("You may not read this project's changes.");
+    expect(alert).toHaveTextContent("The changes could not be read right now.");
     expect(screen.queryByText(en.approvals.empty)).toBeNull();
 
     const before = calls().filter((call) => call.endsWith("/changes")).length;
