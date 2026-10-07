@@ -159,7 +159,8 @@
     "origin": "https:// a hostitel, nejvýš s portem, jako https://www.example.org; bez cesty a zástupných znaků.",
     "language": "Dvoupísmenný kód jazyka malými písmeny, jako sk nebo en.",
     "sitePath": "Cesta webu začínající lomítkem, jako /news/**.",
-    "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394."
+    "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394.",
+    "notAnAttribute": "{name} není atribut typu {types} v modelech projektu; zkontrolujte pravopis."
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -288,23 +289,49 @@
   "glossary": {
     "endpoint": {
       "definition": "Zveřejněná adresa dat jednoho kontextového prostoru s vlastními pravidly, kdo smí číst které entity a atributy.",
-      "term": "Endpoint"
+      "term": "Endpoint",
+      "example": "Veřejný endpoint prostoru ovzduší odpoví komukoli; interní jen vaší organizaci."
     },
     "policy": {
       "definition": "Pravidlo za endpointem: které operace smí volající provést, nad kterými typy entit a které atributy se vrátí.",
-      "term": "Politika"
+      "term": "Politika",
+      "example": "Kdokoli smí číst AirQualityObserved bez atributu stationNote."
     },
     "contextSpace": {
       "definition": "Místo, kde žijí živá data jednoho projektu, odděleně od ostatních projektů; endpointy je zveřejňují, linky je plní.",
-      "term": "Kontextový prostor"
+      "term": "Kontextový prostor",
+      "example": "Prostor air-quality drží městské stanice a jejich měření."
     },
     "lane": {
       "definition": "Kolik posouzení změna potřebuje, než se provede: zelená projde sama, žlutá potřebuje schválení gestora, červená více lidí.",
-      "term": "Riziková dráha"
+      "term": "Riziková dráha",
+      "example": "Přejmenování dashboardu je zelené; zveřejnění endpointu všem je červené."
     },
     "change": {
       "definition": "Navržená úprava konfigurace, zaznamenaná tak, aby si ji člověk přečetl a schválil dříve, než se cokoli v provozu pohne.",
-      "term": "Změna"
+      "term": "Změna",
+      "example": "Přidat endpoint public-air, navrhl správce, schválil administrátor."
+    },
+    "entityType": {
+      "term": "Typ entity",
+      "definition": "Druh věci, kterou entita je, třeba stanice nebo autobus; datový model prostoru určuje, jaké atributy každý typ má.",
+      "example": "AirQualityObserved je typ entity jednoho měření kvality ovzduší."
+    },
+    "ngsiLd": {
+      "term": "NGSI-LD",
+      "definition": "Otevřený standard (ETSI), ve kterém platforma ukládá a poskytuje kontextová data: entity s atributy, každý atribut s hodnotou a časem pozorování.",
+      "example": "GET /ngsi-ld/v1/entities?type=Vehicle vypíše autobusy, které endpoint zveřejňuje."
+    },
+    "linkml": {
+      "term": "LinkML",
+      "definition": "Jazyk, ve kterém je datový model napsán: třídy, jejich atributy, jednotky a povolené hodnoty. Editor modelu jej píše za vás.",
+      "example": "Třída Station s atributy name a location."
+    },
+    "page": {
+      "title": "Slovník",
+      "lead": "Slova, která platforma používá, každé jednou větou s jedním příkladem.",
+      "example": "Příklad: {text}",
+      "more": "Co je {term}? Otevřít slovník"
     }
   },
   "quota": {
@@ -1534,7 +1561,42 @@
       "functionHint": "Vstupní bod modulu, který krok volá pro každý záznam.",
       "computeNotRun": "Platforma krok tohoto druhu zatím nespouští ({kind}): pipeline se přijme a zůstane ve stavu Pending, dokud to nepůjde. Krok Bloblang běží už dnes.",
       "live": "Živé počty běžícího proudu od spuštění jeho runneru; ukázku uvidíte po spuštění testu.",
-      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chyb}} od spuštění runneru"
+      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chyb}} od spuštění runneru",
+      "tools": "Nástroje grafu",
+      "undo": "Zpět",
+      "redo": "Znovu",
+      "zoomOut": "Oddálit",
+      "zoomIn": "Přiblížit",
+      "fitted": "Na šířku",
+      "fit": "Přizpůsobit šířce",
+      "asList": "Zobrazit jako seznam",
+      "listLabel": "Uzly pipeline v pořadí, v jakém běží",
+      "open": "Otevřít",
+      "moveUp": "Posunout výš",
+      "moveDown": "Posunout níž",
+      "removeNode": "Odstranit",
+      "search": "Najít procesor",
+      "searchPlaceholder": "Název, kategorie nebo co dělá",
+      "searchNone": "Žádný procesor neodpovídá „{query}“.",
+      "searchFound": "{count, plural, one {Nalezen # procesor} few {Nalezeny # procesory} other {Nalezeno # procesorů}}",
+      "wire": {
+        "intoSource": "Zdroj čte mimo pipeline; nic do něj nevede.",
+        "outOfOutput": "Po výstupu už nic neběží; táhněte drát z kroku.",
+        "self": "Uzel nemůže napájet sám sebe.",
+        "middleIntoOutput": "Výstupy napájí jen poslední krok. Přesuňte tento krok na konec, nebo před výstup dejte krok branch či switch, který pošle část zpráv jinam.",
+        "moved": "Krok přesunut: drát určil pořadí, v jakém kroky běží.",
+        "already": "Tyto dva uzly už jsou propojené."
+      },
+      "state": {
+        "configured": "Nastaven",
+        "missing": {
+          "source": "Chybí zdroj",
+          "output": "Chybí endpoint",
+          "mapping": "Chybí mapování",
+          "mappingRef": "Chybí název mapování",
+          "module": "Chybí modul"
+        }
+      }
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
@@ -2806,7 +2868,7 @@
       "secretRequired": "Pojmenujte tajemství, které nahrál operátor; samotný token se tu nikdy nezadává.",
       "secretKey": "Klíč v secretu",
       "secretKeyHelp": "Položka toho secretu, která obsahuje token. Nechte apiToken, pokud operátor neurčí jinak.",
-      "secretKeyInvalid": "Klíč tvoří písmena, číslice, tečky, pomlčky a podtržítka, například apiToken.",
+      "secretKeyInvalid": "Klíč tvoří písmena, číslice, tečky, pomlčky a podtržítka.",
       "secretInvalid": "Název secretu tvoří malá písmena, číslice, pomlčky a tečky, například ckan-api-token.",
       "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu."
     },

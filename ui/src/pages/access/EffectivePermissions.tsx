@@ -14,6 +14,7 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
+  Term,
 } from "../../components/ui";
 
 /**
@@ -85,7 +86,9 @@ function GrantTable({ entries, caption }: { entries: GrantEntry[]; caption: stri
   return (
     <Table caption={caption}>
       <TableHead>
-        <TableHeaderCell>{t("access.matrix.type")}</TableHeaderCell>
+        <TableHeaderCell>
+          <Term name="entityType">{t("access.matrix.type")}</Term>
+        </TableHeaderCell>
         <TableHeaderCell>{t("access.matrix.read")}</TableHeaderCell>
         <TableHeaderCell>{t("access.matrix.write")}</TableHeaderCell>
         <TableHeaderCell>{t("access.matrix.attributes")}</TableHeaderCell>

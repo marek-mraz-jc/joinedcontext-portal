@@ -159,7 +159,8 @@
     "origin": "https:// and a host, a port at most, such as https://www.example.org; no path and no wildcard.",
     "language": "A two-letter language code in lower case, such as sk or en.",
     "sitePath": "A path of the site starting with a slash, such as /news/**.",
-    "color": "A colour as # and six hexadecimal digits, such as #0b5394."
+    "color": "A colour as # and six hexadecimal digits, such as #0b5394.",
+    "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -288,23 +289,49 @@
   "glossary": {
     "endpoint": {
       "definition": "A published address for one context space's data, with its own rules about who may read which entities and attributes.",
-      "term": "Endpoint"
+      "term": "Endpoint",
+      "example": "The public endpoint of the air-quality space answers anyone; an internal one answers your organization only."
     },
     "policy": {
       "definition": "The rule behind an endpoint: which operations a caller may perform, on which entity types, and which attributes come back.",
-      "term": "Policy"
+      "term": "Policy",
+      "example": "Anyone may read AirQualityObserved, without the attribute stationNote."
     },
     "contextSpace": {
       "definition": "Where one project's live data is kept, apart from every other project's; endpoints publish it and pipelines fill it.",
-      "term": "Context Space"
+      "term": "Context Space",
+      "example": "The space air-quality holds the city's stations and their readings."
     },
     "lane": {
       "definition": "How much review a change needs before it happens: green goes through by itself, yellow needs a domain approval, red needs several people.",
-      "term": "Risk lane"
+      "term": "Risk lane",
+      "example": "Renaming a dashboard is green; publishing an endpoint to everyone is red."
     },
     "change": {
       "definition": "A proposed edit to the configuration, recorded so a person can read it and approve it before anything in service moves.",
-      "term": "Change"
+      "term": "Change",
+      "example": "Add the endpoint public-air, proposed by a steward and approved by an administrator."
+    },
+    "entityType": {
+      "term": "Entity type",
+      "definition": "The kind of thing an entity is, such as a station or a bus; the space's data model says which attributes each type has.",
+      "example": "AirQualityObserved is the entity type of one air-quality reading."
+    },
+    "ngsiLd": {
+      "term": "NGSI-LD",
+      "definition": "The open standard (ETSI) the platform stores and serves context data in: entities with attributes, each attribute with its value and when it was observed.",
+      "example": "GET /ngsi-ld/v1/entities?type=Vehicle lists the buses an endpoint publishes."
+    },
+    "linkml": {
+      "term": "LinkML",
+      "definition": "The language a data model is written in: classes, their attributes, units and allowed values. The Model editor writes it for you.",
+      "example": "A class Station with the attributes name and location."
+    },
+    "page": {
+      "title": "Glossary",
+      "lead": "The words the platform uses, each in one sentence with one example.",
+      "example": "Example: {text}",
+      "more": "What is {term}? Open the glossary"
     }
   },
   "quota": {
@@ -1534,7 +1561,42 @@
       "functionHint": "The module's entry point the step calls for each record.",
       "computeNotRun": "The platform does not run a step of this kind yet ({kind}): the pipeline is accepted and stays Pending until it does. A Bloblang step runs today.",
       "live": "Live counts of the running stream since its runner started; run a test to see a sample instead.",
-      "liveErrors": "{count, plural, one {# error} other {# errors}} since the runner started"
+      "liveErrors": "{count, plural, one {# error} other {# errors}} since the runner started",
+      "tools": "Graph tools",
+      "undo": "Undo",
+      "redo": "Redo",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "fitted": "Fitted",
+      "fit": "Fit to width",
+      "asList": "Show as a list",
+      "listLabel": "The pipeline's nodes in the order they run",
+      "open": "Open",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "removeNode": "Remove",
+      "search": "Find a processor",
+      "searchPlaceholder": "Name, category or what it does",
+      "searchNone": "No processor matches \"{query}\".",
+      "searchFound": "{count, plural, one {# processor found} other {# processors found}}",
+      "wire": {
+        "intoSource": "A source reads from outside the pipeline; nothing wires into it.",
+        "outOfOutput": "Nothing runs after an output; draw the wire from a step instead.",
+        "self": "A node cannot feed itself.",
+        "middleIntoOutput": "Only the last step feeds the outputs. Move this step to the end, or put a branch or switch step before the output to send part of the messages elsewhere.",
+        "moved": "Step moved: the wire set the order the steps run in.",
+        "already": "These two are already wired."
+      },
+      "state": {
+        "configured": "Configured",
+        "missing": {
+          "source": "Needs a source",
+          "output": "Needs an endpoint",
+          "mapping": "Needs a mapping",
+          "mappingRef": "Needs a mapping name",
+          "module": "Needs a module"
+        }
+      }
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",

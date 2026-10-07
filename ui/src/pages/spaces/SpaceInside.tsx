@@ -1051,7 +1051,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         <SpaceModel project={project} space={name} model={model} models={models} />
       </Section>
 
-      <Section title={t("spaces.inside.types")}>
+      <Section title={<Term name="entityType">{t("spaces.inside.types")}</Term>}>
         {usage.data !== undefined ? (
           <p className="mb-3 text-body text-fg" data-testid="space-total">
             {t("spaces.inside.total", { count: usage.data.entities })}
