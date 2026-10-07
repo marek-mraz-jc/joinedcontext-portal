@@ -1810,6 +1810,23 @@
         "lands": "Záznamy přistanou v prostoru {space}, kontrolované vůči modelu {model}.",
         "landsUnmodelled": "Záznamy přistanou v prostoru {space}, který zatím nejmenuje datový model.",
         "save": "Pojmenujte pipeline níže a navrhněte ji: nic se nezapíše, dokud změnu neschválí."
+      },
+      "changes": {
+        "title": "Co by se změnilo v {space}",
+        "compare": "Porovnat s prostorem",
+        "hint": "Přečte entity s těmito id tak, jak je smíte číst vy; nic se nezapíše.",
+        "noIds": "Namapované záznamy nemají id, podle kterého porovnat.",
+        "failed": "Prostor se nepodařilo přečíst: {reason}",
+        "counts": "{create, plural, =0 {nic k vytvoření} other {k vytvoření: #}}, {update, plural, =0 {nic ke změně} other {ke změně: #}}, {unchanged, plural, =0 {žádné beze změny} other {beze změny: #}}.",
+        "caption": "Každý namapovaný záznam proti entitě, kterou {space} drží teď",
+        "entity": "Entita",
+        "outcome": "Bude",
+        "what": "Co se změní",
+        "outcomes": {
+          "create": "Vytvořena",
+          "update": "Změněna",
+          "unchanged": "Beze změny"
+        }
       }
     },
     "mapper": {

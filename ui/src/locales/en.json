@@ -1810,6 +1810,23 @@
         "lands": "The records land in the space {space}, checked against the model {model}.",
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
         "save": "Name the pipeline below and propose it: nothing is written until the change is approved."
+      },
+      "changes": {
+        "title": "What would change in {space}",
+        "compare": "Compare with the space",
+        "hint": "Reads the entities with these ids as you may read them; nothing is written.",
+        "noIds": "The mapped records carry no id to compare by.",
+        "failed": "The space could not be read: {reason}",
+        "counts": "{create, plural, =0 {nothing to create} one {# to create} other {# to create}}, {update, plural, =0 {nothing to update} one {# to update} other {# to update}}, {unchanged, plural, =0 {none unchanged} one {# unchanged} other {# unchanged}}.",
+        "caption": "Each mapped record against the entity {space} holds now",
+        "entity": "Entity",
+        "outcome": "Would be",
+        "what": "What changes",
+        "outcomes": {
+          "create": "Created",
+          "update": "Updated",
+          "unchanged": "No change"
+        }
       }
     },
     "mapper": {

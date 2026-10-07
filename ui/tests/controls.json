@@ -959,14 +959,6 @@
         "form_schema_projection.test.tsx"
       ]
     },
-    "src/pages/explore/ExportView.tsx": {
-      "controls": {
-        "Button": 2
-      },
-      "tests": [
-        "explore_export_view.test.tsx"
-      ]
-    },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
         "Button": 6
@@ -978,6 +970,14 @@
         "explore_quality.test.tsx",
         "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
+      ]
+    },
+    "src/pages/explore/ExportView.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "explore_export_view.test.tsx"
       ]
     },
     "src/pages/flows/Gallery.tsx": {
@@ -1328,6 +1328,14 @@
       },
       "tests": [
         "slot_unit.test.tsx"
+      ]
+    },
+    "src/pages/pipelines/SpaceChanges.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "space_changes.test.tsx"
       ]
     },
     "src/pages/spaces/AiField.tsx": {
