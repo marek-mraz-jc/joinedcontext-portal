@@ -57,6 +57,8 @@ import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
 import { SharePanel } from "./PublicView";
+import { FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
+import type { FormSettings } from "./formView";
 import { AiFieldPanel } from "./AiField";
 import { SpaceQuality } from "./SpaceQuality";
 import {
@@ -382,12 +384,15 @@ function SpaceData({
   const [extras, setExtras] = useState<ViewExtras>({});
   const [group, setGroup] = useState<string | null>(null);
   const [seen, setSeen] = useState<string[]>([]);
+  // A form view's fields, conditions and prefill (T-3103, API/01 §30): its `settings`.
+  const [formSettings, setFormSettings] = useState<FormSettings>({});
   const applyView = useCallback((next: SavedView | null) => {
     setSaved(next);
     // A saved view opens as the kind it was saved as, with its filter for the views beside the grid.
     if (next && (DATA_VIEWS as readonly string[]).includes(next.kind)) setView(next.kind as DataView);
     setQ(next?.config.q ?? undefined);
     setExtras({ hidden: next?.config.hidden, colour: next?.config.colour, group: next?.config.group });
+    setFormSettings(next?.kind === "form" ? ((next.config.settings ?? {}) as FormSettings) : {});
     setGroup(null);
     const first = next?.config.sort?.[0];
     setGridView({
@@ -408,8 +413,9 @@ function SpaceData({
       ...extras,
       q: view === "grid" ? asked.q : q,
       sort: gridView.sort ? [{ attr: gridView.sort.attr, desc: gridView.sort.dir === "desc" }] : [],
+      ...(view === "form" ? { settings: formSettings as Record<string, never> } : {}),
     }),
-    [saved, extras, view, asked.q, q, gridView.sort],
+    [saved, extras, view, asked.q, q, gridView.sort, formSettings],
   );
   // The attributes a view can hide: the model's slots of the type and whatever the rows carry.
   const onRows = useCallback((rows: RichRow[]) => {
@@ -418,6 +424,13 @@ function SpaceData({
       return next.length === before.length ? before : next;
     });
   }, []);
+  // The slots of the type's class, in the model's order: what a form asks for (T-3103).
+  const typeSlots = useMemo(() => {
+    if (modelSource === undefined) return [];
+    const parsed = parseModel(modelSource);
+    const cls = parsed.classes.find((c) => c.name === type);
+    return cls ? classSlots(parsed, cls) : [];
+  }, [modelSource, type]);
   const attributes = useMemo(() => {
     const cls = modelSource === undefined ? undefined : parseModel(modelSource).classes.find((c) => c.name === type);
     const declared = cls && modelSource !== undefined ? classSlots(parseModel(modelSource), cls).map((slot) => slot.name) : [];
@@ -587,7 +600,21 @@ function SpaceData({
           <SharePanel key={type} project={project} space={space} type={type} attributes={slots.map((slot) => slot.name)} />
         </div>
       ) : null}
-      {probe.isSuccess && view !== "grid" && view !== "api" ? (
+      {probe.isSuccess && view === "form" ? (
+        <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
+          <FormSettingsEditor slots={typeSlots} value={formSettings} onChange={setFormSettings} />
+          <FormView space={space} type={type} slots={typeSlots} enums={enums} settings={formSettings} />
+          <FormSharePanel
+            key={type}
+            project={project}
+            space={space}
+            type={type}
+            attributes={attributes}
+            asked={(formSettings.fields?.length ? formSettings.fields.map((field) => field.attr) : typeSlots.map((slot) => slot.name))}
+          />
+        </div>
+      ) : null}
+      {probe.isSuccess && view !== "grid" && view !== "api" && view !== "form" ? (
         <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
           <EntityFilters
             id="space-view-filter"
@@ -636,7 +663,7 @@ function SpaceData({
 }
 
 /** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
-const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline", "api"] as const;
+const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline", "form", "api"] as const;
 type DataView = (typeof DATA_VIEWS)[number];
 
 /** One view other than the grid, over one page of the filtered type. */
@@ -655,7 +682,7 @@ function OtherView({
   space: string;
   type: string;
   q: string | undefined;
-  view: Exclude<DataView, "grid" | "api">;
+  view: Exclude<DataView, "grid" | "api" | "form">;
   /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
   enums: Record<string, EnumChoice[]>;
   /** The names of the space's Endpoints, which the AI field writes through. */
