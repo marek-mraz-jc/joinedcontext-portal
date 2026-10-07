@@ -1729,6 +1729,41 @@
         "notValue": "{field} enthält „{value}“; {name} erwartet einen der Werte {values}.",
         "noId": "Wählen Sie das Feld, aus dem die Id jeder Entität entsteht."
       }
+    },
+    "debug": {
+      "add": "+ Debug",
+      "pickWire": "Wählen Sie zuerst einen Knoten: Der Debug-Knoten hört den Draht in ihn ab, oder ziehen Sie ihn auf einen Draht.",
+      "remove": "Diesen Debug-Knoten entfernen",
+      "badge": "debug",
+      "title": "Debug",
+      "clear": "Leeren",
+      "noTaps": "Legen Sie einen Debug-Knoten auf einen Draht, um bei jedem Testlauf zu sehen, was ihn passiert.",
+      "filter": "Drähte zeigen von",
+      "everyNode": "Jeder Knoten",
+      "nothingYet": "Starten Sie den Test, um zu sehen, was die abgehörten Drähte passiert.",
+      "messages": "Was die abgehörten Drähte passiert hat, neueste zuerst",
+      "wholeSample": "Ganze Probe",
+      "message": "Nachricht {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Nichts hat diesen Draht erreicht.",
+      "failedHere": "Dieser Knoten ist fehlgeschlagen",
+      "brokeIt": "Die Eingabe, an der er scheiterte:",
+      "changed": "Was dieser Knoten geändert hat",
+      "unchanged": "Nichts: Die Nachricht ging, wie sie kam.",
+      "kind": {
+        "added": "hinzugefügt",
+        "removed": "entfernt",
+        "changed": "geändert"
+      },
+      "rerun": "Diesen Knoten mit dieser Eingabe erneut ausführen",
+      "rerunHint": "Nur dieser Knoten läuft, mit der Eingabe oben; nichts wird geschrieben.",
+      "rerunFailed": "Scheitert weiterhin",
+      "rerunOk": "Bestanden; was er erzeugt hat:",
+      "stepMode": "Eine Nachricht nach der anderen",
+      "stepModeFile": "Der Schrittmodus teilt eine Dateiprobe in Nachrichten; geben Sie statt der URL eine Datei.",
+      "runMessage": "Nachricht {number} von {total} ausführen",
+      "startOver": "Von vorn",
+      "position": "Nachricht {number} von {total}"
     }
   },
   "dashboards": {

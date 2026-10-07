@@ -1729,6 +1729,41 @@
         "notValue": "{field} obsahuje „{value}“; {name} očakáva jednu z hodnôt {values}.",
         "noId": "Vyberte pole, z ktorého vznikne id každej entity."
       }
+    },
+    "debug": {
+      "add": "+ Ladenie",
+      "pickWire": "Najprv vyberte uzol: ladiaci uzol odpočúva drôt, ktorý doň vedie, alebo ho pretiahnite na drôt.",
+      "remove": "Odstrániť tento ladiaci uzol",
+      "badge": "ladenie",
+      "title": "Ladenie",
+      "clear": "Vymazať",
+      "noTaps": "Pustite ladiaci uzol na drôt a uvidíte, čo ním pri každom teste prejde.",
+      "filter": "Zobraziť drôty uzla",
+      "everyNode": "Každý uzol",
+      "nothingYet": "Spustite test a uvidíte, čo prejde odpočúvanými drôtmi.",
+      "messages": "Čo prešlo odpočúvanými drôtmi, najnovšie prvé",
+      "wholeSample": "Celá vzorka",
+      "message": "Správa {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Tento drôt nič nedosiahlo.",
+      "failedHere": "Tento uzol zlyhal",
+      "brokeIt": "Vstup, na ktorom zlyhal:",
+      "changed": "Čo tento uzol zmenil",
+      "unchanged": "Nič: správa odišla tak, ako prišla.",
+      "kind": {
+        "added": "pridané",
+        "removed": "odstránené",
+        "changed": "zmenené"
+      },
+      "rerun": "Spustiť tento uzol znova na tomto vstupe",
+      "rerunHint": "Beží iba tento uzol, na vstupe vyššie; nič sa nezapíše.",
+      "rerunFailed": "Stále zlyháva",
+      "rerunOk": "Prešlo; čo vytvoril:",
+      "stepMode": "Jedna správa naraz",
+      "stepModeFile": "Krokovanie delí vzorku zo súboru na správy; namiesto URL dajte súbor.",
+      "runMessage": "Spustiť správu {number} z {total}",
+      "startOver": "Od začiatku",
+      "position": "Správa {number} z {total}"
     }
   },
   "dashboards": {
