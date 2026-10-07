@@ -1286,6 +1286,16 @@
       "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
       "answered": "Endpoint odpovedal {status}.",
       "code": "To isté volanie ako kód"
+    },
+    "docs": {
+      "title": "Dokumentácia API",
+      "open": "Zobraziť vygenerovanú dokumentáciu",
+      "publicPage": "Verejná stránka pre každého: {url}",
+      "unavailable": "Dokumentáciu tohto endpointu nemožno prečítať: neexistuje, alebo ju nesmiete čítať.",
+      "download": "Dokument OpenAPI (JSON)",
+      "parameter": "Názov",
+      "meaning": "Čo nastavuje",
+      "parametersOf": "Parametre {path}"
     }
   },
   "datasources": {

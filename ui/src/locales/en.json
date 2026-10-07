@@ -1286,6 +1286,16 @@
       "fill": "Fill in the fields the call needs first.",
       "answered": "The endpoint answered {status}.",
       "code": "The same call as code"
+    },
+    "docs": {
+      "title": "API documentation",
+      "open": "Show the generated documentation",
+      "publicPage": "Public page for anyone: {url}",
+      "unavailable": "This endpoint's documentation cannot be read: it does not exist, or you may not read it.",
+      "download": "The OpenAPI document (JSON)",
+      "parameter": "Name",
+      "meaning": "What it sets",
+      "parametersOf": "Parameters of {path}"
     }
   },
   "datasources": {

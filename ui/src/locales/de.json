@@ -1286,6 +1286,16 @@
       "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
       "answered": "Der Endpunkt antwortete {status}.",
       "code": "Derselbe Aufruf als Code"
+    },
+    "docs": {
+      "title": "API-Dokumentation",
+      "open": "Erzeugte Dokumentation anzeigen",
+      "publicPage": "Öffentliche Seite für alle: {url}",
+      "unavailable": "Die Dokumentation dieses Endpunkts lässt sich nicht lesen: es gibt ihn nicht, oder Sie dürfen ihn nicht lesen.",
+      "download": "Das OpenAPI-Dokument (JSON)",
+      "parameter": "Name",
+      "meaning": "Was er festlegt",
+      "parametersOf": "Parameter von {path}"
     }
   },
   "datasources": {
