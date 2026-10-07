@@ -2229,7 +2229,10 @@
       "held": "Kept as the shared draft {name}; it is here after a reload, until you save the model.",
       "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do.",
       "spaceHas": "{space} (already has {model})",
-      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it."
+      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it.",
+      "noSpace": "A model belongs to one context space, and the project has none yet.",
+      "noFreeSpace": "Every space of the project already has its model; a new model needs a new space, or add your classes to the space's model.",
+      "newSpace": "Create a context space"
     },
     "infer": {
       "title": "Model from a file",
