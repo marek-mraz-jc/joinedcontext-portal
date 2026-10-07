@@ -1287,16 +1287,6 @@
           "spec": "delete-restore.spec.ts",
           "test": "the history brings it back as a new change, and once approved the space is there again"
         },
-        "personOnly": "bringing back what a merged removal took is a person's decision from the Approvals history; an agent proposes the manifest again with jc_resource_propose (T-3247)",
-        "routes": [
-          "POST /api/v1/projects/{project}/changes/{id}/restore"
-        ]
-      },
-      "restore": {
-        "live": {
-          "spec": "delete-restore.spec.ts",
-          "test": "the history brings it back as a new change, and once approved the space is there again"
-        },
         "assistant": "jc_resource_propose",
         "routes": [
           "POST /api/v1/projects/{project}/changes/{id}/restore"

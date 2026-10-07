@@ -122,6 +122,27 @@ test("a steward drafts a model from a CSV sample into the editor", async ({ brow
   }
 });
 
+test("a steward drafts a model from what a public API answers, and an address with a key is refused (T-3250)", async ({ browser }) => {
+  const { page, context } = await signIn(browser, STEWARD, `/projects/${PROJECT}/models?new=file&lang=en`);
+  try {
+    const address = page.getByLabel("Or the address of an API that answers JSON");
+    // Refused in the browser and never sent: the runner and its logs would hold the key.
+    await address.fill("https://api.citybik.es/v2/networks/citybikes-helsinki?api_key=not-a-real-key");
+    await page.getByRole("button", { name: "Read the address" }).click();
+    await expect(page.getByRole("alert")).toContainText("carries a user name, a password or a key");
+
+    // Fetched once on the project's runner; the model is drawn from the stations inside the answer.
+    await address.fill("https://api.citybik.es/v2/networks/citybikes-helsinki");
+    await page.getByRole("button", { name: "Read the address" }).click();
+    const draft = page.getByRole("dialog", { name: /^Draft from citybikes-helsinki/ });
+    await expect(draft).toBeVisible({ timeout: 120_000 });
+    await expect(draft).toContainText(/free_?bikes/i);
+    await draft.getByRole("button", { name: "Cancel" }).click();
+  } finally {
+    await sweepDrafts(context, page, PROJECT, MINE);
+  }
+});
+
 test("a steward imports a Smart Data Model into a model being built", async ({ browser }) => {
   const { page, context } = await signIn(browser, STEWARD, `/projects/${PROJECT}/models?lang=en`);
   try {
