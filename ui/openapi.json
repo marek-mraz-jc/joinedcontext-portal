@@ -13145,6 +13145,15 @@
                 "description": "The newest workflow run, `null` before the first."
               }
             ]
+          },
+          "typicalSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the newest finished successful run took, in seconds: the estimate a running\nbuild is shown against (T-3245); `null` before the first one.",
+            "minimum": 0
           }
         }
       },
@@ -20086,12 +20095,35 @@
             "type": "string",
             "description": "The commit the run built."
           },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC 3339, once it is completed."
+          },
           "conclusion": {
             "type": [
               "string",
               "null"
             ],
             "description": "`success`, `failure`, `cancelled`… once the run is completed."
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The run's number in its repository, so a client tells the run it started from the one\nbefore it (T-3245).",
+            "minimum": 0
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC 3339, once a runner took it."
           },
           "status": {
             "type": "string",

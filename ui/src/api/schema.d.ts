@@ -2950,6 +2950,12 @@ export interface components {
              */
             repositoryUrl?: string | null;
             run?: null | components["schemas"]["WorkflowRun"];
+            /**
+             * Format: int64
+             * @description How long the newest finished successful run took, in seconds: the estimate a running
+             *     build is shown against (T-3245); `null` before the first one.
+             */
+            typicalSeconds?: number | null;
         };
         /** @description The last probe of one App (AP-136). */
         AppCheck: {
@@ -5461,8 +5467,18 @@ export interface components {
         WorkflowRun: {
             /** @description The commit the run built. */
             commit: string;
+            /** @description RFC 3339, once it is completed. */
+            completedAt?: string | null;
             /** @description `success`, `failure`, `cancelled`… once the run is completed. */
             conclusion?: string | null;
+            /**
+             * Format: int64
+             * @description The run's number in its repository, so a client tells the run it started from the one
+             *     before it (T-3245).
+             */
+            number?: number | null;
+            /** @description RFC 3339, once a runner took it. */
+            startedAt?: string | null;
             /** @description `queued`, `in_progress`, `waiting` or `completed`, as the forge says it. */
             status: string;
             /** @description The run's page, behind the forge's sign-in (PF-81). */

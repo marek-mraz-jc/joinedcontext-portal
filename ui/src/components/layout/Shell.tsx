@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { NotificationsMenu } from "../../pages/spaces/Comments";
+import { JobsMenu } from "../JobsMenu";
 import { AssistantDock } from "../../assistant/AssistantDock";
 import { useAuth } from "../../auth/AuthProvider";
 import { rememberProject, useProjects } from "../../api/projects";
@@ -456,6 +457,7 @@ export function Shell({
             </Link>
           ) : null}
           <LanguageSwitcher />
+          <JobsMenu />
           <NotificationsMenu />
           <UserMenu />
         </div>
