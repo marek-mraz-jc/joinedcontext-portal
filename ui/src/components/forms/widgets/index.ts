@@ -4,6 +4,7 @@ import { DataModelPickerWidget, FormProjectContext, TypePickerWidget } from "./M
 import { OperationsPicker } from "./OperationsPicker";
 import { ResourcePicker } from "./ResourcePicker";
 import { SecretRefWidget } from "./SecretRef";
+import { AssigneePicker, AttributeSuggest } from "./SuggestWidgets";
 
 export {
   DataModelPickerWidget,
@@ -17,6 +18,8 @@ export {
   TypePickerWidget,
 };
 export const portalWidgets = {
+  assigneePicker: AssigneePicker,
+  attributeSuggest: AttributeSuggest,
   dataModelPicker: DataModelPickerWidget,
   entityPicker: EntityPicker,
   operations: OperationsPicker,

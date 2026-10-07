@@ -2998,7 +2998,8 @@
     "advanced": "Toto q používá | nebo závorky, které řádky nezobrazí; upravte ho jako text.",
     "q": "Dotaz (q)",
     "qHint": "NGSI-LD q, které řádky skládají; upravte ho zde nebo v YAML.",
-    "attrs": "Čtené atributy"
+    "attrs": "Čtené atributy",
+    "typeNotGranted": "{name} (přes tento endpoint neuděleno)"
   },
   "entityGrid": {
     "id": "ID",
@@ -4084,6 +4085,11 @@
       "validFrom": "Platí od",
       "validTo": "Platí do",
       "grants": "Povoluje"
+    },
+    "assignee": {
+      "didHint": "Napište decentralizovaný identifikátor, například did:web:example.org; seznam k výběru neexistuje.",
+      "peopleHidden": "Seznam osob vidí jen správce organizace; napište e-mail, kterým se osoba přihlašuje.",
+      "noneYet": "Zatím tu není nic tohoto druhu k výběru ({kind}); napište název tak, jak jej píše poskytovatel identity."
     }
   },
   "subscriptions": {
