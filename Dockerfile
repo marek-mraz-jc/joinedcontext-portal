@@ -54,6 +54,7 @@ COPY apps/praha-data/ui/package.json apps/praha-data/ui/pnpm-lock.yaml ./apps/pr
 COPY apps/praha-odpad/ui/package.json apps/praha-odpad/ui/pnpm-lock.yaml ./apps/praha-odpad/ui/
 COPY apps/helsinki-kartta/ui/package.json apps/helsinki-kartta/ui/pnpm-lock.yaml ./apps/helsinki-kartta/ui/
 COPY apps/helsinki-data/ui/package.json apps/helsinki-data/ui/pnpm-lock.yaml ./apps/helsinki-data/ui/
+COPY apps/bike-stations/ui/package.json apps/bike-stations/ui/pnpm-lock.yaml ./apps/bike-stations/ui/
 COPY apps/praha-mesto/ui/package.json apps/praha-mesto/ui/pnpm-lock.yaml ./apps/praha-mesto/ui/
 COPY apps/zilina-mapa/ui/package.json apps/zilina-mapa/ui/pnpm-lock.yaml ./apps/zilina-mapa/ui/
 COPY apps/zilina-ukazovatele/ui/package.json apps/zilina-ukazovatele/ui/pnpm-lock.yaml ./apps/zilina-ukazovatele/ui/
@@ -74,6 +75,7 @@ RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../../praha-odpad/ui && pnpm install --frozen-lockfile \
     && cd ../../helsinki-kartta/ui && pnpm install --frozen-lockfile \
     && cd ../../helsinki-data/ui && pnpm install --frozen-lockfile \
+    && cd ../../bike-stations/ui && pnpm install --frozen-lockfile \
     && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile \
     && cd ../../zilina-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../zilina-ukazovatele/ui && pnpm install --frozen-lockfile \
@@ -94,6 +96,7 @@ COPY apps/praha-data/ui/ ./apps/praha-data/ui/
 COPY apps/praha-odpad/ui/ ./apps/praha-odpad/ui/
 COPY apps/helsinki-kartta/ui/ ./apps/helsinki-kartta/ui/
 COPY apps/helsinki-data/ui/ ./apps/helsinki-data/ui/
+COPY apps/bike-stations/ui/ ./apps/bike-stations/ui/
 COPY apps/praha-mesto/ui/ ./apps/praha-mesto/ui/
 COPY apps/zilina-mapa/ui/ ./apps/zilina-mapa/ui/
 COPY apps/zilina-ukazovatele/ui/ ./apps/zilina-ukazovatele/ui/
@@ -142,6 +145,9 @@ RUN cd apps/helsinki-kartta/ui && pnpm build \
 RUN cd apps/helsinki-data/ui && pnpm build \
     && cp -r dist /srv/apps/helsinki-data \
     && node /work/scripts/app-integrity.mjs /srv/apps/helsinki-data
+RUN cd apps/bike-stations/ui && pnpm build \
+    && cp -r dist /srv/apps/bike-stations \
+    && node /work/scripts/app-integrity.mjs /srv/apps/bike-stations
 RUN cd apps/praha-mesto/ui && pnpm build \
     && cp -r dist /srv/apps/praha-mesto \
     && node /work/scripts/app-integrity.mjs /srv/apps/praha-mesto
