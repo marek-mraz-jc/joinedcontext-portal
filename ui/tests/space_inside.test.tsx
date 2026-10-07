@@ -145,6 +145,8 @@ function renderInside(
     usage?: { status: number; body: unknown };
     /** The model's committed LinkML source, which the space's data reads for its field rules. */
     source?: string;
+    /** The saved data views of the space (API/01 §30). */
+    views?: unknown[];
   } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -185,6 +187,9 @@ function renderInside(
     }
     if (path.endsWith("/spaces/ovzdusie")) {
       return json(seed.space ?? SPACE);
+    }
+    if (path.endsWith("/spaces/ovzdusie/views")) {
+      return json({ items: seed.views ?? [] });
     }
     if (path.endsWith("/datamodels/bb-air-quality/source") && seed.source !== undefined) {
       return Promise.resolve(new Response(seed.source, { status: 200, headers: { "Content-Type": "text/yaml" } }));
@@ -569,6 +574,63 @@ describe("the space's own data", () => {
 
     expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: en.spaces.fields.add })).toBeNull();
+  });
+
+  it("applies a saved view: its query is what the space surface is asked (T-3104)", async () => {
+    const view = {
+      id: "7f1c2a9e-4b1d-4a57-9a0e-2f6d1c3b8e01",
+      type: "AirQualityObserved",
+      kind: "grid",
+      mode: "collaborative",
+      title: "High NO2",
+      owner: "jana.kovacova",
+      config: { q: "no2>40" },
+      version: 1,
+      createdAt: "2026-10-06T19:00:00Z",
+      updatedAt: "2026-10-06T19:00:00Z",
+    };
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, { views: [view] });
+
+    const picker = await screen.findByLabelText(en.spaces.saved.view);
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+    await userEvent.selectOptions(picker, view.id);
+
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls
+        .map((call) => urlOf(call[0]))
+        .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+      expect(asked.some((url) => url.searchParams.get("q") === "no2>40")).toBe(true);
+    });
+  });
+
+  it("marks the rows a view's colour rule matches, and hides the fields it hides (T-3099)", async () => {
+    const rows = [
+      { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1", type: "AirQualityObserved", pm10: { type: "Property", value: 52 }, no2: { type: "Property", value: 9 } },
+      { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:2", type: "AirQualityObserved", pm10: { type: "Property", value: 12 }, no2: { type: "Property", value: 7 } },
+    ];
+    const view = {
+      id: "7f1c2a9e-4b1d-4a57-9a0e-2f6d1c3b8e02",
+      type: "AirQualityObserved",
+      kind: "grid",
+      mode: "personal",
+      title: "Dusty",
+      owner: "jana.kovacova",
+      config: { hidden: ["no2"], colour: [{ when: "pm10>50", colour: "danger" }] },
+      version: 1,
+      createdAt: "2026-10-06T19:00:00Z",
+      updatedAt: "2026-10-06T19:00:00Z",
+    };
+    renderInside({ status: 200, count: 1 }, { status: 200, rows }, { views: [view] });
+
+    const picker = await screen.findByLabelText(en.spaces.saved.view);
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+    expect(await screen.findByRole("columnheader", { name: /no2/ })).toBeInTheDocument();
+    await userEvent.selectOptions(picker, view.id);
+
+    const marked = await screen.findAllByRole("img", { name: en.spaces.saved.toneLabel.replace("{when}", "pm10>50") });
+    expect(marked).toHaveLength(1);
+    expect(marked[0].closest("tr")).toHaveTextContent("52");
+    expect(screen.queryByRole("columnheader", { name: /no2/ })).toBeNull();
   });
 
   it("says nothing has been written to an empty space", async () => {
