@@ -182,3 +182,37 @@ describe("the Policy form's suggestions (T-3217)", () => {
     expect(onChange).toHaveBeenLastCalledWith("x");
   });
 });
+
+describe("the Subscription form's attribute suggestions (T-3291)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const subscription = { contextSpaceRef: "air", entities: [{ type: "AirQualityObserved" }] };
+  const watched = (value?: string) =>
+    props("root_watchedAttributes_0", { value, options: { kind: "any", typesFrom: "entities" } });
+
+  it("offers every attribute of the watched types, properties and relationships alike", async () => {
+    stub();
+    wrap(subscription, <AttributeSuggest {...watched()} />);
+    await waitFor(() => expect(offered(field("root_watchedAttributes_0"))).toEqual(["no2", "pm10", "refDevice"]));
+  });
+
+  it("says beside the field when a typed name is no attribute of the watched types", async () => {
+    stub();
+    wrap(subscription, <AttributeSuggest {...watched("pm1O")} />);
+    expect(
+      await screen.findByText("pm1O is not an attribute of AirQualityObserved in the project's models; check the spelling."),
+    ).toBeInTheDocument();
+  });
+
+  it("asks nothing while no type is watched, and says nothing about a name it cannot judge", async () => {
+    stub();
+    wrap({ contextSpaceRef: "air", entities: [] }, <AttributeSuggest {...watched("anything")} />);
+    expect(offered(field("root_watchedAttributes_0"))).toEqual([]);
+    expect(screen.queryByText(/is not an attribute of/)).toBeNull();
+  });
+});

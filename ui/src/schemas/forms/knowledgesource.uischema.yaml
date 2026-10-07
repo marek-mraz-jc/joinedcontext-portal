@@ -92,10 +92,10 @@ spec:
         de: Eine Website wird ab den Startadressen Seite für Seite gelesen; ein Katalog über seine API.
     startUrls:
       help:
-        en: Where a website crawl starts, up to twenty https addresses of web pages; it follows links of the same site from there. A PDF is read from the page that links it, so give that page.
-        sk: Kde prechádzanie webu začína, najviac dvadsať adries https webových stránok; odtiaľ nasleduje odkazy toho istého webu. PDF sa číta zo stránky, ktorá naň odkazuje, preto zadajte tú stránku.
-        cs: Kde procházení webu začíná, nejvýše dvacet adres https webových stránek; odtud následuje odkazy téhož webu. PDF se čte ze stránky, která na něj odkazuje, proto zadejte tu stránku.
-        de: Wo ein Durchlauf beginnt, bis zu zwanzig https-Adressen von Webseiten; von dort folgt er Verweisen derselben Website. Ein PDF wird von der Seite gelesen, die darauf verweist; geben Sie diese Seite an.
+        en: Where a website crawl starts, up to twenty https addresses; it follows links of the same site from there. The address of a PDF or another document is read as that document.
+        sk: Kde prechádzanie webu začína, najviac dvadsať adries https; odtiaľ nasleduje odkazy toho istého webu. Adresa PDF alebo iného dokumentu sa číta ako ten dokument.
+        cs: Kde procházení webu začíná, nejvýše dvacet adres https; odtud následuje odkazy téhož webu. Adresa PDF nebo jiného dokumentu se čte jako ten dokument.
+        de: Wo ein Durchlauf beginnt, bis zu zwanzig https-Adressen; von dort folgt er Verweisen derselben Website. Die Adresse eines PDF oder eines anderen Dokuments wird als dieses Dokument gelesen.
     ckanInstanceRef:
       help:
         en: The catalogue of this project whose public datasets are read, for a source of the catalogue type.
