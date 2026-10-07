@@ -3411,6 +3411,21 @@
       "truncated": "Only the first {max} rows: narrow the filter for the rest.",
       "empty": "The view holds no rows to export.",
       "noGeometry": "No entity of the view has a location, so there is no GeoJSON to export."
+    },
+    "useData": {
+      "open": "Use this data",
+      "title": "Use this data in a program",
+      "lead": "The rows of {type} this view shows, read through the same endpoint with the same filter. Copy a snippet and run it as written.",
+      "public": "This endpoint answers anyone: no token is needed.",
+      "tokenTitle": "Your program's token",
+      "token": "Put a token in the environment variable {variable} before running a snippet: an API key of a service account of this project, which the endpoint's policy decides like your own session. Never paste your personal session into a program.",
+      "tokenLink": "Create a service account and its API key",
+      "copy": "Copy the {language} snippet",
+      "language": {
+        "curl": "curl (shell)",
+        "python": "Python 3 (no packages needed)",
+        "javascript": "JavaScript (Node 18 or later)"
+      }
     }
   },
   "agentRun": {

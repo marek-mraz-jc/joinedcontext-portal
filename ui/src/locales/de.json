@@ -3411,6 +3411,21 @@
       "truncated": "Nur die ersten {max} Zeilen: grenzen Sie den Filter für den Rest ein.",
       "empty": "Die Ansicht enthält keine Zeilen zum Exportieren.",
       "noGeometry": "Keine Entität der Ansicht hat einen Ort, daher gibt es kein GeoJSON zu exportieren."
+    },
+    "useData": {
+      "open": "Diese Daten verwenden",
+      "title": "Diese Daten in einem Programm verwenden",
+      "lead": "Die Zeilen von {type}, die diese Ansicht zeigt, gelesen über denselben Endpunkt mit demselben Filter. Kopieren Sie ein Beispiel und führen Sie es unverändert aus.",
+      "public": "Dieser Endpunkt antwortet jedem: Es ist kein Token nötig.",
+      "tokenTitle": "Das Token Ihres Programms",
+      "token": "Legen Sie vor dem Ausführen ein Token in die Umgebungsvariable {variable}: einen API-Schlüssel eines Dienstkontos dieses Projekts, über den die Richtlinie des Endpunkts wie über Ihre Sitzung entscheidet. Fügen Sie nie Ihre persönliche Sitzung in ein Programm ein.",
+      "tokenLink": "Dienstkonto und API-Schlüssel anlegen",
+      "copy": "{language}-Beispiel kopieren",
+      "language": {
+        "curl": "curl (Shell)",
+        "python": "Python 3 (ohne Pakete)",
+        "javascript": "JavaScript (Node 18 oder neuer)"
+      }
     }
   },
   "agentRun": {
