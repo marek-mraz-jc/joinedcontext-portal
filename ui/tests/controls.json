@@ -959,9 +959,17 @@
         "form_schema_projection.test.tsx"
       ]
     },
+    "src/pages/explore/ExportView.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "explore_export_view.test.tsx"
+      ]
+    },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
-        "Button": 7
+        "Button": 6
       },
       "tests": [
         "explore_enum_pick.test.tsx",
