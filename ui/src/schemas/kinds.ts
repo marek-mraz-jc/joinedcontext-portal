@@ -1294,6 +1294,9 @@ export const pipelineUiSchema: UiSchema = {
     "quotas",
     "*",
   ],
+  // In words, with the next runs (T-3259); a Portal widget, so it is named here and not in the
+  // shipped UiSchema manifest, which may name only RJSF's own.
+  schedule: { "ui:widget": "cronSchedule" },
   source: { "ui:order": ["dataSourceRef", "endpointRef", "query", "trigger", "*"] },
   compute: {
     "ui:order": ["kind", "bloblang", "mappingRef", "module", "function", "*"],

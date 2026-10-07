@@ -1362,6 +1362,14 @@
         "slot_unit.test.tsx"
       ]
     },
+    "src/pages/pipelines/SpaceChanges.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "space_changes.test.tsx"
+      ]
+    },
     "src/pages/spaces/AiField.tsx": {
       "controls": {
         "Button": 1

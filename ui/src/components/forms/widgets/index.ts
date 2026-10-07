@@ -5,6 +5,7 @@ import { OperationsPicker } from "./OperationsPicker";
 import { ResourcePicker } from "./ResourcePicker";
 import { SecretRefWidget } from "./SecretRef";
 import { AssigneePicker, AttributeSuggest } from "./SuggestWidgets";
+import { CronScheduleWidget } from "./CronSchedule";
 
 export {
   DataModelPickerWidget,
@@ -20,6 +21,7 @@ export {
 export const portalWidgets = {
   assigneePicker: AssigneePicker,
   attributeSuggest: AttributeSuggest,
+  cronSchedule: CronScheduleWidget,
   dataModelPicker: DataModelPickerWidget,
   entityPicker: EntityPicker,
   operations: OperationsPicker,

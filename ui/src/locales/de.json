@@ -1831,6 +1831,23 @@
         "lands": "Die Datensätze landen im Raum {space}, geprüft gegen das Modell {model}.",
         "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
         "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist."
+      },
+      "changes": {
+        "title": "Was sich in {space} ändern würde",
+        "compare": "Mit dem Raum vergleichen",
+        "hint": "Liest die Entitäten mit diesen IDs, wie Sie sie lesen dürfen; nichts wird geschrieben.",
+        "noIds": "Die gemappten Datensätze haben keine ID zum Vergleichen.",
+        "failed": "Der Raum konnte nicht gelesen werden: {reason}",
+        "counts": "{create, plural, =0 {nichts anzulegen} other {# anzulegen}}, {update, plural, =0 {nichts zu ändern} other {# zu ändern}}, {unchanged, plural, =0 {keine unverändert} other {# unverändert}}.",
+        "caption": "Jeder gemappte Datensatz gegen die Entität, die {space} jetzt hält",
+        "entity": "Entität",
+        "outcome": "Würde",
+        "what": "Was sich ändert",
+        "outcomes": {
+          "create": "Angelegt",
+          "update": "Geändert",
+          "unchanged": "Unverändert"
+        }
       }
     },
     "mapper": {
@@ -1912,6 +1929,33 @@
       "runMessage": "Nachricht {number} von {total} ausführen",
       "startOver": "Von vorn",
       "position": "Nachricht {number} von {total}"
+    },
+    "schedule": {
+      "how": "Wie oft",
+      "kind": {
+        "minutes": "Alle paar Minuten",
+        "hours": "Alle paar Stunden",
+        "hourly": "Jede Stunde",
+        "daily": "Jeden Tag",
+        "weekly": "Jede Woche",
+        "custom": "Eigener (Cron)"
+      },
+      "every": {
+        "minutes": "Alle",
+        "hours": "Alle"
+      },
+      "step": {
+        "minutes": "{count} Minuten",
+        "hours": "{count} Stunden"
+      },
+      "atMinute": "In Minute",
+      "on": "Am",
+      "atTime": "Um (UTC)",
+      "cron": "Cron, fünf Felder in UTC",
+      "invalid": "Das sind keine fünf Cron-Felder: Minute, Stunde, Tag im Monat, Monat, Wochentag.",
+      "next": "Die nächsten fünf Läufe, in Ihrer Zeit",
+      "never": "Dieser Zeitplan nennt keine Zeit in den nächsten vier Jahren.",
+      "tooOften": "Dieser Zeitplan läuft öfter, als sich die Quelle ändert (ihr Katalogeintrag sagt: {frequency}), die meisten Läufe finden also nichts Neues."
     }
   },
   "dashboards": {
