@@ -357,6 +357,39 @@ describe("data sources view", () => {
     expect(within(dialog).queryByTestId("datasource-probe")).toBeNull();
   });
 
+  it("fills the form from a template and checks it at once, with the template's type (T-3249)", async () => {
+    const fetchMock = renderDataSources();
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
+    const dialog = await findFormPage();
+    const gallery = within(dialog).getByTestId("datasource-templates");
+    await userEvent.click(within(gallery).getByRole("button", { name: new RegExp(en.datasources.template["gtfs-rt"].title) }));
+    await userEvent.type(within(gallery).getByLabelText(new RegExp(en.datasources.template["gtfs-rt"].url)), "https://gtfs.example.org/vehicle-positions.pb");
+    expect(within(gallery).getByLabelText(/Name/)).toHaveValue("vehicle-positions");
+    await userEvent.click(within(gallery).getByRole("button", { name: en.datasources.template.use }));
+
+    await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
+    const dry = writes(fetchMock)[0];
+    expect(new URL(dry.url).searchParams.get("dryRun")).toBe("All");
+    const body = (await dry.clone().json()) as { metadata: { name: string }; spec: Record<string, unknown> };
+    expect(body.metadata.name).toBe("vehicle-positions");
+    expect(body.spec).toEqual({ type: "gtfs-rt", gtfsRt: { url: "https://gtfs.example.org/vehicle-positions.pb", feed: "vehiclePositions" } });
+    expect(await within(dialog).findByTestId("datasource-probe")).toHaveTextContent("1 records, 512 bytes");
+    expect(screen.getByLabelText(en.datasources.field.type)).toHaveValue("gtfs-rt");
+  });
+
+  it("refuses a CKAN dataset page at the field and sends nothing (T-3249)", async () => {
+    const fetchMock = renderDataSources();
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
+    const gallery = within(await findFormPage()).getByTestId("datasource-templates");
+    await userEvent.click(within(gallery).getByRole("button", { name: new RegExp(en.datasources.template.ckan.title) }));
+    const address = within(gallery).getByLabelText(new RegExp(en.datasources.template.ckan.url));
+    await userEvent.type(address, "https://data.gov.sk/dataset/kvalita-ovzdusia");
+    await userEvent.click(within(gallery).getByRole("button", { name: en.datasources.template.use }));
+    expect(within(gallery).getByText(en.datasources.template.problem.ckanDataset)).toBeInTheDocument();
+    expect(address).toHaveAttribute("aria-invalid", "true");
+    expect(writes(fetchMock)).toHaveLength(0);
+  });
+
   it("opens the dialog filled when the assistant sent a data source ahead (AG-61)", async () => {
     rememberPrefill("/projects/banskabystrica/datasources", {
       type: "http",

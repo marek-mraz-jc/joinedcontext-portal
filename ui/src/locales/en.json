@@ -1331,7 +1331,51 @@
       "skipped": "Not fetched: {reason}"
     },
     "emptyHint": "A data source is where the platform fetches from: a feed, a broker, an API. Add one and a pipeline can read it into a context space.",
-    "newPipeline": "New pipeline from this source"
+    "newPipeline": "New pipeline from this source",
+    "template": {
+      "title": "Start from a template",
+      "lead": "Pick what the source is and give its address: the form is filled and checked at once, and the first records show before anything is proposed.",
+      "use": "Fill the form and check",
+      "nameHelp": "Lowercase letters, digits and hyphens; taken from the address until you type one.",
+      "csv": {
+        "title": "CSV file at an address",
+        "what": "A table published as a .csv file, read on every run.",
+        "url": "Address of the CSV file",
+        "urlHelp": "The address that downloads the file itself, starting with https://."
+      },
+      "json": {
+        "title": "REST API (JSON)",
+        "what": "An API that answers JSON, read on every run.",
+        "url": "Address of the API",
+        "urlHelp": "The full address with its query, starting with https://; an API that needs a key gets it in the form below."
+      },
+      "ckan": {
+        "title": "Dataset from a CKAN portal",
+        "what": "A resource of an open-data catalogue such as data.gov.sk.",
+        "url": "Download address of the resource",
+        "urlHelp": "On the dataset page, open the CSV or JSON resource and copy its download address."
+      },
+      "wfs": {
+        "title": "WFS layer or GeoJSON",
+        "what": "Features of a map service, read as GeoJSON.",
+        "url": "Address of the WFS service or the GeoJSON file",
+        "urlHelp": "The service address ending before the question mark, or a GeoJSON file.",
+        "layer": "Layer name",
+        "layerHelp": "The feature type the service lists in its capabilities; not needed for a GeoJSON file."
+      },
+      "gtfs-rt": {
+        "title": "GTFS Realtime feed",
+        "what": "Vehicle positions of a public transport operator.",
+        "url": "Address of the GTFS Realtime feed",
+        "urlHelp": "The protobuf feed the operator publishes, starting with https://. A static GTFS timetable (a .zip) is not a live feed."
+      },
+      "problem": {
+        "name": "Give a name of lowercase letters, digits and hyphens, at most 63 characters.",
+        "url": "Give a full address starting with https:// or http://.",
+        "ckanDataset": "This is the dataset page, not a file. Open the CSV or JSON resource on it and copy its download address.",
+        "layer": "Name the layer to read, or give the address of a GeoJSON file."
+      }
+    }
   },
   "pipelines": {
     "lead": "What brings data in: each pipeline reads a source, transforms it and writes through an endpoint.",
