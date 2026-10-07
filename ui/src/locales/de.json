@@ -41,7 +41,8 @@
       "here": "Lieber hier anmelden",
       "close": "Nicht jetzt",
       "notYet": "Sie sind noch nicht angemeldet. Schließen Sie die Anmeldung im anderen Tab ab und machen Sie dann weiter."
-    }
+    },
+    "listHidden": "Diese Liste ist für Sie in {project} nicht offen. Wer das Projekt verwaltet, kann sie freigeben."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",

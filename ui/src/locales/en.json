@@ -41,7 +41,8 @@
       "here": "Sign in here instead",
       "close": "Not now",
       "notYet": "You are not signed in yet. Finish signing in in the other tab, then continue."
-    }
+    },
+    "listHidden": "This list is not open to you in {project}. Whoever manages the project can grant it."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# change waits for your approval} other {# changes wait for your approval}}",

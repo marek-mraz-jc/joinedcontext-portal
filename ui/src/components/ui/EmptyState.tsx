@@ -12,6 +12,8 @@ export interface EmptyStateProps {
   action?: ReactNode;
   /** Inside a table cell or a card the frame is already drawn; skip the dashed one. */
   bare?: boolean;
+  /** The title as the page's own heading, when the empty state is all the page is (T-3150). */
+  heading?: 1 | 2;
   className?: string;
 }
 
@@ -22,8 +24,10 @@ export function EmptyState({
   icon = "inbox",
   action,
   bare,
+  heading,
   className,
 }: EmptyStateProps): React.JSX.Element {
+  const Title = heading === 1 ? "h1" : heading === 2 ? "h2" : "p";
   // A status, so a screen reader hears that the list is empty when it loads (T-1393).
   return (
     <div
@@ -39,7 +43,7 @@ export function EmptyState({
       <span className="mb-1 inline-flex size-11 items-center justify-center rounded-full bg-primary-soft text-primary-soft-fg">
         <Icon name={icon} className="size-5" />
       </span>
-      <p className="text-body font-semibold text-fg">{title}</p>
+      <Title className="text-body font-semibold text-fg">{title}</Title>
       {description ? <p className="max-w-md text-body text-fg-muted">{description}</p> : null}
       {action ? <div className="mt-3">{action}</div> : null}
     </div>

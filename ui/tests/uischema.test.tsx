@@ -166,6 +166,21 @@ describe("the UiSchema manifest arranges the form", () => {
     expect(uiSchema["ui:order"]).toEqual(["name", "http", "*"]);
   });
 
+  it("passes over one nested variant the schema leaves out, and still names a nested typo (T-3142)", () => {
+    // The Endpoint form drops `rateLimits.burst` until a rate per minute is set; the New endpoint
+    // page opened with "the schema has no field `rateLimits.burst`" over the whole form.
+    const manifest: UiSchemaManifest = {
+      ...MANIFEST,
+      spec: {
+        for: "Endpoint",
+        variants: ["rateLimits.burst"],
+        fields: { "rateLimits.burst": { advanced: true }, "rateLimits.bursts": {} },
+      },
+    };
+    const { problems } = arrange(manifest, { properties: ["name", "rateLimits", "rateLimits.requestsPerMinute"] });
+    expect(problems).toEqual(["the schema has no field `rateLimits.bursts`, so nothing was arranged for it"]);
+  });
+
   it("says nothing about a form whose schema has not arrived yet", () => {
     // A dialog opens while the lists its enums come from are still loading; the manifest is not
     // wrong because the schema is not there yet.

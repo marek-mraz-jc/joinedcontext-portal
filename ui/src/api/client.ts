@@ -5,6 +5,7 @@ import { workspaceMiddleware } from "../components/layout/WorkspaceContext";
 import type { Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { announceSessionEnded } from "./sessionEnded";
+import i18n from "../i18n";
 
 export type ProblemDetails = components["schemas"]["ProblemDetails"];
 
@@ -132,6 +133,9 @@ api.use(sessionMiddleware);
 // Inside a workspace, resource reads and writes go to its branch (API/01 §22).
 api.use(workspaceMiddleware);
 
+/** The API's 404 for a list the caller may not read: `plural 'roles' not found in project 'org'`. */
+const HIDDEN_LIST = /^plural '[a-z]+' not found in project '([a-z0-9-]+)'$/;
+
 export async function unwrap<T>(result: {
   data?: T;
   error?: unknown;
@@ -162,6 +166,13 @@ export async function unwrap<T>(result: {
 
   const status =
     typeof problem?.status === "number" ? problem.status : result.response.status;
+  // A list the caller may not read answers 404 in the API's own words, which say neither what is
+  // hidden nor why (PF-50). A person reads that it is not open to them, in their language; every
+  // page that shows a list's refusal shows this (T-3147).
+  const hidden = status === 404 ? HIDDEN_LIST.exec(problem?.detail ?? "") : null;
+  if (hidden && problem) {
+    problem = { ...problem, detail: i18n.t("app.listHidden", { project: hidden[1] }) };
+  }
   const message =
     problem?.detail ?? problem?.title ?? (result.response.statusText || `HTTP ${status}`);
 
