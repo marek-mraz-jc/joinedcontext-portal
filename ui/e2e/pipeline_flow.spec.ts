@@ -228,4 +228,47 @@ test.describe("pipeline flow canvas", () => {
     await page.getByRole("button", { name: "Test mapping" }).click();
     await expect(page.getByTestId("flow-node-compute")).toHaveAttribute("data-state", "ok");
   });
+  // T-3222: a deliberately broken step is found from the graph alone: the node turns red with the
+  // error in words, its drawer shows the input that broke it, and a Debug node on the wire into it
+  // lists what crossed that wire.
+  test("finds the broken step from the graph: red node, its error and the input that broke it", async ({ page }) => {
+    const trace = {
+      input: { events: 2, bytes: 40, sample: { id: "s1", pm10: 4 } },
+      mapping: [],
+      validation: [],
+      errors: [{ stage: "mapping", step: 1, message: "expected number, got string" }],
+      stages: [
+        { step: 0, reached: 2, sample: { id: "s2", pm10: "many" } },
+        { step: 1, reached: 2 },
+      ],
+    };
+    await stubApi(page, () => trace);
+    await page.goto("/projects/helsinki/pipelines?lang=en");
+    await page.getByRole("button", { name: "New pipeline" }).first().click();
+    const dialog = page.getByTestId("form-page");
+    await dialog.getByText("Advanced editor").click();
+    const canvas = page.getByTestId("flow-canvas");
+    await canvas.scrollIntoViewIfNeeded();
+    await page.getByLabel("Find a processor").fill("log");
+    await page.getByTestId("palette-found-log").click();
+    await page.getByTestId("palette-bloblang").click();
+
+    await dialog.getByTestId("pipeline-studio").locator('input[type="file"]').setInputFiles({
+      name: "sample.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify([{ id: "s1", pm10: 4 }, { id: "s2", pm10: "many" }])),
+    });
+    await page.getByTestId("flow-bloblang").fill("root = this\nroot.pm10 = this.pm10.number()");
+    await page.getByTestId("flow-node-compute").click();
+    await page.getByTestId("palette-debug").click();
+    await page.getByRole("button", { name: "Test mapping" }).click();
+
+    const compute = page.getByTestId("flow-node-compute");
+    await expect(compute).toHaveAttribute("data-state", "error");
+    await expect(compute).toContainText("expected number, got string");
+    await expect(page.getByTestId("flow-wire-count-step-0>compute")).toHaveText("2");
+    await page.getByTestId("flow-wire-step-0>compute").click({ force: true });
+    await expect(page.getByTestId("flow-breaking-input")).toContainText('"pm10": "many"');
+    await expect(page.getByTestId("flow-debug").getByRole("listitem").first()).toContainText('"pm10": "many"');
+  });
 });

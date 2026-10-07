@@ -1776,6 +1776,41 @@
         "notValue": "{field} obsahuje „{value}“; {name} očekává jednu z hodnot {values}.",
         "noId": "Vyberte pole, ze kterého vznikne id každé entity."
       }
+    },
+    "debug": {
+      "add": "+ Ladění",
+      "pickWire": "Nejprve vyberte uzel: ladicí uzel odposlouchává drát, který do něj vede, nebo ho přetáhněte na drát.",
+      "remove": "Odstranit tento ladicí uzel",
+      "badge": "ladění",
+      "title": "Ladění",
+      "clear": "Vymazat",
+      "noTaps": "Pusťte ladicí uzel na drát a uvidíte, co jím při každém testu projde.",
+      "filter": "Zobrazit dráty uzlu",
+      "everyNode": "Každý uzel",
+      "nothingYet": "Spusťte test a uvidíte, co projde odposlouchávanými dráty.",
+      "messages": "Co prošlo odposlouchávanými dráty, nejnovější první",
+      "wholeSample": "Celý vzorek",
+      "message": "Zpráva {number}",
+      "wire": "{from} → {to}",
+      "notReached": "Tento drát nic nedosáhlo.",
+      "failedHere": "Tento uzel selhal",
+      "brokeIt": "Vstup, na kterém selhal:",
+      "changed": "Co tento uzel změnil",
+      "unchanged": "Nic: zpráva odešla tak, jak přišla.",
+      "kind": {
+        "added": "přidáno",
+        "removed": "odstraněno",
+        "changed": "změněno"
+      },
+      "rerun": "Spustit tento uzel znovu na tomto vstupu",
+      "rerunHint": "Běží jen tento uzel, na vstupu výše; nic se nezapíše.",
+      "rerunFailed": "Stále selhává",
+      "rerunOk": "Prošlo; co vytvořil:",
+      "stepMode": "Jedna zpráva najednou",
+      "stepModeFile": "Krokování dělí vzorek ze souboru na zprávy; místo URL dejte soubor.",
+      "runMessage": "Spustit zprávu {number} z {total}",
+      "startOver": "Od začátku",
+      "position": "Zpráva {number} z {total}"
     }
   },
   "dashboards": {
