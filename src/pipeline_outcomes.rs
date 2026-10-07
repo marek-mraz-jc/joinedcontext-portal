@@ -415,6 +415,22 @@ pub fn credential_shaped(text: &str) -> bool {
             return true;
         }
     }
+    // The platform's own API key: `jc_`, the key id in 16 hex digits, `_`, its URL-safe secret
+    // (API/01 §9). An operation name (`jc_resource_propose`) has no hex id and stays readable.
+    if let Some((id, secret)) = trimmed
+        .strip_prefix("jc_")
+        .and_then(|rest| rest.split_once('_'))
+    {
+        if id.len() == 16
+            && id.bytes().all(|b| b.is_ascii_hexdigit())
+            && secret.len() >= 16
+            && secret
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        {
+            return true;
+        }
+    }
     const PREFIXES: [&str; 8] = [
         "ghp_",
         "gho_",
@@ -473,6 +489,25 @@ mod tests {
         assert_eq!(masked["pm10"]["value"], 18.4);
         assert_eq!(masked["id"], record["id"]);
         assert!(!masked.to_string().contains("hunter2"));
+    }
+
+    /// T-3272: the platform's own API key is a credential; an operation name is not.
+    #[test]
+    fn the_platforms_own_api_key_is_masked_and_an_operation_name_is_not() {
+        let key = format!("{}{}_{}", "jc_", "3f9c2a7b1d4e8f06", "Zm9vYmFyYmF6cXV4MTIz");
+        assert!(credential_shaped(&key));
+        assert_eq!(
+            mask_text(&format!("my key {key} fails")),
+            format!("my key {MASK} fails")
+        );
+        for readable in [
+            "jc_resource_propose",
+            "jc_pipeline_test",
+            "jc_3f9c2a7b1d4e8f06_short",
+            "jc_nothex0000000000_Zm9vYmFyYmF6cXV4MTIz",
+        ] {
+            assert!(!credential_shaped(readable), "{readable}");
+        }
     }
 
     #[test]

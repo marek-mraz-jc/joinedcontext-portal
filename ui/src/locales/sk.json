@@ -6397,5 +6397,21 @@
         "body": "Galéria, nástenka a kalendár, komentáre so @zmienkami, história riadkov s vrátením a verejné formuláre."
       }
     }
+  },
+  "feedback": {
+    "button": "Poslať spätnú väzbu",
+    "title": "Poslať spätnú väzbu",
+    "lead": "Povedzte správcom platformy, čo vám prekážalo. Vaše meno sa neposiela; adresa stránky a verzia Portálu áno.",
+    "text": "Čo sa stalo?",
+    "textHelp": "Zo stránky {page}. E-mailové adresy, telefónne čísla a všetko, čo vyzerá ako heslo alebo token, sa pred uložením odstráni.",
+    "screenshot": "Priložiť snímku tejto stránky",
+    "screenshotHelp": "Prehliadač sa opýta, čo zdieľať. Každé pole formulára sa na snímke pred odoslaním zakryje.",
+    "send": "Poslať",
+    "close": "Zavrieť",
+    "sent": "Ďakujeme: vaša spätná väzba bola odoslaná.",
+    "needText": "Najprv napíšte, čo sa stalo.",
+    "tooLong": "Najviac {max} znakov.",
+    "screenshotRefused": "Snímka sa nevytvorila: prehliadač nedostal povolenie zdieľať stránku. Zrušte snímku a pošlite len text.",
+    "screenshotUnsupported": "Tento prehliadač nevie urobiť snímku stránky. Zrušte snímku a pošlite len text."
   }
 }

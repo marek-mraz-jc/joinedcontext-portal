@@ -327,6 +327,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Feedback
+         * @description A signed-in person's feedback from a page: scrubbed of e-mail addresses, phone numbers and credentials, kept without an author.
+         */
+        post: operations["send_feedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/forms": {
         parameters: {
             query?: never;
@@ -464,6 +484,46 @@ export interface paths {
          * @description Every DataModel the caller may read across projects, and the Smart Data Models entries a search of two characters or more matches: what the model and type pickers list.
          */
         get: operations["list_organization_datamodels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Feedback
+         * @description The feedback after an id, oldest first, at most 100: what the board's proposed tasks are made from.
+         */
+        get: operations["list_feedback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/feedback/{id}/screenshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read A Feedback's Screenshot
+         * @description The PNG sent with one feedback; 404 when it has none.
+         */
+        get: operations["feedback_screenshot"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4046,6 +4106,31 @@ export interface components {
             /** @description Every object the federation touches, keyed by `kind/name`. */
             nodes: components["schemas"]["Node"][];
         };
+        /** @description One feedback as the administrators' list shows it. */
+        Feedback: {
+            /** @description RFC 3339. */
+            createdAt: string;
+            /** Format: int64 */
+            id: number;
+            page: string;
+            /** @description Whether a screenshot was sent with it. */
+            screenshot: boolean;
+            text: string;
+            version: string;
+        };
+        FeedbackAccepted: {
+            /** Format: int64 */
+            id: number;
+        };
+        FeedbackBody: {
+            page: string;
+            /** @description A PNG `data:` URL, only when the person ticked it. */
+            screenshot?: string | null;
+            text: string;
+        };
+        FeedbackList: {
+            items: components["schemas"]["Feedback"][];
+        };
         /**
          * @description A single leaf field modification in a plan diff.
          *
@@ -6219,6 +6304,72 @@ export interface operations {
             };
         };
     };
+    send_feedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "page": "/projects/helsinki/approvals",
+                 *       "text": "The Approve button stays grey after I type the name"
+                 *     }
+                 */
+                "application/json": components["schemas"]["FeedbackBody"];
+            };
+        };
+        responses: {
+            /** @description Kept */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackAccepted"];
+                };
+            };
+            /** @description An unknown member, or a field out of bounds */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Ten in the last hour already */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     list_forms: {
         parameters: {
             query?: never;
@@ -6480,6 +6631,106 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_feedback: {
+        parameters: {
+            query?: {
+                /** @description The id the previous page ended at; `0` for the first. */
+                after?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackList"];
+                };
+            };
+            /** @description An unknown parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    feedback_screenshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The feedback's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The screenshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such feedback, or none sent with it */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

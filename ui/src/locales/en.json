@@ -6397,5 +6397,21 @@
         "body": "Gallery, board and calendar views, comments with @mentions, row history with undo, and public forms."
       }
     }
+  },
+  "feedback": {
+    "button": "Send feedback",
+    "title": "Send feedback",
+    "lead": "Tell the platform's owners what got in your way. Your name is not sent; the page address and the Portal's version are.",
+    "text": "What happened?",
+    "textHelp": "From {page}. E-mail addresses, phone numbers and anything that looks like a password or a token are removed before it is kept.",
+    "screenshot": "Include a screenshot of this page",
+    "screenshotHelp": "Your browser asks what to share. Every form field is painted over in the image before it is sent.",
+    "send": "Send",
+    "close": "Close",
+    "sent": "Thank you: your feedback was sent.",
+    "needText": "Write what happened first.",
+    "tooLong": "At most {max} characters.",
+    "screenshotRefused": "No screenshot was taken: the browser was not allowed to share the page. Untick the screenshot to send the text alone.",
+    "screenshotUnsupported": "This browser cannot take a screenshot of the page. Untick the screenshot to send the text alone."
   }
 }

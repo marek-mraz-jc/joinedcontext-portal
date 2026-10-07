@@ -132,6 +132,17 @@ routes:
     rule: "project-verb:propose:Endpoint"
     expect: [403, 403, allow, allow, 403, allow, 404, 403]
     body: {"endpoint": "existing"}
+  - route: POST /feedback
+    rule: "signed-in"
+    expect: [403, allow, allow, allow, allow, allow, allow, allow]
+    body: {"text": "The Approve button stays grey", "page": "/projects/helsinki/approvals"}
+  - route: GET /organization/feedback
+    rule: "org-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/feedback/{id}/screenshot
+    rule: "org-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+    note: "the fixture holds no feedback 0, so an administrator meets its 404"
   - route: GET /organization/health
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]

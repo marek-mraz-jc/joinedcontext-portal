@@ -6397,5 +6397,21 @@
         "body": "Galerie, nástěnka a kalendář, komentáře se @zmínkami, historie řádků s vrácením a veřejné formuláře."
       }
     }
+  },
+  "feedback": {
+    "button": "Poslat zpětnou vazbu",
+    "title": "Poslat zpětnou vazbu",
+    "lead": "Řekněte správcům platformy, co vám překáželo. Vaše jméno se neposílá; adresa stránky a verze Portálu ano.",
+    "text": "Co se stalo?",
+    "textHelp": "Ze stránky {page}. E-mailové adresy, telefonní čísla a vše, co vypadá jako heslo nebo token, se před uložením odstraní.",
+    "screenshot": "Přiložit snímek této stránky",
+    "screenshotHelp": "Prohlížeč se zeptá, co sdílet. Každé pole formuláře se na snímku před odesláním zakryje.",
+    "send": "Poslat",
+    "close": "Zavřít",
+    "sent": "Děkujeme: vaše zpětná vazba byla odeslána.",
+    "needText": "Nejprve napište, co se stalo.",
+    "tooLong": "Nejvýše {max} znaků.",
+    "screenshotRefused": "Snímek se nevytvořil: prohlížeč nedostal povolení sdílet stránku. Zrušte snímek a pošlete jen text.",
+    "screenshotUnsupported": "Tento prohlížeč neumí udělat snímek stránky. Zrušte snímek a pošlete jen text."
   }
 }

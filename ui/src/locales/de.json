@@ -6397,5 +6397,21 @@
         "body": "Galerie-, Board- und Kalenderansicht, Kommentare mit @Erwähnungen, Zeilenverlauf mit Rückgängig und öffentliche Formulare."
       }
     }
+  },
+  "feedback": {
+    "button": "Feedback senden",
+    "title": "Feedback senden",
+    "lead": "Sagen Sie den Betreibern der Plattform, was Sie aufgehalten hat. Ihr Name wird nicht gesendet; die Seitenadresse und die Portal-Version schon.",
+    "text": "Was ist passiert?",
+    "textHelp": "Von {page}. E-Mail-Adressen, Telefonnummern und alles, was wie ein Passwort oder Token aussieht, wird vor dem Speichern entfernt.",
+    "screenshot": "Einen Screenshot dieser Seite anhängen",
+    "screenshotHelp": "Ihr Browser fragt, was geteilt wird. Jedes Formularfeld wird im Bild vor dem Senden übermalt.",
+    "send": "Senden",
+    "close": "Schließen",
+    "sent": "Danke: Ihr Feedback wurde gesendet.",
+    "needText": "Schreiben Sie zuerst, was passiert ist.",
+    "tooLong": "Höchstens {max} Zeichen.",
+    "screenshotRefused": "Kein Screenshot erstellt: der Browser durfte die Seite nicht teilen. Entfernen Sie den Haken, um nur den Text zu senden.",
+    "screenshotUnsupported": "Dieser Browser kann keinen Screenshot der Seite erstellen. Entfernen Sie den Haken, um nur den Text zu senden."
   }
 }

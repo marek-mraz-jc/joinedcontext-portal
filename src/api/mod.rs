@@ -25,6 +25,7 @@ pub mod entity_trash;
 pub mod export;
 pub mod export_git;
 pub mod federation;
+pub mod feedback;
 pub mod forms;
 pub mod health;
 pub mod import;
@@ -80,6 +81,7 @@ pub fn router() -> Router<AppState> {
         .merge(catalogue_draft::router())
         .merge(changes::router())
         .merge(restore::router())
+        .merge(feedback::router())
         .merge(ckan::router())
         .merge(datamodels::router())
         .merge(drafts::router())

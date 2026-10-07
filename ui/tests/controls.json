@@ -109,6 +109,15 @@
         "browser_security.test.tsx"
       ]
     },
+    "src/components/FeedbackButton.tsx": {
+      "controls": {
+        "Button": 3,
+        "Checkbox": 1
+      },
+      "tests": [
+        "feedback_button.test.tsx"
+      ]
+    },
     "src/components/HelpMenu.tsx": {
       "controls": {
         "Button": 1

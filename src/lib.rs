@@ -18,6 +18,7 @@ pub mod domain_verification;
 pub mod entity_comments;
 pub mod entity_trash;
 pub mod error;
+pub mod feedback;
 pub mod git;
 pub mod groups;
 pub mod live;
