@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
-import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
+import { asManifests, isChange, localized, ORG_NAMESPACE } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { takePrefill } from "../../assistant/state";
 import { useBranding } from "../../branding";
@@ -33,6 +33,7 @@ import {
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
+import { usePeopleChoices } from "../organization/People";
 
 interface Scope {
   organization?: string;
@@ -116,6 +117,20 @@ function formOf(
   };
 }
 
+/**
+ * What the chosen role lets a person do, under the role picker (T-3216): its own description when
+ * it has one, else its rules in one line, so a new user need not leave the form for Roles.
+ */
+export function roleSummary(role: Manifest, locale: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const described = localized(role.metadata.description, locale, "");
+  if (described) return described;
+  const rules = ((role.spec ?? {}) as { rules?: { verbs?: string[]; kinds?: string[] }[] }).rules ?? [];
+  const rights = rules
+    .map((rule) => `${(rule.verbs ?? []).join(", ")} ${t("access.projectRoles.on")} ${(rule.kinds ?? []).join(", ")}`)
+    .join("; ");
+  return rights ? t("access.roles.grants", { rights }) : t("access.roles.grantsNothing");
+}
+
 /** What a failed request says, in the words the server used when it gave any. */
 function reasonOf(error: unknown, fallback: string): string {
   return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
@@ -154,9 +169,12 @@ export function GrantRoleDialog({
   /** The binding the assistant drafted, when the page was opened on one. */
   prefill: Record<string, unknown> | null;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const formRoute = useFormRoute();
   const ids = useId();
+  // The people of the realm, for a caller who may read them: a choice under the typing, never a
+  // wall, so a person not yet listed can still be named (T-3216, T-2685).
+  const people = usePeopleChoices();
   const queryClient = useQueryClient();
   const branding = useBranding();
   const [form, setForm] = useState<GrantForm>(() => formOf(prefill, project, scope));
@@ -241,13 +259,16 @@ export function GrantRoleDialog({
     propose.mutate();
   };
 
-  const roleNames = [
-    ...new Set(
+  // One entry per name, the project's own first (PF-69), with what a person reads for each.
+  const roleManifests = [
+    ...new Map(
       [...asManifests(projectRoles.data?.items ?? []), ...asManifests(roles.data?.items ?? [])].map(
-        (role) => role.metadata.name,
+        (role) => [role.metadata.name, role] as const,
       ),
-    ),
+    ).values(),
   ];
+  const roleNames = roleManifests.map((role) => role.metadata.name);
+  const chosenRole = roleManifests.find((role) => role.metadata.name === form.role);
   const spaceNames = asManifests(spaces.data?.items ?? []).map((space) => space.metadata.name);
   const failure =
     propose.error instanceof ApiError
@@ -313,8 +334,8 @@ export function GrantRoleDialog({
             errors={missing.subject ? [t("form.required")] : undefined}
           >
             {form.subjectKind === "group" ? (
-              // A group is one the organization has (ADR-N-033); a person is typed until the People
-              // list exists (T-2684).
+              // A group is one the organization has (ADR-N-033); a person is typed, with the
+              // realm's people offered under the typing when the caller may read them (T-3216).
               <ResourceNamePicker
                 id={`${ids}-subject`}
                 label={t("access.roles.groupLabel")}
@@ -333,10 +354,18 @@ export function GrantRoleDialog({
                 autoComplete="off"
                 spellCheck={false}
                 placeholder="firstname.lastname@example.org"
+                list={people.length > 0 ? `${ids}-people` : undefined}
                 onChange={(event) => set({ subject: event.target.value })}
               />
             )}
           </Field>
+          {form.subjectKind === "user" && people.length > 0 ? (
+            <datalist id={`${ids}-people`}>
+              {people.map((person) => (
+                <option key={person} value={person} />
+              ))}
+            </datalist>
+          ) : null}
           <Field
             id={`${ids}-role`}
             label={t("access.roles.roleLabel")}
@@ -349,7 +378,9 @@ export function GrantRoleDialog({
                 ? t("app.loading")
                 : !roles.isError && roleNames.length === 0
                   ? t("access.roles.rolesEmpty")
-                  : undefined
+                  : chosenRole
+                    ? roleSummary(chosenRole, i18n.language, t)
+                    : undefined
             }
             errors={
               rolesFailure ? [rolesFailure] : missing.role ? [t("form.required")] : undefined
@@ -362,11 +393,15 @@ export function GrantRoleDialog({
               onChange={(event) => set({ role: event.target.value })}
             >
               <option value="">{t("access.roles.chooseRole")}</option>
-              {roleNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
+              {roleManifests.map((role) => {
+                const name = role.metadata.name;
+                const title = localized(role.metadata.title, i18n.language, name);
+                return (
+                  <option key={name} value={name}>
+                    {title === name ? name : `${title} (${name})`}
+                  </option>
+                );
+              })}
             </Select>
           </Field>
           <Field

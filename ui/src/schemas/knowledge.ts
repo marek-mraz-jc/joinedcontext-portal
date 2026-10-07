@@ -5,12 +5,18 @@ import type { ResourceProposal } from "../api/manifest";
 import { DNS1123, words } from "./kinds";
 
 /** Five-field cron, the shape jc-core accepts for `schedule`. */
-const CRON = "^\\S+ \\S+ \\S+ \\S+ \\S+$";
+export const CRON = "^\\S+ \\S+ \\S+ \\S+ \\S+$";
 /** An absolute https address with a host, as a start URL is. */
-const HTTPS_URL = "^https://[^\\s/?#]+(/\\S*)?$";
+export const HTTPS_URL = "^https://[^\\s/?#]+(/\\S*)?$";
 /** An origin a deployment may be placed on: https, a host, a port at most, no path. */
-const ORIGIN = "^https://[^\\s/?#:*]+(:[0-9]{1,5})?$";
-const LANGUAGE = "^[a-z]{2}$";
+export const ORIGIN = "^https://[^\\s/?#:*]+(:[0-9]{1,5})?$";
+export const LANGUAGE = "^[a-z]{2}$";
+/** A path pattern of a site, starting with a slash. */
+export const SITE_PATH = "^/\\S*$";
+/** A colour as #rrggbb. */
+export const HEX_COLOR = "^#[0-9a-fA-F]{6}$";
+/** The channels that answer people nobody signed in: each names its origins, a rate limit and a budget (MF-52). */
+export const ANONYMOUS_CHANNELS = ["public", "ckan", "iframe"] as const;
 
 export const SOURCE_TYPES = ["website", "ckan"] as const;
 export const VISIBILITIES = ["internal", "public"] as const;
@@ -49,13 +55,13 @@ export function knowledgeSourceSchema(t: (key: string) => string, catalogues: st
       include: {
         type: "array",
         title: t("knowledge.field.include"),
-        items: { type: "string", pattern: "^/\\S*$", maxLength: 256 },
+        items: { type: "string", pattern: SITE_PATH, maxLength: 256 },
         maxItems: 50,
       },
       exclude: {
         type: "array",
         title: t("knowledge.field.exclude"),
-        items: { type: "string", pattern: "^/\\S*$", maxLength: 256 },
+        items: { type: "string", pattern: SITE_PATH, maxLength: 256 },
         maxItems: 50,
       },
       maxDepth: { type: "integer", title: t("knowledge.field.maxDepth"), minimum: 1, maximum: 10, default: 3 },
@@ -90,6 +96,17 @@ export function assistantDeploymentSchema(
   return {
     type: "object",
     required: ["name", "publicId", "channel"],
+    // A channel nobody signs in to is refused by jc-core without its origins, a rate limit and a
+    // budget (MF-52); the form says so at those fields before anything is sent (T-3220).
+    if: { properties: { channel: { anyOf: ANONYMOUS_CHANNELS.map((channel) => ({ const: channel })) } }, required: ["channel"] },
+    then: {
+      required: ["allowedOrigins", "rateLimit", "budget"],
+      properties: {
+        allowedOrigins: { minItems: 1 },
+        rateLimit: { required: ["requestsPerMinute", "perClientPerMinute"] },
+        budget: { required: ["tokensPerDay", "tokensPerConversation"] },
+      },
+    },
     properties: {
       name: { type: "string", title: t("knowledge.field.name"), pattern: DNS1123, maxLength: 63 },
       publicId: { type: "string", title: t("knowledge.field.publicId"), pattern: DNS1123, maxLength: 63 },
@@ -150,7 +167,7 @@ export function assistantDeploymentSchema(
         type: "object",
         title: t("knowledge.field.theme"),
         properties: {
-          primaryColor: { type: "string", title: t("knowledge.field.primaryColor"), pattern: "^#[0-9a-fA-F]{6}$" },
+          primaryColor: { type: "string", title: t("knowledge.field.primaryColor"), pattern: HEX_COLOR },
           greeting: { type: "string", title: t("knowledge.field.greeting"), maxLength: 500 },
         },
       },

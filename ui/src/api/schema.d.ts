@@ -2233,6 +2233,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/types/{type}/attributes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read A Type's Attributes
+         * @description The attributes an entity type has in the data model the space pins: kind, value type, whether it is required, its unit, description, coded values and a relationship's target type. Required attributes come first. Reading the space is all it needs.
+         */
+        get: operations["type_attributes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/usage": {
         parameters: {
             query?: never;
@@ -2969,6 +2989,38 @@ export interface components {
             /** @description `jc-types.ts`: the row types a generated application compiles against (SDK-10). */
             typescript?: string | null;
         };
+        /**
+         * @description One attribute of a class as the space's model states it (T-3223): what an editor needs to map
+         *     a field onto it.
+         */
+        Attribute: {
+            /** @description What it means, in the model's words. */
+            description?: string | null;
+            /** @description The value's format, such as `date-time`. */
+            format?: string | null;
+            /** @description `Property`, `Relationship`, `GeoProperty`, `LanguageProperty` or `VocabProperty`. */
+            kind: string;
+            /** Format: double */
+            maximum?: number | null;
+            /**
+             * Format: double
+             * @description The smallest and the largest value a number may have.
+             */
+            minimum?: number | null;
+            /** @description The attribute's name. */
+            name: string;
+            relationship?: null | components["schemas"]["RelationshipTarget"];
+            /** @description Whether every entity of the class must carry it. */
+            required: boolean;
+            unit?: null | components["schemas"]["Unit"];
+            /**
+             * @description The JSON type of its value (`string`, `number`, `integer`, `boolean`, `object`, `array`),
+             *     absent when the model leaves it open.
+             */
+            valueType?: string | null;
+            /** @description The values a coded attribute may take. */
+            values?: string[] | null;
+        };
         /** @description A change another one waits on (MF-48). */
         AwaitedChange: {
             name: string;
@@ -3452,6 +3504,20 @@ export interface components {
             id: string;
             /** @description The Portal page that shows the claim to the person who asked for it. */
             url: string;
+        };
+        /** @description A class of the space's model and its attributes (T-3223). */
+        ClassAttributes: {
+            /**
+             * @description Required attributes first, then by name; `id` and `type` are the entity's own and not
+             *     listed.
+             */
+            attributes: components["schemas"]["Attribute"][];
+            description?: string | null;
+            /** @description The model's manifest name and the version the space pins. */
+            model: string;
+            /** @description The class, which is the entity type. */
+            type: string;
+            version: string;
         };
         ColourRule: {
             /** @description One of `neutral`, `info`, `success`, `warning`, `danger`. */
@@ -4820,6 +4886,11 @@ export interface components {
              */
             total: number;
         };
+        /** @description The type a relationship points at. */
+        RelationshipTarget: {
+            many: boolean;
+            target: string;
+        };
         /** @description What the proxy relays on behalf of a workspace it has already authenticated. */
         RelayedEvent: {
             kind: string;
@@ -5186,6 +5257,11 @@ export interface components {
             id: number;
             type: string;
             urn: string;
+        };
+        /** @description A quantity's unit: the UN/CEFACT code NGSI-LD's `unitCode` carries, and its UCUM spelling. */
+        Unit: {
+            code?: string | null;
+            ucum?: string | null;
         };
         /** @description What updating from main did (CC-80). */
         UpdateReport: {
@@ -12056,7 +12132,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No such space the caller may read */
+            /** @description No such space, or no entity of it the caller may read (API/01 §35, T-3284) */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12137,7 +12213,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No such space the caller may read */
+            /** @description No such space, or no entity of it the caller may read (API/01 §35, T-3284) */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12516,6 +12592,51 @@ export interface operations {
             };
             /** @description The trash is not reachable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    type_attributes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The entity type, a class of the space's model */
+                type: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The type and its attributes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassAttributes"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read, a space without a data model, or a type the model does not declare */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

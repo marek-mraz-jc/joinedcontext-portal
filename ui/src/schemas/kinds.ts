@@ -574,6 +574,15 @@ export type SyncOriginKind = (typeof SYNC_ORIGINS)[number];
  * `SyncSourceSpec` of jc-core as a form (MF-27, MF-28, MF-23): the origin the person chose,
  * the schedule the run follows, and the three decisions an import makes about what it finds.
  */
+/** A clone URL a sync source reads: https, ssh, or git@ (MF-27). */
+export const GIT_URL_PATTERN = "^(https://|ssh://|git@).+";
+/** An https address: a bundle, another instance. */
+export const HTTPS_URL_PATTERN = "^https://.+";
+/** A sync source's interval: a whole number and s, m, h or d (MF-27). */
+export const SYNC_INTERVAL_PATTERN = "^[1-9][0-9]*(s|m|h|d)$";
+/** An NGSI-LD entity id. */
+export const ENTITY_URN_PATTERN = "^urn:ngsi-ld:\\S+$";
+
 export function syncSourceSchema(
   t: (key: string) => string,
   origin: SyncOriginKind,
@@ -585,7 +594,11 @@ export function syncSourceSchema(
       title: t("syncSources.originKind.git"),
       required: ["url", "ref"],
       properties: {
-        url: { type: "string", title: t("syncSources.field.url"), pattern: "^(https://|ssh://|git@).+" },
+        url: {
+          type: "string",
+          title: t("syncSources.field.url"),
+          pattern: GIT_URL_PATTERN,
+        },
         ref: { type: "string", title: t("syncSources.field.ref"), default: "main" },
         path: { type: "string", title: t("syncSources.field.path") },
         secretRef: secretRef(t, t("syncSources.field.credential"), secrets),
@@ -596,7 +609,11 @@ export function syncSourceSchema(
       title: t("syncSources.originKind.bundle"),
       required: ["url"],
       properties: {
-        url: { type: "string", title: t("syncSources.field.bundleUrl"), pattern: "^https://.+" },
+        url: {
+          type: "string",
+          title: t("syncSources.field.bundleUrl"),
+          pattern: HTTPS_URL_PATTERN,
+        },
         secretRef: secretRef(t, t("syncSources.field.credential"), secrets),
       },
     },
@@ -605,8 +622,16 @@ export function syncSourceSchema(
       title: t("syncSources.originKind.platformApi"),
       required: ["baseUrl", "project"],
       properties: {
-        baseUrl: { type: "string", title: t("syncSources.field.baseUrl"), pattern: "^https://.+" },
-        project: { type: "string", title: t("syncSources.field.remoteProject") },
+        baseUrl: {
+          type: "string",
+          title: t("syncSources.field.baseUrl"),
+          pattern: HTTPS_URL_PATTERN,
+        },
+        project: {
+          type: "string",
+          title: t("syncSources.field.remoteProject"),
+          pattern: DNS1123,
+        },
         secretRef: secretRef(t, t("syncSources.field.credential"), secrets),
       },
     },
@@ -622,7 +647,7 @@ export function syncSourceSchema(
       interval: {
         type: "string",
         title: t("syncSources.field.interval"),
-        pattern: "^[1-9][0-9]*(s|m|h|d)$",
+        pattern: SYNC_INTERVAL_PATTERN,
         default: "6h",
       },
       mode: {
@@ -639,8 +664,16 @@ export function syncSourceSchema(
       },
       // Both put a change through without a person looking at it, which is why CC-70 and CC-19
       // send a source that asks for either into the red lane.
-      prune: { type: "boolean", title: t("syncSources.field.prune"), default: false },
-      autoMerge: { type: "boolean", title: t("syncSources.field.autoMerge"), default: false },
+      prune: {
+        type: "boolean",
+        title: t("syncSources.field.prune"),
+        default: false,
+      },
+      autoMerge: {
+        type: "boolean",
+        title: t("syncSources.field.autoMerge"),
+        default: false,
+      },
     },
   };
 }
@@ -1886,9 +1919,12 @@ export function subscriptionSchema(
             id: {
               type: "string",
               title: t("subscriptions.field.entityId"),
-              pattern: "^urn:ngsi-ld:\\S+$",
+              pattern: ENTITY_URN_PATTERN,
             },
-            idPattern: { type: "string", title: t("subscriptions.field.idPattern") },
+            idPattern: {
+              type: "string",
+              title: t("subscriptions.field.idPattern"),
+            },
           },
         },
       },

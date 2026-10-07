@@ -460,7 +460,7 @@ const CARDS = [
     api: "/api/v1/projects/helsinki/apps",
     body: list([manifest("App", "bike-map", { lifecycle: "draft", visibility: "project" })]),
     link: /bike map/i,
-    plain: "Visible to project",
+    plain: "Visible to members of this project",
     opens: "/projects/helsinki/apps/bike-map",
   },
 ];

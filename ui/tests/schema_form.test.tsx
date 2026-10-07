@@ -4,7 +4,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { SchemaForm, errorMessageKey } from "../src/components/forms/SchemaForm";
-import { DNS1123, ENTITY_TYPE_PATTERN } from "../src/schemas/kinds";
+import { DNS1123, ENTITY_TYPE_PATTERN, GIT_URL_PATTERN, HTTPS_URL_PATTERN, SYNC_INTERVAL_PATTERN, ENTITY_URN_PATTERN, NOTIFICATION_URI_PATTERN, RFC3339_PATTERN, HEADER_NAME_PATTERN } from "../src/schemas/kinds";
 import en from "../src/locales/en.json";
 import type { JsonSchema } from "../src/components/forms/types";
 
@@ -60,6 +60,14 @@ describe("SchemaForm", () => {
       );
     expect(of(DNS1123)).toBe("form.dns1123");
     expect(of(ENTITY_TYPE_PATTERN)).toBe("form.entityType");
+    // T-3219: the formats a person types by hand say which format, with an example.
+    expect(of(GIT_URL_PATTERN)).toBe("form.gitUrl");
+    expect(of(HTTPS_URL_PATTERN)).toBe("form.httpsUrl");
+    expect(of(SYNC_INTERVAL_PATTERN)).toBe("form.interval");
+    expect(of(ENTITY_URN_PATTERN)).toBe("form.entityUrn");
+    expect(of(NOTIFICATION_URI_PATTERN)).toBe("form.notificationUri");
+    expect(of(RFC3339_PATTERN)).toBe("form.instant");
+    expect(of(HEADER_NAME_PATTERN)).toBe("form.headerName");
     // A pattern the platform did not write keeps the generic message: inventing words for it
     // would describe a rule this form knows nothing about.
     expect(of("^[0-9]{4}$")).toBe("form.pattern");

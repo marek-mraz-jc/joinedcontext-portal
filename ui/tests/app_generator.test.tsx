@@ -16,6 +16,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { rememberPrefill } from "../src/assistant/state";
+import { expectDenied } from "./checks";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import {
@@ -619,7 +620,7 @@ describe("the app generator", () => {
     await user.type(screen.getByLabelText(en.apps.generate.name, { exact: false }), "ovzdusie-dnes");
     await user.type(screen.getByLabelText(en.apps.generate.prompt, { exact: false }), "Anything at all");
 
-    expect(screen.getByRole("button", { name: en.apps.generate.submit })).toBeDisabled();
+    expectDenied(screen.getByRole("button", { name: en.apps.generate.submit }), en.apps.generate.missing.endpoint);
   });
 
   it("says the endpoint publishes no model rather than generating against nothing", async () => {
@@ -631,7 +632,8 @@ describe("the app generator", () => {
     await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint, { exact: false }), "ovzdusie-public");
 
     expect(await screen.findByText(en.apps.generate.needs.unavailable)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: en.apps.generate.submit })).toBeDisabled();
+    await user.type(screen.getByLabelText(en.apps.generate.prompt, { exact: false }), "Anything at all");
+    expectDenied(screen.getByRole("button", { name: en.apps.generate.submit }), en.apps.generate.missing.needs);
   });
 
   it("explains itself and links the example apps when there is no builder (AG-26)", async () => {
