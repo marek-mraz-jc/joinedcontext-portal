@@ -3166,7 +3166,9 @@
       "create": "Daraus erstellen",
       "mayNot": "Ihre Rolle darf in diesem Projekt keine App vorschlagen.",
       "createTitle": "Aus {title} erstellen",
-      "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage."
+      "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage.",
+      "screenshot": "{title}, wie die Vorschau sie zeigt",
+      "demo": "Vorschau öffnen"
     }
   },
   "appLifecycle": {

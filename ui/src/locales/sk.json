@@ -3166,7 +3166,9 @@
       "create": "Vytvoriť z tejto",
       "mayNot": "Vaša rola v tomto projekte nesmie navrhnúť aplikáciu.",
       "createTitle": "Vytvoriť zo šablóny {title}",
-      "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny."
+      "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny.",
+      "screenshot": "{title}, ako ju ukazuje ukážka",
+      "demo": "Otvoriť ukážku"
     }
   },
   "appLifecycle": {
