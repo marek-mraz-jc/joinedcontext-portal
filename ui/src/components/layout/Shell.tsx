@@ -370,6 +370,7 @@ export function Shell({
   const knowledgeActive = Boolean(
     matchRoute({ to: "/projects/$project/knowledge", params: { project }, fuzzy: true }),
   );
+  const mcpActive = Boolean(matchRoute({ to: "/projects/$project/mcp", params: { project } }));
   const catalogueActive = Boolean(matchRoute({ to: "/catalogue", fuzzy: true }));
   const importActive = Boolean(matchRoute({ to: "/projects/$project/import", params: { project } }));
 
@@ -570,6 +571,17 @@ export function Shell({
                 className={navLinkClass(knowledgeActive)}
               >
                 <NavLabel icon="search" label={t("nav.knowledge")} />
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/projects/$project/mcp"
+                params={{ project }}
+                onClick={closeNav}
+                aria-current={mcpActive ? "page" : undefined}
+                className={navLinkClass(mcpActive)}
+              >
+                <NavLabel icon="endpoints" label={t("nav.mcp")} />
               </Link>
             </li>
             <li>

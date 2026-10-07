@@ -82,7 +82,8 @@
     "dataspaceparticipants": "Datenraum",
     "environments": "Umgebungen",
     "projections": "Modellprojektionen",
-    "knowledge": "Wissensquellen"
+    "knowledge": "Wissensquellen",
+    "mcp": "MCP-Server"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -5344,6 +5345,82 @@
       "copied": "Kopiert",
       "origins": "Die Adresse der Website muss zu den erlaubten Ursprüngen des Assistenten gehören; auf jeder anderen Website bleibt der Rahmen leer.",
       "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben."
+    }
+  },
+  "mcp": {
+    "title": "MCP-Server",
+    "lead": "Eine Adresse, die ein KI-Client einmal einrichtet, über mehrere Endpoints dieses und anderer Projekte. Jeder Aufruf liest jeden Endpoint weiterhin mit den eigenen Rechten der Person.",
+    "new": "Neuer MCP-Server",
+    "empty": "Dieses Projekt hat noch keinen MCP-Server",
+    "emptyHint": "Ein MCP-Server fasst zusammengehörige Endpoints, etwa die Mobilitätsdaten der Stadt, unter einer Adresse zusammen.",
+    "listFailed": "Die MCP-Server konnten nicht gelesen werden: {reason}",
+    "memberCount": "Mitglieder: {count}",
+    "edit": "Bearbeiten",
+    "editOf": "{name} bearbeiten",
+    "remove": "Entfernen",
+    "removeOf": "{name} entfernen",
+    "address": "Adresse",
+    "client": "Anmelde-Client",
+    "config": "Eintrag für die Konfiguration des KI-Clients",
+    "signIn": "Der KI-Client findet die Anmeldung über die Adresse und meldet die Person mit dem Client {client} an (ohne Geheimnis, PKCE). In die Konfiguration kommt kein Token.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "copyOf": "Kopieren: {what}",
+    "audience": {
+      "project-list": "Ausgewählte Projekte",
+      "organization": "Organisation",
+      "public": "Öffentlich"
+    },
+    "field": {
+      "name": "Name",
+      "title": "Titel",
+      "description": "Beschreibung",
+      "members": "Mitglieds-Endpoints ({count} von höchstens {max})",
+      "search": "Endpoint suchen",
+      "audience": "Wer sich verbinden darf",
+      "allowedProjects": "Zugelassene Projekte"
+    },
+    "help": {
+      "name": "Kleinbuchstaben, Ziffern und Bindestriche; Teil der Adresse und daher später nicht änderbar.",
+      "title": "Wie ein KI-Client den Server nennt, etwa Mobilitätsdaten.",
+      "description": "Was der Server enthält, in ein oder zwei Sätzen; der KI-Client liest es als seine Anweisungen.",
+      "members": "Angeboten werden nur Endpoints, die Sie lesen dürfen. Jeder Aufruf eines Mitglieds ist ein eigener Aufruf dieses Endpoints, über den seine eigene Policy entscheidet.",
+      "audience": "Nicht weiter als das engste Mitglied. Ein öffentlicher Server braucht nur öffentliche Mitglieder und eine freigebende Person, die veröffentlichen darf.",
+      "allowedProjects": "Projektnamen, durch Kommas getrennt; leer lässt nur dieses Projekt zu."
+    },
+    "form": {
+      "newTitle": "Neuer MCP-Server",
+      "editTitle": "{name} bearbeiten",
+      "lead": "Wird als Änderung vorgeschlagen: Eine freigebende Person entscheidet, bevor der Server antwortet.",
+      "propose": "Prüfen und vorschlagen",
+      "noEndpoints": "Kein Endpoint passt, oder Sie dürfen keinen lesen.",
+      "servesNoMcp": "Dieser Endpoint bietet keine MCP-Schnittstelle (spec.mcp ist false).",
+      "full": "Ein Server nennt höchstens {max} Mitglieder.",
+      "unseen": "Mitglieder, die Sie nicht lesen dürfen, bleiben unverändert: {count}",
+      "publicLane": "Ein öffentlicher Server nimmt die rote Spur: Es entscheidet eine freigebende Person, die veröffentlichen darf."
+    },
+    "problem": {
+      "name": "Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche, höchstens 63 Zeichen.",
+      "members": "Wählen Sie einen bis {max} Mitglieds-Endpoints.",
+      "noMcp": "Ein gewählter Endpoint bietet keine MCP-Schnittstelle; entfernen Sie ihn.",
+      "audience": "Die Zielgruppe ist weiter, als das engste Mitglied erlaubt; wählen Sie eine engere.",
+      "projects": "Jeder Projektname besteht aus Kleinbuchstaben, Ziffern und Bindestrichen."
+    },
+    "health": {
+      "checking": "Wird geprüft…",
+      "answers": "Antwortet, Werkzeuge: {count}",
+      "refused": "Für Sie abgelehnt (HTTP {status})",
+      "failed": "Antwortet nicht: {reason}"
+    },
+    "preview": {
+      "title": "Werkzeuge, die Sie bekämen",
+      "members": "Mitglieder und wie sie Ihnen antworten",
+      "tools": "Werkzeuge des Servers",
+      "none": "Wählen Sie ein Mitglied, um die Werkzeuge zu sehen.",
+      "noTools": "Kein Mitglied antwortet Ihnen mit einem Werkzeug.",
+      "reads": "Liest",
+      "writes": "Schreibt",
+      "offeredBy": "Angeboten von: {members}"
     }
   }
 }

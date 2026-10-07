@@ -99,6 +99,14 @@ export function hubUrl(domain: string | undefined): string {
 }
 
 /**
+ * A named MCP server over chosen Endpoints (EP-92, ADR-N-043): `/api/mcp/{project}/{name}`, `org`
+ * for the organization's, on the platform host an MCP client connects to.
+ */
+export function namedServerUrl(domain: string | undefined, project: string, name: string): string {
+  return `${mcpOrigin(domain)}/api/mcp/${encodeURIComponent(project)}/${encodeURIComponent(name)}`;
+}
+
+/**
  * A dataset's page on the site of a `CkanInstance`: `{spec.url}/dataset/{name}`, the address the
  * catalogue API builds too (EP-82). `undefined` for a base that is not an https URL: jc-core
  * refuses any other `spec.url`, and a link is never built from what it would refuse (T-3018).

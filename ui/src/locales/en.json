@@ -82,7 +82,8 @@
     "dataspaceparticipants": "Data space",
     "environments": "Environments",
     "projections": "Model projections",
-    "knowledge": "Knowledge sources"
+    "knowledge": "Knowledge sources",
+    "mcp": "MCP servers"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -5344,6 +5345,82 @@
       "copied": "Copied",
       "origins": "The site's address must be one of the assistant's allowed origins; any other site's frame stays empty.",
       "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page."
+    }
+  },
+  "mcp": {
+    "title": "MCP servers",
+    "lead": "One address an AI client configures once, over several Endpoints of this and other projects. Each call still reads every Endpoint with the person's own rights.",
+    "new": "New MCP server",
+    "empty": "This project has no MCP server yet",
+    "emptyHint": "An MCP server joins Endpoints that belong together, such as the city's mobility data, behind one address.",
+    "listFailed": "The MCP servers could not be read: {reason}",
+    "memberCount": "Members: {count}",
+    "edit": "Edit",
+    "editOf": "Edit {name}",
+    "remove": "Remove",
+    "removeOf": "Remove {name}",
+    "address": "Address",
+    "client": "Sign-in client",
+    "config": "Entry for the AI client's configuration",
+    "signIn": "The AI client finds the sign-in from the address and signs the person in with the client {client} (no secret, PKCE). No token goes into the configuration.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyOf": "Copy: {what}",
+    "audience": {
+      "project-list": "Listed projects",
+      "organization": "Organization",
+      "public": "Public"
+    },
+    "field": {
+      "name": "Name",
+      "title": "Title",
+      "description": "Description",
+      "members": "Member Endpoints ({count} of at most {max})",
+      "search": "Find an Endpoint",
+      "audience": "Who may connect",
+      "allowedProjects": "Projects it admits"
+    },
+    "help": {
+      "name": "Lowercase letters, digits and dashes; part of the address, so it cannot change later.",
+      "title": "What an AI client calls the server, such as Mobility data.",
+      "description": "What the server holds, in one or two sentences; the AI client reads it as its instructions.",
+      "members": "Only Endpoints you may read are offered. Each call to a member is that Endpoint's own call, decided by its own Policy.",
+      "audience": "No wider than the narrowest member. A public server needs every member public, and an approver who may publish.",
+      "allowedProjects": "Project names separated by commas; empty admits this project only."
+    },
+    "form": {
+      "newTitle": "New MCP server",
+      "editTitle": "Edit {name}",
+      "lead": "Proposed as a Change: an approver decides before the server answers.",
+      "propose": "Check and propose",
+      "noEndpoints": "No Endpoint matches, or none you may read.",
+      "servesNoMcp": "This Endpoint serves no MCP surface (spec.mcp is false).",
+      "full": "A server names at most {max} members.",
+      "unseen": "Members you may not read, kept as they are: {count}",
+      "publicLane": "A public server takes the red lane: an approver who may publish decides."
+    },
+    "problem": {
+      "name": "Use lowercase letters, digits and dashes, up to 63 characters.",
+      "members": "Pick between one and {max} member Endpoints.",
+      "noMcp": "A picked Endpoint serves no MCP surface; remove it.",
+      "audience": "The audience is wider than the narrowest member allows; pick a narrower one.",
+      "projects": "Each project name is lowercase letters, digits and dashes."
+    },
+    "health": {
+      "checking": "Checking…",
+      "answers": "Answers, tools: {count}",
+      "refused": "Refused to you (HTTP {status})",
+      "failed": "Not answering: {reason}"
+    },
+    "preview": {
+      "title": "Tools you would get",
+      "members": "Members and how they answer you",
+      "tools": "Tools of the server",
+      "none": "Pick a member to see the tools.",
+      "noTools": "No member answers you with a tool.",
+      "reads": "Reads",
+      "writes": "Writes",
+      "offeredBy": "Offered by: {members}"
     }
   }
 }
