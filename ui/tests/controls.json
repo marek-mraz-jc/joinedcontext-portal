@@ -1284,6 +1284,15 @@
         "data_views.test.tsx"
       ]
     },
+    "src/pages/spaces/FormView.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 4
+      },
+      "tests": [
+        "form_view.test.tsx"
+      ]
+    },
     "src/pages/spaces/PublicView.tsx": {
       "controls": {
         "Button": 2,

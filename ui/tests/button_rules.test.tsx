@@ -60,6 +60,7 @@ const PAGES = [
   "/catalogue",
   "/catalogue/ovzdusie",
   "/v/ovzdusie-board",
+  "/f/ovzdusie-form",
   `/projects/${PROJECT}/import`,
   `/projects/${PROJECT}/federation`,
   `/projects/${PROJECT}/spaces/complete`,

@@ -40,6 +40,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/catalogue": ["/catalogue"],
   "/catalogue/$name": ["/catalogue/air"],
   "/v/$slug": ["/v/air-board"],
+  "/f/$slug": ["/f/air-form"],
   "/playground": ["/playground"],
   "/organization": ["/organization"],
   "/organization/$tab": ORGANIZATION_TABS.map((tab) => `/organization/${tab}`),
