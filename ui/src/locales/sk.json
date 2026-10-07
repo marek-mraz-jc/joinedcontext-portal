@@ -1674,7 +1674,7 @@
         "slotsOf": "Čo berie {type}",
         "slots": "Čo berie model",
         "noModel": "Cieľový priestor nemenuje dátový model, takže žiadny slot nie je známy.",
-        "pickTarget": "Vyberte cieľový endpoint v kroku 6 a uvidíte, čo berie jeho model.",
+        "pickTarget": "Vyberte cieľový endpoint v kroku 3 a uvidíte, čo berie jeho model.",
         "required": "povinné",
         "many": "viac hodnôt",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
@@ -1707,7 +1707,7 @@
         "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušujú} other {# záznamov porušuje}} {model} {version} a nezapíše sa; platných: {valid}."
       },
       "target": {
-        "title": "Cieľ a uloženie",
+        "title": "Cieľ",
         "hint": "Určte endpoint, cez ktorý sa záznamy zapíšu; uloženie navrhne zmenu.",
         "lands": "Záznamy pristanú v priestore {space}, kontrolované voči modelu {model}.",
         "landsUnmodelled": "Záznamy pristanú v priestore {space}, ktorý zatiaľ nemenuje dátový model.",

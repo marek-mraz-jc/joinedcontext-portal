@@ -1674,7 +1674,7 @@
         "slotsOf": "Was {type} nimmt",
         "slots": "Was das Modell nimmt",
         "noModel": "Der Zielraum nennt kein Datenmodell, daher ist kein Slot bekannt.",
-        "pickTarget": "Wählen Sie in Schritt 6 den Zielendpunkt, um zu sehen, was sein Modell nimmt.",
+        "pickTarget": "Wählen Sie in Schritt 3 den Zielendpunkt, um zu sehen, was sein Modell nimmt.",
         "required": "erforderlich",
         "many": "mehrere Werte",
         "values": "{count, plural, =0 {Werte: {values}} other {Werte: {values} und # weitere}}",
@@ -1707,7 +1707,7 @@
         "someRejected": "{count, plural, one {# Datensatz verletzt} other {# Datensätze verletzen}} {model} {version} und würden nicht geschrieben; {valid} gültig."
       },
       "target": {
-        "title": "Ziel und Speichern",
+        "title": "Ziel",
         "hint": "Nennen Sie den Endpunkt, über den die Datensätze geschrieben werden; Speichern schlägt eine Änderung vor.",
         "lands": "Die Datensätze landen im Raum {space}, geprüft gegen das Modell {model}.",
         "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
