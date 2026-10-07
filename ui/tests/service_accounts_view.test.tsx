@@ -371,7 +371,21 @@ describe("the service accounts panel, mounted on its own", () => {
     );
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("You may not read the service accounts of helsinki.");
-    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    // A refusal is not asked again: the same question gets the same answer (T-3244, T-3300).
+    expect(within(alert).queryByRole("button", { name: en.app.error.retry })).toBeNull();
+  });
+
+  it("offers Retry when the list could not be read, and reads it again", async () => {
+    let asked = 0;
+    mounted((url) => {
+      if (!url.pathname.endsWith("/serviceaccounts")) return undefined;
+      asked += 1;
+      return asked === 1 ? problem(503, "The configuration store did not answer.") : json(list([]));
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The configuration store did not answer.");
+    await userEvent.click(within(alert).getByRole("button", { name: en.app.error.retry }));
+    expect(await screen.findByText(en.access.accounts.empty)).toBeInTheDocument();
   });
 
   it("says the project holds none yet, and asks for no key while it holds none", async () => {

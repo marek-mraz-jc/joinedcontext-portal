@@ -1,3 +1,4 @@
+import { PageFailed } from "../../components/ui/PageState";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -757,19 +758,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   }
   if (list.isError) {
     return (
-      <Alert
-        role="alert"
-        tone="danger"
-        actions={
-          <Button size="sm" onClick={() => void list.refetch()}>
-            {t("app.error.retry")}
-          </Button>
-        }
-      >
-        {list.error instanceof ApiError
-          ? (list.error.problem?.detail ?? list.error.message)
-          : t("app.error.generic")}
-      </Alert>
+      <PageFailed error={list.error} onRetry={() => void list.refetch()} />
     );
   }
 

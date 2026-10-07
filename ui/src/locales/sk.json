@@ -1704,7 +1704,8 @@
       "replayed": "{count, plural, =0 {Žiadny záznam sa neprehral.} one {# záznam prešiel znova aktuálnym modelom; ak ho stále porušuje, vráti sa sem.} few {# záznamy prešli znova aktuálnym modelom; tie, ktoré ho stále porušujú, sa vrátia sem.} other {# záznamov prešlo znova aktuálnym modelom; tie, ktoré ho stále porušujú, sa vrátia sem.}}",
       "maskedKept": "{count, plural, one {# záznam zostáva v zozname: jeho hodnota bola zamaskovaná ako tajomstvo a opakovanie by zapísalo masku. Prinesie ho ďalšie čítanie zdroja.} few {# záznamy zostávajú v zozname: ich hodnoty boli zamaskované ako tajomstvo a opakovanie by zapísalo masku. Prinesie ich ďalšie čítanie zdroja.} other {# záznamov zostáva v zozname: ich hodnoty boli zamaskované ako tajomstvo a opakovanie by zapísalo masku. Prinesie ich ďalšie čítanie zdroja.}}",
       "newest": "Najnovšie",
-      "older": "Staršie záznamy"
+      "older": "Staršie záznamy",
+      "openRun": "Otvoriť jeho beh"
     },
     "runs": {
       "open": "Behy a záznam",
@@ -3375,7 +3376,25 @@
     "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
     "noSpace": "Vyberte kontextový priestor na čítanie",
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
-    "typeInModel": "Tento typ v jeho dátovom modeli:"
+    "typeInModel": "Tento typ v jeho dátovom modeli:",
+    "views": "Čo zobraziť",
+    "entities": "Entity",
+    "quality": {
+      "tab": "Kvalita",
+      "observed": "Skontrolované {at} dennou kontrolou kvality dát.",
+      "truncated": "Priestor má viac, než beh prečíta, preto počty pokrývajú jeho prvých 20 000 entít.",
+      "none": "Posledný beh nenašiel v tomto priestore žiadnu entitu {type}.",
+      "summary": "{count, plural, one {# entita} few {# entity} other {# entít}}, najnovšia zmenená {newest}.",
+      "attributes": "Úplnosť každého atribútu {type}",
+      "attribute": "Atribút",
+      "completeness": "Úplnosť",
+      "range": "Rozsah",
+      "outliers": "Hodnoty ďaleko od ostatných",
+      "present": "{present} z {count}",
+      "outlierCount": "{count, plural, one {# hodnota} few {# hodnoty} other {# hodnôt}}",
+      "pipelines": "Pipeline, ktoré zapisujú tento typ",
+      "rejected": "Otvoriť {pipeline} a jej odmietnuté záznamy"
+    }
   },
   "agentRun": {
     "title": "Beh aplikácie",
