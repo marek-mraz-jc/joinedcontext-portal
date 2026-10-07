@@ -4923,6 +4923,11 @@ export interface components {
             /** @description The constraint it broke (a SHACL component, `type` or `id`, PL-59). */
             rule: string;
             /**
+             * @description The run whose log holds the record's line (PL-62); none for a record a failed replay put
+             *     back, or one kept before runs were named.
+             */
+            run?: string | null;
+            /**
              * Format: int32
              * @description The step of `spec.steps` the record failed at, when it failed in a step and not in the
              *     validation stage.

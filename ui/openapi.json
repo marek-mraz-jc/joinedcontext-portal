@@ -18542,6 +18542,13 @@
             "type": "string",
             "description": "The constraint it broke (a SHACL component, `type` or `id`, PL-59)."
           },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run whose log holds the record's line (PL-62); none for a record a failed replay put\nback, or one kept before runs were named."
+          },
           "step": {
             "type": [
               "integer",

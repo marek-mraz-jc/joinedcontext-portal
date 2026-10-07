@@ -1693,7 +1693,8 @@
       "replayed": "{count, plural, =0 {Žiadny záznam sa neprehral.} one {# záznam prešiel znova aktuálnym modelom; ak ho stále porušuje, vráti sa sem.} few {# záznamy prešli znova aktuálnym modelom; tie, ktoré ho stále porušujú, sa vrátia sem.} other {# záznamov prešlo znova aktuálnym modelom; tie, ktoré ho stále porušujú, sa vrátia sem.}}",
       "maskedKept": "{count, plural, one {# záznam zostáva v zozname: jeho hodnota bola zamaskovaná ako tajomstvo a opakovanie by zapísalo masku. Prinesie ho ďalšie čítanie zdroja.} few {# záznamy zostávajú v zozname: ich hodnoty boli zamaskované ako tajomstvo a opakovanie by zapísalo masku. Prinesie ich ďalšie čítanie zdroja.} other {# záznamov zostáva v zozname: ich hodnoty boli zamaskované ako tajomstvo a opakovanie by zapísalo masku. Prinesie ich ďalšie čítanie zdroja.}}",
       "newest": "Najnovšie",
-      "older": "Staršie záznamy"
+      "older": "Staršie záznamy",
+      "openRun": "Otvoriť jeho beh"
     },
     "runs": {
       "open": "Behy a záznam",

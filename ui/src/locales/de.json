@@ -1693,7 +1693,8 @@
       "replayed": "{count, plural, =0 {Kein Datensatz wurde wiederholt.} one {# Datensatz lief erneut durch das aktuelle Modell; verletzt er es weiterhin, kommt er hierher zurück.} other {# Datensätze liefen erneut durch das aktuelle Modell; die es weiterhin verletzen, kommen hierher zurück.}}",
       "maskedKept": "{count, plural, one {# Datensatz bleibt in der Liste: ein Wert wurde als Geheimnis maskiert, und eine Wiederholung würde die Maske schreiben. Das nächste Lesen der Quelle bringt ihn erneut.} other {# Datensätze bleiben in der Liste: ein Wert wurde jeweils als Geheimnis maskiert, und eine Wiederholung würde die Maske schreiben. Das nächste Lesen der Quelle bringt sie erneut.}}",
       "newest": "Neueste",
-      "older": "Ältere Datensätze"
+      "older": "Ältere Datensätze",
+      "openRun": "Seinen Lauf öffnen"
     },
     "runs": {
       "open": "Läufe und Protokoll",

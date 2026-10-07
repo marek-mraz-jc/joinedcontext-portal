@@ -1693,7 +1693,8 @@
       "replayed": "{count, plural, =0 {No record was replayed.} one {# record was replayed through the current model; if it still breaks the model it comes back here.} other {# records were replayed through the current model; any that still break the model come back here.}}",
       "maskedKept": "{count, plural, one {# record stays on the list: a value of it was masked as a secret, and replaying it would write the mask. The pipeline's next read of its source brings it again.} other {# records stay on the list: a value of each was masked as a secret, and replaying them would write the mask. The pipeline's next read of its source brings them again.}}",
       "newest": "Newest",
-      "older": "Older records"
+      "older": "Older records",
+      "openRun": "Open its run"
     },
     "runs": {
       "open": "Runs and log",

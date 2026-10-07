@@ -1238,7 +1238,7 @@
     },
     "src/pages/pipelines/PipelineRejected.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 4,
         "Checkbox": 2
       },
       "tests": [

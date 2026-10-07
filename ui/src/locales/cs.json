@@ -1693,7 +1693,8 @@
       "replayed": "{count, plural, =0 {Žádný záznam se nepřehrál.} one {# záznam prošel znovu aktuálním modelem; pokud ho stále porušuje, vrátí se sem.} few {# záznamy prošly znovu aktuálním modelem; ty, které ho stále porušují, se vrátí sem.} other {# záznamů prošlo znovu aktuálním modelem; ty, které ho stále porušují, se vrátí sem.}}",
       "maskedKept": "{count, plural, one {# záznam zůstává v seznamu: jeho hodnota byla zamaskována jako tajemství a opakování by zapsalo masku. Přinese ho další čtení zdroje.} few {# záznamy zůstávají v seznamu: jejich hodnoty byly zamaskovány jako tajemství a opakování by zapsalo masku. Přinese je další čtení zdroje.} other {# záznamů zůstává v seznamu: jejich hodnoty byly zamaskovány jako tajemství a opakování by zapsalo masku. Přinese je další čtení zdroje.}}",
       "newest": "Nejnovější",
-      "older": "Starší záznamy"
+      "older": "Starší záznamy",
+      "openRun": "Otevřít jeho běh"
     },
     "runs": {
       "open": "Běhy a záznam",
