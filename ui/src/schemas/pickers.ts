@@ -40,7 +40,14 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
     "pages[].widgets[].entityType": TYPE,
   },
   Layer: { sourceEndpointRef: project("endpoints"), entityType: TYPE },
-  Policy: { contextSpaceRef: project("spaces"), "information[].entities[].type": TYPE },
+  Policy: {
+    contextSpaceRef: project("spaces"),
+    "information[].entities[].type": TYPE,
+    // T-3217: who it is granted to, offered by kind; the attributes of the types it covers.
+    "assignee.id": { "ui:widget": "assigneePicker" },
+    "information[].propertyNames[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "Property" } },
+    "information[].relationshipNames[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "Relationship" } },
+  },
   Subscription: { contextSpaceRef: project("spaces"), "entities[].type": TYPE },
   ContextSourceRegistration: {
     contextSpaceRef: project("spaces"),
@@ -62,7 +69,6 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
  * has no list to pick from until the People page's route exists (T-2684).
  */
 export const UNPICKED: Record<string, Record<string, string>> = {
-  Policy: { "assignee.id": "names a role, group, person or service account by assignee.kind; the person list is T-2684" },
   Group: { "members[].user": "a person: the People list is T-2684" },
   ServiceAccount: {
     "owner.user": "a person: the People list is T-2684",

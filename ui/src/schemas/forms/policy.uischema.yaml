@@ -138,28 +138,28 @@ spec:
     q:
       placeholder: "pm10>=0"
       help:
-        en: A condition on the attributes; an entity that fails it is not in this grant.
-        sk: Podmienka na atribúty; entita, ktorá ju nespĺňa, do oprávnenia nepatrí.
-        cs: Podmínka na atributy; entita, která ji nesplní, do oprávnění nepatří.
-        de: Eine Bedingung an die Attribute; eine Entität, die sie verfehlt, fällt heraus.
+        en: "A condition on the attributes in NGSI-LD q syntax, such as pm10>=0; an entity that fails it is not in this grant."
+        sk: "Podmienka na atribúty v syntaxi NGSI-LD q, napríklad pm10>=0; entita, ktorá ju nespĺňa, do oprávnenia nepatrí."
+        cs: "Podmínka na atributy v syntaxi NGSI-LD q, například pm10>=0; entita, která ji nesplní, do oprávnění nepatří."
+        de: "Eine Bedingung an die Attribute in NGSI-LD-q-Syntax, etwa pm10>=0; eine Entität, die sie verfehlt, fällt heraus."
     scopeQ:
       help:
-        en: The branch of the scope tree the grant covers, and everything under it.
-        sk: Vetva stromu rozsahov, ktorú oprávnenie pokrýva, a všetko pod ňou.
-        cs: Větev stromu rozsahů, kterou oprávnění pokrývá, a vše pod ní.
-        de: Der Zweig des Bereichsbaums, den die Berechtigung umfasst, samt allem darunter.
+        en: "The branch of the scope tree the grant covers, and everything under it: a path such as /geo/SK/BB."
+        sk: "Vetva stromu rozsahov, ktorú oprávnenie pokrýva, a všetko pod ňou: cesta ako /geo/SK/BB."
+        cs: "Větev stromu rozsahů, kterou oprávnění pokrývá, a vše pod ní: cesta jako /geo/SK/BB."
+        de: "Der Zweig des Bereichsbaums, den die Berechtigung umfasst, samt allem darunter: ein Pfad wie /geo/SK/BB."
     geoQ:
       help:
-        en: The area the grant covers; an entity outside it is neither read nor written.
-        sk: Oblasť, ktorú oprávnenie pokrýva; entita mimo nej sa nečíta ani nezapisuje.
-        cs: Oblast, kterou oprávnění pokrývá; entita mimo ni se nečte ani nezapisuje.
-        de: Das Gebiet der Berechtigung; eine Entität außerhalb wird weder gelesen noch geschrieben.
+        en: "The area the grant covers, as georel, geometry and coordinates: georel=within;geometry=Polygon;coordinates=[[[lon,lat],…]]. An entity outside it is neither read nor written."
+        sk: "Oblasť, ktorú oprávnenie pokrýva, ako georel, geometria a súradnice: georel=within;geometry=Polygon;coordinates=[[[lon,lat],…]]. Entita mimo nej sa nečíta ani nezapisuje."
+        cs: "Oblast, kterou oprávnění pokrývá, jako georel, geometrie a souřadnice: georel=within;geometry=Polygon;coordinates=[[[lon,lat],…]]. Entita mimo ni se nečte ani nezapisuje."
+        de: "Das Gebiet der Berechtigung als georel, Geometrie und Koordinaten: georel=within;geometry=Polygon;coordinates=[[[lon,lat],…]]. Außerhalb wird nichts gelesen oder geschrieben."
     temporalQ:
       help:
-        en: The window of history the grant covers; what falls outside it is not answered.
-        sk: Okno histórie, ktoré oprávnenie pokrýva; čo je mimo neho, sa neodpovedá.
-        cs: Okno historie, které oprávnění pokrývá; co je mimo ně, se neodpovídá.
-        de: Das Zeitfenster der Berechtigung; was außerhalb liegt, wird nicht beantwortet.
+        en: "The window of history the grant covers, as timerel and timeAt: timerel=after;timeAt=P-1D is the last day. What falls outside it is not answered."
+        sk: "Okno histórie, ktoré oprávnenie pokrýva, ako timerel a timeAt: timerel=after;timeAt=P-1D je posledný deň. Čo je mimo neho, sa neodpovedá."
+        cs: "Okno historie, které oprávnění pokrývá, jako timerel a timeAt: timerel=after;timeAt=P-1D je poslední den. Co je mimo ně, se neodpovídá."
+        de: "Das Zeitfenster der Berechtigung als timerel und timeAt: timerel=after;timeAt=P-1D ist der letzte Tag. Was außerhalb liegt, wird nicht beantwortet."
     validity.from:
       help:
         en: The instant the grant starts to apply; before it the policy decides nothing.

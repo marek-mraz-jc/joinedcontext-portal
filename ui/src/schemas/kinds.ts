@@ -1663,8 +1663,10 @@ export function policySchema(
         type: "object",
         title: t("policies.field.validity"),
         properties: {
-          from: { type: "string", title: t("policies.field.validFrom") },
-          to: { type: "string", title: t("policies.field.validTo") },
+          // A date and time picker in the person's zone, written as the UTC instant jc-core
+          // keeps (T-3217): nobody has to know the RFC 3339 shape to type.
+          from: { type: "string", format: "date-time", title: t("policies.field.validFrom") },
+          to: { type: "string", format: "date-time", title: t("policies.field.validTo") },
         },
       },
     },

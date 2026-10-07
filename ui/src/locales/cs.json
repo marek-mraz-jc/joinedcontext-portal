@@ -3997,6 +3997,11 @@
       "validFrom": "Platí od",
       "validTo": "Platí do",
       "grants": "Povoluje"
+    },
+    "assignee": {
+      "didHint": "Napište decentralizovaný identifikátor, například did:web:example.org; seznam k výběru neexistuje.",
+      "peopleHidden": "Seznam osob vidí jen správce organizace; napište e-mail, kterým se osoba přihlašuje.",
+      "noneYet": "Zatím tu není nic tohoto druhu k výběru ({kind}); napište název tak, jak jej píše poskytovatel identity."
     }
   },
   "subscriptions": {
