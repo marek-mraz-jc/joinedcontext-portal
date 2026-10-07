@@ -1513,7 +1513,42 @@
       "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft.",
       "computeNotRun": "Die Plattform führt einen Schritt dieser Art noch nicht aus ({kind}): Die Pipeline wird angenommen und bleibt Pending, bis sie es tut. Ein Bloblang-Schritt läuft heute.",
       "live": "Live-Zählungen des laufenden Streams seit dem Start seines Runners; ein Test zeigt stattdessen eine Stichprobe.",
-      "liveErrors": "{count, plural, one {# Fehler} other {# Fehler}} seit dem Start des Runners"
+      "liveErrors": "{count, plural, one {# Fehler} other {# Fehler}} seit dem Start des Runners",
+      "tools": "Graph-Werkzeuge",
+      "undo": "Rückgängig",
+      "redo": "Wiederholen",
+      "zoomOut": "Verkleinern",
+      "zoomIn": "Vergrößern",
+      "fitted": "Angepasst",
+      "fit": "An Breite anpassen",
+      "asList": "Als Liste zeigen",
+      "listLabel": "Die Knoten der Pipeline in der Reihenfolge, in der sie laufen",
+      "open": "Öffnen",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "removeNode": "Entfernen",
+      "search": "Prozessor finden",
+      "searchPlaceholder": "Name, Kategorie oder was er tut",
+      "searchNone": "Kein Prozessor passt zu „{query}“.",
+      "searchFound": "{count, plural, one {# Prozessor gefunden} other {# Prozessoren gefunden}}",
+      "wire": {
+        "intoSource": "Eine Quelle liest von außerhalb der Pipeline; nichts führt in sie hinein.",
+        "outOfOutput": "Nach einer Ausgabe läuft nichts mehr; ziehen Sie den Draht von einem Schritt.",
+        "self": "Ein Knoten kann sich nicht selbst speisen.",
+        "middleIntoOutput": "Nur der letzte Schritt speist die Ausgaben. Verschieben Sie diesen Schritt ans Ende, oder setzen Sie einen branch- oder switch-Schritt vor die Ausgabe, der einen Teil der Nachrichten anderswohin schickt.",
+        "moved": "Schritt verschoben: Der Draht hat die Reihenfolge der Schritte bestimmt.",
+        "already": "Diese beiden sind schon verbunden."
+      },
+      "state": {
+        "configured": "Eingerichtet",
+        "missing": {
+          "source": "Quelle fehlt",
+          "output": "Endpoint fehlt",
+          "mapping": "Mapping fehlt",
+          "mappingRef": "Mapping-Name fehlt",
+          "module": "Modul fehlt"
+        }
+      }
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",

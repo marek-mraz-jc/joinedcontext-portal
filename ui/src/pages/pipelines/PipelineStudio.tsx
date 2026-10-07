@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -287,6 +287,20 @@ export function PipelineStudio({
   const [loading, setLoading] = useState(false);
   const [aggregateAttribute, setAggregateAttribute] = useState("");
   const [studioView, setStudioView] = useState<"flow" | "form">("flow");
+  // Opening a node (a double-click, Enter, Open in the list; PL-68) takes the person to its form:
+  // the node's own editor under the canvas, or the source section for the first source.
+  const [opening, setOpening] = useState<{ id: FlowNodeId; count: number } | null>(null);
+  useEffect(() => {
+    if (opening === null) return;
+    const editor =
+      document.querySelector<HTMLElement>('[data-testid^="flow-node-editor"]') ??
+      (opening.id === "source" ? document.getElementById("studio-source-kind") : null);
+    editor?.scrollIntoView?.({ block: "nearest" });
+    (editor?.matches("input, select, textarea")
+      ? editor
+      : editor?.querySelector<HTMLElement>("input, select, textarea, button")
+    )?.focus();
+  }, [opening]);
   const [selectedNode, setSelectedNode] = useState<FlowNodeId | null>(() =>
     draft?.compute?.kind ? "compute" : "source",
   );
@@ -919,6 +933,10 @@ export function PipelineStudio({
                   live={liveCounters.data?.nodes}
                   selected={selectedNode}
                   onSelect={setSelectedNode}
+                  onOpen={(id) => {
+                    setSelectedNode(id);
+                    setOpening((was) => ({ id, count: (was?.count ?? 0) + 1 }));
+                  }}
                   dataSources={dataSources}
                   endpoints={endpoints}
                 />

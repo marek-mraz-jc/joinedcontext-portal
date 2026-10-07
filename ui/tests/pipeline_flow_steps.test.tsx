@@ -301,7 +301,7 @@ describe("the canvas and the step's block", () => {
     expect(onChange).not.toHaveBeenCalled();
 
     const node = screen.getByTestId("flow-node-step-0");
-    expect(node).toHaveAccessibleName("Step: jq");
+    expect(node).toHaveAccessibleName("Step: jq, Configured");
     fireEvent.keyDown(node, { key: "Delete" });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ processors: [] }));
     expect(onSelect).toHaveBeenCalledWith(null);

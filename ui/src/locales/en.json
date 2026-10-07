@@ -1513,7 +1513,42 @@
       "functionHint": "The module's entry point the step calls for each record.",
       "computeNotRun": "The platform does not run a step of this kind yet ({kind}): the pipeline is accepted and stays Pending until it does. A Bloblang step runs today.",
       "live": "Live counts of the running stream since its runner started; run a test to see a sample instead.",
-      "liveErrors": "{count, plural, one {# error} other {# errors}} since the runner started"
+      "liveErrors": "{count, plural, one {# error} other {# errors}} since the runner started",
+      "tools": "Graph tools",
+      "undo": "Undo",
+      "redo": "Redo",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "fitted": "Fitted",
+      "fit": "Fit to width",
+      "asList": "Show as a list",
+      "listLabel": "The pipeline's nodes in the order they run",
+      "open": "Open",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "removeNode": "Remove",
+      "search": "Find a processor",
+      "searchPlaceholder": "Name, category or what it does",
+      "searchNone": "No processor matches \"{query}\".",
+      "searchFound": "{count, plural, one {# processor found} other {# processors found}}",
+      "wire": {
+        "intoSource": "A source reads from outside the pipeline; nothing wires into it.",
+        "outOfOutput": "Nothing runs after an output; draw the wire from a step instead.",
+        "self": "A node cannot feed itself.",
+        "middleIntoOutput": "Only the last step feeds the outputs. Move this step to the end, or put a branch or switch step before the output to send part of the messages elsewhere.",
+        "moved": "Step moved: the wire set the order the steps run in.",
+        "already": "These two are already wired."
+      },
+      "state": {
+        "configured": "Configured",
+        "missing": {
+          "source": "Needs a source",
+          "output": "Needs an endpoint",
+          "mapping": "Needs a mapping",
+          "mappingRef": "Needs a mapping name",
+          "module": "Needs a module"
+        }
+      }
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",

@@ -1513,7 +1513,42 @@
       "functionHint": "Vstupný bod modulu, ktorý krok volá pre každý záznam.",
       "computeNotRun": "Platforma krok tohto druhu zatiaľ nespúšťa ({kind}): pipeline sa prijme a zostane v stave Pending, kým to nebude možné. Krok Bloblang beží už dnes.",
       "live": "Živé počty bežiaceho prúdu od spustenia jeho runnera; ukážku uvidíte po spustení testu.",
-      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chýb}} od spustenia runnera"
+      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chýb}} od spustenia runnera",
+      "tools": "Nástroje grafu",
+      "undo": "Späť",
+      "redo": "Znova",
+      "zoomOut": "Oddialiť",
+      "zoomIn": "Priblížiť",
+      "fitted": "Na šírku",
+      "fit": "Prispôsobiť šírke",
+      "asList": "Zobraziť ako zoznam",
+      "listLabel": "Uzly pipeline v poradí, v akom bežia",
+      "open": "Otvoriť",
+      "moveUp": "Posunúť vyššie",
+      "moveDown": "Posunúť nižšie",
+      "removeNode": "Odstrániť",
+      "search": "Nájsť procesor",
+      "searchPlaceholder": "Názov, kategória alebo čo robí",
+      "searchNone": "Žiadny procesor nezodpovedá „{query}“.",
+      "searchFound": "{count, plural, one {Nájdený # procesor} few {Nájdené # procesory} other {Nájdených # procesorov}}",
+      "wire": {
+        "intoSource": "Zdroj číta mimo pipeline; nič doň nevedie.",
+        "outOfOutput": "Po výstupe už nič nebeží; ťahajte drôt z kroku.",
+        "self": "Uzol nemôže napájať sám seba.",
+        "middleIntoOutput": "Výstupy napája iba posledný krok. Presuňte tento krok na koniec, alebo pred výstup dajte krok branch či switch, ktorý pošle časť správ inam.",
+        "moved": "Krok presunutý: drôt určil poradie, v akom kroky bežia.",
+        "already": "Tieto dva uzly už sú prepojené."
+      },
+      "state": {
+        "configured": "Nastavený",
+        "missing": {
+          "source": "Chýba zdroj",
+          "output": "Chýba endpoint",
+          "mapping": "Chýba mapovanie",
+          "mappingRef": "Chýba názov mapovania",
+          "module": "Chýba modul"
+        }
+      }
     },
     "emptyHint": "Pridajte dátový zdroj a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
