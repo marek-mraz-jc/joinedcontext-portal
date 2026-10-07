@@ -84,7 +84,8 @@
     "{count} min",
     "{ms} ms",
     "{seconds} s",
-    "Čeština"
+    "Čeština",
+    "REST API (JSON)"
   ],
   "cs": [
     "@context",
@@ -169,7 +170,8 @@
     "{count} min",
     "{ms} ms",
     "{seconds} s",
-    "Čeština"
+    "Čeština",
+    "REST API (JSON)"
   ],
   "de": [
     "@context",
