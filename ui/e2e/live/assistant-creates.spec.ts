@@ -107,6 +107,14 @@ const CREATES: Create[] = [
     handOver: "the mapping is finished in the editor, with its own test (PF-57)",
   },
   {
+    // T-3268: the fourth of the kinds a person asks the dock to fill; the conformance journey 17
+    // asks for one too, but in a sentence that names no name, so it proves the navigation alone.
+    what: "an endpoint",
+    sentence: (name) =>
+      `Create an endpoint called ${name} that serves the helsinki space as NGSI-LD to this project only`,
+    route: /\/projects\/helsinki\/endpoints/,
+  },
+  {
     what: "a dashboard",
     sentence: (name) => `Make a dashboard called ${name} showing the bikes of the helsinki space`,
     route: /\/projects\/helsinki\/dashboards/,
@@ -118,7 +126,7 @@ for (const create of CREATES) {
   test(`the assistant opens the form for ${create.what}, filled from one sentence`, async ({
     browser,
     request,
-  }) => {
+  }, info) => {
     const hidden = await hiddenSections(request);
     test.skip(
       create.section !== undefined && inHiddenSection(`/projects/${PROJECT}/${create.section}`, hidden),
@@ -154,6 +162,12 @@ for (const create of CREATES) {
           { timeout: 60_000 },
         );
       }
+
+      // What the person sees before deciding anything: the draft, every field, nothing saved (T-3268).
+      await info.attach(`draft-${create.what.replace(/[^a-z]/g, "")}.png`, {
+        body: await steward.page.screenshot(),
+        contentType: "image/png",
+      });
 
       if (create.handOver) {
         // The form is open and filled, which is what the sentence promised; the rest of this

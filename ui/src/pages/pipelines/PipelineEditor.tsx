@@ -15,6 +15,7 @@ import type { EndpointOption, PipelineShown } from "../../schemas/kinds";
 import { PipelineStudio } from "./PipelineStudio";
 import { PipelineWorkbench } from "./PipelineWorkbench";
 import type { UiSchema } from "../../components/forms/types";
+import { RecipeGallery } from "./RecipeGallery";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
 export interface PipelineForm {
@@ -582,6 +583,16 @@ export function PipelineEditorDialog({
           {t("pipelines.bentoMapping")}
         </Alert>
       ) : null}
+      {editing ? null : (
+        <RecipeGallery
+          project={project}
+          orgDomain={orgDomain}
+          dataSources={dataSourceList}
+          endpoints={endpointList}
+          targets={endpointOptions}
+          onUse={(form) => setDraft(completeOutput(form))}
+        />
+      )}
       <PipelineWorkbench
         project={project}
         draft={draft}

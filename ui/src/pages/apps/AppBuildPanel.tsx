@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
+import { startJob } from "../../jobs";
 import type { components } from "../../api/schema";
 import { Alert, Badge, Button, ExternalLink } from "../../components/ui";
 
@@ -141,7 +142,13 @@ export function AppBuildPanel({ project, name }: { project: string; name: string
           disabledReason={data.rebuild.reason ?? undefined}
           onClick={() => {
             setStarted(false);
-            rebuild.mutate(undefined, { onSuccess: () => setStarted(true) });
+            rebuild.mutate(undefined, {
+              onSuccess: () => {
+                setStarted(true);
+                // The person may leave: the Shell says when this build is done (T-3245).
+                startJob({ kind: "appBuild", project, name, after: data.run?.number ?? 0 });
+              },
+            });
           }}
         >
           {t("apps.build.rebuild")}

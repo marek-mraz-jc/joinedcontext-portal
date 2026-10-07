@@ -1768,7 +1768,14 @@
         "failed": "Failed"
       },
       "newest": "Newest",
-      "older": "Older lines"
+      "older": "Older lines",
+      "took": "Took",
+      "delta": "Written vs the run before",
+      "seconds": "{count, plural, one {# second} other {# seconds}}",
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "same": "same",
+      "silentBadge": "Wrote nothing",
+      "silent": "The last run wrote nothing, while the run before wrote {before}. The source may have stopped answering, or the mapping may drop every record; open the run's log."
     },
     "workbench": {
       "failed": "The step could not run; try again.",
@@ -1841,6 +1848,23 @@
         "lands": "The records land in the space {space}, checked against the model {model}.",
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
         "save": "Name the pipeline below and propose it: nothing is written until the change is approved."
+      },
+      "changes": {
+        "title": "What would change in {space}",
+        "compare": "Compare with the space",
+        "hint": "Reads the entities with these ids as you may read them; nothing is written.",
+        "noIds": "The mapped records carry no id to compare by.",
+        "failed": "The space could not be read: {reason}",
+        "counts": "{create, plural, =0 {nothing to create} one {# to create} other {# to create}}, {update, plural, =0 {nothing to update} one {# to update} other {# to update}}, {unchanged, plural, =0 {none unchanged} one {# unchanged} other {# unchanged}}.",
+        "caption": "Each mapped record against the entity {space} holds now",
+        "entity": "Entity",
+        "outcome": "Would be",
+        "what": "What changes",
+        "outcomes": {
+          "create": "Created",
+          "update": "Updated",
+          "unchanged": "No change"
+        }
       }
     },
     "mapper": {
@@ -1922,6 +1946,74 @@
       "runMessage": "Run message {number} of {total}",
       "startOver": "Start over",
       "position": "Message {number} of {total}"
+    },
+    "schedule": {
+      "how": "How often",
+      "kind": {
+        "minutes": "Every few minutes",
+        "hours": "Every few hours",
+        "hourly": "Every hour",
+        "daily": "Every day",
+        "weekly": "Every week",
+        "custom": "Custom (cron)"
+      },
+      "every": {
+        "minutes": "Every",
+        "hours": "Every"
+      },
+      "step": {
+        "minutes": "{count} minutes",
+        "hours": "{count} hours"
+      },
+      "atMinute": "At minute",
+      "on": "On",
+      "atTime": "At (UTC)",
+      "cron": "Cron, five fields in UTC",
+      "invalid": "This is not five cron fields: minute, hour, day of month, month, day of week.",
+      "next": "Next five runs, in your time",
+      "never": "This schedule names no time that comes in the next four years.",
+      "tooOften": "This schedule runs more often than the source changes (its catalogue record says: {frequency}), so most runs will find nothing new."
+    },
+    "recipe": {
+      "title": "Start from a recipe",
+      "lead": "Pick what the pipeline does and give its source and where it writes; the steps below sample the source, draft the mapping and test it before anything is proposed.",
+      "use": "Fill the pipeline",
+      "choose": "Choose…",
+      "target": "Where it writes",
+      "targetHelp": "The endpoint the records go through; its space's model is what they are checked against.",
+      "none": {
+        "datasource": "The project has no data source yet: add one under Data sources, from a template.",
+        "endpoint": "The project has no endpoint to read from yet."
+      },
+      "csv": {
+        "title": "CSV file to entities",
+        "what": "A table published as a file, loaded every day at 03:00 UTC.",
+        "source": "The data source of the file"
+      },
+      "api": {
+        "title": "Poll an API",
+        "what": "A JSON API read every 15 minutes.",
+        "source": "The data source of the API"
+      },
+      "ckan": {
+        "title": "Harvest a CKAN dataset",
+        "what": "A resource of an open-data catalogue, loaded every day at 04:00 UTC.",
+        "source": "The data source of the CKAN resource"
+      },
+      "kpi": {
+        "title": "A KPI aggregation",
+        "what": "The average of one attribute across a type, every 15 minutes, as a KPI entity.",
+        "source": "The endpoint to read",
+        "type": "Entity type",
+        "attribute": "Attribute to average",
+        "attributeHelp": "A numeric attribute of the type, by its name in the model."
+      },
+      "problem": {
+        "source": "Choose the source.",
+        "target": "Choose where the pipeline writes.",
+        "type": "Name the entity type to aggregate.",
+        "attribute": "Name a numeric attribute: letters, digits and underscores."
+      }
     }
   },
   "dashboards": {
@@ -6077,6 +6169,35 @@
     "upstream-redirect": "The service behind the platform sent a redirect it may not follow; ask its owner for the final address.",
     "service-unavailable": "The platform is not ready for this yet; try again in a minute.",
     "delivery-timeout": "The receiver did not answer in time; check that it is reachable and try again."
+  },
+  "jobs": {
+    "title": "What you started",
+    "label": "What you started: {running, plural, =0 {nothing running} one {# running} other {# running}}{finished, plural, =0 {} one {, # finished} other {, # finished}}",
+    "queued": "Waiting to start",
+    "running": "Running for {minutes, plural, =0 {less than a minute} one {# minute} other {# minutes}}",
+    "runningWithEstimate": "Running for {minutes, plural, =0 {less than a minute} one {# minute} other {# minutes}}, about {left, plural, =0 {a moment} one {# minute} other {# minutes}} left",
+    "unknown": "Could not be read just now",
+    "outcome": {
+      "succeeded": "Finished",
+      "failed": "Failed: open it to read why",
+      "cancelled": "Cancelled"
+    },
+    "kind": {
+      "appBuild": "Build of {name}",
+      "knowledgeCrawl": "Crawl of {name}"
+    },
+    "finished": {
+      "appBuild": {
+        "succeeded": "The build of {name} finished.",
+        "failed": "The build of {name} failed.",
+        "cancelled": "The build of {name} was cancelled."
+      },
+      "knowledgeCrawl": {
+        "succeeded": "The crawl of {name} finished.",
+        "failed": "The crawl of {name} failed.",
+        "cancelled": "The crawl of {name} was cancelled."
+      }
+    }
   },
   "places": {
     "star": "Star this page",

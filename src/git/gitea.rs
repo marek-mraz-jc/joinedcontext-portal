@@ -103,6 +103,28 @@ pub struct WorkflowRun {
     pub commit: String,
     /// The run's page, behind the forge's sign-in (PF-81).
     pub url: String,
+    /// The run's number in its repository, so a client tells the run it started from the one
+    /// before it (T-3245).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub number: Option<u64>,
+    /// RFC 3339, once a runner took it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<String>,
+    /// RFC 3339, once it is completed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+}
+
+impl WorkflowRun {
+    /// How long a completed run took, in seconds.
+    pub fn seconds(&self) -> Option<u64> {
+        let at = |text: &Option<String>| {
+            text.as_deref()
+                .and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok())
+        };
+        let took = at(&self.completed_at)? - at(&self.started_at)?;
+        u64::try_from(took.num_seconds()).ok()
+    }
 }
 
 /// A forge job waiting for a runner, as the build-pod dispatcher reads it (AP-130).
@@ -157,6 +179,10 @@ struct WorkflowRunResponse {
     head_sha: String,
     #[serde(default)]
     run_number: Option<u64>,
+    #[serde(default)]
+    started_at: Option<String>,
+    #[serde(default)]
+    completed_at: Option<String>,
 }
 
 /// An Actions artifact of a repository and the commit its run built (AP-104).
@@ -1148,31 +1174,45 @@ impl GiteaClient {
     /// the first one. The link is built from the public URL, never Gitea's own `html_url`,
     /// which carries the cluster-internal ROOT_URL (PF-81).
     pub async fn latest_run(&self) -> Result<Option<WorkflowRun>, GitError> {
+        Ok(self.latest_runs(1).await?.into_iter().next())
+    }
+
+    /// `GET /actions/runs?limit={limit}` — the newest workflow runs of the repository, newest
+    /// first; what a build's estimate is read from (T-3245).
+    pub async fn latest_runs(&self, limit: u32) -> Result<Vec<WorkflowRun>, GitError> {
         let mut url = self.repo_url("actions/runs")?;
-        url.query_pairs_mut().append_pair("limit", "1");
+        url.query_pairs_mut()
+            .append_pair("limit", &limit.to_string());
         let res = self.send(self.http.get(url)).await?;
         let res = Self::check_status(res).await?;
         let runs: WorkflowRunsResponse = res
             .json()
             .await
             .map_err(|e| GitError::Transport(format!("failed to parse the workflow runs: {e}")))?;
-        Ok(runs.workflow_runs.into_iter().next().map(|run| {
-            let page = format!(
-                "{}/{}/{}/actions",
-                self.public_base.as_str().trim_end_matches('/'),
-                self.owner,
-                self.repo
-            );
-            WorkflowRun {
-                url: self.signed_in(&match run.run_number {
-                    Some(number) => format!("{page}/runs/{number}"),
-                    None => page,
-                }),
-                status: run.status,
-                conclusion: run.conclusion.filter(|c| !c.is_empty()),
-                commit: run.head_sha,
-            }
-        }))
+        Ok(runs
+            .workflow_runs
+            .into_iter()
+            .map(|run| {
+                let page = format!(
+                    "{}/{}/{}/actions",
+                    self.public_base.as_str().trim_end_matches('/'),
+                    self.owner,
+                    self.repo
+                );
+                WorkflowRun {
+                    url: self.signed_in(&match run.run_number {
+                        Some(number) => format!("{page}/runs/{number}"),
+                        None => page,
+                    }),
+                    status: run.status,
+                    conclusion: run.conclusion.filter(|c| !c.is_empty()),
+                    commit: run.head_sha,
+                    number: run.run_number,
+                    started_at: run.started_at.filter(|at| !at.is_empty()),
+                    completed_at: run.completed_at.filter(|at| !at.is_empty()),
+                }
+            })
+            .collect())
     }
 
     /// `POST /actions/workflows/{file}/dispatches` — runs the workflow `file` on `git_ref`

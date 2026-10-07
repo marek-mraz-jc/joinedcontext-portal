@@ -107,6 +107,10 @@ describe("the build of an application on the forge", () => {
       .map(([input]) => input as Request)
       .filter((request) => typeof request !== "string" && request.method === "POST");
     expect(posts.map((request) => new URL(request.url).pathname)).toEqual([REBUILD]);
+    // T-3245: the build is now one of the person's jobs, after run 7, which the Shell watches.
+    const jobs = JSON.parse(localStorage.getItem("jc.jobs") ?? "[]") as { id: string; after: number }[];
+    expect(jobs.map((job) => [job.id, job.after])).toEqual([["appBuild:helsinki:bikes", 0]]);
+    localStorage.removeItem("jc.jobs");
   });
 
   // UI-44: a person who may not propose an App reaches the button and is told why; nothing is sent.

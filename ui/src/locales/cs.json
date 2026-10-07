@@ -1768,7 +1768,14 @@
         "failed": "Selhal"
       },
       "newest": "Nejnovější",
-      "older": "Starší řádky"
+      "older": "Starší řádky",
+      "took": "Trvání",
+      "delta": "Zapsáno oproti předchozímu běhu",
+      "seconds": "{count, plural, one {# sekunda} few {# sekundy} other {# sekund}}",
+      "minutes": "{count, plural, one {# minuta} few {# minuty} other {# minut}}",
+      "same": "stejně",
+      "silentBadge": "Nezapsal nic",
+      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu."
     },
     "workbench": {
       "failed": "Krok se nepodařilo spustit; zkuste to znovu.",
@@ -1841,6 +1848,23 @@
         "lands": "Záznamy přistanou v prostoru {space}, kontrolované vůči modelu {model}.",
         "landsUnmodelled": "Záznamy přistanou v prostoru {space}, který zatím nejmenuje datový model.",
         "save": "Pojmenujte pipeline níže a navrhněte ji: nic se nezapíše, dokud změnu neschválí."
+      },
+      "changes": {
+        "title": "Co by se změnilo v {space}",
+        "compare": "Porovnat s prostorem",
+        "hint": "Přečte entity s těmito id tak, jak je smíte číst vy; nic se nezapíše.",
+        "noIds": "Namapované záznamy nemají id, podle kterého porovnat.",
+        "failed": "Prostor se nepodařilo přečíst: {reason}",
+        "counts": "{create, plural, =0 {nic k vytvoření} other {k vytvoření: #}}, {update, plural, =0 {nic ke změně} other {ke změně: #}}, {unchanged, plural, =0 {žádné beze změny} other {beze změny: #}}.",
+        "caption": "Každý namapovaný záznam proti entitě, kterou {space} drží teď",
+        "entity": "Entita",
+        "outcome": "Bude",
+        "what": "Co se změní",
+        "outcomes": {
+          "create": "Vytvořena",
+          "update": "Změněna",
+          "unchanged": "Beze změny"
+        }
       }
     },
     "mapper": {
@@ -1922,6 +1946,74 @@
       "runMessage": "Spustit zprávu {number} z {total}",
       "startOver": "Od začátku",
       "position": "Zpráva {number} z {total}"
+    },
+    "schedule": {
+      "how": "Jak často",
+      "kind": {
+        "minutes": "Každých pár minut",
+        "hours": "Každých pár hodin",
+        "hourly": "Každou hodinu",
+        "daily": "Každý den",
+        "weekly": "Každý týden",
+        "custom": "Vlastní (cron)"
+      },
+      "every": {
+        "minutes": "Každých",
+        "hours": "Každých"
+      },
+      "step": {
+        "minutes": "{count} minut",
+        "hours": "{count, plural, few {# hodiny} other {# hodin}}"
+      },
+      "atMinute": "V minutě",
+      "on": "Ve dny",
+      "atTime": "V (UTC)",
+      "cron": "Cron, pět polí v UTC",
+      "invalid": "Tohle není pět polí cron: minuta, hodina, den v měsíci, měsíc, den v týdnu.",
+      "next": "Dalších pět běhů ve vašem čase",
+      "never": "Tento rozvrh nejmenuje žádný čas v příštích čtyřech letech.",
+      "tooOften": "Tento rozvrh běží častěji, než se zdroj mění (záznam v katalogu říká: {frequency}), takže většina běhů nenajde nic nového."
+    },
+    "recipe": {
+      "title": "Začít z receptu",
+      "lead": "Vyberte, co pipeline dělá, a zadejte její zdroj a kam zapisuje; kroky níže zdroj ochutnají, navrhnou mapování a otestují ho dřív, než cokoli navrhnete.",
+      "use": "Vyplnit pipeline",
+      "choose": "Vyberte…",
+      "target": "Kam zapisuje",
+      "targetHelp": "Endpoint, přes který jdou záznamy; kontrolují se proti modelu jeho prostoru.",
+      "none": {
+        "datasource": "Projekt zatím nemá zdroj dat: přidejte ho ve Zdrojích dat ze šablony.",
+        "endpoint": "Projekt zatím nemá endpoint, ze kterého číst."
+      },
+      "csv": {
+        "title": "Soubor CSV na entity",
+        "what": "Tabulka zveřejněná jako soubor, načítaná každý den ve 03:00 UTC.",
+        "source": "Zdroj dat se souborem"
+      },
+      "api": {
+        "title": "Pravidelně číst API",
+        "what": "API v JSON čtené každých 15 minut.",
+        "source": "Zdroj dat s API"
+      },
+      "ckan": {
+        "title": "Sklízet dataset z CKAN",
+        "what": "Zdroj z katalogu otevřených dat, načítaný každý den ve 04:00 UTC.",
+        "source": "Zdroj dat se zdrojem CKAN"
+      },
+      "kpi": {
+        "title": "Agregace KPI",
+        "what": "Průměr jednoho atributu napříč typem každých 15 minut jako entita KPI.",
+        "source": "Endpoint ke čtení",
+        "type": "Typ entity",
+        "attribute": "Atribut k průměru",
+        "attributeHelp": "Číselný atribut typu, podle jeho názvu v modelu."
+      },
+      "problem": {
+        "source": "Vyberte zdroj.",
+        "target": "Vyberte, kam pipeline zapisuje.",
+        "type": "Zadejte typ entity k agregaci.",
+        "attribute": "Zadejte číselný atribut: písmena, číslice a podtržítka."
+      }
     }
   },
   "dashboards": {
@@ -6077,6 +6169,35 @@
     "upstream-redirect": "Služba za platformou poslala přesměrování, které nesmí následovat; požádejte jejího vlastníka o konečnou adresu.",
     "service-unavailable": "Platforma na to ještě není připravená; zkuste to za minutu.",
     "delivery-timeout": "Příjemce neodpověděl včas; ověřte, že je dostupný, a zkuste to znovu."
+  },
+  "jobs": {
+    "title": "Co jste spustili",
+    "label": "Co jste spustili: {running, plural, =0 {nic neběží} one {# běží} few {# běží} other {# běží}}{finished, plural, =0 {} one {, # dokončeno} other {, # dokončených}}",
+    "queued": "Čeká na spuštění",
+    "running": "Běží {minutes, plural, =0 {méně než minutu} one {# minutu} few {# minuty} other {# minut}}",
+    "runningWithEstimate": "Běží {minutes, plural, =0 {méně než minutu} one {# minutu} few {# minuty} other {# minut}}, zbývá asi {left, plural, =0 {chvilka} one {# minuta} few {# minuty} other {# minut}}",
+    "unknown": "Teď se nedá zjistit",
+    "outcome": {
+      "succeeded": "Dokončeno",
+      "failed": "Selhalo: otevřete, proč",
+      "cancelled": "Zrušeno"
+    },
+    "kind": {
+      "appBuild": "Sestavení {name}",
+      "knowledgeCrawl": "Procházení {name}"
+    },
+    "finished": {
+      "appBuild": {
+        "succeeded": "Sestavení {name} se dokončilo.",
+        "failed": "Sestavení {name} selhalo.",
+        "cancelled": "Sestavení {name} bylo zrušeno."
+      },
+      "knowledgeCrawl": {
+        "succeeded": "Procházení {name} se dokončilo.",
+        "failed": "Procházení {name} selhalo.",
+        "cancelled": "Procházení {name} bylo zrušeno."
+      }
+    }
   },
   "places": {
     "star": "Označit stránku hvězdičkou",
