@@ -24,6 +24,16 @@ test("the owner updates a copy from the project and discards it from the list", 
     await start.getByRole("button", { name: "Start the copy" }).click();
     await expect(start).toBeHidden({ timeout: 60_000 });
 
+    // T-3219: a second copy of the same name is answered at the name, with what to do.
+    await page.goto(`/projects/${PROJECT}/workspaces?lang=en`, { waitUntil: "load" });
+    await page.getByRole("button", { name: "Work on a copy" }).first().click();
+    const again = page.getByRole("dialog");
+    await expect(again.getByLabel("Keep it for")).toHaveAccessibleDescription(/the copy and whatever it holds that was not brought back are deleted/);
+    await again.getByLabel(/^Name/).fill(COPY);
+    await again.getByRole("button", { name: "Start the copy" }).click();
+    await expect(again.getByLabel(/^Name/)).toHaveAccessibleDescription(new RegExp(`A copy named ${COPY} exists already`), { timeout: 30_000 });
+    await again.getByRole("button", { name: "Cancel" }).click();
+
     // Update from the project: the copy takes in what the project changed since it started (CC-80),
     // and says what it took — nothing, when nobody changed the project in the meantime.
     await page.goto(`/projects/${PROJECT}/workspaces/${COPY}/bring-back?lang=en`, { waitUntil: "load" });

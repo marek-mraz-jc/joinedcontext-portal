@@ -147,7 +147,14 @@
     "dropOne": "Drop a file here or choose one",
     "dropMany": "Drop files here or choose them",
     "chosenFiles": "Chosen: {names}",
-    "advancedModeHint": "Also shows the fields most manifests leave at their defaults; the choice is remembered for you."
+    "advancedModeHint": "Also shows the fields most manifests leave at their defaults; the choice is remembered for you.",
+    "gitUrl": "A clone address starting with https://, ssh:// or git@, such as https://git.example.org/city/config.git.",
+    "httpsUrl": "A full address starting with https://.",
+    "interval": "A whole number and a unit: s, m, h or d, such as 30m or 6h.",
+    "entityUrn": "An entity id: urn:ngsi-ld: then its type and name, such as urn:ngsi-ld:Vehicle:bus-12.",
+    "notificationUri": "A full address starting with http:// or https://, with no user name or password in it.",
+    "instant": "A date and time with its zone, such as 2026-12-31T23:59:00Z.",
+    "headerName": "A header name of letters, digits and hyphens. Authorization, Cookie and Proxy-Authorization are refused: put a credential in Credential instead."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -1773,7 +1780,9 @@
       "spacesFailed": "The context spaces of this project could not be loaded, so grants that apply to a single space are missing from this list: {reason}",
       "discardTitle": "Discard this grant?",
       "discardConfirm": "What you typed is lost and nothing is proposed. The roles already held are not touched.",
-      "discard": "Discard the grant"
+      "discard": "Discard the grant",
+      "grants": "This role may: {rights}.",
+      "grantsNothing": "This role grants nothing yet: its rules are empty."
     },
     "projectRoles": {
       "title": "Roles",
@@ -2422,7 +2431,7 @@
   "apps": {
     "title": "Applications",
     "subtitle": "Apps built for this project. A preview runs against a sandbox space; publishing is a merge request.",
-    "empty": "This project has no applications yet.",
+    "empty": "This project has no applications yet. Press \"Generate your own app\", pick the endpoint it reads and describe it: the builder writes it and opens a merge request for review.",
     "visibility": "Visible to {visibility}",
     "dataNeeds": "Reads {types} in {spaces}",
     "previewAction": "Open preview",
@@ -2557,6 +2566,12 @@
         "cancel": "Cancel",
         "close": "Close",
         "waiting": "{name} is proposed ({lane} lane). Once the change is merged and the endpoint is served, the builder reads it; you can keep writing the description meanwhile."
+      },
+      "missing": {
+        "endpoint": "Choose the endpoint the app reads first.",
+        "prompt": "Describe what the app should do.",
+        "name": "Correct the app name under the details: lowercase letters, digits and dashes.",
+        "needs": "Keep at least one attribute ticked under the details: the app needs something to read."
       }
     },
     "newAction": "Generate your own app",
@@ -2715,6 +2730,13 @@
       "notice": "{count, plural, one {# app still uses a shape name the next release refuses.} other {# apps still use shape names the next release refuses.}} One Change, proposed in your name, writes the new names and changes nothing else.",
       "item": "{name}: {from} becomes {to}",
       "action": "Propose the rename"
+    },
+    "audience": {
+      "private": "only its author",
+      "project": "members of this project",
+      "organization": "everyone in the organization",
+      "public": "everyone, without signing in",
+      "roles": "the people holding one of its roles"
     }
   },
   "appLifecycle": {
@@ -2741,11 +2763,16 @@
       "propose": "Propose catalogue",
       "nameHelp": "The short name this catalogue is known by here. Lowercase letters, digits and dashes.",
       "urlHelp": "The address of the CKAN portal the datasets are published to, with its scheme.",
-      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own.",
+      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own: the short name at the end of its address in CKAN, /organization/<name>.",
       "emptyHint": "A catalogue is a CKAN portal this project publishes to. Name one below and the reconciler registers its datasets.",
       "nameInvalid": "A name is lowercase letters, digits and dashes, and starts and ends with a letter or a digit.",
       "urlInvalid": "The address starts with http:// or https://.",
-      "secretRequired": "Name the secret the operator loaded; the token itself is never entered here."
+      "secretRequired": "Name the secret the operator loaded; the token itself is never entered here.",
+      "secretKey": "Key inside the secret",
+      "secretKeyHelp": "The entry of that secret that holds the token. Leave apiToken unless the operator says otherwise.",
+      "secretKeyInvalid": "A key is letters, digits, dots, dashes and underscores, such as apiToken.",
+      "secretInvalid": "A secret's name is lowercase letters, digits, dashes and dots, such as ckan-api-token.",
+      "secretIsToken": "This looks like the API token itself. Do not paste it here: ask the operator to load it into the secret store and type that secret's name."
     },
     "publications": {
       "title": "Published endpoints",
@@ -2753,13 +2780,14 @@
       "datastore": "DataStore mirror from {representation}, {refresh}.",
       "publishedTo": "published to {instance}",
       "missingInstance": "catalogue {instance} is missing",
-      "emptyHint": "An endpoint publishes when its manifest declares a publication. Open an endpoint and add one to see it here.",
+      "emptyHint": "Press \"Publish a dataset\", pick an endpoint, check its description and propose it. The dataset appears here and in CKAN after the approval.",
       "refreshed": {
         "onChange": "refreshed when an entity changes",
         "onReconcile": "refreshed each time the configuration is applied"
       },
       "lastChange": "Last change {time}: {summary}",
-      "lastFailed": "Last run failed {time}: {summary}"
+      "lastFailed": "Last run failed {time}: {summary}",
+      "needsCatalogue": "Add a catalogue above first: a dataset needs a CKAN portal to land in."
     },
     "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}",
     "access": {
@@ -3932,7 +3960,9 @@
       "submit": "Start the copy",
       "titleField": "Title",
       "titleHint": "Optional; shown instead of the name.",
-      "denied": "Your role may not propose anything in this project, so it cannot open a copy."
+      "denied": "Your role may not propose anything in this project, so it cannot open a copy.",
+      "ttlHint": "When the time is up, the copy and whatever it holds that was not brought back are deleted. The project is never touched.",
+      "nameTaken": "A copy named {name} exists already. Choose another name."
     },
     "bar": {
       "label": "Copy",
@@ -4236,7 +4266,7 @@
       "lead": "The people of the organization’s sign-in realm. What each one may do comes from the bindings and groups that name them.",
       "new": "New person",
       "hidden": "Only a person whose role reads people sees this list. An organization administrator can grant it.",
-      "invited": "The realm sent {email} an e-mail to verify the address and set a password.",
+      "invited": "The realm sent {email} an e-mail to verify the address and set a password. They can sign in, but do nothing until they hold a role: give them one under Members of a project or of the organization.",
       "search": "Search people",
       "searchPlaceholder": "Name or e-mail",
       "searchButton": "Search",

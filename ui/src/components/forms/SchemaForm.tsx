@@ -15,7 +15,33 @@ import {
 } from "./theme";
 import { FormDataContext, FormProjectContext, portalFields, portalWidgets } from "./widgets";
 import { TouchedContext, hasAnyError } from "./touched";
-import { DNS1123, ENTITY_TYPE_PATTERN } from "../../schemas/kinds";
+import {
+  DNS1123,
+  ENTITY_TYPE_PATTERN,
+  ENTITY_URN_PATTERN,
+  GIT_URL_PATTERN,
+  HEADER_NAME_PATTERN,
+  HTTPS_URL_PATTERN,
+  NOTIFICATION_URI_PATTERN,
+  RFC3339_PATTERN,
+  SYNC_INTERVAL_PATTERN,
+} from "../../schemas/kinds";
+
+/**
+ * The patterns whose refusal says what to write instead of "invalid value" (T-3219): each is a
+ * format a person types by hand, and the message names it with an example.
+ */
+const PATTERN_MESSAGES: Record<string, string> = {
+  [DNS1123]: "form.dns1123",
+  [ENTITY_TYPE_PATTERN]: "form.entityType",
+  [GIT_URL_PATTERN]: "form.gitUrl",
+  [HTTPS_URL_PATTERN]: "form.httpsUrl",
+  [SYNC_INTERVAL_PATTERN]: "form.interval",
+  [ENTITY_URN_PATTERN]: "form.entityUrn",
+  [NOTIFICATION_URI_PATTERN]: "form.notificationUri",
+  [RFC3339_PATTERN]: "form.instant",
+  [HEADER_NAME_PATTERN]: "form.headerName",
+};
 import { namesOfRefs, withPickers } from "../../schemas/pickers";
 
 /** The theme's widgets and the Portal's own (`secretRef`, `entityPicker`), which a uiSchema names. */
@@ -75,13 +101,9 @@ export function errorMessageKey(
   schema?: JsonSchema,
 ): string {
   if (error.name === "pattern") {
-    switch (patternOf(error, schema)) {
-      case DNS1123:
-        return "form.dns1123";
-      case ENTITY_TYPE_PATTERN:
-        return "form.entityType";
-      default:
-        break;
+    const pattern = patternOf(error, schema);
+    if (pattern !== undefined && PATTERN_MESSAGES[pattern]) {
+      return PATTERN_MESSAGES[pattern];
     }
   }
   return error.name && ajvErrorKeyMap[error.name]

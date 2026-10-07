@@ -878,7 +878,7 @@
     },
     "src/pages/ckan/CkanPage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "form_ckan_page.test.tsx"

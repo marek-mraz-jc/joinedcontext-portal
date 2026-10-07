@@ -147,7 +147,14 @@
     "dropOne": "Pretiahnite sem súbor alebo ho vyberte",
     "dropMany": "Pretiahnite sem súbory alebo ich vyberte",
     "chosenFiles": "Vybrané: {names}",
-    "advancedModeHint": "Zobrazí aj polia, ktoré väčšina manifestov necháva na predvolených hodnotách; voľba sa vám zapamätá."
+    "advancedModeHint": "Zobrazí aj polia, ktoré väčšina manifestov necháva na predvolených hodnotách; voľba sa vám zapamätá.",
+    "gitUrl": "Adresa na klonovanie, ktorá začína https://, ssh:// alebo git@, ako https://git.example.org/city/config.git.",
+    "httpsUrl": "Úplná adresa, ktorá začína https://.",
+    "interval": "Celé číslo a jednotka s, m, h alebo d, ako 30m alebo 6h.",
+    "entityUrn": "Identifikátor entity: urn:ngsi-ld:, potom jej typ a názov, ako urn:ngsi-ld:Vehicle:bus-12.",
+    "notificationUri": "Úplná adresa, ktorá začína http:// alebo https://, bez mena a hesla.",
+    "instant": "Dátum a čas s časovým pásmom, ako 2026-12-31T23:59:00Z.",
+    "headerName": "Názov hlavičky z písmen, číslic a pomlčiek. Authorization, Cookie a Proxy-Authorization sú odmietnuté: prístupový údaj patrí do poľa Prístupový údaj."
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",
@@ -1773,7 +1780,9 @@
       "spacesFailed": "Kontextové priestory tohto projektu sa nepodarilo načítať, takže pridelenia platné pre jeden priestor v tomto zozname chýbajú: {reason}",
       "discardTitle": "Zahodiť toto pridelenie?",
       "discardConfirm": "To, čo ste napísali, sa stratí a nič sa nenavrhne. Už pridelené roly sa nemenia.",
-      "discard": "Zahodiť pridelenie"
+      "discard": "Zahodiť pridelenie",
+      "grants": "Táto rola smie: {rights}.",
+      "grantsNothing": "Táto rola zatiaľ nič neudeľuje: nemá pravidlá."
     },
     "projectRoles": {
       "title": "Role",
@@ -2422,7 +2431,7 @@
   "apps": {
     "title": "Aplikácie",
     "subtitle": "Aplikácie postavené pre tento projekt. Náhľad beží nad sandboxovým priestorom, publikovanie je merge request.",
-    "empty": "Tento projekt zatiaľ nemá žiadne aplikácie.",
+    "empty": "Tento projekt zatiaľ nemá žiadne aplikácie. Stlačte „Vygenerovať vlastnú aplikáciu“, vyberte endpoint, z ktorého číta, a opíšte ju: builder ju napíše a otvorí merge request na kontrolu.",
     "visibility": "Viditeľné pre {visibility}",
     "dataNeeds": "Číta {types} v {spaces}",
     "previewAction": "Otvoriť náhľad",
@@ -2557,6 +2566,12 @@
         "cancel": "Zrušiť",
         "close": "Zavrieť",
         "waiting": "{name} je navrhnutý (pruh {lane}). Keď je zmena zlúčená a endpoint beží, tvorca ho načíta; popis môžete medzitým písať ďalej."
+      },
+      "missing": {
+        "endpoint": "Najprv vyberte endpoint, z ktorého aplikácia číta.",
+        "prompt": "Opíšte, čo má aplikácia robiť.",
+        "name": "Opravte názov aplikácie v podrobnostiach: malé písmená, číslice a pomlčky.",
+        "needs": "V podrobnostiach nechajte zaškrtnutý aspoň jeden atribút: aplikácia potrebuje niečo čítať."
       }
     },
     "newAction": "Vygenerovať vlastnú aplikáciu",
@@ -2715,6 +2730,13 @@
       "notice": "{count, plural, one {# aplikácia ešte používa názov tvaru, ktorý ďalšie vydanie odmietne.} few {# aplikácie ešte používajú názvy tvarov, ktoré ďalšie vydanie odmietne.} other {# aplikácií ešte používa názvy tvarov, ktoré ďalšie vydanie odmietne.}} Jedna zmena navrhnutá vo vašom mene zapíše nové názvy a nič iné nezmení.",
       "item": "{name}: z {from} bude {to}",
       "action": "Navrhnúť premenovanie"
+    },
+    "audience": {
+      "private": "len jej autor",
+      "project": "členovia tohto projektu",
+      "organization": "všetci v organizácii",
+      "public": "všetci, aj bez prihlásenia",
+      "roles": "ľudia s niektorou z jej rolí"
     }
   },
   "appLifecycle": {
@@ -2741,11 +2763,16 @@
       "propose": "Navrhnúť katalóg",
       "nameHelp": "Krátky názov, pod ktorým je tento katalóg známy tu. Malé písmená, číslice a spojovníky.",
       "urlHelp": "Adresa portálu CKAN, na ktorý sa dátové sady zverejňujú, aj so schémou.",
-      "organizationHelp": "Organizácia v CKAN, do ktorej sada spadne, keď endpoint neurčí vlastnú.",
+      "organizationHelp": "Organizácia v CKAN, do ktorej dataset patrí, ak endpoint neurčí vlastnú: krátky názov na konci jej adresy v CKAN, /organization/<názov>.",
       "emptyHint": "Katalóg je portál CKAN, do ktorého tento projekt publikuje. Pomenujte ho nižšie a rekonciliátor jeho datasety zaregistruje.",
       "nameInvalid": "Názov tvoria malé písmená, číslice a spojovníky a začína aj končí písmenom alebo číslicou.",
       "urlInvalid": "Adresa začína na http:// alebo https://.",
-      "secretRequired": "Pomenujte tajomstvo, ktoré nahral operátor; samotný token sa tu nikdy nezadáva."
+      "secretRequired": "Pomenujte tajomstvo, ktoré nahral operátor; samotný token sa tu nikdy nezadáva.",
+      "secretKey": "Kľúč v secrete",
+      "secretKeyHelp": "Položka toho secretu, ktorá obsahuje token. Nechajte apiToken, ak operátor neurčí inak.",
+      "secretKeyInvalid": "Kľúč tvoria písmená, číslice, bodky, pomlčky a podčiarkovníky, napríklad apiToken.",
+      "secretInvalid": "Názov secretu tvoria malé písmená, číslice, pomlčky a bodky, napríklad ckan-api-token.",
+      "secretIsToken": "Toto vyzerá ako samotný API token. Nevkladajte ho sem: požiadajte operátora, aby ho uložil do úložiska secretov, a napíšte názov toho secretu."
     },
     "publications": {
       "title": "Publikované endpointy",
@@ -2753,13 +2780,14 @@
       "datastore": "Kópia riadkov v DataStore z {representation}, {refresh}.",
       "publishedTo": "publikované do {instance}",
       "missingInstance": "katalóg {instance} chýba",
-      "emptyHint": "Endpoint publikuje, keď to jeho manifest vyhlási. Otvorte endpoint a pridajte publikovanie, aby sa tu zobrazilo.",
+      "emptyHint": "Stlačte „Zverejniť dataset“, vyberte endpoint, skontrolujte jeho popis a navrhnite ho. Dataset sa tu a v CKAN objaví po schválení.",
       "refreshed": {
         "onChange": "obnovovaná pri zmene entity",
         "onReconcile": "obnovovaná pri každom použití konfigurácie"
       },
       "lastChange": "Posledná zmena {time}: {summary}",
-      "lastFailed": "Posledný beh zlyhal {time}: {summary}"
+      "lastFailed": "Posledný beh zlyhal {time}: {summary}",
+      "needsCatalogue": "Najprv vyššie pridajte katalóg: dataset potrebuje portál CKAN, kam sa zverejní."
     },
     "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}",
     "access": {
@@ -3932,7 +3960,9 @@
       "submit": "Začať kópiu",
       "titleField": "Názov",
       "titleHint": "Voliteľné; zobrazí sa namiesto mena.",
-      "denied": "Vaša rola nemôže v tomto projekte nič navrhnúť, takže nemôže otvoriť kópiu."
+      "denied": "Vaša rola nemôže v tomto projekte nič navrhnúť, takže nemôže otvoriť kópiu.",
+      "ttlHint": "Keď čas uplynie, kópia a všetko, čo z nej nebolo vrátené, sa zmaže. Projekt sa nemení.",
+      "nameTaken": "Kópia s názvom {name} už existuje. Zvoľte iný názov."
     },
     "bar": {
       "label": "Kópia",
@@ -4236,7 +4266,7 @@
       "lead": "Ľudia prihlasovacej domény organizácie. Čo kto smie, určujú väzby a skupiny, ktoré ho menujú.",
       "new": "Nová osoba",
       "hidden": "Tento zoznam vidí len osoba, ktorej rola číta ľudí. Pridelí ju administrátor organizácie.",
-      "invited": "Doména poslala na {email} e-mail na overenie adresy a nastavenie hesla.",
+      "invited": "Doména poslala na {email} e-mail na overenie adresy a nastavenie hesla. Prihlásiť sa môže, no kým nemá rolu, nič neurobí: udeľte ju v časti Členovia projektu alebo organizácie.",
       "search": "Hľadať ľudí",
       "searchPlaceholder": "Meno alebo e-mail",
       "searchButton": "Hľadať",
