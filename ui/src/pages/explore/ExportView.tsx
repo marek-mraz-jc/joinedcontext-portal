@@ -20,6 +20,11 @@ type Job =
   | { state: "empty" }
   | { state: "failed"; error: unknown };
 
+/** The file this page made for the export: a blob: address of its own, and nothing else, is linked (UI-41). */
+function exportedFile(href: string | undefined): string | undefined {
+  return typeof href === "string" && href.startsWith("blob:") ? href : undefined;
+}
+
 export function ExportView({
   slug,
   query,
@@ -87,6 +92,10 @@ export function ExportView({
 
   const number = (n: number) => new Intl.NumberFormat(i18n.language).format(n);
 
+  // Only the file this export made is linked (UI-41).
+
+  const safe = job.state === "ready" ? exportedFile(job.href) : undefined;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <label htmlFor={formatId} className="sr-only">
@@ -115,9 +124,9 @@ export function ExportView({
           {t("explore.exportView.start")}
         </Button>
       )}
-      {job.state === "ready" ? (
+      {job.state === "ready" && safe ? (
         <span role="status" className="text-caption text-fg">
-          <a href={job.href} download={job.name} className="font-medium text-primary-soft-fg underline">
+          <a href={safe} download={job.name} className="font-medium text-primary-soft-fg underline">
             {t("explore.exportView.download", { name: job.name, rows: job.rows })}
           </a>
           {job.truncated ? <span className="ml-1 text-warning">{t("explore.exportView.truncated", { max: number(MAX_EXPORT_ROWS) })}</span> : null}
