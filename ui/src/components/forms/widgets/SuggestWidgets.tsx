@@ -106,20 +106,26 @@ export function AssigneePicker(props: WidgetProps): JSX.Element {
 }
 
 /**
- * An attribute name of the entity types the policy covers, from the project's models (T-3217):
- * the names a person would otherwise have to know. `ui:options.kind` keeps a property field to
- * properties and a relationship field to relationships; a name no model holds is still typed.
+ * An attribute name of the entity types the form covers, from the project's models (T-3217,
+ * T-3291): the names a person would otherwise have to know. `ui:options.kind` keeps a property
+ * field to properties, a relationship field to relationships, and `any` offers both;
+ * `ui:options.typesFrom` reads the types from a Policy's `information[].entities[]` (the default)
+ * or a Subscription's `entities[]`. A name no model holds is still typed, and said so beside it.
  */
 export function AttributeSuggest(props: WidgetProps): JSX.Element {
-  const kind = props.options?.kind === "Relationship" ? "Relationship" : "Property";
+  const { t } = useTranslation();
+  const kind = props.options?.kind === "Relationship" ? "Relationship" : props.options?.kind === "any" ? "any" : "Property";
   const project = useContext(FormProjectContext) ?? "";
   const root = useContext(FormDataContext) as
-    | { information?: { entities?: { type?: unknown }[] }[] }
+    | { information?: { entities?: { type?: unknown }[] }[]; entities?: { type?: unknown }[] }
     | undefined;
+  const entities =
+    props.options?.typesFrom === "entities"
+      ? (root?.entities ?? [])
+      : (root?.information ?? []).flatMap((item) => item?.entities ?? []);
   const types = [
     ...new Set(
-      (root?.information ?? [])
-        .flatMap((item) => item?.entities ?? [])
+      entities
         .map((entity) => entity?.type)
         .filter((type): type is string => typeof type === "string" && type !== ""),
     ),
@@ -132,9 +138,18 @@ export function AttributeSuggest(props: WidgetProps): JSX.Element {
   const choices = [
     ...new Set(
       asManifests(models.data?.items ?? []).flatMap((model) =>
-        types.flatMap((type) => filterSlotsOf(model, type).filter((slot) => slot.kind === kind).map((slot) => slot.name)),
+        types.flatMap((type) =>
+          filterSlotsOf(model, type)
+            .filter((slot) => kind === "any" || slot.kind === kind)
+            .map((slot) => slot.name),
+        ),
       ),
     ),
   ].sort();
-  return <Suggested {...props} choices={choices} />;
+  const typed = typeof props.value === "string" ? props.value : "";
+  const note =
+    typed !== "" && choices.length > 0 && !choices.includes(typed)
+      ? t("form.notAnAttribute", { name: typed, types: types.join(", ") })
+      : undefined;
+  return <Suggested {...props} choices={choices} note={note} />;
 }
