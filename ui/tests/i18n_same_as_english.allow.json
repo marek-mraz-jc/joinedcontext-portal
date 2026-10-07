@@ -290,6 +290,9 @@
     "{role} in {app} ({project})",
     "{role} in {where}",
     "{seconds} s",
-    "Čeština"
+    "Čeština",
+    "Debug",
+    "+ Debug",
+    "debug"
   ]
 }
