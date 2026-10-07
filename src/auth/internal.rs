@@ -79,17 +79,101 @@ pub async fn authenticate_agent_proxy(
     .await
 }
 
+/// The client of a token for this listener, once it is verified as one: signed by the realm and
+/// issued for [`INTERNAL_AUDIENCE`]. A Portal with no realm refuses every call.
+async fn verified_client(state: &AppState, headers: &HeaderMap) -> Result<String, ApiError> {
+    let verifier = state.bearer.as_ref().ok_or(ApiError::Unauthorized)?;
+    let (_, azp) = verifier
+        .verify_for_audience(presented(headers)?, INTERNAL_AUDIENCE)
+        .await?;
+    Ok(azp.unwrap_or_default())
+}
+
+/// The clients a stream of `project`'s pipeline `pipeline` presents on its sinks to this listener
+/// (PL-19, PL-47): its project's `pipelines` account, which every stream of the project renders
+/// with, and the pipeline's own federated client `{project}-pl-{pipeline}` once streams run as
+/// their pipeline (T-1508).
+pub fn pipeline_clients(project: &str, pipeline: &str) -> [String; 2] {
+    use jc_core::kinds::{pipeline_identity, service_account::keycloak_client_id};
+    [
+        keycloak_client_id(project, crate::reconciler::streams::PIPELINE_ACCOUNT),
+        keycloak_client_id(project, &pipeline_identity::account_name(pipeline)),
+    ]
+}
+
+/// The runner posting a record's outcome or rejection for `project`'s `pipeline` (T-3193): only a
+/// client of that project's pipeline is admitted, so a project's runner client never posts for
+/// another project. A refusal is logged with the client it saw, which is a name and not a secret.
+pub async fn authenticate_pipeline_of(
+    state: &AppState,
+    headers: &HeaderMap,
+    project: &str,
+    pipeline: &str,
+) -> Result<(), ApiError> {
+    let client = verified_client(state, headers).await?;
+    if pipeline_clients(project, pipeline).contains(&client) {
+        return Ok(());
+    }
+    tracing::warn!(
+        project = %project,
+        pipeline = %pipeline,
+        client = %client,
+        "a pipeline sink was refused: the token is not of this project's pipeline"
+    );
+    Err(ApiError::Unauthorized)
+}
+
 /// The project's pipeline runner, which posts back what a pipeline test produced. The test's id is
 /// 130 random bits and therefore a capability of its own, but a caller with no identity now gets
-/// the 401 it deserves instead of the 404 that says only "no such test".
+/// the 401 it deserves instead of the 404 that says only "no such test". `project` is the running
+/// test's: its harness presents that project's `pipelines` client (T-3163), and the client the
+/// configuration names for the runner is admitted as before.
 pub async fn authenticate_pipeline_runner(
     state: &AppState,
     headers: &HeaderMap,
+    project: Option<&str>,
 ) -> Result<(), ApiError> {
-    authenticate_workload(
-        state,
-        headers,
-        state.config.pipeline_runner_client_id.as_deref(),
-    )
-    .await
+    let configured = state
+        .config
+        .pipeline_runner_client_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|client| !client.is_empty());
+    let client = verified_client(state, headers).await?;
+    let of_project = project.is_some_and(|project| {
+        client
+            == jc_core::kinds::service_account::keycloak_client_id(
+                project,
+                crate::reconciler::streams::PIPELINE_ACCOUNT,
+            )
+    });
+    if configured == Some(client.as_str()) || of_project {
+        Ok(())
+    } else {
+        Err(ApiError::Unauthorized)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// T-3193: a pipeline's sinks are admitted as its project's `pipelines` account or as the
+    /// pipeline's own federated client, and as nothing of another project or pipeline.
+    #[test]
+    fn a_pipeline_is_known_by_its_projects_account_and_its_own_client() {
+        assert_eq!(
+            pipeline_clients("praha", "odpad"),
+            ["praha-pipelines".to_owned(), "praha-pl-odpad".to_owned()]
+        );
+        let clients = pipeline_clients("praha", "odpad");
+        for other in [
+            "helsinki-pipelines",
+            "praha-pl-other",
+            "zilina-pl-odpad",
+            "",
+        ] {
+            assert!(!clients.iter().any(|client| client == other), "{other:?}");
+        }
+    }
 }

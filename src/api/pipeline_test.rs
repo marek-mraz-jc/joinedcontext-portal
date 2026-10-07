@@ -103,7 +103,7 @@ impl From<SampleRequest> for Sample {
 
 /// A test in flight: which project it belongs to and where its captured messages go.
 pub(crate) struct Running {
-    project: String,
+    pub(crate) project: String,
     pub(crate) sender: mpsc::UnboundedSender<Captured>,
 }
 

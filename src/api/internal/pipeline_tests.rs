@@ -23,7 +23,15 @@ pub async fn capture(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    if crate::auth::internal::authenticate_pipeline_runner(&state, &headers)
+    // The test's own project, when one of that id is running: its harness presents that
+    // project's client (T-3193). An id nobody runs names no project, and only the runner's
+    // configured client is told it is not running.
+    let project = RUNNING
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&id)
+        .map(|running| running.project.clone());
+    if crate::auth::internal::authenticate_pipeline_runner(&state, &headers, project.as_deref())
         .await
         .is_err()
     {
