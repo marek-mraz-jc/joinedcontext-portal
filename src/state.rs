@@ -78,7 +78,7 @@ pub struct AppState {
     pub rejected: Arc<crate::pipeline_outcomes::RejectedStore>,
     /// Each person's copies of the entities they deleted from a data view (API/01 §31, T-3107).
     pub trash: Arc<crate::entity_trash::TrashStore>,
-    /// Comments on a space's entities and the notifications of their mentions (API/01 §34).
+    /// Comments on a space's entities and the notifications of their mentions (API/01 §35).
     pub comments: Arc<crate::entity_comments::CommentStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
     pub live: Arc<crate::live::LiveHub>,

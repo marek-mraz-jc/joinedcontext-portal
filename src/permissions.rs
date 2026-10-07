@@ -558,7 +558,7 @@ fn account_grants(
 
 /// Whether the person `person` names (as a RoleBinding or a Group names people) may read the
 /// space `space` of `project` as the space routes decide it for a caller: a binding in force
-/// names them, directly or through a `Group` manifest's members (API/01 §34, T-3106).
+/// names them, directly or through a `Group` manifest's members (API/01 §35, T-3106).
 pub fn may_read_space(
     mirror: &Mirror,
     project: &str,

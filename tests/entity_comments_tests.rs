@@ -1,4 +1,4 @@
-//! API/01 §34, T-3106: comments on a space's entities with @mentions. A reader of the space
+//! API/01 §35, T-3106: comments on a space's entities with @mentions. A reader of the space
 //! comments and removes only their own; a mention notifies a person who may read the space and
 //! nobody else; each person reads and marks only their own notifications; a space the caller may
 //! not read is a 404 like every space route.

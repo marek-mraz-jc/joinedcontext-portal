@@ -873,7 +873,7 @@
           "auth"
         ],
         "summary": "List My Notifications",
-        "description": "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §34).",
+        "description": "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).",
         "operationId": "list_notifications",
         "responses": {
           "200": {
@@ -915,7 +915,7 @@
           "auth"
         ],
         "summary": "Mark A Notification Read",
-        "description": "Marks one of the caller's notifications read (API/01 §34). Another caller's is 404.",
+        "description": "Marks one of the caller's notifications read (API/01 §35). Another caller's is 404.",
         "operationId": "read_notification",
         "parameters": [
           {
@@ -8954,7 +8954,7 @@
           "spaces"
         ],
         "summary": "List The Comments On An Entity",
-        "description": "The comments on one entity of the space, oldest first (API/01 §34).",
+        "description": "The comments on one entity of the space, oldest first (API/01 §35).",
         "operationId": "list_comments",
         "parameters": [
           {
@@ -9046,7 +9046,7 @@
           "spaces"
         ],
         "summary": "Comment On An Entity",
-        "description": "Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §34). Changes no data.",
+        "description": "Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §35). Changes no data.",
         "operationId": "add_comment",
         "parameters": [
           {
@@ -9163,7 +9163,7 @@
           "spaces"
         ],
         "summary": "Remove My Comment",
-        "description": "Removes one of the caller's own comments and the notifications it sent (API/01 §34). Another caller's comment is 404.",
+        "description": "Removes one of the caller's own comments and the notifications it sent (API/01 §35). Another caller's comment is 404.",
         "operationId": "remove_comment",
         "parameters": [
           {

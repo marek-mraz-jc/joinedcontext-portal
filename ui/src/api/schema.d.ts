@@ -381,7 +381,7 @@ export interface paths {
         };
         /**
          * List My Notifications
-         * @description The caller's notifications, newest first, at most 100, with how many are unread (API/01 §34).
+         * @description The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).
          */
         get: operations["list_notifications"];
         put?: never;
@@ -403,7 +403,7 @@ export interface paths {
         put?: never;
         /**
          * Mark A Notification Read
-         * @description Marks one of the caller's notifications read (API/01 §34). Another caller's is 404.
+         * @description Marks one of the caller's notifications read (API/01 §35). Another caller's is 404.
          */
         post: operations["read_notification"];
         delete?: never;
@@ -2114,13 +2114,13 @@ export interface paths {
         };
         /**
          * List The Comments On An Entity
-         * @description The comments on one entity of the space, oldest first (API/01 §34).
+         * @description The comments on one entity of the space, oldest first (API/01 §35).
          */
         get: operations["list_comments"];
         put?: never;
         /**
          * Comment On An Entity
-         * @description Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §34). Changes no data.
+         * @description Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §35). Changes no data.
          */
         post: operations["add_comment"];
         delete?: never;
@@ -2141,7 +2141,7 @@ export interface paths {
         post?: never;
         /**
          * Remove My Comment
-         * @description Removes one of the caller's own comments and the notifications it sent (API/01 §34). Another caller's comment is 404.
+         * @description Removes one of the caller's own comments and the notifications it sent (API/01 §35). Another caller's comment is 404.
          */
         delete: operations["remove_comment"];
         options?: never;

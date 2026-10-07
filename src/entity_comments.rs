@@ -1,4 +1,4 @@
-//! Comments on a space's entities and the notifications their mentions send (API/01 §34,
+//! Comments on a space's entities and the notifications their mentions send (API/01 §35,
 //! ADR-N-042 §3.1, T-3106). Each comment names its entity by `(project, space, urn)` and changes
 //! no data. Durable with a database, in memory without.
 

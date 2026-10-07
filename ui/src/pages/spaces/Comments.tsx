@@ -1,5 +1,5 @@
 /**
- * Comments on an entity and the notifications their mentions send (T-3106, API/01 §34). A person
+ * Comments on an entity and the notifications their mentions send (T-3106, API/01 §35). A person
  * who may read the space comments and names colleagues with `@identifier`; only a person who may
  * read the space is notified. A comment changes no data, and only its author removes it.
  */

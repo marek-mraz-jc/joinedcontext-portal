@@ -1,4 +1,4 @@
-//! API/01 §34, T-3106: comments and notifications on PostgreSQL. A comment notifies each mentioned
+//! API/01 §35, T-3106: comments and notifications on PostgreSQL. A comment notifies each mentioned
 //! person once, its author removes it with its notifications, and a notification is read by its
 //! recipient alone. Runs when `JC_PORTAL_TEST_DATABASE_URL` points at a PostgreSQL the test may
 //! write to; otherwise it says so and returns, like the other database suites.

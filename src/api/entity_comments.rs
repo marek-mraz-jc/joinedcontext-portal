@@ -1,4 +1,4 @@
-//! Comments on a space's entities with `@mentions`, and the caller's notifications (API/01 §34,
+//! Comments on a space's entities with `@mentions`, and the caller's notifications (API/01 §35,
 //! ADR-N-042 §3.1, T-3106). Commenting needs a read of the space and changes no data; a mention
 //! notifies only a person a binding in force lets read the space.
 
@@ -130,7 +130,7 @@ fn recipients(user: &CurrentUser) -> Vec<String> {
     get,
     path = "/api/v1/projects/{project}/spaces/{space}/comments",
     summary = "List The Comments On An Entity",
-    description = "The comments on one entity of the space, oldest first (API/01 §34).",
+    description = "The comments on one entity of the space, oldest first (API/01 §35).",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -174,7 +174,7 @@ pub async fn list_comments(
     post,
     path = "/api/v1/projects/{project}/spaces/{space}/comments",
     summary = "Comment On An Entity",
-    description = "Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §34). Changes no data.",
+    description = "Comments on one entity of the space; each `@identifier` of a person who may read the space is notified once (API/01 §35). Changes no data.",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -266,7 +266,7 @@ pub async fn add_comment(
     delete,
     path = "/api/v1/projects/{project}/spaces/{space}/comments/{id}",
     summary = "Remove My Comment",
-    description = "Removes one of the caller's own comments and the notifications it sent (API/01 §34). Another caller's comment is 404.",
+    description = "Removes one of the caller's own comments and the notifications it sent (API/01 §35). Another caller's comment is 404.",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -302,7 +302,7 @@ pub async fn remove_comment(
     get,
     path = "/api/v1/notifications",
     summary = "List My Notifications",
-    description = "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §34).",
+    description = "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).",
     tag = "auth",
     responses(
         (status = 200, description = "The caller's notifications", body = Notifications),
@@ -326,7 +326,7 @@ pub async fn list_notifications(
     post,
     path = "/api/v1/notifications/{id}/read",
     summary = "Mark A Notification Read",
-    description = "Marks one of the caller's notifications read (API/01 §34). Another caller's is 404.",
+    description = "Marks one of the caller's notifications read (API/01 §35). Another caller's is 404.",
     tag = "auth",
     params(("id" = i64, Path, description = "The notification's id")),
     responses(

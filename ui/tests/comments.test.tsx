@@ -1,5 +1,5 @@
 /**
- * Comments on an entity with @mentions, and the person's notifications (T-3106, API/01 §34): the
+ * Comments on an entity with @mentions, and the person's notifications (T-3106, API/01 §35): the
  * panel lists, posts and removes only one's own; a mention the API did not notify is said; the
  * header's menu counts the unread and marks one read when it is opened.
  */
