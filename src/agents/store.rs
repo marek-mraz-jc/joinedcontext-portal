@@ -414,7 +414,7 @@ impl AgentStore {
         Ok(())
     }
 
-    /// The files a kit pass wrote; the preview is rendered from them (AP-56).
+    /// The files a run wrote; the preview is rendered from them (AP-56).
     pub async fn set_files(
         &self,
         run_id: &str,

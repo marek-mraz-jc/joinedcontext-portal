@@ -225,6 +225,11 @@ export interface UseEntityGridOptions {
    * the person nears the end, up to `MAX_VIRTUAL_ROWS`; the view draws only the rows in sight.
    */
   virtual?: boolean;
+  /**
+   * Attributes left out of the grid, as a saved view hides them (API/01 §30): their columns are not
+   * drawn and not filtered. The primary attribute is never hidden; it names the row.
+   */
+  hidden?: readonly string[];
 }
 
 /** Rows one scrolling grid holds at most; past it the grid says to narrow the filter. */
@@ -297,6 +302,7 @@ function buildColumns(
   shown: Record<string, MetaKey[]>,
   labels: GridLabels,
   relations: Record<string, RelationEnd> = {},
+  hidden: readonly string[] = [],
 ): VisibleColumn[] {
   const cols: VisibleColumn[] = [];
 
@@ -325,7 +331,9 @@ function buildColumns(
     colMap.set(c.attr, c);
   }
 
+  const left = new Set(hidden);
   for (const attr of attrList) {
+    if (left.has(attr) && attr !== primary) continue;
     const gridCol = colMap.get(attr);
     const label = gridCol?.label ?? attr;
     // Only the primary is pinned: a second sticky column would sit over the first at the left edge.
@@ -451,7 +459,9 @@ export function filterKindOf(
 }
 
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
-  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false } = options;
+  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, hidden } = options;
+  // The list by content, so a host that builds a new array each render does not rebuild columns.
+  const hiddenKey = (hidden ?? []).join("\u0000");
   const labels = useMemo(() => mergeLabels(DEFAULT_LABELS, labelsPartial), [labelsPartial]);
 
   // Internal state (uncontrolled)
@@ -501,7 +511,10 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const cancelledRef = useRef(false);
   const nonceRef = useRef(0);
 
-  const columns = useMemo(() => buildColumns(config, rows, shown, labels, relations), [config, rows, shown, labels, relations]);
+  const columns = useMemo(
+    () => buildColumns(config, rows, shown, labels, relations, hiddenKey === "" ? [] : hiddenKey.split("\u0000")),
+    [config, rows, shown, labels, relations, hiddenKey],
+  );
   // Sorting orders the loaded page only; the server's order decides which rows are on it (UI-66).
   const sortedRows = useMemo(() => {
     if (!sort) return rows;

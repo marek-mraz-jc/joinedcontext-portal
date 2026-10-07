@@ -316,8 +316,10 @@ export function arrange(manifest: UiSchemaManifest, options: ArrangeOptions = {}
     // A branch the person did not pick (`spec.variants`) is absent from the schema in front of
     // them and is not a mistake: it is passed over without a word. A field the manifest names
     // anywhere else is a typo and still says so.
+    // A variant is a top-level branch or one nested field (`rateLimits.burst`, T-3142).
     const root = field.split(/[.[]/)[0];
-    if ((spec.variants ?? []).includes(root) && !known.includes(root)) {
+    const variants = spec.variants ?? [];
+    if ((variants.includes(root) && !known.includes(root)) || variants.includes(field)) {
       return false;
     }
     problems.push(`the schema has no field \`${field}\`, so nothing was arranged for it`);

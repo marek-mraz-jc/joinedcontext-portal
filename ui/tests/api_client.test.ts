@@ -352,3 +352,29 @@ describe("refName", () => {
     expect(refName(undefined)).toBe("");
   });
 });
+
+describe("a list the caller may not read (T-3147)", () => {
+  const refused = (detail: string, status = 404) => ({
+    error: { title: "Not Found", status, detail },
+    response: new Response(null, { status }),
+  });
+
+  it("says in the person's language that the list is not open to them, not the API's words", async () => {
+    const i18n = (await import("../src/i18n")).default;
+    await i18n.changeLanguage("sk");
+    await expect(unwrap(refused("plural 'roles' not found in project 'helsinki'"))).rejects.toThrow(
+      "Tento zoznam vám v helsinki nie je prístupný.",
+    );
+    await i18n.changeLanguage("en");
+    await expect(unwrap(refused("plural 'rolebindings' not found in project 'org'"))).rejects.toThrow(
+      "This list is not open to you in org.",
+    );
+  });
+
+  it("keeps every other refusal in the API's words", async () => {
+    await expect(unwrap(refused("project 'x' not found"))).rejects.toThrow("project 'x' not found");
+    await expect(unwrap(refused("plural 'roles' not found in project 'helsinki'", 403))).rejects.toThrow(
+      "plural 'roles' not found in project 'helsinki'",
+    );
+  });
+});

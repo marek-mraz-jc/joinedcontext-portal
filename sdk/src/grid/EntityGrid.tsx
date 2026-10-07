@@ -39,6 +39,11 @@ export interface EntityGridProps extends UseEntityGridOptions {
    */
   onRows?: (rows: RichRow[], offset: number) => void;
   /**
+   * The query the person's filters ask the source for, the typed one or the filter row's, each
+   * time it changes: what a host saves as a view's filter (API/01 §30).
+   */
+  onQuery?: (query: { q?: string; idPattern?: string }) => void;
+  /**
    * What is different about a row or a column, and why, in the host's own words: a comparison marks
    * what the other side does not answer (T-1435). Each value is the sentence a person reads on it.
    */
@@ -62,6 +67,12 @@ export interface EntityGridProps extends UseEntityGridOptions {
    * pending value that breaks it is marked at its cell and holds Apply back (T-3097).
    */
   rules?: Record<string, ValueRule>;
+  /**
+   * The tone a row is marked with and why, as a view's colour rules decide it (API/01 §30): drawn
+   * as a swatch in the row's first cell that names the reason, so the colour is never the only
+   * way the row says it.
+   */
+  rowTone?: (row: RichRow) => { tone: string; label: string } | undefined;
   className?: string;
   classNames?: Partial<Record<"root" | "table" | "header" | "row" | "cell" | "pager", string>>;
 }
@@ -81,6 +92,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     renderers,
     onOpenRelationship,
     onRows,
+    onQuery,
     marks,
     toolbar,
     mapEngine,
@@ -91,6 +103,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     mapBounds,
     empty: emptySlot,
     rules,
+    rowTone,
     className,
     classNames,
     ...hookOptions
@@ -470,6 +483,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     onRows?.(rows, state.offset);
   }, [rows, state.offset, onRows]);
 
+  const { q: askedQ, idPattern: askedIdPattern } = grid.askedQuery;
+  React.useEffect(() => {
+    onQuery?.({ q: askedQ, idPattern: askedIdPattern });
+  }, [askedQ, askedIdPattern, onQuery]);
+
   // The map is a second view of the same page: it is offered only where the config asked for one
   // AND the rows actually carry a geometry, so a type without one gets no panel and no action.
   const mapConfig = hookOptions.config.map;
@@ -736,10 +754,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             )}
             {shownRows.map((row, shownIndex) => {
               const rowIndex = shownFrom + shownIndex;
+              const tone = rowTone?.(row);
               return (
               <tr
                 key={row.id}
-                className={`jc-grid-tr${classNames?.row ? ` ${classNames.row}` : ""}`}
+                className={`jc-grid-tr${tone ? ` jc-grid-tr--${tone.tone}` : ""}${classNames?.row ? ` ${classNames.row}` : ""}`}
                 // A refused update stays visible on its own row, not only in the panel the person
                 // may have closed: the value there is still theirs and still unapplied.
                 data-refused={refusedOf.has(row.id) ? "true" : undefined}
@@ -759,6 +778,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                       unitHover(cellOf(row, col).cell, col.meta)
                     }
                   >
+                    {colIndex === 0 && tone ? (
+                      <span className={`jc-grid-tone jc-grid-tone--${tone.tone}`} role="img" aria-label={tone.label} title={tone.label} />
+                    ) : null}
                     {renderCellContent(row, col)}
                   </td>
                 ))}

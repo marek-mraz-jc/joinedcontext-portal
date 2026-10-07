@@ -651,7 +651,7 @@ pub async fn record_agent_run_first_version(pool: &PgPool, id: &str) -> Result<(
     .map(|_| ())
 }
 
-/// Keeps the files a kit pass wrote (AP-56).
+/// Keeps the files a run wrote (AP-56).
 pub async fn set_agent_run_files(
     pool: &PgPool,
     id: &str,

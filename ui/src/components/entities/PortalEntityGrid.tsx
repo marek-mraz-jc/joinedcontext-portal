@@ -208,13 +208,20 @@ export interface PortalEntityGridProps extends Omit<EntityGridProps, "labels" | 
   config: ResolvedGridConfig;
   /** A source to use instead of the one the config names, for a test or a fixture. */
   source?: EntityGridProps["source"];
+  /**
+   * What a saved view sets (API/01 §30): the typed query and the order, held by the host so a view
+   * can be applied and saved. The column layout stays the person's own either way.
+   */
+  view?: Pick<GridState, "filterText" | "sort">;
+  /** Every change of the grid's state, for the host that holds `view`. */
+  onGridState?: (next: GridState) => void;
 }
 
 /**
  * The grid as the Portal renders it. The source comes from the config — an endpoint's slug or a
  * space's name, never a URL (EP-55) — over the Portal's own origin transport.
  */
-export function PortalEntityGrid({ project, config, source, ...rest }: PortalEntityGridProps): JSX.Element {
+export function PortalEntityGrid({ project, config, source, view, onGridState, ...rest }: PortalEntityGridProps): JSX.Element {
   const { t, i18n } = useTranslation();
   // `t` changes identity on a language change, which is what rebuilds the labels; the language
   // itself is read below, for the source's own locale.
@@ -241,9 +248,11 @@ export function PortalEntityGrid({ project, config, source, ...rest }: PortalEnt
       const kept: Layout = { shown: next.shown, sort: next.sort };
       setLayout(kept);
       writeLayout(project, config.type, kept);
+      onGridState?.(next);
     },
-    [project, config.type],
+    [project, config.type, onGridState],
   );
+  const state = useMemo(() => (view ? { ...layout, ...view } : layout), [layout, view]);
 
   return (
     <EntityGrid
@@ -257,7 +266,7 @@ export function PortalEntityGrid({ project, config, source, ...rest }: PortalEnt
       geoLabels={geoLabels}
       // Only the layout is controlled from here: the offset, the filters and the edits stay the
       // grid's own, so nothing a person is in the middle of survives a reload it should not.
-      state={layout}
+      state={state}
       onStateChange={onStateChange}
     />
   );

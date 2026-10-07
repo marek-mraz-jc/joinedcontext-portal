@@ -10,6 +10,19 @@ use super::transpile;
 
 /// The row types Model Tools renders from the endpoint's model; never the model's (SDK-10).
 pub const TYPES: &str = "src/jc-types.ts";
+
+/// What frames a dashboard run's request (T-3159, AP-56): the same code on the same template as
+/// an application, and only reading; the run's data needs carry no write, so a form would fail.
+pub const DASHBOARD: &str = "THIS IS A DASHBOARD: a read-only application. Show the data needs as \
+figures, charts and a table with filters, on one page or a few. Write no form, no edit, create \
+or delete control and no call that writes: this run may only read.";
+
+/// What frames an analysis run's request (T-3160, AP-56): a dashboard's code path, with the
+/// answer to the person's question as its point. It is never published; the preview is the result.
+pub const ANALYSIS: &str = "THIS IS AN ANALYSIS: one read-only page that answers the question \
+below from the data needs. Lead with a short written finding in plain sentences, with the numbers \
+it rests on computed from the rows, then the charts and figures that show it. Write no form, no \
+edit, create or delete control and no call that writes: this run may only read.";
 /// Writable files a project may hold, and their bytes together (SDK-11).
 pub const MAX_FILES: usize = 80;
 pub const MAX_BYTES: usize = 800_000;

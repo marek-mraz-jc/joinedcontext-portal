@@ -226,6 +226,26 @@ routes:
   - route: GET /projects/{project}/spaces/{space}/usage
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/spaces/{space}/views
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/spaces/{space}/views
+    rule: "space-read"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    body: {"type": "Station", "kind": "grid", "mode": "personal", "title": "x"}
+  - route: GET /projects/{project}/spaces/{space}/views/{id}
+    rule: "space-read, then the view's mode"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
+  - route: PUT /projects/{project}/spaces/{space}/views/{id}
+    rule: "space-read, then the view's mode"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    body: {"kind": "grid", "mode": "personal", "title": "x"}
+    note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
+  - route: DELETE /projects/{project}/spaces/{space}/views/{id}
+    rule: "space-read, then the view's mode"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
   - route: GET /projects/{project}/spaces/{space}/live
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

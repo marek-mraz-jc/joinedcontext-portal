@@ -41,7 +41,8 @@
       "here": "Prihlásiť sa radšej tu",
       "close": "Teraz nie",
       "notYet": "Ešte nie ste prihlásení. Dokončite prihlásenie na druhej karte a potom pokračujte."
-    }
+    },
+    "listHidden": "Tento zoznam vám v {project} nie je prístupný. Udeliť ho môže ten, kto projekt spravuje."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
@@ -391,7 +392,8 @@
       "modelEmpty": "Tento priestor zatiaľ nemá dátový model",
       "modelEmptyLead": "Dátový model pomenúva typy entít priestoru a ich atribúty. Vytvorte ho alebo importujte Smart Data Model pre tento priestor.",
       "modelCreate": "Vytvoriť dátový model",
-      "modelImport": "Importovať Smart Data Model"
+      "modelImport": "Importovať Smart Data Model",
+      "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz)."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -635,6 +637,67 @@
       "cut": "Prvých {count} na obrazovke; zúžte filter pre ostatné.",
       "ask": "Opýtať sa asistenta",
       "noEndpoint": "Tento priestor neobsluhuje žiadny endpoint, takže nič nemožno zapísať."
+    },
+    "saved": {
+      "view": "Pohľad",
+      "none": "Všetky entity (bez uloženého pohľadu)",
+      "save": "Uložiť pohľad",
+      "saveNew": "Uložiť ako pohľad…",
+      "saveAs": "Uložiť ako nový…",
+      "copyOf": "Kópia {title}",
+      "settings": "Premenovať alebo zdieľať…",
+      "delete": "Vymazať pohľad",
+      "confirm": "Uložiť",
+      "createTitle": "Uložiť pohľad na {type}",
+      "settingsTitle": "Premenovať alebo zdieľať pohľad",
+      "title": "Názov",
+      "titleHelp": "Najviac 120 znakov.",
+      "mode": "Kto ho vidí",
+      "modes": {
+        "personal": "Iba ja",
+        "collaborative": "Zdieľaný",
+        "locked": "Zdieľaný, zamknutý"
+      },
+      "modeHelp": {
+        "personal": "Tento pohľad nikto iný nevidí.",
+        "collaborative": "Každý, kto môže čítať tento priestor, ho vidí a mení.",
+        "locked": "Každý, kto môže čítať tento priestor, ho vidí; meniť ho môžete iba vy a správcovia priestoru."
+      },
+      "dirty": "Tabuľka sa líši od uloženého pohľadu. Uložiť pohľad zmenu ponechá.",
+      "lockedReason": "Tento pohľad je zamknutý: meniť ho môže iba jeho vlastník alebo správca priestoru.",
+      "governReason": "Vymazať pohľad môže iba jeho vlastník alebo správca priestoru.",
+      "deleteTitle": "Vymazať pohľad {title}?",
+      "deleteHelp": "Vymaže sa iba pohľad; dáta v priestore sa nezmenia.",
+      "failed": "Pohľad sa nepodarilo uložiť",
+      "conflict": "Medzitým tento pohľad uložil niekto iný ({detail}). Načítajte jeho verziu a uložte znova.",
+      "reload": "Znovu načítať pohľady",
+      "unavailable": "Uložené pohľady sa teraz nedajú načítať; tabuľka funguje ďalej.",
+      "idNotKept": "Filter na identifikátor sa v uloženom pohľade nezachová.",
+      "options": "Polia, farby a zoskupenie",
+      "fields": "Zobrazené polia",
+      "noFields": "Pre tento typ zatiaľ nie sú známe žiadne atribúty.",
+      "colours": "Farby riadkov",
+      "coloursHelp": "Riadok dostane farbu prvého pravidla, ktorému vyhovuje, a pravidlo ako popis.",
+      "when": "Keď (NGSI-LD q)",
+      "whenUnreadable": "Toto pravidlo sa na stránke nedá overiť: použite výrazy ako a==1 alebo name~=\"^K\", spojené ; alebo |, bez zátvoriek.",
+      "tone": "Farba",
+      "tones": {
+        "neutral": "Sivá",
+        "info": "Modrá",
+        "success": "Zelená",
+        "warning": "Jantárová",
+        "danger": "Červená"
+      },
+      "removeRule": "Odstrániť pravidlo {n}",
+      "addRule": "Pridať pravidlo farby",
+      "group": "Zoskupiť podľa",
+      "groupHelp": "Atribút s pevným zoznamom hodnôt; každú skupinu spočíta priestor.",
+      "noGroup": "Bez zoskupenia",
+      "countUnknown": "počet neznámy",
+      "groupsOf": "Skupiny podľa {attr}",
+      "allGroups": "Všetky",
+      "groupsCut": "Spočítaných je prvých {shown} z {total} hodnôt.",
+      "toneLabel": "Označené: {when}"
     }
   },
   "endpoints": {

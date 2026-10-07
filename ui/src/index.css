@@ -88,6 +88,7 @@
   --spacing-sidebar: var(--portal-sidebar-width);
   --spacing-preview: var(--portal-preview-height);
   --spacing-preview-min: var(--portal-preview-min-height);
+  --spacing-below-header: var(--portal-below-header);
   --container-content: var(--portal-content-max);
   --radius-sm: var(--portal-radius-sm);
   --radius-md: var(--portal-radius-md);
