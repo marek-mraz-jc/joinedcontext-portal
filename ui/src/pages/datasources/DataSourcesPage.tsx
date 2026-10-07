@@ -45,6 +45,7 @@ import {
 } from "../../schemas/kinds";
 import type { CatalogInput, DataSourceType, TypedDataSourceType } from "../../schemas/kinds";
 import { useBentoInputs } from "./RunnerInputForm";
+import { TemplateGallery } from "./TemplateGallery";
 import { SecretRefContext } from "../../components/forms/widgets/SecretRef";
 import type { SecretRefValue } from "../../components/forms/widgets/SecretRef";
 
@@ -359,8 +360,13 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
   };
 
   /** One request for both buttons: a dry run differs from a proposal only in the query. */
-  const write = async (form: DataSourceForm, dry: boolean, draftRef?: { kind: string; name: string }) => {
-    const envelope = toEnvelope(project, type, form, runnerCatalogInput);
+  const write = async (
+    form: DataSourceForm,
+    dry: boolean,
+    draftRef?: { kind: string; name: string },
+    as: DataSourceType = type,
+  ) => {
+    const envelope = toEnvelope(project, as, form, isTypedDataSource(as) ? undefined : runnerCatalogInput);
     const body = (draftRef ? { ...envelope, draft: draftRef } : envelope);
     const query = dry ? { dryRun: "All" } : undefined;
     const name = editing?.metadata.name;
@@ -389,10 +395,11 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
 
   /** MF-13: the plan is read before the change is proposed, not after it is open. */
   const check = useMutation({
-    mutationFn: async (form: DataSourceForm) => {
+    // `as` is the type a template just chose, before the page's own `type` has re-rendered.
+    mutationFn: async ({ form, as }: { form: DataSourceForm; as?: DataSourceType }) => {
       setFormError(null);
       const draftRef = form.name ? { kind: "DataSource", name: form.name } : undefined;
-      return write(form, true, draftRef);
+      return write(form, true, draftRef, as);
     },
     onSuccess: (result) => {
       const answer = result as { plan?: { fields?: FieldChange[] }; probe?: Probe; verdict?: Verdict };
@@ -668,7 +675,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           onCheck={(form) => {
             setFormError(null);
             if (form.name && validateForm(form)) {
-              check.mutate({ ...form, secrets: Object.values(collectedSecrets) });
+              check.mutate({ form: { ...form, secrets: Object.values(collectedSecrets) } });
             }
           }}
           draftName={editing?.metadata.name || urlDraftName || undefined}
@@ -748,6 +755,21 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
             });
           }}
         >
+          {editing ? null : (
+            <TemplateGallery
+              onUse={(chosen, form) => {
+                // The template fills the form and checks it at once: the first records show
+                // before anything is proposed (T-3249).
+                setType(chosen);
+                setDraft(form);
+                setPlan(null);
+                setProbe(null);
+                setVerdict(null);
+                setFormError(null);
+                check.mutate({ form: { ...form, secrets: Object.values(collectedSecrets) }, as: chosen });
+              }}
+            />
+          )}
           {typePicker}
           <div className="space-y-2">
             <p className="text-body text-surface-fg/70">{t("datasources.secretHint")}</p>

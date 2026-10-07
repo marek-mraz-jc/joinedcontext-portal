@@ -1331,7 +1331,51 @@
       "known": "Známá tajemství"
     },
     "emptyHint": "Datový zdroj je místo, odkud platforma čte: kanál, broker, API. Přidejte jeden a pipeline jej může načíst do kontextového prostoru.",
-    "newPipeline": "Nová pipeline z tohoto zdroje"
+    "newPipeline": "Nová pipeline z tohoto zdroje",
+    "template": {
+      "title": "Začít ze šablony",
+      "lead": "Vyberte, co je zdroj, a zadejte jeho adresu: formulář se vyplní a hned ověří a první záznamy uvidíte dřív, než cokoli navrhnete.",
+      "use": "Vyplnit formulář a ověřit",
+      "nameHelp": "Malá písmena, číslice a pomlčky; bere se z adresy, dokud nenapíšete vlastní.",
+      "csv": {
+        "title": "Soubor CSV na adrese",
+        "what": "Tabulka zveřejněná jako soubor .csv, čtená při každém běhu.",
+        "url": "Adresa souboru CSV",
+        "urlHelp": "Adresa, která stáhne samotný soubor, začíná na https://."
+      },
+      "json": {
+        "title": "REST API (JSON)",
+        "what": "API, které odpovídá v JSON, čtené při každém běhu.",
+        "url": "Adresa API",
+        "urlHelp": "Celá adresa i s parametry, začíná na https://; klíč k API zadáte ve formuláři níže."
+      },
+      "ckan": {
+        "title": "Dataset z portálu CKAN",
+        "what": "Zdroj z katalogu otevřených dat, například data.gov.cz.",
+        "url": "Adresa ke stažení zdroje",
+        "urlHelp": "Na stránce datasetu otevřete zdroj CSV nebo JSON a zkopírujte jeho adresu ke stažení."
+      },
+      "wfs": {
+        "title": "Vrstva WFS nebo GeoJSON",
+        "what": "Prvky mapové služby, čtené jako GeoJSON.",
+        "url": "Adresa služby WFS nebo souboru GeoJSON",
+        "urlHelp": "Adresa služby po otazník, nebo soubor GeoJSON.",
+        "layer": "Název vrstvy",
+        "layerHelp": "Typ prvků, který služba uvádí ve svých capabilities; u souboru GeoJSON není potřeba."
+      },
+      "gtfs-rt": {
+        "title": "Kanál GTFS Realtime",
+        "what": "Polohy vozidel dopravce veřejné dopravy.",
+        "url": "Adresa kanálu GTFS Realtime",
+        "urlHelp": "Kanál protobuf, který dopravce zveřejňuje, začíná na https://. Statický jízdní řád GTFS (.zip) není živý kanál."
+      },
+      "problem": {
+        "name": "Zadejte název z malých písmen, číslic a pomlček, nejvýš 63 znaků.",
+        "url": "Zadejte celou adresu začínající na https:// nebo http://.",
+        "ckanDataset": "Tohle je stránka datasetu, ne soubor. Otevřete na ní zdroj CSV nebo JSON a zkopírujte jeho adresu ke stažení.",
+        "layer": "Zadejte vrstvu ke čtení, nebo adresu souboru GeoJSON."
+      }
+    }
   },
   "pipelines": {
     "lead": "Co přináší data: každá pipeline čte zdroj, transformuje ho a zapisuje přes endpoint.",
