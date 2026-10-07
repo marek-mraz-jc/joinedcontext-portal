@@ -8444,7 +8444,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132). API/04. */
+        /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132), or `create` for a public form, with the fields it asks for in `writeAttributes` and `writeRelationships` and its daily count in `createsPerDay` (T-3172, T-3177). API/04. */
         requestBody: {
             content: {
                 /**

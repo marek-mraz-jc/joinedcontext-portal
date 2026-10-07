@@ -111,7 +111,7 @@ export function FormFields({
                 id={id}
                 type={field.kind === "date" ? "date" : field.kind === "datetime" ? "datetime-local" : "text"}
                 inputMode={field.kind === "integer" ? "numeric" : field.kind === "number" ? "decimal" : undefined}
-                placeholder={field.kind === "relationship" ? "urn:ngsi-ld:…" : undefined}
+                placeholder={field.kind === "relationship" ? "urn:ngsi-ld:Type:id" : undefined}
                 value={answers[field.attr] ?? ""}
                 onChange={(event) => onAnswer(field.attr, event.target.value)}
               />
