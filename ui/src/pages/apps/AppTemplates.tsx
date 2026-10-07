@@ -15,7 +15,7 @@ export function templatePrompt(template: Pick<Template, "name" | "purpose">): st
 }
 
 /** The entity types a template reads, as its data needs name them. */
-export function typesOf(template: Pick<Template, "dataNeeds">): string[] {
+export function typesOf(template: { dataNeeds: readonly unknown[] }): string[] {
   return [
     ...new Set(
       template.dataNeeds.flatMap((need) => {
