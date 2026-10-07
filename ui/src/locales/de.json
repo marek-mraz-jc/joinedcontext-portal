@@ -1295,7 +1295,8 @@
       "download": "Das OpenAPI-Dokument (JSON)",
       "parameter": "Name",
       "meaning": "Was er festlegt",
-      "parametersOf": "Parameter von {path}"
+      "parametersOf": "Parameter von {path}",
+      "lead": "Worauf dieser Endpunkt antwortet, mit einem Beispielaufruf für jedes Lesen."
     }
   },
   "datasources": {
