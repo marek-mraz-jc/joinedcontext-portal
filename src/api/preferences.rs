@@ -78,6 +78,10 @@ pub struct Preferences {
     /// display preference: it changes what a form shows, never what a write may do.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub advanced_mode: Option<bool>,
+    /// Whether the person put the first-run checklist away (T-3233). Absent shows it; the help
+    /// menu clears it. The steps tick themselves from the project, never from this record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_run_dismissed: Option<bool>,
     /// The last pages the person opened, newest first, at most 10 (UI-90).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent: Vec<Place>,
@@ -305,10 +309,12 @@ mod tests {
             "locale": "sk",
             "defaultProject": "ovzdusie",
             "dashboardLayouts": { "ovzdusie-prehlad": { "collapsedLegend": true } },
-            "advancedMode": true
+            "advancedMode": true,
+            "firstRunDismissed": true
         }));
         assert_eq!(p.validate(), Ok(()));
         assert_eq!(p.advanced_mode, Some(true));
+        assert_eq!(p.first_run_dismissed, Some(true));
         // Absent is off, and stays absent on the way back out (CC-29).
         let unset = prefs(serde_json::json!({}));
         assert_eq!(unset.advanced_mode, None);

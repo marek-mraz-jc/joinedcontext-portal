@@ -59,6 +59,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/organization/people/{id}/enable", "jc_person_enable"),
 ("POST", "/organization/people/{id}/remove-second-factor", "removing a second factor takes away a way in; a person does it at the Portal, never a tool (PF-93, AG-11)"),
 ("POST", "/organization/people/{id}/reset-password", "a reset answers a temporary password, which never reaches a tool's answer (PF-92, AG-11)"),
+("POST", "/organization/people/{id}/resend-invitation", "a resend may answer a temporary password, which never reaches a tool's answer (PF-92, PF-108, AG-11)"),
 ("POST", "/organization/people/{id}/sign-out", "jc_person_sign_out"),
 ("GET", "/preferences", "this person's own Portal preferences, not a project's data"),
 ("PUT", "/preferences", "this person's own Portal preferences, not a project's data"),

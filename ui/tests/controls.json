@@ -1016,6 +1016,14 @@
         "gallery_axe.test.tsx"
       ]
     },
+    "src/pages/home/HomePage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "home_page.test.tsx"
+      ]
+    },
     "src/pages/import/ImportPage.tsx": {
       "controls": {
         "Button": 2,
@@ -1221,9 +1229,11 @@
     },
     "src/pages/organization/People.tsx": {
       "controls": {
-        "Button": 12
+        "Button": 14,
+        "RadioGroup": 1
       },
       "tests": [
+        "people_invite.test.tsx",
         "people_page.test.tsx"
       ]
     },

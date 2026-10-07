@@ -87,7 +87,8 @@
     "environments": "Umgebungen",
     "projections": "Modellprojektionen",
     "knowledge": "Wissensquellen",
-    "mcp": "MCP-Server"
+    "mcp": "MCP-Server",
+    "home": "Start"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -4635,7 +4636,8 @@
         "reset-password": "Passwort zurücksetzen",
         "remove-second-factor": "Zweiten Faktor entfernen",
         "sign-out": "Überall abmelden",
-        "delete": "Löschen"
+        "delete": "Löschen",
+        "resend-invitation": "Einladung erneut senden"
       },
       "done": {
         "disable": "Deaktiviert. Jede Sitzung der Person ist beendet.",
@@ -4643,7 +4645,8 @@
         "reset-password": "Die Domäne hat der Person einen Link für ein neues Passwort geschickt.",
         "remove-second-factor": "Zweiter Faktor entfernt. Die Person richtet bei der nächsten Anmeldung einen neuen ein.",
         "sign-out": "Jede Sitzung der Person ist beendet.",
-        "delete": "Gelöscht."
+        "delete": "Gelöscht.",
+        "resend-invitation": "Der Realm hat die Einladung erneut gesendet, mit einem neuen Link."
       },
       "confirm": {
         "disable": {
@@ -4669,6 +4672,10 @@
         "delete": {
           "title": "{name} löschen?",
           "body": "Die Person wird sofort deaktiviert. Nennen Gruppen oder Bindungen sie, nimmt eine Änderung sie aus jeder heraus; das Konto verschwindet, sobald diese Änderung freigegeben ist. Das lässt sich nicht rückgängig machen."
+        },
+        "resend-invitation": {
+          "title": "Einladung an {name} erneut senden?",
+          "body": "Der Realm schickt einen neuen Link für die Schritte, die die Person noch nicht erledigt hat. Ohne E-Mail erhalten Sie einmal ein temporäres Passwort."
         }
       },
       "password": {
@@ -4679,6 +4686,46 @@
         "copy": "Kopieren",
         "copied": "In die Zwischenablage kopiert.",
         "done": "Fertig"
+      },
+      "invitedInto": "Der Realm hat {email} eine E-Mail geschickt, um die Adresse zu bestätigen und ein Passwort zu setzen. Der Link öffnet danach das Projekt {project}.",
+      "invite": {
+        "project": "Projekt",
+        "projectHelp": "Das Projekt, in das die Einladung führt. Nach dem Setzen des Passworts landet die Person auf seiner Startseite.",
+        "noProject": "Kein Projekt: nur die Organisation",
+        "role": "Rolle im Projekt",
+        "roleHelp": "Was die Person in {project} darf. Die Rolle wird als Änderung vorgeschlagen und gilt, sobald sie genehmigt ist.",
+        "roles": {
+          "viewer": {
+            "label": "Leser",
+            "may": "Liest die Räume, Daten, Pipelines und Dashboards des Projekts. Ändert nichts."
+          },
+          "editor": {
+            "label": "Editor",
+            "may": "Schlägt Änderungen an Räumen, Modellen, Mappings, Richtlinien, Datenquellen, Pipelines und Endpunkten vor und genehmigt sie. Löscht nichts."
+          },
+          "steward": {
+            "label": "Verwalter",
+            "may": "Schlägt Änderungen an allem im Projekt vor und genehmigt sie, auch an Apps, Dashboards und Datenangeboten, und genehmigt, was andere vorschlagen."
+          }
+        },
+        "roleProposed": "Die Rolle {role} für {email} in {project} ist vorgeschlagen. Sie gilt, sobald die Änderung genehmigt ist.",
+        "roleFailed": "Die Person ist eingeladen, aber die Rolle {role} in {project} wurde nicht vorgeschlagen: {reason} Vergeben Sie sie unter Mitglieder des Projekts."
+      },
+      "pending": {
+        "title": "Noch nicht angenommene Einladungen",
+        "link": "Einladungslink",
+        "expires": "Der Link gilt bis {at}.",
+        "expired": "Der Link ist am {at} abgelaufen. Senden Sie ihn erneut.",
+        "expiryUnknown": "Das Portal hat nicht festgehalten, wann der Link abläuft.",
+        "resent": "Der Realm hat die Einladung an {email} erneut gesendet, mit einem neuen Link.",
+        "revoked": "Die Einladung von {email} ist widerrufen und das Konto gelöscht.",
+        "revoke": "Widerrufen",
+        "resendFor": "Einladung an {email} erneut senden",
+        "revokeFor": "Einladung von {email} widerrufen",
+        "confirmRevoke": {
+          "title": "Einladung von {email} widerrufen?",
+          "body": "Das Konto wird gelöscht und der Link funktioniert nicht mehr. Nennt eine Bindung die Person schon, nimmt eine Änderung sie zuerst heraus."
+        }
       }
     },
     "setup": {
@@ -5983,5 +6030,78 @@
     "previous": "Vorherige Zeile der Liste",
     "close": "Dialog oder Bereich schließen",
     "help": "Diese Kürzel anzeigen"
+  },
+  "home": {
+    "title": "Start",
+    "leadLoading": "Was dieses Projekt enthält und was Sie als Nächstes tun können.",
+    "lead": {
+      "steward": "Was auf Ihre Genehmigung wartet und was in diesem Projekt Ihre Aufmerksamkeit braucht.",
+      "editor": "Woran Sie gearbeitet haben und was als Nächstes zu beheben ist.",
+      "viewer": "Die Daten und Dashboards dieses Projekts, die Sie lesen können."
+    },
+    "next": "Als Nächstes für Sie",
+    "firstRun": {
+      "title": "Erste Schritte",
+      "progress": "{done} von {total} erledigt",
+      "done": "Erledigt",
+      "todo": "Noch offen",
+      "dismiss": "Checkliste ausblenden",
+      "restore": "Checkliste für den Einstieg zeigen",
+      "step": {
+        "space": "Einen Kontextbereich anlegen",
+        "source": "Eine Datenquelle verbinden",
+        "pipeline": "Eine Pipeline ausführen",
+        "data": "Die Daten ansehen",
+        "share": "Über einen Endpoint teilen"
+      },
+      "go": {
+        "space": "Bereich anlegen",
+        "source": "Quelle verbinden",
+        "pipeline": "Pipelines öffnen",
+        "data": "Bereich öffnen",
+        "share": "Endpoint anlegen"
+      }
+    },
+    "card": {
+      "approvals": {
+        "title": "{count, plural, one {# Änderung wartet auf Genehmigung} other {# Änderungen warten auf Genehmigung}}",
+        "action": "Prüfen"
+      },
+      "failing": {
+        "title": "{count, plural, one {# Pipeline schlägt fehl} other {# Pipelines schlagen fehl}}",
+        "action": "Ansehen, was schiefging"
+      },
+      "invites": {
+        "title": "{count, plural, one {# Einladung ist noch nicht angenommen} other {# Einladungen sind noch nicht angenommen}}",
+        "action": "Personen öffnen"
+      },
+      "drafts": {
+        "title": "{count, plural, one {# Entwurf in Arbeit} other {# Entwürfe in Arbeit}}",
+        "action": "Den letzten fortsetzen"
+      },
+      "data": {
+        "title": "Daten, die Sie lesen können",
+        "action": "Bereich öffnen"
+      },
+      "dashboards": {
+        "title": "{count, plural, one {# Dashboard} other {# Dashboards}}",
+        "action": "Das erste öffnen"
+      }
+    },
+    "welcome": {
+      "title": "Willkommen in {project}",
+      "role": {
+        "viewer": "Sie sind hier Leser: Sie lesen die Daten und Dashboards des Projekts.",
+        "editor": "Sie sind hier Editor: Sie schlagen Änderungen an der Konfiguration des Projekts vor.",
+        "steward": "Sie sind hier Verwalter: Sie genehmigen, was andere vorschlagen, und verantworten die Daten des Projekts."
+      },
+      "unknown": "Ihre Rolle hier ist noch nicht vergeben: Sie gilt, sobald die Änderung, die sie vorschlägt, genehmigt ist.",
+      "first": {
+        "viewer": "Die Räume des Projekts öffnen",
+        "editor": "Eine Datenquelle anbinden",
+        "steward": "Wartende Änderungen prüfen"
+      },
+      "close": "Begrüßung schließen"
+    }
   }
 }

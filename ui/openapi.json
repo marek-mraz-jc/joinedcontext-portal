@@ -1228,7 +1228,8 @@
                 "email": "jana.kovacova@example.org",
                 "firstName": "Jana",
                 "lastName": "Kováčová",
-                "locale": "sk"
+                "locale": "sk",
+                "project": "helsinki"
               }
             }
           },
@@ -1257,6 +1258,16 @@
           },
           "403": {
             "description": "The caller lacks create on Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No project of that name the caller may read",
             "content": {
               "application/json": {
                 "schema": {
@@ -1690,6 +1701,89 @@
           },
           "404": {
             "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/{id}/resend-invitation": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Resend Invitation",
+        "description": "Sends the realm's e-mail again for the steps the person has not taken, with a fresh link that leads into the project the first one did. Needs `create` on Person and every right the person holds.",
+        "operationId": "resend_invitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The realm cannot send mail: a temporary password, once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordReset"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The e-mail went",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordReset"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks create on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The person has no step left: the invitation was accepted",
             "content": {
               "application/json": {
                 "schema": {
@@ -15297,6 +15391,13 @@
               "string",
               "null"
             ]
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The project the invitation leads into: its home page greets the person once their\npassword is set (PF-108). It grants nothing."
           }
         },
         "additionalProperties": false
@@ -17659,6 +17760,13 @@
           "id": {
             "type": "string"
           },
+          "invitationExpires": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the link of the last invitation the Portal sent stops working, while a step is left\n(RFC 3339, PF-108); `null` once none is, or without a database to remember it in."
+          },
           "lastName": {
             "type": "string"
           },
@@ -18182,6 +18290,13 @@
               "$ref": "#/components/schemas/Place"
             },
             "description": "The pages the person starred, at most 50 (UI-90)."
+          },
+          "firstRunDismissed": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the person put the first-run checklist away (T-3233). Absent shows it; the help\nmenu clears it. The steps tick themselves from the project, never from this record."
           },
           "locale": {
             "type": [

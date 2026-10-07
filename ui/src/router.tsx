@@ -31,6 +31,7 @@ import { ModelPage } from "./pages/models/ModelPage";
 import { ExplorePage } from "./pages/explore/ExplorePage";
 import { CkanPage } from "./pages/ckan/CkanPage";
 import { GlossaryPage } from "./pages/glossary/GlossaryPage";
+import { HomePage } from "./pages/home/HomePage";
 import { KnowledgePage } from "./pages/knowledge/KnowledgePage";
 import { SourcePage } from "./pages/knowledge/SourcePage";
 import { McpServersPage } from "./pages/mcp/McpServersPage";
@@ -152,7 +153,7 @@ function IndexRedirect(): React.JSX.Element {
   if (!first) {
     return <NoProject projects={projects} />;
   }
-  return <Navigate to="/projects/$project/$plural" params={{ project: first, plural: "spaces" }} />;
+  return <Navigate to="/projects/$project/home" params={{ project: first }} />;
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -250,6 +251,25 @@ const catalogueDatasetRoute = createRoute({
     const { name } = catalogueDatasetRoute.useParams();
     return (
       <CatalogueFrame>{() => <DatasetPage name={name} />}</CatalogueFrame>
+    );
+  },
+});
+
+/** A project's home: the first-run checklist and what the person's role does next (T-3233, T-3235). */
+const homeRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/home",
+  // `?welcome=1` is where an invitation's link ends (PF-108): the page greets the newcomer.
+  validateSearch: (search: Record<string, unknown>): { welcome?: boolean } =>
+    search.welcome === 1 || search.welcome === "1" || search.welcome === true ? { welcome: true } : {},
+  component: function HomeRoute() {
+    const { project } = homeRoute.useParams();
+    const { welcome } = homeRoute.useSearch();
+    const navigate = homeRoute.useNavigate();
+    return (
+      <Shell project={project}>
+        <HomePage project={project} welcome={welcome === true} onWelcomeClosed={() => void navigate({ search: {} })} />
+      </Shell>
     );
   },
 });
@@ -1065,6 +1085,7 @@ export const routeTree = rootRoute.addChildren([
   ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,
+    homeRoute,
     activityRoute,
     approvalsRoute,
     approvalDetailRoute,
