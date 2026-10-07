@@ -52,11 +52,21 @@ pub async fn get_quality(
         .map_err(|err| ApiError::Internal(err.to_string()))
 }
 
-/// The counts are the space's; which entities they are is for whoever reads its entities.
+/// The counts are the space's; which entities they are, and the values they hold (a range, an
+/// outlier's id), are for whoever reads its entities.
 fn for_caller(mut quality: SpaceQuality, reads_entities: bool) -> SpaceQuality {
     if !reads_entities {
         for rule in &mut quality.rules {
             rule.examples.clear();
+        }
+        for attribute in quality
+            .types
+            .iter_mut()
+            .flat_map(|kind| kind.attributes.iter_mut())
+        {
+            attribute.min = None;
+            attribute.max = None;
+            attribute.outlier_examples.clear();
         }
     }
     quality
@@ -72,7 +82,7 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quality::RuleCount;
+    use crate::quality::{AttributeQuality, RuleCount, TypeQuality};
 
     fn report() -> SpaceQuality {
         SpaceQuality {
@@ -87,6 +97,19 @@ mod tests {
                 examples: vec!["urn:ngsi-ld:Station:hel.fi:bikes:1".into()],
             }],
             freshness: Vec::new(),
+            types: vec![TypeQuality {
+                entity_type: "Station".into(),
+                count: 10,
+                newest: None,
+                attributes: vec![AttributeQuality {
+                    name: "capacity".into(),
+                    present: 9,
+                    min: Some(2.0),
+                    max: Some(400.0),
+                    outliers: 1,
+                    outlier_examples: vec!["urn:ngsi-ld:Station:hel.fi:bikes:7".into()],
+                }],
+            }],
         }
     }
 
@@ -95,6 +118,10 @@ mod tests {
     fn example_ids_are_only_for_whoever_reads_the_entities() {
         let hidden = for_caller(report(), false);
         assert!(hidden.rules[0].examples.is_empty());
+        let capacity = &hidden.types[0].attributes[0];
+        assert_eq!((capacity.min, capacity.max), (None, None));
+        assert!(capacity.outlier_examples.is_empty());
+        assert_eq!((capacity.present, capacity.outliers), (9, 1));
         assert_eq!((hidden.checked, hidden.rules[0].count), (10, 1));
         assert_eq!(for_caller(report(), true), report());
     }

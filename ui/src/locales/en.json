@@ -246,7 +246,9 @@
       "older": "Show older changes",
       "empty": "No change has been merged or rejected yet.",
       "emptyHint": "A change lands here with who decided it once it is approved or rejected on the Open tab.",
-      "noneOnPage": "None of these changes is one you may read. Older ones may be."
+      "noneOnPage": "None of these changes is one you may read. Older ones may be.",
+      "restore": "Restore",
+      "restoreOf": "Restore {name}"
     }
   },
   "lane": {
@@ -375,7 +377,16 @@
     "close": "Close",
     "exact": "Exactly as it is written, without spaces.",
     "mismatch": "This is not {name}.",
-    "needName": "Type {name} to propose its removal."
+    "needName": "Type {name} to propose its removal.",
+    "goesWith": {
+      "title": "What goes with it",
+      "entities": "{count, plural, one {# entity} other {# entities}} in this space: no longer served once it is removed; restoring the space serves them again",
+      "rejectedRecords": "{count, plural, one {# refused record} other {# refused records}} waiting to be fixed and replayed: they do not come back",
+      "runs": "{count, plural, one {the history of # run} other {the history of # runs}}: it does not come back",
+      "grants": "{count, plural, one {# endpoint or policy} other {# endpoints and policies}} the app was given",
+      "bindings": "{count, plural, one {# role binding} other {# role bindings}} that name it, changed or removed"
+    },
+    "restorable": "Once an approver confirms the removal, you can bring the configuration back from Approvals → History."
   },
   "resourceEdit": {
     "title": "Edit {name}",
@@ -1694,7 +1705,8 @@
       "replayed": "{count, plural, =0 {No record was replayed.} one {# record was replayed through the current model; if it still breaks the model it comes back here.} other {# records were replayed through the current model; any that still break the model come back here.}}",
       "maskedKept": "{count, plural, one {# record stays on the list: a value of it was masked as a secret, and replaying it would write the mask. The pipeline's next read of its source brings it again.} other {# records stay on the list: a value of each was masked as a secret, and replaying them would write the mask. The pipeline's next read of its source brings them again.}}",
       "newest": "Newest",
-      "older": "Older records"
+      "older": "Older records",
+      "openRun": "Open its run"
     },
     "runs": {
       "open": "Runs and log",
@@ -2471,7 +2483,8 @@
       "url": "Or the address of an API that answers JSON",
       "urlHelp": "Read once by the project's runner, as a data source check reads it; the model is drawn from the records it answers.",
       "readUrl": "Read the address",
-      "urlInvalid": "Give a full address starting with https:// or http://."
+      "urlInvalid": "Give a full address starting with https:// or http://.",
+      "urlCredential": "The address carries a user name, a password or a key. Give one without, or connect the source as a data source whose credential is a secret."
     },
     "classParent": "The class it specialises",
     "classParentNone": "None",
@@ -3365,7 +3378,25 @@
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
     "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
-    "typeInModel": "This type in its data model:"
+    "typeInModel": "This type in its data model:",
+    "views": "What to show",
+    "entities": "Entities",
+    "quality": {
+      "tab": "Quality",
+      "observed": "Checked on {at} by the daily data-quality run.",
+      "truncated": "The space holds more than a run reads, so the counts cover its first 20,000 entities.",
+      "none": "The last run found no {type} entity in this space.",
+      "summary": "{count, plural, one {# entity} other {# entities}}, the newest changed on {newest}.",
+      "attributes": "How complete each attribute of {type} is",
+      "attribute": "Attribute",
+      "completeness": "Completeness",
+      "range": "Range",
+      "outliers": "Values far outside the rest",
+      "present": "{present} of {count}",
+      "outlierCount": "{count, plural, one {# value} other {# values}}",
+      "pipelines": "Pipelines writing this type",
+      "rejected": "Open {pipeline} for its rejected records"
+    }
   },
   "agentRun": {
     "title": "Application run",

@@ -68,6 +68,7 @@ async fn seed(state: &AppState) {
                     path: "capacity".into(),
                     message: "capacity is not of the slot's datatype".into(),
                     step: None,
+                    run: Some("2026-10-07T08:00:00Z".into()),
                 },
             )
             .await
@@ -93,6 +94,8 @@ async fn a_reader_of_the_pipeline_pages_through_its_rejected_records() {
     assert_eq!(page["items"][0]["record"]["n"], 2, "newest first");
     assert_eq!(page["items"][0]["rule"], "sh:datatype");
     assert_eq!(page["items"][0]["path"], "capacity");
+    // T-3252: each record names the run whose log holds it.
+    assert_eq!(page["items"][0]["run"], "2026-10-07T08:00:00Z");
     assert!(!page.to_string().contains("hunter2"), "masked: {page}");
 
     let next = page["next"].as_i64().expect("a next page");
@@ -197,6 +200,7 @@ async fn retry_world(runner: &MockServer) -> AppState {
                 path: String::new(),
                 message: "BikeStation was not a class of the model".into(),
                 step: None,
+                run: None,
             },
         )
         .await

@@ -680,6 +680,7 @@ pub async fn retry_rejected(
                         path: String::new(),
                         message: "the replay did not reach the runner; retry it".into(),
                         step: None,
+                        run: None,
                     },
                 )
                 .await;

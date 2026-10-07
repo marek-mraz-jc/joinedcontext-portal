@@ -246,7 +246,9 @@
       "older": "Zobrazit starší změny",
       "empty": "Zatím nebyla sloučena ani zamítnuta žádná změna.",
       "emptyHint": "Změna se tu objeví i s tím, kdo o ní rozhodl, jakmile ji na kartě Otevřené schválíte nebo zamítnete.",
-      "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano."
+      "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano.",
+      "restore": "Obnovit",
+      "restoreOf": "Obnovit {name}"
     }
   },
   "lane": {
@@ -375,7 +377,16 @@
     "close": "Zavřít",
     "exact": "Přesně tak, jak je napsáno, bez mezer.",
     "mismatch": "Toto není {name}.",
-    "needName": "Odstranění navrhnete napsáním {name}."
+    "needName": "Odstranění navrhnete napsáním {name}.",
+    "goesWith": {
+      "title": "Co odejde spolu s tím",
+      "entities": "{count, plural, one {# entita} few {# entity} other {# entit}} v tomto prostoru: po odstranění se už nebudou poskytovat; obnovení prostoru je zpřístupní znovu",
+      "rejectedRecords": "{count, plural, one {# odmítnutý záznam} few {# odmítnuté záznamy} other {# odmítnutých záznamů}} čekajících na opravu: nevrátí se",
+      "runs": "{count, plural, one {historie # běhu} few {historie # běhů} other {historie # běhů}}: nevrátí se",
+      "grants": "{count, plural, one {# endpoint nebo politika} few {# endpointy a politiky} other {# endpointů a politik}}, které aplikace dostala",
+      "bindings": "{count, plural, one {# přiřazení role} few {# přiřazení rolí} other {# přiřazení rolí}}, která ho uvádějí, se změní nebo odstraní"
+    },
+    "restorable": "Jakmile schvalovatel odstranění potvrdí, konfiguraci můžete vrátit ve Schvalování → Historie."
   },
   "resourceEdit": {
     "title": "Upravit {name}",
@@ -1694,7 +1705,8 @@
       "replayed": "{count, plural, =0 {Žádný záznam se nepřehrál.} one {# záznam prošel znovu aktuálním modelem; pokud ho stále porušuje, vrátí se sem.} few {# záznamy prošly znovu aktuálním modelem; ty, které ho stále porušují, se vrátí sem.} other {# záznamů prošlo znovu aktuálním modelem; ty, které ho stále porušují, se vrátí sem.}}",
       "maskedKept": "{count, plural, one {# záznam zůstává v seznamu: jeho hodnota byla zamaskována jako tajemství a opakování by zapsalo masku. Přinese ho další čtení zdroje.} few {# záznamy zůstávají v seznamu: jejich hodnoty byly zamaskovány jako tajemství a opakování by zapsalo masku. Přinese je další čtení zdroje.} other {# záznamů zůstává v seznamu: jejich hodnoty byly zamaskovány jako tajemství a opakování by zapsalo masku. Přinese je další čtení zdroje.}}",
       "newest": "Nejnovější",
-      "older": "Starší záznamy"
+      "older": "Starší záznamy",
+      "openRun": "Otevřít jeho běh"
     },
     "runs": {
       "open": "Běhy a záznam",
@@ -2456,7 +2468,8 @@
       "url": "Nebo adresa API, které odpovídá v JSON",
       "urlHelp": "Jednou ji přečte runner projektu, jako ji čte ověření zdroje dat; model se odvodí ze záznamů, které vrátí.",
       "readUrl": "Přečíst adresu",
-      "urlInvalid": "Zadejte celou adresu začínající na https:// nebo http://."
+      "urlInvalid": "Zadejte celou adresu začínající na https:// nebo http://.",
+      "urlCredential": "Adresa obsahuje jméno, heslo nebo klíč. Zadejte ji bez nich, nebo zdroj připojte jako zdroj dat, jehož přihlašovací údaj je secret."
     },
     "source": {
       "loading": "Načítá se zdroj modelu…",
@@ -3365,7 +3378,25 @@
     "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše.",
     "noSpace": "Vyberte kontextový prostor ke čtení",
     "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:",
-    "typeInModel": "Tento typ v jeho datovém modelu:"
+    "typeInModel": "Tento typ v jeho datovém modelu:",
+    "views": "Co zobrazit",
+    "entities": "Entity",
+    "quality": {
+      "tab": "Kvalita",
+      "observed": "Zkontrolováno {at} denní kontrolou kvality dat.",
+      "truncated": "Prostor má víc, než běh přečte, proto počty pokrývají jeho prvních 20 000 entit.",
+      "none": "Poslední běh nenašel v tomto prostoru žádnou entitu {type}.",
+      "summary": "{count, plural, one {# entita} few {# entity} other {# entit}}, nejnovější změněná {newest}.",
+      "attributes": "Úplnost každého atributu {type}",
+      "attribute": "Atribut",
+      "completeness": "Úplnost",
+      "range": "Rozsah",
+      "outliers": "Hodnoty daleko od ostatních",
+      "present": "{present} z {count}",
+      "outlierCount": "{count, plural, one {# hodnota} few {# hodnoty} other {# hodnot}}",
+      "pipelines": "Pipeline, které zapisují tento typ",
+      "rejected": "Otevřít {pipeline} a její odmítnuté záznamy"
+    }
   },
   "agentRun": {
     "title": "Běh aplikace",

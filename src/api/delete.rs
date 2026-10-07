@@ -307,6 +307,79 @@ pub async fn delete_resource(
     }
 }
 
+/// What leaves with `kind`/`name` once its removal is approved (T-3247): read for the dry run
+/// only, so the person sees it before they type the name. A count the store cannot give is left
+/// out rather than guessed; nothing here is a reason to refuse.
+async fn goes_with(
+    state: &AppState,
+    project: &str,
+    kind: &str,
+    name: &str,
+    cleanup: &GroupCleanup,
+) -> Vec<crate::api::dry_run::Consequence> {
+    use crate::api::dry_run::Consequence;
+    let consequence = |what: &str, count: u64, names: Vec<String>| Consequence {
+        what: what.to_owned(),
+        count,
+        names,
+    };
+    let mut found = Vec::new();
+    match kind {
+        "ContextSpace" => match state.space_usage.usage(name).await {
+            Ok(usage) if usage.entities > 0 => {
+                found.push(consequence("entities", usage.entities, Vec::new()));
+            }
+            Ok(_) => {}
+            Err(err) => {
+                tracing::warn!(space = %name, %err, "the space's entities could not be counted")
+            }
+        },
+        "Pipeline" => {
+            match state.rejected.count(project, name).await {
+                Ok(count) if count > 0 => {
+                    found.push(consequence("rejectedRecords", count, Vec::new()))
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::warn!(pipeline = %name, %err, "the refused records could not be counted")
+                }
+            }
+            match state
+                .pipeline_log
+                .runs(project, name, crate::pipeline_log::RUNS_KEPT)
+                .await
+            {
+                Ok(runs) if !runs.is_empty() => {
+                    found.push(consequence("runs", runs.len() as u64, Vec::new()));
+                }
+                Ok(_) => {}
+                Err(err) => tracing::warn!(pipeline = %name, %err, "the runs could not be counted"),
+            }
+        }
+        "App" => {
+            let grants: Vec<String> = crate::api::mutate::held_grants(state, project, name)
+                .iter()
+                .map(|grant| format!("{}/{}", grant.kind, grant.metadata.name))
+                .collect();
+            if !grants.is_empty() {
+                found.push(consequence("grants", grants.len() as u64, grants));
+            }
+        }
+        _ => {}
+    }
+    // A Group's removal edits the bindings that name it, and removes the ones it alone filled.
+    let names: Vec<String> = cleanup
+        .edited
+        .iter()
+        .chain(&cleanup.removed)
+        .map(|envelope| format!("{}/{}", envelope.kind, envelope.metadata.name))
+        .collect();
+    if !names.is_empty() {
+        found.push(consequence("bindings", names.len() as u64, names));
+    }
+    found
+}
+
 /// Proposes the deletion of one resource as `identity`: the one path behind the REST route and
 /// `jc_resource_delete` (AG-77, ADR-N-021). Needs `delete` on the kind (PF-50), refuses while
 /// another resource references the target (MF-07) and opens a Red-lane Change (CC-19).
@@ -465,6 +538,7 @@ pub async fn delete_with_identity(
             verdict: None,
             findings: Vec::new(),
             awaited: Vec::new(),
+            goes_with: goes_with(state, project, kind_info.kind, name, &cleanup).await,
         }));
     }
 

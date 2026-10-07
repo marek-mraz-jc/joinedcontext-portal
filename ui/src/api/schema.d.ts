@@ -1385,6 +1385,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/changes/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore What a Change Removed
+         * @description Proposes again, as one new change, every file a merged change deleted, read at the commit its branch was cut from. Needs `propose` on every kind it brings back.
+         */
+        post: operations["restore_change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ckan/status": {
         parameters: {
             query?: never;
@@ -3061,6 +3081,29 @@ export interface components {
             /** @description The values a coded attribute may take. */
             values?: string[] | null;
         };
+        /**
+         * @description One attribute of one type: how many entities carry it and, for numbers, their range and the
+         *     values far outside the rest.
+         */
+        AttributeQuality: {
+            /** Format: double */
+            max?: number | null;
+            /** Format: double */
+            min?: number | null;
+            name: string;
+            /** @description At most five ids of entities holding such a value. */
+            outlierExamples: string[];
+            /**
+             * Format: int64
+             * @description Values outside the Tukey fences (1.5 interquartile ranges past the quartiles).
+             */
+            outliers: number;
+            /**
+             * Format: int64
+             * @description Entities of the type that carry the attribute.
+             */
+            present: number;
+        };
         /** @description A change another one waits on (MF-48). */
         AwaitedChange: {
             name: string;
@@ -3672,6 +3715,15 @@ export interface components {
          * @enum {string}
          */
         ConflictPolicy: "fail" | "skip" | "replace" | "rename";
+        /** @description One thing that leaves with a removed resource (T-3247). */
+        Consequence: {
+            /** Format: int64 */
+            count: number;
+            /** @description The resources it names, as `Kind/name`, when they are resources. */
+            names?: string[];
+            /** @description `entities`, `rejectedRecords`, `runs`, `grants` or `bindings`. */
+            what: string;
+        };
         /** @description How many results of one run ended in each verdict. */
         Counts: {
             /** Format: int32 */
@@ -3851,6 +3903,12 @@ export interface components {
              *     manifest into another organization would carry the literal with it.
              */
             findings?: string[];
+            /**
+             * @description What leaves with a removed resource, with how many (T-3247): a space's entities, a
+             *     pipeline's refused records and runs, an App's endpoint and policies, the bindings a
+             *     Group's removal edits. Empty for every write that is not a removal.
+             */
+            goesWith?: components["schemas"]["Consequence"][];
             lane: components["schemas"]["Lane"];
             plan: components["schemas"]["PlanDiff"];
             probe?: null | components["schemas"]["Probe"];
@@ -4935,6 +4993,11 @@ export interface components {
             /** @description The constraint it broke (a SHACL component, `type` or `id`, PL-59). */
             rule: string;
             /**
+             * @description The run whose log holds the record's line (PL-62); none for a record a failed replay put
+             *     back, or one kept before runs were named.
+             */
+            run?: string | null;
+            /**
              * Format: int32
              * @description The step of `spec.steps` the record failed at, when it failed in a step and not in the
              *     validation stage.
@@ -5201,6 +5264,11 @@ export interface components {
             observedAt: string;
             rules: components["schemas"]["RuleCount"][];
             truncated: boolean;
+            /**
+             * @description Per entity type: how complete each attribute is, the newest change, numeric ranges and
+             *     outliers (T-3252).
+             */
+            types: components["schemas"]["TypeQuality"][];
         };
         /** @description What one space holds. */
         SpaceUsage: {
@@ -5326,6 +5394,16 @@ export interface components {
             id: number;
             type: string;
             urn: string;
+        };
+        /** @description What one run found of one entity type. */
+        TypeQuality: {
+            /** @description Every attribute an entity of the type carries, the most complete first. */
+            attributes: components["schemas"]["AttributeQuality"][];
+            /** Format: int64 */
+            count: number;
+            /** Format: date-time */
+            newest?: string | null;
+            type: string;
         };
         /** @description A quantity's unit: the UN/CEFACT code NGSI-LD's `unitCode` carries, and its UCUM spelling. */
         Unit: {
@@ -9459,6 +9537,85 @@ export interface operations {
             };
             /** @description Change proposal not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Git forge unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    restore_change: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The merged change that removed something: chg- + 8 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The restoring change, waiting for an approver */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Not a change id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No `propose` on a kind it brings back */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such change the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not merged, removed nothing, or the resource is there again */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

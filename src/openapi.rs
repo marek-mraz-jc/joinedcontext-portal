@@ -191,6 +191,7 @@ use crate::tools::model_tools::{
         crate::api::mutate::patch,
         crate::api::changes::list_changes,
         crate::api::changes::list_change_history,
+        crate::api::restore::restore_change,
         crate::api::ckan::get_status,
         crate::api::catalogue::get_catalogue,
         crate::api::catalogue::get_dataset,
