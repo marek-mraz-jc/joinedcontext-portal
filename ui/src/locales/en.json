@@ -1738,7 +1738,9 @@
       "spacesFailed": "The context spaces of this project could not be loaded, so grants that apply to a single space are missing from this list: {reason}",
       "discardTitle": "Discard this grant?",
       "discardConfirm": "What you typed is lost and nothing is proposed. The roles already held are not touched.",
-      "discard": "Discard the grant"
+      "discard": "Discard the grant",
+      "grants": "This role may: {rights}.",
+      "grantsNothing": "This role grants nothing yet: its rules are empty."
     },
     "projectRoles": {
       "title": "Roles",
@@ -4222,7 +4224,7 @@
       "lead": "The people of the organization’s sign-in realm. What each one may do comes from the bindings and groups that name them.",
       "new": "New person",
       "hidden": "Only a person whose role reads people sees this list. An organization administrator can grant it.",
-      "invited": "The realm sent {email} an e-mail to verify the address and set a password.",
+      "invited": "The realm sent {email} an e-mail to verify the address and set a password. They can sign in, but do nothing until they hold a role: give them one under Members of a project or of the organization.",
       "search": "Search people",
       "searchPlaceholder": "Name or e-mail",
       "searchButton": "Search",
