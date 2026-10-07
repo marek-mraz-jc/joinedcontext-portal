@@ -62,6 +62,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/organization/people/{id}/sign-out", "jc_person_sign_out"),
 ("GET", "/preferences", "this person's own Portal preferences, not a project's data"),
 ("PUT", "/preferences", "this person's own Portal preferences, not a project's data"),
+("POST", "/preferences/recent", "this person's own recent pages, not a project's data"),
 ("GET", "/endpoints", "jc_endpoint_list_all"),
 ("GET", "/projects", "the door before a project; every operation runs inside one"),
 ("POST", "/projects", "jc_project_create"),
