@@ -205,6 +205,38 @@ describe("the page's failed state", () => {
     vi.unstubAllGlobals();
   });
 
+  it("T-3243: a problem says what to do about it, in the person's language, by its type", async () => {
+    show(
+      <PageFailed
+        error={new ApiError(409, "Conflict", { ...problem(409, "changed on main"), type: "https://joinedcontext.com/errors/conflict" })}
+      />,
+    );
+    expect(screen.getByText(en.problem.conflict)).toBeInTheDocument();
+    await i18n.changeLanguage("sk");
+    expect(await screen.findByText(i18n.t("problem.conflict"))).toBeInTheDocument();
+    await i18n.changeLanguage("en");
+  });
+
+  it("T-3243: the NGSI-LD surface's code wins over its ETSI type, and an unknown slug falls back to the API's hint", () => {
+    const ngsi = { ...problem(400, "bad id"), type: "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", code: "urn-scheme" };
+    const { unmount } = show(<PageFailed error={new ApiError(400, "Bad Request", ngsi)} />);
+    expect(screen.getByText(en.problem["urn-scheme"])).toBeInTheDocument();
+    unmount();
+    const unknown = { ...problem(422, "no"), type: "https://joinedcontext.com/errors/brand-new", hint: "Do the new thing." };
+    show(<PageFailed error={new ApiError(422, "Unprocessable", unknown)} />);
+    expect(screen.getByText("Do the new thing.")).toBeInTheDocument();
+  });
+
+  it("T-3243: a slug that is not one never reaches a translation key, and a refusal keeps one hint", () => {
+    const odd = { ...problem(400, "x"), type: "https://joinedcontext.com/errors/../app.error.generic" };
+    const { container, unmount } = show(<PageFailed error={new ApiError(400, "Bad Request", odd)} />);
+    expect(container).not.toHaveTextContent(en.app.error.generic);
+    unmount();
+    show(<PageFailed error={new ApiError(403, "Forbidden", { ...problem(403, "no"), type: "https://joinedcontext.com/errors/forbidden" })} />);
+    expect(screen.getByText(en.app.error.forbiddenHint)).toBeInTheDocument();
+    expect(screen.queryByText(en.problem.forbidden)).toBeNull();
+  });
+
   it("T-3244: offline says so and reads again by itself once the connection is back", () => {
     vi.stubGlobal("navigator", { ...navigator, onLine: false });
     const retry = vi.fn();
