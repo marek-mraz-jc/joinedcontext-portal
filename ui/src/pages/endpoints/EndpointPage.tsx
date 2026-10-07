@@ -3,6 +3,7 @@ import type { JSX, ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { Playground } from "./Playground";
 import { ApiError, api, queryKeys, readCsrfToken, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, refName } from "../../api/manifest";
 import type { Change, ResourceProposal } from "../../api/manifest";
@@ -401,6 +402,12 @@ export function EndpointPage({
                 url={endpointUrl(slug, firstCallPath(projection ? classesOf(projection)[0] : undefined))}
                 open={spec.audience === "public"}
               />
+            </Fact>
+          ) : null}
+          {slug ? (
+            <Fact label={t("endpoints.playground.title")}>
+              {/* Every read the person may send, with its parameters and the same call as code (T-3264). */}
+              <Playground slug={slug} types={projection ? classesOf(projection) : []} open={spec.audience === "public"} />
             </Fact>
           ) : null}
           <Fact label={<Term name="entityType">{t("endpoints.field.types")}</Term>}>

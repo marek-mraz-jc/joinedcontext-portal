@@ -1265,6 +1265,27 @@
     "hub": {
       "title": "Alle verbinden",
       "lead": "Ein MCP-Connector für alle Endpunkte, die Sie lesen dürfen. Fügen Sie diese URL in eine KI-App ein, wählen Sie bei der Anmeldung die Endpunkte, und jeder Aufruf läuft unter der Richtlinie des jeweiligen Endpunkts."
+    },
+    "playground": {
+      "title": "Ausprobieren",
+      "reading": "Lese, was Sie aufrufen dürfen…",
+      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf.",
+      "operation": "Was lesen",
+      "operations": {
+        "list": "Entitäten eines Typs",
+        "count": "Wie viele eines Typs",
+        "one": "Eine Entität nach ID",
+        "types": "Die enthaltenen Typen"
+      },
+      "type": "Entitätstyp",
+      "q": "Filterausdruck (q)",
+      "qHint": "Optional, NGSI-LD-Abfragesprache, zum Beispiel temperature>20;status==\"open\".",
+      "limit": "Wie viele (1 bis 100)",
+      "id": "Entitäts-ID (URN)",
+      "send": "Senden",
+      "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
+      "answered": "Der Endpunkt antwortete {status}.",
+      "code": "Derselbe Aufruf als Code"
     }
   },
   "datasources": {
@@ -3025,7 +3046,56 @@
       "public": "alle, auch ohne Anmeldung",
       "roles": "Personen mit einer ihrer Rollen"
     },
-    "emptyTitle": "Noch keine Anwendungen"
+    "emptyTitle": "Noch keine Anwendungen",
+    "checklist": {
+      "heading": "Vor der Veröffentlichung",
+      "reading": "Lese die Endpunkte des Projekts…",
+      "blocked": "Ein Datenschutzproblem hält die Veröffentlichung auf: beheben Sie es zuerst.",
+      "state": {
+        "ok": "Erledigt",
+        "warning": "Fehlt",
+        "problem": "Datenschutz"
+      },
+      "title": {
+        "ok": "Sie hat einen Titel.",
+        "warning": "Sie hat keinen Titel: man sieht ihren technischen Namen."
+      },
+      "description": {
+        "ok": "Sie hat eine Beschreibung.",
+        "warning": "Ihr fehlt eine Beschreibung, wofür sie dient."
+      },
+      "licence": {
+        "ok": "Lizenz: {detail}.",
+        "warning": "Sie nennt keine Lizenz, und die Installation hat keine Vorgabe."
+      },
+      "visibility": {
+        "ok": "Wer sie öffnen darf: {detail}.",
+        "problem": "Sie ist privat: veröffentlicht könnte sie niemand öffnen."
+      },
+      "checks": {
+        "ok": "Die letzte Prüfung hat sie geöffnet und ihre Daten gelesen, die Tests des Builds enthalten eine Barrierefreiheitsprüfung.",
+        "warning": "Noch keine bestandene Prüfung: die Tests des Builds prüfen die Barrierefreiheit, und die Sonde öffnet sie nach der Veröffentlichung. {detail}"
+      },
+      "contact": {
+        "ok": "Kontakt: {detail}.",
+        "warning": "Sie nennt keinen Kontakt, und die Installation hat keine Kontaktadresse."
+      },
+      "privacy": {
+        "ok": "Kein Datenschutzproblem: sie liest nur veröffentlichte Daten und schreibt nichts.",
+        "writes": "Jeder könnte über sie in den Raum {detail} schreiben.",
+        "unpublished": "Sie zeigt jedem Daten des Raums {detail}, die kein öffentlicher Endpunkt veröffentlicht.",
+        "personal": "Sie zeigt jedem das Attribut {detail}, persönliche Daten."
+      },
+      "fix": {
+        "title": "Titel ergänzen",
+        "description": "Beschreibung ergänzen",
+        "licence": "Lizenz angeben",
+        "visibility": "Festlegen, wer sie öffnen darf",
+        "checks": "Prüfungen ansehen",
+        "contact": "Kontakt angeben",
+        "privacy": "Ändern, was sie liest oder wer sie öffnen darf"
+      }
+    }
   },
   "appLifecycle": {
     "draft": "Entwurf",
