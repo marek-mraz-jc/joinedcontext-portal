@@ -159,7 +159,8 @@
     "origin": "https:// a hostitel, nejvýš s portem, jako https://www.example.org; bez cesty a zástupných znaků.",
     "language": "Dvoupísmenný kód jazyka malými písmeny, jako sk nebo en.",
     "sitePath": "Cesta webu začínající lomítkem, jako /news/**.",
-    "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394."
+    "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394.",
+    "notAnAttribute": "{name} není atribut typu {types} v modelech projektu; zkontrolujte pravopis."
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -2785,7 +2786,7 @@
       "secretRequired": "Pojmenujte tajemství, které nahrál operátor; samotný token se tu nikdy nezadává.",
       "secretKey": "Klíč v secretu",
       "secretKeyHelp": "Položka toho secretu, která obsahuje token. Nechte apiToken, pokud operátor neurčí jinak.",
-      "secretKeyInvalid": "Klíč tvoří písmena, číslice, tečky, pomlčky a podtržítka, například apiToken.",
+      "secretKeyInvalid": "Klíč tvoří písmena, číslice, tečky, pomlčky a podtržítka.",
       "secretInvalid": "Název secretu tvoří malá písmena, číslice, pomlčky a tečky, například ckan-api-token.",
       "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu."
     },

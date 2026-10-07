@@ -48,7 +48,13 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
     "information[].propertyNames[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "Property" } },
     "information[].relationshipNames[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "Relationship" } },
   },
-  Subscription: { contextSpaceRef: project("spaces"), "entities[].type": TYPE },
+  Subscription: {
+    contextSpaceRef: project("spaces"),
+    "entities[].type": TYPE,
+    // T-3291: the attributes of the watched types, from the space's models.
+    "watchedAttributes[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "any", typesFrom: "entities" } },
+    "notification.attributes[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "any", typesFrom: "entities" } },
+  },
   ContextSourceRegistration: {
     contextSpaceRef: project("spaces"),
     endpointRef: project("endpoints"),
