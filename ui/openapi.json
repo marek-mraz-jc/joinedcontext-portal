@@ -9652,6 +9652,77 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/types/{type}/attributes": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read A Type's Attributes",
+        "description": "The attributes an entity type has in the data model the space pins: kind, value type, whether it is required, its unit, description, coded values and a relationship's target type. Required attributes come first. Reading the space is all it needs.",
+        "operationId": "type_attributes",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "path",
+            "description": "The entity type, a class of the space's model",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The type and its attributes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassAttributes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read, a space without a data model, or a type the model does not declare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/usage": {
       "get": {
         "tags": [
@@ -13059,6 +13130,97 @@
           }
         }
       },
+      "Attribute": {
+        "type": "object",
+        "description": "One attribute of a class as the space's model states it (T-3223): what an editor needs to map\na field onto it.",
+        "required": [
+          "name",
+          "kind",
+          "required"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What it means, in the model's words."
+          },
+          "format": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The value's format, such as `date-time`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`Property`, `Relationship`, `GeoProperty`, `LanguageProperty` or `VocabProperty`."
+          },
+          "maximum": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "minimum": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The smallest and the largest value a number may have."
+          },
+          "name": {
+            "type": "string",
+            "description": "The attribute's name."
+          },
+          "relationship": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RelationshipTarget",
+                "description": "The entity type a relationship points at, and whether it holds several."
+              }
+            ]
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether every entity of the class must carry it."
+          },
+          "unit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Unit",
+                "description": "The unit a quantity is in."
+              }
+            ]
+          },
+          "valueType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The JSON type of its value (`string`, `number`, `integer`, `boolean`, `object`, `array`),\nabsent when the model leaves it open."
+          },
+          "values": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The values a coded attribute may take."
+          }
+        }
+      },
       "AwaitedChange": {
         "type": "object",
         "description": "A change another one waits on (MF-48).",
@@ -14408,6 +14570,42 @@
           "url": {
             "type": "string",
             "description": "The Portal page that shows the claim to the person who asked for it."
+          }
+        }
+      },
+      "ClassAttributes": {
+        "type": "object",
+        "description": "A class of the space's model and its attributes (T-3223).",
+        "required": [
+          "model",
+          "version",
+          "type",
+          "attributes"
+        ],
+        "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "description": "Required attributes first, then by name; `id` and `type` are the entity's own and not\nlisted."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "description": "The model's manifest name and the version the space pins."
+          },
+          "type": {
+            "type": "string",
+            "description": "The class, which is the entity type."
+          },
+          "version": {
+            "type": "string"
           }
         }
       },
@@ -18188,6 +18386,22 @@
           }
         }
       },
+      "RelationshipTarget": {
+        "type": "object",
+        "description": "The type a relationship points at.",
+        "required": [
+          "target",
+          "many"
+        ],
+        "properties": {
+          "many": {
+            "type": "boolean"
+          },
+          "target": {
+            "type": "string"
+          }
+        }
+      },
       "RelayedEvent": {
         "type": "object",
         "description": "What the proxy relays on behalf of a workspace it has already authenticated.",
@@ -19214,6 +19428,24 @@
           },
           "urn": {
             "type": "string"
+          }
+        }
+      },
+      "Unit": {
+        "type": "object",
+        "description": "A quantity's unit: the UN/CEFACT code NGSI-LD's `unitCode` carries, and its UCUM spelling.",
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ucum": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

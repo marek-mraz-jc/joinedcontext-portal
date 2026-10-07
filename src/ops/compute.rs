@@ -378,10 +378,32 @@ pub fn operations() -> Vec<Operation> {
                     )
                     .await?;
 
-                    let ok = trace.errors.is_empty()
+                    // What the spec alone says against the target spaces' models (T-3223): a
+                    // type the model lacks is red before any record of the sample is read.
+                    let static_problems = serde_json::from_value::<jc_core::kinds::PipelineSpec>(
+                        pipeline["spec"].clone(),
+                    )
+                    .map(|spec| {
+                        crate::pipeline_validation::output_type_problems(
+                            &state.model_schemas,
+                            &state.mirror,
+                            project,
+                            &spec,
+                        )
+                    })
+                    .unwrap_or_default();
+                    let ok = static_problems.is_empty()
+                        && trace.errors.is_empty()
                         && !trace.validation.is_empty()
                         && trace.validation.iter().all(|v| v.ok);
-                    let mut findings = Vec::new();
+                    let mut findings: Vec<Finding> = static_problems
+                        .into_iter()
+                        .map(|problem| Finding {
+                            level: Level::Error,
+                            path: problem.path,
+                            message: problem.message,
+                        })
+                        .collect();
                     for err in &trace.errors {
                         findings.push(Finding {
                             level: Level::Error,

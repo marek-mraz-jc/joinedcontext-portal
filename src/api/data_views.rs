@@ -50,7 +50,7 @@ impl From<DataViewError> for ApiError {
 
 /// The caller's rights in a space they may read; `404` for a project or space they may not, as
 /// the other space routes answer (API/01 §27).
-fn readable_space(
+pub(crate) fn readable_space(
     state: &AppState,
     identity: &Identity,
     project: &str,
