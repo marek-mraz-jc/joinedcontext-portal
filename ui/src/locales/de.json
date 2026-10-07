@@ -1104,7 +1104,12 @@
           "lead": "Das Dokument so, wie ein Katalog-Harvester oder ein Datenraum-Connector es von diesem Endpunkt liest.",
           "failed": "Der Endpunkt hat nicht geantwortet. Er antwortet, sobald die Änderung, die ihn anlegt, genehmigt und angewendet ist."
         }
-      }
+      },
+      "firstCall": "Erster Aufruf",
+      "firstCallOpen": "Im Browser öffnen",
+      "firstCallCopy": "Befehl kopieren",
+      "firstCallPublic": "Jeder kann ihn aufrufen, kein Token nötig.",
+      "firstCallToken": "Im Browser genügt Ihre Portal-Sitzung. Ein Programm sendet ein Service-Account-Token als $TOKEN."
     },
     "condition": {
       "title": "Bedingung hinzufügen",

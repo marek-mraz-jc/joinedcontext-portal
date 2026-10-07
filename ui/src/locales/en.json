@@ -1104,7 +1104,12 @@
           "lead": "The document as a harvester or a data-space connector reads it from this endpoint.",
           "failed": "The endpoint did not answer. It answers once the change that created it is approved and applied."
         }
-      }
+      },
+      "firstCall": "First call",
+      "firstCallOpen": "Open in the browser",
+      "firstCallCopy": "Copy the command",
+      "firstCallPublic": "Anyone can call it; no token needed.",
+      "firstCallToken": "In the browser your Portal session is enough. A program sends a service account token as $TOKEN."
     },
     "condition": {
       "title": "Add a condition",

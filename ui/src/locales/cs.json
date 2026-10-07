@@ -1104,7 +1104,12 @@
           "lead": "Dokument tak, jak jej z tohoto rozhraní čte sběrač katalogu nebo konektor datového prostoru.",
           "failed": "Rozhraní neodpovědělo. Odpoví, až bude změna, která jej vytvořila, schválena a nasazena."
         }
-      }
+      },
+      "firstCall": "První volání",
+      "firstCallOpen": "Otevřít v prohlížeči",
+      "firstCallCopy": "Kopírovat příkaz",
+      "firstCallPublic": "Volat ho může kdokoli, token není potřeba.",
+      "firstCallToken": "V prohlížeči stačí vaše přihlášení do Portálu. Program posílá token servisního účtu jako $TOKEN."
     },
     "condition": {
       "title": "Přidat podmínku",

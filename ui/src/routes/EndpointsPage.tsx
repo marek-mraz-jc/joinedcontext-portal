@@ -278,7 +278,7 @@ function isLive(endpoint: Manifest | null): boolean {
   return (endpoint?.status?.phase ?? "").toLowerCase() === "live";
 }
 
-export function CopyUrlButton({ url }: { url: string }): JSX.Element {
+export function CopyUrlButton({ url, label }: { url: string; label?: string }): JSX.Element {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
@@ -294,7 +294,7 @@ export function CopyUrlButton({ url }: { url: string }): JSX.Element {
           .catch(() => setCopied(false));
       }}
     >
-      {copied ? t("endpoints.copied") : t("endpoints.copyUrl")}
+      {copied ? t("endpoints.copied") : (label ?? t("endpoints.copyUrl"))}
     </Button>
   );
 }
