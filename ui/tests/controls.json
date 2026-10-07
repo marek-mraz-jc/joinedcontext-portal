@@ -906,6 +906,14 @@
         "runner_input_schema.test.ts"
       ]
     },
+    "src/pages/datasources/TemplateGallery.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "datasource_templates.test.tsx"
+      ]
+    },
     "src/pages/endpoints/CatalogSection.tsx": {
       "controls": {
         "Button": 1
