@@ -1265,6 +1265,27 @@
     "hub": {
       "title": "Connect all",
       "lead": "One MCP connector over every endpoint you may read. Paste this URL into an AI app, pick the endpoints when you sign in, and each call runs under that endpoint's own policy."
+    },
+    "playground": {
+      "title": "Try it",
+      "reading": "Reading what you may call…",
+      "nothing": "Your access lets you call nothing through this endpoint.",
+      "operation": "What to read",
+      "operations": {
+        "list": "Entities of a type",
+        "count": "How many of a type",
+        "one": "One entity by its id",
+        "types": "The types it holds"
+      },
+      "type": "Entity type",
+      "q": "Filter (q)",
+      "qHint": "Optional, NGSI-LD query language, for example temperature>20;status==\"open\".",
+      "limit": "How many (1 to 100)",
+      "id": "Entity id (URN)",
+      "send": "Send",
+      "fill": "Fill in the fields the call needs first.",
+      "answered": "The endpoint answered {status}.",
+      "code": "The same call as code"
     }
   },
   "datasources": {
@@ -2981,7 +3002,56 @@
       "public": "everyone, without signing in",
       "roles": "the people holding one of its roles"
     },
-    "emptyTitle": "No applications yet"
+    "emptyTitle": "No applications yet",
+    "checklist": {
+      "heading": "Before it is published",
+      "reading": "Reading the project's endpoints…",
+      "blocked": "A privacy problem holds the publication: fix it first.",
+      "state": {
+        "ok": "Done",
+        "warning": "Missing",
+        "problem": "Privacy"
+      },
+      "title": {
+        "ok": "It has a title.",
+        "warning": "It has no title: people see its technical name."
+      },
+      "description": {
+        "ok": "It has a description.",
+        "warning": "It has no description of what it is for."
+      },
+      "licence": {
+        "ok": "Licence: {detail}.",
+        "warning": "It names no licence, and the installation has no default."
+      },
+      "visibility": {
+        "ok": "Who may open it: {detail}.",
+        "problem": "It is private: nobody could open it once published."
+      },
+      "checks": {
+        "ok": "The last check opened it and read its data, the build's tests include an accessibility run.",
+        "warning": "No passing check yet: the build's tests run an accessibility check, and the probe opens it after publishing. {detail}"
+      },
+      "contact": {
+        "ok": "Contact: {detail}.",
+        "warning": "It names nobody to contact, and the installation has no contact address."
+      },
+      "privacy": {
+        "ok": "No privacy problem: it reads only published data and writes nothing.",
+        "writes": "Anyone could write into the space {detail} through it.",
+        "unpublished": "It shows anyone data of the space {detail}, which no public endpoint publishes.",
+        "personal": "It shows anyone the attribute {detail}, a person's own data."
+      },
+      "fix": {
+        "title": "Add a title",
+        "description": "Add a description",
+        "licence": "Name a licence",
+        "visibility": "Choose who may open it",
+        "checks": "See its checks",
+        "contact": "Name a contact",
+        "privacy": "Change what it reads or who may open it"
+      }
+    }
   },
   "appLifecycle": {
     "draft": "Draft",

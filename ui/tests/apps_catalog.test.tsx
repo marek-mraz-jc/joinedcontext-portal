@@ -760,6 +760,26 @@ describe("apps catalog", () => {
     expect(within(card).queryByRole("button")).toBeNull();
   });
 
+  // T-3267, AP-140: publishing lists what the app lacks, each with where it is fixed, and a
+  // privacy problem holds it; a warning does not.
+  it("lists the gaps before publishing, links each, and holds a public app that would show unpublished data", async () => {
+    const user = userEvent.setup();
+    const fetchMock = renderCatalog([app({ description: undefined }, { visibility: "public" })]);
+    await choose(user, "Air quality map", en.apps.publishAction);
+    const dialog = await screen.findByRole("dialog");
+    const list = await within(dialog).findByRole("region", { name: en.apps.checklist.heading });
+    expect(list).toHaveTextContent(en.apps.checklist.description.warning);
+    expect(within(list).getByRole("link", { name: en.apps.checklist.fix.description })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/apps/mapa-ovzdusia/edit",
+    );
+    await waitFor(() => expect(list).toHaveTextContent("which no public endpoint publishes"));
+    const confirm = within(dialog).getByRole("button", { name: en.apps.publish.confirm });
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
+    await user.click(confirm);
+    expect(writes(fetchMock)).toHaveLength(0);
+  });
+
   it("publishes nothing when the check is red, and says what it found (PF-57, T-2264)", async () => {
     const user = userEvent.setup();
     const fetchMock = renderCatalog([app()], { body: CHANGE, status: 202 }, [], {

@@ -1265,6 +1265,27 @@
     "hub": {
       "title": "Pripojiť všetko",
       "lead": "Jeden MCP konektor pre všetky rozhrania, ktoré smiete čítať. Vložte túto URL do AI aplikácie, pri prihlásení vyberte rozhrania a každé volanie prebehne pod politikou daného rozhrania."
+    },
+    "playground": {
+      "title": "Vyskúšať",
+      "reading": "Zisťujem, čo smiete volať…",
+      "nothing": "Váš prístup vám cez tento endpoint nedovoľuje nič volať.",
+      "operation": "Čo čítať",
+      "operations": {
+        "list": "Entity typu",
+        "count": "Koľko je entít typu",
+        "one": "Jedna entita podľa id",
+        "types": "Typy, ktoré obsahuje"
+      },
+      "type": "Typ entity",
+      "q": "Filtrovací výraz (q)",
+      "qHint": "Nepovinné, dopytovací jazyk NGSI-LD, napríklad temperature>20;status==\"open\".",
+      "limit": "Koľko (1 až 100)",
+      "id": "Id entity (URN)",
+      "send": "Odoslať",
+      "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
+      "answered": "Endpoint odpovedal {status}.",
+      "code": "To isté volanie ako kód"
     }
   },
   "datasources": {
@@ -2981,7 +3002,56 @@
       "public": "všetci, aj bez prihlásenia",
       "roles": "ľudia s niektorou z jej rolí"
     },
-    "emptyTitle": "Zatiaľ žiadne aplikácie"
+    "emptyTitle": "Zatiaľ žiadne aplikácie",
+    "checklist": {
+      "heading": "Pred zverejnením",
+      "reading": "Čítam endpointy projektu…",
+      "blocked": "Problém so súkromím bráni zverejneniu: najprv ho opravte.",
+      "state": {
+        "ok": "Hotovo",
+        "warning": "Chýba",
+        "problem": "Súkromie"
+      },
+      "title": {
+        "ok": "Má názov.",
+        "warning": "Nemá názov: ľudia uvidia jej technický názov."
+      },
+      "description": {
+        "ok": "Má popis.",
+        "warning": "Nemá popis, na čo slúži."
+      },
+      "licence": {
+        "ok": "Licencia: {detail}.",
+        "warning": "Neuvádza licenciu a inštalácia nemá predvolenú."
+      },
+      "visibility": {
+        "ok": "Kto ju smie otvoriť: {detail}.",
+        "problem": "Je súkromná: po zverejnení by ju nikto nemohol otvoriť."
+      },
+      "checks": {
+        "ok": "Posledná kontrola ju otvorila a prečítala jej dáta, testy zostavenia obsahujú kontrolu prístupnosti.",
+        "warning": "Zatiaľ žiadna úspešná kontrola: testy zostavenia kontrolujú prístupnosť a sonda ju po zverejnení otvorí. {detail}"
+      },
+      "contact": {
+        "ok": "Kontakt: {detail}.",
+        "warning": "Neuvádza kontakt a inštalácia nemá kontaktnú adresu."
+      },
+      "privacy": {
+        "ok": "Žiadny problém so súkromím: číta len zverejnené dáta a nič nezapisuje.",
+        "writes": "Ktokoľvek by cez ňu mohol zapisovať do priestoru {detail}.",
+        "unpublished": "Ukazuje komukoľvek dáta priestoru {detail}, ktoré žiadny verejný endpoint nezverejňuje.",
+        "personal": "Ukazuje komukoľvek atribút {detail}, osobné údaje."
+      },
+      "fix": {
+        "title": "Pridať názov",
+        "description": "Pridať popis",
+        "licence": "Uviesť licenciu",
+        "visibility": "Zvoliť, kto ju smie otvoriť",
+        "checks": "Pozrieť kontroly",
+        "contact": "Uviesť kontakt",
+        "privacy": "Zmeniť, čo číta alebo kto ju smie otvoriť"
+      }
+    }
   },
   "appLifecycle": {
     "draft": "Návrh",
