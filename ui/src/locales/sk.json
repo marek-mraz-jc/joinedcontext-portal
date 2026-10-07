@@ -1295,7 +1295,8 @@
       "download": "Dokument OpenAPI (JSON)",
       "parameter": "Názov",
       "meaning": "Čo nastavuje",
-      "parametersOf": "Parametre {path}"
+      "parametersOf": "Parametre {path}",
+      "lead": "Na čo tento endpoint odpovedá, s príkladom volania ku každému čítaniu."
     }
   },
   "datasources": {

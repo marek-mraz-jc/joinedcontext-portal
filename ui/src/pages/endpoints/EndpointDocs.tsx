@@ -85,19 +85,21 @@ export function EndpointDocs({ slug, open, heading = true }: { slug: string; ope
       return (await answer.json()) as OpenApi;
     },
   });
-  if (doc.isPending) return <p className="text-caption text-fg-muted">{t("app.loading")}</p>;
-  if (doc.isError) {
+  if (doc.isPending || doc.isError) {
     return (
-      <p className="text-body text-fg-muted" role="status">
-        {t("endpoints.docs.unavailable")}
-      </p>
+      <div className="flex flex-col gap-2" data-testid="endpoint-docs">
+        {heading ? <h1 className="text-title font-semibold text-fg">{t("endpoints.docs.title")}</h1> : null}
+        <p className="text-body text-fg-muted" role="status">
+          {doc.isPending ? t("app.loading") : t("endpoints.docs.unavailable")}
+        </p>
+      </div>
     );
   }
   const info = doc.data.info ?? {};
   return (
     <div className="flex flex-col gap-4" data-testid="endpoint-docs">
       {heading ? <h1 className="text-title font-semibold text-fg">{info.title ?? slug}</h1> : null}
-      {info.description ? <p className="text-body text-fg-muted">{info.description}</p> : null}
+      <p className="text-body text-fg-muted">{info.description ?? t("endpoints.docs.lead")}</p>
       <a className="w-fit text-caption text-primary-soft-fg underline" href={endpointUrl(slug, "/openapi.json")}>
         {t("endpoints.docs.download")}
       </a>

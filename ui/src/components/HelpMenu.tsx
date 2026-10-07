@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { WHATS_NEW, isUnread, lastSeen, markSeen } from "../whatsNew";
-import { Badge, Button, Dialog, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "./ui";
+import { Badge, Button, Dialog, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, safeHref } from "./ui";
 
 /**
  * Help in the header (T-3271): what changed for the people who use the Portal, with a dot until
@@ -65,8 +65,8 @@ export function HelpMenu(): JSX.Element {
               </span>
               <h3 className="text-body font-semibold text-fg">{t(`whatsNew.entries.${entry.key}.title`)}</h3>
               <p className="text-body text-fg-muted">{t(`whatsNew.entries.${entry.key}.body`)}</p>
-              {entry.href ? (
-                <a href={entry.href} className="focus-ring w-fit rounded-sm text-body text-primary-soft-fg underline hover:no-underline">
+              {safeHref(entry.href) ? (
+                <a href={safeHref(entry.href)} className="focus-ring w-fit rounded-sm text-body text-primary-soft-fg underline hover:no-underline">
                   {t("whatsNew.open")}
                 </a>
               ) : null}
