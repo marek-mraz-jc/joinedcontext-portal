@@ -1265,6 +1265,37 @@
     "hub": {
       "title": "Connect all",
       "lead": "One MCP connector over every endpoint you may read. Paste this URL into an AI app, pick the endpoints when you sign in, and each call runs under that endpoint's own policy."
+    },
+    "playground": {
+      "title": "Try it",
+      "reading": "Reading what you may call…",
+      "nothing": "Your access lets you call nothing through this endpoint.",
+      "operation": "What to read",
+      "operations": {
+        "list": "Entities of a type",
+        "count": "How many of a type",
+        "one": "One entity by its id",
+        "types": "The types it holds"
+      },
+      "type": "Entity type",
+      "q": "Filter (q)",
+      "qHint": "Optional, NGSI-LD query language, for example temperature>20;status==\"open\".",
+      "limit": "How many (1 to 100)",
+      "id": "Entity id (URN)",
+      "send": "Send",
+      "fill": "Fill in the fields the call needs first.",
+      "answered": "The endpoint answered {status}.",
+      "code": "The same call as code"
+    },
+    "docs": {
+      "title": "API documentation",
+      "open": "Show the generated documentation",
+      "publicPage": "Public page for anyone: {url}",
+      "unavailable": "This endpoint's documentation cannot be read: it does not exist, or you may not read it.",
+      "download": "The OpenAPI document (JSON)",
+      "parameter": "Name",
+      "meaning": "What it sets",
+      "parametersOf": "Parameters of {path}"
     }
   },
   "datasources": {
@@ -1737,7 +1768,14 @@
         "failed": "Failed"
       },
       "newest": "Newest",
-      "older": "Older lines"
+      "older": "Older lines",
+      "took": "Took",
+      "delta": "Written vs the run before",
+      "seconds": "{count, plural, one {# second} other {# seconds}}",
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "same": "same",
+      "silentBadge": "Wrote nothing",
+      "silent": "The last run wrote nothing, while the run before wrote {before}. The source may have stopped answering, or the mapping may drop every record; open the run's log."
     },
     "workbench": {
       "failed": "The step could not run; try again.",
@@ -1810,6 +1848,23 @@
         "lands": "The records land in the space {space}, checked against the model {model}.",
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
         "save": "Name the pipeline below and propose it: nothing is written until the change is approved."
+      },
+      "changes": {
+        "title": "What would change in {space}",
+        "compare": "Compare with the space",
+        "hint": "Reads the entities with these ids as you may read them; nothing is written.",
+        "noIds": "The mapped records carry no id to compare by.",
+        "failed": "The space could not be read: {reason}",
+        "counts": "{create, plural, =0 {nothing to create} one {# to create} other {# to create}}, {update, plural, =0 {nothing to update} one {# to update} other {# to update}}, {unchanged, plural, =0 {none unchanged} one {# unchanged} other {# unchanged}}.",
+        "caption": "Each mapped record against the entity {space} holds now",
+        "entity": "Entity",
+        "outcome": "Would be",
+        "what": "What changes",
+        "outcomes": {
+          "create": "Created",
+          "update": "Updated",
+          "unchanged": "No change"
+        }
       }
     },
     "mapper": {
@@ -1891,6 +1946,74 @@
       "runMessage": "Run message {number} of {total}",
       "startOver": "Start over",
       "position": "Message {number} of {total}"
+    },
+    "schedule": {
+      "how": "How often",
+      "kind": {
+        "minutes": "Every few minutes",
+        "hours": "Every few hours",
+        "hourly": "Every hour",
+        "daily": "Every day",
+        "weekly": "Every week",
+        "custom": "Custom (cron)"
+      },
+      "every": {
+        "minutes": "Every",
+        "hours": "Every"
+      },
+      "step": {
+        "minutes": "{count} minutes",
+        "hours": "{count} hours"
+      },
+      "atMinute": "At minute",
+      "on": "On",
+      "atTime": "At (UTC)",
+      "cron": "Cron, five fields in UTC",
+      "invalid": "This is not five cron fields: minute, hour, day of month, month, day of week.",
+      "next": "Next five runs, in your time",
+      "never": "This schedule names no time that comes in the next four years.",
+      "tooOften": "This schedule runs more often than the source changes (its catalogue record says: {frequency}), so most runs will find nothing new."
+    },
+    "recipe": {
+      "title": "Start from a recipe",
+      "lead": "Pick what the pipeline does and give its source and where it writes; the steps below sample the source, draft the mapping and test it before anything is proposed.",
+      "use": "Fill the pipeline",
+      "choose": "Choose…",
+      "target": "Where it writes",
+      "targetHelp": "The endpoint the records go through; its space's model is what they are checked against.",
+      "none": {
+        "datasource": "The project has no data source yet: add one under Data sources, from a template.",
+        "endpoint": "The project has no endpoint to read from yet."
+      },
+      "csv": {
+        "title": "CSV file to entities",
+        "what": "A table published as a file, loaded every day at 03:00 UTC.",
+        "source": "The data source of the file"
+      },
+      "api": {
+        "title": "Poll an API",
+        "what": "A JSON API read every 15 minutes.",
+        "source": "The data source of the API"
+      },
+      "ckan": {
+        "title": "Harvest a CKAN dataset",
+        "what": "A resource of an open-data catalogue, loaded every day at 04:00 UTC.",
+        "source": "The data source of the CKAN resource"
+      },
+      "kpi": {
+        "title": "A KPI aggregation",
+        "what": "The average of one attribute across a type, every 15 minutes, as a KPI entity.",
+        "source": "The endpoint to read",
+        "type": "Entity type",
+        "attribute": "Attribute to average",
+        "attributeHelp": "A numeric attribute of the type, by its name in the model."
+      },
+      "problem": {
+        "source": "Choose the source.",
+        "target": "Choose where the pipeline writes.",
+        "type": "Name the entity type to aggregate.",
+        "attribute": "Name a numeric attribute: letters, digits and underscores."
+      }
     }
   },
   "dashboards": {
@@ -2984,7 +3107,66 @@
       "public": "everyone, without signing in",
       "roles": "the people holding one of its roles"
     },
-    "emptyTitle": "No applications yet"
+    "emptyTitle": "No applications yet",
+    "checklist": {
+      "heading": "Before it is published",
+      "reading": "Reading the project's endpoints…",
+      "blocked": "A privacy problem holds the publication: fix it first.",
+      "state": {
+        "ok": "Done",
+        "warning": "Missing",
+        "problem": "Privacy"
+      },
+      "title": {
+        "ok": "It has a title.",
+        "warning": "It has no title: people see its technical name."
+      },
+      "description": {
+        "ok": "It has a description.",
+        "warning": "It has no description of what it is for."
+      },
+      "licence": {
+        "ok": "Licence: {detail}.",
+        "warning": "It names no licence, and the installation has no default."
+      },
+      "visibility": {
+        "ok": "Who may open it: {detail}.",
+        "problem": "It is private: nobody could open it once published."
+      },
+      "checks": {
+        "ok": "The last check opened it and read its data, the build's tests include an accessibility run.",
+        "warning": "No passing check yet: the build's tests run an accessibility check, and the probe opens it after publishing. {detail}"
+      },
+      "contact": {
+        "ok": "Contact: {detail}.",
+        "warning": "It names nobody to contact, and the installation has no contact address."
+      },
+      "privacy": {
+        "ok": "No privacy problem: it reads only published data and writes nothing.",
+        "writes": "Anyone could write into the space {detail} through it.",
+        "unpublished": "It shows anyone data of the space {detail}, which no public endpoint publishes.",
+        "personal": "It shows anyone the attribute {detail}, a person's own data."
+      },
+      "fix": {
+        "title": "Add a title",
+        "description": "Add a description",
+        "licence": "Name a licence",
+        "visibility": "Choose who may open it",
+        "checks": "See its checks",
+        "contact": "Name a contact",
+        "privacy": "Change what it reads or who may open it"
+      }
+    },
+    "templates": {
+      "title": "Start from a template",
+      "lead": "Each template says what it is for and the data it needs. Pick one and choose which endpoint it reads: the app is built on your data and runs as a preview before you change anything.",
+      "for": "For:",
+      "needs": "Reads:",
+      "create": "Create from this",
+      "mayNot": "Your role may not propose an app in this project.",
+      "createTitle": "Create from {title}",
+      "createHint": "Choose the endpoint whose data the app shows; the rest is the template's."
+    }
   },
   "appLifecycle": {
     "draft": "Draft",

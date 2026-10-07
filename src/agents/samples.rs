@@ -31,6 +31,56 @@ struct Card {
     archetype: String,
     layout: String,
     keywords: Vec<String>,
+    #[serde(default)]
+    audience: String,
+    #[serde(default)]
+    access: String,
+    #[serde(default, rename = "dataNeeds")]
+    data_needs: Vec<serde_json::Value>,
+}
+
+/// One template as a person picks it (T-3263, AP-141): what it is for, for whom, and the data
+/// it needs; the source stays the model's.
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Template {
+    /// The name a prompt names it by: `(template: {name})`.
+    pub name: String,
+    pub title: String,
+    pub purpose: String,
+    pub audience: String,
+    /// Who may read and write what it shows, in the sample's words.
+    pub access: String,
+    /// The types, attributes and operations it reads, as the sample declares them.
+    #[schema(value_type = Vec<Object>)]
+    pub data_needs: Vec<serde_json::Value>,
+}
+
+/// Every template of the gallery, by name.
+pub fn templates() -> Vec<Template> {
+    let mut all: Vec<Template> = cards()
+        .into_iter()
+        .map(|card| Template {
+            name: card.name,
+            title: card.title,
+            purpose: card.purpose,
+            audience: card.audience,
+            access: card.access,
+            data_needs: card.data_needs,
+        })
+        .collect();
+    all.sort_by(|a, b| a.name.cmp(&b.name));
+    all
+}
+
+/// The template a request names outright, `(template: kpi-dashboard)`, which a gallery's
+/// "create from this" writes; it wins over every keyword (T-3263).
+fn named_card(lower: &str) -> Option<Card> {
+    let rest = lower.split("template:").nth(1)?;
+    let name = rest
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+        .find(|word| !word.is_empty())?;
+    cards().into_iter().find(|card| card.name == name)
 }
 
 /// One sample as the pack shows it.
@@ -67,6 +117,9 @@ fn score(card: &Card, words: &BTreeSet<String>, spaced: &str) -> usize {
 /// The card whose keywords the request names most, the first by name on a tie.
 fn closest_card(request: &str) -> Option<Card> {
     let lower = request.to_lowercase();
+    if let Some(card) = named_card(&lower) {
+        return Some(card);
+    }
     let tokens: Vec<&str> = lower
         .split(|c: char| !c.is_alphanumeric())
         .filter(|word| !word.is_empty())
@@ -228,6 +281,41 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    #[test]
+    fn a_request_naming_a_template_gets_it_whatever_its_words() {
+        // The words read like a map; the template named outright wins (T-3263).
+        let request = "Show the stations on a map for residents (template: kpi-dashboard)";
+        assert_eq!(name(request).as_deref(), Some("kpi-dashboard"));
+        assert_eq!(design(request).archetype, "kpi-dashboard");
+        // An unknown name falls back to the words.
+        assert_ne!(
+            name("A map of stations for residents (template: no-such)").as_deref(),
+            Some("no-such")
+        );
+    }
+
+    #[test]
+    fn every_template_is_listed_with_its_purpose_and_the_data_it_needs() {
+        let all = templates();
+        assert!(all.len() >= 7);
+        for template in &all {
+            assert!(
+                !template.title.is_empty() && !template.purpose.is_empty(),
+                "{}",
+                template.name
+            );
+            assert!(
+                !template.data_needs.is_empty(),
+                "{} names no data",
+                template.name
+            );
+        }
+        let names: Vec<&str> = all.iter().map(|t| t.name.as_str()).collect();
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        assert_eq!(names, sorted);
     }
 
     #[test]

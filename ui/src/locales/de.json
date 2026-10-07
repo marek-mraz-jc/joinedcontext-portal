@@ -1265,6 +1265,37 @@
     "hub": {
       "title": "Alle verbinden",
       "lead": "Ein MCP-Connector für alle Endpunkte, die Sie lesen dürfen. Fügen Sie diese URL in eine KI-App ein, wählen Sie bei der Anmeldung die Endpunkte, und jeder Aufruf läuft unter der Richtlinie des jeweiligen Endpunkts."
+    },
+    "playground": {
+      "title": "Ausprobieren",
+      "reading": "Lese, was Sie aufrufen dürfen…",
+      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf.",
+      "operation": "Was lesen",
+      "operations": {
+        "list": "Entitäten eines Typs",
+        "count": "Wie viele eines Typs",
+        "one": "Eine Entität nach ID",
+        "types": "Die enthaltenen Typen"
+      },
+      "type": "Entitätstyp",
+      "q": "Filterausdruck (q)",
+      "qHint": "Optional, NGSI-LD-Abfragesprache, zum Beispiel temperature>20;status==\"open\".",
+      "limit": "Wie viele (1 bis 100)",
+      "id": "Entitäts-ID (URN)",
+      "send": "Senden",
+      "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
+      "answered": "Der Endpunkt antwortete {status}.",
+      "code": "Derselbe Aufruf als Code"
+    },
+    "docs": {
+      "title": "API-Dokumentation",
+      "open": "Erzeugte Dokumentation anzeigen",
+      "publicPage": "Öffentliche Seite für alle: {url}",
+      "unavailable": "Die Dokumentation dieses Endpunkts lässt sich nicht lesen: es gibt ihn nicht, oder Sie dürfen ihn nicht lesen.",
+      "download": "Das OpenAPI-Dokument (JSON)",
+      "parameter": "Name",
+      "meaning": "Was er festlegt",
+      "parametersOf": "Parameter von {path}"
     }
   },
   "datasources": {
@@ -1737,7 +1768,14 @@
         "failed": "Gescheitert"
       },
       "newest": "Neueste",
-      "older": "Ältere Zeilen"
+      "older": "Ältere Zeilen",
+      "took": "Dauer",
+      "delta": "Geschrieben gegenüber dem Lauf davor",
+      "seconds": "{count, plural, one {# Sekunde} other {# Sekunden}}",
+      "minutes": "{count, plural, one {# Minute} other {# Minuten}}",
+      "same": "gleich",
+      "silentBadge": "Nichts geschrieben",
+      "silent": "Der letzte Lauf hat nichts geschrieben, der Lauf davor {before}. Die Quelle antwortet vielleicht nicht mehr oder das Mapping verwirft jeden Datensatz; öffnen Sie das Log des Laufs."
     },
     "workbench": {
       "failed": "Der Schritt konnte nicht laufen; versuchen Sie es erneut.",
@@ -1810,6 +1848,23 @@
         "lands": "Die Datensätze landen im Raum {space}, geprüft gegen das Modell {model}.",
         "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
         "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist."
+      },
+      "changes": {
+        "title": "Was sich in {space} ändern würde",
+        "compare": "Mit dem Raum vergleichen",
+        "hint": "Liest die Entitäten mit diesen IDs, wie Sie sie lesen dürfen; nichts wird geschrieben.",
+        "noIds": "Die gemappten Datensätze haben keine ID zum Vergleichen.",
+        "failed": "Der Raum konnte nicht gelesen werden: {reason}",
+        "counts": "{create, plural, =0 {nichts anzulegen} other {# anzulegen}}, {update, plural, =0 {nichts zu ändern} other {# zu ändern}}, {unchanged, plural, =0 {keine unverändert} other {# unverändert}}.",
+        "caption": "Jeder gemappte Datensatz gegen die Entität, die {space} jetzt hält",
+        "entity": "Entität",
+        "outcome": "Würde",
+        "what": "Was sich ändert",
+        "outcomes": {
+          "create": "Angelegt",
+          "update": "Geändert",
+          "unchanged": "Unverändert"
+        }
       }
     },
     "mapper": {
@@ -1891,6 +1946,74 @@
       "runMessage": "Nachricht {number} von {total} ausführen",
       "startOver": "Von vorn",
       "position": "Nachricht {number} von {total}"
+    },
+    "schedule": {
+      "how": "Wie oft",
+      "kind": {
+        "minutes": "Alle paar Minuten",
+        "hours": "Alle paar Stunden",
+        "hourly": "Jede Stunde",
+        "daily": "Jeden Tag",
+        "weekly": "Jede Woche",
+        "custom": "Eigener (Cron)"
+      },
+      "every": {
+        "minutes": "Alle",
+        "hours": "Alle"
+      },
+      "step": {
+        "minutes": "{count} Minuten",
+        "hours": "{count} Stunden"
+      },
+      "atMinute": "In Minute",
+      "on": "Am",
+      "atTime": "Um (UTC)",
+      "cron": "Cron, fünf Felder in UTC",
+      "invalid": "Das sind keine fünf Cron-Felder: Minute, Stunde, Tag im Monat, Monat, Wochentag.",
+      "next": "Die nächsten fünf Läufe, in Ihrer Zeit",
+      "never": "Dieser Zeitplan nennt keine Zeit in den nächsten vier Jahren.",
+      "tooOften": "Dieser Zeitplan läuft öfter, als sich die Quelle ändert (ihr Katalogeintrag sagt: {frequency}), die meisten Läufe finden also nichts Neues."
+    },
+    "recipe": {
+      "title": "Mit einem Rezept beginnen",
+      "lead": "Wählen Sie, was die Pipeline tut, und geben Sie Quelle und Ziel an; die Schritte unten lesen eine Probe, entwerfen das Mapping und testen es, bevor etwas vorgeschlagen wird.",
+      "use": "Pipeline ausfüllen",
+      "choose": "Auswählen…",
+      "target": "Wohin sie schreibt",
+      "targetHelp": "Der Endpoint, über den die Datensätze gehen; geprüft wird gegen das Modell seines Raums.",
+      "none": {
+        "datasource": "Das Projekt hat noch keine Datenquelle: Legen Sie unter Datenquellen eine aus einer Vorlage an.",
+        "endpoint": "Das Projekt hat noch keinen Endpoint zum Lesen."
+      },
+      "csv": {
+        "title": "CSV-Datei zu Entitäten",
+        "what": "Eine als Datei veröffentlichte Tabelle, täglich um 03:00 UTC geladen.",
+        "source": "Die Datenquelle der Datei"
+      },
+      "api": {
+        "title": "Eine API abfragen",
+        "what": "Eine JSON-API, alle 15 Minuten gelesen.",
+        "source": "Die Datenquelle der API"
+      },
+      "ckan": {
+        "title": "Einen CKAN-Datensatz einsammeln",
+        "what": "Eine Ressource eines Open-Data-Katalogs, täglich um 04:00 UTC geladen.",
+        "source": "Die Datenquelle der CKAN-Ressource"
+      },
+      "kpi": {
+        "title": "Eine KPI-Aggregation",
+        "what": "Der Durchschnitt eines Attributs über einen Typ, alle 15 Minuten, als KPI-Entität.",
+        "source": "Der zu lesende Endpoint",
+        "type": "Entitätstyp",
+        "attribute": "Zu mittelndes Attribut",
+        "attributeHelp": "Ein numerisches Attribut des Typs, mit seinem Namen im Modell."
+      },
+      "problem": {
+        "source": "Wählen Sie die Quelle.",
+        "target": "Wählen Sie, wohin die Pipeline schreibt.",
+        "type": "Nennen Sie den zu aggregierenden Entitätstyp.",
+        "attribute": "Nennen Sie ein numerisches Attribut: Buchstaben, Ziffern und Unterstriche."
+      }
     }
   },
   "dashboards": {
@@ -2984,7 +3107,66 @@
       "public": "alle, auch ohne Anmeldung",
       "roles": "Personen mit einer ihrer Rollen"
     },
-    "emptyTitle": "Noch keine Anwendungen"
+    "emptyTitle": "Noch keine Anwendungen",
+    "checklist": {
+      "heading": "Vor der Veröffentlichung",
+      "reading": "Lese die Endpunkte des Projekts…",
+      "blocked": "Ein Datenschutzproblem hält die Veröffentlichung auf: beheben Sie es zuerst.",
+      "state": {
+        "ok": "Erledigt",
+        "warning": "Fehlt",
+        "problem": "Datenschutz"
+      },
+      "title": {
+        "ok": "Sie hat einen Titel.",
+        "warning": "Sie hat keinen Titel: man sieht ihren technischen Namen."
+      },
+      "description": {
+        "ok": "Sie hat eine Beschreibung.",
+        "warning": "Ihr fehlt eine Beschreibung, wofür sie dient."
+      },
+      "licence": {
+        "ok": "Lizenz: {detail}.",
+        "warning": "Sie nennt keine Lizenz, und die Installation hat keine Vorgabe."
+      },
+      "visibility": {
+        "ok": "Wer sie öffnen darf: {detail}.",
+        "problem": "Sie ist privat: veröffentlicht könnte sie niemand öffnen."
+      },
+      "checks": {
+        "ok": "Die letzte Prüfung hat sie geöffnet und ihre Daten gelesen, die Tests des Builds enthalten eine Barrierefreiheitsprüfung.",
+        "warning": "Noch keine bestandene Prüfung: die Tests des Builds prüfen die Barrierefreiheit, und die Sonde öffnet sie nach der Veröffentlichung. {detail}"
+      },
+      "contact": {
+        "ok": "Kontakt: {detail}.",
+        "warning": "Sie nennt keinen Kontakt, und die Installation hat keine Kontaktadresse."
+      },
+      "privacy": {
+        "ok": "Kein Datenschutzproblem: sie liest nur veröffentlichte Daten und schreibt nichts.",
+        "writes": "Jeder könnte über sie in den Raum {detail} schreiben.",
+        "unpublished": "Sie zeigt jedem Daten des Raums {detail}, die kein öffentlicher Endpunkt veröffentlicht.",
+        "personal": "Sie zeigt jedem das Attribut {detail}, persönliche Daten."
+      },
+      "fix": {
+        "title": "Titel ergänzen",
+        "description": "Beschreibung ergänzen",
+        "licence": "Lizenz angeben",
+        "visibility": "Festlegen, wer sie öffnen darf",
+        "checks": "Prüfungen ansehen",
+        "contact": "Kontakt angeben",
+        "privacy": "Ändern, was sie liest oder wer sie öffnen darf"
+      }
+    },
+    "templates": {
+      "title": "Mit einer Vorlage beginnen",
+      "lead": "Jede Vorlage sagt, wofür sie dient und welche Daten sie braucht. Wählen Sie eine und den Endpunkt, den sie liest: die App wird auf Ihren Daten gebaut und läuft als Vorschau, bevor Sie etwas ändern.",
+      "for": "Für:",
+      "needs": "Liest:",
+      "create": "Daraus erstellen",
+      "mayNot": "Ihre Rolle darf in diesem Projekt keine App vorschlagen.",
+      "createTitle": "Aus {title} erstellen",
+      "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage."
+    }
   },
   "appLifecycle": {
     "draft": "Entwurf",

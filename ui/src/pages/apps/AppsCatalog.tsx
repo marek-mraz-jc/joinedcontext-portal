@@ -19,6 +19,9 @@ import type { AppForm } from "./appForm";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { AppCheckChip, useAppChecks } from "./AppCheckChip";
+import type { AppCheck } from "./AppCheckChip";
+import { mayPublish, publishChecklist } from "./publishChecklist";
+import { useBranding } from "../../branding";
 import { Icon } from "../../components/ui/icons";
 import { requestOpen } from "../../assistant/state";
 import { AppBuildState, runState, useAppBuild, useRebuild } from "./AppBuildPanel";
@@ -26,9 +29,10 @@ import type { components } from "../../api/schema";
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
-import { Alert, Button, buttonClass, EmptyState, PageHeader, recordCard, safeHref } from "../../components/ui";
+import { Alert, Badge, Button, buttonClass, EmptyState, PageHeader, recordCard, safeHref } from "../../components/ui";
 import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
 import { RenameShapesNotice } from "./RenameShapesNotice";
+import { AppTemplates } from "./AppTemplates";
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 type AppBuild = components["schemas"]["AppBuild"];
@@ -371,6 +375,8 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
         </PermissionGuard>
       </div>
 
+      {/* Start from a template: only the endpoint to read is asked (T-3263). */}
+      <AppTemplates project={project} mayBuild={mayBuild} />
       {change && <ChangeNotice change={change} project={project} />}
       <RenameShapesNotice project={project} apps={apps} proposed={change !== null} onProposed={setChange} />
       {waiting > 0 ? (
@@ -504,6 +510,8 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
 
       {confirming && (
         <LifecycleDialog
+          project={project}
+          check={appChecks.get(confirming.app.metadata.name)}
           app={confirming.app}
           lifecycle={confirming.lifecycle}
           pending={publish.isPending}
@@ -578,12 +586,16 @@ function AppIcon(): JSX.Element {
  * reachable by the audience its `visibility` names; retiring takes it away from that audience.
  */
 function LifecycleDialog({
+  project,
+  check,
   app,
   lifecycle,
   pending,
   onCancel,
   onConfirm,
 }: {
+  project: string;
+  check: AppCheck | undefined;
   app: Manifest;
   lifecycle: Lifecycle;
   pending: boolean;
@@ -594,6 +606,24 @@ function LifecycleDialog({
   const spec = appSpec(app);
   const title = localized(app.metadata.title, i18n.language, app.metadata.name);
   const copy = lifecycle === "published" ? "publish" : "retire";
+  const branding = useBranding();
+  const endpoints = useQuery({
+    queryKey: queryKeys.list(project, "endpoints"),
+    enabled: lifecycle === "published",
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project, plural: "endpoints" } } })),
+  });
+  // What the app lacks before it is published (AP-140): warnings may stay, a privacy problem not.
+  const items =
+    lifecycle === "published"
+      ? publishChecklist(app, {
+          licenceDefault: branding.licenseDefault,
+          contactEmail: branding.contactEmail,
+          check,
+          endpoints: asManifests(endpoints.data?.items ?? []),
+        })
+      : [];
+  const blocked = !mayPublish(items);
 
   return (
     <div
@@ -607,10 +637,40 @@ function LifecycleDialog({
         {t(`apps.${copy}.body`, { visibility: visibilityLabel(spec.visibility ?? "project", t) })}
       </p>
       <p className="mt-1 text-sm text-fg-muted">{t(`apps.${copy}.hint`)}</p>
+      {items.length > 0 ? (
+        <section aria-labelledby="publish-checklist" className="mt-3">
+          <h3 id="publish-checklist" className="text-body font-semibold">
+            {t("apps.checklist.heading")}
+          </h3>
+          {endpoints.isPending ? <p className="text-caption text-fg-muted">{t("apps.checklist.reading")}</p> : null}
+          <ul className="mt-1 flex flex-col gap-1">
+            {items.map((item, index) => (
+              <li key={`${item.key}-${index}`} className="flex flex-wrap items-baseline gap-2 text-sm">
+                <Badge tone={item.state === "ok" ? "success" : item.state === "warning" ? "warning" : "danger"}>
+                  {t(`apps.checklist.state.${item.state}`)}
+                </Badge>
+                <span>
+                  {t(`apps.checklist.${item.key}.${item.reason ?? item.state}`, { detail: item.detail ?? "" })}
+                </span>
+                {item.state !== "ok" ? (
+                  <Link
+                    to={item.key === "checks" ? "/projects/$project/$plural/$name" : "/projects/$project/$plural/$name/edit"}
+                    params={{ project, plural: "apps", name: app.metadata.name }}
+                    className={RECORD_LINK_STYLE}
+                  >
+                    {t(`apps.checklist.fix.${item.key}`)}
+                  </Link>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <div className="mt-3 flex gap-2">
         <Button
           variant={lifecycle === "retired" ? "danger" : "primary"}
-          disabled={pending}
+          disabled={pending || blocked || (lifecycle === "published" && endpoints.isPending)}
+          disabledReason={blocked ? t("apps.checklist.blocked") : undefined}
           onClick={onConfirm}
         >
           {t(`apps.${copy}.confirm`)}

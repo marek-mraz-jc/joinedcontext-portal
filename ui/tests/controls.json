@@ -686,6 +686,7 @@
       "tests": [
         "app_build_card.test.tsx",
         "app_generator.test.tsx",
+        "app_templates.test.tsx",
         "form_app_generator.test.tsx",
         "generator_types.test.ts"
       ]
@@ -706,6 +707,14 @@
       "tests": [
         "app_route.test.tsx",
         "page_app_page.test.tsx"
+      ]
+    },
+    "src/pages/apps/AppTemplates.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "app_templates.test.tsx"
       ]
     },
     "src/pages/apps/AppsCatalog.tsx": {
@@ -957,6 +966,14 @@
         "part_model_picker.test.tsx"
       ]
     },
+    "src/pages/endpoints/Playground.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "endpoint_playground.test.tsx"
+      ]
+    },
     "src/pages/endpoints/SchemaProjectionPanel.tsx": {
       "controls": {
         "Button": 4,
@@ -965,22 +982,6 @@
       "tests": [
         "endpoint_projection_ui.test.tsx",
         "form_schema_projection.test.tsx"
-      ]
-    },
-    "src/pages/explore/UseThisData.tsx": {
-      "controls": {
-        "Button": 1
-      },
-      "tests": [
-        "explore_use_data.test.tsx"
-      ]
-    },
-    "src/pages/explore/ExportView.tsx": {
-      "controls": {
-        "Button": 2
-      },
-      "tests": [
-        "explore_export_view.test.tsx"
       ]
     },
     "src/pages/explore/ExplorePage.tsx": {
@@ -994,6 +995,22 @@
         "explore_quality.test.tsx",
         "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
+      ]
+    },
+    "src/pages/explore/ExportView.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "explore_export_view.test.tsx"
+      ]
+    },
+    "src/pages/explore/UseThisData.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "explore_use_data.test.tsx"
       ]
     },
     "src/pages/flows/Gallery.tsx": {
@@ -1338,12 +1355,28 @@
         "pipeline_workbench.test.tsx"
       ]
     },
+    "src/pages/pipelines/RecipeGallery.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "pipeline_recipes.test.tsx"
+      ]
+    },
     "src/pages/pipelines/SlotUnit.tsx": {
       "controls": {
         "Button": 1
       },
       "tests": [
         "slot_unit.test.tsx"
+      ]
+    },
+    "src/pages/pipelines/SpaceChanges.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "space_changes.test.tsx"
       ]
     },
     "src/pages/spaces/AiField.tsx": {

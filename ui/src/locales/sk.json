@@ -1265,6 +1265,37 @@
     "hub": {
       "title": "Pripojiť všetko",
       "lead": "Jeden MCP konektor pre všetky rozhrania, ktoré smiete čítať. Vložte túto URL do AI aplikácie, pri prihlásení vyberte rozhrania a každé volanie prebehne pod politikou daného rozhrania."
+    },
+    "playground": {
+      "title": "Vyskúšať",
+      "reading": "Zisťujem, čo smiete volať…",
+      "nothing": "Váš prístup vám cez tento endpoint nedovoľuje nič volať.",
+      "operation": "Čo čítať",
+      "operations": {
+        "list": "Entity typu",
+        "count": "Koľko je entít typu",
+        "one": "Jedna entita podľa id",
+        "types": "Typy, ktoré obsahuje"
+      },
+      "type": "Typ entity",
+      "q": "Filtrovací výraz (q)",
+      "qHint": "Nepovinné, dopytovací jazyk NGSI-LD, napríklad temperature>20;status==\"open\".",
+      "limit": "Koľko (1 až 100)",
+      "id": "Id entity (URN)",
+      "send": "Odoslať",
+      "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
+      "answered": "Endpoint odpovedal {status}.",
+      "code": "To isté volanie ako kód"
+    },
+    "docs": {
+      "title": "Dokumentácia API",
+      "open": "Zobraziť vygenerovanú dokumentáciu",
+      "publicPage": "Verejná stránka pre každého: {url}",
+      "unavailable": "Dokumentáciu tohto endpointu nemožno prečítať: neexistuje, alebo ju nesmiete čítať.",
+      "download": "Dokument OpenAPI (JSON)",
+      "parameter": "Názov",
+      "meaning": "Čo nastavuje",
+      "parametersOf": "Parametre {path}"
     }
   },
   "datasources": {
@@ -1737,7 +1768,14 @@
         "failed": "Zlyhal"
       },
       "newest": "Najnovšie",
-      "older": "Staršie riadky"
+      "older": "Staršie riadky",
+      "took": "Trvanie",
+      "delta": "Zapísané oproti predošlému behu",
+      "seconds": "{count, plural, one {# sekunda} few {# sekundy} other {# sekúnd}}",
+      "minutes": "{count, plural, one {# minúta} few {# minúty} other {# minút}}",
+      "same": "rovnako",
+      "silentBadge": "Nezapísal nič",
+      "silent": "Posledný beh nezapísal nič, kým predošlý zapísal {before}. Zdroj možno prestal odpovedať alebo mapovanie zahodí každý záznam; otvorte log behu."
     },
     "workbench": {
       "failed": "Krok sa nepodarilo spustiť; skúste znova.",
@@ -1810,6 +1848,23 @@
         "lands": "Záznamy pristanú v priestore {space}, kontrolované voči modelu {model}.",
         "landsUnmodelled": "Záznamy pristanú v priestore {space}, ktorý zatiaľ nemenuje dátový model.",
         "save": "Pomenujte pipeline nižšie a navrhnite ju: nič sa nezapíše, kým zmenu neschvália."
+      },
+      "changes": {
+        "title": "Čo by sa zmenilo v {space}",
+        "compare": "Porovnať s priestorom",
+        "hint": "Prečíta entity s týmito id tak, ako ich smiete čítať vy; nič sa nezapíše.",
+        "noIds": "Namapované záznamy nemajú id, podľa ktorého porovnať.",
+        "failed": "Priestor sa nepodarilo prečítať: {reason}",
+        "counts": "{create, plural, =0 {nič na vytvorenie} other {na vytvorenie: #}}, {update, plural, =0 {nič na zmenu} other {na zmenu: #}}, {unchanged, plural, =0 {žiadne bez zmeny} other {bez zmeny: #}}.",
+        "caption": "Každý namapovaný záznam oproti entite, ktorú {space} drží teraz",
+        "entity": "Entita",
+        "outcome": "Bude",
+        "what": "Čo sa zmení",
+        "outcomes": {
+          "create": "Vytvorená",
+          "update": "Zmenená",
+          "unchanged": "Bez zmeny"
+        }
       }
     },
     "mapper": {
@@ -1891,6 +1946,74 @@
       "runMessage": "Spustiť správu {number} z {total}",
       "startOver": "Od začiatku",
       "position": "Správa {number} z {total}"
+    },
+    "schedule": {
+      "how": "Ako často",
+      "kind": {
+        "minutes": "Každých pár minút",
+        "hours": "Každých pár hodín",
+        "hourly": "Každú hodinu",
+        "daily": "Každý deň",
+        "weekly": "Každý týždeň",
+        "custom": "Vlastný (cron)"
+      },
+      "every": {
+        "minutes": "Každých",
+        "hours": "Každých"
+      },
+      "step": {
+        "minutes": "{count} minút",
+        "hours": "{count, plural, few {# hodiny} other {# hodín}}"
+      },
+      "atMinute": "V minúte",
+      "on": "V deň",
+      "atTime": "O (UTC)",
+      "cron": "Cron, päť polí v UTC",
+      "invalid": "Toto nie je päť polí cron: minúta, hodina, deň v mesiaci, mesiac, deň v týždni.",
+      "next": "Ďalších päť behov vo vašom čase",
+      "never": "Tento rozvrh nemenuje žiadny čas v nasledujúcich štyroch rokoch.",
+      "tooOften": "Tento rozvrh beží častejšie, než sa zdroj mení (záznam v katalógu hovorí: {frequency}), takže väčšina behov nenájde nič nové."
+    },
+    "recipe": {
+      "title": "Začať z receptu",
+      "lead": "Vyberte, čo pipeline robí, a zadajte jej zdroj a kam zapisuje; kroky nižšie zdroj ochutnajú, navrhnú mapovanie a otestujú ho skôr, než čokoľvek navrhnete.",
+      "use": "Vyplniť pipeline",
+      "choose": "Vyberte…",
+      "target": "Kam zapisuje",
+      "targetHelp": "Endpoint, cez ktorý idú záznamy; kontrolujú sa voči modelu jeho priestoru.",
+      "none": {
+        "datasource": "Projekt ešte nemá zdroj dát: pridajte ho v Zdrojoch dát zo šablóny.",
+        "endpoint": "Projekt ešte nemá endpoint, z ktorého čítať."
+      },
+      "csv": {
+        "title": "Súbor CSV na entity",
+        "what": "Tabuľka zverejnená ako súbor, načítaná každý deň o 03:00 UTC.",
+        "source": "Zdroj dát so súborom"
+      },
+      "api": {
+        "title": "Pravidelne čítať API",
+        "what": "API v JSON čítané každých 15 minút.",
+        "source": "Zdroj dát s API"
+      },
+      "ckan": {
+        "title": "Zbierať dataset z CKAN",
+        "what": "Zdroj z katalógu otvorených dát, načítaný každý deň o 04:00 UTC.",
+        "source": "Zdroj dát so zdrojom CKAN"
+      },
+      "kpi": {
+        "title": "Agregácia KPI",
+        "what": "Priemer jedného atribútu naprieč typom každých 15 minút ako entita KPI.",
+        "source": "Endpoint na čítanie",
+        "type": "Typ entity",
+        "attribute": "Atribút na priemer",
+        "attributeHelp": "Číselný atribút typu, podľa jeho názvu v modeli."
+      },
+      "problem": {
+        "source": "Vyberte zdroj.",
+        "target": "Vyberte, kam pipeline zapisuje.",
+        "type": "Zadajte typ entity na agregáciu.",
+        "attribute": "Zadajte číselný atribút: písmená, číslice a podčiarkovníky."
+      }
     }
   },
   "dashboards": {
@@ -2984,7 +3107,66 @@
       "public": "všetci, aj bez prihlásenia",
       "roles": "ľudia s niektorou z jej rolí"
     },
-    "emptyTitle": "Zatiaľ žiadne aplikácie"
+    "emptyTitle": "Zatiaľ žiadne aplikácie",
+    "checklist": {
+      "heading": "Pred zverejnením",
+      "reading": "Čítam endpointy projektu…",
+      "blocked": "Problém so súkromím bráni zverejneniu: najprv ho opravte.",
+      "state": {
+        "ok": "Hotovo",
+        "warning": "Chýba",
+        "problem": "Súkromie"
+      },
+      "title": {
+        "ok": "Má názov.",
+        "warning": "Nemá názov: ľudia uvidia jej technický názov."
+      },
+      "description": {
+        "ok": "Má popis.",
+        "warning": "Nemá popis, na čo slúži."
+      },
+      "licence": {
+        "ok": "Licencia: {detail}.",
+        "warning": "Neuvádza licenciu a inštalácia nemá predvolenú."
+      },
+      "visibility": {
+        "ok": "Kto ju smie otvoriť: {detail}.",
+        "problem": "Je súkromná: po zverejnení by ju nikto nemohol otvoriť."
+      },
+      "checks": {
+        "ok": "Posledná kontrola ju otvorila a prečítala jej dáta, testy zostavenia obsahujú kontrolu prístupnosti.",
+        "warning": "Zatiaľ žiadna úspešná kontrola: testy zostavenia kontrolujú prístupnosť a sonda ju po zverejnení otvorí. {detail}"
+      },
+      "contact": {
+        "ok": "Kontakt: {detail}.",
+        "warning": "Neuvádza kontakt a inštalácia nemá kontaktnú adresu."
+      },
+      "privacy": {
+        "ok": "Žiadny problém so súkromím: číta len zverejnené dáta a nič nezapisuje.",
+        "writes": "Ktokoľvek by cez ňu mohol zapisovať do priestoru {detail}.",
+        "unpublished": "Ukazuje komukoľvek dáta priestoru {detail}, ktoré žiadny verejný endpoint nezverejňuje.",
+        "personal": "Ukazuje komukoľvek atribút {detail}, osobné údaje."
+      },
+      "fix": {
+        "title": "Pridať názov",
+        "description": "Pridať popis",
+        "licence": "Uviesť licenciu",
+        "visibility": "Zvoliť, kto ju smie otvoriť",
+        "checks": "Pozrieť kontroly",
+        "contact": "Uviesť kontakt",
+        "privacy": "Zmeniť, čo číta alebo kto ju smie otvoriť"
+      }
+    },
+    "templates": {
+      "title": "Začať zo šablóny",
+      "lead": "Každá šablóna hovorí, na čo slúži a aké dáta potrebuje. Vyberte jednu a zvoľte endpoint, ktorý číta: aplikácia sa zostaví nad vašimi dátami a beží ako náhľad skôr, než čokoľvek zmeníte.",
+      "for": "Pre:",
+      "needs": "Číta:",
+      "create": "Vytvoriť z tejto",
+      "mayNot": "Vaša rola v tomto projekte nesmie navrhnúť aplikáciu.",
+      "createTitle": "Vytvoriť zo šablóny {title}",
+      "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny."
+    }
   },
   "appLifecycle": {
     "draft": "Návrh",

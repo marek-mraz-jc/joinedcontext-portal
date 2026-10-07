@@ -109,6 +109,38 @@
         }
       }
     },
+    "/api/v1/app-templates": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "List App Templates",
+        "description": "The App templates of this Portal, each with what it is for, for whom and the data it needs. Starting a run whose prompt names `(template: {name})` builds from that template.",
+        "operationId": "list_templates",
+        "responses": {
+          "200": {
+            "description": "Every template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppTemplates"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/backchannel-logout": {
       "post": {
         "tags": [
@@ -13435,6 +13467,21 @@
           }
         }
       },
+      "AppTemplates": {
+        "type": "object",
+        "required": [
+          "templates"
+        ],
+        "properties": {
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Template"
+            },
+            "description": "Every template, by name."
+          }
+        }
+      },
       "ApproveBody": {
         "type": "object",
         "description": "Request body for approving or rejecting a change proposal.",
@@ -19975,6 +20022,44 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "Template": {
+        "type": "object",
+        "description": "One template as a person picks it (T-3263, AP-141): what it is for, for whom, and the data\nit needs; the source stays the model's.",
+        "required": [
+          "name",
+          "title",
+          "purpose",
+          "audience",
+          "access",
+          "dataNeeds"
+        ],
+        "properties": {
+          "access": {
+            "type": "string",
+            "description": "Who may read and write what it shows, in the sample's words."
+          },
+          "audience": {
+            "type": "string"
+          },
+          "dataNeeds": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The types, attributes and operations it reads, as the sample declares them."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name a prompt names it by: `(template: {name})`."
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
