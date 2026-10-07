@@ -58,6 +58,8 @@ pub struct AppState {
     pub draft_events: DraftHub,
     /// The workspace registry (CC-76): durable with a database, in memory without one.
     pub workspaces: crate::ops::workspaces::WorkspaceStore,
+    /// Saved data views of the spaces (API/01 §30).
+    pub data_views: crate::ops::data_views::DataViewStore,
     /// The renders of running workspace previews, by branch head (CC-78).
     pub previews: Arc<crate::ops::previews::Renders>,
     /// What is happening in a project (UI-31, OPS-48). Always present, durable only when there
@@ -159,6 +161,7 @@ impl AppState {
             drafts,
             draft_events,
             workspaces: crate::ops::workspaces::WorkspaceStore::new(None),
+            data_views: crate::ops::data_views::DataViewStore::new(None),
             previews: Arc::default(),
             activity,
             activity_events,
@@ -217,6 +220,7 @@ impl AppState {
         self.drafts = DraftStore::new(Some(db.clone())).with_hub(self.draft_events.clone());
         self.draft_events.connect(db.clone());
         self.workspaces = crate::ops::workspaces::WorkspaceStore::new(Some(db.clone()));
+        self.data_views = crate::ops::data_views::DataViewStore::new(Some(db.clone()));
         self.activity = crate::activity::ActivityStore::new(Some(db.clone()))
             .with_hub(self.activity_events.clone());
         self.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(Some(
@@ -265,6 +269,7 @@ impl AppState {
             state.draft_events.connect(db.clone());
         }
         state.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
+        state.data_views = crate::ops::data_views::DataViewStore::new(db.clone());
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
         state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));

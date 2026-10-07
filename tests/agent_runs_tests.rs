@@ -2952,6 +2952,60 @@ async fn analysis_run_is_unattended_and_publish_answers_409() {
     );
 }
 
+/// T-3159: a dashboard only reads; data needs that write are refused before anything is recorded.
+#[tokio::test]
+async fn a_dashboard_whose_data_needs_write_is_refused() {
+    let config = config();
+    let app = router(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    let mut body = create_body();
+    body["kind"] = json!("dashboard");
+    body["dataNeeds"][0]["operations"] = json!(["queryEntity", "updateAttrs"]);
+    let (status, problem) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(body),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
+    assert!(
+        problem["detail"]
+            .as_str()
+            .is_some_and(|d| d.contains("a dashboard only reads")),
+        "{problem}"
+    );
+}
+
+/// T-3160: an analysis only reads; data needs that write are refused before anything is recorded.
+#[tokio::test]
+async fn an_analysis_whose_data_needs_write_is_refused() {
+    let config = config();
+    let app = router(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    let mut body = create_body();
+    body["kind"] = json!("analysis");
+    body["dataNeeds"][0]["operations"] = json!(["queryEntity", "updateAttrs"]);
+    let (status, problem) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(body),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
+    assert!(
+        problem["detail"]
+            .as_str()
+            .is_some_and(|d| d.contains("an analysis only reads")),
+        "{problem}"
+    );
+}
+
 #[tokio::test]
 async fn dashboard_run_is_unattended_and_publish_answers_409() {
     let config = config();

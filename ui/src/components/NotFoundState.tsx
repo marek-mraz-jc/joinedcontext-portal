@@ -13,6 +13,8 @@ export function NotFoundState(): JSX.Element {
   return (
     <EmptyState
       icon="search"
+      // The page is nothing but this, so its title is the page's heading (WCAG 1.3.1, T-3150).
+      heading={1}
       title={t("app.notFound.title")}
       description={t("app.notFound.description", { path })}
       action={

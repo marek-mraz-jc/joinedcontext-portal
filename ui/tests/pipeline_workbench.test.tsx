@@ -302,6 +302,9 @@ describe("the pipeline workbench", () => {
     show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } });
     const mapping = step(en.pipelines.workbench.mapping.title);
     const slots = await within(mapping).findByRole("region", { name: "What AirQualityObserved takes" });
+    // The list scrolls on its own, so it is a named keyboard stop (axe scrollable-region-focusable, T-3144).
+    const list = within(slots).getByRole("list", { name: "What AirQualityObserved takes" });
+    expect(list).toHaveAttribute("tabindex", "0");
     const [pm10, quality] = within(slots).getAllByRole("listitem");
     expect(within(pm10).getByText("float")).toBeInTheDocument();
     expect(within(pm10).getByText(en.pipelines.workbench.mapping.required)).toBeInTheDocument();

@@ -293,6 +293,7 @@ mod tests {
                 // deployments (MF-51, MF-52); the Portal administers them (T-3057).
                 "KnowledgeSource",
                 "AssistantDeployment",
+                "McpServer",
                 "Blueprint",
                 // Arrived with jc-core-v0.7.8 (T-0537, T-0540): the builder profile every
                 // agent run loads.

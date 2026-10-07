@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { RouterProvider, createRootRoute, createRouter } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { requestOpen } from "../src/assistant/state";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { AssistantDock } from "../src/assistant/AssistantDock";
@@ -276,15 +277,26 @@ describe("the assistant on full screen", () => {
   // T-2854: below md there is no room for a column beside the page. In the page's row the
   // docked panel squeezed the page to no width and its positioned controls ("Publish this app")
   // painted through the panel at 400 px; below md it covers the screen as full screen does.
-  it("docked, covers the screen below md and is a column beside the page from md", async () => {
+  it("docks the app builder, a 40 rem form, only from 2xl, where the page keeps its room (T-3145)", async () => {
+    screenWide(false);
+    renderDock({ layout: "side" });
+    const panel = await screen.findByRole("complementary", { name: en.agentRun.conversation.title });
+    act(() => requestOpen("build"));
+    await waitFor(() => expect(panel.className.split(/\s+/)).toEqual(expect.arrayContaining(["2xl:sticky", "2xl:w-160"])));
+    expect(panel.className).not.toMatch(/(^|\s)(md|lg|xl):sticky/);
+  });
+
+  it("docked, covers the screen below xl and is a column beside the page from xl (T-3145)", async () => {
     screenWide(false);
     renderDock({ layout: "side" });
     const panel = await screen.findByRole("complementary", { name: en.agentRun.conversation.title });
     expect(panel).toHaveAttribute("data-layout", "side");
     const classes = panel.className.split(/\s+/);
     expect(classes).toEqual(expect.arrayContaining(["fixed", "inset-x-0", "top-14", "bottom-0", "z-40", "bg-surface"]));
-    expect(classes).toEqual(expect.arrayContaining(["md:sticky", "md:inset-auto", "md:z-auto", "md:shrink-0", "md:w-96"]));
-    // Nothing unprefixed keeps it in the page's row below md.
+    // Beside the 16 rem sidebar a 24 rem column left a 768 px page 8 rem wide: it docks from xl.
+    expect(classes).toEqual(expect.arrayContaining(["xl:sticky", "xl:inset-auto", "xl:z-auto", "xl:shrink-0", "xl:w-96"]));
+    expect(classes.some((name) => name.startsWith("md:"))).toBe(false);
+    // Nothing unprefixed keeps it in the page's row below xl.
     expect(classes).not.toContain("w-full");
     expect(classes).not.toContain("shrink-0");
   });

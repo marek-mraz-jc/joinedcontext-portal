@@ -532,6 +532,15 @@ pub async fn create_run(
         &request.data_needs,
         &user,
     )?;
+    // T-3159, T-3160: a dashboard and an analysis only read; one that writes is an application.
+    if (request.kind == "dashboard" || request.kind == "analysis") && allows_write {
+        return Err(ApiError::BadRequest(format!(
+            "a{} {} only reads, and these data needs ask for a write: build an application \
+             to write (AP-56)",
+            if request.kind == "analysis" { "n" } else { "" },
+            request.kind
+        )));
+    }
     // AP-132, PF-70: never wider than what the caller holds, as the gateway says it.
     crate::agents::held::check(
         crate::agents::held::client(),
@@ -648,7 +657,7 @@ pub async fn create_run(
     )
     .await?;
 
-    // A `ui` application is the kit pass: the Portal drives it itself, in this process, and
+    // A `ui` application is driven by the Portal itself, in this process (code on the SDK), and
     // the ticket stays with the driver (AP-56, AG-54). The workspace Job is what `ui-rust` gets.
     if app_class == jc_core::kinds::AppClass::Ui {
         oneshot::spawn(
@@ -2602,16 +2611,16 @@ pub fn router() -> Router<AppState> {
         ("id" = String, Path, description = "Run identifier"),
     ),
     responses(
-        (status = 200, description = "One document: a code run's interface on the SDK runtime, or the kit rendering a kit run's specification", content_type = "text/html"),
+        (status = 200, description = "One document: a code run's interface on the SDK runtime", content_type = "text/html"),
         (status = 400, description = "A code run's files do not build: every problem with file and line", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 404, description = "No such run, or no pass has written files yet", body = ProblemDetails),
-        (status = 503, description = "This Portal was built without the kit or the SDK runtime", body = ProblemDetails)
+        (status = 503, description = "This Portal was built without the SDK runtime", body = ProblemDetails)
     )
 )]
 /// The preview of a run in one document, because the frame it is shown in has no origin to
 /// fetch anything else with (AP-50, AP-60, UI-41): a code run's `src/**` transpiled onto the SDK
-/// runtime (SDK-16), else the kit bundle rendering `spec.json`.
+/// runtime (SDK-16).
 pub async fn preview(
     user: CurrentUser,
     State(state): State<AppState>,
@@ -2627,89 +2636,11 @@ pub async fn preview(
         .filter(|(path, _)| path.starts_with("src/") || path.starts_with("functions/"))
         .filter_map(|(path, text)| Some((path.clone(), text.as_str()?.to_owned())))
         .collect();
-    if !code.is_empty() {
-        return code_preview(&state, &run, &code, &headers);
+    // A run of the retired spec.json kit (T-0681) has no code and so no preview.
+    if code.is_empty() {
+        return Err(ApiError::NotFound(format!("run '{id}' has no preview yet")));
     }
-    let text = run
-        .files
-        .get(kit::SPEC_FILE)
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| ApiError::NotFound(format!("run '{id}' has no preview yet")))?;
-    let spec = kit::parse(text).map_err(|errors| {
-        ApiError::Internal(format!(
-            "the stored spec.json does not validate: {}",
-            errors.join("; ")
-        ))
-    })?;
-    let data = run
-        .files
-        .get(kit::DATA_FILE)
-        .and_then(serde_json::Value::as_str)
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok());
-    // A page the model wrote replaces the kit (the escape hatch); an empty one hands back.
-    let page = run
-        .files
-        .get(kit::PAGE_FILE)
-        .and_then(serde_json::Value::as_str)
-        .filter(|html| !html.trim().is_empty());
-    let origin = {
-        let url = &state.config.public_base_url;
-        match url.port() {
-            Some(port) => format!(
-                "{}://{}:{port}",
-                url.scheme(),
-                url.host_str().unwrap_or_default()
-            ),
-            None => format!("{}://{}", url.scheme(), url.host_str().unwrap_or_default()),
-        }
-    };
-    // The field schema of AP-61: what the form's inputs are, from the space's DataModel.
-    let types: Vec<String> = spec.sources.iter().map(|s| s.entity_type.clone()).collect();
-    let schema =
-        crate::agents::fields::for_endpoint(&state, &project, &run.endpoint_slug, &types).await;
-    let basemap_url = crate::api::basemap::style_url(&state.config, &project);
-    let (html, csp) = match page {
-        Some(page) => (
-            kit::page_document(
-                page,
-                &run.endpoint_slug,
-                &spec,
-                data.as_ref(),
-                schema.as_ref(),
-                basemap_url.as_deref(),
-            ),
-            kit::page_content_security_policy(&origin),
-        ),
-        None => {
-            let bundle = kit::bundle().ok_or_else(|| {
-                ApiError::Unavailable(
-                    "this Portal was built without the kit (sdk/dist is empty)".into(),
-                )
-            })?;
-            (
-                kit::document(
-                    &spec.title,
-                    &run.endpoint_slug,
-                    &spec,
-                    data.as_ref(),
-                    schema.as_ref(),
-                    &bundle,
-                    basemap_url.as_deref(),
-                ),
-                kit::content_security_policy(&origin, &kit::script_hash(&bundle.js)),
-            )
-        }
-    };
-    Ok((
-        [
-            (header::CONTENT_TYPE, "text/html; charset=utf-8".to_owned()),
-            (header::CONTENT_SECURITY_POLICY, csp),
-            (header::X_FRAME_OPTIONS, "SAMEORIGIN".to_owned()),
-            (header::CACHE_CONTROL, "no-store".to_owned()),
-        ],
-        html,
-    )
-        .into_response())
+    code_preview(&state, &run, &code, &headers)
 }
 
 /// One rendered preview: its ETag, and the policy and document it answers with.

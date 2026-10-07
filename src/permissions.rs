@@ -216,11 +216,17 @@ impl Effective {
     /// [`Self::may_read_manifest`] for a manifest known only by its kind and its context space
     /// (`None` for a kind that lives outside one), as a draft event carries them.
     pub fn may_read_in(&self, kind: &str, space: Option<&str>) -> bool {
+        self.may_in(kind, Verb::Read, space)
+    }
+
+    /// Whether a grant lets the caller `verb` on `kind` in `space`: a project-wide grant, or one
+    /// bound to that very space. What a steward of one space may do there, and nowhere else.
+    pub fn may_in(&self, kind: &str, verb: Verb, space: Option<&str>) -> bool {
         if self.bootstrap {
             return true;
         }
         self.grants.iter().any(|grant| {
-            grant.rule.grants(kind, Verb::Read)
+            grant.rule.grants(kind, verb)
                 && match &grant.space {
                     None => true,
                     Some(bound) => space == Some(bound.as_str()),

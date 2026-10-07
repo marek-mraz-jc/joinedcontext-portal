@@ -893,7 +893,7 @@ export interface paths {
         /**
          * The preview of a run in one document, because the frame it is shown in has no origin to
          *     fetch anything else with (AP-50, AP-60, UI-41): a code run's `src/**` transpiled onto the SDK
-         *     runtime (SDK-16), else the kit bundle rendering `spec.json`.
+         *     runtime (SDK-16).
          */
         get: operations["preview"];
         put?: never;
@@ -2169,6 +2169,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Views
+         * @description The saved views of one space this caller sees: their own personal views and every collaborative or locked one, oldest first.
+         */
+        get: operations["list_views"];
+        put?: never;
+        /**
+         * Save A Data View
+         * @description Saves a new view of one entity type of the space, owned by the caller. Reading the space is all it needs.
+         */
+        post: operations["create_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/views/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read A Data View
+         * @description One saved view. A personal view of someone else answers like no view.
+         */
+        get: operations["get_view"];
+        /**
+         * Change A Data View
+         * @description Renames a view or changes its kind, mode or settings. A locked view is changed by its owner or a steward of the space, and so is any view's mode. With `expectedVersion`, a save against a newer view is refused.
+         */
+        put: operations["update_view"];
+        post?: never;
+        /**
+         * Delete A Data View
+         * @description Deletes a saved view: its owner's, or for a shared one also a steward's of the space. The space's data is not touched.
+         */
+        delete: operations["delete_view"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/syncsources/{name}/detach": {
         parameters: {
             query?: never;
@@ -3317,6 +3369,12 @@ export interface components {
             /** @description The Portal page that shows the claim to the person who asked for it. */
             url: string;
         };
+        ColourRule: {
+            /** @description One of `neutral`, `info`, `success`, `warning`, `danger`. */
+            colour: string;
+            /** @description An NGSI-LD `q` evaluated in the page on the rows it shows. */
+            when: string;
+        };
         /**
          * @description The five colours a page is built from. Each is validated as a hex triplet or sextet before
          *     it is served, because the UI writes it into a CSS custom property and a value that is not a
@@ -3427,6 +3485,13 @@ export interface components {
             /** @description Who may reach the published application. `public` is refused (AP-42). */
             visibility?: string;
         };
+        CreateView: {
+            config?: components["schemas"]["ViewConfig"];
+            kind: string;
+            mode: string;
+            title: string;
+            type: string;
+        };
         /** @description The one answer that may carry a temporary password, once (PF-92). */
         CreatedPerson: {
             emailSent: boolean;
@@ -3447,6 +3512,23 @@ export interface components {
             refresh: string;
             /** @description The tabular representation the rows are read through. */
             representation: string;
+        };
+        /** @description A saved view as the API answers it. */
+        DataView: {
+            config: components["schemas"]["ViewConfig"];
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            kind: string;
+            mode: string;
+            /** @description The owner's username, for display. */
+            owner: string;
+            title: string;
+            type: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            version: number;
         };
         /** @description What `scripts/publish-health.py` writes for one check. */
         Digest: {
@@ -4813,6 +4895,10 @@ export interface components {
          * @enum {string}
          */
         Side: "ours" | "theirs";
+        SortKey: {
+            attr: string;
+            desc?: boolean;
+        };
         /** @description Result returned for `PUT /source?dryRun=All`. */
         SourceDryRunResult: {
             artifacts: components["schemas"]["Artifacts"];
@@ -4975,6 +5061,17 @@ export interface components {
         UpdateRequest: {
             resolutions?: components["schemas"]["Resolution"][];
         };
+        UpdateView: {
+            config?: components["schemas"]["ViewConfig"];
+            /**
+             * Format: int64
+             * @description The version read; a save against a newer view is refused instead of overwriting it.
+             */
+            expectedVersion?: number | null;
+            kind: string;
+            mode: string;
+            title: string;
+        };
         /** @description One quota dimension of a project: what it holds and what it may (PF-75). */
         Usage: {
             /**
@@ -5012,6 +5109,26 @@ export interface components {
             equal: boolean;
             /** @description The path the bundle index gave the file. */
             path: string;
+        };
+        /** @description How a view looks at its type (API/01 §30). */
+        ViewConfig: {
+            colour?: components["schemas"]["ColourRule"][];
+            /** @description An enum attribute the rows are grouped by. */
+            group?: string | null;
+            hidden?: string[];
+            /** @description An NGSI-LD query, sent as the person's own `q` when the view opens. */
+            q?: string | null;
+            /** @description The view kind's own settings: card fields, the kanban's attribute, a calendar's dates. */
+            settings?: Record<string, never>;
+            sort?: components["schemas"]["SortKey"][];
+            /** @description Column widths in pixels, by attribute. */
+            width?: {
+                [key: string]: number;
+            };
+        };
+        ViewList: {
+            /** @description The views of the space this caller sees, oldest first. */
+            items: components["schemas"]["DataView"][];
         };
         /** @description A workflow run of an application's repository, as the App page links it (AP-86, AP-103). */
         WorkflowRun: {
@@ -7515,7 +7632,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description One document: a code run's interface on the SDK runtime, or the kit rendering a kit run's specification */
+            /** @description One document: a code run's interface on the SDK runtime */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7551,7 +7668,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description This Portal was built without the kit or the SDK runtime */
+            /** @description This Portal was built without the SDK runtime */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -12002,6 +12119,327 @@ export interface operations {
             };
             /** @description No broker is configured, or it did not answer */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_views: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The views this caller sees */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "config": {
+                 *         "colour": [
+                 *           {
+                 *             "colour": "danger",
+                 *             "when": "availableBikeNumber==0"
+                 *           }
+                 *         ],
+                 *         "hidden": [
+                 *           "dateLastReported"
+                 *         ],
+                 *         "q": "availableBikeNumber<3"
+                 *       },
+                 *       "kind": "grid",
+                 *       "mode": "collaborative",
+                 *       "title": "Stations short of bikes",
+                 *       "type": "BikeHireDockingStation"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateView"];
+            };
+        };
+        responses: {
+            /** @description The view, saved */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataView"];
+                };
+            };
+            /** @description A field out of bounds or an unknown key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing or mismatched CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller keeps the most views a person may in this space */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The view's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataView"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such view the caller sees */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The view's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "config": {
+                 *         "q": "availableBikeNumber<2"
+                 *       },
+                 *       "expectedVersion": 3,
+                 *       "kind": "grid",
+                 *       "mode": "collaborative",
+                 *       "title": "Stations short of bikes"
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdateView"];
+            };
+        };
+        responses: {
+            /** @description The view as now saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataView"];
+                };
+            };
+            /** @description A field out of bounds or an unknown key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A locked view, or its mode, is its owner's or a steward's to change; or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such view the caller sees */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The view was changed since `expectedVersion` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The view's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Neither its owner nor a steward of the space; or a missing CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such view the caller sees */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

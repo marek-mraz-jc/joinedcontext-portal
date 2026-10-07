@@ -633,7 +633,12 @@ export function PipelineWorkbench({
                 {draft?.targetEndpoint ? t("pipelines.workbench.mapping.noModel") : t("pipelines.workbench.mapping.pickTarget")}
               </p>
             ) : (
-              <ul className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+              // A list that scrolls is a stop of its own, so a keyboard scrolls it too (WCAG 2.1.1, T-3144).
+              <ul
+                tabIndex={0}
+                aria-label={writtenClass ? t("pipelines.workbench.mapping.slotsOf", { type: writtenClass }) : t("pipelines.workbench.mapping.slots")}
+                className="focus-ring flex max-h-80 flex-col gap-2 overflow-y-auto"
+              >
                 {slots.map((slot) => {
                   const values = parsed?.enums.find((e) => e.name === slot.range)?.permissible_values.map((v) => v.name) ?? [];
                   const unit = unitCode(slot.unit);

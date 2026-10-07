@@ -13,6 +13,7 @@ pub mod catalogue;
 pub mod catalogue_draft;
 pub mod changes;
 pub mod ckan;
+pub mod data_views;
 pub mod datamodels;
 pub mod delete;
 pub mod drafts;
@@ -93,6 +94,7 @@ pub fn router() -> Router<AppState> {
         .merge(projects::router())
         .merge(quality::router())
         .merge(space_usage::router())
+        .merge(data_views::router())
         .merge(entity_trash::router())
         .merge(knowledge::router())
         .merge(live::router())

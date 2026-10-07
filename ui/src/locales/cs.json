@@ -41,7 +41,8 @@
       "here": "Přihlásit se raději zde",
       "close": "Teď ne",
       "notYet": "Ještě nejste přihlášeni. Dokončete přihlášení na druhé kartě a pak pokračujte."
-    }
+    },
+    "listHidden": "Tento seznam vám v {project} není přístupný. Udělit ho může ten, kdo projekt spravuje."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# změna čeká na vaše schválení} few {# změny čekají na vaše schválení} other {# změn čeká na vaše schválení}}",
@@ -391,7 +392,8 @@
       "modelEmpty": "Tento prostor zatím nemá datový model",
       "modelEmptyLead": "Datový model pojmenovává typy entit prostoru a jejich atributy. Vytvořte ho nebo importujte Smart Data Model pro tento prostor.",
       "modelCreate": "Vytvořit datový model",
-      "modelImport": "Importovat Smart Data Model"
+      "modelImport": "Importovat Smart Data Model",
+      "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou)."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -635,6 +637,67 @@
       "cut": "Prvních {count} na obrazovce; zužte filtr pro ostatní.",
       "ask": "Zeptat se asistenta",
       "noEndpoint": "Tento prostor neobsluhuje žádný endpoint, takže nelze nic zapsat."
+    },
+    "saved": {
+      "view": "Pohled",
+      "none": "Všechny entity (bez uloženého pohledu)",
+      "save": "Uložit pohled",
+      "saveNew": "Uložit jako pohled…",
+      "saveAs": "Uložit jako nový…",
+      "copyOf": "Kopie {title}",
+      "settings": "Přejmenovat nebo sdílet…",
+      "delete": "Smazat pohled",
+      "confirm": "Uložit",
+      "createTitle": "Uložit pohled na {type}",
+      "settingsTitle": "Přejmenovat nebo sdílet pohled",
+      "title": "Název",
+      "titleHelp": "Nejvýše 120 znaků.",
+      "mode": "Kdo ho vidí",
+      "modes": {
+        "personal": "Jen já",
+        "collaborative": "Sdílený",
+        "locked": "Sdílený, zamčený"
+      },
+      "modeHelp": {
+        "personal": "Tento pohled nikdo jiný nevidí.",
+        "collaborative": "Každý, kdo může číst tento prostor, ho vidí a mění.",
+        "locked": "Každý, kdo může číst tento prostor, ho vidí; měnit ho můžete jen vy a správci prostoru."
+      },
+      "dirty": "Tabulka se liší od uloženého pohledu. Uložit pohled změnu ponechá.",
+      "lockedReason": "Tento pohled je zamčený: měnit ho může jen jeho vlastník nebo správce prostoru.",
+      "governReason": "Smazat pohled může jen jeho vlastník nebo správce prostoru.",
+      "deleteTitle": "Smazat pohled {title}?",
+      "deleteHelp": "Smaže se jen pohled; data v prostoru se nezmění.",
+      "failed": "Pohled se nepodařilo uložit",
+      "conflict": "Mezitím tento pohled uložil někdo jiný ({detail}). Načtěte jeho verzi a uložte znovu.",
+      "reload": "Znovu načíst pohledy",
+      "unavailable": "Uložené pohledy se teď nedají načíst; tabulka funguje dál.",
+      "idNotKept": "Filtr na identifikátor se v uloženém pohledu nezachová.",
+      "options": "Pole, barvy a seskupení",
+      "fields": "Zobrazená pole",
+      "noFields": "Pro tento typ zatím nejsou známé žádné atributy.",
+      "colours": "Barvy řádků",
+      "coloursHelp": "Řádek dostane barvu prvního pravidla, kterému vyhovuje, a pravidlo jako popis.",
+      "when": "Když (NGSI-LD q)",
+      "whenUnreadable": "Toto pravidlo se na stránce nedá ověřit: použijte výrazy jako a==1 nebo name~=\"^K\", spojené ; nebo |, bez závorek.",
+      "tone": "Barva",
+      "tones": {
+        "neutral": "Šedá",
+        "info": "Modrá",
+        "success": "Zelená",
+        "warning": "Jantarová",
+        "danger": "Červená"
+      },
+      "removeRule": "Odstranit pravidlo {n}",
+      "addRule": "Přidat pravidlo barvy",
+      "group": "Seskupit podle",
+      "groupHelp": "Atribut s pevným seznamem hodnot; každou skupinu spočítá prostor.",
+      "noGroup": "Bez seskupení",
+      "countUnknown": "počet neznámý",
+      "groupsOf": "Skupiny podle {attr}",
+      "allGroups": "Všechny",
+      "groupsCut": "Spočítáno je prvních {shown} z {total} hodnot.",
+      "toneLabel": "Označeno: {when}"
     }
   },
   "endpoints": {

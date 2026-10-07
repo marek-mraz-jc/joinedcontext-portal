@@ -119,6 +119,12 @@ describe("using the organization's copy (DM-78)", () => {
     expect(Object.keys(proposed.classes)).toEqual(["Sensor"]);
   });
 
+  it("underlines the link to the model's space inside its line of text (WCAG 1.4.1, T-3143)", async () => {
+    const { answer } = world({});
+    await renderRoute({ path: "/projects/helsinki/models/air", answer });
+    expect(await screen.findByRole("link", { name: "ilma" })).toHaveClass("underline");
+  });
+
   it("is not offered for a copy shared from elsewhere, nor once the model imports it", async () => {
     await renderRoute({
       path: "/projects/helsinki/models/air",

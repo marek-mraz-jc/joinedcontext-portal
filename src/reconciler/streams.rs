@@ -691,10 +691,11 @@ impl StreamDeployer {
         &self,
         ns: &str,
         name: &str,
-        stream_json: Value,
+        mut stream_json: Value,
         running: &mut Option<Option<HashMap<String, bool>>>,
         current_live: &mut HashSet<(String, String)>,
     ) -> StreamOutcome {
+        own_credential(&mut stream_json, ns);
         let key = (ns.to_owned(), name.to_owned());
         let hash = config_hash(&stream_json);
         let stored = self
@@ -1067,7 +1068,9 @@ pub fn render_stream(
                 ));
             }
         }
-        (None, Some(bento)) => processors.extend(bento_processors(bento)?),
+        (None, Some(bento)) => {
+            processors.extend(bento_processors(bento, &pipeline.own_variables())?)
+        }
         (None, None) => {}
     }
 
@@ -1114,8 +1117,10 @@ fn labelled(component: serde_json::Value, label: &str) -> serde_json::Value {
 /// The author's processors from a `bento.yaml`. Its `input` is refused, the DataSource is the
 /// input (PL-39); its `output` and everything else at the top level are dropped: every stream
 /// writes through the endpoint upsert rendered here (PL-16), never back to a caller (PL-06), and
-/// the runner's own resources (rate limits, caches) come from its resources file.
-fn bento_processors(bento: &str) -> Result<Vec<Value>, RenderError> {
+/// the runner's own resources (rate limits, caches) come from its resources file. `own` is the
+/// `envVar` of each of the pipeline's `secretRefs`, the only runner variables beside the
+/// platform's own a step may name (PL-16, T-3163).
+fn bento_processors(bento: &str, own: &[&str]) -> Result<Vec<Value>, RenderError> {
     let config: Value =
         serde_yaml_ng::from_str(bento).map_err(|e| RenderError::Bento(e.to_string()))?;
     if config.get("input").is_some() {
@@ -1128,10 +1133,10 @@ fn bento_processors(bento: &str) -> Result<Vec<Value>, RenderError> {
         .unwrap_or_default();
     // The author's processors pass the check a manifest's steps pass (PL-16, PL-50, PL-52): a
     // name the platform runs, no refused processor nested inside, no read of the runner's
-    // environment. This is where an author's file meets the runner, which holds every
-    // project's credentials.
+    // environment but its own pipeline's variables, no call to the runner's own pod. This is
+    // where an author's file meets the runner, which holds every project's credentials.
     for processor in &processors {
-        jc_core::kinds::pipeline::validate_processor("pipeline.processors", processor)
+        jc_core::kinds::pipeline::validate_processor_reading("pipeline.processors", processor, own)
             .map_err(|e| RenderError::Bento(e.to_string()))?;
     }
     Ok(processors)
@@ -1942,6 +1947,36 @@ pub fn with_pipeline_identity(stream: &mut Value, project: &str, pipeline: &str)
     }
 }
 
+/// Rewrites an author's `${JC_CLIENT_ID}` and `${JC_CLIENT_SECRET}` into the stream's own
+/// project's pipeline client (PL-16, T-3163).
+///
+/// The runner's environment holds every project's client secret, and its plain
+/// `JC_CLIENT_SECRET` is one project's, so a step that wrote it as it stands would present that
+/// project's client from any other. jc-core lets a step name only these two aliases of a
+/// credential; here they become the same client [`pipeline_oauth2`] renders for the project.
+pub(crate) fn own_credential(value: &mut Value, project: &str) {
+    match value {
+        Value::String(text) if text.contains("${JC_CLIENT_") => {
+            *text = text
+                .replace(
+                    "${JC_CLIENT_ID}",
+                    &jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT),
+                )
+                .replace(
+                    "${JC_CLIENT_SECRET}",
+                    &format!("${{{}}}", client_secret_var(project)),
+                );
+        }
+        Value::Array(items) => items
+            .iter_mut()
+            .for_each(|item| own_credential(item, project)),
+        Value::Object(map) => map
+            .values_mut()
+            .for_each(|item| own_credential(item, project)),
+        _ => {}
+    }
+}
+
 /// Where every stream writes: the endpoint's batch upsert, as the pipeline's service account.
 /// It is the one output a stream has, so no pipeline answers a caller: a client-facing API is
 /// the Context Gateway's (PL-06, EP-05).
@@ -2708,6 +2743,48 @@ output:
         assert!(render("").is_ok());
     }
 
+    /// T-3167 (PL-16, PL-07): a `bento.yaml` step reads its own pipeline's declared variable and
+    /// renders; one naming a variable it did not declare, another project's credential or the
+    /// runner's own pod is refused before a stream reaches the runner.
+    #[test]
+    fn a_bento_step_reads_its_own_declared_variable_and_nothing_else_of_the_runner() {
+        let mut spec = helsinki_pipeline_spec();
+        spec.compute = None;
+        spec.secret_refs = vec![jc_core::envelope::SecretRef {
+            name: "city-api".to_owned(),
+            key: Some("key".to_owned()),
+            env_var: Some("CITY_API_KEY".to_owned()),
+        }];
+        let ds = helsinki_datasource_spec();
+        let render = |spec: &PipelineSpec, bento: &str| {
+            render_stream(spec, "p", "helsinki", &ds, "src", "abc123", Some(bento))
+        };
+        let reading = |var: &str| {
+            format!(
+                "pipeline:\n  processors:\n    - http:\n        url: https://api.example/x\n        headers: {{ X-Key: '${{{var}}}' }}\n"
+            )
+        };
+        render(&spec, &reading("CITY_API_KEY")).expect("its own declared variable");
+
+        let mut undeclared = spec.clone();
+        undeclared.secret_refs.clear();
+        for (spec, bento) in [
+            (&undeclared, reading("CITY_API_KEY")),
+            (&spec, reading("JC_CLIENT_SECRET_BBSK")),
+            (&spec, reading("DS_OTHER_PASSWORD")),
+            (
+                &spec,
+                "pipeline:\n  processors:\n    - http: { url: 'http://127.0.0.1:4195/streams/x', verb: PUT }\n"
+                    .to_owned(),
+            ),
+        ] {
+            let refused = render(spec, &bento).expect_err(&bento);
+            assert!(matches!(refused, RenderError::Bento(_)), "{bento}: {refused:?}");
+            let said = refused.to_string();
+            assert!(said.contains("PL-16") || said.contains("PL-07"), "{said}");
+        }
+    }
+
     /// PL-16, PL-50, PL-52 (T-2557): the author's `bento.yaml` processors pass the same check as a
     /// manifest's steps: a processor the platform does not run, at the top or nested inside
     /// another, or a Bloblang read of the runner's environment, and no stream is rendered.
@@ -2797,6 +2874,41 @@ output:
             }
             other => panic!("expected Error, got {other:?}"),
         }
+    }
+
+    /// T-3163: the reaper's `${JC_CLIENT_ID}`/`${JC_CLIENT_SECRET}` become the stream's own
+    /// project's client, never the runner's plain variable, which is one project's; a name that
+    /// only starts the same is left alone, and the platform's own write is unchanged.
+    #[test]
+    fn an_authors_credential_alias_becomes_the_streams_own_project() {
+        let mut spec = helsinki_pipeline_spec();
+        spec.compute = None;
+        let ds = helsinki_datasource_spec();
+        let bento = "pipeline:\n  processors:\n    - http:\n        url: ${JC_GATEWAY_URL}/api/endpoint/x/ngsi-ld/v1/entityOperations/delete\n        oauth2: { enabled: true, client_key: '${JC_CLIENT_ID}', client_secret: '${JC_CLIENT_SECRET}', token_url: '${JC_TOKEN_URL}' }\n        headers: { X-Run: 'reaper' }\n";
+        let mut rendered =
+            render_stream(&spec, "p", "bbsk", &ds, "src", "abc123", Some(bento)).expect("renders");
+        let before_output = rendered["output"].clone();
+        own_credential(&mut rendered, "bbsk");
+        let whole = rendered.to_string();
+        assert!(!whole.contains("${JC_CLIENT_SECRET}"), "{whole}");
+        assert!(!whole.contains("${JC_CLIENT_ID}"), "{whole}");
+        let step = rendered["pipeline"]["processors"]
+            .as_array()
+            .expect("processors")
+            .iter()
+            .find(|p| {
+                p.get("http")
+                    .is_some_and(|h| h.get("headers").is_some_and(|h| h.get("X-Run").is_some()))
+            })
+            .expect("the author's step")
+            .clone();
+        assert_eq!(step["http"]["oauth2"], pipeline_oauth2("bbsk"));
+        // jc-core refuses another project's variable in a step (T-3163), so the rewrite leaving a
+        // name that only starts the same alone is shown on a value of its own.
+        let mut other = serde_json::json!({ "x": "${JC_CLIENT_SECRET_HELSINKI}" });
+        own_credential(&mut other, "bbsk");
+        assert_eq!(other["x"], "${JC_CLIENT_SECRET_HELSINKI}");
+        assert_eq!(rendered["output"], before_output);
     }
 
     /// PL-06: a `bento.yaml` cannot turn a pipeline into a request/response service: an input
