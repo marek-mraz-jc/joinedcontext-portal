@@ -68,25 +68,27 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
   });
   const rows = sources.data ?? [];
   const navigate = useNavigate();
+  // The page's one action, in its header and in its empty state (T-3246).
+  const addSource = (
+    <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
+      <Button
+        variant="primary"
+        size="sm"
+        onClick={() =>
+          void navigate({ to: "/projects/$project/$plural/new", params: { project, plural: "knowledgesources" } })
+        }
+      >
+        {t("knowledge.addSource")}
+      </Button>
+    </PermissionGuard>
+  );
 
   return (
     <section aria-label={t("knowledge.title")} className="space-y-6">
       <PageHeader
         title={t("knowledge.title")}
         description={t("knowledge.intro")}
-        actions={
-          <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() =>
-                void navigate({ to: "/projects/$project/$plural/new", params: { project, plural: "knowledgesources" } })
-              }
-            >
-              {t("knowledge.addSource")}
-            </Button>
-          </PermissionGuard>
-        }
+        actions={addSource}
       />
       {sources.isError ? (
         <PageFailed
@@ -110,7 +112,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
       ) : null}
       {sources.isLoading ? <p role="status">{t("app.loading")}</p> : null}
       {!sources.isLoading && !sources.isError && rows.length === 0 ? (
-        <EmptyState title={t("knowledge.empty")} description={t("knowledge.emptyHint")} icon="search" />
+        <EmptyState title={t("knowledge.empty")} description={t("knowledge.emptyHint")} icon="search" action={addSource} />
       ) : null}
       {rows.length > 0 ? (
         <Table data-records="" caption={t("knowledge.sources")}>
@@ -224,23 +226,26 @@ function Assistants({ project }: { project: string }): JSX.Element {
       unwrap(await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project, plural: "assistantdeployments" } } })),
   });
   const items = (list.data?.items ?? []) as unknown as DeploymentItem[];
+  const addAssistant = (
+    <PermissionGuard project={project} kind="AssistantDeployment" verb="propose">
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() =>
+          void navigate({ to: "/projects/$project/$plural/new", params: { project, plural: "assistantdeployments" } })
+        }
+      >
+        {t("knowledge.assistants.add")}
+      </Button>
+    </PermissionGuard>
+  );
   return (
     <section aria-labelledby="knowledge-assistants" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="knowledge-assistants" className="text-lg font-semibold">
           {t("knowledge.assistants.title")}
         </h2>
-        <PermissionGuard project={project} kind="AssistantDeployment" verb="propose">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              void navigate({ to: "/projects/$project/$plural/new", params: { project, plural: "assistantdeployments" } })
-            }
-          >
-            {t("knowledge.assistants.add")}
-          </Button>
-        </PermissionGuard>
+        {addAssistant}
       </div>
       {list.isError ? (
         <PageFailed
@@ -251,7 +256,12 @@ function Assistants({ project }: { project: string }): JSX.Element {
         />
       ) : null}
       {!list.isLoading && !list.isError && items.length === 0 ? (
-        <EmptyState title={t("knowledge.assistants.empty")} description={t("knowledge.assistants.emptyHint")} icon="chat" />
+        <EmptyState
+          title={t("knowledge.assistants.empty")}
+          description={t("knowledge.assistants.emptyHint")}
+          icon="chat"
+          action={addAssistant}
+        />
       ) : null}
       {items.length > 0 ? (
         <Table data-records="" caption={t("knowledge.assistants.title")}>

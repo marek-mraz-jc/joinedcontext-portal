@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { RecordLink } from "../components/RecordLink";
 import { ResourceList } from "../components/ResourceList";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { NotFoundState } from "../components/NotFoundState";
@@ -54,6 +55,7 @@ import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
   Button,
   EmptyState,
+  buttonClass,
   Icon,
   PageHeader,
   TableCell,
@@ -327,7 +329,16 @@ export function KindList({
                 ? t("resourceList.emptyHintCreate", { kind: createKind })
                 : t(`resourceList.emptyHintFor.${plural}`, { defaultValue: t("resourceList.emptyHint") })
             }
-            action={newButton} />}
+            action={
+              newButton ??
+              // The hint sends a person to the assistant; the button takes them there. A kind
+              // whose hint says it is changed elsewhere offers nothing here (T-3246).
+              (i18n.exists(`resourceList.emptyHintFor.${plural}`) ? undefined : (
+                <Link to="/projects/$project/assistant" params={{ project }} className={buttonClass("secondary", "md")}>
+                  {t("resourceList.askAssistant")}
+                </Link>
+              ))
+            } />}
     >
       {items.map((item) => {
           const title = localized(item.metadata.title, locale, item.metadata.name);

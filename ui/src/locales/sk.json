@@ -400,7 +400,8 @@
     "new": "Nový {kind}",
     "newHint": "Vyplňte formulár, skontrolujte ho a navrhnite; zmenu posúdi schvaľovateľ.",
     "propose": "Navrhnúť zmenu",
-    "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. Nový {kind} otvorí formulár."
+    "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. Nový {kind} otvorí formulár.",
+    "askAssistant": "Požiadať asistenta o návrh"
   },
   "spaces": {
     "entitiesUnknown": "Počet nie je k dispozícii: {reason}",
@@ -1047,7 +1048,8 @@
         "aliasHelp": "Názov, pod ktorým tento projekt číta zdieľaný priestor; používajú ho tunajšie dopyty a pipeliny.",
         "interval": "Interval zrkadlenia",
         "intervalHelp": "Ako často sa sem zrkadlí schéma zdroja, napríklad 6h alebo 1d; prázdne znamená raz denne."
-      }
+      },
+      "browse": "Pozrieť, čo zverejňujú iné projekty"
     },
     "audienceOption": {
       "project-list": "Vybrané projekty: iba projekty, ktoré označíte",
@@ -1990,7 +1992,8 @@
         "k8sServiceAccount": "Servisný účet Kubernetes"
       },
       "grantIn": "{role} v {where}",
-      "grantOrg": "{role} v celej organizácii"
+      "grantOrg": "{role} v celej organizácii",
+      "emptyHint": "Servisný účet je spôsob, ako program mimo Portálu číta alebo zapisuje tento projekt: skript, pipeline inde, iná platforma. Každý dostane vlastné kľúče a len rolu, ktorú mu dáte."
     },
     "keys": {
       "create": "Nový API kľúč ({credential})",
@@ -2890,7 +2893,8 @@
       "organization": "všetci v organizácii",
       "public": "všetci, aj bez prihlásenia",
       "roles": "ľudia s niektorou z jej rolí"
-    }
+    },
+    "emptyTitle": "Zatiaľ žiadne aplikácie"
   },
   "appLifecycle": {
     "draft": "Návrh",
