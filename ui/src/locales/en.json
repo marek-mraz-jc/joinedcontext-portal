@@ -6329,5 +6329,76 @@
       },
       "close": "Close the welcome"
     }
+  },
+  "help": {
+    "title": "Help",
+    "label": "Help{count, plural, =0 {} one {, # new change} other {, # new changes}}"
+  },
+  "whatsNew": {
+    "menu": "What's new",
+    "menuUnread": "What's new ({count} new)",
+    "title": "What's new",
+    "lead": "What changed in the Portal for the people who use it, newest first.",
+    "new": "New",
+    "open": "Open it",
+    "close": "Close",
+    "entries": {
+      "jobs": {
+        "title": "Keep working while a build runs",
+        "body": "Start an app build or a crawl and go elsewhere: the header shows how far it is, about how long is left, and tells you when it is done."
+      },
+      "history": {
+        "title": "The history of every change, and a way back",
+        "body": "Approvals has a History tab: what was merged or rejected, who decided it and why. A removal can be brought back from there."
+      },
+      "search": {
+        "title": "Find anything with Ctrl+K",
+        "body": "Press Ctrl+K and type a name: a page, a space, an endpoint, a pipeline, an app or an entity."
+      },
+      "shortcuts": {
+        "title": "Keyboard shortcuts",
+        "body": "Press ? to see them: save, search, new, run the test, and move through lists."
+      },
+      "links": {
+        "title": "Every page has its own link",
+        "body": "Breadcrumbs show where you are, and Copy link gives the exact page, tab and filter to a colleague."
+      },
+      "home": {
+        "title": "A home page for what you can do next",
+        "body": "Stewards, editors and viewers each see their next steps, and a newcomer gets a five-step checklist."
+      },
+      "glossary": {
+        "title": "Every term explained",
+        "body": "Space, entity type, endpoint, policy: the glossary explains each one, and the words link to it where they appear."
+      },
+      "invite": {
+        "title": "Invite a colleague",
+        "body": "Invite a person by e-mail with their role; pending invitations can be sent again or withdrawn."
+      },
+      "loadFile": {
+        "title": "Load a file or start from a template",
+        "body": "Upload CSV, Excel or GeoJSON and map its columns, or start a data source from a ready template such as a CKAN dataset or a GTFS feed."
+      },
+      "useData": {
+        "title": "Take the data with you",
+        "body": "Export what you see as CSV, Excel, GeoJSON or NGSI-LD, or copy a ready snippet for Python, JavaScript, Excel or QGIS."
+      },
+      "pipelineMapper": {
+        "title": "Map fields to the data model",
+        "body": "A pipeline's last step lets you pick the entity type and map your fields to its attributes, checked against the model before anything is written."
+      },
+      "knowledge": {
+        "title": "An assistant that answers from your own pages",
+        "body": "Point the knowledge assistant at your websites and PDFs and place it on your site or in the Portal."
+      },
+      "mcp": {
+        "title": "MCP servers for AI tools",
+        "body": "Join endpoints that belong together behind one MCP address and copy its configuration into your AI client."
+      },
+      "dataViews": {
+        "title": "New ways to look at a space",
+        "body": "Gallery, board and calendar views, comments with @mentions, row history with undo, and public forms."
+      }
+    }
   }
 }
