@@ -3363,7 +3363,25 @@
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
     "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
-    "typeInModel": "This type in its data model:"
+    "typeInModel": "This type in its data model:",
+    "views": "What to show",
+    "entities": "Entities",
+    "quality": {
+      "tab": "Quality",
+      "observed": "Checked on {at} by the daily data-quality run.",
+      "truncated": "The space holds more than a run reads, so the counts cover its first 20,000 entities.",
+      "none": "The last run found no {type} entity in this space.",
+      "summary": "{count, plural, one {# entity} other {# entities}}, the newest changed on {newest}.",
+      "attributes": "How complete each attribute of {type} is",
+      "attribute": "Attribute",
+      "completeness": "Completeness",
+      "range": "Range",
+      "outliers": "Values far outside the rest",
+      "present": "{present} of {count}",
+      "outlierCount": "{count, plural, one {# value} other {# values}}",
+      "pipelines": "Pipelines writing this type",
+      "rejected": "Open {pipeline} for its rejected records"
+    }
   },
   "agentRun": {
     "title": "Application run",

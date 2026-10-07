@@ -3041,6 +3041,29 @@ export interface components {
             /** @description The values a coded attribute may take. */
             values?: string[] | null;
         };
+        /**
+         * @description One attribute of one type: how many entities carry it and, for numbers, their range and the
+         *     values far outside the rest.
+         */
+        AttributeQuality: {
+            /** Format: double */
+            max?: number | null;
+            /** Format: double */
+            min?: number | null;
+            name: string;
+            /** @description At most five ids of entities holding such a value. */
+            outlierExamples: string[];
+            /**
+             * Format: int64
+             * @description Values outside the Tukey fences (1.5 interquartile ranges past the quartiles).
+             */
+            outliers: number;
+            /**
+             * Format: int64
+             * @description Entities of the type that carry the attribute.
+             */
+            present: number;
+        };
         /** @description A change another one waits on (MF-48). */
         AwaitedChange: {
             name: string;
@@ -5166,6 +5189,11 @@ export interface components {
             observedAt: string;
             rules: components["schemas"]["RuleCount"][];
             truncated: boolean;
+            /**
+             * @description Per entity type: how complete each attribute is, the newest change, numeric ranges and
+             *     outliers (T-3252).
+             */
+            types: components["schemas"]["TypeQuality"][];
         };
         /** @description What one space holds. */
         SpaceUsage: {
@@ -5291,6 +5319,16 @@ export interface components {
             id: number;
             type: string;
             urn: string;
+        };
+        /** @description What one run found of one entity type. */
+        TypeQuality: {
+            /** @description Every attribute an entity of the type carries, the most complete first. */
+            attributes: components["schemas"]["AttributeQuality"][];
+            /** Format: int64 */
+            count: number;
+            /** Format: date-time */
+            newest?: string | null;
+            type: string;
         };
         /** @description A quantity's unit: the UN/CEFACT code NGSI-LD's `unitCode` carries, and its UCUM spelling. */
         Unit: {

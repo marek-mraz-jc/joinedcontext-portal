@@ -3363,7 +3363,25 @@
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
     "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
-    "typeInModel": "Dieser Typ in seinem Datenmodell:"
+    "typeInModel": "Dieser Typ in seinem Datenmodell:",
+    "views": "Was zeigen",
+    "entities": "Entitäten",
+    "quality": {
+      "tab": "Qualität",
+      "observed": "Geprüft am {at} durch die tägliche Datenqualitätsprüfung.",
+      "truncated": "Der Raum enthält mehr, als ein Lauf liest; die Zahlen umfassen seine ersten 20.000 Entitäten.",
+      "none": "Der letzte Lauf fand in diesem Raum keine Entität {type}.",
+      "summary": "{count, plural, one {# Entität} other {# Entitäten}}, die neueste geändert am {newest}.",
+      "attributes": "Wie vollständig jedes Attribut von {type} ist",
+      "attribute": "Attribut",
+      "completeness": "Vollständigkeit",
+      "range": "Bereich",
+      "outliers": "Werte weit außerhalb der übrigen",
+      "present": "{present} von {count}",
+      "outlierCount": "{count, plural, one {# Wert} other {# Werte}}",
+      "pipelines": "Pipelines, die diesen Typ schreiben",
+      "rejected": "{pipeline} mit seinen abgelehnten Datensätzen öffnen"
+    }
   },
   "agentRun": {
     "title": "Anwendungslauf",

@@ -3363,7 +3363,25 @@
     "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
     "noSpace": "Vyberte kontextový priestor na čítanie",
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
-    "typeInModel": "Tento typ v jeho dátovom modeli:"
+    "typeInModel": "Tento typ v jeho dátovom modeli:",
+    "views": "Čo zobraziť",
+    "entities": "Entity",
+    "quality": {
+      "tab": "Kvalita",
+      "observed": "Skontrolované {at} dennou kontrolou kvality dát.",
+      "truncated": "Priestor má viac, než beh prečíta, preto počty pokrývajú jeho prvých 20 000 entít.",
+      "none": "Posledný beh nenašiel v tomto priestore žiadnu entitu {type}.",
+      "summary": "{count, plural, one {# entita} few {# entity} other {# entít}}, najnovšia zmenená {newest}.",
+      "attributes": "Úplnosť každého atribútu {type}",
+      "attribute": "Atribút",
+      "completeness": "Úplnosť",
+      "range": "Rozsah",
+      "outliers": "Hodnoty ďaleko od ostatných",
+      "present": "{present} z {count}",
+      "outlierCount": "{count, plural, one {# hodnota} few {# hodnoty} other {# hodnôt}}",
+      "pipelines": "Pipeline, ktoré zapisujú tento typ",
+      "rejected": "Otvoriť {pipeline} a jej odmietnuté záznamy"
+    }
   },
   "agentRun": {
     "title": "Beh aplikácie",

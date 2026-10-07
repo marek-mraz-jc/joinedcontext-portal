@@ -959,6 +959,7 @@
         "explore_enum_pick.test.tsx",
         "explore_new_user.test.tsx",
         "explore_page.test.tsx",
+        "explore_quality.test.tsx",
         "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
       ]
