@@ -154,7 +154,12 @@
     "entityUrn": "Identifikátor entity: urn:ngsi-ld:, pak její typ a název, jako urn:ngsi-ld:Vehicle:bus-12.",
     "notificationUri": "Úplná adresa začínající http:// nebo https://, bez jména a hesla.",
     "instant": "Datum a čas s časovým pásmem, jako 2026-12-31T23:59:00Z.",
-    "headerName": "Název hlavičky z písmen, číslic a pomlček. Authorization, Cookie a Proxy-Authorization jsou odmítnuty: přístupový údaj patří do pole Přístupový údaj."
+    "headerName": "Název hlavičky z písmen, číslic a pomlček. Authorization, Cookie a Proxy-Authorization jsou odmítnuty: přístupový údaj patří do pole Přístupový údaj.",
+    "cron": "Pět polí oddělených mezerou: minuta, hodina, den, měsíc, den v týdnu, jako 0 3 * * * pro každý den v 03:00.",
+    "origin": "https:// a hostitel, nejvýš s portem, jako https://www.example.org; bez cesty a zástupných znaků.",
+    "language": "Dvoupísmenný kód jazyka malými písmeny, jako sk nebo en.",
+    "sitePath": "Cesta webu začínající lomítkem, jako /news/**.",
+    "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394."
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
