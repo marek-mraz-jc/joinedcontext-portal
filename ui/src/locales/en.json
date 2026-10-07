@@ -2091,7 +2091,10 @@
         "confirmRotate": "Rotate and show the key",
         "cancel": "Not now",
         "gone": "This link has expired, was already used, or belongs to someone else. Ask for the key again from your MCP client."
-      }
+      },
+      "expiresIn": "{count, plural, one {expires in # day} other {expires in # days}}",
+      "expired": "expired",
+      "ending": "Keys that expire within {days} days or have expired: {count}. Rotate them before the programs that use them fail."
     },
     "matrix": {
       "title": "Data access",

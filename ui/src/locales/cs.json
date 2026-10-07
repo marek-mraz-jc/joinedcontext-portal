@@ -2091,7 +2091,10 @@
         "confirmRotate": "Vyměnit a zobrazit klíč",
         "cancel": "Teď ne",
         "gone": "Tento odkaz vypršel, byl už použit nebo patří někomu jinému. Požádejte o klíč znovu ve svém MCP klientovi."
-      }
+      },
+      "expiresIn": "{count, plural, one {vyprší za # den} few {vyprší za # dny} other {vyprší za # dní}}",
+      "expired": "vypršel",
+      "ending": "Klíče, které vyprší do {days} dnů nebo už vypršely: {count}. Vyměňte je dřív, než programy, které je používají, selžou."
     },
     "matrix": {
       "title": "Přístup k datům",

@@ -2091,7 +2091,10 @@
         "confirmRotate": "Rotieren und Schlüssel anzeigen",
         "cancel": "Nicht jetzt",
         "gone": "Dieser Link ist abgelaufen, wurde bereits verwendet oder gehört jemand anderem. Fordern Sie den Schlüssel in Ihrem MCP-Client erneut an."
-      }
+      },
+      "expiresIn": "{count, plural, one {läuft in # Tag ab} other {läuft in # Tagen ab}}",
+      "expired": "abgelaufen",
+      "ending": "Schlüssel, die innerhalb von {days} Tagen ablaufen oder abgelaufen sind: {count}. Rotieren Sie sie, bevor die Programme, die sie nutzen, scheitern."
     },
     "matrix": {
       "title": "Datenzugriff",
