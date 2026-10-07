@@ -630,7 +630,7 @@
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
-        "Button": 12
+        "Button": 11
       },
       "tests": [
         "service_accounts_view.test.tsx",
@@ -967,6 +967,7 @@
         "explore_enum_pick.test.tsx",
         "explore_new_user.test.tsx",
         "explore_page.test.tsx",
+        "explore_quality.test.tsx",
         "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
       ]
@@ -1245,7 +1246,7 @@
     },
     "src/pages/pipelines/PipelineRejected.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 4,
         "Checkbox": 2
       },
       "tests": [

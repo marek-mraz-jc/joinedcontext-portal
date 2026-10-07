@@ -757,9 +757,7 @@ function OtherView({
   if (rows.isPending) return <p role="status">{t("app.loading")}</p>;
   if (rows.isError) {
     return (
-      <Alert role="alert" tone="danger">
-        {rows.error instanceof Error ? rows.error.message : t("app.error.generic")}
-      </Alert>
+      <PageFailed error={rows.error} onRetry={() => void rows.refetch()} />
     );
   }
   if (rows.data.rows.length === 0) {

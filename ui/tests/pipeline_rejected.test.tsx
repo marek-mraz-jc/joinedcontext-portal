@@ -100,6 +100,42 @@ describe("a pipeline's rejected records", () => {
     expect(await within(dialog).findByText("sh:datatype")).toBeInTheDocument();
   });
 
+  it("opens_the_run_a_record_was_refused_in_with_its_log", async () => {
+    const seen: Seen = { retried: [] };
+    const older = "2026-09-25T07:00:00Z";
+    const runs = {
+      items: [
+        { run: "2026-09-25T08:00:00Z", firstAt: "2026-09-25T08:00:00Z", lastAt: "2026-09-25T08:01:00Z", sent: 5, rejected: 0, failed: 0 },
+        { run: older, firstAt: older, lastAt: older, sent: 3, rejected: 1, failed: 0 },
+      ],
+    };
+    const logged: string[] = [];
+    const base = answering(seen, { newest: { items: [record(9, { run: older }), record(8)], total: 2 } });
+    await renderRoute({
+      path: PATH,
+      answer: (path, request) => {
+        if (path.endsWith("/pipelines/stations/runs")) return jsonResponse(runs);
+        if (path.includes("/pipelines/stations/runs/") && path.endsWith("/log")) {
+          logged.push(decodeURIComponent(path.split("/runs/")[1].replace(/\/log$/, "")));
+          return jsonResponse({ items: [], total: 0 });
+        }
+        return base(path, request);
+      },
+    });
+    const dialog = await openRejected();
+    const table = within(dialog).getByRole("table");
+    expect(await within(dialog).findByText("2 records kept (the newest 1000)")).toBeInTheDocument();
+    // Only the record that names its run offers it.
+    expect(await within(table).findAllByRole("button", { name: en.pipelines.rejected.openRun })).toHaveLength(1);
+    await userEvent.click(within(table).getByRole("button", { name: en.pipelines.rejected.openRun }));
+
+    const runsDialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(logged).toContain(older));
+    expect(logged).not.toContain("2026-09-25T08:00:00Z");
+    const pressed = within(runsDialog).getAllByRole("button", { pressed: true });
+    expect(pressed).toHaveLength(1);
+  });
+
   it("retries_the_picked_records_and_names_the_masked_ones_that_stay", async () => {
     const seen: Seen = { retried: [] };
     const { container } = await renderRoute({

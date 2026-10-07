@@ -117,11 +117,13 @@ pub(crate) async fn keep(
     } else {
         Outcome::Rejected
     };
+    let run = run_name(refused.run.as_deref());
     let reason = crate::pipeline_outcomes::Reason {
         rule,
         path,
         message,
         step: step.and_then(|s| i32::try_from(s).ok()),
+        run: Some(run.clone()),
     };
     let line = NewLine {
         record_id: record_id(&refused.record),
@@ -129,7 +131,6 @@ pub(crate) async fn keep(
         outcome,
         message: reason.message.clone(),
     };
-    let run = run_name(refused.run.as_deref());
     let kept = state
         .rejected
         .reject(project, name, &refused.record, &reason)
@@ -480,6 +481,15 @@ mod tests {
             .expect("the refused record's line");
         assert!(rejected.record_id.ends_with(":s-1"));
         assert!(!rejected.message.is_empty());
+        // T-3252: the kept record names the run whose log holds that line.
+        let kept = state
+            .rejected
+            .list("ovzdusie", "stations", 10, None)
+            .await
+            .expect("rejected");
+        assert!(kept
+            .iter()
+            .all(|record| record.run.as_deref() == Some("2026-09-25T08:00:00Z")));
         let failed = lines
             .iter()
             .find(|line| line.outcome == Outcome::Failed)

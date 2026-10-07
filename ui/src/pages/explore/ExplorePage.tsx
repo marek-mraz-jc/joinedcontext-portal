@@ -12,7 +12,8 @@ import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
-import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select } from "../../components/ui";
+import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { TypeQuality } from "./TypeQuality";
 import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
@@ -82,6 +83,8 @@ export function ExplorePage({
     initialType ? { type: initialType, q: initialQ } : {},
   );
   const [selected, setSelected] = useState<string | null>(initialEntityId ?? null);
+  // The type's entities, or its data-quality report (T-3252).
+  const [view, setView] = useState<"entities" | "quality">("entities");
   const [removing, setRemoving] = useState(false);
   /** The page the grid holds right now, for the export: the rows on screen and where they start. */
   const [shown, setShown] = useState<{ rows: RichRow[]; offset: number }>({ rows: [], offset: 0 });
@@ -370,25 +373,43 @@ export function ExplorePage({
       ) : null}
       {space ? <AccessPanel slug={slug} type={query.type} access={access} /> : null}
 
-      {config ? (
-        <PortalEntityGrid
-          key={`${slug}-${query.type}-${generation}`}
-          project={project}
-          config={config}
-          // Scroll through every matching entity, a window drawn at a time (T-3097).
-          virtual
-          enums={enums}
-          relations={relations}
-          rules={rules}
-          onOpenRelationship={setSelected}
-          onRows={onRows}
-          renderers={renderers}
-          toolbar={
-            <Button size="sm" disabled={shown.rows.length === 0} onClick={download}>
-              {t("explore.export")}
-            </Button>
-          }
+      {config && space && query.type ? (
+        <Tabs
+          id="explore-view"
+          label={t("explore.views")}
+          tabs={[
+            { value: "entities", label: t("explore.entities") },
+            { value: "quality", label: t("explore.quality.tab") },
+          ]}
+          value={view}
+          onChange={setView}
         />
+      ) : null}
+      {config && space && query.type && view === "quality" ? (
+        <div {...tabPanelProps("explore-view", "quality")}>
+          <TypeQuality project={project} space={space} type={query.type} />
+        </div>
+      ) : config ? (
+        <div {...(space && query.type ? tabPanelProps("explore-view", "entities") : {})}>
+          <PortalEntityGrid
+            key={`${slug}-${query.type}-${generation}`}
+            project={project}
+            config={config}
+            // Scroll through every matching entity, a window drawn at a time (T-3097).
+            virtual
+            enums={enums}
+            relations={relations}
+            rules={rules}
+            onOpenRelationship={setSelected}
+            onRows={onRows}
+            renderers={renderers}
+            toolbar={
+              <Button size="sm" disabled={shown.rows.length === 0} onClick={download}>
+                {t("explore.export")}
+              </Button>
+            }
+          />
+        </div>
       ) : space && models.isError ? (
         <ListFailed
           what={t("nav.models")}
