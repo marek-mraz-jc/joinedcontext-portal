@@ -136,6 +136,7 @@ async fn a_pipeline_names_its_refused_records_and_its_runs() {
         path: "pm10".into(),
         message: "not a number".into(),
         step: None,
+        run: None,
     };
     for n in 0..3 {
         state
