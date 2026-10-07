@@ -180,10 +180,11 @@ describe("the published package", () => {
     };
     for (const [peer, range] of Object.entries(manifest.peerDependencies)) {
       if (optional(peer)) {
-        // Installed only by an application that runs the check it serves; where the template
-        // does install it, it is the same version.
+        // The build lane installs the template and nothing an application names (AP-82), and
+        // runs every application's browser checks with it, so a peer one of those checks needs
+        // (axe-core for the responsive check) is the template's to install (T-3184).
         const pinned = template.dependencies[peer] ?? template.devDependencies?.[peer];
-        if (pinned !== undefined) expect(pinned, `${peer} differs from the template`).toBe(range);
+        expect(pinned, `${peer} is not installed by the template the build lane runs`).toBe(range);
         continue;
       }
       // A peer the template does not pin would be resolved twice, which is how two Reacts happen.
