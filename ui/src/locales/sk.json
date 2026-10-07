@@ -2380,7 +2380,7 @@
   "apps": {
     "title": "Aplikácie",
     "subtitle": "Aplikácie postavené pre tento projekt. Náhľad beží nad sandboxovým priestorom, publikovanie je merge request.",
-    "empty": "Tento projekt zatiaľ nemá žiadne aplikácie.",
+    "empty": "Tento projekt zatiaľ nemá žiadne aplikácie. Stlačte „Vygenerovať vlastnú aplikáciu“, vyberte endpoint, z ktorého číta, a opíšte ju: builder ju napíše a otvorí merge request na kontrolu.",
     "visibility": "Viditeľné pre {visibility}",
     "dataNeeds": "Číta {types} v {spaces}",
     "previewAction": "Otvoriť náhľad",
@@ -2515,6 +2515,12 @@
         "cancel": "Zrušiť",
         "close": "Zavrieť",
         "waiting": "{name} je navrhnutý (pruh {lane}). Keď je zmena zlúčená a endpoint beží, tvorca ho načíta; popis môžete medzitým písať ďalej."
+      },
+      "missing": {
+        "endpoint": "Najprv vyberte endpoint, z ktorého aplikácia číta.",
+        "prompt": "Opíšte, čo má aplikácia robiť.",
+        "name": "Opravte názov aplikácie v podrobnostiach: malé písmená, číslice a pomlčky.",
+        "needs": "V podrobnostiach nechajte zaškrtnutý aspoň jeden atribút: aplikácia potrebuje niečo čítať."
       }
     },
     "newAction": "Vygenerovať vlastnú aplikáciu",
@@ -2673,6 +2679,13 @@
       "notice": "{count, plural, one {# aplikácia ešte používa názov tvaru, ktorý ďalšie vydanie odmietne.} few {# aplikácie ešte používajú názvy tvarov, ktoré ďalšie vydanie odmietne.} other {# aplikácií ešte používa názvy tvarov, ktoré ďalšie vydanie odmietne.}} Jedna zmena navrhnutá vo vašom mene zapíše nové názvy a nič iné nezmení.",
       "item": "{name}: z {from} bude {to}",
       "action": "Navrhnúť premenovanie"
+    },
+    "audience": {
+      "private": "len jej autor",
+      "project": "členovia tohto projektu",
+      "organization": "všetci v organizácii",
+      "public": "všetci, aj bez prihlásenia",
+      "roles": "ľudia s niektorou z jej rolí"
     }
   },
   "appLifecycle": {
