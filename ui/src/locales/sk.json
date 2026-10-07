@@ -1890,6 +1890,33 @@
       "runMessage": "Spustiť správu {number} z {total}",
       "startOver": "Od začiatku",
       "position": "Správa {number} z {total}"
+    },
+    "schedule": {
+      "how": "Ako často",
+      "kind": {
+        "minutes": "Každých pár minút",
+        "hours": "Každých pár hodín",
+        "hourly": "Každú hodinu",
+        "daily": "Každý deň",
+        "weekly": "Každý týždeň",
+        "custom": "Vlastný (cron)"
+      },
+      "every": {
+        "minutes": "Každých",
+        "hours": "Každých"
+      },
+      "step": {
+        "minutes": "{count} minút",
+        "hours": "{count, plural, few {# hodiny} other {# hodín}}"
+      },
+      "atMinute": "V minúte",
+      "on": "V deň",
+      "atTime": "O (UTC)",
+      "cron": "Cron, päť polí v UTC",
+      "invalid": "Toto nie je päť polí cron: minúta, hodina, deň v mesiaci, mesiac, deň v týždni.",
+      "next": "Ďalších päť behov vo vašom čase",
+      "never": "Tento rozvrh nemenuje žiadny čas v nasledujúcich štyroch rokoch.",
+      "tooOften": "Tento rozvrh beží častejšie, než sa zdroj mení (záznam v katalógu hovorí: {frequency}), takže väčšina behov nenájde nič nové."
     }
   },
   "dashboards": {

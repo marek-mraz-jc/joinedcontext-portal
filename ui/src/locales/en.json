@@ -1890,6 +1890,33 @@
       "runMessage": "Run message {number} of {total}",
       "startOver": "Start over",
       "position": "Message {number} of {total}"
+    },
+    "schedule": {
+      "how": "How often",
+      "kind": {
+        "minutes": "Every few minutes",
+        "hours": "Every few hours",
+        "hourly": "Every hour",
+        "daily": "Every day",
+        "weekly": "Every week",
+        "custom": "Custom (cron)"
+      },
+      "every": {
+        "minutes": "Every",
+        "hours": "Every"
+      },
+      "step": {
+        "minutes": "{count} minutes",
+        "hours": "{count} hours"
+      },
+      "atMinute": "At minute",
+      "on": "On",
+      "atTime": "At (UTC)",
+      "cron": "Cron, five fields in UTC",
+      "invalid": "This is not five cron fields: minute, hour, day of month, month, day of week.",
+      "next": "Next five runs, in your time",
+      "never": "This schedule names no time that comes in the next four years.",
+      "tooOften": "This schedule runs more often than the source changes (its catalogue record says: {frequency}), so most runs will find nothing new."
     }
   },
   "dashboards": {

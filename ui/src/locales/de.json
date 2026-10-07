@@ -1890,6 +1890,33 @@
       "runMessage": "Nachricht {number} von {total} ausführen",
       "startOver": "Von vorn",
       "position": "Nachricht {number} von {total}"
+    },
+    "schedule": {
+      "how": "Wie oft",
+      "kind": {
+        "minutes": "Alle paar Minuten",
+        "hours": "Alle paar Stunden",
+        "hourly": "Jede Stunde",
+        "daily": "Jeden Tag",
+        "weekly": "Jede Woche",
+        "custom": "Eigener (Cron)"
+      },
+      "every": {
+        "minutes": "Alle",
+        "hours": "Alle"
+      },
+      "step": {
+        "minutes": "{count} Minuten",
+        "hours": "{count} Stunden"
+      },
+      "atMinute": "In Minute",
+      "on": "Am",
+      "atTime": "Um (UTC)",
+      "cron": "Cron, fünf Felder in UTC",
+      "invalid": "Das sind keine fünf Cron-Felder: Minute, Stunde, Tag im Monat, Monat, Wochentag.",
+      "next": "Die nächsten fünf Läufe, in Ihrer Zeit",
+      "never": "Dieser Zeitplan nennt keine Zeit in den nächsten vier Jahren.",
+      "tooOften": "Dieser Zeitplan läuft öfter, als sich die Quelle ändert (ihr Katalogeintrag sagt: {frequency}), die meisten Läufe finden also nichts Neues."
     }
   },
   "dashboards": {
