@@ -12,7 +12,11 @@
       "crashHome": "Zum Anfang",
       "session": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um das zu sehen.",
       "forbiddenHint": "Wer das Projekt verantwortet oder die Organisation verwaltet, kann Ihnen Zugriff geben.",
-      "reference": "Nennen Sie das, wenn Sie es melden:"
+      "reference": "Nennen Sie das, wenn Sie es melden:",
+      "offline": "Sie sind offline. Die Seite lädt neu, sobald die Verbindung zurück ist.",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "copyReference": "Referenz {reference} kopieren"
     },
     "notFound": {
       "title": "Diese Seite gibt es nicht",

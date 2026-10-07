@@ -11,6 +11,7 @@ import {
   Button,
   Dialog,
   EmptyState,
+  PageFailed,
   PageHeader,
   PermissionGuard,
   Table,
@@ -88,9 +89,14 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
         }
       />
       {sources.isError ? (
-        <Alert role="alert" tone="danger">
+        <PageFailed
+          error={sources.error}
+          onRetry={() => {
+            void sources.refetch();
+          }}
+        >
           {t("knowledge.failed", { reason: reasonOf(sources.error, t("app.error.generic")) })}
-        </Alert>
+        </PageFailed>
       ) : null}
       {crawl.isError ? (
         <Alert role="alert" tone="danger">
@@ -237,9 +243,12 @@ function Assistants({ project }: { project: string }): JSX.Element {
         </PermissionGuard>
       </div>
       {list.isError ? (
-        <Alert role="alert" tone="danger">
-          {reasonOf(list.error, t("app.error.generic"))}
-        </Alert>
+        <PageFailed
+          error={list.error}
+          onRetry={() => {
+            void list.refetch();
+          }}
+        />
       ) : null}
       {!list.isLoading && !list.isError && items.length === 0 ? (
         <EmptyState title={t("knowledge.assistants.empty")} description={t("knowledge.assistants.emptyHint")} icon="chat" />
@@ -347,9 +356,12 @@ function Usage({ project, deployment }: { project: string; deployment: string })
   if (usage.isLoading) return <p role="status">{t("app.loading")}</p>;
   if (usage.isError) {
     return (
-      <Alert role="alert" tone="danger">
-        {reasonOf(usage.error, t("app.error.generic"))}
-      </Alert>
+      <PageFailed
+        error={usage.error}
+        onRetry={() => {
+          void usage.refetch();
+        }}
+      />
     );
   }
   const days = usage.data ?? [];

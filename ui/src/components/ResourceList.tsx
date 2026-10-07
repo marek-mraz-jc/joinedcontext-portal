@@ -1,7 +1,7 @@
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "../api/client";
-import { Alert, Button, Icon, Table, TableBody, TableEmpty, TableSkeleton } from "./ui";
+import { Table, TableBody, TableEmpty, TableSkeleton } from "./ui";
+import { PageFailed } from "./ui/PageState";
 
 /**
  * The table of a resource list page (T-1382): a skeleton while the list loads, the API's own
@@ -29,27 +29,15 @@ export function ResourceList({
 }): JSX.Element {
   const { t } = useTranslation();
   if (query.isError) {
-    const error = query.error;
-    const message =
-      error instanceof ApiError ? (error.problem?.detail ?? error.message) : t("app.error.generic");
+    // The one failure panel (T-3244): the API's sentence, its reference to copy, and a retry only
+    // where asking again can help.
     return (
-      <Alert
-        role="alert"
-        tone="danger"
-        actions={
-          <Button
-            size="sm"
-            icon={<Icon name="refresh" className="size-4" />}
-            onClick={() => {
-              void query.refetch();
-            }}
-          >
-            {t("app.error.retry")}
-          </Button>
-        }
-      >
-        {message}
-      </Alert>
+      <PageFailed
+        error={query.error}
+        onRetry={() => {
+          void query.refetch();
+        }}
+      />
     );
   }
   return (

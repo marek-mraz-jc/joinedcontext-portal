@@ -12,7 +12,11 @@
       "crashHome": "Zpět na začátek",
       "session": "Vaše přihlášení skončilo. Přihlaste se znovu, abyste to viděli.",
       "forbiddenHint": "Přístup vám může dát vlastník projektu nebo správce organizace.",
-      "reference": "Uveďte toto, až to budete hlásit:"
+      "reference": "Uveďte toto, až to budete hlásit:",
+      "offline": "Jste offline. Stránka se načte znovu, jakmile bude připojení zpět.",
+      "copy": "Kopírovat",
+      "copied": "Zkopírováno",
+      "copyReference": "Kopírovat referenci {reference}"
     },
     "notFound": {
       "title": "Tato stránka neexistuje",

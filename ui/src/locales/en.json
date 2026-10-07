@@ -12,7 +12,11 @@
       "crashHome": "Go to the start",
       "session": "Your session ended. Sign in again to see this.",
       "forbiddenHint": "A project owner or an organization administrator can give you access.",
-      "reference": "Quote this when you report it:"
+      "reference": "Quote this when you report it:",
+      "offline": "You are offline. The page reads again as soon as the connection is back.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyReference": "Copy the reference {reference}"
     },
     "notFound": {
       "title": "This page does not exist",

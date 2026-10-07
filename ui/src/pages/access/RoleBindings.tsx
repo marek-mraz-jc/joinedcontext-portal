@@ -21,6 +21,7 @@ import {
   EmptyState,
   Field,
   Input,
+  PageFailed,
   Select,
   Table,
   TableBody,
@@ -538,15 +539,23 @@ export function RoleBindings({
       </div>
 
       {scope !== "organization" && spaces.isError ? (
-        <Alert tone="danger" role="alert">
+        <PageFailed
+          error={spaces.error}
+          onRetry={() => {
+            void spaces.refetch();
+          }}
+        >
           {t("access.roles.spacesFailed", { reason: reasonOf(spaces.error, t("app.error.generic")) })}
-        </Alert>
+        </PageFailed>
       ) : null}
 
       {bindings.isError ? (
-        <Alert tone="danger" role="alert">
-          {reasonOf(bindings.error, t("app.error.generic"))}
-        </Alert>
+        <PageFailed
+          error={bindings.error}
+          onRetry={() => {
+            void bindings.refetch();
+          }}
+        />
       ) : (
         <Table
           data-records=""
