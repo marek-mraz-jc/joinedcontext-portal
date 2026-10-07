@@ -116,6 +116,32 @@ describe("the activity feed (UI-31)", () => {
     );
   });
 
+  it("links a merged change to its own page and links nothing that is not a change id (T-3292)", async () => {
+    renderFeed([
+      event({
+        kind: "change.merged",
+        source: "portal",
+        severity: "info",
+        summary: "Change chg-0000001c merged: create Endpoint public-air, approved by eva.",
+        details: { change: "chg-0000001c", object: "endpoints/public-air" },
+      }),
+      event({
+        kind: "change.merged",
+        source: "portal",
+        severity: "info",
+        summary: "A merge naming no change id.",
+        details: { change: "javascript:alert(1)" },
+      }),
+    ]);
+    const shown = await rows();
+    expect(within(shown[0]).getByRole("link", { name: "chg-0000001c" })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/approvals/chg-0000001c",
+    );
+    expect(within(shown[0]).getByRole("link", { name: "endpoints/public-air" })).toBeInTheDocument();
+    expect(within(shown[1]).queryByRole("link")).toBeNull();
+  });
+
   it("puts a filter into the request the list makes", async () => {
     const urls = renderFeed([event()]);
     await rows();

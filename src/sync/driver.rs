@@ -498,6 +498,7 @@ mod tests {
             mergeable: Some(true),
             merged,
             repository: "config".to_owned(),
+            ..Default::default()
         }
     }
 
