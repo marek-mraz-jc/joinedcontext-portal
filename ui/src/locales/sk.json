@@ -2913,7 +2913,8 @@
     "advanced": "Toto q používa | alebo zátvorky, ktoré riadky nezobrazia; upravte ho ako text.",
     "q": "Dopyt (q)",
     "qHint": "NGSI-LD q, ktoré riadky skladajú; upravte ho tu alebo v YAML.",
-    "attrs": "Čítané atribúty"
+    "attrs": "Čítané atribúty",
+    "typeNotGranted": "{name} (cez tento endpoint neudelené)"
   },
   "entityGrid": {
     "id": "ID",

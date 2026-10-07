@@ -2913,7 +2913,8 @@
     "advanced": "This q uses | or brackets, which the rows cannot show; edit it as text.",
     "q": "Query (q)",
     "qHint": "The NGSI-LD q the rows compose; edit it here or in YAML.",
-    "attrs": "Attributes to read"
+    "attrs": "Attributes to read",
+    "typeNotGranted": "{name} (not granted through this endpoint)"
   },
   "entityGrid": {
     "id": "ID",

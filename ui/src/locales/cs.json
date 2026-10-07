@@ -2913,7 +2913,8 @@
     "advanced": "Toto q používá | nebo závorky, které řádky nezobrazí; upravte ho jako text.",
     "q": "Dotaz (q)",
     "qHint": "NGSI-LD q, které řádky skládají; upravte ho zde nebo v YAML.",
-    "attrs": "Čtené atributy"
+    "attrs": "Čtené atributy",
+    "typeNotGranted": "{name} (přes tento endpoint neuděleno)"
   },
   "entityGrid": {
     "id": "ID",

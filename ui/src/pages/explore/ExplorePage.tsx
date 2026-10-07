@@ -118,6 +118,17 @@ export function ExplorePage({
   // A relationship end is picked from the target's entities the person can read (UI-84).
   const relations = useMemo(() => relationsOfModel(modelSource, query.type), [modelSource, query.type]);
   const access = useAccess(slug);
+  // The types this endpoint lets the person read (T-3218): a grant without a type covers every
+  // one, and an access document not read yet says nothing, so the list then stays as it is.
+  const readable = useMemo(() => {
+    const grants = (access.data?.permissions ?? []).filter((entry) =>
+      (entry.actions ?? []).some((action) => action.startsWith("query") || action.startsWith("retrieve")),
+    );
+    if (access.data === undefined || grants.some((entry) => !entry.resource?.type || entry.resource.type === "*")) {
+      return undefined;
+    }
+    return [...new Set(grants.map((entry) => entry.resource?.type).filter((type): type is string => Boolean(type)))];
+  }, [access.data]);
   const denied = useMemo(
     () => deniedAttributes(access.data, query.type, slots, t),
     [access.data, query.type, slots, t],
@@ -299,11 +310,18 @@ export function ExplorePage({
             }}
           >
             <option value="">—</option>
-            {spaceEndpoints.map((e) => (
-              <option key={e.metadata.name} value={e.metadata.name}>
-                {localized(e.metadata.title, locale, e.metadata.name)}
-              </option>
-            ))}
+            {spaceEndpoints.map((e) => {
+              const title = localized(e.metadata.title, locale, e.metadata.name);
+              // Two endpoints of one title are told apart by their names (T-3218).
+              const twin = spaceEndpoints.some(
+                (other) => other !== e && localized(other.metadata.title, locale, other.metadata.name) === title,
+              );
+              return (
+                <option key={e.metadata.name} value={e.metadata.name}>
+                  {twin ? `${title} (${e.metadata.name})` : title}
+                </option>
+              );
+            })}
           </Select>
           {endpoints.isError ? (
             <ListFailed
@@ -323,6 +341,7 @@ export function ExplorePage({
           value={query}
           onChange={changeQuery}
           denied={denied}
+          readable={readable}
         />
       ) : null}
       {space && query.type ? (

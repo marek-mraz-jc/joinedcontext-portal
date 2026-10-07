@@ -2913,7 +2913,8 @@
     "advanced": "Dieses q verwendet | oder Klammern, die die Zeilen nicht zeigen können; als Text bearbeiten.",
     "q": "Abfrage (q)",
     "qHint": "Das NGSI-LD q, das die Zeilen bilden; hier oder im YAML bearbeiten.",
-    "attrs": "Gelesene Attribute"
+    "attrs": "Gelesene Attribute",
+    "typeNotGranted": "{name} (über diesen Endpoint nicht gewährt)"
   },
   "entityGrid": {
     "id": "ID",

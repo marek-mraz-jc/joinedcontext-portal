@@ -17,6 +17,12 @@ export interface EntityFiltersProps {
   onChange: (next: EntityQuery) => void;
   /** Attributes the caller may not read, by name, with the reason (T-0529). */
   denied?: Record<string, string>;
+  /**
+   * The types the source grants this person a read of (T-3218), offered first; the others follow,
+   * each saying it is not granted, so nobody picks a type to meet an empty grid. Unknown or every
+   * type: leave it out.
+   */
+  readable?: string[];
 }
 
 /**
@@ -24,7 +30,7 @@ export interface EntityFiltersProps {
  * filter with the operators and input the slot's range allows, `scopeQ`, and the attributes to
  * read. Every row is a view of `value.q`; a `q` the rows cannot show stays a text field.
  */
-export function EntityFilters({ id, types, slots, value, onChange, denied = {} }: EntityFiltersProps): JSX.Element {
+export function EntityFilters({ id, types, slots, value, onChange, denied = {}, readable }: EntityFiltersProps): JSX.Element {
   const { t } = useTranslation();
   const q = value.q ?? "";
   // The rows are derived from `q`, but a row being typed (no value yet) is not in `q`, so they
@@ -64,11 +70,15 @@ export function EntityFilters({ id, types, slots, value, onChange, denied = {} }
               }
             >
               <option value="">—</option>
-              {types.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
+              {/* One keyed list whatever the grant says, so an option a person picked survives the
+                  grant arriving: what the source lets them read comes first, the rest say so. */}
+              {[...types]
+                .sort((a, b) => Number(!(readable?.includes(a) ?? true)) - Number(!(readable?.includes(b) ?? true)))
+                .map((name) => (
+                  <option key={name} value={name}>
+                    {readable === undefined || readable.includes(name) ? name : t("entities.typeNotGranted", { name })}
+                  </option>
+                ))}
             </Select>
           ) : (
             <Input
