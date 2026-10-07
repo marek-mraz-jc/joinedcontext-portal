@@ -3061,6 +3061,16 @@
         "contact": "Uvést kontakt",
         "privacy": "Změnit, co čte nebo kdo ji smí otevřít"
       }
+    },
+    "templates": {
+      "title": "Začít ze šablony",
+      "lead": "Každá šablona říká, k čemu slouží a jaká data potřebuje. Vyberte jednu a zvolte endpoint, který čte: aplikace se sestaví nad vašimi daty a běží jako náhled dřív, než cokoli změníte.",
+      "for": "Pro:",
+      "needs": "Čte:",
+      "create": "Vytvořit z této",
+      "mayNot": "Vaše role v tomto projektu nesmí navrhnout aplikaci.",
+      "createTitle": "Vytvořit ze šablony {title}",
+      "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony."
     }
   },
   "appLifecycle": {

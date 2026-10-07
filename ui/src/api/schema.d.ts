@@ -25,6 +25,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Templates
+         * @description The App templates of this Portal, each with what it is for, for whom and the data it needs. Starting a run whose prompt names `(template: {name})` builds from that template.
+         */
+        get: operations["list_templates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/backchannel-logout": {
         parameters: {
             query?: never;
@@ -3026,6 +3046,10 @@ export interface components {
             role: string;
             via: Record<string, never>;
         };
+        AppTemplates: {
+            /** @description Every template, by name. */
+            templates: components["schemas"]["Template"][];
+        };
         /** @description Request body for approving or rejecting a change proposal. */
         ApproveBody: {
             confirm?: string | null;
@@ -5412,6 +5436,21 @@ export interface components {
             manifests: number;
             revision?: string | null;
         };
+        /**
+         * @description One template as a person picks it (T-3263, AP-141): what it is for, for whom, and the data
+         *     it needs; the source stays the model's.
+         */
+        Template: {
+            /** @description Who may read and write what it shows, in the sample's words. */
+            access: string;
+            audience: string;
+            /** @description The types, attributes and operations it reads, as the sample declares them. */
+            dataNeeds: Record<string, never>[];
+            /** @description The name a prompt names it by: `(template: {name})`. */
+            name: string;
+            purpose: string;
+            title: string;
+        };
         /** @description The request of API/01 §7a. */
         TestRequest: {
             /** @description The candidate Pipeline manifest, unsaved. */
@@ -5653,6 +5692,35 @@ export interface operations {
             };
             /** @description Not the collector's own service account */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every template */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppTemplates"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

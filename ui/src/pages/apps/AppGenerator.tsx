@@ -316,10 +316,13 @@ export function useAppNeeds(
 export function AppGenerator({
   project,
   initialName,
+  initialPrompt,
   onStarted,
 }: {
   project: string;
   initialName?: string;
+  /** What the app should do, already written: a template's purpose naming the template (T-3263). */
+  initialPrompt?: string;
   /** Called with the new run before the page moves to the app, so the assistant can follow it. */
   onStarted?: (runId: string) => void;
 }): JSX.Element {
@@ -329,7 +332,7 @@ export function AppGenerator({
   const guideHref = guideUrl(useBranding(), GUIDE);
   const [name, setName] = useState(initialName ?? "");
   const [kind, setKind] = useState<AppKind>("ui");
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt ?? "");
   // The endpoints the assistant's "Build an app" path handed over (T-2696), taken once: the first
   // is the app's endpoint, the rest are read beside it.
   const [handed] = useState(() => {

@@ -3061,6 +3061,16 @@
         "contact": "Uviesť kontakt",
         "privacy": "Zmeniť, čo číta alebo kto ju smie otvoriť"
       }
+    },
+    "templates": {
+      "title": "Začať zo šablóny",
+      "lead": "Každá šablóna hovorí, na čo slúži a aké dáta potrebuje. Vyberte jednu a zvoľte endpoint, ktorý číta: aplikácia sa zostaví nad vašimi dátami a beží ako náhľad skôr, než čokoľvek zmeníte.",
+      "for": "Pre:",
+      "needs": "Číta:",
+      "create": "Vytvoriť z tejto",
+      "mayNot": "Vaša rola v tomto projekte nesmie navrhnúť aplikáciu.",
+      "createTitle": "Vytvoriť zo šablóny {title}",
+      "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny."
     }
   },
   "appLifecycle": {

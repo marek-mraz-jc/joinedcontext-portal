@@ -3061,6 +3061,16 @@
         "contact": "Name a contact",
         "privacy": "Change what it reads or who may open it"
       }
+    },
+    "templates": {
+      "title": "Start from a template",
+      "lead": "Each template says what it is for and the data it needs. Pick one and choose which endpoint it reads: the app is built on your data and runs as a preview before you change anything.",
+      "for": "For:",
+      "needs": "Reads:",
+      "create": "Create from this",
+      "mayNot": "Your role may not propose an app in this project.",
+      "createTitle": "Create from {title}",
+      "createHint": "Choose the endpoint whose data the app shows; the rest is the template's."
     }
   },
   "appLifecycle": {
