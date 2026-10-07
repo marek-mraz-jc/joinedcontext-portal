@@ -1695,7 +1695,7 @@
         "slotsOf": "What {type} takes",
         "slots": "What the model takes",
         "noModel": "The target space names no data model, so no slot is known.",
-        "pickTarget": "Pick the target endpoint in step 6 to see what its model takes.",
+        "pickTarget": "Pick the target endpoint in step 3 to see what its model takes.",
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
@@ -1728,7 +1728,7 @@
         "someRejected": "{count, plural, one {# record breaks} other {# records break}} {model} {version} and would not be written; {valid} valid."
       },
       "target": {
-        "title": "Target and save",
+        "title": "Target",
         "hint": "Name the endpoint the records are written through; saving proposes a change.",
         "lands": "The records land in the space {space}, checked against the model {model}.",
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
