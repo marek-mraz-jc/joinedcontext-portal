@@ -77,12 +77,12 @@ describe("a kind with no page of its own", () => {
       path: PATH,
       answer: (path) =>
         path.endsWith("/blueprints")
-          ? problem(403, "You may not read the blueprints of this project.")
+          ? problem(503, "The blueprints could not be read right now.")
           : undefined,
     });
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("You may not read the blueprints of this project.");
+    expect(alert).toHaveTextContent("The blueprints could not be read right now.");
     // Not the empty state: a list that failed is not "there is nothing here" (T-1763).
     expect(screen.queryByText(en.resourceList.empty)).toBeNull();
 

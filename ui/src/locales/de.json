@@ -244,6 +244,7 @@
       "inForge": "Im Repository geschlossen",
       "older": "Ältere Änderungen zeigen",
       "empty": "Noch keine Änderung wurde zusammengeführt oder abgelehnt.",
+      "emptyHint": "Eine Änderung erscheint hier mit der Person, die entschieden hat, sobald sie im Reiter Offen genehmigt oder abgelehnt wurde.",
       "noneOnPage": "Keine dieser Änderungen dürfen Sie lesen. Ältere vielleicht schon."
     }
   },

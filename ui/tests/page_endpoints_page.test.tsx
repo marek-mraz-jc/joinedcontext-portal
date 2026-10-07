@@ -110,11 +110,11 @@ describe("the endpoints page", () => {
       path: PATH,
       answer: (path) =>
         path.endsWith("/endpoints")
-          ? problem(403, "You may not read this project's endpoints.")
+          ? problem(503, "The endpoints could not be read right now.")
           : undefined,
     });
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("You may not read this project's endpoints.");
+    expect(alert).toHaveTextContent("The endpoints could not be read right now.");
     expect(screen.queryByText(en.endpoints.empty)).toBeNull();
 
     const before = calls().filter((call) => call.endsWith("/endpoints")).length;

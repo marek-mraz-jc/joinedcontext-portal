@@ -164,8 +164,10 @@ describe("Project settings", () => {
   // The empty state: what this is, and what to do first.
   it("offers the first action when nobody holds a role yet", async () => {
     renderSettings({ rows: 0 });
-    expect(await screen.findByText(en.access.roles.empty)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: en.access.roles.grant })).toBeInTheDocument();
+    const empty = await screen.findByText(en.access.roles.empty);
+    // The empty list offers the first grant itself (T-3246), beside the page's own button.
+    const state = empty.closest("[data-empty-state]") as HTMLElement;
+    expect(within(state).getByRole("button", { name: en.access.roles.grant })).toBeInTheDocument();
   });
 
   // The error state: the API's own sentence, not "something went wrong", and never an empty

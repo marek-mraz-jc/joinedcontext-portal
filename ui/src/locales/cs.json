@@ -244,6 +244,7 @@
       "inForge": "Uzavřeno v repozitáři",
       "older": "Zobrazit starší změny",
       "empty": "Zatím nebyla sloučena ani zamítnuta žádná změna.",
+      "emptyHint": "Změna se tu objeví i s tím, kdo o ní rozhodl, jakmile ji na kartě Otevřené schválíte nebo zamítnete.",
       "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano."
     }
   },
