@@ -387,6 +387,12 @@ fn every_reference_app_in_its_own_repository_carries_the_templates_workflow() {
     let fullstack =
         std::fs::read_to_string(root.join("sdk/template-fullstack/.gitea/workflows/build.yml"))
             .expect("the fullstack template's workflow");
+    // AP-142: a ui app that compiles Rust to WebAssembly carries the SDK's React + Rust example's,
+    // which builds on the app-build-rust runner.
+    let wasm = std::fs::read_to_string(
+        root.join("sdk/examples/react-rust-wasm/.gitea/workflows/build.yml"),
+    )
+    .expect("the WebAssembly example's workflow");
     let mut seen = 0;
     for (name, yaml) in reference_apps() {
         let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
@@ -406,9 +412,14 @@ fn every_reference_app_in_its_own_repository_carries_the_templates_workflow() {
             continue;
         }
         seen += 1;
+        let wants_wasm = app.spec.build.0.contains_key("rust");
         assert_eq!(
             std::fs::read_to_string(&workflow).ok().as_deref(),
-            Some(template.as_str()),
+            Some(if wants_wasm {
+                wasm.as_str()
+            } else {
+                template.as_str()
+            }),
             "apps/{name} names spec.source.git, so it carries the template's build.yml"
         );
     }

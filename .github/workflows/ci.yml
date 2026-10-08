@@ -108,7 +108,7 @@ jobs:
     # builder/build-wasm.sh (the crate store is the runner's registry, fetched here once), then its
     # tests, its bundle and its page in Chromium under the static host's policy.
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       WASM_BINDGEN_VERSION: "0.2.129"
       WASM_BINDGEN_SHA256: "82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e"
@@ -139,6 +139,21 @@ jobs:
           pnpm test && pnpm build
           pnpm exec playwright install --with-deps --only-shell chromium
           pnpm exec playwright test
+      # The Apps with a WebAssembly part (T-3331..T-3333), the same way: the apps job below
+      # leaves them to this one, which has the wasm32 target and the runner's wasm-bindgen.
+      - name: the Apps with a WebAssembly part build, pass their tests and answer in Chromium
+        run: |
+          set -eu
+          for app in apps/*/; do
+            [ -f "$app/wasm/Cargo.toml" ] && [ -f "$app/package.json" ] || continue
+            work=$(mktemp -d)
+            cp -r "$app". "$work"
+            cargo fetch --locked --manifest-path "$work/wasm/Cargo.toml"
+            JC_CRATE_STORE="$HOME/.cargo/registry" sh builder/build-wasm.sh "$work" "$(mktemp -d)"
+            (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
+              && pnpm install --no-frozen-lockfile && pnpm typecheck && pnpm test && pnpm build \
+              && pnpm exec playwright test)
+          done
   apps:
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -183,6 +198,8 @@ jobs:
           set -eu
           for app in apps/*/; do
             [ -f "$app/package.json" ] || continue
+            # One with a WebAssembly part builds in the wasm-example job (AP-142).
+            [ -f "$app/wasm/Cargo.toml" ] && continue
             work=$(mktemp -d)
             cp -r "$app". "$work"
             (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
