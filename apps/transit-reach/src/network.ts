@@ -71,11 +71,29 @@ async function readAll(client: DataClient, type: string, attrs: string[]): Promi
   return rows;
 }
 
+/** The key of a point, the stop's coordinates as the module hands them back unchanged. */
+export function pointKey(at: { lon: number; lat: number }): string {
+  return `${at.lon},${at.lat}`;
+}
+
+/** Each placed stop's entity id by its point, so a stop the module reached opens as its entity (SDK-40). */
+export function entitiesOf(stops: Row[]): Map<string, string> {
+  const ids = new Map<string, string>();
+  for (const row of stops) {
+    const at = pointOf(row.location);
+    if (at) ids.set(pointKey(at), row.id);
+  }
+  return ids;
+}
+
+type NetworkState = { network: NetworkInput; entities: Map<string, string>; loading: boolean; error: ProblemError | null };
+
 /** HSL's stops and lines of the space, every page of both; an error beside an empty network. */
-export function useNetwork(): { network: NetworkInput; loading: boolean; error: ProblemError | null; reload: () => void } {
+export function useNetwork(): NetworkState & { reload: () => void } {
   const client = useClient();
-  const [state, setState] = useState<{ network: NetworkInput; loading: boolean; error: ProblemError | null }>({
+  const [state, setState] = useState<NetworkState>({
     network: { stops: [], routes: [] },
+    entities: new Map(),
     loading: true,
     error: null,
   });
@@ -85,11 +103,12 @@ export function useNetwork(): { network: NetworkInput; loading: boolean; error: 
     let current = true;
     setState((previous) => ({ ...previous, loading: true, error: null }));
     Promise.all([readAll(client, STOP, STOP_ATTRS), readAll(client, ROUTE, ROUTE_ATTRS)]).then(
-      ([stops, routes]) => current && setState({ network: toNetwork(stops, routes), loading: false, error: null }),
+      ([stops, routes]) => current && setState({ network: toNetwork(stops, routes), entities: entitiesOf(stops), loading: false, error: null }),
       (error: unknown) =>
         current &&
         setState({
           network: { stops: [], routes: [] },
+          entities: new Map(),
           loading: false,
           error: error instanceof ProblemError ? error : new ProblemError(0, { title: error instanceof Error ? error.message : String(error) }),
         }),

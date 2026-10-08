@@ -19,15 +19,8 @@ export interface Strings {
   notOnMap: string;
   standing: Record<Standing, string>;
   bikesAndDocks: (bikes: number | null, docks: number | null) => string;
-  close: string;
-  detailOf: (name: string) => string;
   unnamed: string;
-  freeBikes: string;
-  freeDocks: string;
-  capacity: string;
   status: string;
-  updated: string;
-  noValue: string;
   attribution: string;
 }
 
@@ -52,15 +45,8 @@ const en: Strings = {
   notOnMap: "no position",
   standing: { empty: "no free bikes", full: "no free docks", available: "bikes and docks free", unknown: "counts not reported" },
   bikesAndDocks: (bikes, docks) => `${count(bikes, "–")} bikes · ${count(docks, "–")} docks`,
-  close: "Close",
-  detailOf: (name) => `Station ${name}`,
   unnamed: "Unnamed station",
-  freeBikes: "Free bikes",
-  freeDocks: "Free docks",
-  capacity: "Docks in all",
   status: "Status",
-  updated: "Updated",
-  noValue: "not reported",
   attribution: "Data: HSL city bikes (Inurba), ODbL 1.0, through the helsinki project of the joinedcontext platform.",
 };
 
@@ -83,15 +69,8 @@ const fi: Strings = {
   notOnMap: "ei sijaintia",
   standing: { empty: "ei vapaita pyöriä", full: "ei vapaita telineitä", available: "pyöriä ja telineitä vapaana", unknown: "määriä ei ilmoitettu" },
   bikesAndDocks: (bikes, docks) => `${count(bikes, "–")} pyörää · ${count(docks, "–")} telinettä`,
-  close: "Sulje",
-  detailOf: (name) => `Asema ${name}`,
   unnamed: "Nimetön asema",
-  freeBikes: "Vapaat pyörät",
-  freeDocks: "Vapaat telineet",
-  capacity: "Telineitä yhteensä",
   status: "Tila",
-  updated: "Päivitetty",
-  noValue: "ei ilmoitettu",
   attribution: "Tiedot: HSL:n kaupunkipyörät (Inurba), ODbL 1.0, joinedcontext-alustan helsinki-projektin kautta.",
 };
 

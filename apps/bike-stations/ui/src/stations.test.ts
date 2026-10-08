@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RichRow } from "@joinedcontext/sdk";
-import { folded, matches, standingOf, stationOf, totals } from "./stations";
+import { byName, folded, matches, standingOf, stationOf, totals } from "./stations";
+import { answer } from "./fixtures/bikes";
 import type { Station } from "./stations";
 
 const row = (cells: Record<string, unknown>): RichRow =>
@@ -11,9 +12,6 @@ const station = (bikes: number | null, docks: number | null): Station => ({
   coordinates: null,
   bikes,
   docks,
-  capacity: null,
-  status: null,
-  updatedAt: null,
 });
 
 describe("a station", () => {
@@ -29,6 +27,28 @@ describe("a station", () => {
     expect(far.coordinates).toBeNull();
     const named = stationOf(row({ name: { languageMap: { fi: "Rautatientori", sv: "Järnvägstorget" } } }), "sv");
     expect(named.name).toBe("Järnvägstorget");
+  });
+
+  it("reads a name in the reader's language, else Finnish, else English, else the one written; a blank or odd value as none", () => {
+    const named = (cell: unknown, locale = "sv") => stationOf(row({ name: cell }), locale).name;
+    expect(named({ languageMap: { fi: "Rautatientori", en: "Railway Square" } })).toBe("Rautatientori");
+    expect(named({ languageMap: { en: "Railway Square" } })).toBe("Railway Square");
+    expect(named({ languageMap: { de: "Bahnhofsplatz" } })).toBe("Bahnhofsplatz");
+    expect(named({ languageMap: { sv: "  " } })).toBeNull();
+    expect(named({ value: " Kamppi " })).toBe("Kamppi");
+    expect(named({ value: "" })).toBeNull();
+    expect(named({ value: 7 })).toBeNull();
+    // Several values of one attribute: the first is the one read.
+    expect(named([{ value: "Kamppi" }, { value: "Kampen" }])).toBe("Kamppi");
+  });
+
+  it("puts a station without a name last, two of them side by side", () => {
+    const unnamed = { ...station(1, 1), id: "u", name: null };
+    const other = { ...station(1, 1), id: "v", name: null };
+    expect([unnamed, station(1, 1)].sort(byName).map((one) => one.id)).toEqual(["x", "u"]);
+    expect([station(1, 1), unnamed].sort(byName).map((one) => one.id)).toEqual(["x", "u"]);
+    expect(byName(unnamed, other)).toBe(0);
+    expect(answer("Other")).toEqual([]);
   });
 
   it("is empty with no bike, full with no dock, unknown when it reports neither", () => {
