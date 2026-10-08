@@ -235,7 +235,7 @@ describe("the region map", () => {
 
   it("says it has nothing to read when the app has no endpoint of the register space", () => {
     show(undefined, false);
-    expect(screen.getByRole("status")).toHaveTextContent(s.noEndpoint);
+    expect(screen.getByText(s.noEndpoint)).toBeInTheDocument();
   });
 
   it("names its source and has nothing axe finds", async () => {

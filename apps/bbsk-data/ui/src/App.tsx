@@ -12,7 +12,7 @@
  */
 import { useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { AppShell, cellText, endpointSource, EntityGrid, Page, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import { AppShell, cellText, Empty, endpointSource, EntityGrid, Page, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { RichCell, RichRow } from "@joinedcontext/sdk";
 import { DATASETS, ENUMS, exportUrl, gridConfig, TYPE_OF } from "./datasets";
 import type { Dataset } from "./datasets";
@@ -123,7 +123,7 @@ function Registers() {
           </section>
         </>
       ) : (
-        <p role="status">{s.noEndpoint}</p>
+        <Empty>{s.noEndpoint}</Empty>
       )}
       <p className="source">{s.source}</p>
     </Page>
