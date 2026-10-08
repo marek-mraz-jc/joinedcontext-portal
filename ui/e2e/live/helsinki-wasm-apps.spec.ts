@@ -61,3 +61,13 @@ test("air-weather-explorer says how the weather moves the live air", async ({ pa
   await expect(page.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
   expectWasmPolicy(csp, wasm, "air-weather-explorer");
 });
+
+test("kpi-forecast answers how the indicators move with their live history", async ({ page }) => {
+  const { wasm, csp, started } = await open(page, "kpi-forecast", "?lang=en");
+  await expect(page.locator(".app-summary")).toHaveText(/^\d+ indicators over the last 30 days: \d+ rising, \d+ falling, \d+ flat\./, { timeout: 120_000 });
+  console.log(`kpi-forecast: first answer after ${Date.now() - started} ms`);
+  await expect(page.getByRole("list", { name: "Indicators" }).getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
+  // The temporal read is the App's own grant: a refusal would show here.
+  await expect(page.getByText(/history could not be read/)).toHaveCount(0);
+  expectWasmPolicy(csp, wasm, "kpi-forecast");
+});
