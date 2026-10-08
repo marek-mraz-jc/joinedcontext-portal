@@ -58,6 +58,8 @@ jobs:
         env:
           JC_PREVIEW_OUT: "${{ runner.temp }}/preview"
           JC_PORTAL_TEST_DATABASE_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
+          # The apps database's tests make a CREATEROLE login and a database each (AP-149).
+          JC_APPS_DB_TEST_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
           JC_PORTAL_TEST_BENTO_URL: http://127.0.0.1:4195
       # The template's preview document, as the test above wrote it, rendered in a sandboxed
       # frame with its own policy (SDK-16, T-0678).

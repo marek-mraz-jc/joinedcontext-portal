@@ -177,6 +177,8 @@ COPY apps ./apps
 # sqlx::migrate!("./migrations") reads the folder at COMPILE time, so it is a build input,
 # not a runtime one: without it cargo fails with "error canonicalizing migration directory".
 COPY migrations ./migrations
+# The same for the apps database's own schema (src/apps/apps_db.rs, AP-149).
+COPY apps_db ./apps_db
 # Cargo.toml declares `[workspace] members = ["apps/*"]`, and cargo resolves every member's
 # manifest before it builds anything, so without these the build dies on
 # `failed to load manifest for workspace member /src/apps/*`. Their sources are needed too:
