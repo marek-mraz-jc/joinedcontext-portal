@@ -16,7 +16,8 @@ export function RunTimeline({
   steps: number;
   tokensUsed: number;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const reached = RUN_STATES.indexOf(status as (typeof RUN_STATES)[number]);
   const stopped = TERMINAL_STATES.includes(status) && status !== "published";
 
@@ -61,7 +62,7 @@ export function RunTimeline({
         </p>
       )}
       <p className="mt-2 text-caption text-fg-muted">
-        {t("agentRun.timeline.usage", { steps, tokens: tokensUsed.toLocaleString() })}
+        {t("agentRun.timeline.usage", { steps, tokens: tokensUsed.toLocaleString(locale) })}
       </p>
     </section>
   );

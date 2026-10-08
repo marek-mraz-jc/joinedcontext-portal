@@ -116,7 +116,10 @@ function StreamMetrics({
   /** A scheduled pipeline has no stream to count; it is not paused for that (T-2759). */
   resident: boolean;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // In the person's language, never the browser's: 1 234,5 in Slovak, 1,234.5 in English (T-3278).
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  const tenths = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const previous = useRef<{ received: number; at: number } | null>(null);
 
   const metrics = useQuery({
@@ -167,20 +170,20 @@ function StreamMetrics({
       {rate !== null ? (
         <>
           <dt className="text-fg-subtle">{t("pipelines.metrics.rate")}</dt>
-          <dd className="font-medium tabular-nums text-fg">{rate.toFixed(1)}</dd>
+          <dd className="font-medium tabular-nums text-fg">{tenths.format(rate)}</dd>
         </>
       ) : null}
       {received != null ? (
         <>
           <dt className="text-fg-subtle">{t("pipelines.metrics.received")}</dt>
-          <dd className="tabular-nums text-fg">{received.toLocaleString()}</dd>
+          <dd className="tabular-nums text-fg">{received.toLocaleString(locale)}</dd>
         </>
       ) : null}
       {errors != null ? (
         <>
           <dt className="text-fg-subtle">{t("pipelines.metrics.errors")}</dt>
           <dd className={errors > 0 ? "font-medium tabular-nums text-danger" : "tabular-nums text-fg"}>
-            {errors.toLocaleString()}
+            {errors.toLocaleString(locale)}
           </dd>
         </>
       ) : null}
@@ -188,14 +191,14 @@ function StreamMetrics({
         <>
           <dt className="text-fg-subtle">{t("pipelines.metrics.rejected")}</dt>
           <dd className={rejected > 0 ? "font-medium tabular-nums text-warning" : "tabular-nums text-fg"}>
-            {rejected.toLocaleString()}
+            {rejected.toLocaleString(locale)}
           </dd>
         </>
       ) : null}
       {latencyP99Ms != null ? (
         <>
           <dt className="text-fg-subtle">{t("pipelines.metrics.latency")}</dt>
-          <dd className="tabular-nums text-fg">{latencyP99Ms.toFixed(1)}</dd>
+          <dd className="tabular-nums text-fg">{tenths.format(latencyP99Ms)}</dd>
         </>
       ) : null}
     </dl>

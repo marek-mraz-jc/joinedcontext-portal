@@ -112,6 +112,19 @@ describe("what a page may not do by hand", () => {
     expect(breaches("hand_made_control", /<(?:button|input|select|textarea|table)\b/)).toEqual([]);
   });
 
+  it("a_number_or_a_date_is_written_in_the_persons_language", () => {
+    // `toLocaleString()` with no locale, or an `Intl` formatter with none, speaks the browser's
+    // language: a Slovak page read 9/27/2026 and 1,234.5 (UI-15, T-3278). Every file, shared ones
+    // too: a shared control is where the most numbers are written.
+    expect(
+      breaches(
+        "locale_from_the_portal",
+        /\.toLocale(?:Date|Time)?String\(\s*\)|new Intl\.(?:NumberFormat|DateTimeFormat|RelativeTimeFormat)\(\s*\)/,
+        all,
+      ),
+    ).toEqual([]);
+  });
+
   it("a_colour_is_a_token", () => {
     expect(
       breaches(

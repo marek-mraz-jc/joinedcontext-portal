@@ -1564,7 +1564,7 @@
       },
       "preset": {
         "title": "Vorlage",
-        "load": "Laden (DataSource)",
+        "load": "Laden (Datenquelle)",
         "kpi": "Analyse (KPI)",
         "hint": "Laden kopiert Datensätze aus einer externen Quelle in einen Space; Analysieren berechnet einen Indikator aus dem, was ein Endpoint bereits liefert."
       },

@@ -1556,7 +1556,7 @@
       "ticked": "{count} entities ticked: the pipeline reads only these (source.query.ids).",
       "preset": {
         "title": "Preset",
-        "load": "Load (DataSource)",
+        "load": "Load (data source)",
         "kpi": "Analyse (KPI)",
         "hint": "Load copies records from an external feed into a space; Analyse computes an indicator from what an endpoint already serves."
       },

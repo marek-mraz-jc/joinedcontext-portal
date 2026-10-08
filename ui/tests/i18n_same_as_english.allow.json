@@ -85,7 +85,9 @@
     "{ms} ms",
     "{seconds} s",
     "Čeština",
-    "REST API (JSON)"
+    "REST API (JSON)",
+    "HTTP endpoint",
+    "1. Endpoint"
   ],
   "cs": [
     "@context",
