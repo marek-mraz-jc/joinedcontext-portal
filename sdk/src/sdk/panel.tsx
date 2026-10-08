@@ -50,6 +50,10 @@ interface Selection {
   selected: SelectedEntity | null;
   select(entity: SelectedEntity): void;
   clear(): void;
+  /** How many changes the panel has saved: a page that lists the entities reads them again when it moves. */
+  saved: number;
+  /** Counts one saved change; the panel calls it. */
+  markSaved(): void;
 }
 
 const SelectionContext = createContext<Selection | null>(null);
@@ -57,6 +61,8 @@ const SelectionContext = createContext<Selection | null>(null);
 /** Holds what is selected and remembers what opened it, so closing gives the focus back. */
 export function EntitySelectionProvider({ children, source }: { children?: ReactNode; source?: PanelSource }): React.JSX.Element {
   const [selected, setSelected] = useState<SelectedEntity | null>(null);
+  const [saved, setSaved] = useState(0);
+  const markSaved = useCallback(() => setSaved((count) => count + 1), []);
   const opener = useRef<HTMLElement | null>(null);
   const select = useCallback((entity: SelectedEntity) => {
     if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
@@ -71,7 +77,7 @@ export function EntitySelectionProvider({ children, source }: { children?: React
     // After the panel is gone, so the focus lands on what opened it and not on nothing.
     if (back && typeof window !== "undefined") window.setTimeout(() => back.isConnected && back.focus(), 0);
   }, []);
-  const value = useMemo(() => ({ inShell: true, source, selected, select, clear }), [source, selected, select, clear]);
+  const value = useMemo(() => ({ inShell: true, source, selected, select, clear, saved, markSaved }), [source, selected, select, clear, saved, markSaved]);
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
 
@@ -80,7 +86,7 @@ export function useEntitySelection(): Selection {
   return useContext(SelectionContext) ?? NO_SELECTION;
 }
 
-const NO_SELECTION: Selection = { inShell: false, selected: null, select: () => undefined, clear: () => undefined };
+const NO_SELECTION: Selection = { inShell: false, selected: null, select: () => undefined, clear: () => undefined, saved: 0, markSaved: () => undefined };
 
 /** Props that make any element open the panel on a click and on Enter or Space. */
 export function selectable(entity: SelectedEntity, select: (entity: SelectedEntity) => void): {
@@ -221,7 +227,7 @@ function SourcePanel({ entity, source }: { entity: SelectedEntity; source: Panel
 }
 
 function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backing }): React.JSX.Element {
-  const { clear } = useEntitySelection();
+  const { clear, markSaved } = useEntitySelection();
   const { language, typeSchema, defs } = backing;
   const schema = defs;
   const word = (key: SdkWord, slots?: Record<string, string | number>) => sdkWord(language, key, slots);
@@ -321,6 +327,7 @@ function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backi
     setStage({ kind: "saving", patch });
     try {
       await backing.save(patch);
+      markSaved();
       await read();
       setNotice({ tone: "ok", text: word("panel.saved") });
       setStage({ kind: "view" });
