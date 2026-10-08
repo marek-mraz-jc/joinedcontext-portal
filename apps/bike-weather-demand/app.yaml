@@ -1,0 +1,44 @@
+# Helsinki bike and weather demand (T-3337): availability by hour of the week,
+# weather sensitivity, and 6-hour forecast with uncertainty for city-bike stations.
+# Runs in the browser via WebAssembly compiled from wasm/ (AP-142).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: bike-weather-demand
+  namespace: helsinki
+  title:
+    en: "Bikes and the weather"
+    fi: "Pyörät ja sää"
+  description:
+    en: "Will there be a bike at my station? Availability by hour of the week, weather effects, and an estimate for the next 6 hours with its uncertainty."
+    fi: "Onko asemallani pyörää? Saatavuus viikon tunneittain, sään vaikutus ja arvio seuraaville 6 tunnille epävarmuuksineen."
+spec:
+  kind: ui
+  source:
+    git:
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_bike-weather-demand.git
+      ref: main
+  build:
+    node: "22"
+    rust: "1.90"
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [BikeHireDockingStation]
+      attrs: [name, location, availableBikeNumber, freeSlotNumber, totalSlotNumber, status, dateModified]
+      operations: [queryEntity, retrieveEntity, retrieveTemporal]
+      temporalQ:
+        window: P7D
+      representations: [ngsi-ld]
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [WeatherObserved]
+      attrs: [name, location, temperature, precipitation, dateObserved]
+      operations: [queryEntity, retrieveEntity, retrieveTemporal]
+      temporalQ:
+        window: P7D
+      representations: [ngsi-ld]

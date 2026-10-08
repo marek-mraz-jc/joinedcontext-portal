@@ -15,6 +15,7 @@ exclude = [
   "apps/news-topics",
   "apps/district-compare",
   "apps/data-quality-inspector",
+  "apps/bike-weather-demand",
   "apps/alerts-desk",
   "apps/bbsk-ukazovatele",
   "apps/banskabystrica-ovzdusie",

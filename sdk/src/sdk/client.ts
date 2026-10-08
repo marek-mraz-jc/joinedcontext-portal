@@ -58,6 +58,8 @@ export interface Query {
 
 export interface TemporalQuery {
   endpoint?: string;
+  /** The entities whose history is asked, by id (NGSI-LD `id`): one station's week, not every station's. */
+  id?: string[];
   attrs?: string[];
   q?: string;
   timerel: "before" | "after" | "between";
@@ -420,6 +422,12 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       if (query.timerel === "between" && !query.endTimeAt) {
         throw new ProblemError(0, { title: "endTimeAt is required for timerel 'between'" });
       }
+      // The ids go into one comma-separated parameter: an id that is no URN, or holds a comma or a
+      // space, would ask for something else than the caller named.
+      const badId = query.id?.find((value) => !/^urn:[^\s,]+$/.test(value));
+      if (badId !== undefined) {
+        throw new ProblemError(0, { title: `Invalid entity id: '${badId}'` });
+      }
 
       const params: Record<string, string | undefined> = {
         type,
@@ -428,6 +436,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
         timeAt: query.timeAt,
       };
       if (query.endTimeAt) params.endTimeAt = query.endTimeAt;
+      if (query.id && query.id.length > 0) params.id = query.id.join(",");
       if (query.lastN !== undefined) params.lastN = String(query.lastN);
       if (query.limit !== undefined) params.limit = String(query.limit);
       if (query.q) params.q = query.q;
