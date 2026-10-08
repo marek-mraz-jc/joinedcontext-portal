@@ -40,6 +40,6 @@ pnpm build
 pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe
 ```
 
-`pnpm test`, `pnpm typecheck` and `pnpm build` build the module first when `wasm/pkg/` is missing.
-The build needs the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.129, the version the
-crate pins.
+`pnpm wasm` comes first: the tests, the type check and the build import `wasm/pkg/`. The build lane
+runs the same two steps itself (builder/build-wasm.sh) on the app-build-rust runner. It needs the
+`wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.129, the version the crate pins.
