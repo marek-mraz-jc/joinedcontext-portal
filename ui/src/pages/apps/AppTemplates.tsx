@@ -1,0 +1,90 @@
+import { useState } from "react";
+import type { JSX } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { api, unwrap } from "../../api/client";
+import type { components } from "../../api/schema";
+import { Badge, Button, Dialog } from "../../components/ui";
+import { AppGenerator } from "./AppGenerator";
+
+type Template = components["schemas"]["Template"];
+
+/** The prompt a template starts its run with: its purpose, naming it so the build adapts it. */
+export function templatePrompt(template: Pick<Template, "name" | "purpose">): string {
+  return `${template.purpose} (template: ${template.name})`;
+}
+
+/** The entity types a template reads, as its data needs name them. */
+export function typesOf(template: { dataNeeds: readonly unknown[] }): string[] {
+  return [
+    ...new Set(
+      template.dataNeeds.flatMap((need) => {
+        const types = (need as { types?: unknown }).types;
+        return Array.isArray(types) ? types.filter((type): type is string => typeof type === "string") : [];
+      }),
+    ),
+  ];
+}
+
+/**
+ * The App templates (T-3263, AP-141): what each is for, for whom and the data it needs, and
+ * "create from this", which asks only which of the project's endpoints to read: the build adapts
+ * the template to that data and the result runs as a preview before anyone edits it.
+ */
+export function AppTemplates({ project, mayBuild }: { project: string; mayBuild: boolean }): JSX.Element | null {
+  const { t } = useTranslation();
+  const [chosen, setChosen] = useState<Template | null>(null);
+  const templates = useQuery({
+    queryKey: ["app-templates"],
+    retry: false,
+    queryFn: async () => unwrap(await api.GET("/api/v1/app-templates", {})),
+  });
+  const list = templates.data?.templates ?? [];
+  if (list.length === 0) return null;
+  return (
+    <details className="rounded-lg border border-border p-3" data-testid="app-templates">
+      <summary className="cursor-pointer text-body font-semibold text-fg">{t("apps.templates.title")}</summary>
+      <p className="mt-1 text-body text-fg-muted">{t("apps.templates.lead")}</p>
+      <ul className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {list.map((template) => (
+          <li key={template.name} className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3">
+            <h3 className="text-body font-semibold text-fg">{template.title}</h3>
+            <p className="text-caption text-fg-muted">{template.purpose}</p>
+            <p className="text-caption">
+              <span className="font-semibold">{t("apps.templates.for")}</span> {template.audience}
+            </p>
+            <div className="flex flex-wrap items-center gap-1 text-caption">
+              <span className="font-semibold">{t("apps.templates.needs")}</span>
+              {typesOf(template).map((type) => (
+                <Badge key={type} mono>
+                  {type}
+                </Badge>
+              ))}
+            </div>
+            {template.access ? <p className="text-caption text-fg-muted">{template.access}</p> : null}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-auto w-fit"
+              disabled={!mayBuild}
+              disabledReason={mayBuild ? undefined : t("apps.templates.mayNot")}
+              onClick={() => setChosen(template)}
+            >
+              {t("apps.templates.create")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <Dialog
+        open={chosen !== null}
+        onOpenChange={(open) => (open ? undefined : setChosen(null))}
+        title={chosen ? t("apps.templates.createTitle", { title: chosen.title }) : ""}
+        description={t("apps.templates.createHint")}
+        closeLabel={t("app.close")}
+        size="lg"
+      >
+        {chosen ? <AppGenerator project={project} initialName={chosen.name} initialPrompt={templatePrompt(chosen)} /> : null}
+      </Dialog>
+    </details>
+  );
+}

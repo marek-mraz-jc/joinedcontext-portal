@@ -79,10 +79,11 @@ describe("the project a page outside any project opens on (T-2753)", () => {
     });
   }
 
-  it("sends / to the spaces of the project last worked in", async () => {
+  it("sends / to the home of the project last worked in", async () => {
     rememberProject("helsinki");
     renderAt("/");
-    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/spaces"));
+    // The project's home since T-3233, with its first-run checklist and the cards of the role.
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/home"));
   });
 
   it("falls back to the first project when the remembered one is not readable any more", () => {

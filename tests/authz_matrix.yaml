@@ -178,6 +178,9 @@ routes:
   - route: GET /preferences
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /app-templates
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: PUT /preferences
     rule: "signed-in"
     expect: [403, allow, allow, allow, allow, allow, allow, allow]

@@ -32,6 +32,7 @@ import { runInUrl, setRunInUrl } from "./useAgentRun";
 import { Alert, Badge, Button, buttonClass, EmptyState, PageHeader, recordCard, safeHref } from "../../components/ui";
 import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
 import { RenameShapesNotice } from "./RenameShapesNotice";
+import { AppTemplates } from "./AppTemplates";
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 type AppBuild = components["schemas"]["AppBuild"];
@@ -374,6 +375,8 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
         </PermissionGuard>
       </div>
 
+      {/* Start from a template: only the endpoint to read is asked (T-3263). */}
+      <AppTemplates project={project} mayBuild={mayBuild} />
       {change && <ChangeNotice change={change} project={project} />}
       <RenameShapesNotice project={project} apps={apps} proposed={change !== null} onProposed={setChange} />
       {waiting > 0 ? (

@@ -10,7 +10,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { findFormPage } from "./formPage";
 import { App } from "../src/App";
-import { ServiceAccounts } from "../src/pages/access/ServiceAccounts";
+import { ServiceAccounts, keyExpiry } from "../src/pages/access/ServiceAccounts";
 import { expectNoAxeViolations, json, list, problem, renderPart } from "./page_contract";
 
 const IDENTITY = {
@@ -69,6 +69,7 @@ function renderAccess(
     grants?: unknown[];
     accounts?: unknown;
     claim?: { status: number; body: unknown };
+    keys?: unknown;
   } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -95,7 +96,7 @@ function renderAccess(
       return json(options.claim?.body ?? {}, options.claim?.status ?? 404);
     }
     if (path.endsWith("/keys") && method === "GET") {
-      return json(KEYS, options.keysStatus ?? 200);
+      return json(options.keys ?? KEYS, options.keysStatus ?? 200);
     }
     if (path.includes("/keys") && method === "POST") {
       return json(MINTED, 201);
@@ -161,6 +162,29 @@ describe("service accounts view", () => {
       screen.getByRole("button", { name: /New API key \(legacy-push\)/ }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /New API key \(main\)/ })).not.toBeInTheDocument();
+  });
+
+  // T-3255: a key about to stop working is announced before its callers fail.
+  it("announces the keys that expire within two weeks or already have, and leaves the others", async () => {
+    const day = 86_400_000;
+    const at = (days: number) => new Date(Date.now() + days * day).toISOString();
+    renderAccess({
+      keys: {
+        items: [
+          { keyId: "aaaa000000000001", credential: "legacy-push", createdAt: at(-30), createdBy: "jana.kovacova", expiresAt: at(4.5) },
+          { keyId: "aaaa000000000002", credential: "legacy-push", createdAt: at(-30), createdBy: "jana.kovacova", expiresAt: at(-1) },
+          { keyId: "aaaa000000000003", credential: "legacy-push", createdAt: at(-30), createdBy: "jana.kovacova", expiresAt: at(90) },
+          { keyId: "aaaa000000000004", credential: "legacy-push", createdAt: at(-30), createdBy: "jana.kovacova", expiresAt: at(2), revokedAt: at(-2) },
+        ],
+      },
+    });
+    const table = await screen.findByRole("table", { name: /API keys of vendorx-parking-push/ });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("expires in 5 days");
+    expect(rows[1]).toHaveTextContent("expired");
+    expect(rows[2]).not.toHaveTextContent(/expire/);
+    expect(rows[3]).not.toHaveTextContent(/expires in/);
+    expect(screen.getByText("Keys that expire within 14 days or have expired: 2. Rotate them before the programs that use them fail.")).toBeInTheDocument();
   });
 
   it("shows a minted key once, in a dialog that warns it will not be shown again (PF-36)", async () => {
@@ -450,5 +474,17 @@ describe("the service accounts panel, mounted on its own", () => {
     });
     await screen.findByText(en.access.accounts.empty);
     await expectNoAxeViolations(container);
+  });
+});
+
+describe("a key's expiry (T-3255)", () => {
+  const now = new Date("2026-10-07T12:00:00Z");
+  it("rounds the days left up, warns within two weeks, and ignores a revoked key", () => {
+    expect(keyExpiry({ expiresAt: "2026-10-08T00:00:00Z" }, now)).toEqual({ state: "soon", days: 1 });
+    expect(keyExpiry({ expiresAt: "2026-10-21T12:00:00Z" }, now)).toEqual({ state: "soon", days: 14 });
+    expect(keyExpiry({ expiresAt: "2026-10-21T12:00:01Z" }, now)).toEqual({ state: "fine" });
+    expect(keyExpiry({ expiresAt: "2026-10-07T12:00:00Z" }, now)).toEqual({ state: "expired" });
+    expect(keyExpiry({ expiresAt: null }, now)).toEqual({ state: "never" });
+    expect(keyExpiry({ expiresAt: "2026-10-08T00:00:00Z", revokedAt: "2026-10-01T00:00:00Z" }, now)).toEqual({ state: "revoked" });
   });
 });

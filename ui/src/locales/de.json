@@ -1286,6 +1286,17 @@
       "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
       "answered": "Der Endpunkt antwortete {status}.",
       "code": "Derselbe Aufruf als Code"
+    },
+    "docs": {
+      "title": "API-Dokumentation",
+      "open": "Erzeugte Dokumentation anzeigen",
+      "publicPage": "Öffentliche Seite für alle: {url}",
+      "unavailable": "Die Dokumentation dieses Endpunkts lässt sich nicht lesen: es gibt ihn nicht, oder Sie dürfen ihn nicht lesen.",
+      "download": "Das OpenAPI-Dokument (JSON)",
+      "parameter": "Name",
+      "meaning": "Was er festlegt",
+      "parametersOf": "Parameter von {path}",
+      "lead": "Worauf dieser Endpunkt antwortet, mit einem Beispielaufruf für jedes Lesen."
     }
   },
   "datasources": {
@@ -2204,7 +2215,10 @@
         "confirmRotate": "Rotieren und Schlüssel anzeigen",
         "cancel": "Nicht jetzt",
         "gone": "Dieser Link ist abgelaufen, wurde bereits verwendet oder gehört jemand anderem. Fordern Sie den Schlüssel in Ihrem MCP-Client erneut an."
-      }
+      },
+      "expiresIn": "{count, plural, one {läuft in # Tag ab} other {läuft in # Tagen ab}}",
+      "expired": "abgelaufen",
+      "ending": "Schlüssel, die innerhalb von {days} Tagen ablaufen oder abgelaufen sind: {count}. Rotieren Sie sie, bevor die Programme, die sie nutzen, scheitern."
     },
     "matrix": {
       "title": "Datenzugriff",
@@ -3143,6 +3157,16 @@
         "contact": "Kontakt angeben",
         "privacy": "Ändern, was sie liest oder wer sie öffnen darf"
       }
+    },
+    "templates": {
+      "title": "Mit einer Vorlage beginnen",
+      "lead": "Jede Vorlage sagt, wofür sie dient und welche Daten sie braucht. Wählen Sie eine und den Endpunkt, den sie liest: die App wird auf Ihren Daten gebaut und läuft als Vorschau, bevor Sie etwas ändern.",
+      "for": "Für:",
+      "needs": "Liest:",
+      "create": "Daraus erstellen",
+      "mayNot": "Ihre Rolle darf in diesem Projekt keine App vorschlagen.",
+      "createTitle": "Aus {title} erstellen",
+      "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage."
     }
   },
   "appLifecycle": {
@@ -3589,6 +3613,15 @@
         "python": "Python 3 (ohne Pakete)",
         "javascript": "JavaScript (Node 18 oder neuer)"
       }
+    },
+    "map": {
+      "tab": "Karte",
+      "loading": "Lese die Entitäten mit Ort…",
+      "none": "Keine Entität dieser Ansicht hat einen Ort.",
+      "count": "{shown} von {total} auf der Karte",
+      "truncated": "Nur die ersten {max}: grenzen Sie den Filter ein, um den Rest zu sehen.",
+      "label": "Karte von {type}",
+      "open": "Entität öffnen"
     }
   },
   "agentRun": {
@@ -6341,5 +6374,76 @@
       "digest": "Heutige Übersicht, {pipeline}: {event}"
     },
     "muteDay": "Benachrichtigungen von {pipeline} für einen Tag stummschalten"
+  },
+  "help": {
+    "title": "Hilfe",
+    "label": "Hilfe{count, plural, =0 {} one {, # neue Änderung} other {, # neue Änderungen}}"
+  },
+  "whatsNew": {
+    "menu": "Neuigkeiten",
+    "menuUnread": "Neuigkeiten ({count} neu)",
+    "title": "Neuigkeiten",
+    "lead": "Was sich im Portal für die Menschen geändert hat, die es nutzen, das Neueste zuerst.",
+    "new": "Neu",
+    "open": "Öffnen",
+    "close": "Schließen",
+    "entries": {
+      "jobs": {
+        "title": "Weiterarbeiten, während ein Build läuft",
+        "body": "Starten Sie einen App-Build oder ein Durchsuchen und gehen Sie woanders hin: die Kopfzeile zeigt den Stand, die ungefähre Restzeit und sagt Bescheid, wenn es fertig ist."
+      },
+      "history": {
+        "title": "Der Verlauf jeder Änderung und ein Weg zurück",
+        "body": "Freigaben hat einen Verlauf: was zusammengeführt oder abgelehnt wurde, wer entschieden hat und warum. Entferntes lässt sich von dort zurückholen."
+      },
+      "search": {
+        "title": "Alles finden mit Strg+K",
+        "body": "Drücken Sie Strg+K und tippen Sie einen Namen: eine Seite, einen Raum, einen Endpunkt, eine Pipeline, eine App oder eine Entität."
+      },
+      "shortcuts": {
+        "title": "Tastenkürzel",
+        "body": "Drücken Sie ?, um sie zu sehen: speichern, suchen, neu, Test ausführen und durch Listen gehen."
+      },
+      "links": {
+        "title": "Jede Seite hat ihren eigenen Link",
+        "body": "Der Brotkrumenpfad zeigt, wo Sie sind, und Link kopieren gibt Kollegen genau diese Seite, diesen Reiter und Filter."
+      },
+      "home": {
+        "title": "Eine Startseite mit den nächsten Schritten",
+        "body": "Verantwortliche, Bearbeitende und Lesende sehen ihre nächsten Schritte, und Neue bekommen eine Liste mit fünf Schritten."
+      },
+      "glossary": {
+        "title": "Jeder Begriff erklärt",
+        "body": "Raum, Entitätstyp, Endpunkt, Richtlinie: das Glossar erklärt jeden Begriff, und die Wörter verlinken dorthin, wo sie erscheinen."
+      },
+      "invite": {
+        "title": "Kollegen einladen",
+        "body": "Laden Sie eine Person per E-Mail mit ihrer Rolle ein; offene Einladungen lassen sich erneut senden oder zurückziehen."
+      },
+      "loadFile": {
+        "title": "Eine Datei laden oder mit einer Vorlage beginnen",
+        "body": "Laden Sie CSV, Excel oder GeoJSON hoch und ordnen Sie die Spalten zu, oder beginnen Sie eine Datenquelle mit einer fertigen Vorlage wie einem CKAN-Datensatz oder GTFS."
+      },
+      "useData": {
+        "title": "Die Daten mitnehmen",
+        "body": "Exportieren Sie, was Sie sehen, als CSV, Excel, GeoJSON oder NGSI-LD, oder kopieren Sie ein fertiges Snippet für Python, JavaScript, Excel oder QGIS."
+      },
+      "pipelineMapper": {
+        "title": "Felder dem Datenmodell zuordnen",
+        "body": "Im letzten Schritt einer Pipeline wählen Sie den Entitätstyp und ordnen Ihre Felder seinen Attributen zu, geprüft gegen das Modell, bevor etwas geschrieben wird."
+      },
+      "knowledge": {
+        "title": "Ein Assistent, der aus Ihren eigenen Seiten antwortet",
+        "body": "Richten Sie den Wissensassistenten auf Ihre Websites und PDFs und platzieren Sie ihn auf Ihrer Website oder im Portal."
+      },
+      "mcp": {
+        "title": "MCP-Server für KI-Werkzeuge",
+        "body": "Bündeln Sie zusammengehörige Endpunkte hinter einer MCP-Adresse und kopieren Sie deren Konfiguration in Ihren KI-Client."
+      },
+      "dataViews": {
+        "title": "Neue Ansichten eines Raums",
+        "body": "Galerie-, Board- und Kalenderansicht, Kommentare mit @Erwähnungen, Zeilenverlauf mit Rückgängig und öffentliche Formulare."
+      }
+    }
   }
 }

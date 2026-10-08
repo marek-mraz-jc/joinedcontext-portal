@@ -20,6 +20,7 @@ import { ErrorPage, errorReference } from "./components/ErrorBoundary";
 import { NotFoundState } from "./components/NotFoundState";
 import { LoginPage } from "./routes/LoginPage";
 import { hasEditForm, ResourceListPage } from "./routes/ResourceListPage";
+import { EndpointDocs } from "./pages/endpoints/EndpointDocs";
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
@@ -290,6 +291,16 @@ const publicViewRoute = createRoute({
   component: function PublicViewRoute() {
     const { slug } = publicViewRoute.useParams();
     return <PublicFrame>{<PublicViewPage slug={slug} />}</PublicFrame>;
+  },
+});
+
+/** A public Endpoint's API documentation, generated from its OpenAPI (EP-99, T-3265): no sign-in. */
+const endpointDocsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/d/$slug",
+  component: function EndpointDocsRoute() {
+    const { slug } = endpointDocsRoute.useParams();
+    return <PublicFrame>{<EndpointDocs slug={slug} open />}</PublicFrame>;
   },
 });
 
@@ -1081,6 +1092,7 @@ export const routeTree = rootRoute.addChildren([
   catalogueDatasetRoute,
   publicViewRoute,
   publicFormRoute,
+  endpointDocsRoute,
   glossaryRoute,
   ...devRoutes,
   protectedRoute.addChildren([

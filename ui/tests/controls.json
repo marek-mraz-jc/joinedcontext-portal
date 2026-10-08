@@ -119,6 +119,14 @@
         "browser_security.test.tsx"
       ]
     },
+    "src/components/HelpMenu.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "whats_new.test.tsx"
+      ]
+    },
     "src/components/ImportProjectDialog.tsx": {
       "controls": {
         "Button": 4,
@@ -696,6 +704,7 @@
       "tests": [
         "app_build_card.test.tsx",
         "app_generator.test.tsx",
+        "app_templates.test.tsx",
         "form_app_generator.test.tsx",
         "generator_types.test.ts"
       ]
@@ -716,6 +725,14 @@
       "tests": [
         "app_route.test.tsx",
         "page_app_page.test.tsx"
+      ]
+    },
+    "src/pages/apps/AppTemplates.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "app_templates.test.tsx"
       ]
     },
     "src/pages/apps/AppsCatalog.tsx": {
