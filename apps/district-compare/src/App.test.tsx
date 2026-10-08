@@ -17,6 +17,7 @@ vi.mock("maplibre-gl", () => {
         queueMicrotask(() => cb());
       }
     }
+    once = vi.fn();
     remove = vi.fn();
     addSource = vi.fn();
     addLayer = vi.fn();
