@@ -54,6 +54,8 @@ export interface Strings {
   recordsWhy: string;
   /** The disclosure the full identifier of a record sits behind. */
   showId: string;
+  /** The button that opens a record in the shell's entity panel (SDK-40). */
+  openRecord: string;
   latestOf: (period: string) => string;
   /** Per cube: the names this App gives what the office's code lists do not hold. */
   datasetNames: Record<string, string>;
@@ -158,6 +160,7 @@ const SK: Strings = {
   chartsEmpty: "Tento súbor údajov zatiaľ nemá žiadne záznamy.",
   records: "Všetky záznamy s poznámkami správcu",
   showId: "Identifikátor",
+  openRecord: "Otvoriť záznam",
   recordsWhy:
     "Tabuľka ukazuje riadky tak, ako ich zverejnil vydavateľ: pri názve ukazovateľa a územia je aj jeho kód, lebo filter v stĺpci sa pýta na tieto kódy.",
   latestOf: (period) => `obdobie ${period}`,
@@ -269,6 +272,7 @@ const EN: Strings = {
   chartsEmpty: "This dataset has no records yet.",
   records: "All records, with the steward's notes",
   showId: "Identifier",
+  openRecord: "Open the record",
   recordsWhy:
     "The table shows the rows as the publisher released them: each indicator and territory keeps its code beside its name, because a column filter asks about those codes.",
   latestOf: (period) => `period ${period}`,

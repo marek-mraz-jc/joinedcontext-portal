@@ -15,6 +15,8 @@ const CONFIG = {
   transport: "origin",
   appName: NAME,
   language: "sk",
+  // Where the entity panel links a record (SDK-40); shown, never followed.
+  portal: "https://portal.example.org/projects/demo",
 };
 // What src/apps/static_host.rs sends for an embeddable app with no other origin to reach.
 const CSP =
@@ -44,6 +46,16 @@ export async function serve(page: Page): Promise<Served> {
     if (url.origin !== ORIGIN) {
       served.outside.push(url.href);
       return route.abort();
+    }
+    // The entity panel reads one record fresh by its id (SDK-40).
+    const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
+    if (url.pathname.includes("/api/endpoint/") && one) {
+      const entity = answer(REGION, "bbsk-kraj", "bbsk.sk").find((row) => row.id === decodeURIComponent(one[1]));
+      return route.fulfill({
+        status: entity ? 200 : 404,
+        contentType: "application/ld+json",
+        body: JSON.stringify(entity ?? { title: "Not Found", status: 404 }),
+      });
     }
     if (url.pathname.includes("/api/endpoint/")) {
       return route.fulfill({

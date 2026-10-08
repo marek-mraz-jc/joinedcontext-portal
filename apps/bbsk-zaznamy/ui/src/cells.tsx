@@ -33,7 +33,8 @@ function coded(name: string, code: string): ReactNode {
 
 export function recordRenderers(
   language: "sk" | "en",
-  words: { locale: string; showId: string },
+  words: { locale: string; showId: string; openRecord: string },
+  open: (row: RichRow) => void,
 ): Record<string, Renderer> {
   const number = new Intl.NumberFormat(words.locale, { maximumFractionDigits: 2 });
   const date = new Intl.DateTimeFormat(words.locale, { dateStyle: "medium", timeZone: "UTC" });
@@ -62,11 +63,17 @@ export function recordRenderers(
       const at = typeof value === "string" ? new Date(value) : null;
       return at && !Number.isNaN(at.getTime()) ? <time dateTime={value as string}>{date.format(at)}</time> : <span>{String(value ?? "")}</span>;
     },
+    // The record opens in the shell's entity panel (SDK-40); its URN stays behind a disclosure.
     id: (_cell, row) => (
-      <details className="urn">
-        <summary>{words.showId}</summary>
-        <code>{row.id}</code>
-      </details>
+      <>
+        <button type="button" className="row-open" onClick={() => open(row)}>
+          {words.openRecord}
+        </button>
+        <details className="urn">
+          <summary>{words.showId}</summary>
+          <code>{row.id}</code>
+        </details>
+      </>
     ),
   };
 }
