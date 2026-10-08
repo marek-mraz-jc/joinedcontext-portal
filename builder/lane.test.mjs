@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import * as lane from "./lane.mjs";
-import { appOf, artifactScope, browserChecks, bundleFunctions, cratesOf, functionEntries, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
+import { appOf, artifactScope, browserChecks, bundleFunctions, cratesOf, functionEntries, isHttpComponent, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -780,4 +780,20 @@ test("a red check fails the build, and a browser that does not start fails it to
   assert.equal(browserChecks(app, bundle, report, () => ({ status: 1 })), 1);
   assert.equal(browserChecks(app, bundle, report, () => ({ status: null, error: new Error("spawn playwright ENOENT") })), 1);
   assert.equal(browserChecks(app, bundle, report, () => ({ status: null, signal: "SIGKILL" })), 1);
+});
+
+// AP-151: a `wasm` App's server must be a component exporting wasi:http/incoming-handler.
+test("a component is told apart from a core module, by its own export section", () => {
+  const name = [...Buffer.from("wasi:http/incoming-handler@0.2.6")];
+  const section = (id, body) => [id, body.length, ...body];
+  const component = (...sections) => Uint8Array.from([0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00, ...sections.flat()]);
+  assert.equal(isHttpComponent(component(section(11, [1, 0, name.length, ...name, 1, 0]))), true);
+  // The name in a custom section, or a component that exports something else, is no handler.
+  assert.equal(isHttpComponent(component(section(0, [4, ...Buffer.from("note"), ...name]))), false);
+  assert.equal(isHttpComponent(component(section(11, [1, 0, 3, ...Buffer.from("run"), 1, 0]))), false);
+  // A core module (version 1, layer 0) holding the same bytes is not a component.
+  assert.equal(isHttpComponent(Uint8Array.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, ...section(11, name)])), false);
+  // A section that claims more bytes than the file has, and no file at all.
+  assert.equal(isHttpComponent(component([11, 0x7f, ...name])), false);
+  assert.equal(isHttpComponent(new Uint8Array(0)), false);
 });
