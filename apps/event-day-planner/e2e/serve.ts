@@ -8,7 +8,8 @@ import { EVENTS } from "../src/fixtures/events";
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://portal.test/";
 const SLUG = "eventdayplanner";
-const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "event-day-planner", language: "en" };
+// `portal`: where the entity panel links an event (SDK-40); shown, never followed.
+const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "event-day-planner", language: "en", portal: "https://portal.test/projects/helsinki" };
 const TYPES: Record<string, string> = {
   ".html": "text/html",
   ".js": "text/javascript",
