@@ -26,6 +26,7 @@ spec:
       ref: main
   build:
     node: "22"
+    rust: "1.90"
   visibility: public
   lifecycle: published
   dataNeeds:
