@@ -675,3 +675,248 @@ async fn the_app_starts_on_its_own_host_at_the_root() {
     let (status, body) = call(app, signed_in("GET", "/api/stations", None)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
 }
+
+/// T-3374: the configuration a pod is started with, read without the process's environment.
+#[test]
+fn the_configuration_is_read_from_the_pods_variables() {
+    let vars = |pairs: &'static [(&'static str, &'static str)]| {
+        move |name: &str| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
+        }
+    };
+    assert_eq!(
+        Config::from_vars(vars(&[])).err().as_deref(),
+        Some("JC_ENDPOINT_URL is not set")
+    );
+    let plain = Config::from_vars(vars(&[("JC_ENDPOINT_URL", "https://h/api/endpoint/air")]))
+        .expect("a configuration");
+    assert_eq!(plain.endpoint_url, "https://h/api/endpoint/air/");
+    assert_eq!(plain.base_path, "/");
+    assert!(!plain.anonymous);
+    assert_eq!(plain.me_url, None);
+    assert_eq!(plain.page_config, None);
+
+    let full = Config::from_vars(vars(&[
+        ("JC_ENDPOINT_URL", "https://h/api/endpoint/air/"),
+        ("JC_BASE_PATH", BASE),
+        ("JC_ANONYMOUS", "true"),
+        ("JC_ME_URL", ""),
+        ("JC_APP_CONFIG", r#"{"basemap":"https://h/style.json"}"#),
+    ]))
+    .expect("a configuration");
+    assert_eq!(full.endpoint_url, "https://h/api/endpoint/air/");
+    assert_eq!(full.base_path, BASE);
+    assert!(full.anonymous);
+    assert_eq!(full.me_url, None, "an empty /me URL is none");
+    assert!(full
+        .page_config
+        .expect("the page config")
+        .contains("basemap"));
+
+    let blank = Config::from_vars(vars(&[
+        ("JC_ENDPOINT_URL", "https://h/"),
+        ("JC_APP_CONFIG", "  "),
+    ]))
+    .expect("a configuration");
+    assert_eq!(blank.page_config, None);
+    assert!(Config::from_vars(vars(&[
+        ("JC_ENDPOINT_URL", "https://h/"),
+        ("JC_APP_CONFIG", "[1]")
+    ]))
+    .is_err());
+    assert!(
+        !Config::from_vars(vars(&[
+            ("JC_ENDPOINT_URL", "https://h/"),
+            ("JC_ANONYMOUS", "yes")
+        ]))
+        .expect("a configuration")
+        .anonymous
+    );
+}
+
+/// A file the bundle does not have is a 404; a path without an extension is a page of the App.
+#[tokio::test]
+async fn a_missing_file_is_404_and_a_client_route_is_the_front_page() {
+    let endpoint = MockServer::start().await;
+    let (status, _) = call(
+        app_at(&endpoint),
+        anonymous("GET", &format!("{BASE}assets/missing-1a2b.js"), None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, body) = call(
+        app_at(&endpoint),
+        anonymous("GET", &format!("{BASE}stations/kallio"), None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("<!doctype html>"), "{body}");
+}
+
+/// An endpoint that does not answer is a 502 the browser can say, not a hang or a panic.
+#[tokio::test]
+async fn an_endpoint_that_does_not_answer_is_a_502() {
+    let closed = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a free port");
+        listener.local_addr().expect("its address")
+    };
+    let app = router(Arc::new(App::new(Config {
+        base_path: BASE.to_owned(),
+        endpoint_url: format!("http://{closed}/"),
+        anonymous: false,
+        me_url: Some(format!("http://{closed}/me")),
+        page_config: None,
+    })));
+    let (status, body) = call(
+        app.clone(),
+        signed_in("GET", &format!("{BASE}api/stations"), None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert!(body.contains("the endpoint did not answer"), "{body}");
+    // Nobody could be asked for the roles: the identity holds none (fail closed).
+    let (status, body) = call(app, signed_in("GET", &format!("{BASE}api/me"), None)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains(r#""roles":[]"#), "{body}");
+}
+
+/// A read the endpoint refuses, or answers with something that is not JSON, reaches the browser
+/// as the refusal or a 502; a station's day under a bad id never leaves the pod.
+#[tokio::test]
+async fn a_refused_or_garbled_read_and_a_bad_history_id() {
+    let endpoint = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/ngsi-ld/v1/entities"))
+        .respond_with(
+            ResponseTemplate::new(403).set_body_json(json!({ "detail": "outside the grant" })),
+        )
+        .mount(&endpoint)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("/ngsi-ld/v1/temporal/entities/{STATION}")))
+        .respond_with(ResponseTemplate::new(200).set_body_string("<html>not json</html>"))
+        .mount(&endpoint)
+        .await;
+    let (status, body) = call(
+        app_at(&endpoint),
+        signed_in("GET", &format!("{BASE}api/stations"), None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(body.contains("outside the grant"), "{body}");
+    let encoded = STATION.replace(':', "%3A");
+    let (status, _) = call(
+        app_at(&endpoint),
+        signed_in(
+            "GET",
+            &format!("{BASE}api/stations/{encoded}/history"),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    let before = endpoint.received_requests().await.unwrap_or_default().len();
+    let (status, body) = call(
+        app_at(&endpoint),
+        signed_in(
+            "GET",
+            &format!("{BASE}api/stations/not-a-urn/history"),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body.contains("NGSI-LD URN"), "{body}");
+    assert_eq!(
+        endpoint.received_requests().await.unwrap_or_default().len(),
+        before
+    );
+}
+
+/// The roles are none when `/me` refuses; a name over 200 characters and a removal under a bad id
+/// are refused by the App.
+#[tokio::test]
+async fn a_refused_me_a_long_name_and_a_bad_removal_id() {
+    let endpoint = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/me"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&endpoint)
+        .await;
+    let (status, body) = call(
+        app_at(&endpoint),
+        signed_in("GET", &format!("{BASE}api/me"), None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains(r#""roles":[]"#), "{body}");
+
+    let encoded = STATION.replace(':', "%3A");
+    let long = "x".repeat(201);
+    let (status, body) = call(
+        app_at(&endpoint),
+        signed_in(
+            "PATCH",
+            &format!("{BASE}api/stations/{encoded}"),
+            Some(json!({ "name": { "fi": long } })),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body.contains("at most 200 characters"), "{body}");
+    let (status, body) = call(
+        app_at(&endpoint),
+        signed_in("DELETE", &format!("{BASE}api/stations/not-a-urn"), None),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body.contains("NGSI-LD URN"), "{body}");
+    assert!(untouched_writes(&endpoint).await);
+}
+
+async fn untouched_writes(endpoint: &MockServer) -> bool {
+    endpoint
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .all(|request| request.method.as_str() == "GET")
+}
+
+/// The process's own environment goes through the same parsing: without an endpoint, no start.
+#[test]
+fn the_pod_does_not_start_without_its_endpoint() {
+    assert_eq!(
+        Config::from_env().is_ok(),
+        std::env::var("JC_ENDPOINT_URL").is_ok()
+    );
+}
+
+/// An id prefix the listing hands back that is not a station's is never written under.
+#[tokio::test]
+async fn a_new_station_is_not_written_under_another_types_prefix() {
+    let endpoint = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/ngsi-ld/v1/entities"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(
+                json!([{ "id": "urn:ngsi-ld:Other:hel.fi:x:one", "type": "Other" }]),
+            ),
+        )
+        .mount(&endpoint)
+        .await;
+    let (status, body) = call(
+        app_at(&endpoint),
+        signed_in(
+            "POST",
+            &format!("{BASE}api/stations"),
+            Some(json!({ "localId": "s9", "name": { "fi": "A" }, "coordinates": [24.9, 60.2] })),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY, "{body}");
+    assert!(untouched_writes(&endpoint).await);
+}
