@@ -7,11 +7,12 @@ members = ["apps/*"]
 # cargo's glob refuses a member directory without a `Cargo.toml` rather than skipping it, so every
 # such app is named here. The app's screens are covered by the `apps/*/ui` lane in CI.
 exclude = [
-  # The Helsinki WASM apps (T-3331..T-3333): the crate is in the app's `wasm/`, its own workspace,
+  # The Helsinki WASM apps (T-3331..T-3337): the crate is in the app's `wasm/`, its own workspace,
   # built to WebAssembly by the build lane (AP-142).
   "apps/alerts-heatmap",
   "apps/kpi-forecast",
   "apps/transit-reach",
+  "apps/news-topics",
   "apps/alerts-desk",
   "apps/bbsk-ukazovatele",
   "apps/banskabystrica-ovzdusie",
