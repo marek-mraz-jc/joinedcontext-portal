@@ -12,7 +12,13 @@ const DAY = 86_400_000;
  */
 export function useHistory(days: number, enabled: boolean): { history: TemporalRow[]; loading: boolean; error: ProblemError | null; reload: () => void } {
   const client = useClient();
-  const [state, setState] = useState<{ history: TemporalRow[]; loading: boolean; error: ProblemError | null }>({ history: [], loading: enabled, error: null });
+  const [state, setState] = useState<{ history: TemporalRow[]; loading: boolean; error: ProblemError | null }>({
+    // Loading until the first read answers, even before it may start: a page that analysed the
+    // empty history meanwhile showed every indicator as too short to forecast (T-3400).
+    history: [],
+    loading: true,
+    error: null,
+  });
   const [nonce, setNonce] = useState(0);
   const reload = useCallback(() => setNonce((n) => n + 1), []);
   useEffect(() => {

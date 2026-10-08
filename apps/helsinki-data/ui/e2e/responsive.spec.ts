@@ -23,3 +23,24 @@ for (const view of VIEWS) {
     });
   }
 }
+
+// SDK-40, T-3396: a row opened from the grid shows in the shell's entity panel, at a phone and a
+// laptop, light and dark. A public App writes nothing, so the panel links to the Portal.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a service in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { missing, problems, outside } = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await page.getByRole("button", { name: "Avaa: Keskustakirjasto Oodi" }).click();
+      const panel = page.getByRole("dialog", { name: "Keskustakirjasto Oodi" });
+      await expect(panel.getByRole("link", { name: "Avaa portaalissa" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Muokkaa" })).toHaveCount(0);
+      expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect({ missing, problems, outside }).toEqual({ missing: [], problems: [], outside: [] });
+    });
+  }
+}

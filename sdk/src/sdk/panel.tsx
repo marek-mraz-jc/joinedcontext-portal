@@ -44,6 +44,8 @@ export interface PanelSource {
 }
 
 interface Selection {
+  /** Whether a shell holds the panel: outside one, a grid keeps its own row detail. */
+  inShell: boolean;
   source?: PanelSource;
   selected: SelectedEntity | null;
   select(entity: SelectedEntity): void;
@@ -69,7 +71,7 @@ export function EntitySelectionProvider({ children, source }: { children?: React
     // After the panel is gone, so the focus lands on what opened it and not on nothing.
     if (back && typeof window !== "undefined") window.setTimeout(() => back.isConnected && back.focus(), 0);
   }, []);
-  const value = useMemo(() => ({ source, selected, select, clear }), [source, selected, select, clear]);
+  const value = useMemo(() => ({ inShell: true, source, selected, select, clear }), [source, selected, select, clear]);
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
 
@@ -78,7 +80,7 @@ export function useEntitySelection(): Selection {
   return useContext(SelectionContext) ?? NO_SELECTION;
 }
 
-const NO_SELECTION: Selection = { selected: null, select: () => undefined, clear: () => undefined };
+const NO_SELECTION: Selection = { inShell: false, selected: null, select: () => undefined, clear: () => undefined };
 
 /** Props that make any element open the panel on a click and on Enter or Space. */
 export function selectable(entity: SelectedEntity, select: (entity: SelectedEntity) => void): {

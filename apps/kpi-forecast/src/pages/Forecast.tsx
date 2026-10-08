@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Page, ProblemError, displayName, format, useEntities } from "@joinedcontext/sdk";
+import { Card, Page, ProblemError, displayName, format, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { useAnalysis } from "../analysis";
 import type { AnalysisOutput, SeriesResult } from "../analysis";
 import { detailOption } from "../charts";
 import { ChartCard } from "../components/ChartCard";
-import { Empty, Loading } from "../components/states";
+import { Empty, Loading } from "@joinedcontext/sdk";
 import { useHistory } from "../history";
 import { duration, moment, number, percent, t, value } from "../i18n";
 import type { Lang } from "../i18n";
@@ -49,6 +49,7 @@ function nameOf(row: Row): string {
  */
 export function Forecast({ lang }: { lang: Lang }) {
   const { rows, loading, error, reload } = useEntities(KPI, QUERY);
+  const { select } = useEntitySelection();
   const [view, setView] = useState<ViewState>(() => readView(window.location.search));
   useEffect(() => {
     try {
@@ -148,10 +149,14 @@ export function Forecast({ lang }: { lang: Lang }) {
                         type="button"
                         className="app-kpi"
                         aria-pressed={row.id === chosen?.id}
+                        // Named by the indicator; how it is doing is its description, so the name
+                        // stays the same while the numbers and the language change.
+                        aria-label={nameOf(row)}
+                        aria-describedby={`state-${shortId(row.id)}`}
                         onClick={() => setView({ ...view, kpi: row.id })}
                       >
                         <strong>{nameOf(row)}</strong>
-                        <span>
+                        <span id={`state-${shortId(row.id)}`}>
                           {current !== null && <span className="app-now">{t(lang, "now", { value: value(lang, current) })}</span>}
                           <span className={r?.trend ? `app-trend app-${r.trend.direction}` : "app-trend"}>{output ? stateOf(lang, r, view.days) : ""}</span>
                           {odd > 0 && <span className="app-odd">{t(lang, "oddCount", { n: number(lang, odd) })}</span>}
@@ -173,6 +178,9 @@ export function Forecast({ lang }: { lang: Lang }) {
                 height={320}
               />
               <Card title={nameOf(chosen)}>
+                <button type="button" className="jc-button app-open" onClick={() => select({ id: chosen.id, type: KPI })}>
+                  {t(lang, "details")}
+                </button>
                 <dl className="app-facts">
                   {result && result.forecast.length > 0 && (
                     <>

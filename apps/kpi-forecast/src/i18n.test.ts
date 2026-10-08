@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { duration, langOf, moment, percent, t, value } from "./i18n";
+import { dayShort, duration, langOf, moment, percent, t, value } from "./i18n";
 
 describe("words and numbers", () => {
   it("takes the language from the address, else the browser", () => {
@@ -22,6 +22,8 @@ describe("words and numbers", () => {
     expect(duration("en", 3_600_000)).toBe("60 min");
     expect(duration("fi", 6 * 3_600_000)).toBe("6 h");
     expect(duration("en", 86_400_000 * 2)).toBe("2 d");
+    expect(dayShort("en", Date.UTC(2030, 9, 3, 9))).toBe("3 Oct");
+    expect(dayShort("fi", Date.UTC(2030, 9, 3, 9))).toBe("3.10.");
   });
 
   it("fills its slots and leaves a missing one visible", () => {
