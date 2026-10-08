@@ -3166,7 +3166,9 @@
       "create": "Create from this",
       "mayNot": "Your role may not propose an app in this project.",
       "createTitle": "Create from {title}",
-      "createHint": "Choose the endpoint whose data the app shows; the rest is the template's."
+      "createHint": "Choose the endpoint whose data the app shows; the rest is the template's.",
+      "screenshot": "{title} as its demo shows it",
+      "demo": "Open the demo"
     }
   },
   "appLifecycle": {
