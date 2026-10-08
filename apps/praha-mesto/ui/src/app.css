@@ -35,3 +35,16 @@ tbody th { font-weight: 400; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .off { color: var(--jc-color-muted); }
 caption { text-align: left; caption-side: top; }
+
+/* A row's name opens it in the entity panel (SDK-40): it reads as the name, and says it is a button. */
+.opens {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
