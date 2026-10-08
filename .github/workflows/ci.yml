@@ -205,6 +205,14 @@ jobs:
             (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
               && pnpm install --no-frozen-lockfile && pnpm typecheck && pnpm test && pnpm build)
           done
+      # The interface of the server WASM example (T-3341): its screens and its bundle.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the server WASM example's interface
+        run: |
+          set -eu
+          work=$(mktemp -d)
+          cp -r sdk/examples/rust-wasm-server/. "$work"
+          (cd "$work" && pnpm install --no-frozen-lockfile && pnpm test && pnpm build)
       # The digest map the static host checks before it serves a file (AP-12, T-2457).
       - name: the integrity manifest a static app ships with
         run: node --test scripts/app-integrity.test.mjs

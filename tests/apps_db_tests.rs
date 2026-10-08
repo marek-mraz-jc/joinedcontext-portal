@@ -49,6 +49,14 @@ impl World {
 
 /// A fresh database owned by the Portal's CREATEROLE login, with the shards' login roles.
 async fn world(test: &str) -> World {
+    world_of(test, 2).await
+}
+
+/// The superuser's statements of apps-db's bootstrap (apps_db/superuser.sql), as CloudNativePG
+/// runs them in deployment components/apps-db.
+const SUPERUSER_SQL: &str = include_str!("../apps_db/superuser.sql");
+
+async fn world_of(test: &str, shards: u32) -> World {
     let root = PgPoolOptions::new()
         .max_connections(2)
         .connect_with(server())
@@ -83,6 +91,36 @@ async fn world(test: &str) -> World {
         .connect_with(here.clone())
         .await
         .expect("superuser");
+    // jc_set_config is the server's, made once; the revokes are this database's own.
+    let statements: Vec<&str> = SUPERUSER_SQL
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .leak()
+        .split(';')
+        .map(str::trim)
+        .filter(|statement| !statement.is_empty())
+        .collect();
+    for statement in statements {
+        if statement.starts_with("CREATE ROLE") {
+            ensure(&superuser, statement).await;
+        } else {
+            sqlx::query(sqlx::AssertSqlSafe(statement.to_owned()))
+                .execute(&superuser)
+                .await
+                .expect(statement);
+        }
+    }
+    // As deployment components/apps-db makes them members (inRoles), inheriting.
+    for member in [ADMIN, "wasm_host_0", "wasm_host_1"] {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "GRANT jc_set_config TO {member} WITH INHERIT TRUE"
+        )))
+        .execute(&superuser)
+        .await
+        .expect("member of jc_set_config");
+    }
     let admin_options = here.clone().username(ADMIN).password("pw");
     let admin = PgPoolOptions::new()
         .max_connections(2)
@@ -92,7 +130,7 @@ async fn world(test: &str) -> World {
     let db = AppsDb {
         admin,
         connect: here.clone().disable_statement_logging(),
-        shards: 2,
+        shards,
     };
     db.bootstrap().await.expect("jc_apps applies");
     World {
@@ -414,4 +452,67 @@ async fn a_refused_migration_runs_nothing_and_names_its_file() {
         .await
         .expect("regclass");
     assert_eq!(notes, None, "0001 did not run either");
+}
+
+/// T-3362: two Apps on ONE shard. With the host's guard out of the way, App A's function-form
+/// switches into App B, and SQL text handed to a query-running function, are refused by
+/// Postgres; the shard's own switch into either still works.
+#[tokio::test]
+async fn postgres_refuses_an_app_becoming_another_app_of_its_own_shard() {
+    let w = world_of("sameshard", 1).await;
+    let (a, sa) = published(&w, &w.project("p-same"), "a").await;
+    let (b, sb) = published(&w, &w.project("p-same"), "b").await;
+    assert_eq!((sa, sb), (0, 0), "both on one shard");
+    let mut host = as_host(&w, 0).await;
+    for escape in [
+        format!("SELECT set_config('role', 'app_{b}', true)"),
+        format!("SELECT \"set_config\"('role', 'app_{b}', true)"),
+        format!("SELECT pg_catalog.set_config('search_path', 'app_{b}', true)"),
+        format!("SELECT query_to_xml('select * from app_{b}.notes', true, false, '')"),
+        format!("SELECT ts_stat('select to_tsvector(body) from app_{b}.notes')"),
+    ] {
+        let mut tx = host.begin().await.expect("tx");
+        sqlx::query("SELECT set_config('role', $1, true)")
+            .bind(format!("app_{a}"))
+            .execute(&mut *tx)
+            .await
+            .expect("the shard becomes App A");
+        let outcome = sqlx::query(sqlx::AssertSqlSafe(escape.clone()))
+            .execute(&mut *tx)
+            .await;
+        assert!(outcome.is_err(), "`{escape}` ran as App A");
+        tx.rollback().await.ok();
+    }
+    // App A still reads its own table; the shard still becomes B when the host asks.
+    for (app, other) in [(&a, &b), (&b, &a)] {
+        let mut tx = host.begin().await.expect("tx");
+        sqlx::query("SELECT set_config('role', $1, true)")
+            .bind(format!("app_{app}"))
+            .execute(&mut *tx)
+            .await
+            .expect("the shard's own switch");
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM app_{app}.notes"
+        )))
+        .execute(&mut *tx)
+        .await
+        .expect("its own table");
+        let theirs = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM app_{other}.notes"
+        )))
+        .execute(&mut *tx)
+        .await;
+        assert!(theirs.is_err(), "the other App's table");
+        tx.rollback().await.ok();
+    }
+    // The shard holds no App's privileges of its own.
+    let own = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT count(*) FROM app_{a}.notes"
+    )))
+    .execute(&mut host)
+    .await;
+    assert!(
+        own.is_err(),
+        "INHERIT FALSE: the shard reads nothing as itself"
+    );
 }

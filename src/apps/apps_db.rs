@@ -40,6 +40,8 @@ pub enum Error {
         last: String,
         reason: String,
     },
+    #[error("`{0}` is not an App id: sixteen lowercase hex digits")]
+    NotAnId(String),
     #[error("the apps database has {0} shards configured; it needs at least one")]
     NoShards(u32),
     #[error("migration `{file}` holds {what}, which an App's migration may not (AP-144): it would run later as the App inside its shard's session, where it could become another App; use tables, indexes, views and constraints")]
@@ -154,6 +156,13 @@ impl AppsDb {
     /// anything runs, and a failed file stops the run with the schema as the last good one left
     /// it (AP-149). Running it again with the same files applies nothing.
     pub async fn migrate(&self, id: &str, files: &[Migration]) -> Result<Migrated, Error> {
+        if id.len() != 16
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(Error::NotAnId(id.chars().take(32).collect()));
+        }
         let mut files: Vec<&Migration> = files.iter().collect();
         for file in &files {
             let ok = file.file.len() <= 128
@@ -234,11 +243,13 @@ impl AppsDb {
         let mut migrated = Migrated::default();
         for file in pending {
             let mut tx = conn.begin().await?;
-            sqlx::query("SELECT set_config('search_path', $1, true), set_config('statement_timeout', $2, true)")
-                .bind(&schema)
-                .bind(MIGRATION_TIMEOUT)
-                .execute(&mut *tx)
-                .await?;
+            // `SET LOCAL`, not `set_config`: no role of an App may execute it (T-3362). The id is
+            // sixteen hex digits, checked at the top of `migrate`, so the name is safe as text.
+            sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+                "SET LOCAL search_path TO {schema}; SET LOCAL statement_timeout = '{MIGRATION_TIMEOUT}'"
+            )))
+            .execute(&mut *tx)
+            .await?;
             // The App's own SQL, run as its own owner and nothing more (AP-149).
             let run = sqlx::raw_sql(sqlx::AssertSqlSafe(file.sql.clone()))
                 .execute(&mut *tx)
@@ -311,6 +322,13 @@ fn words(sql: &str) -> Result<Vec<String>, &'static str> {
                     (None, _) => return Err("an unterminated comment"),
                 }
             }
+        } else if (c == 'u' || c == 'U')
+            && next == Some('&')
+            && matches!(chars.get(i + 2), Some('"') | Some('\''))
+        {
+            // `U&"…"` and `U&'…'` spell a name or a string in escapes (`U&"set\005fconfig"`),
+            // which this does not decode: refused, as nothing a migration needs is written so.
+            return Err("a Unicode-escaped name or string (U&)");
         } else if c == '\'' {
             // A string constant, `''` an escaped quote; an E'' string's backslash escapes too.
             let escapes = matches!(out.last().map(String::as_str), Some("e"))
@@ -505,6 +523,8 @@ mod tests {
             ("CREATE TABLE t (x int CHECK (pg_catalog.\"SET_CONFIG\"('role','x',true) IS NOT NULL))", "`set_config`"),
             ("CREATE TABLE t (x int); /* unterminated", "an unterminated comment"),
             ("INSERT INTO t VALUES ('open", "an unterminated string"),
+            ("CREATE TABLE t (x text DEFAULT U&\"set\\005fconfig\"('role', 'x', true))", "a Unicode-escaped name or string (U&)"),
+            ("CREATE TABLE t (x text DEFAULT u&'\\0041')", "a Unicode-escaped name or string (U&)"),
         ] {
             assert_eq!(refused_in(sql), Some(what), "{sql}");
         }
