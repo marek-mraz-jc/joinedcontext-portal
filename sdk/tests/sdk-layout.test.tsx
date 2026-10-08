@@ -129,6 +129,12 @@ describe("layout.css", () => {
     expect(missing).toEqual([]);
   });
 
+  it("styles the shell every App renders, so an App without a stylesheet of its own still looks like the others", () => {
+    const shell = readFileSync(join(__dirname, "..", "src", "sdk", "shell.tsx"), "utf8");
+    const used = new Set([...shell.matchAll(/className="([^"]+)"/g)].flatMap((match) => match[1].split(/\s+/)));
+    expect([...used].filter((name) => !css.includes(`.${name} `) && !css.includes(`.${name},`))).toEqual([]);
+  });
+
   it("widens by the box's own width and keeps a 44 px target on a phone", () => {
     expect(css).toMatch(/\.jc-grid-box,\s*\.jc-split-box\s*\{\s*container-type: inline-size;/);
     expect(css.match(/@container \(width >= \d+rem\)/g)).toHaveLength(4);

@@ -72,6 +72,9 @@ describe("the controls record (T-3373)", () => {
           Disabled
         </button>
         <input aria-label="Typed into" />
+        <div data-jc-sdk="grid">
+          <button type="button">Sort by name</button>
+        </div>
       </div>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Clicked" }));
@@ -81,6 +84,8 @@ describe("the controls record (T-3373)", () => {
     const record = JSON.parse(readFileSync(join(dir, file), "utf8")) as { rendered: string[]; exercised: string[] };
     expect(record.rendered).toEqual(expect.arrayContaining(["button: Clicked", "button: Never touched", "textbox: Typed into"]));
     expect(record.rendered).not.toContain("button: Disabled");
+    // The SDK's own components are tested by the SDK's suite, not by each App.
+    expect(record.rendered).not.toContain("button: Sort by name");
     expect(record.exercised).toEqual(["button: Clicked", "textbox: Typed into"]);
   });
 
