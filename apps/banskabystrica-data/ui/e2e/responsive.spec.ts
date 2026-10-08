@@ -23,3 +23,24 @@ for (const view of VIEWS) {
     });
   }
 }
+
+// T-3378, SDK-40, AP-140: an event opened in the SDK's entity panel from its name, at a phone and a
+// laptop, light and dark. A public App: the panel reads it and links to it in the Portal, no Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: an event in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { missing, problems, outside } = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await page.getByRole("button", { name: "Otvoriť: Radvanský jarmok" }).click();
+      const panel = page.getByRole("dialog", { name: "Radvanský jarmok" });
+      await expect(panel.getByRole("link", { name: "Otvoriť v Portáli" })).toHaveAttribute("href", /entityId=urn%3Angsi-ld%3AEvent/);
+      await expect(panel.getByRole("button", { name: "Upraviť" })).toHaveCount(0);
+      expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+      await panel.getByRole("button", { name: "Zavrieť" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect({ missing, problems, outside }).toEqual({ missing: [], problems: [], outside: [] });
+    });
+  }
+}

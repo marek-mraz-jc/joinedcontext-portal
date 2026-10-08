@@ -679,6 +679,11 @@ describe("EntityGrid", () => {
       const cells = screen.getAllByRole("gridcell").map((cell) => cell.textContent);
       expect(cells.indexOf("3")).toBeLessThan(cells.indexOf("5"));
       expect(screen.getByRole("button", { name: `${DEFAULT_LABELS.sortPage} Bikes` }).textContent).toContain("↑");
+      // A screen reader hears the direction from the header, the arrow being for the eye.
+      expect(sort.closest('[role="columnheader"]')).toHaveAttribute("aria-sort", "ascending");
+      fireEvent.click(sort);
+      expect(sort.closest('[role="columnheader"]')).toHaveAttribute("aria-sort", "descending");
+      expect(screen.getByRole("button", { name: `${DEFAULT_LABELS.sortPage} Name` }).closest('[role="columnheader"]')).not.toHaveAttribute("aria-sort");
     });
   });
 

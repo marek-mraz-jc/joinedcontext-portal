@@ -308,6 +308,65 @@
   }
 }
 
+/* The shell every App shares (SDK-39): the title, the pages, the language and the reader's name in
+   one wrapping row, the page under it. An App's own stylesheet may restyle any of it. */
+.jc-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  font-family: var(--jc-font-body, system-ui, sans-serif);
+  color: var(--jc-color-ink, #0f172a);
+  background: var(--jc-color-surface, #ffffff);
+  line-height: 1.5;
+}
+.jc-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jc-space-3, 0.75rem) var(--jc-space-4, 1rem);
+  padding: var(--jc-space-3, 0.75rem) var(--jc-space-4, 1rem);
+  border-bottom: 1px solid var(--jc-color-line, #e2e8f0);
+}
+.jc-header h1 {
+  margin: 0;
+  font-size: var(--jc-font-size-xl, 1.25rem);
+}
+.jc-header nav {
+  display: flex;
+  gap: var(--jc-space-1, 0.25rem);
+  max-width: 100%;
+  overflow-x: auto;
+}
+.jc-language {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--jc-space-2, 0.5rem);
+}
+.jc-user {
+  margin-inline-start: auto;
+  color: var(--jc-color-muted, #64748b);
+}
+.jc-main {
+  flex: 1;
+  padding: var(--jc-space-4, 1rem);
+  min-width: 0;
+}
+.jc-loading,
+.jc-empty {
+  padding: var(--jc-space-4, 1rem);
+  color: var(--jc-color-muted, #64748b);
+  text-align: center;
+}
+.jc-problem {
+  padding: var(--jc-space-3, 0.75rem) var(--jc-space-4, 1rem);
+  border-inline-start: 4px solid var(--jc-color-danger, #b91c1c);
+  background: var(--jc-color-card, #f8fafc);
+}
+.jc-problem strong {
+  display: block;
+  color: var(--jc-color-danger, #b91c1c);
+}
+
 /* The entity panel every App shares (SDK-40): beside the page on a wide screen, over it on a phone. */
 .jc-panel {
   position: fixed;

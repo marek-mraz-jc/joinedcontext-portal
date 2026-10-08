@@ -951,13 +951,16 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   }, [total, columns.length, moveActive, activeCell, sortedRows.length, cellId]);
 
   const getHeaderProps = useCallback(
-    (_column: VisibleColumn, index: number): Record<string, unknown> => {
+    (column: VisibleColumn, index: number): Record<string, unknown> => {
+      // The sorted column says which way, for a screen reader; the arrow in its button is for the eye.
+      const sorted = sort?.attr === (column.attr ?? column.key);
       return {
         role: "columnheader",
         "aria-colindex": index + 1,
+        ...(sorted ? { "aria-sort": sort?.dir === "asc" ? "ascending" : "descending" } : {}),
       };
     },
-    [],
+    [sort],
   );
 
   const getRowProps = useCallback(
