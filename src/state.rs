@@ -438,6 +438,29 @@ impl AppState {
                     }
                 }
             }
+            // Each WASM shard's placement and store key, in the host's namespace (AP-157, AP-158).
+            // Without that namespace there is nowhere a shard would read them, so none is written.
+            if let Some(apps_db) = state.config.apps_db.clone() {
+                match (apps_db.host_namespace.clone(), crate::apps::kube::KubeClient::in_cluster()) {
+                    (Some(namespace), Ok(Some(kube))) => {
+                        syncer = syncer.with_wasm_shards(Arc::new(
+                            crate::reconciler::wasm_shards::WasmShards::new(
+                                kube,
+                                namespace,
+                                apps_db.shards,
+                                apps_db.bucket.clone(),
+                            ),
+                        ));
+                    }
+                    (None, _) => tracing::warn!(
+                        "JC_PORTAL_WASM_HOST_NAMESPACE is not set: no WASM shard gets its placement or its store key"
+                    ),
+                    (_, Err(err)) => {
+                        tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no WASM shard gets its placement")
+                    }
+                    (_, Ok(None)) => tracing::info!("no cluster: no WASM shard placement is written"),
+                }
+            }
             // The Secrets this reconciler writes into its own namespace: an organization's
             // artifact-store reader (T-0925) and the pipeline runner's environment (T-0927).
             // Outside a cluster there is nowhere to write one, which is not an error.

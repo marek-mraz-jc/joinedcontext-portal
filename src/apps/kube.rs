@@ -233,6 +233,38 @@ impl KubeClient {
         self.checked(response, path).await.map(|_| ())
     }
 
+    /// Applies a WASM shard's placement ConfigMap (AP-157), the one ConfigMap the Portal applies:
+    /// any other kind, or a ConfigMap of any other name, is refused before a request is made, so
+    /// this does not widen what [`KubeClient::apply`] may write.
+    pub async fn apply_placement(&self, object: &Value) -> Result<(), KubeError> {
+        let (api_version, kind, plural) = CREATED_ONLY;
+        let field = |name: &str| object.get(name).and_then(Value::as_str);
+        if field("apiVersion") != Some(api_version) || field("kind") != Some(kind) {
+            return Err(KubeError::UnsupportedKind {
+                api_version: field("apiVersion").unwrap_or_default().to_owned(),
+                kind: field("kind").unwrap_or_default().to_owned(),
+            });
+        }
+        let name = name_of(object)?;
+        if !is_placement_name(name) {
+            return Err(KubeError::NotAName {
+                field: "metadata.name",
+                value: name.to_owned(),
+            });
+        }
+        let path = path_of(plural, namespace_of(object)?, name)?;
+        let url = self.url(&format!("{path}?fieldManager={FIELD_MANAGER}&force=true"))?;
+        let response = self
+            .http
+            .patch(url)
+            .headers(self.headers(APPLY_PATCH)?)
+            .body(object.to_string())
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        self.checked(response, path).await.map(|_| ())
+    }
+
     /// Creates one object that must not exist yet, for a namespace whose Role grants `create` and
     /// not `patch` (SDK-38): a name already taken is the API server's `409`.
     pub async fn create(&self, object: &Value) -> Result<(), KubeError> {
@@ -514,6 +546,13 @@ impl KubeClient {
 }
 
 /// The `apiVersion` and `kind` of an object, as the plural path segment they address.
+/// `jc-wasm-host-<shard>-placements`, the shard a decimal number (AP-157).
+fn is_placement_name(name: &str) -> bool {
+    name.strip_prefix("jc-wasm-host-")
+        .and_then(|rest| rest.strip_suffix("-placements"))
+        .is_some_and(|shard| !shard.is_empty() && shard.bytes().all(|b| b.is_ascii_digit()))
+}
+
 fn object_kind(object: &Value) -> Result<&'static str, KubeError> {
     let api_version = object
         .get("apiVersion")

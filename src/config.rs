@@ -325,6 +325,10 @@ pub struct AppsDbSettings {
     pub shards: u32,
     /// The bucket of `components/` and `apps/`, `JC_PORTAL_APPS_BUCKET`, default `apps`.
     pub bucket: String,
+    /// The namespace the WASM host's shards run in, `JC_PORTAL_WASM_HOST_NAMESPACE`, where the
+    /// reconciler writes each shard's placement and store key (AP-157, AP-158). Without it the
+    /// reconciler writes neither and says so.
+    pub host_namespace: Option<String>,
 }
 
 impl std::fmt::Debug for AppsDbSettings {
@@ -332,6 +336,7 @@ impl std::fmt::Debug for AppsDbSettings {
         f.debug_struct("AppsDbSettings")
             .field("shards", &self.shards)
             .field("bucket", &self.bucket)
+            .field("host_namespace", &self.host_namespace)
             .finish_non_exhaustive()
     }
 }
@@ -345,6 +350,7 @@ fn apps_db_settings(lookup: &impl Fn(&str) -> Option<String>) -> Option<AppsDbSe
             .filter(|n| *n > 0)
             .unwrap_or(2),
         bucket: present("JC_PORTAL_APPS_BUCKET").unwrap_or_else(|| "apps".to_owned()),
+        host_namespace: present("JC_PORTAL_WASM_HOST_NAMESPACE").map(|v| v.trim().to_owned()),
     })
 }
 
