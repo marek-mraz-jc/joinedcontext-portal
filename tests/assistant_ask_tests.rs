@@ -371,7 +371,16 @@ async fn a_person_who_may_not_read_the_kind_gets_a_refusal_the_model_reads_never
         json!({ "question": "Which endpoint?", "pick": "endpoints" }),
     )
     .await;
-    let sent = prompts(&asked, 2).await;
+    // Waits for the request that carries the refusal, not for a count of requests: under load a
+    // second request can arrive before the one with the tool's answer (seen in a train test).
+    let mut sent = String::new();
+    for _ in 0..200 {
+        sent = prompts(&asked, 2).await;
+        if sent.contains("error:") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 
     assert!(
         sent.contains("error:"),
