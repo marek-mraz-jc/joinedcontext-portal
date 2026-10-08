@@ -1,13 +1,23 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
 import { STATIONS } from "./fixtures/stations";
 
+/** What a click on a station of the map hands the page, as MapLibre would; the last map built's. */
+let clickStation: (event: { features?: Array<{ properties?: { id?: string } }> }) => void = () => undefined;
 vi.mock("maplibre-gl", () => ({
   Map: class {
-    on = vi.fn();
+    on(event: string, layer: unknown, handler?: unknown) {
+      if (event === "load" && typeof layer === "function") (layer as () => void)();
+      if (event === "click" && layer === "jc-points") clickStation = handler as typeof clickStation;
+    }
+    addSource = vi.fn();
+    addLayer = vi.fn();
+    getSource = () => ({ setData: vi.fn() });
+    fitBounds = vi.fn();
+    setPaintProperty = vi.fn();
     remove = vi.fn();
   },
   setWorkerUrl: vi.fn(),
@@ -72,8 +82,12 @@ describe("helsinki-bikes", () => {
     await waitFor(() => expect(within(table).queryByText("Kapteeninpuistikko")).not.toBeInTheDocument());
     expect(within(table).getByText("Kaivopuisto")).toBeInTheDocument();
 
+    // SDK-40: a station opens in the shell's entity panel; a public App writes nothing, so no Edit.
     fireEvent.click(within(table).getByText("Kaivopuisto"));
-    expect(within(page).getByRole("heading", { name: "Kaivopuisto" })).toBeInTheDocument();
+    const panel = await screen.findByRole("dialog", { name: "Kaivopuisto" });
+    expect(within(panel).queryByRole("button", { name: "Edit" })).toBeNull();
+    fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("says so when the endpoint has no station at all", async () => {
@@ -84,5 +98,31 @@ describe("helsinki-bikes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stations" }));
     const page = screen.getByRole("region", { name: "Stations" });
     expect(await within(page).findByText("No station matches.")).toBeInTheDocument();
+  });
+
+  // T-3373: every control of the stations page answers; a station opens from the map as from the
+  // table, on either page; the filters reset; the overview is one click back.
+  it("sorts by every column, opens a station from either map, resets the filters and goes back", async () => {
+    app();
+    await screen.findByText("15");
+    act(() => clickStation({ features: [{ properties: { id: String(STATIONS[1].id) } }] }));
+    expect(await screen.findByRole("dialog", { name: String(STATIONS[1].name) })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stations" }));
+    const page = screen.getByRole("region", { name: "Stations" });
+    const table = await within(page).findByRole("table");
+    await within(table).findByText(String(STATIONS[0].name));
+    for (const column of ["Station", "Bikes", "Free slots", "Capacity", "Status", "Updated"]) {
+      fireEvent.click(within(table).getByRole("button", { name: column }));
+    }
+    act(() => clickStation({ features: [] }));
+    act(() => clickStation({ features: [{ properties: { id: String(STATIONS[0].id) } }] }));
+    expect(await screen.findByRole("dialog", { name: String(STATIONS[0].name) })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(within(page).getByRole("checkbox", { name: "Only stations with bikes" }));
+    fireEvent.click(within(page).getByRole("button", { name: "Reset" }));
+    expect(within(page).getByRole("checkbox", { name: "Only stations with bikes" })).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
+    expect(await screen.findByRole("region", { name: "Overview" })).toBeInTheDocument();
   });
 });

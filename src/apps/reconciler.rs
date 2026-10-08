@@ -474,7 +474,7 @@ fn own_needs(spec: &AppSpec) -> Result<OwnNeeds<'_>, RenderError> {
 /// App's backend to write into its own page with `user` from its `/me` (Architecture/16 §13,
 /// AP-126). A pod App reads through its one endpoint, so the list holds that one. The project's
 /// basemap style goes in as the static host writes it, so a pod App's map draws on the platform's
-/// basemap too (AP-67).
+/// basemap too (AP-67), and the project's page in the Portal, for the entity panel (SDK-40).
 fn app_config(
     name: &str,
     project: &str,
@@ -502,6 +502,9 @@ fn app_config(
     if let Some(base) = &settings.basemap_base {
         config["basemap"] = json!(crate::api::basemap::style_url_at(base, project));
     }
+    // Where the entity panel links an entity the reader changes in the Portal (SDK-40), as the
+    // static host writes it for a `ui` App.
+    config["portal"] = json!(format!("https://{}/projects/{project}", settings.host));
     Ok(config)
 }
 

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Card, Header, NO_BASEMAP, Page, Split, styleFor } from "@joinedcontext/sdk";
+import { AppShell, Card, NO_BASEMAP, Page, Split, styleFor, useEntitySelection } from "@joinedcontext/sdk";
 import {
   featureCollection,
   getVehicles,
   inView,
   lineColor,
+  panelSource,
   perLine,
   speedBands,
   subscribe,
@@ -28,14 +29,29 @@ const HELSINKI: [number, number] = [24.94, 60.17];
  * configured basemap the map is the SDK's plain background and says so.
  */
 export function basemapOf(doc: Document = document): string | undefined {
+  const basemap = pageConfig(doc).basemap;
+  return typeof basemap === "string" && basemap.startsWith("https://") ? basemap : undefined;
+}
+
+/** The `#jc-config` the App's server writes into its page (`JC_APP_CONFIG`), or nothing. */
+function pageConfig(doc: Document): Record<string, unknown> {
   const text = doc.getElementById("jc-config")?.textContent;
-  if (!text) return undefined;
+  if (!text) return {};
   try {
-    const basemap = (JSON.parse(text) as { basemap?: unknown }).basemap;
-    return typeof basemap === "string" && basemap.startsWith("https://") ? basemap : undefined;
+    const parsed: unknown = JSON.parse(text);
+    return parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+/** The project's page in the Portal and the space, for the entity panel's link (SDK-40). */
+export function portalOf(doc: Document = document): { portal?: string; space?: string } {
+  const { portal, space } = pageConfig(doc);
+  return {
+    ...(typeof portal === "string" && portal.startsWith("https://") ? { portal } : {}),
+    ...(typeof space === "string" ? { space } : {}),
+  };
 }
 
 /**
@@ -101,6 +117,7 @@ export function useVehicles(): { vehicles: Vehicle[]; live: boolean } {
 export function VehicleMap({
   collection,
   onView,
+  onPick,
   basemap,
 }: {
   collection: VehicleCollection;
@@ -108,11 +125,15 @@ export function VehicleMap({
   basemap?: string;
   /** Where the map looks, once it has loaded and after every pan or zoom. */
   onView?: (bounds: Bounds) => void;
+  /** Called with the id of the bus a person clicks. */
+  onPick?: (id: string) => void;
 }) {
   const reportView = useRef(onView);
+  const pick = useRef(onPick);
   useEffect(() => {
     reportView.current = onView;
-  }, [onView]);
+    pick.current = onPick;
+  }, [onView, onPick]);
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const [ready, setReady] = useState(false);
@@ -164,6 +185,12 @@ export function VehicleMap({
       // settles once the charts beside it render): measure again before saying where it looks.
       instance.resize();
       reportView.current?.(instance.getBounds().toArray() as Bounds);
+    });
+    // A bus clicked opens in the shell's entity panel; the map is built once, so the handler
+    // calls whichever pick the page holds now.
+    instance.on("click", "vehicle-dots", (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
+      const id = event.features?.[0]?.properties?.id;
+      if (typeof id === "string") pick.current?.(id);
     });
     const report = () => reportView.current?.(instance.getBounds().toArray() as Bounds);
     instance.on("moveend", report);
@@ -226,8 +253,18 @@ export function BarChart({ title, bars, note }: { title: string; bars: Bar[]; no
   );
 }
 
+/**
+ * The live buses in the SDK's shell (SDK-39): a bus clicked on the map, or chosen from the list of
+ * those in view, opens in the shell's entity panel (SDK-40), read from this app's own backend.
+ */
 export function App() {
+  const source = useMemo(() => panelSource(portalOf()), []);
+  return <AppShell title="Buses live" pages={[{ id: "buses", label: "Buses live", render: () => <BusesLive /> }]} source={source} language="en" />;
+}
+
+function BusesLive() {
   const { vehicles, live } = useVehicles();
+  const { selected, select } = useEntitySelection();
   const [bounds, setBounds] = useState<Bounds | undefined>(undefined);
   const [basemap] = useState(() => basemapOf());
   const collection = useMemo(() => featureCollection(vehicles), [vehicles]);
@@ -243,24 +280,31 @@ export function App() {
   );
 
   return (
-    <main className="app">
+    <div className="app">
       <Page width="full">
-        <Header
-          level={1}
-          title="Buses live"
-          subtitle={
-            <span className="status" role="status">
-              {vehicles.length === 0
-                ? "Waiting for the first positions"
-                : `${vehicles.length} buses${live ? ", updating live" : ""}${
-                    bounds && shown.length !== vehicles.length ? `, ${shown.length} in view` : ""
-                  }`}
-            </span>
-          }
-        />
+        <p className="status" role="status">
+          {vehicles.length === 0
+            ? "Waiting for the first positions"
+            : `${vehicles.length} buses${live ? ", updating live" : ""}${bounds && shown.length !== vehicles.length ? `, ${shown.length} in view` : ""}`}
+        </p>
         <Split ratio="2:1">
           <div className="map-pane">
-            <VehicleMap collection={collection} onView={setBounds} basemap={basemap} />
+            <VehicleMap collection={collection} onView={setBounds} onPick={(id) => select({ id, type: "Vehicle" })} basemap={basemap} />
+            {shown.length > 0 && (
+              <label className="pick">
+                <span>Open a bus</span>
+                <select value={selected?.id ?? ""} onChange={(event) => event.target.value && select({ id: event.target.value, type: "Vehicle" })}>
+                  <option value="">—</option>
+                  {[...shown]
+                    .sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }))
+                    .map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {`${vehicle.id.slice(vehicle.id.lastIndexOf(":") + 1)}${vehicle.refLine ? `, line ${vehicle.refLine}` : ""}`}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
             {legend.length > 0 && (
               <ul className="lines" aria-label="Lines on the map">
                 {legend.map((line) => (
@@ -282,6 +326,6 @@ export function App() {
           </div>
         </Split>
       </Page>
-    </main>
+    </div>
   );
 }
