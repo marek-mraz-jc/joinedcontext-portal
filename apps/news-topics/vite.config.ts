@@ -19,5 +19,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // The wasm-bindgen glue is generated and measured by the crate's own coverage (cargo llvm-cov in
+    // wasm/, T-3373); the fixtures are test data.
+    coverage: { exclude: ["wasm/pkg/**", "src/fixtures/**"] },
   },
 });

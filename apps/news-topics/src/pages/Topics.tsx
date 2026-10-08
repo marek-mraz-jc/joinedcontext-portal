@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Page, Split, currentTokens, format, useEntities } from "@joinedcontext/sdk";
-import type { DesignTokens, Row } from "@joinedcontext/sdk";
+import { Card, Empty, Loading, Page, Problem, Split, currentTokens, format, useEntities, useEntitySelection } from "@joinedcontext/sdk";
+import type { Row } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
-import { Empty, Loading, Problem } from "../components/states";
 import { formatDate, formatPercent, getLanguage, t } from "../i18n";
 import type { Lang } from "../i18n";
 import { useTopics } from "../topics";
@@ -18,15 +17,9 @@ interface HashState {
 }
 
 function readHash(): HashState {
-  if (typeof window === "undefined" || !window.location.hash) {
-    return { weeks: "all", k: 5, topic: null, q: "" };
-  }
   const hash = window.location.hash;
-  const qIndex = hash.indexOf("?");
-  if (qIndex === -1) {
-    return { weeks: "all", k: 5, topic: null, q: "" };
-  }
-  const params = new URLSearchParams(hash.slice(qIndex + 1));
+  // No `?` in the address: no parameter, so every default.
+  const params = new URLSearchParams(hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : "");
   const rawWeeks = params.get("weeks");
   const weeks = rawWeeks === "4" || rawWeeks === "8" || rawWeeks === "12" || rawWeeks === "all" ? rawWeeks : "all";
   const rawK = parseInt(params.get("k") ?? "5", 10);
@@ -38,7 +31,6 @@ function readHash(): HashState {
 }
 
 function writeHash(state: HashState) {
-  if (typeof window === "undefined") return;
   const params = new URLSearchParams();
   if (state.weeks !== "all") {
     params.set("weeks", state.weeks);
@@ -65,18 +57,13 @@ function writeHash(state: HashState) {
 
 function filterRows(rows: Row[], weeks: string, query: string): Row[] {
   let result = rows;
+  // `weeks` is "4", "8", "12" or "all": readHash takes nothing else.
   if (weeks !== "all") {
-    const numWeeks = parseInt(weeks, 10);
-    if (!Number.isNaN(numWeeks) && numWeeks > 0) {
-      const now = Date.now();
-      const cutoff = now - numWeeks * 7 * 24 * 60 * 60 * 1000;
-      result = result.filter((row) => {
-        const rawDate = row.datePublished;
-        if (typeof rawDate !== "string" || !rawDate) return false;
-        const time = new Date(rawDate).getTime();
-        return !Number.isNaN(time) && time >= cutoff;
-      });
-    }
+    const cutoff = Date.now() - Number(weeks) * 7 * 24 * 60 * 60 * 1000;
+    result = result.filter((row) => {
+      const time = typeof row.datePublished === "string" ? new Date(row.datePublished).getTime() : Number.NaN;
+      return !Number.isNaN(time) && time >= cutoff;
+    });
   }
 
   if (query.trim()) {
@@ -103,15 +90,9 @@ function sortArticles(articles: Row[]): Row[] {
   });
 }
 
-function buildWeeklyChartOption(
-  weeks: WeekShare[],
-  topics: Topic[],
-  tokens?: DesignTokens,
-  lang: Lang = "en",
-): Record<string, unknown> | null {
+export function buildWeeklyChartOption(weeks: WeekShare[], topics: Topic[], lang: Lang): Record<string, unknown> | null {
   if (weeks.length === 0 || topics.length === 0) return null;
-  const tks = tokens ?? currentTokens();
-  const palette = tks.chart.palette;
+  const palette = currentTokens().chart.palette;
   const categories = weeks.map((w) => w.week);
 
   const series = topics.map((topic, index) => {
@@ -168,6 +149,7 @@ export function Topics(): React.JSX.Element {
   const lang = getLanguage();
   const [hashState, setHashState] = useState<HashState>(readHash);
   const [showTable, setShowTable] = useState(false);
+  const { select } = useEntitySelection();
 
   const { rows, loading: entitiesLoading, error: entitiesError, reload } = useEntities(ENTITY_TYPE);
 
@@ -205,7 +187,7 @@ export function Topics(): React.JSX.Element {
   }, [selectedTopic, rows]);
 
   const chartOption = useMemo(
-    () => (result ? buildWeeklyChartOption(result.weeks, result.topics, undefined, lang) : null),
+    () => (result ? buildWeeklyChartOption(result.weeks, result.topics, lang) : null),
     [result, lang],
   );
 
@@ -292,12 +274,14 @@ export function Topics(): React.JSX.Element {
                         className="app-topic"
                         onClick={() => handleTopicClick(item.id)}
                         aria-pressed={isSelected}
+                        aria-label={[`${t("topicN", lang)} ${item.id + 1}`, item.keywords.map((kw) => kw.term).join(", ")].filter(Boolean).join(": ")}
+                        aria-describedby={`topic-${item.id}-share topic-${item.id}-count`}
                       >
                         <span className="app-topic-head">
                           <strong>
                             {t("topicN", lang)} {item.id + 1}
                           </strong>
-                          <span className="app-topic-share">{formatPercent(item.share, lang)}</span>
+                          <span className="app-topic-share" id={`topic-${item.id}-share`}>{formatPercent(item.share, lang)}</span>
                         </span>
                         <span className="app-topic-keywords">
                           <span className="app-sr-only">{t("keywords", lang)}: </span>
@@ -307,7 +291,7 @@ export function Topics(): React.JSX.Element {
                             </span>
                           ))}
                         </span>
-                        <span className="app-topic-count">
+                        <span className="app-topic-count" id={`topic-${item.id}-count`}>
                           {item.articles.length} {t("articlesCount", lang)}
                         </span>
                       </button>
@@ -381,7 +365,12 @@ export function Topics(): React.JSX.Element {
                   return (
                     <li key={article.id} className="app-event">
                       <div className="app-event-body">
-                        <h3>{title}</h3>
+                        <h3>
+                          {/* SDK-40: the article opens in the shell's entity panel, linked to the Portal. */}
+                          <button type="button" className="app-open" onClick={() => select({ id: article.id, type: ENTITY_TYPE })}>
+                            {title}
+                          </button>
+                        </h3>
                         <p className="app-event-when">
                           {pub ? (
                             <time dateTime={pub}>{formatDate(pub, lang)}</time>

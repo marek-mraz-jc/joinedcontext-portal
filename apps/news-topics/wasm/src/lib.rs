@@ -1001,16 +1001,6 @@ pub fn weekly_share_with_k(
     result
 }
 
-pub fn weekly_share(dates: &[Option<String>], labels: &[Option<usize>]) -> Vec<WeekShare> {
-    let k = labels
-        .iter()
-        .filter_map(|&l| l)
-        .max()
-        .map(|m| m + 1)
-        .unwrap_or(0);
-    weekly_share_with_k(dates, labels, k)
-}
-
 #[derive(Debug, Deserialize)]
 pub struct InputArticle {
     pub id: String,
@@ -1311,5 +1301,97 @@ mod tests {
         let out1 = analyse(input);
         let out2 = analyse(input);
         assert_eq!(out1, out2);
+    }
+
+    // T-3401: what a feed may send that the analysis still reads.
+    #[test]
+    fn stems_only_what_leaves_a_stem_and_skips_numbers() {
+        assert_eq!(stem_english("bus"), "bus");
+        assert_eq!(stem_english("buses"), "bus");
+        assert_eq!(stem_finnish("kissa"), "kiss");
+        assert_eq!(stem_finnish("tie"), "tie");
+        assert_eq!(
+            tokenize("2024 budget 12345", "en"),
+            vec!["budget".to_string()]
+        );
+    }
+
+    #[test]
+    fn weighs_nothing_for_no_document_and_only_shared_words_from_ten_on() {
+        assert_eq!(tfidf(&[]), (Vec::new(), Vec::new()));
+        let mut docs: Vec<Vec<String>> = (0..10)
+            .map(|_| vec!["tram".to_string(), "line".to_string()])
+            .collect();
+        docs.push(vec!["unique".to_string()]);
+        let (vectors, vocab) = tfidf(&docs);
+        assert!(!vocab.contains(&"unique".to_string()));
+        // A document whose every word is too rare to weigh has no vector, and so no topic.
+        assert!(vectors[10].is_empty());
+    }
+
+    #[test]
+    fn clusters_nothing_from_nothing_and_leaves_an_empty_vector_unassigned() {
+        let none = kmeans(&[], 3, 1);
+        assert!(none.assignments.is_empty() && none.centroids.is_empty());
+        let empty = kmeans(&[BTreeMap::new(), BTreeMap::new()], 2, 1);
+        assert_eq!(empty.assignments, vec![None, None]);
+        assert!(empty.centroids.is_empty());
+        let mut one = BTreeMap::new();
+        one.insert(0u32, 1.0f32);
+        let mixed = kmeans(&[one.clone(), BTreeMap::new(), one], 2, 1);
+        assert_eq!(mixed.assignments[1], None);
+        assert_eq!(
+            cosine_similarity(&BTreeMap::new(), &mixed.centroids[0]),
+            0.0
+        );
+    }
+
+    #[test]
+    fn reads_only_a_real_date_into_a_week() {
+        for wrong in [
+            "2026-10",
+            "2026-13-01",
+            "2026-02-30",
+            "2026-00-10",
+            "abcd-10-10",
+        ] {
+            assert_eq!(iso_week(wrong), None, "{wrong}");
+        }
+        // A Friday in March: its Thursday is in February.
+        assert_eq!(iso_week("2030-03-01"), Some("2030-W09".to_string()));
+        assert_eq!(days_in_month(2030, 13), 30);
+        assert_eq!(monday_of_iso_week("2030"), None);
+        assert_eq!(monday_of_iso_week("2030-X09"), None);
+    }
+
+    #[test]
+    fn shares_a_week_with_no_article_as_zero_and_ignores_a_topic_past_k() {
+        assert!(weekly_share_with_k(&[], &[], 2).is_empty());
+        assert!(weekly_share_with_k(&[Some("2030-03-04".to_string())], &[Some(0)], 0).is_empty());
+        let dates = vec![
+            Some("2030-03-04".to_string()),
+            Some("2030-03-18".to_string()),
+            Some("2030-03-18".to_string()),
+        ];
+        let weeks = weekly_share_with_k(&dates, &[Some(0), Some(1), Some(7)], 2);
+        assert_eq!(
+            weeks.iter().map(|w| w.week.as_str()).collect::<Vec<_>>(),
+            vec!["2030-W10", "2030-W11", "2030-W12"]
+        );
+        assert_eq!(weeks[1].shares, vec![0.0, 0.0]);
+        assert_eq!(weeks[2].shares, vec![0.0, 1.0]);
+    }
+
+    #[test]
+    fn leaves_an_article_of_only_stop_words_unassigned() {
+        let input = r#"{
+            "articles": [
+                { "id": "words", "title": "Tram line to Kalasatama opens", "published": "2026-09-01T10:00:00Z" },
+                { "id": "stop", "title": "the and of", "published": "2026-09-01T10:00:00Z" }
+            ],
+            "k": 2
+        }"#;
+        let out: AnalysisOutput = serde_json::from_str(&analyse(input)).expect("parse output");
+        assert_eq!(out.unassigned, vec!["stop"]);
     }
 }

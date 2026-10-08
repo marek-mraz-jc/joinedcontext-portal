@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
@@ -113,7 +113,8 @@ const READ = {
 };
 
 function renderTopics(entities: Row[] = ARTICLES, refuse?: () => { status: number; body: unknown } | null) {
-  const client = stubClient({ entities, access: READ, refuse }, { appName: "news-topics" });
+  // `portal`: where the entity panel links an article (SDK-40); shown, never followed.
+  const client = stubClient({ entities, access: READ, refuse }, { appName: "news-topics", portal: "https://portal.test/projects/helsinki" });
   render(
     <JcProvider client={client}>
       <App />
@@ -278,5 +279,140 @@ describe("the topics page", () => {
     expect(within(articles).getByRole("heading", { name: "New school opens in Kalasatama" })).toBeInTheDocument();
     expect(within(articles).queryByRole("link", { name: /New school opens in Kalasatama/ })).toBeNull();
     expect(within(articles).getByRole("link", { name: /Education budget approved/ })).toHaveAttribute("href", "https://www.hel.fi/en/news/education-budget");
+  });
+
+  // SDK-40, T-3401: an article opens in the shell's entity panel, linked to the Portal, without Edit.
+  it("opens each article of a topic in the entity panel", async () => {
+    renderTopics(ARTICLES);
+    const articles = await screen.findByRole("list", { name: /articles of topic/i });
+    for (const name of ["New school opens in Kalasatama", "Education budget approved for next year"]) {
+      fireEvent.click(within(articles).getByRole("button", { name }));
+      const panel = await screen.findByRole("dialog", { name });
+      const portal = await within(panel).findByRole("link", { name: "Open in the Portal" });
+      fireEvent.click(portal);
+      expect(within(panel).queryByRole("button", { name: "Edit" })).toBeNull();
+      fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Topic 2: traffic, tram, construction" }));
+    const traffic = screen.getByRole("list", { name: /articles of topic/i });
+    fireEvent.click(await within(traffic).findByRole("button", { name: "Tram line extension starts construction" }));
+    expect(await screen.findByRole("dialog", { name: "Tram line extension starts construction" })).toBeInTheDocument();
+    fireEvent.click(within(traffic).getByRole("link", { name: "Read on hel.fi: Tram line extension starts construction" }));
+  });
+
+  // T-3373: every control answers: the period, the number of topics and the search narrow what is
+  // analysed and stay in the address; the table opens and closes; a topic is named by its keywords.
+  it("keeps the period, the number of topics, the search and the topic in the address", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));
+    renderTopics(ARTICLES);
+    await screen.findByRole("list", { name: /topics of the period/i });
+    const first = screen.getByRole("button", { name: "Topic 1: school, education, pupils" });
+    expect(first).toHaveAttribute("aria-pressed", "true");
+    expect(first).toHaveAccessibleDescription(/60\s*%.*2 articles/);
+    fireEvent.click(first);
+    expect(window.location.hash).toBe("#topics?topic=0");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Period" }), { target: { value: "4" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Number of topics" }), { target: { value: "3" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search" }), { target: { value: "  tram  " } });
+    expect(new URLSearchParams(window.location.hash.slice(window.location.hash.indexOf("?") + 1)).toString()).toBe("weeks=4&k=3&topic=0&q=tram");
+
+    const toggle = screen.getByRole("button", { name: "Show the numbers as a table" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: /hide the table/i }));
+    for (const link of screen.getAllByRole("link", { name: /^Read on hel\.fi/ })) fireEvent.click(link);
+    vi.useRealTimers();
+  });
+
+  it("reads the address it was given, and falls back for what it cannot read", async () => {
+    window.history.replaceState(null, "", "/#topics?weeks=99&k=42&topic=x&q=school");
+    renderTopics(ARTICLES);
+    await screen.findByRole("list", { name: /topics of the period/i });
+    expect(screen.getByRole("combobox", { name: "Period" })).toHaveValue("all");
+    expect(screen.getByRole("combobox", { name: "Number of topics" })).toHaveValue("5");
+    expect(screen.getByRole("searchbox", { name: "Search" })).toHaveValue("school");
+    // The search leaves only what it finds, so the empty answer of a narrowed list is the page's.
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search" }), { target: { value: "nothing like it" } });
+    expect(await screen.findByText(/no news in this period/i)).toBeInTheDocument();
+    // Back from somewhere else in the address.
+    window.history.replaceState(null, "", "/#topics?weeks=8");
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Period" })).toHaveValue("8"));
+  });
+
+  it("answers every control in Finnish", async () => {
+    window.history.replaceState(null, "", "/?lang=fi");
+    renderTopics(ARTICLES);
+    await screen.findByRole("list", { name: /ajanjakson aiheet/i });
+    fireEvent.change(screen.getByRole("combobox", { name: "Ajanjakso" }), { target: { value: "12" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Aiheiden määrä" }), { target: { value: "4" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Hae" }), { target: { value: "" } });
+    expect(window.location.hash).toBe("#topics?weeks=12&k=4");
+    for (const topic of ["Aihe 1: school, education, pupils", "Aihe 2: traffic, tram, construction"]) fireEvent.click(screen.getByRole("button", { name: topic }));
+    fireEvent.click(screen.getByRole("button", { name: "Aihe 1: school, education, pupils" }));
+    fireEvent.click(screen.getByRole("button", { name: "Näytä luvut taulukkona" }));
+    for (const link of screen.getAllByRole("link", { name: /^Lue hel\.fi:ssä/ })) fireEvent.click(link);
+  });
+
+  // What the analysis or the feed may hand the page that it still shows.
+  it("shows an undated and an unnamed article, a topic with no keyword and a week with no share", async () => {
+    const undated: Row = { id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-9", type: "NewsArticle" };
+    mockTopicsState = {
+      status: "ready",
+      result: {
+        topics: [
+          { id: 0, keywords: [], articles: [undated.id, ARTICLES[0].id], share: 1 },
+          { id: 1, keywords: [{ term: "tram", weight: 1 }], articles: ["urn:ngsi-ld:NewsArticle:hel.fi:helsinki:gone"], share: 0 },
+        ],
+        weeks: [{ week: "2026-W41", shares: [1] }],
+        unassigned: [],
+      },
+      error: null,
+    };
+    window.history.replaceState(null, "", "/#topics?topic=7&weeks=4");
+    renderTopics([...ARTICLES, undated]);
+    const articles = await screen.findByRole("list", { name: /articles of topic/i });
+    // The dated article first, the undated one after it, named by its id and said to have no date.
+    const titles = within(articles).getAllByRole("heading").map((heading) => heading.textContent);
+    expect(titles).toEqual(["New school opens in Kalasatama", undated.id]);
+    expect(within(articles).getByText(/no date/i)).toBeInTheDocument();
+    const option = charts.at(-1)?.setOption.mock.calls.at(-1)?.[0] as { series: Array<{ name: string; data: number[] }>; tooltip: { valueFormatter: (value: unknown) => string } };
+    expect(option.series.map((series) => series.name)).toEqual(["Topic 1", "Topic 2: tram"]);
+    expect(option.series[1].data).toEqual([0]);
+    expect(option.tooltip.valueFormatter(12.345)).toBe("12.3%");
+    expect(option.tooltip.valueFormatter("-")).toBe("-");
+    fireEvent.click(screen.getByRole("button", { name: "Show the numbers as a table" }));
+    expect(within(screen.getByRole("table", { name: /topic share/i })).getAllByText(/0\s*%/).length).toBeGreaterThan(0);
+    // A topic none of whose articles the page holds says so; its button names it by its keywords.
+    fireEvent.click(screen.getByRole("button", { name: "Topic 2: tram" }));
+    expect(await screen.findByText(/no news in this period/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Topic 1" }));
+    fireEvent.click(within(screen.getByRole("list", { name: /articles of topic/i })).getByRole("button", { name: undated.id }));
+    fireEvent.click(within(screen.getByRole("list", { name: /articles of topic/i })).getByRole("button", { name: "New school opens in Kalasatama" }));
+    fireEvent.click(screen.getByRole("link", { name: "Read on hel.fi: New school opens in Kalasatama" }));
+    // Back to every default: the address keeps no parameter.
+    fireEvent.change(screen.getByRole("combobox", { name: "Period" }), { target: { value: "all" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hide the table" }));
+  });
+
+  it("says it is analysing while the first answer is on its way, and has no weekly chart for an answer with no week", async () => {
+    mockTopicsState = { status: "loading", result: null, error: null };
+    renderTopics(ARTICLES);
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    cleanup();
+    mockTopicsState = { status: "ready", result: { ...FIXED_TOPICS, weeks: [] }, error: null };
+    renderTopics(ARTICLES);
+    const chart = (await screen.findByText("Topic share per week", { selector: "figcaption" })).closest("figure") as HTMLElement;
+    expect(within(chart).getByText(/no news in this period/i)).toBeInTheDocument();
+    for (const name of ["Topic 1: school, education, pupils", "Topic 2: traffic, tram, construction"]) fireEvent.click(screen.getByRole("button", { name }));
+    for (const name of ["New school opens in Kalasatama", "Education budget approved for next year"]) {
+      fireEvent.click(screen.getByRole("button", { name: "Topic 1: school, education, pupils" }));
+      fireEvent.click(within(screen.getByRole("list", { name: /articles of topic/i })).getByRole("button", { name }));
+      fireEvent.click(screen.getByRole("link", { name: `Read on hel.fi: ${name}` }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Show the numbers as a table" }));
   });
 });
