@@ -88,7 +88,8 @@
     "projections": "Projekce modelů",
     "knowledge": "Zdroje znalostí",
     "mcp": "MCP servery",
-    "home": "Domů"
+    "home": "Domů",
+    "inbox": "Doručené"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -248,7 +249,29 @@
       "emptyHint": "Změna se tu objeví i s tím, kdo o ní rozhodl, jakmile ji na kartě Otevřené schválíte nebo zamítnete.",
       "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano.",
       "restore": "Obnovit",
-      "restoreOf": "Obnovit {name}"
+      "restoreOf": "Obnovit {name}",
+      "author": "Navrhl",
+      "since": "Rozhodnuto od",
+      "until": "Rozhodnuto do",
+      "whatChanged": "Co změnila",
+      "noFields": "U této změny není co ukázat z polí manifestu.",
+      "undo": "Vrátit zpět",
+      "undoOf": "Vrátit zpět změnu {name}",
+      "said": {
+        "create": "{author} vytvořil {kind} {name}",
+        "update": "{author} změnil {kind} {name}",
+        "delete": "{author} odstranil {kind} {name}"
+      },
+      "field": {
+        "set": "nastavil {field} na {to}",
+        "removed": "odstranil {field} (bylo {from})",
+        "changed": "změnil {field} z {from} na {to}"
+      },
+      "proposed": {
+        "create": "{author} navrhl vytvořit {kind} {name}",
+        "update": "{author} navrhl změnit {kind} {name}",
+        "delete": "{author} navrhl odstranit {kind} {name}"
+      }
     }
   },
   "lane": {
@@ -1297,6 +1320,35 @@
       "meaning": "Co nastavuje",
       "parametersOf": "Parametry {path}",
       "lead": "Na co tento endpoint odpovídá, s příkladem volání ke každému čtení."
+    },
+    "shareFlow": {
+      "section": "Sdílet s jiným projektem",
+      "lead": "Zvolte projekt, co čte a dokdy; sdílení a jeho konec jsou jedna změna, o které rozhodne schvalovatel.",
+      "already": {
+        "organization": "Tento endpoint už čte každý projekt organizace: není s kým dalším jej sdílet.",
+        "public": "Tento endpoint je veřejný: čte jej už kdokoli."
+      },
+      "sharedWith": "Sdíleno s",
+      "nobody": "Zatím s žádným jiným projektem.",
+      "state": {
+        "open": "bez konce",
+        "until": "do {until}",
+        "ended": "skončilo {until}",
+        "noGrant": "připuštěn, ale žádné oprávnění tohoto sdílení mu nedovoluje číst"
+      },
+      "revoke": "Přestat sdílet",
+      "revokeOf": "Přestat sdílet s {project}",
+      "title": "Sdílet s projektem",
+      "project": "Projekt",
+      "types": "Co čte",
+      "until": "Do",
+      "untilHint": "Nepovinné. Po tomto dni přes něj projekt nic nepřečte; prázdné ponechá sdílení, dokud jej nezastavíte.",
+      "preview": "Co uvidí {project}",
+      "previewLead": "Typy {types} přes projekci tohoto endpointu, nikdy jeho skryté atributy ({hidden}). Několik entit tak, jak je budou číst:",
+      "pickProject": "Nejprve zvolte projekt.",
+      "pickType": "Zvolte alespoň jeden typ.",
+      "propose": "Navrhnout sdílení",
+      "newGroup": "Sdílení opravňuje skupinu {group}, která ještě neexistuje: navrhne se prázdná spolu se sdílením. Po schválení do ní přidejte lidi z {group}, kteří mají číst."
     }
   },
   "datasources": {
@@ -1564,7 +1616,7 @@
       },
       "preset": {
         "title": "Předvolba",
-        "load": "Načtení (DataSource)",
+        "load": "Načtení (zdroj dat)",
         "kpi": "Analýza (KPI)",
         "hint": "Načtení kopíruje záznamy z externího zdroje do prostoru; Analýza počítá ukazatel z toho, co endpoint už poskytuje."
       },
@@ -1776,7 +1828,8 @@
       "minutes": "{count, plural, one {# minuta} few {# minuty} other {# minut}}",
       "same": "stejně",
       "silentBadge": "Nezapsal nic",
-      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu."
+      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu.",
+      "split": "nové: {created}, změněné: {updated}, beze změny: {unchanged}"
     },
     "workbench": {
       "failed": "Krok se nepodařilo spustit; zkuste to znovu.",
@@ -2056,7 +2109,8 @@
       "sizeBy": "Velikost podle",
       "range": "Poloměr [min, max] px",
       "popup": "Atributy v bublině",
-      "grid": "Nastavení tabulky"
+      "grid": "Nastavení tabulky",
+      "q": "Filtr (NGSI-LD q)"
     },
     "pages": "Stránky",
     "page": "Stránka {number}",
@@ -2068,7 +2122,19 @@
       "latest": "Poslední hodnota {property}: {value} ({count} měření)",
       "chartLabel": "{property} entity {entity} v čase",
       "badGrid": "Tuto tabulku nebylo možné zobrazit: {reason}",
-      "historyFailed": "Tuto historii se nepodařilo načíst: {reason}"
+      "historyFailed": "Tuto historii se nepodařilo načíst: {reason}",
+      "barTitle": "{property} typu {type}: entity podle hodnoty",
+      "histogramTitle": "{property} typu {type}: rozložení",
+      "rest": "ostatní hodnoty",
+      "noValues": "Žádná entita nemá {property}.",
+      "barAxis": "Počet entit s každou hodnotou {property}.",
+      "histogramAxis": "Počet entit v každém rozsahu {property}.",
+      "histogramAxisUnit": "Počet entit v každém rozsahu {property}, v jednotce {unit}.",
+      "counted": "Spočítáno jen prvních {count} entit.",
+      "entities": "Entity",
+      "row": "{label}: {count}",
+      "timeAxis": "Čas v pásmu {zone}.",
+      "timeAxisUnit": "Čas v pásmu {zone}; hodnoty v jednotce {unit}."
     },
     "emptyHint": "Nástěnka je stránka s mapami a čísly, postavená z endpointů, které tento projekt umí čist. Vytvořte jednu nebo požádejte asistenta o nástěnku z toho, co už zveřejňujete.",
     "layerEndpointGone": "Endpoint „{name}“ už v tomto projektu není, proto tato vrstva nemá z čeho vybrat typ ani filtr. Vyberte pro tuto vrstvu jiný endpoint."
@@ -3166,7 +3232,9 @@
       "create": "Vytvořit z této",
       "mayNot": "Vaše role v tomto projektu nesmí navrhnout aplikaci.",
       "createTitle": "Vytvořit ze šablony {title}",
-      "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony."
+      "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony.",
+      "screenshot": "{title}, jak ji ukazuje ukázka",
+      "demo": "Otevřít ukázku"
     }
   },
   "appLifecycle": {
@@ -3622,6 +3690,40 @@
       "truncated": "Jen prvních {max}: pro ostatní zužte filtr.",
       "label": "Mapa typu {type}",
       "open": "Otevřít entitu"
+    },
+    "chart": {
+      "open": "Graf",
+      "title": "Graf atributu typu {type}",
+      "lead": "Vyberte atribut: Portál navrhne graf, jaký si jeho hodnoty žádají. Uložte ho na dashboard; dashboard čte přes stejný endpoint s filtrem tohoto pohledu.",
+      "attribute": "Atribut",
+      "pickAttribute": "Vyberte atribut",
+      "kind": "Graf",
+      "suggested": "Navrženo pro tento atribut: {kind}.",
+      "kinds": {
+        "temporal-chart": {
+          "label": "V čase",
+          "says": "Hodnoty jedné entity jako čára, pro atribut sledovaný v čase."
+        },
+        "bar-chart": {
+          "label": "Sloupce podle hodnoty",
+          "says": "Kolik entit má každou hodnotu, pro text, kategorii nebo ano/ne."
+        },
+        "histogram": {
+          "label": "Histogram",
+          "says": "Jak se číslo rozkládá do deseti stejných rozsahů."
+        }
+      },
+      "entity": "Entita",
+      "dashboard": "Uložit do",
+      "newDashboard": "Nový dashboard",
+      "name": "Název nového dashboardu",
+      "nameHelp": "Malá písmena, číslice a pomlčky, jak je ukazuje adresa.",
+      "newTitle": "Grafy typu {type}",
+      "page": "Grafy",
+      "save": "Uložit na dashboard",
+      "pickFirst": "Nejprve vyberte atribut a graf.",
+      "badName": "Název dashboardu tvoří malá písmena, číslice a pomlčky, nejvýše 63, na začátku a konci písmeno nebo číslice.",
+      "gone": "Ten dashboard už v projektu není; vyberte jiný."
     }
   },
   "agentRun": {
@@ -4563,6 +4665,29 @@
       "didHint": "Napište decentralizovaný identifikátor, například did:web:example.org; seznam k výběru neexistuje.",
       "peopleHidden": "Seznam osob vidí jen správce organizace; napište e-mail, kterým se osoba přihlašuje.",
       "noneYet": "Zatím tu není nic tohoto druhu k výběru ({kind}); napište název tak, jak jej píše poskytovatel identity."
+    },
+    "sentence": {
+      "title": "Slovy",
+      "who": {
+        "role": "Držitelé role {id}",
+        "group": "Členové skupiny {id}",
+        "user": "Osoba {id}",
+        "serviceAccount": "Servisní účet {id}",
+        "did": "Účastník {id}"
+      },
+      "nobody": "Zatím nikdo",
+      "nothing": "zatím nic",
+      "everyType": "každý typ",
+      "may": "{who} smí {what} na {types} v prostoru {space}",
+      "mayNot": "{who} nesmí {what} na {types} v prostoru {space}",
+      "attributes": "jen atributy {attributes}",
+      "q": "kde {q}",
+      "scope": "v rámci rozsahu {scope}",
+      "geo": "v oblasti {geo}",
+      "temporal": "pro čas {temporal}",
+      "between": "od {from} do {to}",
+      "from": "od {from}",
+      "until": "do {to}"
     }
   },
   "subscriptions": {
@@ -5245,7 +5370,7 @@
       "roles": "Role",
       "service-accounts": "Servisní účty",
       "access": "Váš přístup",
-      "danger": "Smazat projekt"
+      "danger": "Smazat nebo předat"
     },
     "field": {
       "title": "Název",
@@ -5272,10 +5397,27 @@
     },
     "danger": {
       "title": "Smazat projekt",
-      "lead": "Smazání projektu odstraní vše napsané pro něj jednou změnou v červeném pruhu, kterou schválí administrátor. Dialog před potvrzením vypíše, co odejde s ním."
+      "lead": "Smazání projektu odstraní vše napsané pro něj jednou změnou v červeném pruhu, kterou schválí administrátor. Dialog před potvrzením vypíše, co odejde s ním.",
+      "handoverTitle": "Předat projekt",
+      "handoverLead": "Projekt nemá jednoho vlastníka: spravuje jej ten, kdo má jeho roli administrátora. Chcete-li jej předat, přiřaďte novou osobu k této roli v Členech a po schválení odeberte vlastní přiřazení.",
+      "handoverLink": "Otevřít Členy"
     },
     "roles": {
       "organizationKinds": "Role projektu nesmí jmenovat {kinds}: ty patří vlastním rolím organizace."
+    },
+    "search": {
+      "label": "Najít nastavení",
+      "placeholder": "kvóta, členové, smazat…",
+      "nothing": "Žádné nastavení tohoto projektu se tak nejmenuje ani to nemění.",
+      "results": "Nalezená nastavení"
+    },
+    "about": {
+      "organization": "Organizace, do které projekt patří; patří instalaci a zde se nemění.",
+      "duplicateLabel": "Duplikovat projekt",
+      "duplicate": "Vytvoří nový projekt se stejnými prostory, endpointy, pipelinami a aplikacemi, bez dat.",
+      "members": "Kdo je v projektu přiřazen a s jakou rolí: co zde každý smí číst, navrhovat, schvalovat a mazat.",
+      "roles": "Vlastní role projektu: které druhy smí každá číst, navrhovat, schvalovat nebo mazat.",
+      "serviceAccounts": "Účty, kterými programy volají endpointy projektu, a jejich klíče."
     }
   },
   "projectDuplicate": {
@@ -5372,6 +5514,8 @@
     },
     "widgetType": {
       "temporal-chart": "Graf v čase",
+      "bar-chart": "Sloupce podle hodnoty",
+      "histogram": "Histogram",
       "grid": "Tabulka"
     },
     "columnFormat": {
@@ -5928,7 +6072,8 @@
     },
     "type": {
       "website": "Web",
-      "ckan": "Datový katalog"
+      "ckan": "Datový katalog",
+      "catalogue": "Katalog kontextových prostorů"
     },
     "status": {
       "pending": "Ještě nepřečteno",
@@ -6068,7 +6213,8 @@
       "copied": "Zkopírováno",
       "origins": "Adresa webu musí být mezi povolenými původy asistenta; rámec na jiném webu zůstane prázdný.",
       "noDomain": "Tento Portál nezná svou doménu, proto neumí napsat adresu stránky asistenta."
-    }
+    },
+    "everySpace": "každý prostor projektu"
   },
   "mcp": {
     "title": "MCP servery",
@@ -6328,6 +6474,53 @@
       "close": "Zavřít uvítání"
     }
   },
+  "alerts": {
+    "open": "Upozornění…",
+    "title": "Upozornění pro {name}",
+    "close": "Zavřít",
+    "lead": {
+      "pipeline": "Vyberte, o čem vás u této pipeline upozornit.",
+      "space": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje do tohoto prostoru.",
+      "type": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje tento typ do prostoru."
+    },
+    "events": "Upozornit, když",
+    "event": {
+      "failure": "selže",
+      "stale": "její data zastarají",
+      "zero": "nic nezapíše"
+    },
+    "delivery": "Jak",
+    "portal": "V Portálu, hned",
+    "portalHint": "Jedno upozornění, když to začne, a jedno, když se to spraví, ve schránce nahoře.",
+    "digest": "Denní přehled",
+    "digestHint": "Jedno upozornění denně po 07:00 UTC o tom, co se stalo od posledního.",
+    "email": "E-mailem",
+    "emailHint": "Zatím ne: tento Portál nemá poštovní server.",
+    "noEvent": "Zaškrtněte aspoň jednu událost.",
+    "subscribe": "Upozorňovat mě",
+    "change": "Uložit",
+    "stop": "Zrušit tato upozornění",
+    "active": "Aktivní.",
+    "mutedUntil": "Ztlumeno do {until}.",
+    "mute": "Ztlumit",
+    "muteChoose": "Vyberte…",
+    "muteFor": {
+      "1h": "na hodinu",
+      "1d": "na den",
+      "7d": "na týden",
+      "forever": "dokud se nezruší"
+    },
+    "unmute": "Zrušit ztlumení",
+    "forSpace": "Upozornění",
+    "forType": "Upozornění pro {type}",
+    "notices": "Upozornění",
+    "notice": {
+      "opened": "{pipeline}: {event}",
+      "recovered": "{pipeline} je v pořádku: už {event} neplatí",
+      "digest": "Dnešní přehled, {pipeline}: {event}"
+    },
+    "muteDay": "Ztlumit upozornění {pipeline} na den"
+  },
   "help": {
     "title": "Nápověda",
     "label": "Nápověda{count, plural, =0 {} one {, # nová změna} few {, # nové změny} other {, # nových změn}}"
@@ -6547,5 +6740,25 @@
       "two": "Vytvořte servisní účty pro programy, které ho čtou nebo zapisují.",
       "three": "Podívejte se na svůj přístup a co která role dovoluje."
     }
+  },
+  "inbox": {
+    "title": "Doručené",
+    "lead": "Co na vás čeká: změny, o kterých smíte rozhodnout v každém projektu, a komentáře, které vás zmiňují.",
+    "decisions": "Čeká na vaše rozhodnutí",
+    "decisionsHint": "Schválení změny v červeném pruhu si žádá její název, jako na její vlastní stránce.",
+    "noDecisions": "Nic nečeká na vaše rozhodnutí.",
+    "by": "navrhl {author} v {project}",
+    "openChange": "Otevřít změnu",
+    "showDiff": "Ukázat, co mění",
+    "hideDiff": "Skrýt, co mění",
+    "diffFailed": "Změnu nebylo možné přečíst; otevřete ji a zkuste znovu.",
+    "reasonFirst": "Nejprve uveďte důvod: autor si ho přečte.",
+    "decided": {
+      "approved": "Schváleno: nasazuje se.",
+      "rejected": "Zamítnuto: autor si přečte váš důvod."
+    },
+    "mentions": "Zmínky o vás",
+    "noMentions": "Žádný komentář vás nezmiňuje.",
+    "open": "Otevřít doručené ({count} čeká)"
   }
 }

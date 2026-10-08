@@ -1,11 +1,12 @@
 import { useId, useState } from "react";
 import type { JSX } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useDecision } from "../api/decision";
 import { Link } from "@tanstack/react-router";
 import { approvalStanding, changedKind } from "../api/approval";
 import { usePermissions } from "../api/permissions";
-import { api, ApiError, queryKeys, unwrap } from "../api/client";
+import { api, queryKeys, unwrap } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { PlanDiffViewer } from "../components/diff/PlanDiffViewer";
@@ -60,8 +61,8 @@ export function ApprovalDetailPage({
   project: string;
   id: string;
 }): JSX.Element {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const { identity } = useAuth();
   const permissions = usePermissions(project);
 
@@ -69,7 +70,6 @@ export function ApprovalDetailPage({
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [confirmInput, setConfirmInput] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
   // The file whose field diff is shown; none picked shows the headline file (T-1397).
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
@@ -110,61 +110,10 @@ export function ApprovalDetailPage({
     : { block: null, ownAsAdministrator: false };
   const disabledReason = standing.block ? t(`approvals.${standing.block}`) : null;
 
-  const approveMutation = useMutation({
-    mutationFn: async () => {
-      setActionError(null);
-      const res = await api.POST("/api/v1/projects/{project}/changes/{id}/approve", {
-        params: { path: { project, id } },
-        body: isRedLane ? { confirm: confirmInput.trim() } : undefined,
-      });
-      return unwrap(res);
-    },
-    // The 202 carries the change with its new phase, so the chip flips without a refetch.
-    onSuccess: (change) => {
-      queryClient.setQueryData(queryKeys.change(project, id), (prev?: ChangeProposal) =>
-        prev ? { ...prev, status: change.status } : prev,
-      );
-      // `exact`, or the prefix match would also refetch this change and undo the line above.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project), exact: true });
-    },
-    onError: (err) => {
-      if (err instanceof ApiError) {
-        setActionError(err.problem?.detail ?? err.message);
-      } else if (err instanceof Error) {
-        setActionError(err.message);
-      } else {
-        setActionError(t("app.error.generic"));
-      }
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: async (reason: string) => {
-      setActionError(null);
-      const res = await api.POST("/api/v1/projects/{project}/changes/{id}/reject", {
-        params: { path: { project, id } },
-        // The reason goes into the merge request's closing comment, where the proposer reads it.
-        body: { reason: reason.trim() },
-      });
-      return unwrap(res);
-    },
-    onSuccess: (change) => {
-      queryClient.setQueryData(queryKeys.change(project, id), (prev?: ChangeProposal) =>
-        prev ? { ...prev, status: change.status } : prev,
-      );
-      // `exact`, or the prefix match would also refetch this change and undo the line above.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project), exact: true });
-    },
-    onError: (err) => {
-      if (err instanceof ApiError) {
-        setActionError(err.problem?.detail ?? err.message);
-      } else if (err instanceof Error) {
-        setActionError(err.message);
-      } else {
-        setActionError(t("app.error.generic"));
-      }
-    },
-  });
+  const decision = useDecision(project, id);
+  const approveMutation = decision.approve;
+  const rejectMutation = decision.reject;
+  const actionError = decision.error;
 
   if (detailQuery.isPending) {
     return <ChangeSkeleton label={t("app.loading")} />;
@@ -265,7 +214,7 @@ export function ApprovalDetailPage({
               {t("approvals.fromWorkspace", {
                 name: proposal.workspace,
                 author: proposal.author.name,
-                date: new Date(proposal.createdAt).toLocaleDateString(),
+                date: new Date(proposal.createdAt).toLocaleDateString(locale),
               })}
             </dd>
           </div>
@@ -402,7 +351,7 @@ export function ApprovalDetailPage({
             disabled={!canApprove}
             disabledReason={approveReason ?? undefined}
             loading={approveMutation.isPending}
-            onClick={() => approveMutation.mutate()}
+            onClick={() => approveMutation.mutate(isRedLane ? confirmInput : undefined)}
           >
             {approveMutation.isPending ? t("approvals.approving") : t("approvals.approve")}
           </Button>

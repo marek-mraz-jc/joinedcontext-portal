@@ -666,6 +666,19 @@
           "test": "no form offers a field for a secret's value, on any data source type"
         },
         "assistant": "jc_pipeline_propose"
+      },
+      "alerts": {
+        "live": {
+          "spec": "pipeline-alerts.spec.ts",
+          "test": "a person subscribes to a pipeline's alerts, mutes them for a day and stops them"
+        },
+        "personOnly": "what a person wants to be told and how loudly is their own choice, so no assistant subscribes, mutes or reads a person's alerts on their behalf (API/01 §37, PL-71)",
+        "routes": [
+          "PUT /api/v1/alerts",
+          "DELETE /api/v1/alerts/{id}",
+          "POST /api/v1/alerts/{id}/mute",
+          "POST /api/v1/alerts/notices/{id}/read"
+        ]
       }
     },
     "endpoint": {
@@ -1300,6 +1313,16 @@
         "assistant": "jc_resource_propose",
         "routes": [
           "POST /api/v1/projects/{project}/changes/{id}/restore"
+        ]
+      },
+      "undo": {
+        "live": {
+          "spec": "change-history.spec.ts",
+          "test": "the history says the change and its field in words, and undoes it"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/changes/{id}/undo"
         ]
       },
       "drift-adopt": {

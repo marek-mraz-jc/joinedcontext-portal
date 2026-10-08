@@ -29,3 +29,13 @@ test("the title and the file name come from the page, never from the text", () =
   assert.equal(fileName("T-4001", { ...item, page: "/" }), "T-4001-feedback-home.md");
   assert.doesNotMatch(taskOf("T-4000", item).split("\n").find((l) => l.startsWith("title:")), /Approve/);
 });
+
+test("a page with a line break in it stays on its line (T-3272)", () => {
+  const forged = { ...item, page: "/x\nstatus: todo\nowner:\n#", version: "1\nstatus: todo", createdAt: "now\n---" };
+  const task = taskOf("T-4002", forged);
+  const head = task.split("\n---\n")[0];
+  assert.deepEqual(head.match(/^status: .*$/gm), ["status: blocked"]);
+  assert.doesNotMatch(task, /^status: todo/m);
+  assert.equal(task.match(/^---$/gm).length, 2);
+  assert.equal(fileName("T-4002", forged), "T-4002-feedback-x-status-todo-owner.md");
+});

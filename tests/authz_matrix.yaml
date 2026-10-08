@@ -25,6 +25,15 @@ routes:
   - route: GET /apps/{name}/{*path}
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /templates/{name}
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /templates/{name}/
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /templates/assets/{file}
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
   - route: POST /apps/{name}/api/functions/{fn}
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
@@ -192,6 +201,9 @@ routes:
   - route: GET /app-templates
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /app-templates/{name}/screenshot/{width}
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: PUT /preferences
     rule: "signed-in"
     expect: [403, allow, allow, allow, allow, allow, allow, allow]
@@ -303,6 +315,30 @@ routes:
     rule: "signed-in"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
     note: "the caller's own notification only; the fixture holds none, so every signed-in caller meets 404"
+  - route: GET /alerts
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: PUT /alerts
+    rule: "project-verb:read:Pipeline"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    body: {"project": "helsinki", "scope": "pipeline", "target": "existing", "events": ["failure"], "delivery": "portal"}
+    note: "subscribing to a pipeline needs read on it (API/01 §37); a caller without it is told it is not there"
+  - route: DELETE /alerts/{id}
+    rule: "signed-in"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the caller's own subscription only; the fixture holds none, so every signed-in caller meets 404"
+  - route: POST /alerts/{id}/mute
+    rule: "signed-in"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    body: {"for": "1h"}
+    note: "the caller's own subscription only; the fixture holds none, so every signed-in caller meets 404"
+  - route: GET /alerts/notices
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /alerts/notices/{id}/read
+    rule: "signed-in"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the caller's own notice only; the fixture holds none, so every signed-in caller meets 404"
   - route: GET /projects/{project}/knowledge/sources
     rule: "project-verb:read:KnowledgeSource"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
@@ -449,6 +485,10 @@ routes:
     note: "live on dev against an id that does not exist, so a loose check changes nothing"
   - route: POST /projects/{project}/changes/{id}/restore
     rule: "project-read, then project-verb:propose:<restored kind>"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    note: "the fixture's forge holds no change chg-00000000, so a caller who passes the check meets its 404"
+  - route: POST /projects/{project}/changes/{id}/undo
+    rule: "project-read, then project-verb:propose:<kind put back>"
     expect: [403, allow, allow, allow, allow, allow, 404, allow]
     note: "the fixture's forge holds no change chg-00000000, so a caller who passes the check meets its 404"
   - route: GET /projects/{project}/ckan/status

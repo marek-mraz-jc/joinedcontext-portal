@@ -53,10 +53,10 @@
     "menu": "Menu",
     "projects": "Projekty",
     "spaces": "Kontextové priestory",
-    "endpoints": "Koncové body",
+    "endpoints": "Endpointy",
     "datasources": "Zdroje údajov",
     "pipelines": "Pipelines",
-    "dashboards": "Prehľady",
+    "dashboards": "Dashboardy",
     "apps": "Aplikácie",
     "approvals": "Schvaľovania",
     "access": "Prístup",
@@ -88,7 +88,8 @@
     "projections": "Projekcie modelov",
     "knowledge": "Zdroje znalostí",
     "mcp": "MCP servery",
-    "home": "Domov"
+    "home": "Domov",
+    "inbox": "Doručené"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -248,7 +249,29 @@
       "emptyHint": "Zmena sa tu objaví aj s tým, kto o nej rozhodol, keď ju na karte Otvorené schválite alebo zamietnete.",
       "noneOnPage": "Žiadnu z týchto zmien nemáte právo čítať. Staršie možno áno.",
       "restore": "Obnoviť",
-      "restoreOf": "Obnoviť {name}"
+      "restoreOf": "Obnoviť {name}",
+      "author": "Navrhol",
+      "since": "Rozhodnuté od",
+      "until": "Rozhodnuté do",
+      "whatChanged": "Čo zmenila",
+      "noFields": "Pri tejto zmene nie je čo ukázať z polí manifestu.",
+      "undo": "Vrátiť späť",
+      "undoOf": "Vrátiť späť zmenu {name}",
+      "said": {
+        "create": "{author} vytvoril {kind} {name}",
+        "update": "{author} zmenil {kind} {name}",
+        "delete": "{author} odstránil {kind} {name}"
+      },
+      "field": {
+        "set": "nastavil {field} na {to}",
+        "removed": "odstránil {field} (bolo {from})",
+        "changed": "zmenil {field} z {from} na {to}"
+      },
+      "proposed": {
+        "create": "{author} navrhol vytvoriť {kind} {name}",
+        "update": "{author} navrhol zmeniť {kind} {name}",
+        "delete": "{author} navrhol odstrániť {kind} {name}"
+      }
     }
   },
   "lane": {
@@ -353,7 +376,7 @@
     "dimension": {
       "contextSpaces": "Kontextové priestory",
       "residentPipelines": "Trvalé linky",
-      "publicEndpoints": "Verejné rozhrania",
+      "publicEndpoints": "Verejné endpointy",
       "apps": "Aplikácie"
     },
     "dimensionExceeded": "Kvóta projektu {limit} {dimension} je vyčerpaná. Zmena, ktorá by ju prekročila, bude odmietnutá, kým jeden neodstránite alebo administrátor kvótu nezvýši."
@@ -479,7 +502,7 @@
       "kind": {
         "DataModel": "Dátový model",
         "ContextSpace": "Kontextový priestor",
-        "DataSource": "Zdroj dát",
+        "DataSource": "Zdroj údajov",
         "Endpoint": "Endpoint",
         "Pipeline": "Pipeline",
         "Layer": "Mapová vrstva",
@@ -505,7 +528,7 @@
       },
       "onApproval": "Navrhnúť všetko pošle tieto koncepty na schválenie spolu. Po schválení sa zdroj začne načítavať a priestor sa naplní.",
       "title": "Doplniť tento priestor",
-      "lead": "Zadajte vzorový súbor alebo adresu zdroja. Portál navrhne dátový model, priestor, zdroj dát a pipeline a každý návrh skontroluje.",
+      "lead": "Zadajte vzorový súbor alebo adresu zdroja. Portál navrhne dátový model, priestor, zdroj údajov a pipeline a každý návrh skontroluje.",
       "space": "Názov priestoru",
       "url": "URL endpointu",
       "files": "Súbory",
@@ -900,19 +923,19 @@
   "endpoints": {
     "check": "Skontrolovať",
     "lead": "Kde je priestor publikovaný: kto ho smie volať, v akých reprezentáciách a pod akou URL.",
-    "title": "Rozhrania",
-    "empty": "Projekt zatiaľ nezverejnil žiadne rozhranie.",
-    "add": "Nové rozhranie",
+    "title": "Endpointy",
+    "empty": "Projekt zatiaľ nezverejnil žiadny endpoint.",
+    "add": "Nový endpoint",
     "edit": "Upraviť",
-    "addHint": "Uložením vznikne návrh zmeny; rozhranie začne odpovedať po jeho schválení.",
+    "addHint": "Uložením vznikne návrh zmeny; endpoint začne odpovedať po jeho schválení.",
     "propose": "Navrhnúť zmenu",
     "generateSlug": "Vygenerovať slug",
     "copyUrl": "Kopírovať URL",
     "copied": "Skopírované",
-    "slugHint": "Adresa sa vytvorí za vás a nikdy sa nezmení, ani keď koncový bod premenujete.",
+    "slugHint": "Adresa sa vytvorí za vás a nikdy sa nezmení, ani keď endpoint premenujete.",
     "picker": {
       "title": "Projekcia modelu",
-      "hint": "Vyberte triedy a sloty, ktoré tento koncový bod sprístupní. Politika a projekcia sa vytvoria spolu.",
+      "hint": "Vyberte triedy a sloty, ktoré tento endpoint sprístupní. Politika a projekcia sa vytvoria spolu.",
       "noModel": "Tento priestor nemá DataModel, takže projekciu nemožno navrhnúť.",
       "identityOnly": "iba identita (id, type)",
       "writable": "Zapisovateľné",
@@ -1046,8 +1069,8 @@
     "sharedWith": "Zdieľané s",
     "shared": {
       "title": "Zdieľané s týmto projektom",
-      "lead": "Koncové body, ktoré iné projekty organizácie otvorili tomuto projektu. Jedno kliknutie tu vytvorí odkaz na priestor; odkaz sa navrhne ako zmena ako každý iný zápis.",
-      "empty": "Žiadny iný projekt zatiaľ nezdieľa koncový bod s týmto projektom.",
+      "lead": "Endpointy, ktoré iné projekty organizácie otvorili tomuto projektu. Jedno kliknutie tu vytvorí odkaz na priestor; odkaz sa navrhne ako zmena ako každý iný zápis.",
+      "empty": "Žiadny iný projekt zatiaľ nezdieľa endpoint s týmto projektom.",
       "source": "Zdrojový projekt a priestor",
       "reference": "Odkaz",
       "use": "Použiť v tomto projekte",
@@ -1156,7 +1179,7 @@
       "filterPropose": "Navrhnúť tento filter",
       "catalog": {
         "title": "V katalógu",
-        "lead": "Čo o tomto rozhraní čítajú katalógy otvorených údajov a čo smie používateľ s údajmi robiť.",
+        "lead": "Čo o tomto endpointe čítajú katalógy otvorených údajov a čo smie používateľ s údajmi robiť.",
         "notCatalogued": "Zatiaľ bez popisu v katalógu: záznam uvádza iba názov, formáty a prístupové práva. V nastaveniach doplňte vydavateľa, licenciu a čo údaje pokrývajú.",
         "publisher": "Zverejňuje",
         "licence": "Licencia",
@@ -1186,8 +1209,8 @@
           "jsonld": "Záznam DCAT-AP (JSON-LD)",
           "turtle": "Záznam DCAT-AP (Turtle)",
           "odrl": "Váš prístup ako ODRL",
-          "lead": "Dokument tak, ako ho z tohto rozhrania číta zberač katalógu alebo konektor dátového priestoru.",
-          "failed": "Rozhranie neodpovedalo. Odpovie, keď bude zmena, ktorá ho vytvorila, schválená a nasadená."
+          "lead": "Dokument tak, ako ho z tohto endpointu číta zberač katalógu alebo konektor dátového priestoru.",
+          "failed": "Endpoint neodpovedal. Odpovie, keď bude zmena, ktorá ho vytvorila, schválená a nasadená."
         }
       },
       "firstCall": "Prvé volanie",
@@ -1229,42 +1252,42 @@
         "order": "Západ je vľavo od východu a juh pod severom."
       }
     },
-    "ofApp": "Rozhranie aplikácie {app}",
+    "ofApp": "Endpoint aplikácie {app}",
     "filterEditor": {
-      "label": "Filter tohto rozhrania",
+      "label": "Filter tohto endpointu",
       "types": "Typy entít, ktoré obsluhuje",
-      "noType": "Ponechajte aspoň jeden typ: rozhranie bez typu neobsluhuje nič.",
+      "noType": "Ponechajte aspoň jeden typ: endpoint bez typu neobsluhuje nič.",
       "hidden": "Skryté atribúty",
       "hiddenHelp": "Zaškrtnutý atribút sa nikdy neposkytne v žiadnom formáte. Názov sa skryje v každom type, ktorý ho má.",
       "identityOnly": "Iba identita: id a type.",
-      "createsProjection": "Toto rozhranie zatiaľ nemá projekciu. Filter, ktorý navrhnete, vytvorí projekciu {name} z modelu priestoru spolu s rozhraním, ktoré ju používa."
+      "createsProjection": "Tento endpoint zatiaľ nemá projekciu. Filter, ktorý navrhnete, vytvorí projekciu {name} z modelu priestoru spolu s endpointom, ktorý ju používa."
     },
     "proof": {
       "title": "Čo tento filter poskytuje",
       "type": "Typ",
-      "served": "Poskytuje toto rozhranie",
+      "served": "Poskytuje tento endpoint",
       "original": "Originál v priestore",
       "sides": "Strana porovnania",
-      "caption": "{type}: čo rozhranie poskytuje vedľa toho, čo priestor obsahuje, jeden riadok na entitu",
+      "caption": "{type}: čo endpoint poskytuje vedľa toho, čo priestor obsahuje, jeden riadok na entitu",
       "summary": "Poskytuje {served} z {total} {type} · skryté atribúty: {hidden}",
       "summaryServedOnly": "Poskytuje {served} {type}",
       "loading": "Čítam, čo filter poskytuje...",
-      "originalUnreadable": "Samotný priestor čítať nemôžete, preto porovnanie ukazuje, čo rozhranie poskytuje dnes, a nie váš návrh.",
+      "originalUnreadable": "Samotný priestor čítať nemôžete, preto porovnanie ukazuje, čo endpoint poskytuje dnes, a nie váš návrh.",
       "notServed": "neposkytuje sa",
       "notServedMark": "Neposkytuje sa: filter túto entitu vynecháva.",
       "hiddenMark": "neposkytuje sa",
       "empty": "Na tejto strane nie sú žiadne entity.",
       "refused": "Návrh filtra bol odmietnutý: {reason}",
       "failed": "Nepodarilo sa prečítať, čo filter poskytuje: {reason}",
-      "notLive": "Porovnanie číta cez rozhranie, preto sa zobrazí, keď je rozhranie aktívne.",
-      "noType": "Porovnanie potrebuje aspoň jeden typ, ktorý rozhranie obsluhuje.",
+      "notLive": "Porovnanie číta cez endpoint, preto sa zobrazí, keď je endpoint aktívny.",
+      "noType": "Porovnanie potrebuje aspoň jeden typ, ktorý endpoint obsluhuje.",
       "previous": "Predchádzajúca strana",
       "next": "Ďalšia strana",
       "window": "Entity {from} až {to} z {total}"
     },
     "hub": {
       "title": "Pripojiť všetko",
-      "lead": "Jeden MCP konektor pre všetky rozhrania, ktoré smiete čítať. Vložte túto URL do AI aplikácie, pri prihlásení vyberte rozhrania a každé volanie prebehne pod politikou daného rozhrania."
+      "lead": "Jeden MCP konektor pre všetky endpointy, ktoré smiete čítať. Vložte túto URL do AI aplikácie, pri prihlásení vyberte endpointy a každé volanie prebehne pod politikou daného endpointu."
     },
     "playground": {
       "title": "Vyskúšať",
@@ -1297,6 +1320,35 @@
       "meaning": "Čo nastavuje",
       "parametersOf": "Parametre {path}",
       "lead": "Na čo tento endpoint odpovedá, s príkladom volania ku každému čítaniu."
+    },
+    "shareFlow": {
+      "section": "Zdieľať s iným projektom",
+      "lead": "Zvoľte projekt, čo číta a dokedy; zdieľanie a jeho koniec sú jedna zmena, o ktorej rozhodne schvaľovateľ.",
+      "already": {
+        "organization": "Tento endpoint už číta každý projekt organizácie: nie je s kým ďalším ho zdieľať.",
+        "public": "Tento endpoint je verejný: číta ho už ktokoľvek."
+      },
+      "sharedWith": "Zdieľané s",
+      "nobody": "Zatiaľ so žiadnym iným projektom.",
+      "state": {
+        "open": "bez konca",
+        "until": "do {until}",
+        "ended": "skončilo {until}",
+        "noGrant": "pripustený, ale žiadne oprávnenie tohto zdieľania mu nedovoľuje čítať"
+      },
+      "revoke": "Prestať zdieľať",
+      "revokeOf": "Prestať zdieľať s {project}",
+      "title": "Zdieľať s projektom",
+      "project": "Projekt",
+      "types": "Čo číta",
+      "until": "Do",
+      "untilHint": "Nepovinné. Po tomto dni cez neho projekt nič neprečíta; prázdne ponechá zdieľanie, kým ho nezastavíte.",
+      "preview": "Čo uvidí {project}",
+      "previewLead": "Typy {types} cez projekciu tohto endpointu, nikdy jeho skryté atribúty ({hidden}). Niekoľko entít tak, ako ich budú čítať:",
+      "pickProject": "Najprv zvoľte projekt.",
+      "pickType": "Zvoľte aspoň jeden typ.",
+      "propose": "Navrhnúť zdieľanie",
+      "newGroup": "Zdieľanie oprávňuje skupinu {group}, ktorá ešte neexistuje: navrhne sa prázdna spolu so zdieľaním. Po schválení do nej pridajte ľudí z {group}, ktorí majú čítať."
     }
   },
   "datasources": {
@@ -1312,7 +1364,7 @@
     "noSecret": "žiadne",
     "type": {
       "mqtt": "MQTT broker",
-      "http": "HTTP koncový bod",
+      "http": "HTTP endpoint",
       "websocket": "WebSocket prúd",
       "gtfs-rt": "GTFS-realtime zdroj"
     },
@@ -1375,7 +1427,7 @@
       "key": "Kľúč",
       "known": "Známe tajomstvá"
     },
-    "emptyHint": "Dátový zdroj je miesto, odkiaľ platforma číta: kanál, broker, API. Pridajte jeden a pipeline ho môže načítať do kontextového priestoru.",
+    "emptyHint": "Zdroj údajov je miesto, odkiaľ platforma číta: kanál, broker, API. Pridajte jeden a pipeline ho môže načítať do kontextového priestoru.",
     "newPipeline": "Nová pipeline z tohto zdroja",
     "template": {
       "title": "Začať zo šablóny",
@@ -1538,7 +1590,7 @@
       "sourceKind": "Čítať z",
       "kind": {
         "none": "Vyberte…",
-        "datasource": "Dátový zdroj tohto projektu (externý feed)",
+        "datasource": "Zdroj údajov tohto projektu (externý feed)",
         "space": "Context space tohto projektu"
       },
       "space": "Kontextový priestor",
@@ -1564,23 +1616,23 @@
       },
       "preset": {
         "title": "Predvoľba",
-        "load": "Načítanie (DataSource)",
+        "load": "Načítanie (zdroj údajov)",
         "kpi": "Analýza (KPI)",
         "hint": "Načítanie kopíruje záznamy z externého zdroja do priestoru; Analýza počíta ukazovateľ z toho, čo endpoint už poskytuje."
       },
       "kpi": {
         "title": "Analýza (KPI)",
-        "lead": "Agreguje kontextové údaje z koncového bodu do entity KeyPerformanceIndicator zapísanej do KPI priestoru projektu.",
-        "endpoint": "Zdrojový koncový bod",
+        "lead": "Agreguje kontextové údaje z endpointu do entity KeyPerformanceIndicator zapísanej do KPI priestoru projektu.",
+        "endpoint": "Zdrojový endpoint",
         "type": "Typ entity",
         "attribute": "Atribút",
         "aggregate": "Agregácia",
         "period": "Obdobie",
         "name": "Názov ukazovateľa",
-        "test": "Otestovať na stránke koncového bodu",
+        "test": "Otestovať na stránke endpointu",
         "testing": "Testuje sa…",
         "computedValue": "Vypočítaná hodnota",
-        "nothingRead": "Z tohto koncového bodu sa pre tento typ a atribút nič neprečítalo, takže nie je čo vypočítať.",
+        "nothingRead": "Z tohto endpointu sa pre tento typ a atribút nič neprečítalo, takže nie je čo vypočítať.",
         "endpointHint": "Endpoint, z ktorého sa ukazovateľ počíta, čítaný podľa jeho politiky.",
         "nameHint": "Malé písmená, číslice a pomlčky; pomenúva ukazovateľ aj jeho pipeline.",
         "typeHint": "Typ entity, ktorého hodnoty sa agregujú; modeluje ho priestor endpointu.",
@@ -1590,7 +1642,7 @@
         "periodHint": "Ako často sa ukazovateľ počíta, ako trvanie, napríklad 15m alebo 1h."
       },
       "sourceKindHint": "Externý zdroj, ku ktorému sa projekt pripája, alebo kontextový priestor, ktorý projekt už plní.",
-      "dataSourceHint": "Pripojenie zdroja, ako je uložené v Zdrojoch dát; nový zdroj pridáte najprv tam.",
+      "dataSourceHint": "Pripojenie zdroja, ako je uložené v Zdrojoch údajov; nový zdroj pridáte najprv tam.",
       "spaceHint": "Priestor, ktorý pipeline číta, cez jeden z jeho endpointov a politiku toho endpointu.",
       "attributeHint": "Atribút, s ktorým pracuje úryvok nižšie."
     },
@@ -1706,8 +1758,8 @@
         }
       }
     },
-    "emptyHint": "Pridajte dátový zdroj a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
-    "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
+    "emptyHint": "Pridajte zdroj údajov a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
+    "credentialsOfSource": "Drží ich jeho zdroj údajov {name}",
     "noCredential": "Žiadne",
     "expiryRemoves": "Entity, ktoré sa neaktualizovali {window}, sa odstraňujú",
     "expiryRefused": "Nič sa neodstraňuje: runner odmietol čistenie: {reason}",
@@ -1776,7 +1828,8 @@
       "minutes": "{count, plural, one {# minúta} few {# minúty} other {# minút}}",
       "same": "rovnako",
       "silentBadge": "Nezapísal nič",
-      "silent": "Posledný beh nezapísal nič, kým predošlý zapísal {before}. Zdroj možno prestal odpovedať alebo mapovanie zahodí každý záznam; otvorte log behu."
+      "silent": "Posledný beh nezapísal nič, kým predošlý zapísal {before}. Zdroj možno prestal odpovedať alebo mapovanie zahodí každý záznam; otvorte log behu.",
+      "split": "nové: {created}, zmenené: {updated}, bez zmeny: {unchanged}"
     },
     "workbench": {
       "failed": "Krok sa nepodarilo spustiť; skúste znova.",
@@ -1787,13 +1840,13 @@
         "title": "Zdroj",
         "hint": "Vyberte, odkiaľ záznamy prichádzajú, alebo dajte ich súbor.",
         "pick": "Odkiaľ prichádzajú záznamy",
-        "none": "Vyberte zdroj dát alebo endpoint",
+        "none": "Vyberte zdroj údajov alebo endpoint",
         "type": "Typ entít na čítanie",
         "pickType": "Vyberte typ",
         "file": "Vybrať súbor so vzorkou",
         "fileTaken": "Vzorka: {name}",
         "fileDrop": "Pretiahnite súbor CSV alebo JSON, alebo ho vyberte",
-        "pickHint": "Záznamy, ktoré pipeline číta: zdroj dát alebo endpoint tohto projektu. So vzorovým súborom nižšie si mapovanie vyskúšate aj bez nich.",
+        "pickHint": "Záznamy, ktoré pipeline číta: zdroj údajov alebo endpoint tohto projektu. So vzorovým súborom nižšie si mapovanie vyskúšate aj bez nich.",
         "typeHint": "Typ entity endpointu, ktorý pipeline číta; vzorka ukáže jeho prvé záznamy."
       },
       "sample": {
@@ -1983,23 +2036,23 @@
       "target": "Kam zapisuje",
       "targetHelp": "Endpoint, cez ktorý idú záznamy; kontrolujú sa voči modelu jeho priestoru.",
       "none": {
-        "datasource": "Projekt ešte nemá zdroj dát: pridajte ho v Zdrojoch dát zo šablóny.",
+        "datasource": "Projekt ešte nemá zdroj údajov: pridajte ho v Zdrojoch údajov zo šablóny.",
         "endpoint": "Projekt ešte nemá endpoint, z ktorého čítať."
       },
       "csv": {
         "title": "Súbor CSV na entity",
         "what": "Tabuľka zverejnená ako súbor, načítaná každý deň o 03:00 UTC.",
-        "source": "Zdroj dát so súborom"
+        "source": "Zdroj údajov so súborom"
       },
       "api": {
         "title": "Pravidelne čítať API",
         "what": "API v JSON čítané každých 15 minút.",
-        "source": "Zdroj dát s API"
+        "source": "Zdroj údajov s API"
       },
       "ckan": {
         "title": "Zbierať dataset z CKAN",
         "what": "Zdroj z katalógu otvorených dát, načítaný každý deň o 04:00 UTC.",
-        "source": "Zdroj dát so zdrojom CKAN"
+        "source": "Zdroj údajov so zdrojom CKAN"
       },
       "kpi": {
         "title": "Agregácia KPI",
@@ -2019,18 +2072,18 @@
   },
   "dashboards": {
     "lead": "Mapy nakreslené z endpointov tohto projektu.",
-    "title": "Nástenky",
-    "empty": "Projekt zatiaľ nemá nástenku.",
+    "title": "Dashboardy",
+    "empty": "Projekt zatiaľ nemá dashboard.",
     "mapUnavailable": "Mapa potrebuje WebGL, ktoré tento prehliadač neponúka.",
-    "layerBlocked": "Nezobrazené, lebo verejná nástenka smie čítať len verejné rozhrania: {layers}",
+    "layerBlocked": "Nezobrazené, lebo verejný dashboard smie čítať len verejné endpointy: {layers}",
     "colouredBy": "farba podľa {property} ({min}–{max})",
-    "add": "Nová nástenka",
+    "add": "Nový dashboard",
     "edit": "Upraviť",
-    "addHint": "Uloženie navrhne zmenu; nástenka sa zobrazí po jej schválení.",
+    "addHint": "Uloženie navrhne zmenu; dashboard sa zobrazí po jej schválení.",
     "propose": "Navrhnúť zmenu",
     "addLayer": "Nová vrstva",
     "editLayer": "Upraviť vrstvu",
-    "layerHint": "Vrstva sú entity jedného typu z jedného rozhrania so štýlom, kódovaním a filtrom. Riadky filtra nižšie zapisujú q vrstvy.",
+    "layerHint": "Vrstva sú entity jedného typu z jedného endpointu so štýlom, kódovaním a filtrom. Riadky filtra nižšie zapisujú q vrstvy.",
     "legend": "Vrstvy",
     "show": "Zobraziť",
     "field": {
@@ -2043,12 +2096,12 @@
       "layers": "Vrstvy",
       "widgets": "Widgety",
       "widgetType": "Typ widgetu",
-      "endpoint": "Rozhranie",
+      "endpoint": "Endpoint",
       "entityId": "Id entity",
       "property": "Atribút",
       "entityType": "Typ entity",
       "style": "Štýl",
-      "visible": "Zobrazená pri otvorení nástenky",
+      "visible": "Zobrazená pri otvorení dashboardu",
       "filter": "Filter",
       "colorBy": "Farba podľa",
       "palette": "Paleta",
@@ -2056,7 +2109,8 @@
       "sizeBy": "Veľkosť podľa",
       "range": "Polomer [min, max] px",
       "popup": "Atribúty v bubline",
-      "grid": "Nastavenie tabuľky"
+      "grid": "Nastavenie tabuľky",
+      "q": "Filter (dotaz NGSI-LD q)"
     },
     "pages": "Stránky",
     "page": "Stránka {number}",
@@ -2068,9 +2122,21 @@
       "latest": "Posledná hodnota {property}: {value} ({count} meraní)",
       "chartLabel": "{property} entity {entity} v čase",
       "badGrid": "Túto tabuľku nebolo možné zobraziť: {reason}",
-      "historyFailed": "Túto históriu sa nepodarilo načítať: {reason}"
+      "historyFailed": "Túto históriu sa nepodarilo načítať: {reason}",
+      "barTitle": "{property} typu {type}: entity podľa hodnoty",
+      "histogramTitle": "{property} typu {type}: rozloženie",
+      "rest": "ostatné hodnoty",
+      "noValues": "Žiadna entita nemá {property}.",
+      "barAxis": "Počet entít s každou hodnotou {property}.",
+      "histogramAxis": "Počet entít v každom rozsahu {property}.",
+      "histogramAxisUnit": "Počet entít v každom rozsahu {property}, v jednotke {unit}.",
+      "counted": "Spočítaných iba prvých {count} entít.",
+      "entities": "Entity",
+      "row": "{label}: {count}",
+      "timeAxis": "Čas v pásme {zone}.",
+      "timeAxisUnit": "Čas v pásme {zone}; hodnoty v jednotke {unit}."
     },
-    "emptyHint": "Nástenka je stránka s mapami a číslami, postavená z endpointov, ktoré tento projekt vie čítať. Vytvorte jednu alebo požiadajte asistenta o nástenku z toho, čo už zverejňujete.",
+    "emptyHint": "Dashboard je stránka s mapami a číslami, postavená z endpointov, ktoré tento projekt vie čítať. Vytvorte jeden alebo požiadajte asistenta o dashboard z toho, čo už zverejňujete.",
     "layerEndpointGone": "Endpoint „{name}“ už v tomto projekte nie je, preto táto vrstva nemá z čoho vybrať typ ani filter. Vyberte pre túto vrstvu iný endpoint."
   },
   "access": {
@@ -2243,7 +2309,7 @@
     "panel": {
       "title": "Váš prístup",
       "chooseType": "Vyberte typ entity a uvidíte, čo s ním smiete.",
-      "typeNotGranted": "Cez toto rozhranie vám {type} nepriznáva žiadne oprávnenie.",
+      "typeNotGranted": "Cez tento endpoint vám {type} nepriznáva žiadne oprávnenie.",
       "checks": "Rozhodnutia nanečisto",
       "checking": "{action}: overuje sa…",
       "may": "Smiete {action} {type}",
@@ -2593,10 +2659,10 @@
       "cancel": "Zrušiť",
       "close": "Zavrieť",
       "url": "Alebo adresa API, ktoré odpovedá v JSON",
-      "urlHelp": "Raz ju prečíta runner projektu, ako ju číta overenie zdroja dát; model sa odvodí zo záznamov, ktoré vráti.",
+      "urlHelp": "Raz ju prečíta runner projektu, ako ju číta overenie zdroja údajov; model sa odvodí zo záznamov, ktoré vráti.",
       "readUrl": "Prečítať adresu",
       "urlInvalid": "Zadajte celú adresu začínajúcu na https:// alebo http://.",
-      "urlCredential": "Adresa obsahuje meno, heslo alebo kľúč. Zadajte ju bez nich, alebo zdroj pripojte ako zdroj dát, ktorého prihlasovací údaj je secret."
+      "urlCredential": "Adresa obsahuje meno, heslo alebo kľúč. Zadajte ju bez nich, alebo zdroj pripojte ako zdroj údajov, ktorého prihlasovací údaj je secret."
     },
     "source": {
       "loading": "Načítava sa zdroj modelu…",
@@ -3166,7 +3232,9 @@
       "create": "Vytvoriť z tejto",
       "mayNot": "Vaša rola v tomto projekte nesmie navrhnúť aplikáciu.",
       "createTitle": "Vytvoriť zo šablóny {title}",
-      "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny."
+      "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny.",
+      "screenshot": "{title}, ako ju ukazuje ukážka",
+      "demo": "Otvoriť ukážku"
     }
   },
   "appLifecycle": {
@@ -3361,9 +3429,9 @@
     "emptyHint": "Zdroj synchronizácie drží tento projekt v súlade s Git repozitárom, zverejneným balíkom alebo inou instanciou. Pridajte jeden a to, čo prinesie, príde ako zmeny, o ktorých niekto rozhodne."
   },
   "allEndpoints": {
-    "title": "Všetky koncové body",
-    "lead": "Každý koncový bod každého projektu v jednej tabuľke: kde je publikovaný, pre koho a pod akými odkazmi.",
-    "empty": "Žiadny projekt zatiaľ nepublikuje koncový bod.",
+    "title": "Všetky endpointy",
+    "lead": "Každý endpoint každého projektu v jednej tabuľke: kde je publikovaný, pre koho a pod akými odkazmi.",
+    "empty": "Žiadny projekt zatiaľ nepublikuje endpoint.",
     "field": {
       "project": "Projekt",
       "space": "Kontextový priestor"
@@ -3559,7 +3627,7 @@
     "removeLead": "{id} sa odstráni z priestoru cez tento endpoint.",
     "removeConfirm": "Zmazať",
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
-    "deleteDenied": "Grant tejto koncovky ti nedovoľuje mazať {type}",
+    "deleteDenied": "Grant tohto endpointu ti nedovoľuje mazať {type}",
     "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
     "noSpace": "Vyberte kontextový priestor na čítanie",
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
@@ -3622,6 +3690,40 @@
       "truncated": "Iba prvých {max}: pre ostatné zúžte filter.",
       "label": "Mapa typu {type}",
       "open": "Otvoriť entitu"
+    },
+    "chart": {
+      "open": "Graf",
+      "title": "Graf atribútu typu {type}",
+      "lead": "Vyberte atribút: Portál navrhne graf, aký si jeho hodnoty žiadajú. Uložte ho na dashboard; dashboard číta cez rovnaký endpoint s filtrom tohto pohľadu.",
+      "attribute": "Atribút",
+      "pickAttribute": "Vyberte atribút",
+      "kind": "Graf",
+      "suggested": "Navrhnuté pre tento atribút: {kind}.",
+      "kinds": {
+        "temporal-chart": {
+          "label": "V čase",
+          "says": "Hodnoty jednej entity ako čiara, pre atribút sledovaný v čase."
+        },
+        "bar-chart": {
+          "label": "Stĺpce podľa hodnoty",
+          "says": "Koľko entít má každú hodnotu, pre text, kategóriu alebo áno/nie."
+        },
+        "histogram": {
+          "label": "Histogram",
+          "says": "Ako sa číslo rozkladá do desiatich rovnakých rozsahov."
+        }
+      },
+      "entity": "Entita",
+      "dashboard": "Uložiť do",
+      "newDashboard": "Nový dashboard",
+      "name": "Názov nového dashboardu",
+      "nameHelp": "Malé písmená, číslice a pomlčky, ako ich ukazuje adresa.",
+      "newTitle": "Grafy typu {type}",
+      "page": "Grafy",
+      "save": "Uložiť na dashboard",
+      "pickFirst": "Najprv vyberte atribút a graf.",
+      "badName": "Názov dashboardu tvoria malé písmená, číslice a pomlčky, najviac 63, na začiatku a konci písmeno alebo číslica.",
+      "gone": "Ten dashboard už v projekte nie je; vyberte iný."
     }
   },
   "agentRun": {
@@ -3846,7 +3948,7 @@
       "passed": "Otestované",
       "failed": "Test neprešiel",
       "untested": "Neotestované",
-      "dataSource": "Spustené na jednom načítaní zdroja dát {name}",
+      "dataSource": "Spustené na jednom načítaní zdroja údajov {name}",
       "endpoint": "Spustené na stránke endpointu {name}",
       "url": "{url} načítané raz",
       "records": "{count, plural, one {# záznam} few {# záznamy} other {# záznamov}}"
@@ -3912,7 +4014,7 @@
         "notJson": "Súbor nie je platný JSON."
       },
       "url": {
-        "label": "Alebo adresa zdroja dát",
+        "label": "Alebo adresa zdroja údajov",
         "use": "Použiť túto adresu",
         "invalid": "Zadajte celú adresu začínajúcu http:// alebo https://."
       }
@@ -4017,7 +4119,7 @@
     "paths": {
       "integrate-pipeline": {
         "title": "Integrovať pipeline",
-        "line": "Priveďte do priestoru feed, súbor alebo zdroj dát"
+        "line": "Priveďte do priestoru feed, súbor alebo zdroj údajov"
       },
       "upload-data": {
         "title": "Nahrať dáta",
@@ -4029,15 +4131,15 @@
       },
       "share-data": {
         "title": "Zdieľať dáta",
-        "line": "Otvorte koncový bod iným projektom alebo verejnosti"
+        "line": "Otvorte endpoint iným projektom alebo verejnosti"
       },
       "build-app": {
         "title": "Postaviť aplikáciu",
-        "line": "Aplikácia, ktorá číta vaše koncové body"
+        "line": "Aplikácia, ktorá číta vaše endpointy"
       },
       "build-dashboard": {
-        "title": "Postaviť prehľad",
-        "line": "Grafy a mapa nad koncovým bodom"
+        "title": "Postaviť dashboard",
+        "line": "Grafy a mapa nad endpointom"
       },
       "create-data-model": {
         "title": "Vytvoriť dátový model",
@@ -4217,7 +4319,7 @@
       "forwards": "Preposlania",
       "denials": "Odmietnutia"
     },
-    "emptyHint": "Všetko, čo tu platforma urobí, sa objaví v tomto zozname: použitá zmena, priepustnosť pipeline, odmietnutá požiadavka. Načítajte dátový zdroj alebo schváľte zmenu a prídu prvé riadky.",
+    "emptyHint": "Všetko, čo tu platforma urobí, sa objaví v tomto zozname: použitá zmena, priepustnosť pipeline, odmietnutá požiadavka. Načítajte zdroj údajov alebo schváľte zmenu a prídu prvé riadky.",
     "kinds": {
       "config": {
         "planned": "Zmena naplánovaná",
@@ -4563,6 +4665,29 @@
       "didHint": "Napíšte decentralizovaný identifikátor, napríklad did:web:example.org; zoznam na výber neexistuje.",
       "peopleHidden": "Zoznam osôb vidí len správca organizácie; napíšte e-mail, ktorým sa osoba prihlasuje.",
       "noneYet": "Zatiaľ tu nie je nič tohto druhu na výber ({kind}); napíšte názov tak, ako ho píše poskytovateľ identity."
+    },
+    "sentence": {
+      "title": "Slovami",
+      "who": {
+        "role": "Držitelia roly {id}",
+        "group": "Členovia skupiny {id}",
+        "user": "Osoba {id}",
+        "serviceAccount": "Servisný účet {id}",
+        "did": "Účastník {id}"
+      },
+      "nobody": "Zatiaľ nikto",
+      "nothing": "zatiaľ nič",
+      "everyType": "každý typ",
+      "may": "{who} smú {what} na {types} v priestore {space}",
+      "mayNot": "{who} nesmú {what} na {types} v priestore {space}",
+      "attributes": "len atribúty {attributes}",
+      "q": "kde {q}",
+      "scope": "v rámci rozsahu {scope}",
+      "geo": "v oblasti {geo}",
+      "temporal": "pre čas {temporal}",
+      "between": "od {from} do {to}",
+      "from": "od {from}",
+      "until": "do {to}"
     }
   },
   "subscriptions": {
@@ -4664,12 +4789,12 @@
         "title": "Kvóta nového projektu",
         "contextSpaces": "Kontextové priestory",
         "residentPipelines": "Stále pipeline",
-        "publicEndpoints": "Verejné koncové body",
+        "publicEndpoints": "Verejné endpointy",
         "ingestEventsPerSecond": "Aktualizácie za sekundu",
         "apps": "Aplikácie",
         "agentRunsPerDay": "Behy asistenta za deň",
         "entitiesPerSpace": "Entity v priestore",
-        "requestsPerMinute": "Požiadavky za minútu na koncový bod"
+        "requestsPerMinute": "Požiadavky za minútu na endpoint"
       }
     },
     "contactRole": {
@@ -4703,7 +4828,7 @@
       "dataspaceparticipants": "Dátový priestor",
       "environments": "Prostredia",
       "health": "Stav overenia",
-      "endpoints": "Všetky koncové body",
+      "endpoints": "Všetky endpointy",
       "mcp-servers": "MCP servery organizácie"
     },
     "settings": {
@@ -4896,7 +5021,7 @@
           },
           "editor": {
             "label": "Editor",
-            "may": "Navrhuje a schvaľuje zmeny priestorov, modelov, mapovaní, politík, zdrojov dát, pipelines a endpointov. Nič nemaže."
+            "may": "Navrhuje a schvaľuje zmeny priestorov, modelov, mapovaní, politík, zdrojov údajov, pipelines a endpointov. Nič nemaže."
           },
           "steward": {
             "label": "Správca",
@@ -5229,7 +5354,7 @@
     "cascadeTitle": "Čo odíde s ním",
     "cascadeFailed": "Obsah projektu sa nepodarilo spočítať; zmena aj tak vypíše každý súbor, ktorý odstráni.",
     "count": "{count} × {what}",
-    "everythingElse": "každý ďalší manifest napísaný preň: zdroje dát, pipeline, servisné účty a roly",
+    "everythingElse": "každý ďalší manifest napísaný preň: zdroje údajov, pipeline, servisné účty a roly",
     "bindings": "každá väzba roly organizácie, ktorá menuje projekt alebo niektorý z jeho priestorov",
     "cooldown": "Názov {name} zostane po zlúčení zmazania rezervovaný {days} dní.",
     "action": "Zmazať projekt {name}",
@@ -5245,7 +5370,7 @@
       "roles": "Roly",
       "service-accounts": "Servisné účty",
       "access": "Váš prístup",
-      "danger": "Zmazať projekt"
+      "danger": "Odstrániť alebo odovzdať"
     },
     "field": {
       "title": "Názov",
@@ -5272,10 +5397,27 @@
     },
     "danger": {
       "title": "Zmazať projekt",
-      "lead": "Zmazanie projektu odstráni všetko napísané preň jednou zmenou v červenom pruhu, ktorú schváli administrátor. Dialóg pred potvrdením vypíše, čo odíde s ním."
+      "lead": "Zmazanie projektu odstráni všetko napísané preň jednou zmenou v červenom pruhu, ktorú schváli administrátor. Dialóg pred potvrdením vypíše, čo odíde s ním.",
+      "handoverTitle": "Odovzdať projekt",
+      "handoverLead": "Projekt nemá jedného vlastníka: spravuje ho ten, kto má jeho rolu administrátora. Ak ho chcete odovzdať, priraďte novú osobu k tejto role v Členoch a po schválení odstráňte vlastné priradenie.",
+      "handoverLink": "Otvoriť Členov"
     },
     "roles": {
       "organizationKinds": "Rola projektu nesmie menovať {kinds}: tie patria vlastným rolám organizácie."
+    },
+    "search": {
+      "label": "Nájsť nastavenie",
+      "placeholder": "kvóta, členovia, odstrániť…",
+      "nothing": "Žiadne nastavenie tohto projektu sa tak nevolá ani to nemení.",
+      "results": "Nájdené nastavenia"
+    },
+    "about": {
+      "organization": "Organizácia, do ktorej projekt patrí; patrí inštalácii a tu sa nemení.",
+      "duplicateLabel": "Duplikovať projekt",
+      "duplicate": "Vytvorí nový projekt s rovnakými priestormi, endpointmi, pipelinami a aplikáciami, bez dát.",
+      "members": "Kto je v projekte priradený a s akou rolou: čo tu každý smie čítať, navrhovať, schvaľovať a mazať.",
+      "roles": "Vlastné roly projektu: ktoré druhy smie každá čítať, navrhovať, schvaľovať alebo mazať.",
+      "serviceAccounts": "Účty, ktorými programy volajú endpointy projektu, a ich kľúče."
     }
   },
   "projectDuplicate": {
@@ -5283,7 +5425,7 @@
     "lead": "Skopíruje repozitár projektu s celou históriou a navrhne záznam kópie v registri.",
     "propose": "Navrhnúť kópiu",
     "sameName": "Zvoľte iný názov, než má pôvodný projekt.",
-    "note": "Koncové body kópie odpovedajú na vlastných identifikátoroch; dáta v brokeri sa nekopírujú.",
+    "note": "Endpointy kópie odpovedajú na vlastných identifikátoroch; dáta v brokeri sa nekopírujú.",
     "button": "Duplikovať",
     "needsRepository": "Duplikovať možno len projekt vo vlastnom repozitári."
   },
@@ -5372,6 +5514,8 @@
     },
     "widgetType": {
       "temporal-chart": "Graf v čase",
+      "bar-chart": "Stĺpce podľa hodnoty",
+      "histogram": "Histogram",
       "grid": "Tabuľka"
     },
     "columnFormat": {
@@ -5702,7 +5846,7 @@
       "lead": "Vyberte endpoint, skontrolujte jeho popis do katalógu, pozrite si náhľad záznamu a navrhnite ho. Dataset sa v katalógu zobrazí po schválení.",
       "steps": "Kroky",
       "step": {
-        "pick": "1. Koncový bod",
+        "pick": "1. Endpoint",
         "describe": "2. Popis",
         "preview": "3. Náhľad"
       },
@@ -5823,8 +5967,8 @@
       "kinds": "Druhy",
       "kind": "Druh",
       "verbs": "Čo smie robiť",
-      "endpoints": "Koncové body",
-      "endpoint": "Koncový bod"
+      "endpoints": "Endpointy",
+      "endpoint": "Endpoint"
     }
   },
   "scopedefinitions": {
@@ -5837,8 +5981,8 @@
     "field": {
       "name": "Názov",
       "contextSpaceRef": "Kontextový priestor",
-      "endpointRefs": "Ponúkané koncové body",
-      "endpoint": "Koncový bod",
+      "endpointRefs": "Ponúkané endpointy",
+      "endpoint": "Endpoint",
       "policy": "Ponuka (ODRL, JSON)",
       "containsPersonalData": "Obsahuje osobné údaje",
       "purpose": "Účel (DPV)"
@@ -5928,7 +6072,8 @@
     },
     "type": {
       "website": "Web",
-      "ckan": "Dátový katalóg"
+      "ckan": "Dátový katalóg",
+      "catalogue": "Katalóg kontextových priestorov"
     },
     "status": {
       "pending": "Ešte neprečítané",
@@ -6068,7 +6213,8 @@
       "copied": "Skopírované",
       "origins": "Adresa webu musí byť medzi povolenými pôvodmi asistenta; rámec na inom webe zostane prázdny.",
       "noDomain": "Tento Portál nepozná svoju doménu, preto nevie napísať adresu stránky asistenta."
-    }
+    },
+    "everySpace": "každý priestor projektu"
   },
   "mcp": {
     "title": "MCP servery",
@@ -6273,7 +6419,7 @@
       "restore": "Zobraziť zoznam krokov na začiatok",
       "step": {
         "space": "Vytvorte kontextový priestor",
-        "source": "Pripojte zdroj dát",
+        "source": "Pripojte zdroj údajov",
         "pipeline": "Spustite kanál",
         "data": "Pozrite si dáta",
         "share": "Zdieľajte ich cez endpoint"
@@ -6322,11 +6468,58 @@
       "unknown": "Vašu rolu tu ešte nemáte: platí po schválení zmeny, ktorá ju navrhuje.",
       "first": {
         "viewer": "Otvoriť priestory projektu",
-        "editor": "Pripojiť zdroj dát",
+        "editor": "Pripojiť zdroj údajov",
         "steward": "Prezrieť čakajúce zmeny"
       },
       "close": "Zavrieť privítanie"
     }
+  },
+  "alerts": {
+    "open": "Upozornenia…",
+    "title": "Upozornenia pre {name}",
+    "close": "Zavrieť",
+    "lead": {
+      "pipeline": "Vyberte, o čom vás pri tejto pipeline upozorniť.",
+      "space": "Vyberte, o čom vás upozorniť pri každej pipeline, ktorá zapisuje do tohto priestoru.",
+      "type": "Vyberte, o čom vás upozorniť pri každej pipeline, ktorá zapisuje tento typ do priestoru."
+    },
+    "events": "Upozorniť, keď",
+    "event": {
+      "failure": "zlyhá",
+      "stale": "jej údaje zastarajú",
+      "zero": "nič nezapíše"
+    },
+    "delivery": "Ako",
+    "portal": "V Portáli, hneď",
+    "portalHint": "Jedno upozornenie, keď to začne, a jedno, keď sa to napraví, v schránke hore.",
+    "digest": "Denný prehľad",
+    "digestHint": "Jedno upozornenie denne po 07:00 UTC o tom, čo sa stalo od posledného.",
+    "email": "E-mailom",
+    "emailHint": "Zatiaľ nie: tento Portál nemá poštový server.",
+    "noEvent": "Zaškrtnite aspoň jednu udalosť.",
+    "subscribe": "Upozorňovať ma",
+    "change": "Uložiť",
+    "stop": "Zrušiť tieto upozornenia",
+    "active": "Aktívne.",
+    "mutedUntil": "Stlmené do {until}.",
+    "mute": "Stlmiť",
+    "muteChoose": "Vyberte…",
+    "muteFor": {
+      "1h": "na hodinu",
+      "1d": "na deň",
+      "7d": "na týždeň",
+      "forever": "kým sa nezruší"
+    },
+    "unmute": "Zrušiť stlmenie",
+    "forSpace": "Upozornenia",
+    "forType": "Upozornenia pre {type}",
+    "notices": "Upozornenia",
+    "notice": {
+      "opened": "{pipeline}: {event}",
+      "recovered": "{pipeline} je v poriadku: už {event} neplatí",
+      "digest": "Dnešný prehľad, {pipeline}: {event}"
+    },
+    "muteDay": "Stlmiť upozornenia {pipeline} na deň"
   },
   "help": {
     "title": "Pomocník",
@@ -6547,5 +6740,25 @@
       "two": "Vytvorte servisné účty pre programy, ktoré ho čítajú alebo zapisujú.",
       "three": "Pozrite si svoj prístup a čo ktorá rola dovoľuje."
     }
+  },
+  "inbox": {
+    "title": "Doručené",
+    "lead": "Čo na vás čaká: zmeny, o ktorých smiete rozhodnúť v každom projekte, a komentáre, ktoré vás spomínajú.",
+    "decisions": "Čaká na vaše rozhodnutie",
+    "decisionsHint": "Schválenie zmeny v červenom pruhu si pýta jej názov, ako na jej vlastnej stránke.",
+    "noDecisions": "Nič nečaká na vaše rozhodnutie.",
+    "by": "navrhol {author} v {project}",
+    "openChange": "Otvoriť zmenu",
+    "showDiff": "Ukázať, čo mení",
+    "hideDiff": "Skryť, čo mení",
+    "diffFailed": "Zmenu nebolo možné prečítať; otvorte ju a skúste znova.",
+    "reasonFirst": "Najprv uveďte dôvod: autor si ho prečíta.",
+    "decided": {
+      "approved": "Schválené: nasadzuje sa.",
+      "rejected": "Zamietnuté: autor si prečíta váš dôvod."
+    },
+    "mentions": "Zmienky o vás",
+    "noMentions": "Žiadny komentár vás nespomína.",
+    "open": "Otvoriť doručené ({count} čaká)"
   }
 }

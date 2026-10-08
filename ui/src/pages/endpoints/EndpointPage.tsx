@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Playground } from "./Playground";
+import { ShareFlow } from "./ShareFlow";
 import { EndpointDocs } from "./EndpointDocs";
 import { ApiError, api, queryKeys, readCsrfToken, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, refName } from "../../api/manifest";
@@ -530,6 +531,18 @@ export function EndpointPage({
         >
           {t("endpoints.page.openPolicies")}
         </Link>
+      </Section>
+
+      {/* Sharing with another project, guided, with an end and a revoke (T-3275). */}
+      <Section title={t("endpoints.shareFlow.section")} lead={t("endpoints.shareFlow.lead")}>
+        <ShareFlow
+          project={project}
+          endpoint={manifest}
+          space={space ?? ""}
+          types={filtered ? classesOf(filtered) : []}
+          slots={filtered ? slotsOf(filtered) : []}
+          policies={asManifests(policies.data?.items ?? [])}
+        />
       </Section>
 
       <Section title={t("endpoints.page.traffic")}>

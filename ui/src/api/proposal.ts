@@ -70,7 +70,12 @@ export function useProposal(project: string, plural: string, onChange: (change: 
       setError(null);
       if (bundle.length > 0) {
         // The dry run is the bundle's check, and the import needs it first (PF-57, T-1460).
-        const manifests: components["schemas"]["ImportOptions"] = { manifests: [...bundle, body] };
+        // An update proposed with its bundle replaces what the project has, as a lone update does;
+        // a create keeps the import's refusal of anything that already exists (MF-23).
+        const manifests: components["schemas"]["ImportOptions"] = {
+          manifests: [...bundle, body],
+          ...(create ? {} : { conflictPolicy: "replace" as const }),
+        };
         unwrap<unknown>(
           await api.POST("/api/v1/projects/{project}/import", {
             params: { path: { project }, query: { dryRun: "All" } },

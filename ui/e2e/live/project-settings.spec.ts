@@ -160,7 +160,7 @@ test("an old Access link lands on Members, and a viewer meets Delete project ref
   try {
     await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT}/settings/members\\?lang=en`));
     await expect(page.getByRole("heading", { level: 1, name: "Project settings" })).toBeVisible();
-    await page.getByRole("tab", { name: "Delete project" }).click();
+    await page.getByRole("tab", { name: "Delete or hand over" }).click();
     await expect(page.getByRole("button", { name: `Delete project ${PROJECT}` })).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -169,6 +169,23 @@ test("an old Access link lands on Members, and a viewer meets Delete project ref
     // A tab's routed form: the service account the assistant opens at …/new.
     await page.goto(`/projects/${PROJECT}/settings/service-accounts/new?lang=en`, { waitUntil: "load" });
     await expect(page.getByRole("heading", { name: "New service account" })).toBeVisible({ timeout: 60_000 });
+  } finally {
+    await context.close();
+  }
+});
+
+// T-3277: every project setting is findable by what it is called or what it changes.
+test("a steward finds a quota and the hand-over by searching the settings", async ({ browser }) => {
+  const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/settings/general?lang=en`);
+  try {
+    const search = page.getByRole("searchbox", { name: "Find a setting" });
+    await search.fill("public endpoints");
+    const found = page.getByRole("list", { name: "Settings found" });
+    await expect(found.getByRole("link").first()).toBeVisible({ timeout: 30_000 });
+    await search.fill("hand over");
+    await found.getByRole("link", { name: "Hand the project over" }).click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT}/settings/danger`));
+    await expect(page.getByRole("heading", { name: "Hand the project over" })).toBeVisible();
   } finally {
     await context.close();
   }

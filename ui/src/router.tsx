@@ -21,6 +21,7 @@ import { NotFoundState } from "./components/NotFoundState";
 import { LoginPage } from "./routes/LoginPage";
 import { hasEditForm, ResourceListPage } from "./routes/ResourceListPage";
 import { EndpointDocs } from "./pages/endpoints/EndpointDocs";
+import { InboxPage } from "./pages/inbox/InboxPage";
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
@@ -807,6 +808,20 @@ const knowledgeRoute = createRoute({
   },
 });
 
+/** What waits for the signed-in person in every project they read (T-3273). */
+const inboxRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/inbox",
+  component: function InboxRoute() {
+    const { project } = inboxRoute.useParams();
+    return (
+      <Shell project={project}>
+        <InboxPage project={project} />
+      </Shell>
+    );
+  },
+});
+
 /** The project's named MCP servers over chosen Endpoints (T-3156, ADR-N-043). */
 const mcpServersRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -1115,6 +1130,7 @@ export const routeTree = rootRoute.addChildren([
     exploreRoute,
     ckanRoute,
     knowledgeRoute,
+    inboxRoute,
     knowledgeSourceRoute,
     mcpServersRoute,
     importRoute,

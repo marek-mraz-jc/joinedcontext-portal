@@ -3,6 +3,7 @@
 
 pub mod activity;
 pub mod agents;
+pub mod alerts;
 pub mod api;
 pub mod apps;
 pub mod artifact_store;

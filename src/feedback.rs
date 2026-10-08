@@ -1,6 +1,6 @@
 //! What people told the platform's owners from a page of the Portal (T-3272, API/01 §38).
 //!
-//! Two storage arms like every store here: `Postgres` over migration `0028_feedback.sql`, and
+//! Two storage arms like every store here: `Postgres` over migration `0030_feedback.sql`, and
 //! `Memory` when the Portal runs without a database. Nothing here names who sent a feedback.
 
 use std::sync::RwLock;

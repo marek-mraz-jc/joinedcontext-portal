@@ -377,7 +377,7 @@ pub async fn get_rejected(
 }
 
 /// Read on the pipeline, and a caller without it is told the pipeline is not there (PF-59).
-fn readable_pipeline(
+pub(crate) fn readable_pipeline(
     state: &AppState,
     user: &CurrentUser,
     project: &str,

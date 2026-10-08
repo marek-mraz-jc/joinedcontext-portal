@@ -96,7 +96,9 @@ pub fn scrub(text: &str) -> String {
         .join(" ")
 }
 
-/// The page without its query and fragment, which can carry a name or a filter value.
+/// The page without its query and fragment, which can carry a name or a filter value, and as a
+/// path alone: a part holding anything but `A-Z a-z 0-9 / _ . ~ % -`, or an address, is kept as
+/// `_`, so the page is one line wherever it is written (the board's task file, T-3272).
 fn page_of(page: &str) -> Result<String, ApiError> {
     let page = page.split(['?', '#']).next().unwrap_or_default().trim();
     if !page.starts_with('/') || page.starts_with("//") || page.len() > MAX_PAGE {
@@ -105,7 +107,16 @@ fn page_of(page: &str) -> Result<String, ApiError> {
             errors: vec!["page".into()],
         });
     }
-    Ok(page.to_owned())
+    let plain = |part: &str| {
+        part.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_.~%-".contains(&b))
+            && !part.to_ascii_lowercase().contains("%40")
+    };
+    let parts: Vec<&str> = page
+        .split('/')
+        .map(|part| if plain(part) { part } else { "_" })
+        .collect();
+    Ok(parts.join("/"))
 }
 
 fn screenshot_of(data: &str) -> Result<Vec<u8>, ApiError> {
@@ -321,6 +332,32 @@ mod tests {
             assert!(page_of(bad).is_err(), "{bad}");
         }
         assert!(page_of(&format!("/{}", "a".repeat(MAX_PAGE))).is_err());
+    }
+
+    #[test]
+    fn a_page_is_a_path_and_nothing_else() {
+        // A line break, a quote or a space would end the line it is written on (T-3272): the part
+        // of the path that holds one is kept as `_`, and so is a part that holds an address.
+        assert_eq!(
+            page_of("/x\nstatus: todo\nowner:\n").ok(),
+            Some("/_".into())
+        );
+        assert_eq!(
+            page_of("/projects/x/people/jana@hel.fi/edit").ok(),
+            Some("/projects/x/people/_/edit".into())
+        );
+        assert_eq!(
+            page_of("/projects/x/people/jana%40hel.fi").ok(),
+            Some("/projects/x/people/_".into())
+        );
+        assert_eq!(
+            page_of("/projects/x/spaces/\"air\" quality").ok(),
+            Some("/projects/x/spaces/_".into())
+        );
+        assert_eq!(
+            page_of("/projects/air-2_x.v1/~view/%C3%A1").ok(),
+            Some("/projects/air-2_x.v1/~view/%C3%A1".into())
+        );
     }
 
     #[test]

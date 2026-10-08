@@ -32,8 +32,13 @@ export function AgentRunPage({
   runId: string;
   onClose: () => void;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { run, events, cancel, publish } = useAgentRun(project, runId);
+  // Seconds in the person's language: 2,5 s in Slovak, 2.5 s in English (T-3278).
+  const tenths = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "sk", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
   const endpointTitles = useEndpointTitles(project);
   // The conversation lives in the shell's assistant dock, which follows the person to the
   // pages the assistant opens (UI-45); this page only tells it which run to show.
@@ -207,7 +212,7 @@ export function AgentRunPage({
               <span>
                 <span className="font-medium text-fg">{t("agentRun.timing.firstFrame")}</span>{" "}
                 {t("agentRun.timing.seconds", {
-                  seconds: (record.firstFrameMs / 1000).toFixed(1),
+                  seconds: tenths.format(record.firstFrameMs / 1000),
                 })}
               </span>
             ) : null}
@@ -215,7 +220,7 @@ export function AgentRunPage({
               <span>
                 <span className="font-medium text-fg">{t("agentRun.timing.firstVersion")}</span>{" "}
                 {t("agentRun.timing.seconds", {
-                  seconds: (record.firstVersionMs / 1000).toFixed(1),
+                  seconds: tenths.format(record.firstVersionMs / 1000),
                 })}
               </span>
             ) : null}

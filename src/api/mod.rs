@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod agent_runs;
+pub mod alerts;
 pub mod app_build;
 pub mod app_me;
 pub mod app_shapes;
@@ -106,6 +107,7 @@ pub fn router() -> Router<AppState> {
         .merge(type_attributes::router())
         .merge(entity_trash::router())
         .merge(entity_comments::router())
+        .merge(alerts::router())
         .merge(knowledge::router())
         .merge(live::router())
         .merge(service_accounts::router())

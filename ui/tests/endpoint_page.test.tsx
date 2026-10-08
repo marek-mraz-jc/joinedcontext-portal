@@ -257,7 +257,9 @@ describe("the endpoint's own settings page", () => {
     // What it is: the space it publishes, who it admits, and the address a caller uses.
     expect(screen.getByRole("link", { name: "ovzdusie" })).toBeInTheDocument();
     expect(screen.getByText(en.endpoints.audience["project-list"])).toBeInTheDocument();
-    expect(screen.getByText("kosice")).toBeInTheDocument();
+    // Named among the facts and again where the share is managed (T-3275).
+    expect(screen.getAllByText("kosice").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("heading", { name: en.endpoints.shareFlow.section })).toBeInTheDocument();
     expect(screen.getByText(`${window.location.origin}/api/endpoint/${SLUG}`)).toBeInTheDocument();
 
     // What it answers, and what it keeps back.

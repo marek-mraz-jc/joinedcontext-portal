@@ -71,6 +71,7 @@
     "YAML",
     "alias",
     "auto",
+    "Histogram",
     "https://example.org/stations.json",
     "id",
     "index",
@@ -85,7 +86,9 @@
     "{ms} ms",
     "{seconds} s",
     "Čeština",
-    "REST API (JSON)"
+    "REST API (JSON)",
+    "HTTP endpoint",
+    "1. Endpoint"
   ],
   "cs": [
     "@context",
@@ -156,6 +159,7 @@
     "YAML",
     "alias",
     "auto",
+    "Histogram",
     "https://example.org/stations.json",
     "id",
     "index",

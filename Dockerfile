@@ -31,7 +31,8 @@ COPY sdk/package.json sdk/pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY sdk/ ./
 RUN pnpm build && test -s dist/kit.js && test -s dist/kit.css && test -s dist/kit-worker.js \
-    && test -s dist/runtime/runtime.json && test -s dist/functions-server.js
+    && test -s dist/runtime/runtime.json && test -s dist/functions-server.js \
+    && test -s dist/demos/index.html
 
 # The static apps the Portal serves under /apps/{name}/ (AP-14): each built bundle with the
 # `integrity.json` the host checks every file against before it serves it (AP-12). An app without
