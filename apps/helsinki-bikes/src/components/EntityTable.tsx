@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { columnKind, compare, format } from "@joinedcontext/sdk";
 import type { ProblemError, Row } from "@joinedcontext/sdk";
-import { Empty, Loading, Problem } from "./states";
+import { Empty, Loading, Problem } from "@joinedcontext/sdk";
 
 export interface ColumnDef<T extends Row = Row> {
   attr: string;
@@ -135,7 +135,8 @@ export function EntityTable<T extends Row = Row>({
                 >
                   <button type="button" onClick={() => toggleSort(col.attr)}>
                     {col.label ?? col.attr}
-                    {sort?.attr === col.attr ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                    {/* aria-sort says the direction; the arrow is for the eye. */}
+                    {sort?.attr === col.attr && <span aria-hidden="true">{sort.dir === "asc" ? " ▲" : " ▼"}</span>}
                   </button>
                 </th>
               );
