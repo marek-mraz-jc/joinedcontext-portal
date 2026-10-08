@@ -90,17 +90,17 @@ export function TypeChart({
         </p>
       ) : (
         <>
-          <svg viewBox={`0 0 100 ${height}`} className="w-full" role="img" aria-label={title}>
+          <svg viewBox={`0 0 300 ${height}`} className="w-full" role="img" aria-label={title}>
             {rows.map((row, index) => (
               <g key={row.label}>
                 <rect
                   x="0"
                   y={index * 10 + 1}
-                  width={Math.max(0.5, (row.count / most) * 60)}
+                  width={Math.max(1, (row.count / most) * 180)}
                   height="8"
                   className="fill-primary-soft-fg"
                 />
-                <text x={(row.count / most) * 60 + 1.5} y={index * 10 + 6.5} fontSize="3" className="fill-fg">
+                <text x={(row.count / most) * 180 + 4} y={index * 10 + 7.5} fontSize="8" className="fill-fg">
                   {`${row.label}: ${number.format(row.count)}`}
                 </text>
               </g>
