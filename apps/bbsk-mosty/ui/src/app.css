@@ -2,7 +2,7 @@
  * The bridge desk on the SDK's own tokens (SDK-04). Its own look (T-2779): a band of figures over a
  * dense, sortable table; a flagged cell carries its words, never only a colour.
  */
-main {
+.jc-main {
   padding: var(--jc-gutter, 1rem);
 }
 
@@ -10,10 +10,6 @@ main {
 .source,
 .address {
   color: var(--jc-color-text-muted, #555);
-}
-
-.failed {
-  color: var(--jc-color-danger, #b42318);
 }
 
 .tiles {
@@ -111,6 +107,23 @@ thead button {
   padding: 0;
   cursor: pointer;
   text-align: inherit;
+}
+
+/* A bridge's name opens it in the entity panel: a button that reads as the row's heading. */
+.row-open {
+  font: inherit;
+  font-weight: 600;
+  color: var(--jc-color-primary, #1f5fa8);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: inherit;
+  text-decoration: underline;
+}
+
+tr[aria-selected="true"] th {
+  background: var(--jc-color-surface-raised, #eef4fb);
 }
 
 .address,

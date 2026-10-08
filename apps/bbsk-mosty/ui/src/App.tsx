@@ -3,10 +3,14 @@
  * the register with its road, year built, spans, length, material and heritage status, the
  * region's figures, and the oldest and longest tenth marked against the region's own bridges.
  * Staff sign in: the App is opened by its viewer role, held by its default group (T-2686). It
- * reads and never writes; the export is the table as shown, made in the browser.
+ * reads and never writes; the export is the table as shown, made in the browser. It sits in the
+ * SDK's shell (SDK-39), and a bridge's name opens it in the shell's entity panel (SDK-40), read
+ * fresh through the same endpoint. The App's grant reads only: the register is its pipeline's, so
+ * the panel offers Edit to nobody here and links the bridge to the Portal instead (README).
  */
 import { useEffect, useMemo, useState } from "react";
-import { endpointSource, Header, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, Empty, endpointSource, Loading, Page, Problem, SourceError, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import type { EntitySource } from "@joinedcontext/sdk";
 import { bridgeOf, highestTenth, sorted, toCsv, totals } from "./bridges";
 import type { Bridge, SortKey } from "./bridges";
 import { stringsFor } from "./locales";
@@ -23,11 +27,30 @@ function folded(text: string): string {
   return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
 
+/** Every bridge of the register, page by page up to `MOST`. */
+export async function loadBridges(source: EntitySource, locale: string, year: number): Promise<{ bridges: Bridge[]; truncated: boolean }> {
+  const bridges: Bridge[] = [];
+  for (let offset = 0; offset < MOST; offset += PAGE) {
+    const page = await source.query({ type: "Bridge" }, { offset, limit: PAGE });
+    bridges.push(...page.rows.map((row) => bridgeOf(row, locale, year)));
+    if (page.rows.length < PAGE) return { bridges, truncated: false };
+  }
+  return { bridges, truncated: true };
+}
+
 export default function App({ year = new Date().getFullYear() }: { year?: number }) {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  return <AppShell title={s.title} pages={[{ id: "bridges", label: s.title, render: () => <Desk year={year} /> }]} language={config.language} />;
+}
+
+function Desk({ year }: { year: number }) {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
+  const { selected, select } = useEntitySelection();
   const language = config.language ?? "sk";
-  const slug = config.endpoints?.find((one) => one.space === SPACE)?.slug ?? (config.space === SPACE ? config.slug : null);
+  const listed = config.endpoints?.find((one) => one.space === SPACE);
+  const slug = listed?.slug ?? (config.space === SPACE ? config.slug : null);
   const source = useMemo(
     () => (slug ? endpointSource(slug, transportFor(config), language) : null),
     // `config` is the document the Portal served once; the slug and the language are what change.
@@ -44,15 +67,7 @@ export default function App({ year = new Date().getFullYear() }: { year?: number
   useEffect(() => {
     if (!source) return;
     let live = true;
-    (async () => {
-      const bridges: Bridge[] = [];
-      for (let offset = 0; offset < MOST; offset += PAGE) {
-        const page = await source.query({ type: "Bridge" }, { offset, limit: PAGE });
-        bridges.push(...page.rows.map((row) => bridgeOf(row, language.slice(0, 2), year)));
-        if (page.rows.length < PAGE) return { bridges, truncated: false };
-      }
-      return { bridges, truncated: true };
-    })()
+    loadBridges(source, language.slice(0, 2), year)
       .then((done) => {
         if (live) setLoad({ status: "ready", ...done });
       })
@@ -93,12 +108,10 @@ export default function App({ year = new Date().getFullYear() }: { year?: number
 
   if (!source) {
     return (
-      <main>
-        <Page>
-          <Header level={1} title={s.title} subtitle={s.subtitle} />
-          <p role="status">{s.noEndpoint}</p>
-        </Page>
-      </main>
+      <Page>
+        <p className="subtitle">{s.subtitle}</p>
+        <Empty>{s.noEndpoint}</Empty>
+      </Page>
     );
   }
 
@@ -106,63 +119,71 @@ export default function App({ year = new Date().getFullYear() }: { year?: number
     value === null ? s.noValue : new Intl.NumberFormat(s.locale, { maximumFractionDigits: digits }).format(value);
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
-        {load.status === "loading" && <p role="status">{s.loading}</p>}
-        {load.status === "failed" && <p role="alert" className="failed">{s.failed(load.reason)}</p>}
-        {load.status === "ready" && (
-          <>
-            <dl className="tiles">
-              <Tile label={s.tiles.bridges} value={number(sum.bridges)} />
-              <Tile label={s.tiles.length} value={number(sum.length)} />
-              <Tile label={s.tiles.medianAge} value={number(sum.medianAge, 1)} />
-              <Tile label={s.tiles.listed} value={number(sum.listed)} />
-              <Tile label={s.tiles.incomplete} value={number(sum.incomplete)} />
-            </dl>
-            {load.truncated && <p className="note">{s.truncated(MOST)}</p>}
-            <div className="controls">
-              <label className="search">
-                {s.search}
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-              </label>
-              <label className="pick">
-                {s.district}
-                <select value={district} onChange={(event) => setDistrict(event.target.value)}>
-                  <option value="">{s.any}</option>
-                  {districts.map((one) => (
-                    <option key={one} value={one}>
-                      {one}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="pick">
-                {s.roadClass}
-                <select value={roadClass} onChange={(event) => setRoadClass(event.target.value)}>
-                  <option value="">{s.any}</option>
-                  {ROAD_CLASSES.map((one) => (
-                    <option key={one} value={one}>
-                      {s.values[one]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="check">
-                <input type="checkbox" checked={listedOnly} onChange={(event) => setListedOnly(event.target.checked)} />
-                {s.listedOnly}
-              </label>
-              <button type="button" onClick={download} disabled={shown.length === 0}>
-                {s.download}
-              </button>
-            </div>
-            <p className="note">{oldestFrom === null && longestFrom === null ? s.tenthUnavailable : s.tenthNote}</p>
-            <BridgeTable bridges={shown} sort={sort} onSort={setSort} oldestFrom={oldestFrom} longestFrom={longestFrom} number={number} s={s} />
-          </>
-        )}
-        <p className="source">{s.source}</p>
-      </Page>
-    </main>
+    <Page>
+      <p className="subtitle">{s.subtitle}</p>
+      {load.status === "loading" && <Loading label={s.loading} />}
+      {load.status === "failed" && <Problem error={new Error(s.failed(load.reason))} />}
+      {load.status === "ready" && (
+        <>
+          <dl className="tiles">
+            <Tile label={s.tiles.bridges} value={number(sum.bridges)} />
+            <Tile label={s.tiles.length} value={number(sum.length)} />
+            <Tile label={s.tiles.medianAge} value={number(sum.medianAge, 1)} />
+            <Tile label={s.tiles.listed} value={number(sum.listed)} />
+            <Tile label={s.tiles.incomplete} value={number(sum.incomplete)} />
+          </dl>
+          {load.truncated && <p className="note">{s.truncated(MOST)}</p>}
+          <div className="controls">
+            <label className="search">
+              {s.search}
+              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </label>
+            <label className="pick">
+              {s.district}
+              <select value={district} onChange={(event) => setDistrict(event.target.value)}>
+                <option value="">{s.any}</option>
+                {districts.map((one) => (
+                  <option key={one} value={one}>
+                    {one}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="pick">
+              {s.roadClass}
+              <select value={roadClass} onChange={(event) => setRoadClass(event.target.value)}>
+                <option value="">{s.any}</option>
+                {ROAD_CLASSES.map((one) => (
+                  <option key={one} value={one}>
+                    {s.values[one]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={listedOnly} onChange={(event) => setListedOnly(event.target.checked)} />
+              {s.listedOnly}
+            </label>
+            <button type="button" onClick={download} disabled={shown.length === 0}>
+              {s.download}
+            </button>
+          </div>
+          <p className="note">{oldestFrom === null && longestFrom === null ? s.tenthUnavailable : s.tenthNote}</p>
+          <BridgeTable
+            bridges={shown}
+            sort={sort}
+            onSort={setSort}
+            oldestFrom={oldestFrom}
+            longestFrom={longestFrom}
+            number={number}
+            s={s}
+            selected={selected?.id ?? null}
+            onOpen={(id) => select({ id, type: "Bridge", endpoint: listed?.name })}
+          />
+        </>
+      )}
+      <p className="source">{s.source}</p>
+    </Page>
   );
 }
 
@@ -183,6 +204,8 @@ function BridgeTable({
   longestFrom,
   number,
   s,
+  selected,
+  onOpen,
 }: {
   bridges: Bridge[];
   sort: { key: SortKey; ascending: boolean };
@@ -191,8 +214,10 @@ function BridgeTable({
   longestFrom: number | null;
   number: (value: number | null, digits?: number) => string;
   s: Strings;
+  selected: string | null;
+  onOpen: (id: string) => void;
 }) {
-  if (bridges.length === 0) return <p>{s.empty}</p>;
+  if (bridges.length === 0) return <Empty>{s.empty}</Empty>;
   const header = (key: SortKey) => {
     const active = sort.key === key;
     return (
@@ -227,9 +252,11 @@ function BridgeTable({
             const old = oldestFrom !== null && b.age !== null && b.age >= oldestFrom;
             const long = longestFrom !== null && b.length !== null && b.length >= longestFrom;
             return (
-              <tr key={b.id}>
+              <tr key={b.id} aria-selected={b.id === selected}>
                 <th scope="row">
-                  {b.name ?? s.noValue}
+                  <button type="button" className="row-open" onClick={() => onOpen(b.id)}>
+                    {b.name ?? s.noValue}
+                  </button>
                   {b.code ? <span className="address">{b.code}</span> : null}
                 </th>
                 <td className="text">

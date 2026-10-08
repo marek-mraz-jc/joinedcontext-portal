@@ -15,6 +15,25 @@ describe("a bridge", () => {
   });
 });
 
+describe("a bridge's values", () => {
+  const one = (attrs: Record<string, unknown>) => bridgeOf(toRichRow({ id: "urn:ngsi-ld:Bridge:x", type: "Bridge", ...attrs }), "en", YEAR);
+
+  it("reads a name in the reader's language, else Slovak, else the one written; a number as text; blanks as missing", () => {
+    expect(one({ name: { type: "LanguageProperty", languageMap: { sk: "Most", en: "Bridge" } } }).name).toBe("Bridge");
+    expect(one({ name: { type: "LanguageProperty", languageMap: { sk: "Most" } } }).name).toBe("Most");
+    expect(one({ name: { type: "LanguageProperty", languageMap: { hu: "Híd" } } }).name).toBe("Híd");
+    expect(one({ roadNumber: { type: "Property", value: 66 } }).roadNumber).toBe("66");
+    expect(one({ structureMaterial: { type: "Property", value: "  " } }).material).toBeNull();
+    expect(one({ structureMaterial: { type: "Property", value: true } }).material).toBeNull();
+  });
+
+  it("takes the first of several values, and never a negative or non-finite count", () => {
+    expect(one({ spanCount: [{ type: "Property", value: 4, datasetId: "urn:a" }, { type: "Property", value: 5, datasetId: "urn:b" }] }).spans).toBe(4);
+    expect(one({ spanCount: { type: "Property", value: -1 } }).spans).toBeNull();
+    expect(one({ bridgedLength: { type: "Property", value: "12" } }).length).toBeNull();
+  });
+});
+
 describe("the region's figures", () => {
   it("add up the lengths published, take the median age and count listed monuments and gaps", () => {
     const sum = totals(bridges);
@@ -32,6 +51,14 @@ describe("the highest tenth", () => {
     expect(bridges.filter((b) => b.age !== null && b.age >= from).map((b) => b.code)).toEqual(["51-020"]);
     expect(highestTenth(bridges.slice(0, 5).map((b) => b.age))).toBeNull();
   });
+
+  it("takes an odd count's middle age, and has none without a known year", () => {
+    expect(totals(bridges.filter((b) => b.age !== null).slice(0, 3)).medianAge).toBe(
+      [...bridges.filter((b) => b.age !== null).slice(0, 3).map((b) => b.age!)].sort((a, b) => a - b)[1],
+    );
+    expect(totals([byCode("x-1")]).medianAge).toBeNull();
+    expect(totals([])).toMatchObject({ bridges: 0, length: 0, medianAge: null });
+  });
 });
 
 describe("sorting and the CSV", () => {
@@ -46,5 +73,18 @@ describe("sorting and the CSV", () => {
     const [, formula, listed] = csv.trimEnd().split("\r\n");
     expect(formula.startsWith("'=CMD(),x-2,účelová")).toBe(true);
     expect(listed).toContain("kultúrna a technická pamiatka");
+  });
+
+  it("quotes a cell that holds a separator, a quote or a line break, and rounds a number to cents", () => {
+    const tricky = { ...byCode("66-001"), name: 'Most "Pod hradom", sever', manager: "SSC\nIVSC", length: 210.456 };
+    const [, row] = toCsv([tricky], ["a"], {}).trimEnd().split("\r\n");
+    expect(row.startsWith('"Most ""Pod hradom"", sever"')).toBe(true);
+    expect(row).toContain("210.46");
+  });
+
+  it("sorts names in the region's order, both ways", () => {
+    const names = sorted(bridges, "name", true).map((b) => b.name);
+    expect(names.at(-1)).not.toBeNull();
+    expect(sorted(bridges, "name", false).map((b) => b.name)).toEqual([...names].reverse());
   });
 });

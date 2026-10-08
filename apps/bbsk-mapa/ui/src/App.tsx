@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { AppShell, endpointSource, Page, SourceError, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import { AppShell, Empty, endpointSource, Loading, Page, SourceError, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { EntitySource } from "@joinedcontext/sdk";
 import { byOrder, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, matches, placeOf, TYPE_OF } from "./places";
 import type { Kind, Place } from "./places";
@@ -130,7 +130,7 @@ function RegionMap() {
     <Page>
       <p className="subtitle">{s.subtitle}</p>
 
-      {layers === null && <p role="status">{s.noEndpoint}</p>}
+      {layers === null && <Empty>{s.noEndpoint}</Empty>}
       {layers !== null && (
         <>
           <div className="controls">
@@ -170,7 +170,7 @@ function RegionMap() {
             </fieldset>
           </div>
 
-          {loading && <p role="status">{s.loading}</p>}
+          {loading && <Loading label={s.loading} />}
           <LayerNotes layers={layers} s={s} />
 
           <div className="map-screen">
