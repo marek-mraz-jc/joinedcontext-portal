@@ -2,6 +2,3 @@
 # that brings it to green and removes its line in the same commit. The list only shrinks: the
 # gate refuses a new line, and fails a listed App that already passes. Thresholds never move.
 banskabystrica-mapa T-3379
-plain-html-events T-3416
-react-rust-wasm T-3416
-rust-wasm-server T-3416

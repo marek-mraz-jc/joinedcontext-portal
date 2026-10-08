@@ -12,6 +12,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@joinedcontext/sdk": "0.1.0",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.7",

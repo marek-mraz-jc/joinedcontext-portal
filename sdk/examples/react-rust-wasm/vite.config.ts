@@ -18,5 +18,8 @@ export default defineConfig({
     setupFiles: ["./test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     server: { deps: { inline: ["@joinedcontext/sdk"] } },
+    // Every source file counts, tested or not; the entry is one startApp call, and wasm-bindgen's
+    // glue is not the example's code (its Rust has cargo llvm-cov, T-3416).
+    coverage: { include: ["src/**"], exclude: ["src/main.tsx", "src/**/*.test.*", "wasm/pkg/**"] },
   },
 });
