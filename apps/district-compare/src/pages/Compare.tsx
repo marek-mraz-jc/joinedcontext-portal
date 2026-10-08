@@ -172,34 +172,27 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
     if (!initialized.current && output && output.districts.length > 0) {
       initialized.current = true;
       if (selectedCodes.length === 0) {
-        const initial = defaultSelection(output);
-        setSelectedCodes(initial);
-        try {
-          window.history.replaceState(null, "", writeHash({ selectedCodes: initial, measure }));
-        } catch {
-          // sandboxed preview may refuse
-        }
+        setSelectedCodes(defaultSelection(output));
       }
     }
-  }, [output, selectedCodes.length, measure]);
+  }, [output, selectedCodes.length]);
 
-  const updateSelection = (codes: string[]) => {
-    setSelectedCodes(codes);
+  // The address follows the state from this one place: when each change wrote it itself, the first
+  // selection written after the data arrived could land on a measure chosen while it loaded, and a
+  // person's "bikes" read "events" again (T-3335, a slow CI runner).
+  useEffect(() => {
+    const next = writeHash({ selectedCodes, measure });
+    if (window.location.hash === next) return;
     try {
-      window.history.replaceState(null, "", writeHash({ selectedCodes: codes, measure }));
+      window.history.replaceState(null, "", next);
     } catch {
       // sandboxed preview may refuse
     }
-  };
+  }, [selectedCodes, measure]);
 
-  const updateMeasure = (nextMeasure: Measure) => {
-    setMeasure(nextMeasure);
-    try {
-      window.history.replaceState(null, "", writeHash({ selectedCodes, measure: nextMeasure }));
-    } catch {
-      // sandboxed preview may refuse
-    }
-  };
+  const updateSelection = (codes: string[]) => setSelectedCodes(codes);
+
+  const updateMeasure = (nextMeasure: Measure) => setMeasure(nextMeasure);
 
   const toggleDistrict = (code: string) => {
     const next = selectedCodes.includes(code)

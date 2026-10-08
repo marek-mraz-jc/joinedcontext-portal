@@ -58,8 +58,11 @@ test("changing the measure updates table rows and chart", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${BASE}?lang=en`);
 
+  // The data is still arriving when the measure changes: the address must end on the person's choice.
   await page.getByLabel("Measure").selectOption("bikes");
-  expect(page.url()).toContain("m=bikes");
+  await expect(page).toHaveURL(/m=bikes/);
+  await expect(page.getByRole("table", { name: "Selected districts compared" })).toBeVisible();
+  await expect(page).toHaveURL(/m=bikes/);
   await expect(page.locator("figcaption")).toHaveText("Selected districts: City-bike stations");
 });
 
