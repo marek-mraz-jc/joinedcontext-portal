@@ -307,9 +307,12 @@ mod tests {
 
     #[test]
     fn personal_data_and_credentials_leave_the_text() {
-        let said = scrub(
-            "Mail jana.kovacova@banskabystrica.sk or call +421 900 123 456; my token is glpat-0123456789abcdefghij and step 12 of 3000 failed",
-        );
+        // The token is put together here so the repository holds no token-shaped literal for
+        // a secret scanner to report (trivy, gitleaks).
+        let token = format!("{}-{}", "glpat", "0123456789abcdefghij");
+        let said = scrub(&format!(
+            "Mail jana.kovacova@banskabystrica.sk or call +421 900 123 456; my token is {token} and step 12 of 3000 failed"
+        ));
         assert!(!said.contains("jana"), "{said}");
         assert!(!said.contains("900 123"), "{said}");
         assert!(!said.contains("glpat"), "{said}");
