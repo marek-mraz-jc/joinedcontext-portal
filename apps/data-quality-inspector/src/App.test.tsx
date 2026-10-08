@@ -214,7 +214,9 @@ describe("data-quality-inspector", () => {
       expect(button).toHaveAttribute("aria-pressed", "false");
     }
     // A type dev holds none of has its tile too, which opens its type and says it holds nothing.
-    for (const name of screen.getAllByRole("button", { name: / entities$/ }).map((tile) => tile.getAttribute("aria-label")!)) {
+    // The tiles come with the second answer, after the notice: wait for them, do not race them.
+    const tiles = await screen.findAllByRole("button", { name: / entities$/ });
+    for (const name of tiles.map((tile) => tile.getAttribute("aria-label")!)) {
       fireEvent.click(screen.getByRole("button", { name }));
       fireEvent.click(await screen.findByRole("button", { name: "← All types" }));
     }
