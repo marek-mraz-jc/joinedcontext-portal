@@ -8,7 +8,8 @@ waiting, riding, changing on foot and walking on.
 - a map with the area in three colours, the stops and the starting point; a click anywhere starts
   from there;
 - the stops reached, by minutes, each a button that starts from it, and a list to start from any
-  stop with the keyboard;
+  stop with the keyboard; an HSL stop also opens in the SDK's entity panel, read only, with a link
+  to the Portal (SDK-40, AP-140);
 - the starting point and the hours of vehicle history (1, 3 or 6) in the address, so a view is a
   link (`?at=24.95000,60.20000&hours=6&lang=en`).
 
@@ -36,7 +37,7 @@ The page says which of the two it used, under the answer.
 
 ## How it is built
 
-A `ui` App (AP-142): React on the joinedcontext App SDK for the page, and the analysis in Rust,
+A `ui` App (AP-142): React on the joinedcontext App SDK for the page, inside the SDK's `AppShell`, and the analysis in Rust,
 compiled to WebAssembly and run in a Web Worker in the visitor's browser. Nothing runs on a server
 for it: the static host serves its files, the endpoint answers the vehicles' history.
 
@@ -58,8 +59,12 @@ pnpm wasm          # cargo build --target wasm32-unknown-unknown, then wasm-bind
 (cd wasm && cargo test)
 pnpm test          # vitest, with the compiled module run in-process
 pnpm build
-pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe
+pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe, the panel
 ```
+
+The coverage gate (T-3373): `sh ../../scripts/app-coverage-run.sh transit-reach --rust` holds the
+page at 95 % of lines and 90 % of branches, every control used by a test, and `wasm/` at 95 %
+(`cargo llvm-cov`). `wasm/pkg/` is generated and left out of the page's figure.
 
 `pnpm wasm` comes first: the tests, the type check and the build import `wasm/pkg/`. The build lane
 runs the same two steps itself (builder/build-wasm.sh) on the app-build-rust runner. It needs the
