@@ -87,7 +87,7 @@ describe("the research screen", () => {
     touchList();
     await userEvent.type(screen.getByRole("searchbox", { name: s.search }), "neexistujuce slovo");
     expect(within(list()).getByText(s.none)).toBeInTheDocument();
-  });
+  }, 20_000); // 251 works paged and filtered: slow under coverage on CI (948fcf9 timed out at 5 s)
 
   it("links each work to its handle and shows no author", async () => {
     const { container } = show();
