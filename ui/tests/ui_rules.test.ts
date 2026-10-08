@@ -125,6 +125,14 @@ describe("what a page may not do by hand", () => {
     ).toEqual([]);
   });
 
+  it("an_action_does_not_wait_for_a_hover", () => {
+    // A phone has no hover (T-3279): a control drawn only under `group-hover` is one a finger never
+    // finds. Show it, or show it on focus as well.
+    expect(
+      breaches("action_shown_on_hover_only", /\b(?:opacity-0|invisible|hidden)\b[^"'`]*\bgroup-hover:(?!.*group-focus)/, all),
+    ).toEqual([]);
+  });
+
   it("a_colour_is_a_token", () => {
     expect(
       breaches(
