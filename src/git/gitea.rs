@@ -1522,6 +1522,39 @@ impl GiteaClient {
         Url::parse(&full).map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))
     }
 
+    /// Whether the token's own user owns the organization (`GET /user`, then
+    /// `GET /users/{login}/orgs/{org}/permissions`): creating a team or giving it a repository
+    /// takes an owner, and at layout 2 the Portal's forge user is none (T-2647, T-3323). A user
+    /// who is no member of the organization at all owns nothing either.
+    pub async fn owns_organization(&self) -> Result<bool, GitError> {
+        #[derive(Deserialize)]
+        struct Me {
+            login: String,
+        }
+        #[derive(Deserialize)]
+        struct Permissions {
+            is_owner: bool,
+        }
+        let me: Me = Self::check_status(self.send(self.http.get(self.org_url("user")?)).await?)
+            .await?
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(e.to_string()))?;
+        let url = self.org_url(&format!(
+            "users/{}/orgs/{}/permissions",
+            me.login, self.owner
+        ))?;
+        match Self::check_status(self.send(self.http.get(url)).await?).await {
+            Ok(res) => Ok(res
+                .json::<Permissions>()
+                .await
+                .map_err(|e| GitError::Transport(e.to_string()))?
+                .is_owner),
+            Err(GitError::NotFound) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
     /// Every team of the organization, a page of fifty at a time.
     pub async fn org_teams(&self) -> Result<Vec<Team>, GitError> {
         let mut teams = Vec::new();
