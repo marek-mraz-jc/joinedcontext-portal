@@ -72,6 +72,25 @@ function Tabs(props: { tabs: { id; label; render: () => ReactNode }[]; label: st
 ```
 Build every screen from these and the app is responsive at 375 to 2560 px without CSS of its own. Each one lays out by the width it is given (container queries), so a `Grid` inside a `Split` or a framed app adapts to its own box: `Grid` is 1 column, then 2 from 40rem, 3 from 64rem, `columns` (at most 4) from 90rem; `Split` stacks under 48rem; `Sidebar` is a column beside the content from 48rem and a drawer behind a button named `label` on a phone (Escape closes it); `Tabs` follows the WAI-ARIA pattern (arrow keys, Home, End) and scrolls sideways on a phone. `--jc-gutter` and `--jc-font-size-title` grow with the window; `--jc-target` (44 px) is the least height of a control on a phone or a touch screen.
 
+### Shell and entity panel (SDK-39, SDK-40)
+```ts
+function AppShell(props: { title; pages: ShellPage[]; actions?; initial?; languages?: ShellLanguage[]; language?; onLanguage?(code) }): JSX.Element
+function Loading(props: { label? }): JSX.Element
+function Empty(props: { children? }): JSX.Element
+function Problem(props: { error: ProblemError | Error | null | undefined; onRetry? }): JSX.Element | null
+class ErrorBoundary
+function useEntitySelection(): { selected: SelectedEntity | null; select(e: SelectedEntity): void; clear(): void }
+function selectable(e: SelectedEntity, select): { role; tabIndex; onClick; onKeyDown }
+function EntityPanel(): JSX.Element | null
+function EntitySelectionProvider(props: { children }): JSX.Element
+function attributeOrder(row: Row, properties?): string[]
+function labelOf(name: string, property?): string
+function parseValue(field: Field, text: string, language: SdkLanguage): { value: Cell } | { error: string }
+function portalLinkOf(portal: string | undefined, space: string, id: string): string | null
+const SDK_WORDS; function sdkLanguage(configured?): SdkLanguage; function sdkWord(language, word, slots?): string
+```
+Every App renders `AppShell`; it holds the selection and the one `EntityPanel`. Make any map feature, table row, chart point or card open an entity with `select({ id, type })` (or spread `selectable(...)` on an element for click and Enter). The panel lists the attributes with the schema's labels; **Edit** shows only to a signed-in reader whose access document allows `updateAttrs` on the type (and the attribute), checks each value against the schema, shows the change and writes it through the App's Endpoint after the reader confirms; a 409 or 403 is said in words. Without the right, or on a `public` App, it links to the entity in the Portal (`config.portal`). Escape closes it and gives the focus back; the words are in en, fi, sk and cs.
+
 ### Tables, forms, maps, exports
 ```ts
 function compare(a: Row, b: Row, attr: string, dir: "asc" | "desc"): number

@@ -307,3 +307,70 @@
     min-height: var(--jc-target);
   }
 }
+
+/* The entity panel every App shares (SDK-40): beside the page on a wide screen, over it on a phone. */
+.jc-panel {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: min(26rem, 100vw);
+  overflow-y: auto;
+  padding: var(--jc-space-4, 1rem);
+  background: var(--jc-color-surface, #ffffff);
+  color: var(--jc-color-ink, #0f172a);
+  border-inline-start: 1px solid var(--jc-color-line, #e2e8f0);
+  box-shadow: -4px 0 16px rgb(0 0 0 / 0.12);
+  z-index: 20;
+}
+.jc-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: var(--jc-space-2, 0.5rem);
+}
+.jc-panel-header h2 {
+  margin: 0;
+  font-size: var(--jc-font-size-lg, 1.125rem);
+  overflow-wrap: anywhere;
+}
+.jc-panel-close {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.jc-panel-type,
+.jc-panel-hint {
+  color: var(--jc-color-muted, #64748b);
+  font-size: var(--jc-font-size-sm, 0.875rem);
+}
+.jc-panel-attrs {
+  display: grid;
+  gap: var(--jc-space-2, 0.5rem);
+}
+.jc-panel-attrs dt {
+  font-size: var(--jc-font-size-sm, 0.875rem);
+  color: var(--jc-color-muted, #64748b);
+}
+.jc-panel-attrs dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.jc-panel-field {
+  display: grid;
+  gap: var(--jc-space-1, 0.25rem);
+  margin-block-end: var(--jc-space-3, 0.75rem);
+}
+.jc-panel-error,
+.jc-panel-problem {
+  color: var(--jc-color-danger, #b91c1c);
+}
+.jc-panel-ok {
+  color: var(--jc-color-success, #047857);
+}
+.jc-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-2, 0.5rem);
+  margin-block-start: var(--jc-space-3, 0.75rem);
+}

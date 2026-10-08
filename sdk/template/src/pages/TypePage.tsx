@@ -1,9 +1,7 @@
 import { useMemo, useState } from "react";
-import { displayName, Grid, Page, useAccess, useEntities, useFilters } from "@joinedcontext/sdk";
+import { Grid, Page, useEntities, useEntitySelection, useFilters } from "@joinedcontext/sdk";
 import type { FilterBinding, TypeSchema } from "@joinedcontext/sdk";
 import { BarChartCard, TimeSeriesCard } from "../components/charts";
-import { EntityDetail } from "../components/EntityDetail";
-import { EntityForm } from "../components/EntityForm";
 import { EntityMap } from "../components/EntityMap";
 import { EntityTable } from "../components/EntityTable";
 import { ExportButton } from "../components/ExportButton";
@@ -26,10 +24,10 @@ function Filter({ binding }: { binding: FilterBinding }) {
   }
 }
 
-/** One entity type: filters, tiles, map, charts, table, export, detail and, where granted, an edit form. */
+/** One entity type: filters, tiles, map, charts, table and export; a map feature or a row opens the SDK's entity panel. */
 /** `endpoint` names where the type is read and written, in an application reading several (SDK-02). */
 export function TypePage({ type, schema, endpoint, label = type }: { type: string; schema?: TypeSchema | null; endpoint?: string; label?: string }) {
-  const { rows, loading, error, reload } = useEntities(type, endpoint ? { endpoint } : undefined);
+  const { rows, loading, error } = useEntities(type, endpoint ? { endpoint } : undefined);
   // The shape is read once the first rows arrive, so the filters keep their positions on a reload.
   const [firstRows, setFirstRows] = useState(rows);
   if (firstRows.length === 0 && rows.length > 0) setFirstRows(rows);
@@ -37,16 +35,10 @@ export function TypePage({ type, schema, endpoint, label = type }: { type: strin
   const filters = useMemo(() => filtersOf(shape), [shape]);
   const { shown, bind, reset } = useFilters(rows, filters);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  // The grants of the endpoint the type is read through, not the primary's.
-  const { can } = useAccess(endpoint);
-  const edit = can("updateAttrs", type).ok ? can("updateAttrs", type) : can("updateEntity", type);
-  const selected = shown.find((row) => row.id === selectedId) ?? null;
-  const select = (id: string) => {
-    setSelectedId(id);
-    setEditing(false);
-  };
+  // The panel shows, and where the reader may, edits the entity (SDK-40); the map and the table mark it.
+  const selection = useEntitySelection();
+  const selectedId = selection.selected?.type === type ? selection.selected.id : null;
+  const select = (id: string) => selection.select({ id, type, endpoint });
 
   const measure = shape.numbers[0];
   const tiles: StatTile[] = [
@@ -81,29 +73,6 @@ export function TypePage({ type, schema, endpoint, label = type }: { type: strin
       </Grid>
       <EntityTable rows={shown} loading={loading} error={error} selected={selectedId} onSelect={(row) => select(row.id)} caption={label} />
       <ExportButton rows={shown} filename={type} formats={shape.geo ? ["csv", "geojson", "pdf"] : ["csv", "pdf"]} location={shape.geo} />
-      {selected && !editing && (
-        <div className="app-detail">
-          <EntityDetail row={selected} title={displayName(shape.label ? { ...selected, name: selected[shape.label] } : selected)} onClose={() => setSelectedId(null)} />
-          {edit.ok && (
-            <button type="button" onClick={() => setEditing(true)}>
-              {t("detail.edit")}
-            </button>
-          )}
-        </div>
-      )}
-      {selected && editing && (
-        <EntityForm
-          type={type}
-          endpoint={endpoint}
-          row={selected}
-          rows={rows}
-          onSaved={() => {
-            setEditing(false);
-            reload();
-          }}
-          onCancel={() => setEditing(false)}
-        />
-      )}
     </Page>
   );
 }
