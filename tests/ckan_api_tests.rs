@@ -79,6 +79,7 @@ fn envelope(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            shard: None,
             domain_verification: None,
         }),
     }

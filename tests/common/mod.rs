@@ -4,6 +4,8 @@
 //! all of it, so what one binary leaves unused is not dead code.
 #![allow(dead_code)]
 
+pub mod apps_db;
+
 use std::sync::Arc;
 
 use axum::body::Body;

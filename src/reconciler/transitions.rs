@@ -113,6 +113,7 @@ mod tests {
                 source_url: None,
                 conditions,
                 build: None,
+                shard: None,
                 domain_verification: None,
             }),
         }

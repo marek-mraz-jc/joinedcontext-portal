@@ -104,6 +104,10 @@ pub struct Status {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Object)]
     pub build: Option<jc_core::Build>,
+    /// The WASM host shard a `wasm` App runs on, recorded at its first publish and kept; the
+    /// Portal writes it in the publish commit, never a proposal (AP-149).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shard: Option<u32>,
     /// Whether an Organization owns the domain it declares (PF-41): computed by the reconciler,
     /// never read from Git, and only ever on an Organization.
     #[serde(default, skip_serializing_if = "Option::is_none")]

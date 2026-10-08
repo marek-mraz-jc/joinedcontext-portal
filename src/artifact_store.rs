@@ -310,11 +310,28 @@ impl Client {
         body: &[u8],
         now: chrono::DateTime<chrono::Utc>,
     ) -> Vec<(&'static str, String)> {
+        self.sign_with(method, path, query, body, &[], now)
+    }
+
+    /// [`Client::sign`] with `extra` headers signed too, lower-case names (S3 refuses an
+    /// unsigned `x-amz-*` header such as `x-amz-copy-source`).
+    fn sign_with(
+        &self,
+        method: &str,
+        path: &str,
+        query: &[(&str, String)],
+        body: &[u8],
+        extra: &[(&str, String)],
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Vec<(&'static str, String)> {
         let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
         let date = now.format("%Y%m%d").to_string();
         let payload_hash = hex(&Sha256::digest(body));
 
         let mut headers: BTreeMap<String, String> = BTreeMap::new();
+        for (name, value) in extra {
+            headers.insert((*name).to_owned(), value.clone());
+        }
         headers.insert("host".to_owned(), self.host.clone());
         headers.insert("x-amz-content-sha256".to_owned(), payload_hash.clone());
         headers.insert("x-amz-date".to_owned(), amz_date.clone());
@@ -349,6 +366,203 @@ impl Client {
             ("x-amz-date", amz_date),
         ]
     }
+}
+
+/// One object of a bucket, as a listing names it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Object {
+    pub key: String,
+    pub size: u64,
+}
+
+impl Client {
+    /// `/{bucket}/{key}`, each segment of the key encoded as SigV4 wants it.
+    fn object_path(bucket: &str, key: &str) -> String {
+        let key: Vec<String> = key.split('/').map(encode).collect();
+        format!("/{}/{}", encode(bucket), key.join("/"))
+    }
+
+    /// One signed object request with the root credential (AP-150, AP-151): its status and body.
+    /// `extra` headers are sent and signed.
+    pub async fn object(
+        &self,
+        method: reqwest::Method,
+        bucket: &str,
+        key: &str,
+        body: Vec<u8>,
+        extra: &[(&str, String)],
+        operation: &'static str,
+    ) -> Result<(u16, Vec<u8>), Error> {
+        let path = Self::object_path(bucket, key);
+        let headers = self.sign_with(
+            method.as_str(),
+            &path,
+            &[],
+            &body,
+            extra,
+            chrono::Utc::now(),
+        );
+        let url = format!("{}{path}", self.settings.endpoint.trim_end_matches('/'));
+        let mut request = self.http.request(method, &url);
+        for (name, value) in extra {
+            request = request.header(*name, value);
+        }
+        for (name, value) in headers {
+            request = request.header(name, value);
+        }
+        if !body.is_empty() {
+            request = request.body(body);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|source| Error::Transport { operation, source })?;
+        let status = response.status().as_u16();
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|source| Error::Transport { operation, source })?;
+        Ok((status, bytes.to_vec()))
+    }
+
+    /// Writes `body` at `key`; any answer but 2xx is a refusal.
+    pub async fn put_object(
+        &self,
+        bucket: &str,
+        key: &str,
+        body: Vec<u8>,
+        operation: &'static str,
+    ) -> Result<(), Error> {
+        match self
+            .object(reqwest::Method::PUT, bucket, key, body, &[], operation)
+            .await?
+        {
+            (200..=299, _) => Ok(()),
+            (status, _) => Err(Error::Refused { operation, status }),
+        }
+    }
+
+    /// Copies `from` to `to` in the same bucket, inside the store.
+    pub async fn copy_object(&self, bucket: &str, from: &str, to: &str) -> Result<(), Error> {
+        let source = Self::object_path(bucket, from);
+        match self
+            .object(
+                reqwest::Method::PUT,
+                bucket,
+                to,
+                Vec::new(),
+                &[("x-amz-copy-source", source)],
+                "copy an object",
+            )
+            .await?
+        {
+            (200..=299, _) => Ok(()),
+            (status, _) => Err(Error::Refused {
+                operation: "copy an object",
+                status,
+            }),
+        }
+    }
+
+    /// Deletes `key`; one already gone is deleted.
+    pub async fn delete_object(&self, bucket: &str, key: &str) -> Result<(), Error> {
+        match self
+            .object(
+                reqwest::Method::DELETE,
+                bucket,
+                key,
+                Vec::new(),
+                &[],
+                "delete an object",
+            )
+            .await?
+        {
+            (200..=299 | 404, _) => Ok(()),
+            (status, _) => Err(Error::Refused {
+                operation: "delete an object",
+                status,
+            }),
+        }
+    }
+
+    /// Every object under `prefix`, following the listing's pages.
+    pub async fn list(&self, bucket: &str, prefix: &str) -> Result<Vec<Object>, Error> {
+        const OPERATION: &str = "list objects";
+        let path = format!("/{}", encode(bucket));
+        let mut found = Vec::new();
+        let mut token: Option<String> = None;
+        loop {
+            let mut query = vec![("list-type", "2".to_owned()), ("prefix", prefix.to_owned())];
+            if let Some(token) = &token {
+                query.push(("continuation-token", token.clone()));
+            }
+            let headers = self.sign("GET", &path, &query, &[], chrono::Utc::now());
+            let url = format!(
+                "{}{path}?{}",
+                self.settings.endpoint.trim_end_matches('/'),
+                canonical_query(&query)
+            );
+            let mut request = self.http.get(&url);
+            for (name, value) in headers {
+                request = request.header(name, value);
+            }
+            let response = request.send().await.map_err(|source| Error::Transport {
+                operation: OPERATION,
+                source,
+            })?;
+            let status = response.status().as_u16();
+            let text = response.text().await.map_err(|source| Error::Transport {
+                operation: OPERATION,
+                source,
+            })?;
+            if !(200..300).contains(&status) {
+                return Err(Error::Refused {
+                    operation: OPERATION,
+                    status,
+                });
+            }
+            for contents in elements(&text, "Contents") {
+                let key = elements(&contents, "Key")
+                    .into_iter()
+                    .next()
+                    .unwrap_or_default();
+                let size = elements(&contents, "Size")
+                    .into_iter()
+                    .next()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
+                found.push(Object { key, size });
+            }
+            let truncated = elements(&text, "IsTruncated")
+                .first()
+                .is_some_and(|t| t == "true");
+            token = elements(&text, "NextContinuationToken").into_iter().next();
+            if !truncated || token.is_none() {
+                return Ok(found);
+            }
+        }
+    }
+}
+
+/// The text of every `<tag>…</tag>` in a listing, its entities decoded.
+fn elements(xml: &str, tag: &str) -> Vec<String> {
+    let (open, close) = (format!("<{tag}>"), format!("</{tag}>"));
+    let mut out = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find(&open) {
+        rest = &rest[start + open.len()..];
+        let Some(end) = rest.find(&close) else { break };
+        out.push(
+            rest[..end]
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&apos;", "'")
+                .replace("&amp;", "&"),
+        );
+        rest = &rest[end + close.len()..];
+    }
+    out
 }
 
 /// `{METHOD}\n{path}\n{query}\n{headers}\n\n{signed headers}\n{payload hash}` (SigV4 §

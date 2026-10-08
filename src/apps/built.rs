@@ -150,11 +150,12 @@ fn sha256(bytes: &[u8]) -> String {
 /// check failed; nothing is published before every check has passed (AP-104).
 pub async fn check_and_publish(
     gitea: &GiteaClient,
+    wasm: Option<&crate::apps::wasm_apps::WasmApps>,
     project: &str,
     name: &str,
     spec: &Value,
     build: &Value,
-) -> Result<(), ApiError> {
+) -> Result<Option<crate::apps::wasm_apps::Published>, ApiError> {
     let field = |key: &str| build.get(key).and_then(Value::as_str).unwrap_or_default();
     let (digest, commit) = (field("digest"), field("commit"));
     if spec.pointer("/source/git").is_none_or(Value::is_null) {
@@ -182,11 +183,12 @@ pub async fn check_and_publish(
 
     // A `ui` App's build is a bundle, a `ui-rust` App's an image (AP-101, AP-105), the old
     // names read as the new ones (AP-124).
-    let ui_rust = spec
+    let class = spec
         .get("kind")
         .and_then(Value::as_str)
-        .map(jc_core::kinds::AppClass::parse)
-        == Some(Ok(jc_core::kinds::AppClass::UiRust));
+        .map(jc_core::kinds::AppClass::parse);
+    let ui_rust = class == Some(Ok(jc_core::kinds::AppClass::UiRust));
+    let is_wasm = class == Some(Ok(jc_core::kinds::AppClass::Wasm));
     let (artifact, limit) = if ui_rust {
         ("image", MAX_IMAGE_BYTES)
     } else {
@@ -227,6 +229,24 @@ pub async fn check_and_publish(
                  status.build names (AP-104)"
             )));
         }
+        None
+    };
+    // A wasm App's server comes from the bundle just checked, and its schema is migrated before
+    // anything is published: a migration that fails holds the publication (AP-149, AP-151).
+    let published = if is_wasm {
+        let wasm = wasm.ok_or_else(|| {
+            ApiError::Unavailable(format!(
+                "App '{name}' is a wasm App, and this Portal has no apps database configured to \
+                 publish one (AP-149)"
+            ))
+        })?;
+        let migrations = migrations_at(&repo, spec, commit).await.map_err(forge)?;
+        let published = wasm
+            .publish(project, name, &bytes, &migrations)
+            .await
+            .map_err(|why| ApiError::BadRequest(format!("App '{name}' is not published: {why}")))?;
+        Some(published)
+    } else {
         None
     };
     let sbom = newest_of(&repo, &format!("sbom-{commit}"), commit, Some(built.run))
@@ -275,7 +295,34 @@ pub async fn check_and_publish(
             .await
             .map_err(conflict)?;
     }
-    Ok(())
+    Ok(published)
+}
+
+/// The App's migration files at the built commit: the `.sql` files directly in the folder its
+/// `spec.storage.sql.migrations` names, in name order; none without that field.
+async fn migrations_at(
+    repo: &GiteaClient,
+    spec: &Value,
+    commit: &str,
+) -> Result<Vec<crate::apps::apps_db::Migration>, GitError> {
+    let Some(folder) = spec
+        .pointer("/storage/sql/migrations")
+        .and_then(Value::as_str)
+    else {
+        return Ok(Vec::new());
+    };
+    let tree = repo.list_tree(commit).await?;
+    let mut migrations = Vec::new();
+    for path in crate::apps::wasm_apps::migration_paths(&tree, folder) {
+        if let Some(file) = repo.get_file(&path, commit).await? {
+            let name = path.rsplit('/').next().unwrap_or(&path).to_owned();
+            migrations.push(crate::apps::apps_db::Migration {
+                file: name,
+                sql: file.content,
+            });
+        }
+    }
+    Ok(migrations)
 }
 
 /// The newest artifact `name` a run of `commit` uploaded, from run `run` when one is named.

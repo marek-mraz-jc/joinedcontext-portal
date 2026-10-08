@@ -444,6 +444,7 @@ mod tests {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            shard: None,
             domain_verification: None,
         });
         let mut des = sample_envelope("public-air", json!({ "audience": "public" }));
@@ -453,6 +454,7 @@ mod tests {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            shard: None,
             domain_verification: None,
         });
 
