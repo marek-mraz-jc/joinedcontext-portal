@@ -12,9 +12,15 @@ frontend on the App SDK plus serverless functions, with two roles.
 
 The roles are enforced by the gateway, not by this page (AP-96): `app.yaml` grants the write items
 to `steward` only, and the delete item carries `q: "!source"`, so only a record with no `source`
-(one a steward added, never Fintraffic's) can be removed. The form writes every attribute of
-`Alert` but `source` (`name` and `description` language by language, keeping the others); it lists
-the fields it leaves alone and why. A later run of the traffic-messages pipeline overwrites a correction of
+(one a steward added, never Fintraffic's) can be removed. An alert on the map or in the table
+opens in the SDK shell's entity panel (SDK-40). There a steward corrects the plain fields the
+`steward` write item grants (`category`, `subCategory`, `address`, `dateIssued`, `validFrom`,
+`validTo`): the change is shown first and saved as one PATCH, and the table reads the alerts again.
+A viewer gets no Edit, only the link to the alert in the Portal. The App's own form, from the
+toolbar above the map, adds an alert and corrects what the panel leaves to the Portal: `name` and
+`description` language by language, keeping the others, and the `location`. It writes every
+attribute of `Alert` but `source` and lists the fields it leaves alone and why. The data needs are
+unchanged: the write items were the steward's before the panel came. A later run of the traffic-messages pipeline overwrites a correction of
 a Fintraffic record's fields.
 
 ## Functions

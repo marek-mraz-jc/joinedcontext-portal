@@ -11,7 +11,6 @@ bike-weather-demand T-3390
 data-quality-inspector T-3391
 district-compare T-3392
 event-day-planner T-3393
-helsinki-alerts T-3394
 news-topics T-3401
 transit-reach T-3406
 zilina-mapa T-3407

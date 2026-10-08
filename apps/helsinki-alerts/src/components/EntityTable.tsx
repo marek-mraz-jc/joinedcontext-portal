@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { columnKind, compare, format } from "@joinedcontext/sdk";
+import { columnKind, compare, Empty, format, Loading, Problem } from "@joinedcontext/sdk";
 import type { ProblemError, Row } from "@joinedcontext/sdk";
-import { Empty, Loading, Problem } from "./states";
 
 export interface ColumnDef<T extends Row = Row> {
   attr: string;
