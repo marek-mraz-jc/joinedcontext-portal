@@ -8,7 +8,16 @@ import { AIR_STATIONS, HISTORY, NOW, WEATHER_STATIONS } from "../src/fixtures/st
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://portal.test/";
 const SLUG = "airweatherexplorer";
-const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "air-weather-explorer", language: "en" };
+const CONFIG = {
+  slug: SLUG,
+  orgDomain: "hel.fi",
+  space: "helsinki",
+  transport: "origin",
+  appName: "air-weather-explorer",
+  language: "en",
+  // Where the entity panel links a station for editing (SDK-40); the link is shown, never followed.
+  portal: "https://portal.test/projects/helsinki",
+};
 const TYPES: Record<string, string> = {
   ".html": "text/html",
   ".js": "text/javascript",

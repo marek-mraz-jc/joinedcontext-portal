@@ -7,9 +7,7 @@ import { CanvasRenderer } from "echarts/renderers";
 
 // Only the charts and parts the app draws: the whole library would triple the bundle.
 echarts.use([BarChart, HeatmapChart, LineChart, ScatterChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, VisualMapComponent, CanvasRenderer]);
-import { currentTokens, echartsTheme } from "@joinedcontext/sdk";
-import type { ProblemError } from "@joinedcontext/sdk";
-import { Empty, Loading, Problem } from "./states";
+import { currentTokens, echartsTheme, Empty, Loading } from "@joinedcontext/sdk";
 
 /** One ECharts chart with a caption, in the SDK's theme; the loading, error and empty states in its place. */
 export function ChartCard({
@@ -17,7 +15,6 @@ export function ChartCard({
   option,
   height = 280,
   loading,
-  error,
   empty,
   loadingLabel,
   onSelect,
@@ -26,7 +23,6 @@ export function ChartCard({
   option: Record<string, unknown> | null;
   height?: number;
   loading?: boolean;
-  error?: ProblemError | Error | null;
   empty?: ReactNode;
   /** What the card says while the data is read, in the page's language. */
   loadingLabel?: string;
@@ -35,7 +31,7 @@ export function ChartCard({
 }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
-  const showCanvas = !error && !loading && option !== null;
+  const showCanvas = !loading && option !== null;
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -64,12 +60,10 @@ export function ChartCard({
   return (
     <figure className="jc-chart">
       <figcaption>{title}</figcaption>
-      {error ? (
-        <Problem error={error} />
-      ) : loading ? (
+      {loading ? (
         <Loading label={loadingLabel} />
       ) : option === null ? (
-        <Empty>{empty ?? "Nothing to chart yet."}</Empty>
+        <Empty>{empty}</Empty>
       ) : (
         <div className="jc-chart-canvas" role="img" aria-label={title} style={{ height }} ref={containerRef} />
       )}

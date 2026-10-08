@@ -11,8 +11,14 @@ English:
   the period (1, 3 or 7 days), the rolling mean (1 to 12 hours), the pollutant and the variable;
 - the chosen pair hour by hour on one chart, the pollutant's outlying readings marked;
 - every pollutant against every weather variable as a heat map; a click on a cell shows that pair;
-- the stations on the map; a click chooses one;
+- the stations on the map; a click chooses one and opens it in the entity panel;
 - every pair in a table, with Spearman, Pearson and the hours.
+
+The page sits in the SDK's `AppShell` (SDK-39), which carries the language switch. A station on the
+map, or the "Details of" button of each chosen station, opens it in the SDK's entity panel
+(SDK-40): its attributes as the App's grant reads them, and a link to it in the Portal, where a
+person with the rights changes it. The App is public and writes nothing, so the panel offers no
+Edit (AP-140).
 
 Every choice is kept in the address (`?station=`, `?weather=`, `?days=`, `?window=`, `?air=`,
 `?w=`, `?lang=`).
@@ -49,5 +55,10 @@ pnpm install
 pnpm wasm          # cargo test of wasm/, then the module into wasm/pkg (the lane runs builder/build-wasm.sh)
 pnpm test          # vitest, with the real WebAssembly module
 pnpm build         # the bundle the build lane publishes
-pnpm e2e           # the built bundle in Chromium at four widths, light and dark (needs `pnpm build`)
+pnpm e2e           # the built bundle in Chromium at four widths, light and dark, and a station in the panel (needs `pnpm build`)
 ```
+
+The App is under the Apps' coverage gate (T-3373): `sh ../../scripts/app-coverage-run.sh
+air-weather-explorer --rust` in a throwaway copy, vitest 95 % (branches 90 %) with every control
+exercised, and `cargo llvm-cov` of `wasm/` at 95 % lines. wasm-bindgen's generated glue in
+`wasm/pkg` is not counted.
