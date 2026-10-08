@@ -30,3 +30,25 @@ for (const view of VIEWS) {
     });
   }
 }
+
+// SDK-40, T-3397: an event opens in the shell's entity panel, read through the app's endpoint, at a
+// phone and a laptop, light and dark; a public App writes nothing, so the panel links to the Portal.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: an event in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      const { outside, missing, problems } = await serve(page);
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}#events`);
+      await page.getByRole("list", { name: "Upcoming events" }).getByRole("button", { name: "Organ concert" }).click();
+      const panel = page.getByRole("dialog");
+      await expect(panel.getByText("Unioninkatu 29, Helsinki")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
