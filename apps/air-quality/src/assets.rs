@@ -1,5 +1,6 @@
 //! The React build, embedded in the binary so the image is one artifact (AP-25).
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -41,6 +42,12 @@ pub async fn static_handler(State(app): State<Arc<App>>, uri: Uri) -> Response {
             index(&app.config)
         };
     };
+    file_response(path, file.data)
+}
+
+/// One file of the bundle: its type from the name, and kept for a year when it is a hashed
+/// `assets/` file, which never changes under the same name.
+fn file_response(path: &str, data: Cow<'static, [u8]>) -> Response {
     let mime = mime_guess::from_path(path).first_or_octet_stream();
     let cache = if path.starts_with("assets/") {
         "public, max-age=31536000, immutable"
@@ -52,7 +59,7 @@ pub async fn static_handler(State(app): State<Arc<App>>, uri: Uri) -> Response {
             (header::CONTENT_TYPE, mime.as_ref()),
             (header::CACHE_CONTROL, cache),
         ],
-        Body::from(file.data),
+        Body::from(data),
     )
         .into_response()
 }
@@ -86,4 +93,30 @@ fn with_config(html: &str, json: &str) -> String {
         .find("<head>")
         .map_or(0, |at| at + "<head>".len());
     format!("{}{element}{}", &html[..at], &html[at..])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_hashed_asset_is_kept_for_a_year_and_anything_else_is_asked_for_again() {
+        let script = file_response("assets/index-1a2b.js", Cow::Borrowed(b"export {}"));
+        assert_eq!(
+            script.headers()[header::CACHE_CONTROL],
+            "public, max-age=31536000, immutable"
+        );
+        assert!(script.headers()[header::CONTENT_TYPE]
+            .to_str()
+            .unwrap()
+            .contains("javascript"));
+        let icon = file_response("favicon.svg", Cow::Borrowed(b"<svg/>"));
+        assert_eq!(icon.headers()[header::CACHE_CONTROL], "no-cache");
+        assert_eq!(icon.headers()[header::CONTENT_TYPE], "image/svg+xml");
+        let unknown = file_response("data.unknownext", Cow::Borrowed(b""));
+        assert_eq!(
+            unknown.headers()[header::CONTENT_TYPE],
+            "application/octet-stream"
+        );
+    }
 }

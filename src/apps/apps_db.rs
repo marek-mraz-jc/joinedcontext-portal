@@ -278,6 +278,98 @@ impl AppsDb {
         Ok(migrated)
     }
 
+    /// The App's recorded shard, `None` for an App never placed.
+    pub async fn shard_of(&self, id: &str) -> Result<Option<u32>, Error> {
+        let shard: Option<i32> = sqlx::query_scalar("SELECT shard FROM jc_apps.apps WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.admin)
+            .await?;
+        Ok(shard.and_then(|s| u32::try_from(s).ok()))
+    }
+
+    /// The App's schema as files (AP-150): `schema.sql`, each table's columns, constraints and
+    /// indexes and each sequence's value, and `<table>.csv` per table with a header. Every name
+    /// is quoted by Postgres (`format('%I')`); the App's id reaches no SQL text from here.
+    pub async fn export(&self, id: &str) -> Result<Vec<(String, Vec<u8>)>, Error> {
+        if id.len() != 16
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(Error::NotAnId(id.chars().take(32).collect()));
+        }
+        let schema = format!("app_{id}");
+        let mut conn = self.admin.acquire().await?;
+        let tables: Vec<String> = sqlx::query_scalar(
+            "SELECT c.relname::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
+             WHERE n.nspname = $1 AND c.relkind IN ('r', 'p') ORDER BY 1",
+        )
+        .bind(&schema)
+        .fetch_all(&mut *conn)
+        .await?;
+        let mut ddl: Vec<String> = Vec::new();
+        for table in &tables {
+            let create: String = sqlx::query_scalar(
+                "SELECT format('CREATE TABLE %I.%I (%s);', $1::text, $2::text, string_agg(format('%I %s%s', a.attname, \
+                 format_type(a.atttypid, a.atttypmod), CASE WHEN a.attnotnull THEN ' NOT NULL' ELSE '' END), ', ' ORDER BY a.attnum)) \
+                 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace \
+                 WHERE n.nspname = $1 AND c.relname = $2 AND a.attnum > 0 AND NOT a.attisdropped",
+            )
+            .bind(&schema)
+            .bind(table)
+            .fetch_one(&mut *conn)
+            .await?;
+            ddl.push(create);
+        }
+        let constraints: Vec<String> = sqlx::query_scalar(
+            "SELECT format('ALTER TABLE %I.%I ADD CONSTRAINT %I %s;', $1::text, c.relname, con.conname, pg_get_constraintdef(con.oid)) \
+             FROM pg_constraint con JOIN pg_class c ON c.oid = con.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace \
+             WHERE n.nspname = $1 ORDER BY con.contype = 'f', c.relname, con.conname",
+        )
+        .bind(&schema)
+        .fetch_all(&mut *conn)
+        .await?;
+        let indexes: Vec<String> = sqlx::query_scalar(
+            "SELECT pg_get_indexdef(i.indexrelid) || ';' FROM pg_index i JOIN pg_class c ON c.oid = i.indrelid \
+             JOIN pg_namespace n ON n.oid = c.relnamespace \
+             WHERE n.nspname = $1 AND NOT EXISTS (SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid) ORDER BY 1",
+        )
+        .bind(&schema)
+        .fetch_all(&mut *conn)
+        .await?;
+        let sequences: Vec<String> = sqlx::query_scalar(
+            "SELECT format('SELECT setval(%L, %s);', format('%I.%I', schemaname, sequencename), coalesce(last_value, 1)) \
+             FROM pg_sequences WHERE schemaname = $1 ORDER BY sequencename",
+        )
+        .bind(&schema)
+        .fetch_all(&mut *conn)
+        .await?;
+        let mut files = vec![(
+            "schema.sql".to_owned(),
+            [ddl, constraints, indexes, sequences]
+                .concat()
+                .join("\n")
+                .into_bytes(),
+        )];
+        for table in &tables {
+            let copy: String = sqlx::query_scalar("SELECT format('COPY %I.%I TO STDOUT WITH (FORMAT csv, HEADER)', $1::text, $2::text)")
+                .bind(&schema)
+                .bind(table)
+                .fetch_one(&mut *conn)
+                .await?;
+            // The statement is Postgres's own `format('%I')` of names it read from its catalog.
+            let mut stream = conn.copy_out_raw(&copy).await?;
+            let mut rows: Vec<u8> = Vec::new();
+            while let Some(chunk) = futures_util::StreamExt::next(&mut stream).await {
+                let chunk = chunk?;
+                rows.extend_from_slice(&chunk);
+            }
+            drop(stream);
+            files.push((format!("{table}.csv"), rows));
+        }
+        Ok(files)
+    }
+
     /// Drops the App's schema, roles and records; the caller has written its exports (AP-150).
     pub async fn retire(&self, id: &str) -> Result<(), Error> {
         sqlx::query("SELECT jc_apps.retire($1)")

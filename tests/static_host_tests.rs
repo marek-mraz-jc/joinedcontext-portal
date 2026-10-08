@@ -91,6 +91,7 @@ fn mirror_with_build(spec: serde_json::Value, commit: &str) -> Arc<Mirror> {
             built_at: chrono::Utc::now(),
             component: None,
         }),
+        shard: None,
         domain_verification: None,
     });
     mirror.upsert(envelope);
@@ -1145,6 +1146,7 @@ fn mirror_live_without_build(spec: serde_json::Value) -> Arc<Mirror> {
         source_url: None,
         conditions: Vec::new(),
         build: None,
+        shard: None,
         domain_verification: None,
     });
     mirror.upsert(envelope);

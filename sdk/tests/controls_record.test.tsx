@@ -29,6 +29,35 @@ describe("the controls record (T-3373)", () => {
     expect(controlId(screen.getByRole("link"))).toBe("link: Open in the Portal");
   });
 
+  it("leaves what is hidden from a screen reader out of a control's name", () => {
+    render(
+      <button type="button">
+        Valid to<span aria-hidden="true"> ▼</span>
+      </button>,
+    );
+    expect(controlId(screen.getByRole("button"))).toBe("button: Valid to");
+  });
+
+  it("names a list inside its label by the label alone, never by the options it holds", () => {
+    render(
+      <div>
+        <label>
+          <span>Weather station</span>
+          <select>
+            <option>Kaisaniemi (1,4 km)</option>
+            <option>Kumpula</option>
+          </select>
+        </label>
+        <select aria-describedby="x">
+          <option>Unnamed</option>
+        </select>
+      </div>,
+    );
+    const [named, unnamed] = screen.getAllByRole("combobox");
+    expect(controlId(named)).toBe("combobox: Weather station");
+    expect(controlId(unnamed)).toBe("combobox: ");
+  });
+
   it("writes what was rendered and what a test exercised, leaving out a disabled control", async () => {
     const dir = mkdtempSync(join(tmpdir(), "controls-"));
     let done: (() => Promise<void>) | undefined;
@@ -53,6 +82,27 @@ describe("the controls record (T-3373)", () => {
     expect(record.rendered).toEqual(expect.arrayContaining(["button: Clicked", "button: Never touched", "textbox: Typed into"]));
     expect(record.rendered).not.toContain("button: Disabled");
     expect(record.exercised).toEqual(["button: Clicked", "textbox: Typed into"]);
+  });
+
+  it("leaves out a control that was gone before anyone could see it, and so has no name", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "controls-"));
+    let done: (() => Promise<void>) | undefined;
+    recordControls((callback) => {
+      done = callback;
+    }, dir);
+    // Added and removed in one task: the observer reports it detached, its label no longer found.
+    const label = document.createElement("label");
+    label.htmlFor = "brief";
+    label.textContent = "Brief";
+    const input = document.createElement("input");
+    input.id = "brief";
+    document.body.append(label, input);
+    label.remove();
+    input.remove();
+    await done?.();
+    const [file] = readdirSync(dir);
+    const record = JSON.parse(readFileSync(join(dir, file), "utf8")) as { rendered: string[] };
+    expect(record.rendered).not.toContain("textbox: ");
   });
 
   it("does nothing without a directory to write to", () => {

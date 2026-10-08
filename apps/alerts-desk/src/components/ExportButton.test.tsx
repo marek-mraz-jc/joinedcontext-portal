@@ -2,101 +2,49 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
-import { ExportButton } from "./ExportButton";
 import { stubClient } from "@joinedcontext/sdk/testing";
+import { ExportButton } from "./ExportButton";
 
 const downloadMock = vi.fn();
 
 vi.mock("@joinedcontext/sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@joinedcontext/sdk")>();
-  return {
-    ...actual,
-    download: (...args: unknown[]) => downloadMock(...args),
-  };
+  return { ...actual, download: (...args: unknown[]) => downloadMock(...args) };
 });
 
-describe("ExportButton component", () => {
+const rows: Row[] = [
+  { id: "urn:1", type: "Alert", name: "Kamppi", category: "traffic" },
+  { id: "urn:2", type: "Alert", name: "Pasila" },
+];
+
+function show(shown: Row[]) {
+  render(
+    <JcProvider client={stubClient({}, { endpointName: "helsinki-alerts" })}>
+      <ExportButton rows={shown} columns={["name", "category"]} filename="alerts" />
+    </JcProvider>,
+  );
+}
+
+describe("ExportButton", () => {
   beforeEach(() => {
     downloadMock.mockClear();
   });
 
-  const geoRows: Row[] = [
-    {
-      id: "urn:1",
-      type: "Station",
-      name: "Kamppi",
-      location: { type: "Point", coordinates: [24.95, 60.15] },
-    },
-  ];
-
-  const noGeoRows: Row[] = [
-    {
-      id: "urn:2",
-      type: "Station",
-      name: "Pasila",
-      location: null,
-    },
-  ];
-
-  it("calls download with appropriate filenames on CSV and GeoJSON clicks", () => {
-    const client = stubClient();
-    render(
-      <JcProvider client={client}>
-        <ExportButton rows={geoRows} filename="stations" formats={["csv", "geojson"]} />
-      </JcProvider>,
-    );
-
+  it("downloads what is shown as CSV, with the id first, and as a PDF list", async () => {
+    show(rows);
     fireEvent.click(screen.getByRole("button", { name: "CSV" }));
-    expect(downloadMock).toHaveBeenCalledWith(expect.any(Blob), "stations.csv");
-
-    fireEvent.click(screen.getByRole("button", { name: "GeoJSON" }));
-    expect(downloadMock).toHaveBeenCalledWith(expect.any(Blob), "stations.geojson");
+    const [csv, csvName] = downloadMock.mock.calls[0] as [Blob, string];
+    expect(csvName).toBe("alerts.csv");
+    expect((await csv.text()).split(/\r?\n/)[0]).toBe("id,name,category");
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    const [pdf, pdfName] = downloadMock.mock.calls[1] as [Blob, string];
+    expect(pdfName).toBe("alerts.pdf");
+    expect(pdf.type).toBe("application/pdf");
   });
 
-  it("disables GeoJSON button with notice when no geometry is present", () => {
-    const client = stubClient();
-    render(
-      <JcProvider client={client}>
-        <ExportButton rows={noGeoRows} formats={["geojson"]} />
-      </JcProvider>,
-    );
-
-    const btn = screen.getByRole("button", { name: "GeoJSON" });
-    expect(btn).toBeDisabled();
-    expect(btn).toHaveAttribute("title", "No geometry in these rows");
-  });
-
-  it("disables PNG button without canvas prop and enables it when provided", () => {
-    const client = stubClient();
-    const { rerender } = render(
-      <JcProvider client={client}>
-        <ExportButton rows={geoRows} formats={["png"]} />
-      </JcProvider>,
-    );
-
-    expect(screen.getByRole("button", { name: "PNG" })).toBeDisabled();
-
-    const canvasElem = document.createElement("canvas");
-    rerender(
-      <JcProvider client={client}>
-        <ExportButton rows={geoRows} formats={["png"]} canvas={() => canvasElem} />
-      </JcProvider>,
-    );
-
-    expect(screen.getByRole("button", { name: "PNG" })).not.toBeDisabled();
-  });
-
-  it("disables all buttons when rows are empty", () => {
-    const client = stubClient();
-    render(
-      <JcProvider client={client}>
-        <ExportButton rows={[]} formats={["csv", "geojson", "pdf", "png"]} />
-      </JcProvider>,
-    );
-
+  it("offers nothing to export when nothing is shown", () => {
+    show([]);
     expect(screen.getByRole("button", { name: "CSV" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "GeoJSON" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "PDF" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "PNG" })).toBeDisabled();
   });
 });

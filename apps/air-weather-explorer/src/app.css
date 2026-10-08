@@ -40,14 +40,10 @@ body {
   max-width: 100%;
 }
 
-.app-lang {
-  display: inline-flex;
-  gap: var(--jc-space-1, 0.25rem);
-}
-.app-lang button[aria-pressed="true"] {
-  border-color: var(--jc-color-accent, #0000bf);
-  color: var(--jc-color-accent, #0000bf);
-  font-weight: 600;
+.app-open {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-2, 0.5rem);
 }
 
 .app-legend {

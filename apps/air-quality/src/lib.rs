@@ -57,17 +57,21 @@ impl Config {
     /// app with nowhere to read from has nothing to serve, and guessing a default would be
     /// guessing which data a user gets.
     pub fn from_env() -> Result<Self, String> {
-        let endpoint_url = std::env::var("JC_ENDPOINT_URL")
-            .map_err(|_| "JC_ENDPOINT_URL is not set".to_owned())?;
+        Self::from_vars(|name| std::env::var(name).ok())
+    }
+
+    /// [`Config::from_env`] over any lookup, so the parsing is tested without the process's
+    /// environment, which tests running in parallel share.
+    pub fn from_vars(var: impl Fn(&str) -> Option<String>) -> Result<Self, String> {
+        let endpoint_url =
+            var("JC_ENDPOINT_URL").ok_or_else(|| "JC_ENDPOINT_URL is not set".to_owned())?;
         Ok(Self {
-            base_path: std::env::var("JC_BASE_PATH").unwrap_or_else(|_| "/".to_owned()),
+            base_path: var("JC_BASE_PATH").unwrap_or_else(|| "/".to_owned()),
             endpoint_url: with_trailing_slash(&endpoint_url),
-            anonymous: std::env::var("JC_ANONYMOUS").is_ok_and(|value| value == "true"),
-            me_url: std::env::var("JC_ME_URL")
-                .ok()
-                .filter(|url| !url.is_empty()),
-            page_config: match std::env::var("JC_APP_CONFIG") {
-                Ok(raw) if !raw.trim().is_empty() => Some(page_config(&raw)?),
+            anonymous: var("JC_ANONYMOUS").is_some_and(|value| value == "true"),
+            me_url: var("JC_ME_URL").filter(|url| !url.is_empty()),
+            page_config: match var("JC_APP_CONFIG") {
+                Some(raw) if !raw.trim().is_empty() => Some(page_config(&raw)?),
                 _ => None,
             },
         })

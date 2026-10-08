@@ -3,12 +3,12 @@
  * limit, and the stations on a map coloured by their air quality index band; a click on the map
  * picks the station the chart is about.
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import { Chart } from "../src/Chart";
-import { basemapOf } from "../src/StationMap";
+import { basemapOf, StationMap } from "../src/StationMap";
 import { BAND_COLOUR, bandOf, historyOf, LIMITS, stationFeatures, type StationCollection } from "../src/quality";
 import type { Station } from "../src/api";
 import { Map as FakeMap } from "./maplibre";
@@ -119,6 +119,12 @@ describe("the chart", () => {
     expect(pm10).not.toBe(pm25);
   });
 
+  it("puts a single reading in the middle rather than dividing by a zero-length day", () => {
+    const { container } = render(<Chart history={historyOf({ pm10: { value: 12, observedAt: "2026-09-06T10:00:00Z" } })} station="Kumpula" />);
+    const [line] = [...container.querySelectorAll("polyline")];
+    expect(line.getAttribute("points")).not.toMatch(/NaN/);
+  });
+
   it("says a station sent nothing today rather than drawing an empty axis", () => {
     render(<Chart history={historyOf({})} station="Kumpula" />);
     expect(screen.getByRole("status")).toHaveTextContent("No PM10 or PM2.5 readings from Kumpula in the last 24 hours.");
@@ -156,6 +162,38 @@ describe("the page", () => {
       "Poor",
       "Very poor",
     ]);
+  });
+
+  it("picks a station from the list for the chart and opens it in the panel, one without a position too", async () => {
+    serve((url) => new Response(JSON.stringify(url.includes(encodeURIComponent(KALLIO)) ? kallioDay : { id: KUMPULA })));
+    render(<App />);
+    const list = await screen.findByRole("list", { name: "Stations" });
+    fireEvent.click(within(list).getByRole("button", { name: "Kumpula: Good" }));
+    expect(within(list).getByRole("button", { name: "Kumpula: Good" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("dialog", { name: "Kumpula" })).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "Kallio: Fair" }));
+    expect(await screen.findByRole("dialog", { name: "Kallio" })).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "Lost: No index" }));
+    expect(await screen.findByRole("dialog", { name: "Lost" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Details of Lost" }));
+    expect(await screen.findByRole("dialog", { name: "Lost" })).toBeInTheDocument();
+    for (const name of ["Details of Kallio", "Details of Kumpula"]) fireEvent.click(screen.getByRole("button", { name }));
+  });
+
+  it("centres on Helsinki and says so when no station has a position, and names a station by its id when it has no name", async () => {
+    const onSelect = vi.fn();
+    render(<StationMap stations={[{ id: LOST }]} selected={null} onSelect={onSelect} />);
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: `${LOST}: No index` }));
+    expect(onSelect).toHaveBeenCalledWith(LOST);
+    const [map] = FakeMap.built;
+    expect(map.options.center).toEqual([24.94, 60.17]);
+    // A click on the map beside every station, or on a feature without an id, picks nothing.
+    act(() => map.fire("click", { features: [] }, "stations"));
+    act(() => map.fire("click", { features: [{ properties: { id: 7 } }] }, "stations"));
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it("shows the gateway's own words when the day cannot be read", async () => {

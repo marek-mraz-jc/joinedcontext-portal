@@ -839,6 +839,8 @@ impl Syncer {
                 .status
                 .as_ref()
                 .and_then(|status| status.build.clone());
+            // And the shard a wasm App's publish recorded beside it (AP-149).
+            let shard = envelope.status.as_ref().and_then(|status| status.shard);
             envelope.strip_status();
             envelope.status = Some(crate::resource::Status {
                 phase: crate::resource::Phase::Live,
@@ -848,6 +850,7 @@ impl Syncer {
                 source_url: Some(scratch.browse_url(&self.gitea, &path, &default_branch)),
                 conditions: Vec::new(),
                 build,
+                shard,
                 domain_verification: None,
             });
 
@@ -3184,6 +3187,7 @@ output_error{stream="kpi"} 6
                 source_url: None,
                 conditions: Vec::new(),
                 build: None,
+                shard: None,
                 domain_verification: None,
             }),
         };

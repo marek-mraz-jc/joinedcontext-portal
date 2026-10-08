@@ -12,19 +12,17 @@ export interface MapPoint {
 }
 
 /**
- * A MapLibre map of `points`, with `line` drawn under them when given (a route). It fits the
+ * A MapLibre map of `points`. It fits the
  * points once, when they first arrive, so a refresh never moves the reader's view; a click on a
  * point opens its popup and calls `onPick`.
  */
 export function MapView({
   points,
-  line,
   label,
   onPick,
   height = 420,
 }: {
   points: MapPoint[];
-  line?: Array<[number, number]>;
   /** What the map shows, for a screen reader: the list beside it carries the same. */
   label: string;
   onPick?: (id: string) => void;
@@ -58,14 +56,7 @@ export function MapView({
       instance.on("error", (event) => console.error("map error", event.error?.message ?? event));
       instance.on("load", () => {
         if (gone || !instance) return;
-        instance.addSource("app-line", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         instance.addSource("app-points", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-        instance.addLayer({
-          id: "app-line",
-          type: "line",
-          source: "app-line",
-          paint: { "line-color": tokens.color.accent, "line-width": 3, "line-opacity": 0.8 },
-        });
         instance.addLayer({
           id: "app-points",
           type: "circle",
@@ -114,17 +105,13 @@ export function MapView({
         geometry: { type: "Point", coordinates: p.at },
       })),
     });
-    (instance.getSource("app-line") as GeoJSONSource | undefined)?.setData({
-      type: "FeatureCollection",
-      features: line && line.length > 1 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: line } }] : [],
-    });
     if (!fitted.current && points.length > 0) {
       fitted.current = true;
       const bounds = new LngLatBounds();
       for (const p of points) bounds.extend(p.at);
       instance.fitBounds(bounds, { padding: 32, maxZoom: 15, duration: 0 });
     }
-  }, [ready, points, line]);
+  }, [ready, points]);
 
   return (
     <div className="jc-map" data-testid="jc-map" style={{ height }}>

@@ -997,3 +997,222 @@ async fn the_lanes_rule_writes_the_build_of_an_app_on_main_and_nothing_else() {
         "a build write carries no Endpoint or Policy: {commits:?}"
     );
 }
+
+// ---- wasm Apps (AP-149, AP-151, T-3360) ----
+
+/// The wasm tests provision one App, whose roles are the server's and not a database's: two at
+/// once would both create them.
+static ONE_APP_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// A component's preamble and one byte: what the lane packs at `.jc/component.wasm`.
+const COMPONENT: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00, 0x07];
+
+fn wasm_app(status: Option<Value>) -> Value {
+    let mut manifest = app(status, None);
+    manifest["spec"]["kind"] = json!("wasm");
+    manifest["spec"]["build"] = json!({ "node": "22", "rust": "1.90" });
+    manifest["spec"]["storage"] = json!({ "sql": { "migrations": "migrations" }, "blob": {} });
+    manifest
+}
+
+/// The bundle a wasm App's lane uploads: the interface and the component.
+fn wasm_bundle() -> Vec<u8> {
+    let mut tar = tar::Builder::new(Vec::new());
+    for (path, bytes) in [
+        ("index.html", b"<html></html>".as_slice()),
+        (".jc/component.wasm", COMPONENT),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(bytes.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        tar.append_data(&mut header, path, bytes).expect("entry");
+    }
+    let raw = tar.into_inner().expect("tar");
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    std::io::Write::write_all(&mut gz, &raw).expect("gz");
+    gz.finish().expect("gz")
+}
+
+/// The App's repository at `COMMIT` holds `files` under `migrations/`.
+async fn migrations_on_forge(gitea: &MockServer, files: &[(&str, &str)]) {
+    use base64::Engine;
+    let tree: Vec<Value> = files
+        .iter()
+        .map(|(name, _)| json!({ "path": format!("migrations/{name}"), "type": "blob", "sha": format!("blob-{name}") }))
+        .chain([json!({ "path": "server/src/lib.rs", "type": "blob", "sha": "blob-lib" })])
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(format!("{APP_REPO}/git/trees/{COMMIT}")))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "sha": COMMIT, "tree": tree, "truncated": false })),
+        )
+        .mount(gitea)
+        .await;
+    for (name, sql) in files {
+        Mock::given(method("GET"))
+            .and(path(format!("{APP_REPO}/contents/migrations/{name}")))
+            .and(query_param("ref", COMMIT))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": format!("blob-{name}"),
+                "content": base64::engine::general_purpose::STANDARD.encode(sql),
+            })))
+            .mount(gitea)
+            .await;
+    }
+}
+
+/// The object store: every PUT taken, as RustFS answers a write it may make.
+async fn object_store() -> MockServer {
+    let store = MockServer::start().await;
+    Mock::given(method("PUT"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&store)
+        .await;
+    store
+}
+
+fn wasm_apps(
+    world: &common::apps_db::World,
+    store: &MockServer,
+) -> std::sync::Arc<joinedcontext_portal::apps::wasm_apps::WasmApps> {
+    let client = joinedcontext_portal::artifact_store::Client::new(
+        joinedcontext_portal::artifact_store::Settings {
+            endpoint: store.uri(),
+            bucket: "jc-artifacts".into(),
+            region: "us-east-1".into(),
+            root_access_key: "root".into(),
+            root_secret_key: "root-secret".into(),
+        },
+    )
+    .expect("store client");
+    std::sync::Arc::new(joinedcontext_portal::apps::wasm_apps::WasmApps {
+        db: world.db.clone(),
+        store: std::sync::Arc::new(client),
+        bucket: "apps".into(),
+    })
+}
+
+/// AP-149, AP-151: the lane proposes a wasm App's build; the Portal takes the component from the
+/// bundle it checked, stores it by digest, places the App, migrates its schema from the App's own
+/// repository at the built commit, and only then publishes and commits the status it computed.
+#[tokio::test]
+async fn a_wasm_app_is_published_component_stored_shard_kept_schema_migrated() {
+    let _one = ONE_APP_AT_A_TIME.lock().await;
+    let gitea = forge().await;
+    let bundle = wasm_bundle();
+    built_on_forge(&gitea, COMMIT, &bundle, None).await;
+    package_takes(&gitea, 201).await;
+    migrations_on_forge(
+        &gitea,
+        &[(
+            "0001_notes.sql",
+            "CREATE TABLE notes (id bigserial PRIMARY KEY, body text NOT NULL)",
+        )],
+    )
+    .await;
+    let store = object_store().await;
+    let world = common::apps_db::world("publish").await;
+    let state = state_with(&gitea).with_wasm_apps(wasm_apps(&world, &store));
+
+    let mut status = build();
+    status["build"]["digest"] = json!(digest(&bundle));
+    // A component the lane names is never what is committed (AP-151).
+    status["build"]["component"] = json!(format!("sha256:{}", "0".repeat(64)));
+    let accepted = as_lane(&state, wasm_app(Some(status))).await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+
+    let component = format!("{:x}", Sha256::digest(COMPONENT));
+    let stored: Vec<_> = store
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| r.method.as_str() == "PUT")
+        .collect();
+    assert_eq!(stored.len(), 1, "the component, once");
+    assert_eq!(
+        stored[0].url.path(),
+        format!("/apps/components/sha256-{component}.wasm")
+    );
+    assert_eq!(stored[0].body, COMPONENT);
+
+    let manifest = committed(&gitea).await.join("\n");
+    assert!(
+        manifest.contains(&format!("component: sha256:{component}")),
+        "{manifest}"
+    );
+    assert!(
+        !manifest.contains(&"0".repeat(64)),
+        "the lane's component was committed: {manifest}"
+    );
+    assert!(
+        manifest.contains("shard: 0") || manifest.contains("shard: 1"),
+        "{manifest}"
+    );
+    assert_eq!(published(&gitea).await.len(), 2, "the bundle and the SBOM");
+
+    let id = joinedcontext_portal::apps::apps_db::app_id("ovzdusie", "air-quality");
+    let tables: i64 = sqlx::query_scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'notes'")
+        .bind(format!("app_{id}"))
+        .fetch_one(&world.superuser)
+        .await
+        .expect("catalog");
+    assert_eq!(tables, 1, "the App's migration ran in its own schema");
+}
+
+/// AP-149: a migration that fails holds the publication and names its file; nothing is
+/// published and nothing committed.
+#[tokio::test]
+async fn a_failed_migration_holds_a_wasm_apps_publication() {
+    let _one = ONE_APP_AT_A_TIME.lock().await;
+    let gitea = forge().await;
+    let bundle = wasm_bundle();
+    built_on_forge(&gitea, COMMIT, &bundle, None).await;
+    package_takes(&gitea, 201).await;
+    migrations_on_forge(
+        &gitea,
+        &[(
+            "0001_broken.sql",
+            "CREATE TABLE notes (id bigserial PRIMARY KEY,",
+        )],
+    )
+    .await;
+    let store = object_store().await;
+    let world = common::apps_db::world("held").await;
+    let state = state_with(&gitea).with_wasm_apps(wasm_apps(&world, &store));
+
+    let mut status = build();
+    status["build"]["digest"] = json!(digest(&bundle));
+    let refused = as_lane(&state, wasm_app(Some(status))).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+    assert!(refused.text.contains("0001_broken.sql"), "{}", refused.text);
+    assert!(published(&gitea).await.is_empty(), "nothing was published");
+    assert!(committed(&gitea).await.is_empty(), "nothing was committed");
+}
+
+/// Without an apps database a wasm App is not published, and the answer says so (AP-149).
+#[tokio::test]
+async fn a_portal_without_an_apps_database_publishes_no_wasm_app() {
+    let gitea = forge().await;
+    let bundle = wasm_bundle();
+    built_on_forge(&gitea, COMMIT, &bundle, None).await;
+    package_takes(&gitea, 201).await;
+    let state = state_with(&gitea);
+    let mut status = build();
+    status["build"]["digest"] = json!(digest(&bundle));
+    let refused = as_lane(&state, wasm_app(Some(status))).await;
+    assert_eq!(
+        refused.status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "{}",
+        refused.text
+    );
+    assert!(
+        refused.text.contains("no apps database"),
+        "{}",
+        refused.text
+    );
+    assert!(published(&gitea).await.is_empty());
+}

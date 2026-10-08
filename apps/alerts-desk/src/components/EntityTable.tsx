@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { columnKind, compare, format } from "@joinedcontext/sdk";
 import type { ProblemError, Row } from "@joinedcontext/sdk";
-import { Empty, Loading, Problem } from "./states";
+import { Empty, Loading, Problem } from "@joinedcontext/sdk";
 import { t } from "../i18n";
 
 export interface ColumnDef<T extends Row = Row> {
@@ -54,18 +54,6 @@ export function EntityTable<T extends Row = Row>({
   empty?: ReactNode;
   caption?: string;
 }): React.JSX.Element {
-  if (error) {
-    return <Problem error={error} />;
-  }
-
-  if (loading && rows.length === 0) {
-    return <Loading />;
-  }
-
-  if (rows.length === 0) {
-    return <Empty>{empty}</Empty>;
-  }
-
   const resolvedColumns = useMemo<ColumnDef<T>[]>(() => {
     const raw = columns ?? defaultColumns(rows);
     return raw.map((c) => (typeof c === "string" ? { attr: c, label: c } : c));
@@ -113,6 +101,19 @@ export function EntityTable<T extends Row = Row>({
     return sorted.slice(start, start + pageSize);
   }, [sorted, safePage, pageSize]);
 
+  // After every hook: a table a filter empties keeps its sort and page for when rows come back.
+  if (error) {
+    return <Problem error={error} />;
+  }
+
+  if (loading && rows.length === 0) {
+    return <Loading />;
+  }
+
+  if (rows.length === 0) {
+    return <Empty>{empty}</Empty>;
+  }
+
   return (
     <div className="jc-table-wrap">
       {/* The roles are spelled out: the narrow layout sets display on the table's parts, and
@@ -134,7 +135,8 @@ export function EntityTable<T extends Row = Row>({
                 >
                   <button type="button" onClick={() => toggleSort(col.attr)}>
                     {col.label ?? col.attr}
-                    {sort?.attr === col.attr ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                    {/* aria-sort says the direction; the arrow is for the eye. */}
+                    {sort?.attr === col.attr && <span aria-hidden="true">{sort.dir === "asc" ? " ▲" : " ▼"}</span>}
                   </button>
                 </th>
               );

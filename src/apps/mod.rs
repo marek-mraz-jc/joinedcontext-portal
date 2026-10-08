@@ -22,6 +22,7 @@ pub mod reconciler;
 pub mod roles;
 pub mod static_host;
 pub mod template_demos;
+pub mod wasm_apps;
 
 /// The warning an App still written with a shape name of the previous release gets (AP-124):
 /// `static` and `fullstack` are read as `ui` and `ui-rust` for one release, so the manifest passes,

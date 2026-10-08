@@ -42,3 +42,31 @@ for (const { who, scheme } of VIEWS) {
     });
   }
 }
+
+// T-3374, SDK-40: a station opened in the SDK's entity panel, at a phone and a laptop, light and
+// dark; a steward corrects the note there, which goes through the App's backend.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`a station in the entity panel, ${scheme}, at ${width} px: opened, edited by a steward, axe clean`, async ({ page }) => {
+      const problems: string[] = [];
+      page.on("pageerror", (error) => problems.push(error.message));
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setExtraHTTPHeaders(edge("steward"));
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await page.getByRole("button", { name: "Details of Kallio" }).click();
+      const panel = page.getByRole("dialog", { name: "Kallio" });
+      await expect(panel.getByText("PM10 (µg/m³)")).toBeVisible();
+      expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+
+      await panel.getByRole("button", { name: "Edit" }).click();
+      await panel.getByLabel("Steward note").fill(`Checked at ${width} px.`);
+      await panel.getByRole("button", { name: "Review the change" }).click();
+      await panel.getByRole("button", { name: "Save the change" }).click();
+      await expect(page.getByText(`Note: Checked at ${width} px.`)).toBeVisible();
+      await panel.getByRole("button", { name: "Close" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(problems).toEqual([]);
+    });
+  }
+}

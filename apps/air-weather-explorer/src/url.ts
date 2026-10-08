@@ -30,8 +30,3 @@ export function useParam(name: string, fallback = ""): [string, (value: string) 
   );
   return [value, set];
 }
-
-/** A comma-separated list in the address, as a set of ids. */
-export function listOf(value: string): string[] {
-  return value.split(",").map((part) => part.trim()).filter(Boolean);
-}

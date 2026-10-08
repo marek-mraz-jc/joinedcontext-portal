@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { JSX } from "react";
-import { Card, Grid, Header, Page, Split } from "@joinedcontext/sdk";
+import { AppShell, Card, Grid, Page, Split, useEntitySelection } from "@joinedcontext/sdk";
+import type { ShellPage } from "@joinedcontext/sdk";
 import { ApiError, createStation, deleteStation, getHistory, getIdentity, getStations, updateStation } from "./api";
 import { Chart } from "./Chart";
 import { historyOf } from "./quality";
 import type { History } from "./quality";
+import { STATION_TYPE, stationSource } from "./panel";
 import { StationMap } from "./StationMap";
 import type { Identity, Station, StationFields } from "./api";
 
@@ -14,9 +16,11 @@ const READ_ONLY = "Only a steward adds, corrects or removes station records.";
 const MEASURED = "PM10, PM2.5 and the index are measured by the station and cannot be edited.";
 
 /**
- * The whole app: who you are, what the stations read, and the record form for a steward. The
- * form follows the roles the Portal answered (AP-109); what it hides here the gateway also
- * refuses, and a refusal is shown in the gateway's own words (AP-40).
+ * The whole app in the SDK's shell (SDK-39): who you are, what the stations read, and the record
+ * form for a steward. A station on the map or its card opens the SDK's entity panel (SDK-40),
+ * which reads and writes through this App's backend. The form follows the roles the Portal
+ * answered (AP-109); what it hides here the gateway also refuses, and a refusal is shown in the
+ * gateway's own words (AP-40).
  */
 export function App(): JSX.Element {
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -38,6 +42,29 @@ export function App(): JSX.Element {
     void load();
   }, [load]);
 
+  const source = useMemo(() => stationSource(identity, () => void load()), [identity, load]);
+  const pages = useMemo(
+    (): ShellPage[] => [
+      { id: "stations", label: "Stations", render: () => <StationsPage identity={identity} stations={stations} error={error} load={load} /> },
+    ],
+    [identity, stations, error, load],
+  );
+  const name = identity?.signedIn ? (identity.email ?? identity.user ?? undefined) : undefined;
+  return <AppShell title="Air quality" userName={name} source={source} pages={pages} />;
+}
+
+function StationsPage({
+  identity,
+  stations,
+  error,
+  load,
+}: {
+  identity: Identity | null;
+  stations: Station[] | null;
+  error: string | null;
+  load: () => Promise<void>;
+}): JSX.Element {
+  const { select } = useEntitySelection();
   // The station the map and the chart are about: the one a person picked, else the first.
   const [picked, setPicked] = useState<string | null>(null);
   const selected = stations?.find((station) => station.id === picked) ?? stations?.[0] ?? null;
@@ -51,7 +78,14 @@ export function App(): JSX.Element {
       {stations && stations.length > 0 && (
         <Grid columns={steward ? 2 : 4}>
           {stations.map((station) => (
-            <StationCard key={station.id} station={station} steward={steward} readOnly={readOnly} onSaved={load} />
+            <StationCard
+              key={station.id}
+              station={station}
+              steward={steward}
+              readOnly={readOnly}
+              onSaved={load}
+              onOpen={() => select({ id: station.id, type: STATION_TYPE })}
+            />
           ))}
         </Grid>
       )}
@@ -59,37 +93,42 @@ export function App(): JSX.Element {
   );
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title="Air quality" subtitle={who(identity)} />
-        {readOnly && <p id="read-only-reason">{READ_ONLY}</p>}
+    <Page>
+      <p className="identity">{who(identity)}</p>
+      {readOnly && <p id="read-only-reason">{READ_ONLY}</p>}
 
-        {error && <p role="alert">{error}</p>}
-        {!stations && !error && <p role="status">Loading stations…</p>}
+      {error && <p role="alert">{error}</p>}
+      {!stations && !error && <p role="status">Loading stations…</p>}
 
-        {stations && stations.length > 0 && (
-          <Split ratio="1:1">
-            <Card title="Stations by air quality index">
-              <StationMap stations={stations} selected={selected?.id ?? null} onSelect={setPicked} />
-            </Card>
-            <Card title={`Last 24 hours at ${selected?.name ?? selected?.id ?? ""}`}>
-              {selected && <StationHistory id={selected.id} name={selected.name ?? selected.id} />}
-            </Card>
-          </Split>
-        )}
+      {stations && stations.length > 0 && (
+        <Split ratio="1:1">
+          <Card title="Stations by air quality index">
+            <StationMap
+              stations={stations}
+              selected={selected?.id ?? null}
+              onSelect={(id) => {
+                setPicked(id);
+                select({ id, type: STATION_TYPE });
+              }}
+            />
+          </Card>
+          <Card title={`Last 24 hours at ${selected?.name ?? selected?.id ?? ""}`}>
+            {selected && <StationHistory id={selected.id} name={selected.name ?? selected.id} />}
+          </Card>
+        </Split>
+      )}
 
-        {steward ? (
-          <Split ratio="1:2">
-            <Card title="Add a station">
-              <StationForm onSaved={load} />
-            </Card>
-            {list}
-          </Split>
-        ) : (
-          list
-        )}
-      </Page>
-    </main>
+      {steward ? (
+        <Split ratio="1:2">
+          <Card title="Add a station">
+            <StationForm onSaved={load} />
+          </Card>
+          {list}
+        </Split>
+      ) : (
+        list
+      )}
+    </Page>
   );
 }
 
@@ -129,16 +168,25 @@ function StationCard({
   steward,
   readOnly,
   onSaved,
+  onOpen,
 }: {
   station: Station;
   steward: boolean;
   readOnly: boolean;
   onSaved: () => Promise<void>;
+  onOpen: () => void;
 }): JSX.Element {
   const [editing, setEditing] = useState(false);
   const title = station.name ?? station.id;
   return (
-    <Card title={title}>
+    <Card
+      title={title}
+      actions={
+        <button type="button" onClick={onOpen}>
+          Details of {title}
+        </button>
+      }
+    >
       <dl>
         <Metric label="PM10" value={station.pm10} unit="µg/m³" />
         <Metric label="PM2.5" value={station.pm25} unit="µg/m³" />

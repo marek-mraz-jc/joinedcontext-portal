@@ -21003,6 +21003,15 @@
           "phase": {
             "$ref": "#/components/schemas/Phase"
           },
+          "shard": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The WASM host shard a `wasm` App runs on, recorded at its first publish and kept; the\nPortal writes it in the publish commit, never a proposal (AP-149).",
+            "minimum": 0
+          },
           "sourceUrl": {
             "type": [
               "string",

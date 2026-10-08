@@ -399,6 +399,7 @@ async fn failed_tree_listing_preserves_mirror_and_records_error_in_sync_status()
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            shard: None,
             domain_verification: None,
         }),
     });

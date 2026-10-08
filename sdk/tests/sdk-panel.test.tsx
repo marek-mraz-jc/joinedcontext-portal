@@ -92,6 +92,12 @@ async function openFromTable() {
 }
 
 describe("the shell (SDK-39)", () => {
+  it("leaves the colour scheme to the App's own stylesheet, so a light-only App keeps light native controls", () => {
+    document.documentElement.style.colorScheme = "";
+    show(READ);
+    expect(document.documentElement.style.colorScheme).toBe("");
+  });
+
   it("carries the title, one page, the reader's name, and the same states for every App", async () => {
     show(READ);
     expect(screen.getByRole("heading", { level: 1, name: "Bikes" })).toBeInTheDocument();
@@ -313,5 +319,63 @@ describe("the panel's pieces", () => {
 
   it("keeps a ProblemError's status for the panel to word", () => {
     expect(new ProblemError(409, { title: "Conflict" }).status).toBe(409);
+  });
+
+});
+
+describe("the panel of an App with its own backend (a ui-rust App)", () => {
+  it("runs with no client, reads and writes through the App's source, and asks it what the reader may change", async () => {
+    const station = { ...STATION };
+    const update = vi.fn(async (_entity: { id: string }, patch: Record<string, unknown>) => {
+      Object.assign(station, patch);
+    });
+    const source = {
+      get: vi.fn(async () => ({ ...station })),
+      update,
+      mayEdit: (type: string, attr?: string) => type === "BikeHireDockingStation" && (attr === undefined || attr === "availableBikeNumber"),
+      schema: SCHEMA,
+      language: "en",
+    };
+    render(<AppShell title="Air quality" userName="Aino" source={source} pages={[{ id: "a", label: "A", render: () => <Openers /> }]} />);
+    expect(screen.getByText("Aino")).toBeInTheDocument();
+    const panel = await openFromTable();
+    fireEvent.click(await within(panel).findByRole("button", { name: "Edit" }));
+    // Only the attribute the source allows is an input.
+    expect(within(panel).queryByLabelText("Name")).not.toBeInTheDocument();
+    fireEvent.change(within(panel).getByLabelText("Available bike number"), { target: { value: "9" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Review the change" }));
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole("button", { name: "Save the change" }));
+    });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: STATION.id }), { availableBikeNumber: 9 });
+    expect(await within(panel).findByText("Saved.")).toBeInTheDocument();
+    expect(within(panel).getByText("9")).toBeInTheDocument();
+  });
+
+  it("checks only what the reader changed, so an untouched empty required field does not block a change", async () => {
+    const station = { ...STATION, status: null } as unknown as typeof STATION;
+    const update = vi.fn(async () => undefined);
+    const schema = { BikeHireDockingStation: { ...SCHEMA.BikeHireDockingStation, required: ["status"] } };
+    const source = { get: async () => station, update, mayEdit: () => true, schema, language: "en" };
+    render(<AppShell title="Air quality" source={source} pages={[{ id: "a", label: "A", render: () => <Openers /> }]} />);
+    const panel = await openFromTable();
+    fireEvent.click(await within(panel).findByRole("button", { name: "Edit" }));
+    fireEvent.change(within(panel).getByLabelText("Available bike number"), { target: { value: "5" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Review the change" }));
+    expect(within(panel).queryByText("Required.")).toBeNull();
+    expect(within(panel).getByText("Available bike number: 4 → 5")).toBeInTheDocument();
+  });
+
+  it("links to the Portal the source names when the reader may not edit", async () => {
+    const source = {
+      get: async () => STATION,
+      update: async () => undefined,
+      mayEdit: () => false,
+      portalLink: (entity: { id: string }) => `${PORTAL}/explore?space=helsinki&entityId=${encodeURIComponent(entity.id)}`,
+    };
+    render(<AppShell title="Air quality" source={source} pages={[{ id: "a", label: "A", render: () => <Openers /> }]} />);
+    const panel = await openFromTable();
+    expect(await within(panel).findByRole("link", { name: "Open in the Portal" })).toHaveAttribute("href", expect.stringContaining("entityId="));
+    expect(within(panel).queryByRole("button", { name: "Edit" })).toBeNull();
   });
 });

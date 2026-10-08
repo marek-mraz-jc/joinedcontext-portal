@@ -38,3 +38,26 @@ for (const size of WIDTHS) {
     expect(served).toEqual({ outside: [], missing: [], problems: [] });
   });
 }
+
+// T-3376, SDK-40: an alert opened in the SDK's entity panel from its row, at a phone and a laptop,
+// light and dark. The desk writes nothing, so the panel links to the alert in the Portal.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: an alert in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await settled(page);
+      await page.getByRole("row").filter({ hasText: "Mannerheimintie resurfacing" }).click();
+      const panel = page.getByRole("dialog", { name: "Mannerheimintie resurfacing" });
+      await expect(panel.getByText("One lane closed northbound.")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}

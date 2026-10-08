@@ -10,7 +10,8 @@ import { ROWS } from "../src/fixtures";
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://app.test/";
 const SLUG = "app";
-const CONFIG = { slug: SLUG, orgDomain: "example.org", space: "demo", transport: "origin", appName: "app" };
+// `portal`: where the entity panel links an alert for editing (SDK-40); shown, never followed.
+const CONFIG = { slug: SLUG, orgDomain: "example.org", space: "demo", transport: "origin", appName: "app", portal: "https://portal.example.org/projects/demo" };
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
 const FUNCTION = /^\/api\/functions\/([a-z][a-z0-9-]{0,39})$/;
 

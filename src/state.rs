@@ -21,6 +21,9 @@ use crate::store::Mirror;
 
 #[derive(Clone)]
 pub struct AppState {
+    /// The apps database and bucket of the `wasm` Apps; `None` where none is configured, and a
+    /// `wasm` App's publish then says so (AP-149).
+    pub wasm_apps: Option<Arc<crate::apps::wasm_apps::WasmApps>>,
     pub config: Arc<Config>,
     /// `None` when no Keycloak realm is configured: login answers 503, every protected
     /// route answers 401. Fail closed.
@@ -191,7 +194,14 @@ impl AppState {
             mcp_calls: Arc::new(RwLock::new(HashMap::new())),
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
             mcp_elicitations: crate::mcp::elicitation::McpElicitations::new(),
+            wasm_apps: None,
         }
+    }
+
+    /// The apps database and bucket a `wasm` App is published with (AP-149, AP-151).
+    pub fn with_wasm_apps(mut self, wasm: Arc<crate::apps::wasm_apps::WasmApps>) -> Self {
+        self.wasm_apps = Some(wasm);
+        self
     }
 
     /// A run's test sandbox (SDK-38), as a test gives it one.
@@ -353,6 +363,46 @@ impl AppState {
             state.people =
                 crate::people::People::new(oidc.issuer.as_str(), id, secret).map(Arc::new);
         }
+        // The wasm Apps' database and bucket (AP-149, AP-151): both or neither, the pool connects
+        // on first use and jc_apps's schema is applied in the background.
+        if let (Some(apps_db), Some(store)) = (
+            state.config.apps_db.clone(),
+            state.config.artifact_store.clone(),
+        ) {
+            match (
+                apps_db.url.parse::<sqlx::postgres::PgConnectOptions>(),
+                crate::artifact_store::Client::new(store),
+            ) {
+                (Ok(connect), Ok(store)) => {
+                    let admin = sqlx::postgres::PgPoolOptions::new()
+                        .max_connections(4)
+                        .connect_lazy_with(connect.clone());
+                    let db = crate::apps::apps_db::AppsDb {
+                        admin,
+                        connect,
+                        shards: apps_db.shards,
+                    };
+                    let wasm = Arc::new(crate::apps::wasm_apps::WasmApps {
+                        db,
+                        store: Arc::new(store),
+                        bucket: apps_db.bucket,
+                    });
+                    let boot = Arc::clone(&wasm);
+                    tokio::spawn(async move {
+                        if let Err(err) = boot.db.bootstrap().await {
+                            tracing::error!(error = %err, "the apps database's jc_apps schema did not apply");
+                        }
+                    });
+                    state.wasm_apps = Some(wasm);
+                }
+                (Err(err), _) => {
+                    tracing::error!(error = %err, "JC_PORTAL_APPS_DB_URL is no PostgreSQL URL, so no wasm App is published")
+                }
+                (_, Err(err)) => {
+                    tracing::error!(error = %err, "the artifact store is unusable, so no wasm App is published")
+                }
+            }
+        }
         // Warm the key cache so the first bearer call does not pay for the fetch; a realm that
         // is down at startup only costs a warning, the next unknown `kid` fetches again.
         if let Some(bearer) = state.bearer.as_ref() {
@@ -481,7 +531,8 @@ impl AppState {
                         ),
                     }
                     syncer = syncer.with_converger(Arc::new(
-                        crate::apps::converge::Converger::new(kube, settings),
+                        crate::apps::converge::Converger::new(kube, settings)
+                            .with_wasm_apps(state.wasm_apps.clone()),
                     ));
                 }
                 (_, Err(err)) => {

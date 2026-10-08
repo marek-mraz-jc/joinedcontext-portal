@@ -5,141 +5,11 @@
 //! `docker run -e POSTGRES_PASSWORD=pw -p 5434:5432 postgres:16` and
 //! `postgres://postgres:pw@127.0.0.1:5434/postgres`. A missing variable fails, never skips.
 
-use joinedcontext_portal::apps::apps_db::{app_id, AppsDb, Error, Migration};
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use sqlx::{ConnectOptions, Connection, PgPool};
+mod common;
 
-const ADMIN: &str = "apps_admin_test";
-
-fn server() -> PgConnectOptions {
-    std::env::var("JC_APPS_DB_TEST_URL")
-        .expect(
-            "set JC_APPS_DB_TEST_URL to a PostgreSQL 16 whose user may create roles and databases",
-        )
-        .parse()
-        .expect("JC_APPS_DB_TEST_URL parses")
-}
-
-/// Runs `statement` on the server, a role or database another test made at once being no failure.
-async fn ensure(pool: &PgPool, statement: &str) {
-    let guarded = format!(
-        "DO $$ BEGIN {statement}; EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END $$"
-    );
-    sqlx::query(sqlx::AssertSqlSafe(guarded))
-        .execute(pool)
-        .await
-        .expect(statement);
-}
-
-struct World {
-    db: AppsDb,
-    superuser: PgPool,
-    host: PgConnectOptions,
-    /// Unique to this run: roles are the server's, not the database's, so an App of an earlier
-    /// run's database would otherwise share this run's App roles.
-    run: String,
-}
-
-impl World {
-    /// A project name of this run alone.
-    fn project(&self, name: &str) -> String {
-        format!("{name}-{}", self.run)
-    }
-}
-
-/// A fresh database owned by the Portal's CREATEROLE login, with the shards' login roles.
-async fn world(test: &str) -> World {
-    world_of(test, 2).await
-}
-
-/// The superuser's statements of apps-db's bootstrap (apps_db/superuser.sql), as CloudNativePG
-/// runs them in deployment components/apps-db.
-const SUPERUSER_SQL: &str = include_str!("../apps_db/superuser.sql");
-
-async fn world_of(test: &str, shards: u32) -> World {
-    let root = PgPoolOptions::new()
-        .max_connections(2)
-        .connect_with(server())
-        .await
-        .expect("the test server answers");
-    ensure(
-        &root,
-        &format!("CREATE ROLE {ADMIN} LOGIN CREATEROLE PASSWORD 'pw'"),
-    )
-    .await;
-    for shard in 0..2 {
-        ensure(
-            &root,
-            &format!("CREATE ROLE wasm_host_{shard} LOGIN NOINHERIT PASSWORD 'pw'"),
-        )
-        .await;
-    }
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let name = format!("apps_{test}_{nanos}");
-    sqlx::query(sqlx::AssertSqlSafe(format!(
-        "CREATE DATABASE {name} OWNER {ADMIN}"
-    )))
-    .execute(&root)
-    .await
-    .expect("create the database");
-    let here = server().database(&name);
-    let superuser = PgPoolOptions::new()
-        .max_connections(2)
-        .connect_with(here.clone())
-        .await
-        .expect("superuser");
-    // jc_set_config is the server's, made once; the revokes are this database's own.
-    let statements: Vec<&str> = SUPERUSER_SQL
-        .lines()
-        .filter(|line| !line.trim_start().starts_with("--"))
-        .collect::<Vec<_>>()
-        .join("\n")
-        .leak()
-        .split(';')
-        .map(str::trim)
-        .filter(|statement| !statement.is_empty())
-        .collect();
-    for statement in statements {
-        if statement.starts_with("CREATE ROLE") {
-            ensure(&superuser, statement).await;
-        } else {
-            sqlx::query(sqlx::AssertSqlSafe(statement.to_owned()))
-                .execute(&superuser)
-                .await
-                .expect(statement);
-        }
-    }
-    // As deployment components/apps-db makes them members (inRoles), inheriting.
-    for member in [ADMIN, "wasm_host_0", "wasm_host_1"] {
-        sqlx::query(sqlx::AssertSqlSafe(format!(
-            "GRANT jc_set_config TO {member} WITH INHERIT TRUE"
-        )))
-        .execute(&superuser)
-        .await
-        .expect("member of jc_set_config");
-    }
-    let admin_options = here.clone().username(ADMIN).password("pw");
-    let admin = PgPoolOptions::new()
-        .max_connections(2)
-        .connect_with(admin_options.clone())
-        .await
-        .expect("the Portal's login");
-    let db = AppsDb {
-        admin,
-        connect: here.clone().disable_statement_logging(),
-        shards,
-    };
-    db.bootstrap().await.expect("jc_apps applies");
-    World {
-        db,
-        superuser,
-        host: here,
-        run: nanos.to_string(),
-    }
-}
+use common::apps_db::{world, world_of, World};
+use joinedcontext_portal::apps::apps_db::{app_id, Error, Migration};
+use sqlx::{ConnectOptions, Connection};
 
 fn file(name: &str, sql: &str) -> Migration {
     Migration {
@@ -514,5 +384,155 @@ async fn postgres_refuses_an_app_becoming_another_app_of_its_own_shard() {
     assert!(
         own.is_err(),
         "INHERIT FALSE: the shard reads nothing as itself"
+    );
+}
+
+// ---- retire with its export (AP-150, T-3360) ----
+
+/// The object store of the retire tests: the App's one file listed under its prefix, every other
+/// request answered `status`.
+async fn store_with_one_file(shard: u32, id: &str, status: u16) -> wiremock::MockServer {
+    use wiremock::matchers::{method, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    let store = MockServer::start().await;
+    let listing = format!(
+        "<ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>apps/{shard}/{id}/notes/1/a.txt</Key><Size>4</Size></Contents></ListBucketResult>"
+    );
+    Mock::given(method("GET"))
+        .and(query_param("list-type", "2"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(listing))
+        .mount(&store)
+        .await;
+    Mock::given(wiremock::matchers::any())
+        .respond_with(ResponseTemplate::new(status))
+        .with_priority(10)
+        .mount(&store)
+        .await;
+    store
+}
+
+fn wasm_apps(
+    w: &World,
+    store: &wiremock::MockServer,
+) -> joinedcontext_portal::apps::wasm_apps::WasmApps {
+    let client = joinedcontext_portal::artifact_store::Client::new(
+        joinedcontext_portal::artifact_store::Settings {
+            endpoint: store.uri(),
+            bucket: "jc-artifacts".into(),
+            region: "us-east-1".into(),
+            root_access_key: "root".into(),
+            root_secret_key: "root-secret".into(),
+        },
+    )
+    .expect("store client");
+    joinedcontext_portal::apps::wasm_apps::WasmApps {
+        db: w.db.clone(),
+        store: std::sync::Arc::new(client),
+        bucket: "apps".into(),
+    }
+}
+
+async fn schema_left(w: &World, id: &str) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM pg_namespace WHERE nspname = $1")
+        .bind(format!("app_{id}"))
+        .fetch_one(&w.superuser)
+        .await
+        .expect("count")
+}
+
+/// AP-150: the schema's definition and its rows, and the App's files, are written to
+/// `apps/retired/<id>/<time>/` before anything is dropped; then the schema, roles and files go.
+#[tokio::test]
+async fn a_retired_wasm_app_is_exported_before_it_is_dropped() {
+    let w = world("export").await;
+    let project = w.project("p-export");
+    let (id, shard) = published(&w, &project, "notes").await;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO app_{id}.notes (body, author) VALUES ('milk, \"eggs\"', 'jana')"
+    )))
+    .execute(&w.superuser)
+    .await
+    .expect("a row");
+    let store = store_with_one_file(shard, &id, 200).await;
+    let wasm = wasm_apps(&w, &store);
+
+    assert_eq!(
+        wasm.retire(&project, "notes", "20261008T120000Z").await,
+        Ok(true)
+    );
+    assert_eq!(schema_left(&w, &id).await, 0, "dropped after the export");
+
+    let requests = store.received_requests().await.unwrap_or_default();
+    let at = format!("/apps/apps/retired/{id}/20261008T120000Z");
+    let body_of = |path: &str| {
+        requests
+            .iter()
+            .find(|r| r.method.as_str() == "PUT" && r.url.path() == path)
+            .map(|r| String::from_utf8_lossy(&r.body).into_owned())
+    };
+    let schema = body_of(&format!("{at}/db/schema.sql")).expect("schema.sql written");
+    assert!(
+        schema.contains(&format!(
+            "CREATE TABLE app_{id}.notes (id bigint NOT NULL, body text NOT NULL, author text);"
+        )),
+        "{schema}"
+    );
+    assert!(
+        schema.contains("PRIMARY KEY (id)") && schema.contains("setval("),
+        "{schema}"
+    );
+    let rows = body_of(&format!("{at}/db/notes.csv")).expect("notes.csv written");
+    assert_eq!(rows, "id,body,author\n1,\"milk, \"\"eggs\"\"\",jana\n");
+    let copy = requests
+        .iter()
+        .find(|r| r.url.path() == format!("{at}/objects/notes/1/a.txt"))
+        .expect("the file copied");
+    assert_eq!(
+        copy.headers
+            .get("x-amz-copy-source")
+            .and_then(|v| v.to_str().ok()),
+        Some(format!("/apps/apps/{shard}/{id}/notes/1/a.txt").as_str())
+    );
+    let order: Vec<&str> = requests.iter().map(|r| r.method.as_str()).collect();
+    let deleted = order
+        .iter()
+        .position(|m| *m == "DELETE")
+        .expect("the file deleted");
+    assert!(
+        order[..deleted].iter().filter(|m| **m == "PUT").count() >= 3,
+        "every export before the delete: {order:?}"
+    );
+
+    assert_eq!(
+        wasm.retire(&project, "notes", "20261008T130000Z").await,
+        Ok(false),
+        "nothing left to retire"
+    );
+}
+
+/// AP-150: an export that fails leaves the schema, the roles and the files in place.
+#[tokio::test]
+async fn a_failed_export_leaves_everything_in_place() {
+    let w = world("noexport").await;
+    let project = w.project("p-noexport");
+    let (id, shard) = published(&w, &project, "notes").await;
+    let store = store_with_one_file(shard, &id, 500).await;
+    let wasm = wasm_apps(&w, &store);
+
+    let why = wasm
+        .retire(&project, "notes", "20261008T120000Z")
+        .await
+        .unwrap_err();
+    assert!(why.contains("schema export could not be written"), "{why}");
+    assert_eq!(schema_left(&w, &id).await, 1, "the schema stays");
+    let requests = store.received_requests().await.unwrap_or_default();
+    assert!(
+        requests.iter().all(|r| r.method.as_str() != "DELETE"),
+        "no file was deleted"
+    );
+    assert_eq!(
+        w.db.shard_of(&id).await.expect("shard"),
+        Some(shard),
+        "the App stays placed"
     );
 }
