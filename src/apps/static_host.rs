@@ -677,9 +677,17 @@ pub(super) fn resolve(app_root: &FsPath, path: &str) -> Option<PathBuf> {
     if path.is_empty() || path.ends_with('/') {
         return None;
     }
+    // `.jc/` carries what the bundle holds for the platform, a wasm App's server component
+    // among it, and is never served (AP-151).
+    if path.split('/').any(|segment| segment == BUNDLE_PRIVATE) {
+        return None;
+    }
     let file = app_root.join(path).canonicalize().ok()?;
     (file.starts_with(app_root) && file.is_file()).then_some(file)
 }
+
+/// The folder of a bundle the static host never serves (AP-151).
+pub const BUNDLE_PRIVATE: &str = ".jc";
 
 /// The digest the build lane recorded for this file, if any.
 pub(super) fn integrity_of(app_root: &FsPath, path: &str) -> Option<String> {
@@ -978,6 +986,11 @@ mod tests {
         assert!(resolve(&root, "../secret.txt").is_none());
         assert!(resolve(&root, "/etc/passwd").is_none());
         assert!(resolve(&root, "").is_none(), "a directory is not a file");
+        // AP-151: a wasm App's server component travels in the bundle and is never served.
+        std::fs::create_dir_all(app.join(".jc")).expect(".jc");
+        std::fs::write(app.join(".jc/component.wasm"), b"\0asm").expect("component");
+        assert!(resolve(&root, ".jc/component.wasm").is_none());
+        assert!(resolve(&root, "assets/../.jc/component.wasm").is_none());
         std::fs::remove_dir_all(&dir).ok();
     }
 }

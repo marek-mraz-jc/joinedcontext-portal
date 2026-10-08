@@ -45,9 +45,9 @@ FROM rust:1.90-slim-bookworm AS crates
 WORKDIR /src
 COPY . .
 # The SDK's React + Rust/WebAssembly example and the Apps with a WebAssembly part keep their own
-# lock (AP-142): their crates too.
+# lock (AP-142), as do the server components of `wasm` Apps (AP-151): their crates too.
 RUN CARGO_HOME=/opt/cargo cargo fetch --locked \
-    && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm; do \
+    && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm sdk/examples/*/server apps/*/server; do \
          [ -f "$crate/Cargo.toml" ] || continue; \
          CARGO_HOME=/opt/cargo cargo fetch --locked --manifest-path "$crate/Cargo.toml" || exit 1; \
        done
@@ -59,7 +59,7 @@ FROM rust:1.90-slim-bookworm AS toolchain
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends git curl ca-certificates musl-tools \
     && rm -rf /var/lib/apt/lists/* \
-    && rustup target add x86_64-unknown-linux-musl wasm32-unknown-unknown
+    && rustup target add x86_64-unknown-linux-musl wasm32-unknown-unknown wasm32-wasip2
 
 # The bindings of a `ui` App's WebAssembly part (AP-142): one wasm-bindgen-cli, pinned here; an
 # App's wasm/Cargo.lock names this version or the lane refuses it (builder/build-wasm.sh).
@@ -106,6 +106,7 @@ COPY --from=seed /opt/cargo/target-seed /opt/cargo/target-seed
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
 COPY builder/build-wasm.sh /usr/local/bin/build-wasm
+COPY builder/build-component.sh /usr/local/bin/build-component
 COPY --from=wasm-bindgen /opt/wasm-bindgen/bin/wasm-bindgen /usr/local/bin/wasm-bindgen
 # The browser checks of a ui App built here (AP-142, T-2827), as on the Node runner.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
