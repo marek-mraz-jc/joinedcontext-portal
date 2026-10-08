@@ -71,3 +71,15 @@ test("kpi-forecast answers how the indicators move with their live history", asy
   await expect(page.getByText(/history could not be read/)).toHaveCount(0);
   expectWasmPolicy(csp, wasm, "kpi-forecast");
 });
+
+test("transit-reach answers how far one gets from Rautatientori with the live vehicles", async ({ page }) => {
+  const { wasm, csp, started } = await open(page, "transit-reach", "?lang=en");
+  await expect(page.locator(".app-summary")).toHaveText(/^Reachable from this point: 10 min [\d.]+ km², 20 min [\d.]+ km², 30 min [\d.]+ km²\. Stops within 30 minutes: \d+ of \d+\.$/, {
+    timeout: 120_000,
+  });
+  console.log(`transit-reach: first answer after ${Date.now() - started} ms: ${await page.locator(".app-summary").textContent()}`);
+  await expect(page.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
+  // The temporal read is the App's own grant: a refusal would show here.
+  await expect(page.getByText(/history could not be read/)).toHaveCount(0);
+  expectWasmPolicy(csp, wasm, "transit-reach");
+});

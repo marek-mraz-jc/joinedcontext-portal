@@ -6,7 +6,7 @@ use std::collections::HashMap;
 /// The cluster of each point, `None` for noise; clusters are numbered from 0 in the order found.
 pub fn dbscan(points: &[(f64, f64)], eps: f64, min_points: usize) -> Vec<Option<usize>> {
     let mut labels: Vec<Option<usize>> = vec![None; points.len()];
-    if points.is_empty() || !(eps > 0.0) || min_points == 0 {
+    if points.is_empty() || eps.is_nan() || eps <= 0.0 || min_points == 0 {
         return labels;
     }
     let cell = |(x, y): (f64, f64)| ((x / eps).floor() as i64, (y / eps).floor() as i64);
@@ -19,7 +19,11 @@ pub fn dbscan(points: &[(f64, f64)], eps: f64, min_points: usize) -> Vec<Option<
         let mut found = Vec::new();
         for dx in -1..=1 {
             for dy in -1..=1 {
-                for &j in grid.get(&(cx + dx, cy + dy)).map(Vec::as_slice).unwrap_or(&[]) {
+                for &j in grid
+                    .get(&(cx + dx, cy + dy))
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[])
+                {
                     let (a, b) = (points[i], points[j]);
                     if (a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) <= eps * eps {
                         found.push(j);

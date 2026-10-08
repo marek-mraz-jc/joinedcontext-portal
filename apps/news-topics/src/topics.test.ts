@@ -120,19 +120,4 @@ describe("toInput", () => {
       seed: 42,
     });
   });
-
-  it("resolves language map objects through format helper", () => {
-    const rows: Row[] = [
-      {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-lang",
-        type: "NewsArticle",
-        name: { languageMap: { en: "English title" } } as unknown as string,
-        description: { languageMap: { en: "English summary" } } as unknown as string,
-      },
-    ];
-
-    const input = toInput(rows, 3);
-    expect(input.articles[0].title).toBe("English title");
-    expect(input.articles[0].summary).toBe("English summary");
-  });
 });

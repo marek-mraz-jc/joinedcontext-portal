@@ -44,11 +44,5 @@
       "#db2777",
       "#4b5563"
     ]
-  },
-  "series": {
-    "history": "#0f766e",
-    "fitted": "#64748b",
-    "forecast": "#2563eb",
-    "anomaly": "#dc2626"
   }
 }

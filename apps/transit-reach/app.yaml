@@ -1,0 +1,42 @@
+# How far a visitor gets by transit from any point of Helsinki in 10, 20 and 30 minutes (T-3331).
+# The endpoint carries vehicles, not stops or timetables: the analysis derives stops from where
+# vehicles stood still in the last hours and rides from their moves between them, then walks,
+# waits, rides and changes onto a hexagon grid. It runs in the visitor's browser as WebAssembly
+# compiled from the Rust crate in wasm/ (AP-142), so the App is a `ui` bundle and costs no pod.
+# Hand written, so no generated-by annotation (AP-35).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: transit-reach
+  namespace: helsinki
+  title:
+    en: "How far can I get by transit"
+    fi: "Kuinka pitkälle pääsen joukkoliikenteellä"
+  description:
+    en: "Click anywhere in Helsinki: the area you reach within 10, 20 and 30 minutes walking to a stop and riding, from where the city's vehicles actually went in the last hours."
+    fi: "Napsauta mitä tahansa kohtaa Helsingissä: alue, jolle pääset 10, 20 ja 30 minuutissa kävellen pysäkille ja matkustaen, sen mukaan mihin kaupungin ajoneuvot viime tunteina kulkivat."
+spec:
+  kind: ui
+  source:
+    git:
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_transit-reach.git
+      ref: main
+  # The interface is built with Node; the crate in wasm/ with Rust, to wasm32 (AP-142).
+  build:
+    node: "22"
+    rust: "1.90"
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [Vehicle]
+      # What the Vehicle entities carry on dev (2026-10-08, 32 live vehicles of the HFP pipeline):
+      # where, how fast and on which route. Only their history is read, at most the six hours the
+      # longest window offers; no stop or route entity exists on dev (T-3356 asks for one).
+      attrs: [location, speed, route]
+      operations: [retrieveTemporal]
+      temporalQ:
+        window: PT6H
+      representations: [ngsi-ld]
