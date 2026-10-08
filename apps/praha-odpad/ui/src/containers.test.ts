@@ -52,3 +52,33 @@ describe("sorting and the CSV", () => {
     expect(paper).toMatch(/^0001-PAP,papír,95,.*,Vinohradská 12$/);
   });
 });
+
+describe("the table's order and its export", () => {
+  it("orders by any column either way and keeps a missing value last both ways", () => {
+    for (const key of ["fill", "ageHours"] as const) {
+      for (const ascending of [true, false]) expect(sorted(containers, key, ascending).at(-1)?.code).toBe("0006-PAP");
+    }
+    const up = sorted(containers, "code", true).map((c) => c.code);
+    expect(sorted(containers, "code", false).map((c) => c.code)).toEqual([...up].reverse());
+    const unnamed = { ...byCode("0001-PAP"), code: null };
+    expect(sorted([unnamed, byCode("0002-PAP")], "code", true).at(-1)).toBe(unnamed);
+    const twoMissing = [{ ...byCode("0006-PAP") }, { ...byCode("0006-PAP"), id: "other" }];
+    expect(sorted(twoMissing, "fill", true)).toHaveLength(2);
+  });
+
+  it("writes what a spreadsheet would run as text, quotes separators, and leaves nothing as empty", () => {
+    const words = { paper: "papír" };
+    const csv = toCsv(
+      [byCode("=0006-X"), { ...byCode("0001-PAP"), code: 'A "quoted", code' }, { ...byCode("0006-PAP"), kind: null }, { ...byCode("0002-GLS") }],
+      ["a", "b", "c", "d", "e"],
+      words,
+      (id) => (id ? "Isle, one" : null),
+    );
+    const lines = csv.trimEnd().split("\r\n");
+    expect(lines[1].startsWith("'=0006-X,plastic,50,")).toBe(true);
+    expect(lines[2].startsWith('"A ""quoted"", code",papír,95,')).toBe(true);
+    expect(lines[2].endsWith('"Isle, one"')).toBe(true);
+    expect(lines[3]).toBe("0006-PAP,,,,");
+    expect(lines[4]).toContain("colouredGlass");
+  });
+});

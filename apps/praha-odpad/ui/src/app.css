@@ -123,3 +123,16 @@ thead button {
 .flag {
   background: var(--jc-color-warning-surface, #fff4e0);
 }
+
+/* A container's code opens it in the entity panel (SDK-40): it reads as the code, and is a button. */
+.opens {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}

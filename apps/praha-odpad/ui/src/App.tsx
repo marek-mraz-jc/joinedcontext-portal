@@ -3,11 +3,13 @@
  * container with its kind of waste, how full it was at its last reading and how long ago that was,
  * the isle it stands at, and the fullest and longest-unread tenth of the city marked in words.
  * Staff sign in: the App is opened by its viewer role, held by its default group (T-2686). It
- * reads and never writes; the export is the table as shown, made in the browser.
+ * reads and never writes; the export is the table as shown, made in the browser. A container's code
+ * opens it in the SDK's entity panel, which links to it in the Portal: the viewer role grants no
+ * write (SDK-39, SDK-40).
  */
 import { useEffect, useMemo, useState } from "react";
-import { endpointSource, Header, idChunks, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
-import type { EntitySource, RichCell } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, idChunks, Page, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import type { EntitySource, RichCell, ShellPage } from "@joinedcontext/sdk";
 import { containerOf, highestTenth, sorted, toCsv, totals } from "./containers";
 import type { Container, SortKey } from "./containers";
 import { stringsFor } from "./locales";
@@ -43,9 +45,20 @@ async function isleNames(source: EntitySource, ids: string[], locale: string): P
   return names;
 }
 
-export default function App({ now }: { now?: Date }) {
+/** The desk in the SDK's shell, which holds the entity panel (SDK-39). */
+/**
+ * `most` is how many containers the desk reads, page by page (default `MOST`); a test sets a small
+ * one rather than render thousands of rows.
+ */
+export default function App({ now, most = MOST }: { now?: Date; most?: number }) {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  const pages: ShellPage[] = [{ id: "desk", label: s.page, render: () => <Desk now={now} most={most} s={s} /> }];
+  return <AppShell title={s.title} pages={pages} language={s.locale} />;
+}
+
+function Desk({ now, most, s }: { now?: Date; most: number; s: Strings }) {
+  const { config } = useClient();
   const language = config.language ?? "cs";
   const slug = config.endpoints?.find((one) => one.space === SPACE)?.slug ?? (config.space === SPACE ? config.slug : null);
   const source = useMemo(
@@ -68,7 +81,7 @@ export default function App({ now }: { now?: Date }) {
     (async () => {
       const containers: Container[] = [];
       let truncated = true;
-      for (let offset = 0; offset < MOST; offset += PAGE) {
+      for (let offset = 0; offset < most; offset += PAGE) {
         const page = await source.query({ type: "WasteContainer" }, { offset, limit: PAGE });
         containers.push(...page.rows.map((row) => containerOf(row, new Date(at))));
         if (page.rows.length < PAGE) {
@@ -85,13 +98,12 @@ export default function App({ now }: { now?: Date }) {
         if (live) setLoad({ status: "ready", ...done });
       })
       .catch((cause: unknown) => {
-        const reason = cause instanceof SourceError || cause instanceof Error ? cause.message : String(cause);
-        if (live) setLoad({ status: "failed", reason });
+        if (live) setLoad({ status: "failed", reason: reasonOf(cause) });
       });
     return () => {
       live = false;
     };
-  }, [source, language, at]);
+  }, [source, language, at, most]);
 
   const all = useMemo(() => (load.status === "ready" ? load.containers : []), [load]);
   const isles = useMemo(() => (load.status === "ready" ? load.isles : new Map<string, string>()), [load]);
@@ -121,12 +133,10 @@ export default function App({ now }: { now?: Date }) {
 
   if (!source) {
     return (
-      <main>
-        <Page>
-          <Header level={1} title={s.title} subtitle={s.subtitle} />
-          <p role="status">{s.noEndpoint}</p>
-        </Page>
-      </main>
+      <Page label={s.page}>
+        <p className="subtitle">{s.subtitle}</p>
+        <p role="status">{s.noEndpoint}</p>
+      </Page>
     );
   }
 
@@ -134,9 +144,8 @@ export default function App({ now }: { now?: Date }) {
     value === null ? s.noValue : new Intl.NumberFormat(s.locale, { style: "percent", maximumFractionDigits: 0 }).format(value);
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+      <Page label={s.page}>
+        <p className="subtitle">{s.subtitle}</p>
         {load.status === "loading" && <p role="status">{s.loading}</p>}
         {load.status === "failed" && <p role="alert" className="failed">{s.failed(load.reason)}</p>}
         {load.status === "ready" && (
@@ -146,7 +155,7 @@ export default function App({ now }: { now?: Date }) {
               <Tile label={s.tiles.meanFill} value={percent(sum.meanFill)} />
               <Tile label={s.tiles.unread} value={new Intl.NumberFormat(s.locale).format(sum.unread)} />
             </dl>
-            {load.truncated && <p className="note">{s.truncated(MOST)}</p>}
+            {load.truncated && <p className="note">{s.truncated(most)}</p>}
             <div className="controls">
               <label className="search">
                 {s.search}
@@ -186,8 +195,12 @@ export default function App({ now }: { now?: Date }) {
         )}
         <p className="source">{s.source}</p>
       </Page>
-    </main>
   );
+}
+
+/** A failure in words: the endpoint's own (a `SourceError` is an `Error`), else what was thrown. */
+export function reasonOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }
 
 function Tile({ label, value }: { label: string; value: string }) {
@@ -248,7 +261,9 @@ function ContainerTable({
             const unread = unreadFrom !== null && c.ageHours !== null && c.ageHours >= unreadFrom;
             return (
               <tr key={c.id}>
-                <th scope="row">{c.code ?? s.noValue}</th>
+                <th scope="row">
+                  <Opens id={c.id} name={c.code ?? s.noValue} />
+                </th>
                 <td className="text">{c.kind === null ? s.noValue : (s.values[c.kind] ?? c.kind)}</td>
                 <td className={full ? "flag" : undefined}>
                   {percent(c.fill)}
@@ -265,5 +280,17 @@ function ContainerTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** A container's code as a button that opens it in the entity panel, read through this App's endpoint (SDK-40). */
+function Opens({ id, name }: { id: string; name: string }) {
+  const { config } = useClient();
+  const { select } = useEntitySelection();
+  const endpoint = config.endpoints?.find((one) => one.space === SPACE)?.name;
+  return (
+    <button type="button" className="opens" onClick={() => select({ id, type: "WasteContainer", endpoint })}>
+      {name}
+    </button>
   );
 }

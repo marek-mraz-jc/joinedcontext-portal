@@ -6,6 +6,10 @@ public space `praha-mesto` with its kind of waste, how full it was at its sensor
 stands at. Staff sign in: the App is opened by its `viewer` role, which its default group
 `praha-odpad-viewer` holds (T-2686, AP-118). It reads and never writes.
 
+It runs in the SDK's `AppShell` (SDK-39). A container's code opens it in the SDK's entity panel with
+its attributes and a link to it in the Portal; the viewer role grants no write, so there is no Edit
+(SDK-40).
+
 - A reading is only as current as its time: the age is shown beside every fill level; a fill outside
   0–1 is no reading, and a time in the future (the sensor's clock) is an age of 0, never negative.
 - The fullest and the longest-unread tenth are judged against the city's own containers
