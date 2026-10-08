@@ -42,3 +42,13 @@ test("alerts-heatmap answers where and when with the live alerts", async ({ page
   await expect(page.getByRole("list", { name: "Places alerts keep coming back to" })).toBeVisible();
   expectWasmPolicy(csp, wasm, "alerts-heatmap");
 });
+
+test("kpi-forecast answers how the indicators move with their live history", async ({ page }) => {
+  const { wasm, csp, started } = await open(page, "kpi-forecast", "?lang=en");
+  await expect(page.locator(".app-summary")).toHaveText(/^\d+ indicators over the last 30 days: \d+ rising, \d+ falling, \d+ flat\./, { timeout: 120_000 });
+  console.log(`kpi-forecast: first answer after ${Date.now() - started} ms`);
+  await expect(page.getByRole("list", { name: "Indicators" }).getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
+  // The temporal read is the App's own grant: a refusal would show here.
+  await expect(page.getByText(/history could not be read/)).toHaveCount(0);
+  expectWasmPolicy(csp, wasm, "kpi-forecast");
+});

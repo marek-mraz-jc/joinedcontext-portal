@@ -1,0 +1,43 @@
+# Every Helsinki KPI with its trend, a short forecast and the points that look wrong (T-3332). The
+# analysis runs in the visitor's browser as WebAssembly compiled from the Rust crate in wasm/
+# (AP-142): a least-squares trend, robust Holt-Winters (additive) with a 95 % interval, and the
+# readings three robust deviations off the model, per indicator. So the App is a `ui` bundle and costs no pod: the static host serves
+# its files and nothing else runs for it. Hand written, so no generated-by annotation (AP-35).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: kpi-forecast
+  namespace: helsinki
+  title:
+    en: "Helsinki KPIs: trend and forecast"
+    fi: "Helsingin mittarit: trendi ja ennuste"
+  description:
+    en: "Every Helsinki indicator with its trend over the last days, a short forecast with its interval, and the readings that look wrong."
+    fi: "Jokainen Helsingin mittari: trendi viime päiviltä, lyhyt ennuste vaihteluväleineen ja poikkeavat lukemat."
+spec:
+  kind: ui
+  source:
+    git:
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_kpi-forecast.git
+      ref: main
+  # The interface is built with Node; the crate in wasm/ with Rust, to wasm32 (AP-142).
+  build:
+    node: "22"
+    rust: "1.90"
+  # The indicator endpoint of Helsinki is public: an anonymous reader gets what the public role
+  # is granted and nothing more.
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki-kpi
+      types: [KeyPerformanceIndicator]
+      # What the KPI entities carry on dev (2026-10-08, 16 indicators): the value with its time,
+      # the name, the formula and the source. The history is the temporal read of currentValue,
+      # at most the 90 days the longest period offers.
+      attrs: [name, currentValue, calculationFormula, source]
+      operations: [queryEntity, retrieveEntity, retrieveTemporal]
+      temporalQ:
+        window: P90D
+      representations: [ngsi-ld]
