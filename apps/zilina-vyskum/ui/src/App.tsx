@@ -5,10 +5,13 @@
  *
  * Its own look (T-2779): a line of totals, the works per year as bars with the same numbers as a
  * table for a screen reader, the kinds as a switch and the busiest journals beside it, then the
- * list a person searches. No author is shown: the space carries none.
+ * list a person searches. No author is shown: the space carries none. A work's title opens it in the
+ * SDK's entity panel, which links to it in the Portal: a public App writes nothing (SDK-39, SDK-40,
+ * AP-140).
  */
 import { useEffect, useMemo, useState } from "react";
-import { endpointSource, Header, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, Page, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import type { ShellPage } from "@joinedcontext/sdk";
 import { byNewest, countBy, narrowed, perYear, workOf } from "./works";
 import type { Work } from "./works";
 import { stringsFor } from "./locales";
@@ -44,7 +47,8 @@ function useWorks(): Loaded | null {
     })()
       .catch((cause: unknown): Loaded => ({
         status: "failed",
-        reason: cause instanceof SourceError || cause instanceof Error ? cause.message : String(cause),
+        // A `SourceError` is an `Error`: the endpoint's own words, else what was thrown.
+        reason: cause instanceof Error ? cause.message : String(cause),
       }))
       .then((next) => {
         if (live) setLoaded(next);
@@ -59,27 +63,36 @@ function useWorks(): Loaded | null {
   return slug ? loaded : null;
 }
 
+/** The research in the SDK's shell, which holds the entity panel (SDK-39). */
 export default function App() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
+  const pages: ShellPage[] = [{ id: "research", label: s.page, render: () => <ResearchPage /> }];
+  return <AppShell title={s.title} pages={pages} language={s.locale} />;
+}
+
+function ResearchPage() {
   const { config } = useClient();
   const s = stringsFor(config.language);
   const loaded = useWorks();
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page label={s.page}>
+        <p className="subtitle">{s.subtitle}</p>
         {loaded === null && <p role="status">{s.noEndpoint}</p>}
         {loaded?.status === "loading" && <p role="status">{s.loading}</p>}
         {loaded?.status === "failed" && <p role="alert" className="failed">{s.refused(loaded.reason)}</p>}
         {loaded?.status === "ready" && <Research works={loaded.works} truncated={loaded.truncated} s={s} />}
         <p className="source">{s.noAuthors}</p>
         <p className="source">{s.attribution}</p>
-      </Page>
-    </main>
+    </Page>
   );
 }
 
 function Research({ works, truncated, s }: { works: Work[]; truncated: boolean; s: Strings }) {
+  const { config } = useClient();
+  const { selected, select } = useEntitySelection();
+  const endpoint = config.endpoints?.find((candidate) => candidate.space === SPACE)?.name;
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<string | null>(null);
   const [year, setYear] = useState<number | null>(null);
@@ -183,7 +196,16 @@ function Research({ works, truncated, s }: { works: Work[]; truncated: boolean; 
           <ul className="works">
             {shown.slice(0, limit).map((work) => (
               <li key={work.id}>
-                <h3 lang={work.language ?? undefined}>{work.title ?? s.noTitle}</h3>
+                <h3 lang={work.language ?? undefined}>
+                  <button
+                    type="button"
+                    className="opens"
+                    aria-pressed={selected?.id === work.id}
+                    onClick={() => select({ id: work.id, type: "CreativeWork", endpoint })}
+                  >
+                    {work.title ?? s.noTitle}
+                  </button>
+                </h3>
                 <p className="meta">
                   {[
                     work.kind ? (s.kind[work.kind] ?? work.kind) : null,

@@ -3,8 +3,8 @@
  * totals, two panels side by side on a wide screen (the years as columns, the busiest journals),
  * then the list as cards a person reads one under another.
  */
-main {
-  padding: var(--jc-gutter, 1rem);
+.subtitle {
+  color: var(--jc-color-text-muted, #555);
 }
 
 .source,
@@ -194,4 +194,17 @@ small {
   font: inherit;
   margin-top: var(--jc-space-3, 0.75rem);
   padding: var(--jc-space-2, 0.5rem) var(--jc-space-3, 0.75rem);
+}
+
+/* A work's title opens it in the entity panel (SDK-40): it reads as the title, and says it is a button. */
+.opens {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }

@@ -74,3 +74,44 @@ describe("narrowed", () => {
     expect(sorted[0].year).toBe(Math.max(...works.map((w) => w.year ?? 0)));
   });
 });
+
+describe("what the repository writes otherwise", () => {
+  const P = (value: unknown) => ({ type: "Property", value });
+  const work = (attrs: Record<string, unknown>) => workOf(toRichRow({ id: "urn:ngsi-ld:CreativeWork:x", type: "CreativeWork", ...attrs }));
+
+  it("keeps what a work does not carry as null, and reads the first of several values", () => {
+    expect(work({})).toMatchObject({ title: null, language: null, kind: null, year: null, collection: null, series: null, licence: null, url: null });
+    expect(work({ name: { type: "LanguageProperty", languageMap: { sk: "  ", en: " Title " } } })).toMatchObject({ title: "Title", language: "en" });
+    expect(work({ yearPublished: P(2023.5), workType: P("   ") })).toMatchObject({ year: null, kind: null });
+    expect(work({ workType: [P("Article"), P("Journal")] }).kind).toBe("Article");
+  });
+
+  it("opens https and http only", () => {
+    expect(safeUrl("https://drepo.uniza.sk/handle/1")).toBe("https://drepo.uniza.sk/handle/1");
+    expect(safeUrl(null)).toBeNull();
+    expect(safeUrl("")).toBeNull();
+  });
+
+  it("names no journal for a collection that is only its issue", () => {
+    expect(seriesOf(" - Vydanie 17")).toBeNull();
+    expect(seriesOf("")).toBeNull();
+  });
+
+  it("counts no work without a value, and orders a tie by name", () => {
+    const a = work({ workType: P("B") });
+    const b = work({ workType: P("A") });
+    expect(countBy([a, b, work({})], (w) => w.kind)).toEqual([
+      { name: "A", count: 1 },
+      { name: "B", count: 1 },
+    ]);
+  });
+
+  it("orders a work without a year last, and one without a title first among its year", () => {
+    const untitled = work({ yearPublished: P(2020) });
+    const titled = work({ yearPublished: P(2020), name: { type: "LanguageProperty", languageMap: { sk: "A" } } });
+    const undated = work({ name: { type: "LanguageProperty", languageMap: { sk: "B" } } });
+    expect([undated, titled, untitled].sort(byNewest)).toEqual([untitled, titled, undated]);
+    expect(byNewest(undated, undated)).toBe(0);
+    expect(narrowed([untitled, undated], { search: "b", kind: null, year: null })).toEqual([undated]);
+  });
+});
