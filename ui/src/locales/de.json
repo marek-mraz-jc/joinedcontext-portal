@@ -6330,6 +6330,53 @@
       "close": "Begrüßung schließen"
     }
   },
+  "alerts": {
+    "open": "Benachrichtigungen…",
+    "title": "Benachrichtigungen für {name}",
+    "close": "Schließen",
+    "lead": {
+      "pipeline": "Wählen Sie, worüber Sie bei dieser Pipeline informiert werden.",
+      "space": "Wählen Sie, worüber Sie bei jeder Pipeline informiert werden, die in diesen Raum schreibt.",
+      "type": "Wählen Sie, worüber Sie bei jeder Pipeline informiert werden, die diesen Typ in den Raum schreibt."
+    },
+    "events": "Melden, wenn",
+    "event": {
+      "failure": "sie fehlschlägt",
+      "stale": "ihre Daten veralten",
+      "zero": "sie nichts schreibt"
+    },
+    "delivery": "Wie",
+    "portal": "Im Portal, sofort",
+    "portalHint": "Eine Meldung, wenn es beginnt, und eine, wenn es behoben ist, im Posteingang oben.",
+    "digest": "Eine tägliche Übersicht",
+    "digestHint": "Eine Meldung am Tag nach 07:00 UTC zu dem, was seit der letzten geschah.",
+    "email": "Per E-Mail",
+    "emailHint": "Noch nicht: Dieses Portal hat keinen Mailserver.",
+    "noEvent": "Wählen Sie mindestens ein Ereignis.",
+    "subscribe": "Mich benachrichtigen",
+    "change": "Speichern",
+    "stop": "Diese Benachrichtigungen beenden",
+    "active": "Aktiv.",
+    "mutedUntil": "Stumm bis {until}.",
+    "mute": "Stummschalten",
+    "muteChoose": "Auswählen…",
+    "muteFor": {
+      "1h": "für eine Stunde",
+      "1d": "für einen Tag",
+      "7d": "für eine Woche",
+      "forever": "bis zur Aufhebung"
+    },
+    "unmute": "Stummschaltung aufheben",
+    "forSpace": "Benachrichtigungen",
+    "forType": "Benachrichtigungen für {type}",
+    "notices": "Benachrichtigungen",
+    "notice": {
+      "opened": "{pipeline}: {event}",
+      "recovered": "{pipeline} wieder in Ordnung: nicht mehr {event}",
+      "digest": "Heutige Übersicht, {pipeline}: {event}"
+    },
+    "muteDay": "Benachrichtigungen von {pipeline} für einen Tag stummschalten"
+  },
   "help": {
     "title": "Hilfe",
     "label": "Hilfe{count, plural, =0 {} one {, # neue Änderung} other {, # neue Änderungen}}"

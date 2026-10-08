@@ -25,7 +25,7 @@ const NOW = [
   { id: urn("moved"), type: "AirQualityObserved", pm10: { type: "Property", value: 7, unitCode: "GQ" } },
 ];
 
-describe("what a pipeline would change", () => {
+describe("what a pipeline would change (PL-70)", () => {
   it("classifies each record by id, comparing only what the record writes", () => {
     const changes = changesOf(RECORDS, new Map(NOW.map((entity) => [entity.id, entity])));
     expect(changes.map((change) => [change.id, change.outcome])).toEqual([
@@ -42,7 +42,7 @@ describe("what a pipeline would change", () => {
   });
 });
 
-describe("the comparison in the workbench", () => {
+describe("the comparison in the workbench (PL-70)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
   });

@@ -112,6 +112,7 @@ pub struct Syncer {
     drift: Option<(Arc<super::drift::Watch>, Arc<super::drift::Store>)>,
     /// The daily data-quality run (DM-74); the leader starts it when it is due.
     quality: Option<Arc<crate::quality::Scanner>>,
+    alerts: Option<Arc<crate::alerts::Evaluator>>,
     subscriptions: Option<Arc<super::subscriptions::SubscriptionSync>>,
     /// `None` when no Keycloak admin client is configured: the `Group` manifests are then read
     /// and served, and the realm is written by nobody (PF-63).
@@ -211,6 +212,7 @@ impl Syncer {
             registrations: None,
             drift: None,
             quality: None,
+            alerts: None,
             subscriptions: None,
             groups: None,
             people: None,
@@ -434,6 +436,13 @@ impl Syncer {
     /// spaces hold, and keep the answer where the API reads it (CC-21).
     pub fn with_quality(mut self, scanner: Arc<crate::quality::Scanner>) -> Self {
         self.quality = Some(scanner);
+        self
+    }
+
+    /// Makes each run of the leader open and close the incidents people chose to be told about
+    /// (API/01 §37, T-3261).
+    pub fn with_alerts(mut self, evaluator: Arc<crate::alerts::Evaluator>) -> Self {
+        self.alerts = Some(evaluator);
         self
     }
 
@@ -1564,6 +1573,10 @@ impl Syncer {
             // 9. Data quality (DM-74): once a day, in the background; the sync never waits.
             if let Some(scanner) = self.quality.as_ref() {
                 scanner.start_if_due();
+            }
+            // 10. Alerts (T-3261): from the statuses this run just set; in the background.
+            if let Some(evaluator) = self.alerts.as_ref() {
+                evaluator.start();
             }
         }
 
