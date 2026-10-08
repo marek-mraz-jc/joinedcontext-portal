@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { Manifest } from "../src/api/manifest";
 import { admitsPerson } from "../src/components/endpoints/sharing";
-import { pickReadEndpoint } from "../src/pages/spaces/SpaceInside";
+import { pickReadEndpoint } from "../src/pages/spaces/spaceFacts";
 
 const endpoint = (name: string, spec: Record<string, unknown>, namespace?: string): Manifest =>
   ({

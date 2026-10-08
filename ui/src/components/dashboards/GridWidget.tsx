@@ -11,7 +11,7 @@ import { useMemo } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { parseGridConfig } from "@joinedcontext/sdk";
-import { Card, CardHeader } from "../ui";
+import { Card, CardHeader, InlineError } from "../ui";
 import { PortalEntityGrid } from "../entities/PortalEntityGrid";
 
 export function GridWidget({
@@ -45,11 +45,11 @@ export function GridWidget({
         // jc-core refuses these fields when the manifest is written, so this is the case where a
         // dashboard was committed against an older platform: the reason is on the page, not in a
         // console.
-        <p role="alert" className="text-body text-fg-muted">
+        <InlineError>
           {t("dashboards.widget.badGrid", {
             reason: parsed.findings.map((finding) => `${finding.path}: ${finding.message}`).join("; "),
           })}
-        </p>
+        </InlineError>
       )}
     </Card>
   );

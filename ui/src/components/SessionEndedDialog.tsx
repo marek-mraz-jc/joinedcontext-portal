@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
 import { clearSessionEnded, useSessionEnded } from "../api/sessionEnded";
-import { Button, buttonClass, Dialog, safeHref } from "./ui";
+import { Button, buttonClass, Dialog, InlineError, safeHref } from "./ui";
 
 /**
  * "Your session ended" over the page that noticed it (UI-16, T-2747).
@@ -86,9 +86,9 @@ export function SessionEndedDialog(): JSX.Element | null {
         {t("app.session.here")}
       </Button>
       {notYet ? (
-        <p role="alert" className="mt-3 text-body text-danger">
+        <InlineError className="mt-3">
           {t("app.session.notYet")}
-        </p>
+        </InlineError>
       ) : null}
     </Dialog>
   );

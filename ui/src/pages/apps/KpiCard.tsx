@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { readCsrfToken } from "../../api/client";
 import { Badge } from "../../components/ui/Badge";
 import { Button, buttonClass } from "../../components/ui/Button";
-import { Field, Input, RadioGroup } from "../../components/ui";
+import { Field, InlineError, Input, RadioGroup } from "../../components/ui";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { unitSymbol, unitTitle } from "../../units";
 
@@ -193,9 +193,9 @@ export function KpiCard({
       </dl>
       <p className="text-xs text-fg-muted">{t("agentRun.kpi.lead", { space: kpi.space })}</p>
       {state.kind === "refused" ? (
-        <p role="alert" className="text-xs text-danger">
+        <InlineError>
           {state.detail}
-        </p>
+        </InlineError>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
         {kpi.endpointSlug ? (

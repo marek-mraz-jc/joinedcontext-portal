@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { unitTitle } from "@joinedcontext/sdk";
-import { Button, Icon, Skeleton } from "../ui";
+import { Button, Icon, InlineError, Skeleton } from "../ui";
 import { readerTimeZone, unitCodeOf } from "./typeCharts";
 
 /** One reading: when it was observed, and what was read. */
@@ -116,7 +116,7 @@ export function TemporalChart({
       {/* A history that could not be read is not "there is no history" (T-1763): the two mean
           opposite things, and only one of them is worth pressing a button about. */}
       {history.isError ? (
-        <p role="alert" className="flex flex-wrap items-center gap-2 text-caption text-danger">
+        <InlineError className="flex flex-wrap items-center gap-2">
           {t("dashboards.widget.historyFailed", {
             reason: history.error instanceof Error ? history.error.message : t("app.error.generic"),
           })}
@@ -130,7 +130,7 @@ export function TemporalChart({
           >
             {t("app.error.retry")}
           </Button>
-        </p>
+        </InlineError>
       ) : null}
       {!history.isPending && !history.isError && points.length === 0 ? (
         <p role="status" className="text-caption text-fg-muted">

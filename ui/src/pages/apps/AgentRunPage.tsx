@@ -14,7 +14,7 @@ import { TERMINAL_STATES, testsHold, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { rememberRun } from "../../assistant/state";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
-import { Button, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Button, InlineError, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
 /**
  * One builder run, live (UI-34…UI-40; the timeline, the transcript and the questions are UI-38).
@@ -132,15 +132,15 @@ export function AgentRunPage({
         onApproved={() => void run.refetch()}
       />
       {record.error !== undefined && record.error !== "" && (
-        <p role="alert" className="text-danger">
+        <InlineError>
           {record.error}
-        </p>
+        </InlineError>
       )}
       {[cancel.error, publish.error].map((error, index) =>
         error ? (
-          <p role="alert" key={index} className="text-danger">
+          <InlineError key={index}>
             {error instanceof ApiError ? (error.problem?.detail ?? error.message) : t("app.error.generic")}
-          </p>
+          </InlineError>
         ) : null,
       )}
 
@@ -188,9 +188,9 @@ export function AgentRunPage({
               </a>
             </>
           ) : refused ? (
-            <p role="alert" className="text-danger">
+            <InlineError>
               {t("agentRun.preview.refused", { url: record.previewUrl })}
-            </p>
+            </InlineError>
           ) : (
             <Building
               createdAt={record.createdAt}

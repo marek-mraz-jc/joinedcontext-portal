@@ -7,6 +7,7 @@ import { ApiError, forPeople } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { Badge } from "../../components/ui/Badge";
 import { Button, buttonClass } from "../../components/ui/Button";
+import { InlineError } from "../../components/ui";
 
 /**
  * An indicator kept up to date (AG-74, PL-45, PL-51): the pipeline the assistant drafted, what
@@ -172,9 +173,9 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
             <p className="text-fg-muted">{t("agentRun.kpiPipeline.audience", { slug: pipeline.runnerAudience })}</p>
           ) : null}
           {proposal.kind === "refused" ? (
-            <p role="alert" className="text-danger">
+            <InlineError>
               {t("agentRun.kpiPipeline.refused", { draft: proposal.draft, detail: proposal.detail })}
-            </p>
+            </InlineError>
           ) : null}
           {proposal.kind === "proposed" ? (
             <p className="text-success">{t("agentRun.kpiPipeline.proposed", { count: proposal.count })}</p>

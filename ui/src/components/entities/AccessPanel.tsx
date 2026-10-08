@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../../api/client";
 import { readsOf, writesOf } from "../../pages/access/EffectivePermissions";
-import { Badge } from "../ui";
+import { Badge, InlineError } from "../ui";
 import type { FilterSlot } from "./filters";
 
 /** One entry of the gateway's AuthZEN permissions document (EP-55, EP-56). */
@@ -179,12 +179,12 @@ export function AccessPanel({
               used to sit on "checking…" for good when the gateway refused the question, which
               reads as "any moment now" and is the opposite of what happened. */}
           {checks.isError ? (
-            <p role="alert" className="text-danger">
+            <InlineError>
               {t("access.panel.checkFailed", {
                 reason:
                   checks.error instanceof Error ? checks.error.message : t("app.error.generic"),
               })}
-            </p>
+            </InlineError>
           ) : (
             <ul className="flex flex-wrap gap-2" aria-label={t("access.panel.checks")}>
               {(checks.data ?? CHECKED_ACTIONS.map((action) => ({ action, decision: undefined }))).map(

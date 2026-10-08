@@ -19,7 +19,7 @@ import { ProjectQuota, useProjectUsage } from "../components/ProjectQuota";
 import type { ResourceTarget } from "../components/DeleteResourceDialog";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { contextSpaceSchema } from "../schemas/kinds";
-import { modelsOfSpace } from "../pages/spaces/SpaceInside";
+import { modelsOfSpace } from "../pages/spaces/spaceFacts";
 import {
   Alert,
   Badge,

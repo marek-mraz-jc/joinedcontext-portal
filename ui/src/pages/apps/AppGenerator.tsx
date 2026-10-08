@@ -13,7 +13,18 @@ import { EndpointPreview } from "./EndpointPreview";
 import { NewEndpointPanel } from "./NewEndpointPanel";
 import { useAccess } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
-import { Alert, Button, Checkbox, ExternalLink, Field, Input, PageHeader, Select, Textarea } from "../../components/ui";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  ExternalLink,
+  Field,
+  InlineError,
+  Input,
+  PageHeader,
+  Select,
+  Textarea,
+} from "../../components/ui";
 import { guideUrl, useBranding } from "../../branding";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { takePrefill } from "../../assistant/state";
@@ -846,9 +857,9 @@ function NeedsChecklist({
       )}
       {state === "loading" && <p role="status">{t("apps.generate.needs.loading")}</p>}
       {state === "unavailable" && (
-        <p role="alert" className="text-danger">
+        <InlineError>
           {t("apps.generate.needs.unavailable")}
-        </p>
+        </InlineError>
       )}
       {state === "ready" && types.length === 0 && <p>{t("apps.generate.needs.none")}</p>}
       {types.map((type) => (

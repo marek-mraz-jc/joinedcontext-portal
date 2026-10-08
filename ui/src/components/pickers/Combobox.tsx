@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "rea
 import type { JSX, KeyboardEvent, ReactNode } from "react";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
-import { Badge, Button, Input } from "../ui";
+import { Badge, Button, InlineError, Input } from "../ui";
 import { Icon } from "../ui/icons";
 
 /** One thing a picker offers: its value, what a person reads, and the group it sits under. */
@@ -271,7 +271,7 @@ export function Combobox({
         <div className="absolute left-0 top-full z-50 mt-1 w-full min-w-64 rounded-lg border border-border bg-surface p-1 shadow-2">
           {loading ? <p className="px-2 py-1 text-caption text-fg-muted">{t("app.loading")}</p> : null}
           {failed ? (
-            <p role="alert" className="px-2 py-1 text-caption text-danger">
+            <InlineError className="px-2 py-1">
               {t("form.listFailed", { reason: failed.reason })}{" "}
               <Button
                 variant="ghost"
@@ -281,7 +281,7 @@ export function Combobox({
               >
                 {t("form.listRetry")}
               </Button>
-            </p>
+            </InlineError>
           ) : null}
           {!loading && !failed && shown.length === 0 && !canCreate ? (
             <p className="px-2 py-1 text-caption text-fg-muted">{empty}</p>

@@ -5,7 +5,7 @@ import { api, ApiError, forPeople, queryKeys, unwrap } from "../../api/client";
 import { approvalStanding, changedKind } from "../../api/approval";
 import { usePermissions } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
-import { Button } from "../../components/ui";
+import { Button, InlineError } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
 import { PortalLink } from "./Prose";
 import type { OpenLink } from "./Prose";
@@ -78,7 +78,7 @@ function Step({ stage, title, children }: { stage: Stage; title: string; childre
               ? "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-danger-soft text-danger"
               : stage === "later"
                 ? "mt-0.5 size-4 shrink-0 rounded-full border border-border"
-                : "mt-0.5 size-4 shrink-0 animate-pulse rounded-full border-2 border-primary"
+                : "mt-0.5 size-4 shrink-0 motion-safe:animate-pulse rounded-full border-2 border-primary"
         }
       >
         {icon ? <Icon name={icon} className="size-3" /> : null}
@@ -151,9 +151,9 @@ function EndpointTest({ project, name, onOpenLink }: { project: string; name: st
   if (failed) {
     return (
       <Step stage="failed" title={t("agentRun.follow.test.failed")}>
-        <p role="alert" className="text-danger">
+        <InlineError>
           {failed instanceof ApiError ? (failed.problem?.detail ?? failed.message) : t("app.error.generic")}
-        </p>
+        </InlineError>
         <Button size="xs" onClick={() => void (endpoint.error ? endpoint.refetch() : tried.refetch())}>
           {t("agentRun.follow.test.again")}
         </Button>
@@ -250,9 +250,9 @@ export function ChangeFollowCard({
 
         {change.error ? (
           <Step stage="failed" title={t("agentRun.follow.unread")}>
-            <p role="alert" className="text-danger">
+            <InlineError>
               {change.error instanceof ApiError ? (change.error.problem?.detail ?? change.error.message) : t("app.error.generic")}
-            </p>
+            </InlineError>
           </Step>
         ) : !proposal ? (
           <Step stage="working" title={t("agentRun.follow.reading")} />
@@ -272,9 +272,9 @@ export function ChangeFollowCard({
               </Button>
             ) : null}
             {approve.error ? (
-              <p role="alert" className="text-danger">
+              <InlineError>
                 {approve.error instanceof ApiError ? (approve.error.problem?.detail ?? approve.error.message) : t("app.error.generic")}
-              </p>
+              </InlineError>
             ) : null}
           </Step>
         )}

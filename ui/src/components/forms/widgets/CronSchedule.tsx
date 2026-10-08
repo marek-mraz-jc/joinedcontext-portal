@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../../api/client";
 import { asManifests, refName } from "../../../api/manifest";
 import type { Manifest } from "../../../api/manifest";
-import { Alert, Input, Select } from "../../ui";
+import { Alert, InlineError, Input, Select } from "../../ui";
 import { useShownErrors } from "../touched";
 import { FormDataContext } from "./EntitySelectorField";
 import { FormProjectContext } from "./ModelWidgets";
@@ -221,9 +221,9 @@ export function CronScheduleWidget(props: WidgetProps): JSX.Element {
         />
       </label>
       {text !== "" && !cron ? (
-        <p role="alert" className="text-caption text-danger-fg">
+        <InlineError>
           {t("pipelines.schedule.invalid")}
-        </p>
+        </InlineError>
       ) : null}
       {runs.length > 0 ? (
         <div className="flex flex-col gap-1">

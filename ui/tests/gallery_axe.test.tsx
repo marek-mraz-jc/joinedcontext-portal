@@ -99,7 +99,8 @@ describe("the component gallery", () => {
     // The only import of the module in `src/` is the router's, and the router builds the route
     // inside `import.meta.env.DEV`, which a production build replaces with `false`.
     const router = read("src/router.tsx");
-    expect(router).toContain('import { Gallery } from "./pages/gallery/Gallery"');
+    // Loaded with its route since T-3280, so a production build has no chunk that asks for it.
+    expect(router).toContain('import("./pages/gallery/Gallery")');
     const guarded = /const devRoutes = import\.meta\.env\.DEV\s*\?[\s\S]*?path: "\/__gallery"/.test(router);
     expect(guarded, "the gallery route is built outside the DEV branch").toBe(true);
     // And nothing else reaches for it. `ci-full` greps the built `dist/` for the same proof.
@@ -118,6 +119,6 @@ function importersOfTheGallery(): string[] {
   return walk(join(UI, "src"))
     .filter((path) => /\.tsx?$/.test(path))
     .filter((path) => !path.endsWith("pages/gallery/Gallery.tsx"))
-    .filter((path) => /from "[^"]*pages\/gallery\/Gallery"/.test(readFileSync(path, "utf8")))
+    .filter((path) => /(?:from |import\()"[^"]*pages\/gallery\/Gallery"/.test(readFileSync(path, "utf8")))
     .map((path) => path.slice(UI.length + 1));
 }

@@ -7,7 +7,7 @@
 import type { Manifest } from "../../api/manifest";
 import type { PipelineForm } from "./PipelineEditor";
 import { findKpiTargetEndpoint, kpiBloblang } from "./PipelineStudio";
-import { spaceOf } from "../spaces/SpaceInside";
+import { spaceOf } from "../spaces/spaceFacts";
 
 export type RecipeId = "csv" | "api" | "ckan" | "kpi";
 

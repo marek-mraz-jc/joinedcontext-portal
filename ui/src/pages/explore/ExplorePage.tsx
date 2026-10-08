@@ -22,7 +22,7 @@ import { ChartFromView } from "./ChartFromView";
 import { ExploreMap, isLocated } from "./ExploreMap";
 import { andQ } from "./exportView";
 import type { ViewSort } from "./exportView";
-import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
+import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/spaceFacts";
 import { useIdentity } from "../../auth/AuthProvider";
 import { replaceOwnSearch } from "../../assistant/HandOff";
 

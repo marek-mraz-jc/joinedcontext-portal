@@ -1628,8 +1628,10 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             ) : null}
 
             {/* What the endpoint would serve with the classes and hidden attributes of this form,
-                beside the space's original (T-2776, EP-86). Only a Live endpoint answers a preview. */}
-            {!isNew && activeSlug && isLive(base) && editing ? (
+                beside the space's original (T-2776, EP-86). Only a Live endpoint answers a preview,
+                and only once the projections are known: before, the proof would show the space
+                unfiltered under the endpoint's name. */}
+            {!isNew && activeSlug && isLive(base) && editing && projectionsQuery.isSuccess ? (
               <details className="rounded border border-border p-3">
                 <summary className="cursor-pointer text-body font-medium text-fg">
                   {t("endpoints.proof.title")}

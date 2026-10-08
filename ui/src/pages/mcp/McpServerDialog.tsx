@@ -4,7 +4,18 @@ import { useTranslation } from "react-i18next";
 import { useProposal } from "../../api/proposal";
 import type { Change, Manifest } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
-import { Alert, Badge, Button, Checkbox, Dialog, Field, Input, Select, Textarea } from "../../components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  Dialog,
+  Field,
+  InlineError,
+  Input,
+  Select,
+  Textarea,
+} from "../../components/ui";
 import { ToolPreview } from "./McpServerPanels";
 import { AUDIENCES, MAX_MEMBERS, breadth, emptyForm, formProblems, fromManifest, memberKey, toManifest, widestAllowed } from "./mcp";
 import type { Audience, McpServerForm, MemberChoice } from "./mcp";
@@ -149,9 +160,9 @@ export function McpServerDialog({
             </ul>
             {unseen.length > 0 ? <p className="text-caption text-fg-muted">{t("mcp.form.unseen", { count: unseen.length })}</p> : null}
             {shownError("members") ? (
-              <p role="alert" className="text-caption text-danger">
+              <InlineError>
                 {shownError("members")?.[0]}
-              </p>
+              </InlineError>
             ) : null}
           </fieldset>
 

@@ -25,7 +25,7 @@ import {
   TableRow,
   Textarea,
 } from "../../components/ui";
-import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
+import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/spaceFacts";
 import type { PipelineForm } from "./PipelineEditor";
 import { endpointUrn } from "./PipelineEditor";
 import {

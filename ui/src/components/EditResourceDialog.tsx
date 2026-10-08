@@ -11,7 +11,7 @@ import type { Change, ResourceProposal } from "../api/manifest";
 import { usePermissions } from "../api/permissions";
 import { takeEditRequest } from "../assistant/state";
 import { ChangeNotice } from "./ChangeNotice";
-import { SchemaForm } from "./forms/SchemaForm";
+import { SchemaForm } from "./forms/LazySchemaForm";
 import { portalThemeWidgets } from "./forms/theme";
 import { arrange, index, mergeUi, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
@@ -253,6 +253,7 @@ export function EditResourceDialog({
             <PageFailed error={current.error} onRetry={() => void current.refetch()} />
           ) : form ? (
             current.data ? (
+              <Suspense fallback={<PageLoading label={t("app.loading")} lines={2} />}>
               <SchemaForm<Record<string, unknown>>
                 schema={form.schema}
                 project={target.home ?? project}
@@ -276,6 +277,7 @@ export function EditResourceDialog({
                 }}
                 onSubmit={(next) => proposeManifest(form.toManifest(next, current.data))}
               />
+              </Suspense>
             ) : null
           ) : readOnly ? (
             // Read, not edited: the text itself, scrollable and reachable from the keyboard.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { Link, useMatchRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -29,6 +29,7 @@ import {
   MenuSeparator,
   MenuTrigger,
   safeHref,
+  PageLoading,
 } from "../ui";
 import type { IconName } from "../ui";
 import { isHiddenSection, NAV_SECTIONS, sameSection } from "./navigation";
@@ -659,7 +660,7 @@ export function Shell({
                 </div>
               )}
             >
-              {children}
+              <Suspense fallback={<PageLoading label={t("app.loading")} />}>{children}</Suspense>
             </ErrorBoundary>
           </main>
         ) : (
@@ -752,7 +753,7 @@ export function Shell({
                   <PageStopped project={project} reference={reference} retry={retry} />
                 )}
               >
-                {children}
+                <Suspense fallback={<PageLoading label={t("app.loading")} />}>{children}</Suspense>
               </ErrorBoundary>
             </div>
           </main>

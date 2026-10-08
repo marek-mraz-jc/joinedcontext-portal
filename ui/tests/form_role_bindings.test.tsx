@@ -308,6 +308,10 @@ describe("the role list (T-1759)", () => {
   it("refuses_the_grant_button_with_its_reason_to_a_person_who_may_not_propose", async () => {
     mayPropose = false;
     renderPage(page(), { path: `/projects/${PROJECT}`, answer: () => undefined });
-    expectDenied(await screen.findByRole("button", { name: /Grant a role/ }), /propose/);
+    // Refused once the person's permissions are read; the empty list's own Grant (T-3246) is the
+    // same control and is held to the same.
+    await waitFor(async () => {
+      for (const button of screen.getAllByRole("button", { name: /Grant a role/ })) expectDenied(button, /propose/);
+    });
   });
 });

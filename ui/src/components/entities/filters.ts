@@ -12,7 +12,7 @@ import type { Manifest } from "../../api/manifest";
 import { endpointUrl } from "../endpoints/links";
 import { classSlots, parseModel, relationships } from "../../pages/models/linkml";
 import type { NgsiLdKind } from "../../pages/models/linkml";
-import { parseResultsCount } from "../../pages/spaces/SpaceInside";
+import { parseResultsCount } from "../../pages/spaces/spaceFacts";
 
 /** What the query reads: the four fields of `source.query` the manifest carries (PL-33). */
 export interface EntityQuery {

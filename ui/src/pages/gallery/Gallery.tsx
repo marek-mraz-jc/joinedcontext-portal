@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Field,
   FileDropZone,
+  InlineError,
   FilePicker,
   Icon,
   Input,
@@ -169,6 +170,23 @@ export function Gallery(): JSX.Element {
           <Alert tone="danger" actions={<Button size="sm">Try again</Button>}>
             The store did not answer.
           </Alert>
+        </State>
+      </Specimen>
+
+      <Specimen name="InlineError">
+        <State is="short">
+          <InlineError>The list could not be read.</InlineError>
+        </State>
+        <State is="long">
+          <InlineError>{LONG}</InlineError>
+        </State>
+        <State is="with a retry">
+          <InlineError>
+            Data sources: the list could not be read.{" "}
+            <Button size="xs" variant="ghost">
+              Try again
+            </Button>
+          </InlineError>
         </State>
       </Specimen>
 

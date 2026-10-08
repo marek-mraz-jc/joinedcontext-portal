@@ -6,13 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import {
-  entityTypesOf,
-  inTurn,
-  parseResultsCount,
-  pickReadEndpoint,
-  spaceOf,
-} from "../src/pages/spaces/SpaceInside";
+import { inTurn } from "../src/pages/spaces/SpaceInside";
+import { entityTypesOf, parseResultsCount, pickReadEndpoint, spaceOf } from "../src/pages/spaces/spaceFacts";
 import type { Manifest } from "../src/api/manifest";
 import { ApiError } from "../src/api/client";
 import { spaceUsageQuery, usageRefusal } from "../src/api/spaceUsage";

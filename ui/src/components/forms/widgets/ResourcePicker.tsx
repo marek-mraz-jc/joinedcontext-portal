@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ApiError, api, queryKeys, unwrap } from "../../../api/client";
 import { asManifests, localized } from "../../../api/manifest";
-import { Button, Select } from "../../ui";
+import { Button, InlineError, Select } from "../../ui";
 import { useShownErrors } from "../touched";
 import { FormProjectContext } from "./ModelWidgets";
 
@@ -96,7 +96,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
   return (
     <div className="flex flex-col gap-1">
       {select}
-      <p id={`${id}-error`} role="alert" className="text-caption text-danger">
+      <InlineError id={`${id}-error`}>
         {t("form.listFailed", { reason })}{" "}
         <Button
           variant="ghost"
@@ -108,7 +108,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
         >
           {t("form.listRetry")}
         </Button>
-      </p>
+      </InlineError>
     </div>
   );
 }

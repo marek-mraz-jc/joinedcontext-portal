@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -15,7 +15,7 @@ import { preferredProject, useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
 import { isHiddenSection } from "./components/layout/navigation";
 import { useHiddenSections } from "./branding";
-import { EmptyState, PageFailed } from "./components/ui";
+import { EmptyState, PageFailed, PageLoading } from "./components/ui";
 import { ErrorPage, errorReference } from "./components/ErrorBoundary";
 import { NotFoundState } from "./components/NotFoundState";
 import { LoginPage } from "./routes/LoginPage";
@@ -26,41 +26,43 @@ import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
 import { ApprovalsPage } from "./routes/ApprovalsPage";
-import { ApprovalDetailPage } from "./routes/ApprovalDetailPage";
-import { ModelsPage } from "./pages/models/ModelsPage";
-import { ModelsList } from "./pages/models/ModelsList";
-import { ModelPage } from "./pages/models/ModelPage";
-import { ExplorePage } from "./pages/explore/ExplorePage";
-import { CkanPage } from "./pages/ckan/CkanPage";
+const ApprovalDetailPage = lazy(() => import("./routes/ApprovalDetailPage").then((module) => ({ default: module.ApprovalDetailPage })));
+const ModelsPage = lazy(() => import("./pages/models/ModelsPage").then((module) => ({ default: module.ModelsPage })));
+const ModelsList = lazy(() => import("./pages/models/ModelsList").then((module) => ({ default: module.ModelsList })));
+const ModelPage = lazy(() => import("./pages/models/ModelPage").then((module) => ({ default: module.ModelPage })));
+const ExplorePage = lazy(() => import("./pages/explore/ExplorePage").then((module) => ({ default: module.ExplorePage })));
+const CkanPage = lazy(() => import("./pages/ckan/CkanPage").then((module) => ({ default: module.CkanPage })));
 import { GlossaryPage } from "./pages/glossary/GlossaryPage";
 import { HomePage } from "./pages/home/HomePage";
-import { KnowledgePage } from "./pages/knowledge/KnowledgePage";
-import { SourcePage } from "./pages/knowledge/SourcePage";
-import { McpServersPage } from "./pages/mcp/McpServersPage";
-import { CataloguePage } from "./pages/catalogue/CataloguePage";
-import { DatasetPage } from "./pages/catalogue/DatasetPage";
+const KnowledgePage = lazy(() => import("./pages/knowledge/KnowledgePage").then((module) => ({ default: module.KnowledgePage })));
+const SourcePage = lazy(() => import("./pages/knowledge/SourcePage").then((module) => ({ default: module.SourcePage })));
+const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((module) => ({ default: module.McpServersPage })));
+const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
+const DatasetPage = lazy(() => import("./pages/catalogue/DatasetPage").then((module) => ({ default: module.DatasetPage })));
 import { parseCatalogueSearch } from "./pages/catalogue/search";
-import { PublicViewPage } from "./pages/spaces/PublicView";
-import { PublicFormPage } from "./pages/spaces/FormView";
+const PublicViewPage = lazy(() => import("./pages/spaces/PublicView").then((module) => ({ default: module.PublicViewPage })));
+const PublicFormPage = lazy(() => import("./pages/spaces/FormView").then((module) => ({ default: module.PublicFormPage })));
 import { useAuth } from "./auth/AuthProvider";
 import { Button } from "./components/ui";
-import { ImportPage } from "./pages/import/ImportPage";
-import { SpaceInside } from "./pages/spaces/SpaceInside";
-import { AppPage } from "./pages/apps/AppPage";
-import { AppOpenPage } from "./pages/apps/AppOpenPage";
-import { GroupPage } from "./pages/access/GroupPage";
-import { PersonPage } from "./pages/organization/People";
-import { EndpointPage } from "./pages/endpoints/EndpointPage";
-import { AssistantPage } from "./pages/assistant/AssistantPage";
+const ImportPage = lazy(() => import("./pages/import/ImportPage").then((module) => ({ default: module.ImportPage })));
+// A page that carries a map, a grid or an editor loads with its route, not with the Portal: the
+// entry every visit downloads first was 1.7 MB gzipped while these sat in it (T-3280).
+const SpaceInside = lazy(() => import("./pages/spaces/SpaceInside").then((module) => ({ default: module.SpaceInside })));
+const AppPage = lazy(() => import("./pages/apps/AppPage").then((module) => ({ default: module.AppPage })));
+const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) => ({ default: module.AppOpenPage })));
+const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
+const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
+const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
+const AssistantPage = lazy(() => import("./pages/assistant/AssistantPage").then((module) => ({ default: module.AssistantPage })));
 import { HandOff } from "./assistant/HandOff";
 import { hasPrefill } from "./assistant/state";
 import { DraftElsewhere } from "./assistant/DraftElsewhere";
 import { WorkspaceProvider } from "./components/layout/WorkspaceContext";
 import { WorkspacesPage } from "./routes/WorkspacesPage";
-import { ComparePage } from "./pages/workspaces/ComparePage";
-import { BringBackPage } from "./pages/workspaces/BringBackPage";
-import { TryItPage } from "./pages/workspaces/TryItPage";
-import { Gallery } from "./pages/gallery/Gallery";
+const ComparePage = lazy(() => import("./pages/workspaces/ComparePage").then((module) => ({ default: module.ComparePage })));
+const BringBackPage = lazy(() => import("./pages/workspaces/BringBackPage").then((module) => ({ default: module.BringBackPage })));
+const TryItPage = lazy(() => import("./pages/workspaces/TryItPage").then((module) => ({ default: module.TryItPage })));
+const Gallery = lazy(() => import("./pages/gallery/Gallery").then((module) => ({ default: module.Gallery })));
 import { ORG_NAMESPACE } from "./api/manifest";
 import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
 import type { OrganizationTab } from "./pages/organization/OrganizationPage";
@@ -217,7 +219,7 @@ function PublicFrame({ children }: { children: React.ReactNode }): React.JSX.Ele
         ) : null}
       </header>
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 p-6">
-        {children}
+        <Suspense fallback={<PageLoading label={t("app.loading")} />}>{children}</Suspense>
       </main>
     </div>
   );

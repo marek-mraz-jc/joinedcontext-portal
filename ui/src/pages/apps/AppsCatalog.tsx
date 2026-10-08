@@ -29,7 +29,18 @@ import type { components } from "../../api/schema";
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
-import { Alert, Badge, Button, buttonClass, EmptyState, PageHeader, recordCard, safeHref } from "../../components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  buttonClass,
+  Dialog,
+  EmptyState,
+  InlineError,
+  PageHeader,
+  recordCard,
+  safeHref,
+} from "../../components/ui";
 import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
 import { RenameShapesNotice } from "./RenameShapesNotice";
 import { AppTemplates } from "./AppTemplates";
@@ -185,9 +196,9 @@ export function AppPreview({ app, onClose }: { app: Manifest; onClose: () => voi
           className="h-128 w-full rounded border border-border bg-surface"
         />
       ) : (
-        <p role="alert" className="text-danger">
+        <InlineError>
           {t("apps.preview.notEmbeddable")}
-        </p>
+        </InlineError>
       )}
     </div>
   );
@@ -392,9 +403,9 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
         </Alert>
       ) : null}
       {error && (
-        <p role="alert" className="text-danger">
+        <InlineError>
           {error}
-        </p>
+        </InlineError>
       )}
       <div aria-live="polite">{notice ? <p className="text-sm">{notice}</p> : null}</div>
 
@@ -625,18 +636,32 @@ function LifecycleDialog({
       : [];
   const blocked = !mayPublish(items);
 
+  // The shared dialog (T-3281): it was a panel that called itself modal, so a screen reader was
+  // told the page behind it was gone while Tab still walked through it.
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t(`apps.${copy}.title`, { name: title })}
-      className="rounded border border-border bg-surface-subtle p-4"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+      title={t(`apps.${copy}.title`, { name: title })}
+      description={t(`apps.${copy}.body`, { visibility: visibilityLabel(spec.visibility ?? "project", t) })}
+      closeLabel={t("app.close")}
+      footer={
+        <>
+          <Button onClick={onCancel}>{t(`apps.${copy}.cancel`)}</Button>
+          <Button
+            variant={lifecycle === "retired" ? "danger" : "primary"}
+            disabled={pending || blocked || (lifecycle === "published" && endpoints.isPending)}
+            disabledReason={blocked ? t("apps.checklist.blocked") : undefined}
+            onClick={onConfirm}
+          >
+            {t(`apps.${copy}.confirm`)}
+          </Button>
+        </>
+      }
     >
-      <h2 className="font-semibold">{t(`apps.${copy}.title`, { name: title })}</h2>
-      <p className="mt-2 text-sm">
-        {t(`apps.${copy}.body`, { visibility: visibilityLabel(spec.visibility ?? "project", t) })}
-      </p>
-      <p className="mt-1 text-sm text-fg-muted">{t(`apps.${copy}.hint`)}</p>
+      <p className="text-sm text-fg-muted">{t(`apps.${copy}.hint`)}</p>
       {items.length > 0 ? (
         <section aria-labelledby="publish-checklist" className="mt-3">
           <h3 id="publish-checklist" className="text-body font-semibold">
@@ -666,20 +691,7 @@ function LifecycleDialog({
           </ul>
         </section>
       ) : null}
-      <div className="mt-3 flex gap-2">
-        <Button
-          variant={lifecycle === "retired" ? "danger" : "primary"}
-          disabled={pending || blocked || (lifecycle === "published" && endpoints.isPending)}
-          disabledReason={blocked ? t("apps.checklist.blocked") : undefined}
-          onClick={onConfirm}
-        >
-          {t(`apps.${copy}.confirm`)}
-        </Button>
-        <Button onClick={onCancel}>
-          {t(`apps.${copy}.cancel`)}
-        </Button>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

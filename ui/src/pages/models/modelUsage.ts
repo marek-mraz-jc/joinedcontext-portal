@@ -12,7 +12,7 @@
  */
 import { refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
-import { entityTypesOf, spaceOf } from "../spaces/SpaceInside";
+import { entityTypesOf, spaceOf } from "../spaces/spaceFacts";
 
 export type UsingKind = "ContextSpace" | "Endpoint" | "Pipeline" | "Subscription" | "App" | "Dashboard" | "Mapping";
 

@@ -23,7 +23,7 @@ import {
   useCatalogueLinks,
 } from "../../components/endpoints/links";
 import { useBranding } from "../../branding";
-import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
+import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { EntityFilters } from "../../components/entities/EntityFilters";
@@ -91,73 +91,10 @@ import {
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { useUrlParam } from "../../navigation/urlState";
 
-const SPACE_LABEL = "joinedcontext.com/space";
-const RESULTS_COUNT_HEADER = "NGSILD-Results-Count";
 const SAMPLE_LIMIT = 3;
 
-/** The space a manifest belongs to: `spec.contextSpaceRef` first, the space label second. */
-/**
- * The DataModels of a space: the one its optional `dataModelRef` names first, then every model
- * whose required `contextSpaceRef` names the space (T-2450). The list and the space's own page
- * both read it, so the list no longer says "—" where the page says "helsinki" (T-2760).
- */
-export function modelsOfSpace(space: Manifest, models: Manifest[]): Manifest[] {
-  const pointer = refName(space.spec.dataModelRef);
-  const primary = models.find((m) => m.metadata.name === pointer);
-  const owned = models.filter((m) => m !== primary && spaceOf(m) === space.metadata.name);
-  return [...(primary ? [primary] : []), ...owned];
-}
+import { entityTypesOf, modelsOfSpace, parseResultsCount, pickReadEndpoint, spaceOf } from "./spaceFacts";
 
-export function spaceOf(manifest: Manifest): string | undefined {
-  return (
-    (refName(manifest.spec.contextSpaceRef) || undefined) ??
-    (manifest.metadata.labels as Record<string, string> | null | undefined)?.[SPACE_LABEL]
-  );
-}
-
-/**
- * The endpoint the portal reads a space through: one without a policy narrows nothing, so it
- * shows everything the space holds; failing that the first public one is at least readable.
- * Given the person's `groups`, only an endpoint whose audience admits them is picked, and `null`
- * (the identity not known yet) picks none: a page does not fetch what the gateway will refuse
- * (T-2631).
- */
-export function pickReadEndpoint(
-  endpoints: Manifest[],
-  groups?: readonly string[] | null,
-  project = "",
-): Manifest | undefined {
-  if (groups === null) {
-    return undefined;
-  }
-  const readable = groups === undefined ? endpoints : endpoints.filter((endpoint) => admitsPerson(endpoint, groups, project));
-  return (
-    readable.find((endpoint) => endpoint.spec.policyRef === undefined) ??
-    readable.find((endpoint) => endpoint.spec.audience === "public")
-  );
-}
-
-/**
- * The entity types a DataModel defines: `spec.classes` when the manifest lists them, else the
- * class names of an inline LinkML source (`spec.linkml` carrying a document, not a path).
- */
-export function entityTypesOf(model: Manifest): string[] {
-  const classes = model.spec.classes;
-  if (Array.isArray(classes)) {
-    return classes.filter((c): c is string => typeof c === "string");
-  }
-  return [];
-}
-
-/** The `NGSILD-Results-Count` header as a number; `undefined` when absent or not a number. */
-export function parseResultsCount(headers: Headers): number | undefined {
-  const raw = headers.get(RESULTS_COUNT_HEADER);
-  if (raw === null) {
-    return undefined;
-  }
-  const count = Number.parseInt(raw.trim(), 10);
-  return Number.isNaN(count) || count < 0 ? undefined : count;
-}
 
 type KeyValues = Record<string, unknown> & { id: string };
 

@@ -212,7 +212,8 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     // The burst field is left out until a rate per minute is picked; the form said "the schema
     // has no field rateLimits.burst" in red over every new endpoint on dev.
     setupTest();
-    await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
+    // The header's button; an empty list offers the same one in its empty state (T-3246).
+    await userEvent.click((await screen.findAllByRole("button", { name: en.endpoints.add }))[0]);
     const page = await findFormPage();
     expect(within(page).queryByText(en.form.uischemaProblems)).toBeNull();
     expect(within(page).queryByText(/rateLimits\.burst/)).toBeNull();

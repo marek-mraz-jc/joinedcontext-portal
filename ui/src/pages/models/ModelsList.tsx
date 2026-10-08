@@ -38,7 +38,7 @@ import {
 } from "../../components/ui";
 import type { ButtonVariant } from "../../components/ui";
 import { OrganizationModels } from "./OrganizationModels";
-import { entityTypesOf } from "../spaces/SpaceInside";
+import { entityTypesOf } from "../spaces/spaceFacts";
 import { spaceOfModel, usageCounts, usesOfModel } from "./modelUsage";
 import type { ProjectManifests, UsingKind } from "./modelUsage";
 

@@ -8,7 +8,17 @@ import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useAuth } from "../../auth/AuthProvider";
 import { useBranding } from "../../branding";
-import { Button, buttonClass, EmptyState, ExternalLink, Icon, PageHeader, PageLoading, safeHref } from "../../components/ui";
+import {
+  Button,
+  buttonClass,
+  EmptyState,
+  ExternalLink,
+  Icon,
+  InlineError,
+  PageHeader,
+  PageLoading,
+  safeHref,
+} from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { useAppBuild } from "./AppBuildPanel";
 import { appSpec, openBlockedReason } from "./AppsCatalog";
@@ -370,9 +380,9 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
         </div>
       </div>
       {fullscreenFailed ? (
-        <p role="alert" className="border-b border-border bg-surface px-3 py-1.5 text-caption text-danger sm:px-4">
+        <InlineError className="border-b border-border bg-surface px-3 py-1.5 sm:px-4">
           {t("apps.openPage.fullscreenFailed", { reason: fullscreenFailed })}
-        </p>
+        </InlineError>
       ) : null}
       {/* Above the frame, never over it: the App stays where it is while the person signs in. */}
       <div role="status" aria-live="polite">

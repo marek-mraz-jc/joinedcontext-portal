@@ -3,6 +3,7 @@
  * Every page imports its controls from here; nothing on a page styles a control by hand.
  */
 export { Alert } from "./Alert";
+export { InlineError } from "./InlineError";
 export type { AlertProps, AlertTone } from "./Alert";
 export { Badge } from "./Badge";
 export type { BadgeProps, BadgeTone } from "./Badge";

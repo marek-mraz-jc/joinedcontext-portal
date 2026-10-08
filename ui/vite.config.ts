@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -51,6 +52,15 @@ export default defineConfig({
     // which picks the ESM build the browser bundle already uses.
     server: { deps: { inline: ["i18next-icu", "intl-messageformat"] } },
     setupFiles: ["./tests/setup.ts"],
+    // The form engine loads lazily in the Portal (T-3280); a test reads a form the moment it opens,
+    // as a person does once the engine is loaded, so the dialogs import it directly here.
+    // `tests/lazy_schema_form.test.tsx` imports `SchemaFormLoader` itself and covers the wait.
+    alias: [
+      {
+        find: /^.*\/forms\/LazySchemaForm$/,
+        replacement: fileURLToPath(new URL("./src/components/forms/SchemaForm.tsx", import.meta.url)),
+      },
+    ],
     globals: true,
     css: true,
     include: ["tests/**/*.test.{ts,tsx}"],

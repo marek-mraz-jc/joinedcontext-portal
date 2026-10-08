@@ -252,6 +252,19 @@ describe("service accounts view", () => {
     expect(new URL(deleted.url).pathname).toMatch(/\/keys\/3f9c2a7b1d4e8f06$/);
   });
 
+  it("asks in a dialog that takes the focus, and Escape answers no (T-3281)", async () => {
+    const fetchMock = renderAccess();
+
+    await userEvent.click(await screen.findByRole("button", { name: en.access.keys.revoke }));
+    const confirm = await screen.findByRole("alertdialog", { name: /3f9c2a7b1d4e8f06/ });
+    // The safe answer holds the focus, so Enter on arrival revokes nothing.
+    expect(within(confirm).getByRole("button", { name: en.form.cancel })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(fetchMock.mock.calls.some((call) => (call[0] as Request).method === "DELETE")).toBe(false);
+    expect(screen.getByRole("button", { name: en.access.keys.revoke })).toHaveFocus();
+  });
+
   it("rotates through the key's own route", async () => {
     const fetchMock = renderAccess();
 

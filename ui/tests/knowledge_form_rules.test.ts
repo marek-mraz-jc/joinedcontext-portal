@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import validator from "../src/components/forms/validator";
-import { errorMessageKey } from "../src/components/forms/SchemaForm";
+import { errorMessageKey } from "../src/components/forms/errorMessages";
 import { CRON, HEX_COLOR, HTTPS_URL, LANGUAGE, ORIGIN, SITE_PATH, assistantDeploymentSchema } from "../src/schemas/knowledge";
 import en from "../src/locales/en.json";
 

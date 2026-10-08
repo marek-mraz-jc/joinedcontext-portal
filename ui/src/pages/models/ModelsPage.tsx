@@ -10,7 +10,18 @@ import { useOrgDomain } from "../../api/projects";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Field,
+  InlineError,
+  Input,
+  PageHeader,
+  Select,
+  tabPanelProps,
+  Tabs,
+} from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { takePrefill } from "../../assistant/state";
 import { getDraft, putDraft } from "../../api/drafts";
@@ -525,9 +536,9 @@ export function ModelsPage({
             {t(`models.severity.${severity}`)} · {t(`lane.${lane}`)}
           </h2>
           {refusal ? (
-            <p role="alert" className="mt-1 text-sm text-danger-fg">
+            <InlineError className="mt-1">
               {refusal}
-            </p>
+            </InlineError>
           ) : null}
           {changes.length > 0 ? (
             <ul className="mt-2 flex flex-col gap-1 text-sm">
@@ -626,19 +637,19 @@ export function ModelsPage({
                   ) : null}
                 </div>
                 {taken ? (
-                  <p role="alert" className="text-sm text-danger-fg">
+                  <InlineError>
                     {t("models.create.taken", { name: targetName })}
-                  </p>
+                  </InlineError>
                 ) : null}
                 {spaceTakenBy ? (
-                  <p role="alert" className="text-sm text-danger-fg">
+                  <InlineError>
                     {t("models.create.spaceTaken", { space: newSpace, model: spaceTakenBy })}
-                  </p>
+                  </InlineError>
                 ) : null}
                 {heldConflict ? (
-                  <p role="alert" className="text-sm text-danger-fg">
+                  <InlineError>
                     {t("models.create.heldConflict")}
-                  </p>
+                  </InlineError>
                 ) : kept ?? held ? (
                   <p role="status" className="text-body text-fg-muted">
                     {t("models.create.held", { name: (kept ?? held)?.name })}
