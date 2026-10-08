@@ -29,9 +29,33 @@ test("a station left out stays out after a reload, by the address", async ({ pag
   const route = page.getByRole("list", { name: "Route" });
   const first = route.getByRole("listitem").first();
   const name = (await first.locator("strong").textContent()) ?? "";
-  await first.getByRole("button").click();
+  await first.getByRole("button", { name: `Leave out of the route: ${name}` }).click();
   await expect(route.getByText(name, { exact: true })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("list", { name: "Route" }).getByRole("listitem").first()).toBeVisible();
   await expect(page.getByRole("list", { name: "Route" }).getByText(name, { exact: true })).toHaveCount(0);
 });
+
+// T-3388, SDK-40: a stop of the route opened in the SDK's entity panel by its name, at a phone and a
+// laptop, light and dark. The operator may only read, so the panel links to the Portal, no Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a station in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      const stop = page.getByRole("list", { name: "Route" }).getByRole("listitem").first();
+      const name = (await stop.locator("strong").textContent()) ?? "";
+      await stop.getByRole("button", { name, exact: true }).click();
+      const panel = page.getByRole("dialog", { name });
+      await expect(panel.getByText("BikeHireDockingStation")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}

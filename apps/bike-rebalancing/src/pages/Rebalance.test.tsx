@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import { STATIONS } from "../fixtures/stations";
-import { fillBands, Rebalance, vanOf, watched } from "./Rebalance";
+import { choiceOf, fillBands, Rebalance, vanOf, watched } from "./Rebalance";
 
 vi.mock("maplibre-gl", () => ({
   Map: class {
@@ -88,6 +88,25 @@ describe("Rebalance", () => {
     expect(await screen.findAllByText("No docking station was found.")).not.toHaveLength(0);
   });
 
+  it("says in words when the planner fails, and keeps the stations' counts", async () => {
+    // A worker that refuses every plan, as one whose module could not load would.
+    vi.stubGlobal(
+      "Worker",
+      class {
+        onmessage: ((event: { data: { id: number; error: string } }) => void) | null = null;
+        postMessage({ id }: { id: number }) {
+          queueMicrotask(() => this.onmessage?.({ data: { id, error: "out of memory" } }));
+        }
+      },
+    );
+    try {
+      show();
+      expect(await screen.findByRole("alert")).toHaveTextContent("The route could not be planned: out of memory");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("says in words when the stations cannot be read, and offers to try again", async () => {
     const client = stubClient(
       { entities: STATIONS, access: READ, refuse: () => ({ status: 503, body: { title: "Unavailable" } }) },
@@ -100,11 +119,25 @@ describe("Rebalance", () => {
     );
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The stations could not be read (HTTP 503). Try again later.");
-    expect(within(alert).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    // Retry asks the endpoint again, and is refused again.
+    const asked = client.transport.calls.length;
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(client.transport.calls.length).toBeGreaterThan(asked));
   });
 });
 
 describe("the page's pure parts", () => {
+  it("names a station's choice by what its click does", () => {
+    const none = { add: [] as string[], skip: [] as string[], route: new Set<string>() };
+    // A station about to run empty or full is routed unless left out, whether or not the plan on
+    // screen has reached it yet: its button leaves it out, and says so.
+    expect(choiceOf("a", true, none)).toBe("leaveOut");
+    expect(choiceOf("a", false, { ...none, route: new Set(["a"]) })).toBe("leaveOut");
+    expect(choiceOf("a", false, { ...none, add: ["a"] })).toBe("leaveOut");
+    expect(choiceOf("a", true, { ...none, skip: ["a"] })).toBe("putBack");
+    expect(choiceOf("a", false, none)).toBe("addIn");
+  });
+
   it("takes a van capacity only in range", () => {
     expect(vanOf("12")).toBe(12);
     for (const wrong of ["", "0", "-4", "2.5", "201", "many"]) expect(vanOf(wrong)).toBe(20);
