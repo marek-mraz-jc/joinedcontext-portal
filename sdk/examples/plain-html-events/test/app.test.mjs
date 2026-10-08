@@ -1,8 +1,9 @@
+// @vitest-environment node
 // The pure functions of the Helsinki events page (T-2597), on five events in the shape the
 // Helsinki events endpoint answers on dev: normalized NGSI-LD, LanguageProperty names.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { test } from "node:test";
+import { test } from "vitest";
 import { dayOf, eventsUrl, filterEvents, pickEndpoint, project, text, toView, when } from "../app.js";
 
 // Five events in the shape the endpoint answers, shared with the browser flow
@@ -106,4 +107,20 @@ test("the map places the events north up inside the box, and draws nothing for n
   const one = project([views[0]], 320, 240);
   assert.equal(one.length, 1);
   assert.ok(Number.isFinite(one[0].x) && Number.isFinite(one[0].y), "a single point does not divide by zero");
+});
+
+// The edges of the shapes the endpoint may send, each read as nothing rather than as a wrong word.
+test("a value with nothing to read is an empty word, a nameless event is its id, a half-dated one says its one end", () => {
+  assert.equal(text({ languageMap: { fi: 5 } }, ["en"]), "");
+  assert.equal(text({ value: null }), "");
+  assert.equal(text({ value: 12 }), "12");
+  assert.equal(toView({ id: "urn:ngsi-ld:Event:x" }).name, "urn:ngsi-ld:Event:x");
+  const start = toView({ id: "a", startDate: "2026-10-01T10:00:00Z" });
+  const end = toView({ id: "b", endDate: "2026-10-02T10:00:00Z" });
+  assert.match(when(start), /^from /);
+  assert.match(when(end), /^until /);
+  assert.equal(dayOf(undefined), null);
+  // Two events without a start keep their order after the dated ones.
+  const undated = [toView({ id: "c", name: "C" }), toView({ id: "d", name: "D" })];
+  assert.deepEqual(names(filterEvents([...undated, start], {})), ["a", "C", "D"]);
 });

@@ -313,7 +313,12 @@ fn the_plain_html_example_is_its_own_bundle_and_a_valid_app() {
         "published from its own repository (AP-87)"
     );
     assert!(root.join("index.html").is_file(), "index.html at the root");
-    for toolchain in ["package.json", "Cargo.toml", "vite.config.ts"] {
+    for toolchain in [
+        "package.json",
+        "Cargo.toml",
+        "vite.config.ts",
+        "vitest.config.mjs",
+    ] {
         assert!(
             !root.join(toolchain).exists(),
             "{toolchain} in a folder that is served as it is"

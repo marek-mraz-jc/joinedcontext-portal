@@ -167,12 +167,13 @@ if (typeof document !== "undefined") {
         const time = document.createElement("span");
         time.className = "when";
         time.textContent = when(event);
-        button.append(name, time);
+        // A space between the parts, so a screen reader reads them as words, not one run.
+        button.append(name, " ", time);
         if (event.address) {
           const where = document.createElement("span");
           where.className = "where";
           where.textContent = event.address;
-          button.append(where);
+          button.append(" ", where);
         }
         button.addEventListener("click", () => select(event.id, true));
         item.append(button);
