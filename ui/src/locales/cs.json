@@ -5245,7 +5245,7 @@
       "roles": "Role",
       "service-accounts": "Servisní účty",
       "access": "Váš přístup",
-      "danger": "Smazat projekt"
+      "danger": "Smazat nebo předat"
     },
     "field": {
       "title": "Název",
@@ -5272,10 +5272,27 @@
     },
     "danger": {
       "title": "Smazat projekt",
-      "lead": "Smazání projektu odstraní vše napsané pro něj jednou změnou v červeném pruhu, kterou schválí administrátor. Dialog před potvrzením vypíše, co odejde s ním."
+      "lead": "Smazání projektu odstraní vše napsané pro něj jednou změnou v červeném pruhu, kterou schválí administrátor. Dialog před potvrzením vypíše, co odejde s ním.",
+      "handoverTitle": "Předat projekt",
+      "handoverLead": "Projekt nemá jednoho vlastníka: spravuje jej ten, kdo má jeho roli administrátora. Chcete-li jej předat, přiřaďte novou osobu k této roli v Členech a po schválení odeberte vlastní přiřazení.",
+      "handoverLink": "Otevřít Členy"
     },
     "roles": {
       "organizationKinds": "Role projektu nesmí jmenovat {kinds}: ty patří vlastním rolím organizace."
+    },
+    "search": {
+      "label": "Najít nastavení",
+      "placeholder": "kvóta, členové, smazat…",
+      "nothing": "Žádné nastavení tohoto projektu se tak nejmenuje ani to nemění.",
+      "results": "Nalezená nastavení"
+    },
+    "about": {
+      "organization": "Organizace, do které projekt patří; patří instalaci a zde se nemění.",
+      "duplicateLabel": "Duplikovat projekt",
+      "duplicate": "Vytvoří nový projekt se stejnými prostory, endpointy, pipelinami a aplikacemi, bez dat.",
+      "members": "Kdo je v projektu přiřazen a s jakou rolí: co zde každý smí číst, navrhovat, schvalovat a mazat.",
+      "roles": "Vlastní role projektu: které druhy smí každá číst, navrhovat, schvalovat nebo mazat.",
+      "serviceAccounts": "Účty, kterými programy volají endpointy projektu, a jejich klíče."
     }
   },
   "projectDuplicate": {

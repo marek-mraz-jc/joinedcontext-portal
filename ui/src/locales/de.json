@@ -5245,7 +5245,7 @@
       "roles": "Rollen",
       "service-accounts": "Dienstkonten",
       "access": "Ihr Zugriff",
-      "danger": "Projekt löschen"
+      "danger": "Löschen oder übergeben"
     },
     "field": {
       "title": "Titel",
@@ -5272,10 +5272,27 @@
     },
     "danger": {
       "title": "Projekt löschen",
-      "lead": "Das Löschen entfernt alles, was für das Projekt geschrieben wurde, in einer Änderung der roten Spur, die eine Verwaltung genehmigt. Der Dialog nennt vor der Bestätigung, was mitgeht."
+      "lead": "Das Löschen entfernt alles, was für das Projekt geschrieben wurde, in einer Änderung der roten Spur, die eine Verwaltung genehmigt. Der Dialog nennt vor der Bestätigung, was mitgeht.",
+      "handoverTitle": "Projekt übergeben",
+      "handoverLead": "Ein Projekt hat keinen einzelnen Besitzer: wer seine Administratorrolle hält, verwaltet es. Zur Übergabe binden Sie die neue Person in Mitglieder an diese Rolle und entfernen nach der Genehmigung Ihre eigene Bindung.",
+      "handoverLink": "Mitglieder öffnen"
     },
     "roles": {
       "organizationKinds": "Eine Rolle eines Projekts darf {kinds} nicht nennen: das gehört zu den eigenen Rollen der Organisation."
+    },
+    "search": {
+      "label": "Einstellung finden",
+      "placeholder": "Kontingent, Mitglieder, löschen…",
+      "nothing": "Keine Einstellung dieses Projekts heißt so oder ändert das.",
+      "results": "Gefundene Einstellungen"
+    },
+    "about": {
+      "organization": "Die Organisation, zu der das Projekt gehört; sie gehört der Installation und wird hier nicht geändert.",
+      "duplicateLabel": "Projekt duplizieren",
+      "duplicate": "Legt ein neues Projekt mit denselben Räumen, Endpunkten, Pipelines und Apps an, ohne Daten.",
+      "members": "Wer im Projekt mit welcher Rolle gebunden ist: was jede Person hier lesen, vorschlagen, genehmigen und löschen darf.",
+      "roles": "Die eigenen Rollen des Projekts: welche Arten jede lesen, vorschlagen, genehmigen oder löschen darf.",
+      "serviceAccounts": "Die Konten, mit denen Programme die Endpunkte des Projekts aufrufen, und ihre Schlüssel."
     }
   },
   "projectDuplicate": {
