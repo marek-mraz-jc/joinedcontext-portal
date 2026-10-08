@@ -5,10 +5,13 @@
  *
  * Its own look (T-2779): the population is the headline, the five others a grid of cards under
  * it; every card says its window and how it was computed. None has a published limit, so no
- * card has a colour that judges it (`Development/13` §3).
+ * card has a colour that judges it (`Development/13` §3). A card's title opens the indicator in the
+ * SDK's entity panel, which links to it in the Portal: a public App writes nothing (SDK-39,
+ * SDK-40, AP-140).
  */
 import { useEffect, useState } from "react";
-import { endpointSource, Header, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, Page, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import type { ShellPage } from "@joinedcontext/sdk";
 import { KEYS, toIndicator, windowOf } from "./indicators";
 import type { Indicator } from "./indicators";
 import { stringsFor } from "./locales";
@@ -37,7 +40,8 @@ function useIndicators(): Loaded | null {
       })
       .catch((cause: unknown): Loaded => ({
         status: "failed",
-        reason: cause instanceof SourceError || cause instanceof Error ? cause.message : String(cause),
+        // A `SourceError` is an `Error`: the endpoint's own words, else what was thrown.
+        reason: cause instanceof Error ? cause.message : String(cause),
       }))
       .then((next) => {
         if (live) setLoaded(next);
@@ -52,15 +56,22 @@ function useIndicators(): Loaded | null {
   return slug ? loaded : null;
 }
 
+/** The indicators in the SDK's shell, which holds the entity panel (SDK-39). */
 export default function App() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
+  const pages: ShellPage[] = [{ id: "indicators", label: s.page, render: () => <Indicators /> }];
+  return <AppShell title={s.title} pages={pages} language={s.locale} />;
+}
+
+function Indicators() {
   const { config } = useClient();
   const s = stringsFor(config.language);
   const loaded = useIndicators();
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page label={s.page}>
+        <p className="subtitle">{s.subtitle}</p>
         {loaded === null && <p role="status">{s.noEndpoint}</p>}
         {loaded?.status === "loading" && <p role="status">{s.loading}</p>}
         {loaded?.status === "failed" && <p role="alert" className="failed">{s.refused(loaded.reason)}</p>}
@@ -78,17 +89,23 @@ export default function App() {
           </>
         )}
         <p className="source">{s.attribution}</p>
-      </Page>
-    </main>
+    </Page>
   );
 }
 
 function Card({ indicator, s }: { indicator: Indicator; s: Strings }) {
+  const { config } = useClient();
+  const { select } = useEntitySelection();
+  const endpoint = config.endpoints?.find((candidate) => candidate.space === SPACE)?.name;
   const id = `card-${indicator.key}`;
   const window = indicator.period ? windowOf(indicator.period) : null;
   return (
     <article className="card" aria-labelledby={id}>
-      <h2 id={id}>{s.label[indicator.key]}</h2>
+      <h2 id={id}>
+        <button type="button" className="opens" onClick={() => select({ id: indicator.id, type: "KeyPerformanceIndicator", endpoint })}>
+          {s.label[indicator.key]}
+        </button>
+      </h2>
       <p className="value">
         {indicator.value === null ? (
           <span className="missing">{s.notMeasured}</span>

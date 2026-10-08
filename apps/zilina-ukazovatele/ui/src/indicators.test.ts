@@ -43,10 +43,55 @@ describe("toIndicator", () => {
   });
 });
 
+describe("what a pipeline writes otherwise", () => {
+  const P = (value: unknown) => ({ type: "Property", value });
+  const base = () => row("uchadzaci-mesto") as unknown as Record<string, unknown>;
+
+  it("reads a name written as a relationship, and a run time that is plain text", () => {
+    const entity = base();
+    entity.name = { type: "Relationship", object: "uchadzaci-mesto" };
+    entity.updatedAt = P("2026-10-06T19:00:00Z");
+    expect(toIndicator(toRichRow(entity as never))).toMatchObject({ key: "uchadzaci", updatedAt: "2026-10-06T19:00:00Z" });
+  });
+
+  it("leaves out a window, a formula and a run time it cannot read", () => {
+    const entity = base();
+    entity.calculationPeriod = P({ start: "2026-04-01" });
+    delete entity.calculationFormula;
+    entity.updatedAt = P({ "@type": "DateTime", "@value": 42 });
+    expect(toIndicator(toRichRow(entity as never))).toMatchObject({ period: null, formula: "", updatedAt: null });
+    entity.updatedAt = P(null);
+    expect(toIndicator(toRichRow(entity as never))?.updatedAt).toBeNull();
+    entity.currentValue = { type: "Property", value: Number.POSITIVE_INFINITY, unitCode: "C62" };
+    expect(toIndicator(toRichRow(entity as never))).toMatchObject({ value: null, unitCode: null, unitAsDefined: false });
+    entity.currentValue = P(12);
+    expect(toIndicator(toRichRow(entity as never))).toMatchObject({ value: 12, unitCode: null, unitAsDefined: false });
+  });
+
+  it("refuses another type, an id of another shape, and a name of no territory or none at all", () => {
+    const of = (change: (entity: Record<string, unknown>) => void) => {
+      const entity = base();
+      change(entity);
+      return toIndicator(toRichRow(entity as never));
+    };
+    expect(of((e) => (e.type = "Indicator"))).toBeNull();
+    expect(of((e) => (e.id = "urn:ngsi-ld:KeyPerformanceIndicator:uchadzaci-mesto"))).toBeNull();
+    expect(of((e) => (e.id = String(e.id).replace(/^urn/, "urx")))).toBeNull();
+    expect(of((e) => (e.id = String(e.id).replace("ngsi-ld", "ngsi")))).toBeNull();
+    expect(of((e) => delete e.name)).toBeNull();
+    expect(of((e) => {
+      e.id = String(e.id).replace("uchadzaci-mesto", "uchadzaci-kraj");
+      e.name = P("uchadzaci-kraj");
+    })).toBeNull();
+  });
+});
+
 describe("windowOf", () => {
   it("names a quarter, a year, and anything else by its days", () => {
     expect(windowOf({ start: "2026-04-01T00:00:00Z", end: "2026-06-30T23:59:59Z" })).toEqual({ kind: "quarter", label: "Q2 2026" });
     expect(windowOf({ start: "2025-01-01T00:00:00Z", end: "2025-12-31T23:59:59Z" })).toEqual({ kind: "year", label: "2025" });
     expect(windowOf({ start: "0001-01-01T00:00:00Z", end: "2026-10-06T19:00:00Z" }).kind).toBe("days");
+    // A quarter's start with another quarter's end is two days, not a quarter.
+    expect(windowOf({ start: "2026-04-01T00:00:00Z", end: "2026-09-30T23:59:59Z" })).toEqual({ kind: "days", label: "2026-04-01 – 2026-09-30" });
   });
 });

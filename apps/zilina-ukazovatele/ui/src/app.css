@@ -3,10 +3,7 @@
  * a wide headline card, the others a grid of cards one to three across; no card carries a colour
  * that would read as a judgement (Development/13 §3).
  */
-main {
-  padding: var(--jc-gutter, 1rem);
-}
-
+.subtitle,
 .source,
 .note,
 .question,
@@ -81,5 +78,18 @@ main {
 }
 
 .card summary {
+  cursor: pointer;
+}
+
+/* A card's title opens the indicator in the entity panel (SDK-40): it reads as the title, and says it is a button. */
+.opens {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
   cursor: pointer;
 }
