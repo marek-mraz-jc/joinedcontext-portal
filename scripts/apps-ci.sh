@@ -98,10 +98,25 @@ ui() {
       && pnpm install --no-frozen-lockfile && pnpm typecheck \
       && sh "$RUN" "$(basename "$app")" && pnpm build)
   done
+  # The plain-HTML example has no build and no package manager (AP-83): its tests run in a copy
+  # given a throwaway package.json with the SDK's own vitest and jsdom.
+  if touched sdk/examples/plain-html-events; then
+    work=$(mktemp -d)
+    cp -r sdk/examples/plain-html-events/. "$work"
+    vitest=$(node -p "require('$ROOT/sdk/node_modules/vitest/package.json').version")
+    jsdom=$(node -p "require('$ROOT/sdk/node_modules/jsdom/package.json').version")
+    (cd "$work" && cp test/vitest.config.mjs vitest.config.mjs \
+      && printf '{ "name": "plain-html-events-tests", "private": true, "type": "module" }\n' > package.json \
+      && pnpm add --save-dev "vitest@$vitest" "jsdom@$jsdom" "@joinedcontext/sdk@link:$ROOT/sdk" >/dev/null \
+      && sh "$RUN" plain-html-events)
+  else
+    skip plain-html-events
+  fi
   if touched sdk/examples/rust-wasm-server; then
     work=$(mktemp -d)
     cp -r sdk/examples/rust-wasm-server/. "$work"
-    (cd "$work" && pnpm install --no-frozen-lockfile && sh "$RUN" rust-wasm-server && pnpm build)
+    (cd "$work" && npm pkg set "devDependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
+      && pnpm install --no-frozen-lockfile && sh "$RUN" rust-wasm-server && pnpm build)
   else
     skip rust-wasm-server
   fi

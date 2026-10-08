@@ -3,6 +3,3 @@
 # gate refuses a new line, and fails a listed App that already passes. Thresholds never move.
 banskabystrica-mapa T-3379
 banskabystrica-skoly T-3381
-plain-html-events T-3416
-react-rust-wasm T-3416
-rust-wasm-server T-3416
