@@ -21,6 +21,18 @@ The narrowing is in three places, and each one is the whole rule on its own:
 | `spec.dataNeeds` | one type, one write operation, the listed attributes |
 | `records.ts` | the screen sends the note and nothing else, and refuses a note the model would refuse |
 
+## In the shell, and the entity panel
+
+The screen sits in the SDK's `AppShell` (SDK-39) with its states. Each row's **Otvoriť záznam**
+opens the record in the shell's entity panel (SDK-40), read fresh through the App's endpoint. The
+panel asks the reader's own access document what they may change: a steward, whom the Policy grants
+`updateAttrs` on `stewardNote`, gets **Upraviť** with the note as its one field, checked against the
+model, shown before it is written, and a refusal (403) or a conflict (409) said in words; every
+other reader gets the link to the record in the Portal. The write is the same `PATCH` through the
+same endpoint as the grid's own. The panel edits a note a record already has; a first note is
+written in the grid's open column. No write operation was added: `dataNeeds` already hold
+`updateAttrs` for the note alone.
+
 ## Whose records a screen shows
 
 The same `ui/src` is published twice. Which body's records it shows comes from the space the

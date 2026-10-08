@@ -4,8 +4,6 @@
 banskabystrica-mapa T-3379
 banskabystrica-ovzdusie T-3380
 banskabystrica-skoly T-3381
-banskabystrica-zaznamy T-3382
-bbsk-zaznamy T-3387
 event-day-planner T-3393
 news-topics T-3401
 zilina-vyskum T-3409
