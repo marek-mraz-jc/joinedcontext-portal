@@ -6202,7 +6202,9 @@
       "sources": "Sources",
       "question": "Your question",
       "send": "Send",
-      "failed": "The answer could not be loaded. Try again."
+      "failed": "The answer could not be loaded. Try again.",
+      "liveData": "Live data",
+      "sourceNumber": "Source {n}"
     },
     "embed": {
       "title": "Embed",

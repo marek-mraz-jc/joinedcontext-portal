@@ -227,6 +227,8 @@ export interface Citation {
   url?: string;
   tool?: string;
   endpoint?: string;
+  /** The cited page's title, which the person reads instead of its address (AG-117). */
+  title?: string;
 }
 
 /** The events of API/05 §1.3, as the chat panel reads them. */
@@ -272,6 +274,7 @@ function chatEvent(name: string, data: unknown): ChatEvent | null {
             url: typeof c.url === "string" && /^https?:\/\//.test(c.url) ? c.url : undefined,
             tool: typeof c.tool === "string" ? c.tool : undefined,
             endpoint: typeof c.endpoint === "string" ? c.endpoint : undefined,
+            title: typeof c.title === "string" ? c.title : undefined,
           })),
       };
     case "error":

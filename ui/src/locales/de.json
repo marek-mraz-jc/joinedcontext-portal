@@ -6202,7 +6202,9 @@
       "sources": "Quellen",
       "question": "Ihre Frage",
       "send": "Senden",
-      "failed": "Die Antwort konnte nicht geladen werden. Bitte erneut versuchen."
+      "failed": "Die Antwort konnte nicht geladen werden. Bitte erneut versuchen.",
+      "liveData": "Live-Daten",
+      "sourceNumber": "Quelle {n}"
     },
     "embed": {
       "title": "Einbetten",
