@@ -133,13 +133,17 @@ export function FeedbackButton({
     },
   });
 
-  // Every opening starts clean, whichever control opened it.
+  // Every opening starts clean, whichever control opened it: the last answer is cleared while
+  // rendering the opening (React's way to follow a changed prop, no effect), and the mutation's
+  // own state in an effect, since it is not this component's state.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setSaid("");
+  }
   const reset = send.reset;
   useEffect(() => {
-    if (open) {
-      setSaid("");
-      reset();
-    }
+    if (open) reset();
   }, [open, reset]);
 
   const failure =
