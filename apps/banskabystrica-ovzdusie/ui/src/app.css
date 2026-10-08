@@ -6,7 +6,7 @@
  * The columns are the SDK's layout primitives (Page, Header, Split, Grid; T-2825): the map and
  * the picked station side by side where there is room, the station cards one to four across.
  */
-main {
+.jc-main {
   padding: var(--jc-gutter, 1rem);
 }
 
@@ -102,9 +102,6 @@ main {
   margin: 0;
 }
 
-.failed {
-  color: var(--jc-color-danger-text, #b42318);
-}
 
 .detail h2 {
   margin-top: 0;

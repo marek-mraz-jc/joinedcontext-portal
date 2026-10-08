@@ -32,6 +32,8 @@ export interface Strings {
   noLocation: string;
   pick: string;
   picked: string;
+  /** The button that opens a station in the shell's entity panel (SDK-40). */
+  details: (name: string) => string;
   historyTitle: string;
   historyOf: string;
   loading: string;
@@ -96,6 +98,7 @@ const SK: Strings = {
   noLocation: "stanica neuvádza polohu, na mape nie je",
   pick: "Zobraziť stanicu",
   picked: "Vybraná stanica",
+  details: (name) => `Podrobnosti: ${name}`,
   historyTitle: "Jeden deň histórie",
   historyOf: "História hodnoty",
   loading: "Načítavajú sa stanice…",
@@ -151,6 +154,7 @@ const EN: Strings = {
   noLocation: "the station publishes no location, so it is not on the map",
   pick: "Show this station",
   picked: "Selected station",
+  details: (name) => `Details: ${name}`,
   historyTitle: "One day of history",
   historyOf: "History of",
   loading: "Loading the stations…",
