@@ -1,8 +1,8 @@
 /**
- * The region's places as the map reads them (T-2784): the hospitals, the social services and the
- * organizations of the Banskobystrický samosprávny kraj, all from its public register space
- * `bbsk-registre`. A value the entity does not carry stays `null` and is said as missing, never
- * turned into a zero or an empty string that reads like data.
+ * The region's places as the map and its list read them (T-2784): the hospitals, the social
+ * services and the organizations of the Banskobystrický samosprávny kraj, all from its public
+ * register space `bbsk-registre`. A place opened is the SDK's entity panel's, which reads it whole;
+ * this keeps what the list shows and searches. A value the entity does not carry stays `null`.
  */
 import type { RichCell, RichRow } from "@joinedcontext/sdk";
 
@@ -24,16 +24,8 @@ export interface Place {
   coordinates: [number, number] | null;
   address: string | null;
   district: string | null;
-  url: string | null;
-  /** The model's enum value of the place: a hospital's kind, a service's form, an organization's category. */
-  category: string | null;
-  /** A hospital's operator and specialties; a service's kind, target group, capacity and provider. */
-  operator: string | null;
-  specialties: string[];
+  /** A service's kind, which the search finds it by. */
   serviceKind: string | null;
-  targetGroup: string | null;
-  capacity: number | null;
-  provider: string | null;
 }
 
 function first(cell: RichCell | RichCell[] | undefined): RichCell | undefined {
@@ -44,19 +36,6 @@ function text(row: RichRow, attr: string): string | null {
   const value = first(row.cells[attr])?.value;
   if (typeof value === "string") return value.trim() === "" ? null : value.trim();
   return null;
-}
-
-function texts(row: RichRow, attr: string): string[] {
-  const cell = row.cells[attr];
-  const values = (Array.isArray(cell) ? cell : cell ? [cell] : []).flatMap((one) =>
-    Array.isArray(one.value) ? one.value : [one.value],
-  );
-  return values.filter((value): value is string => typeof value === "string" && value.trim() !== "").map((value) => value.trim());
-}
-
-function number(row: RichRow, attr: string): number | null {
-  const value = first(row.cells[attr])?.value;
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /** A LanguageProperty in the reader's language, else Slovak, else whichever the publisher wrote. */
@@ -78,8 +57,6 @@ function point(row: RichRow): [number, number] | null {
     : null;
 }
 
-const CATEGORY_ATTR: Record<Kind, string> = { hospital: "hospitalKind", social: "serviceForm", organization: "organizationCategory" };
-
 export function placeOf(row: RichRow, kind: Kind, locale: string): Place {
   return {
     id: row.id,
@@ -88,26 +65,8 @@ export function placeOf(row: RichRow, kind: Kind, locale: string): Place {
     coordinates: point(row),
     address: text(row, "address"),
     district: text(row, "districtName"),
-    url: safeUrl(text(row, "url")),
-    category: text(row, CATEGORY_ATTR[kind]),
-    operator: text(row, "operatorName"),
-    specialties: texts(row, "medicalSpecialties"),
     serviceKind: text(row, "serviceKind"),
-    targetGroup: text(row, "targetGroup"),
-    capacity: number(row, "capacity"),
-    provider: text(row, "providerKind"),
   };
-}
-
-/** A link the sheet may open: http or https only, so a `javascript:` URL in the data never runs. */
-export function safeUrl(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
-  } catch {
-    return null;
-  }
 }
 
 /** Text folded for search: lower case, without diacritics, so "nemocnica" finds "Nemocnica". */

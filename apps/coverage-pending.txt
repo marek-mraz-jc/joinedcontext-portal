@@ -6,7 +6,6 @@ banskabystrica-mapa T-3379
 banskabystrica-ovzdusie T-3380
 banskabystrica-skoly T-3381
 banskabystrica-zaznamy T-3382
-bbsk-mapa T-3384
 bbsk-mosty T-3385
 bbsk-ukazovatele T-3386
 bbsk-zaznamy T-3387
