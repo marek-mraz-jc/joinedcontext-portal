@@ -92,6 +92,12 @@ async function openFromTable() {
 }
 
 describe("the shell (SDK-39)", () => {
+  it("leaves the colour scheme to the App's own stylesheet, so a light-only App keeps light native controls", () => {
+    document.documentElement.style.colorScheme = "";
+    show(READ);
+    expect(document.documentElement.style.colorScheme).toBe("");
+  });
+
   it("carries the title, one page, the reader's name, and the same states for every App", async () => {
     show(READ);
     expect(screen.getByRole("heading", { level: 1, name: "Bikes" })).toBeInTheDocument();

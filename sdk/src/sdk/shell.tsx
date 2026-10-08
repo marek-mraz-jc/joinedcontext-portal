@@ -60,8 +60,8 @@ export function AppShell({
   const [active, setActive] = useState(() => initialPage(pages, initial));
 
   useEffect(() => {
-    // Native controls follow the reader's light or dark system.
-    document.documentElement.style.colorScheme = "light dark";
+    // The colour scheme is the App's own stylesheet's (`color-scheme` beside its tokens): forcing
+    // "light dark" here gave a light-only App dark native links and lists on a light surface.
     const onHash = () => {
       const id = window.location.hash.replace(/^#\/?/, "").split("?")[0];
       if (pages.some((page) => page.id === id)) setActive(id);

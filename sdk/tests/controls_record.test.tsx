@@ -29,6 +29,15 @@ describe("the controls record (T-3373)", () => {
     expect(controlId(screen.getByRole("link"))).toBe("link: Open in the Portal");
   });
 
+  it("leaves what is hidden from a screen reader out of a control's name", () => {
+    render(
+      <button type="button">
+        Valid to<span aria-hidden="true"> ▼</span>
+      </button>,
+    );
+    expect(controlId(screen.getByRole("button"))).toBe("button: Valid to");
+  });
+
   it("names a list inside its label by the label alone, never by the options it holds", () => {
     render(
       <div>

@@ -247,15 +247,18 @@ function roleOf(element: Element): string {
   return tag;
 }
 
-/** A label's own words: the text of the control it wraps (a list's options) is not its name. */
-function labelText(label: Element, control: Element): string {
+/**
+ * The words a screen reader takes from `root`: its text without what is `aria-hidden`, and without
+ * the control a label wraps (a list's options are not its name).
+ */
+function spokenText(root: Element, skip?: Element): string {
   let text = "";
   const walk = (node: Node) => {
-    if (node === control) return;
+    if (node === skip) return;
     if (node.nodeType === Node.TEXT_NODE) text += node.textContent ?? "";
-    else node.childNodes.forEach(walk);
+    else if (!(node instanceof Element && node.getAttribute("aria-hidden") === "true")) node.childNodes.forEach(walk);
   };
-  walk(label);
+  walk(root);
   return text;
 }
 
@@ -269,9 +272,9 @@ function nameOf(element: Element): string {
         .join(" ")
     : "";
   const labels = (element as HTMLInputElement).labels;
-  const fromLabel = labels && labels.length > 0 ? labelText(labels[0], element) : "";
+  const fromLabel = labels && labels.length > 0 ? spokenText(labels[0], element) : "";
   // A field's content is its value or its options, never its name.
-  const fromContent = element.matches("select, textarea, input") ? "" : element.textContent;
+  const fromContent = element.matches("select, textarea, input") ? "" : spokenText(element);
   const name =
     element.getAttribute("aria-label") ||
     fromIds ||
