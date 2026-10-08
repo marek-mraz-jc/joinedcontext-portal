@@ -3,7 +3,9 @@
  * Project settings reads. The words of a manifest field are its form's own help (the shipped
  * `project.uischema.yaml`), so the search and the form never describe one setting two ways.
  */
-import { shippedForms } from "../../schemas/forms";
+import { parse as parseYaml } from "yaml";
+import type { UiSchemaManifest } from "../../components/forms/uischema";
+import projectForm from "../../schemas/forms/project.uischema.yaml?raw";
 import { QUOTA_DIMENSIONS } from "../../schemas/kinds";
 
 export interface Setting {
@@ -17,9 +19,12 @@ export interface Setting {
 
 type T = (key: string, options?: Record<string, unknown>) => string;
 
+// Only the Project form: the shipped forms together weigh more than every page's entry (T-3316).
+let form: UiSchemaManifest | undefined;
+
 /** The help text of one field of the shipped Project form, in `language` or English. */
 function help(path: string, language: string): string {
-  const form = shippedForms.find((manifest) => manifest.spec?.for === "Project");
+  form ??= parseYaml(projectForm) as UiSchemaManifest;
   const text = (form?.spec?.fields as Record<string, { help?: Record<string, string> }> | undefined)?.[path]?.help;
   return text?.[language] ?? text?.[language.split("-")[0]] ?? text?.en ?? "";
 }

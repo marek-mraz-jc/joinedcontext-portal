@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { ResourceFormDialog } from "../src/components/ResourceFormDialog";
+// The dialog itself, not its lazy shell: these cases read the form the moment it renders.
+import { ResourceFormDialogBody as ResourceFormDialog } from "../src/components/ResourceFormDialogBody";
 import type { JsonSchema } from "../src/components/forms/types";
 import { DNS1123 } from "../src/schemas/kinds";
 

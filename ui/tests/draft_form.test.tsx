@@ -14,7 +14,8 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { useState } from "react";
 import { BrandingProvider } from "../src/branding";
-import { ResourceFormDialog } from "../src/components/ResourceFormDialog";
+// The dialog itself, not its lazy shell: these cases read the form the moment it renders.
+import { ResourceFormDialogBody as ResourceFormDialog } from "../src/components/ResourceFormDialogBody";
 import type { ResourceFormDialogProps } from "../src/components/ResourceFormDialog";
 import type { JsonSchema } from "../src/components/forms/types";
 
