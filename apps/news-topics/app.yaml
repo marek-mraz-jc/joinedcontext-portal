@@ -1,0 +1,38 @@
+# Helsinki news topics: the topics of the city's news, their weekly share and the articles
+# behind each topic, clustered in WASM (T-3334). Hand written, so no generated-by annotation (AP-35).
+#
+# A frontend on the App SDK: React with a client-side Rust/WASM clustering engine, read-only.
+# Its source is its own repository on the forge, which the build lane builds at `ref` (AP-75, AP-80);
+# this folder of the portal repository is where CI tests the same tree before it is pushed there (T-2599).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: news-topics
+  namespace: helsinki
+  title:
+    en: "Helsinki news topics"
+    fi: "Helsingin uutisaiheet"
+  description:
+    en: "What the City of Helsinki's news talks about: the topics, how their share changes week by week, and the articles behind each topic."
+    fi: "Mistä Helsingin kaupungin uutisissa puhutaan: aiheet, niiden osuuksien viikoittainen kehitys ja kunkin aiheen artikkelit."
+spec:
+  kind: ui
+  source:
+    git:
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_news-topics.git
+      ref: main
+  build:
+    # `rust` is added when T-3327's build lane accepts it.
+    node: "22"
+  # The news endpoint of Helsinki is public (GW22): an anonymous reader gets what the public
+  # role is granted and nothing more.
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [NewsArticle]
+      attrs: [name, description, url, datePublished, source]
+      operations: [queryEntity, retrieveEntity]
+      representations: [ngsi-ld]

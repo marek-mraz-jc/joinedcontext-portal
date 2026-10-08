@@ -7,6 +7,8 @@ members = ["apps/*"]
 # cargo's glob refuses a member directory without a `Cargo.toml` rather than skipping it, so every
 # such app is named here. The app's screens are covered by the `apps/*/ui` lane in CI.
 exclude = [
+  # A `ui` app with a WebAssembly part keeps its crate in wasm/, a workspace of its own (T-3334).
+  "apps/news-topics",
   "apps/alerts-desk",
   "apps/bbsk-ukazovatele",
   "apps/banskabystrica-ovzdusie",
