@@ -9,6 +9,14 @@ The roles come from the Portal's `GET {JC_ME_URL}`, asked with the edge's token 
 decide what the page offers. What a person may write is decided by the gateway against the
 App's per-role grants, and its refusal reaches the page word for word (AP-40).
 
+The page sits in the SDK's `AppShell` (SDK-39). A station's card, its button beside the map and its
+dot on the map open it in the SDK's entity panel (SDK-40), which reads and writes through this
+App's backend (`ui/src/panel.ts`), never the gateway directly. In the panel a steward edits the
+**steward note** and nothing else: the measured values are the station's, and the name per
+language and the position stay with the record form. Anyone else reads the panel and, on the
+App's own host, gets a link to the station in the Portal. The App's grants are unchanged: the
+note was already a steward's `updateAttrs`.
+
 It reaches exactly one thing, the Endpoint whose URL it is handed, and it holds no credential
 of its own. The login in front of it is the platform edge (APISIX `openid-connect`), which
 hands the user over as `X-Userinfo` and the user's access token as `X-Access-Token`; the app
@@ -42,4 +50,8 @@ The browser flow starts the real binary against `tests/e2e/stub-endpoint.mjs` an
 edge itself, setting the `X-Access-Token` and `X-Userinfo` headers the plugin would set. Its
 `widths` project (`ui/e2e/responsive.spec.ts`) holds the page, a reader's and a steward's, light and
 dark, to 375, 768, 1440 and 2560 px: no sideways scroll, no overlap, no control cut off, axe clean
-(T-2825). The layout is the SDK's Page, Header, Split, Card and Grid.
+(T-2825), and a station opened in the entity panel and its note corrected there at 375 and 1440 px,
+light and dark (T-3374). The layout is the SDK's AppShell, Split, Card and Grid.
+
+The App is under the Apps' coverage gate (T-3373): `sh ../../scripts/app-coverage-run.sh
+air-quality` in a throwaway copy of `ui/`, and `cargo llvm-cov` here (95 % lines).

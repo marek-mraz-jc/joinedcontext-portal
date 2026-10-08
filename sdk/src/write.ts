@@ -15,6 +15,10 @@ import { bridgeTransport } from "./sdk/transport";
 export interface FieldSchema {
   /** A draft-07 type, or a list of them: Model Tools writes `["number", "null"]` for an optional slot. */
   type?: string | string[];
+  /** What a person reads as the attribute's label, where the schema gives one. */
+  title?: string;
+  /** The attribute's description, which the published schema carries for every slot. */
+  description?: string;
   /** The NGSI-LD kind Model Tools annotates every property with (DM-05). */
   "x-ngsi-ld-kind"?: string;
   enum?: string[];

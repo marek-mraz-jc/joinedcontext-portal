@@ -1,7 +1,5 @@
-import { useState } from "react";
-import { displayName, Page, useEntities, useFilters } from "@joinedcontext/sdk";
+import { Page, useEntities, useEntitySelection, useFilters } from "@joinedcontext/sdk";
 import type { FilterDef } from "@joinedcontext/sdk";
-import { EntityDetail } from "../components/EntityDetail";
 import { EntityTable } from "../components/EntityTable";
 import type { ColumnDef } from "../components/EntityTable";
 import { ExportButton } from "../components/ExportButton";
@@ -20,13 +18,6 @@ export const COLUMNS: ColumnDef[] = [
   { attr: "dateIssued", label: "Issued" },
 ];
 
-/** The detail panel's words: the table's, and the two attributes only the detail shows. */
-const LABELS: Record<string, string> = {
-  ...Object.fromEntries(COLUMNS.map((column) => [column.attr, column.label ?? column.attr])),
-  description: "Description",
-  source: "Published by",
-};
-
 const FILTERS: FilterDef[] = [
   { kind: "search", attrs: ["name", "description", "address"], label: "Search" },
   { kind: "select", attr: "category", label: "Category" },
@@ -36,13 +27,13 @@ const FILTERS: FilterDef[] = [
 
 /**
  * Every alert the endpoint answers: filters, the table sorted by any column, an export of what is
- * shown, and the chosen alert's every attribute. Nothing here writes (owner decision (a), T-3016).
+ * shown, and a row opens the alert in the SDK's entity panel (SDK-40). Nothing here writes (owner
+ * decision (a), T-3016), so the panel links to the alert in the Portal instead of offering Edit.
  */
 export function AlertDesk() {
   const { rows, loading, error } = useEntities(ALERT);
   const { shown, bind, reset } = useFilters(rows, FILTERS);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = shown.find((row) => row.id === selectedId) ?? null;
+  const { selected, select } = useEntitySelection();
 
   return (
     <Page label="Alerts">
@@ -57,24 +48,13 @@ export function AlertDesk() {
         columns={COLUMNS}
         loading={loading}
         error={error}
-        selected={selectedId}
-        onSelect={(row) => setSelectedId(row.id)}
+        selected={selected?.id ?? null}
+        onSelect={(row) => select({ id: row.id, type: ALERT })}
         initialSort={{ attr: "validTo", dir: "desc" }}
         caption="Traffic alerts"
         empty={rows.length > 0 ? "No alert matches these filters." : "The endpoint holds no alerts right now."}
       />
-      <ExportButton rows={shown} columns={COLUMNS.map((column) => column.attr)} filename="alerts" formats={["csv", "pdf"]} />
-      {selected && (
-        <div className="app-detail">
-          <EntityDetail
-            row={selected}
-            attrs={Object.keys(LABELS)}
-            labels={LABELS}
-            title={displayName(selected)}
-            onClose={() => setSelectedId(null)}
-          />
-        </div>
-      )}
+      <ExportButton rows={shown} columns={COLUMNS.map((column) => column.attr)} filename="alerts" />
     </Page>
   );
 }

@@ -43,6 +43,7 @@ const TEXTS = {
   offline: { fi: "Mittauksia ei voitu lukea. Tarkista yhteys ja yritä uudelleen.", en: "The measurements could not be read. Check the connection and try again." },
   failed: { fi: "Vertailua ei voitu laskea: {why}", en: "The comparison could not be computed: {why}" },
   retry: { fi: "Yritä uudelleen", en: "Retry" },
+  open: { fi: "Tiedot: {name}", en: "Details of {name}" },
   pm10: { fi: "PM10 (µg/m³)", en: "PM10 (µg/m³)" },
   pm25: { fi: "PM2.5 (µg/m³)", en: "PM2.5 (µg/m³)" },
   airQualityIndex: { fi: "ilmanlaatuindeksi", en: "air quality index" },

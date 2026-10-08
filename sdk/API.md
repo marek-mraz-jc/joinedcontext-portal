@@ -74,7 +74,8 @@ Build every screen from these and the app is responsive at 375 to 2560 px withou
 
 ### Shell and entity panel (SDK-39, SDK-40)
 ```ts
-function AppShell(props: { title; pages: ShellPage[]; actions?; initial?; languages?: ShellLanguage[]; language?; onLanguage?(code) }): JSX.Element
+function AppShell(props: { title; pages: ShellPage[]; actions?; initial?; languages?: ShellLanguage[]; language?; onLanguage?(code); source?: PanelSource; userName? }): JSX.Element
+function useOptionalClient(): Client | null
 function Loading(props: { label? }): JSX.Element
 function Empty(props: { children? }): JSX.Element
 function Problem(props: { error: ProblemError | Error | null | undefined; onRetry? }): JSX.Element | null
@@ -89,7 +90,7 @@ function parseValue(field: Field, text: string, language: SdkLanguage): { value:
 function portalLinkOf(portal: string | undefined, space: string, id: string): string | null
 const SDK_WORDS; function sdkLanguage(configured?): SdkLanguage; function sdkWord(language, word, slots?): string
 ```
-Every App renders `AppShell`; it holds the selection and the one `EntityPanel`. Make any map feature, table row, chart point or card open an entity with `select({ id, type })` (or spread `selectable(...)` on an element for click and Enter). The panel lists the attributes with the schema's labels; **Edit** shows only to a signed-in reader whose access document allows `updateAttrs` on the type (and the attribute), checks each value against the schema, shows the change and writes it through the App's Endpoint after the reader confirms; a 409 or 403 is said in words. Without the right, or on a `public` App, it links to the entity in the Portal (`config.portal`). Escape closes it and gives the focus back; the words are in en, fi, sk and cs.
+Every App renders `AppShell`; it holds the selection and the one `EntityPanel`. Make any map feature, table row, chart point or card open an entity with `select({ id, type })` (or spread `selectable(...)` for click and Enter). The panel lists the attributes with the schema's labels; **Edit** shows only to a signed-in reader whose access document allows `updateAttrs` on the type (and the attribute), checks each value against the schema, shows the change and writes it through the App's Endpoint after the reader confirms; a 409 or 403 is said in words. Without the right, or on a `public` App, it links to the entity in the Portal (`config.portal`).
 
 ### Tables, forms, maps, exports
 ```ts

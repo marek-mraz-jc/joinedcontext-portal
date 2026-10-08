@@ -93,8 +93,10 @@ describe("air-quality app", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "Kallio" });
     expect(screen.getByText("You are viewing anonymously.")).toBeInTheDocument();
-    // Picking a station to look at is reading; nothing that writes is offered (AP-40).
+    // Picking a station to look at, or opening its details, is reading; nothing that writes is
+    // offered (AP-40).
     for (const button of screen.getAllByRole("button")) {
+      if (/^Details of /.test(button.textContent ?? "")) continue;
       expect(button).toHaveAttribute("aria-pressed");
     }
     expect(screen.queryByRole("button", { name: /^(Edit|Remove|Add|Save)/ })).toBeNull();
@@ -179,6 +181,33 @@ describe("air-quality app", () => {
     const [url, init] = writes(fetchMock)[0];
     expect(init?.method).toBe("DELETE");
     expect(String(url)).toContain(`api/stations/${encodeURIComponent(OWN)}`);
+  });
+
+  it("picks a station from the list beside the map", async () => {
+    const user = userEvent.setup();
+    serve(nobody);
+    render(<App />);
+    const list = await screen.findByRole("list", { name: "Stations" });
+    await user.click(within(list).getByRole("button", { name: "Kumpula: No index" }));
+    expect(within(list).getByRole("button", { name: "Kumpula: No index" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(list).getByRole("button", { name: "Kallio: No index" }));
+    expect(within(list).getByRole("button", { name: "Kallio: No index" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("says why the stations could not be read, in the backend's words or its status", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("<html>bad gateway</html>", { status: 502, statusText: "Bad Gateway" }))));
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Bad Gateway");
+  });
+
+  it("keeps the station and says why when its removal is refused", async () => {
+    const user = userEvent.setup();
+    serve(steward, 409, "the station still has readings this week");
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Remove Kumpula" }));
+    await user.click(screen.getByRole("button", { name: "Confirm removal of Kumpula" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("the station still has readings this week");
+    expect(screen.getByRole("button", { name: "Remove Kumpula" })).toBeInTheDocument();
   });
 
   it("repeats the gateway's refusal instead of a generic failure", async () => {

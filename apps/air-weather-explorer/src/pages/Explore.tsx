@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, currentTokens, Page, ProblemError, Split, useClient, useEntities } from "@joinedcontext/sdk";
+import { Card, currentTokens, Empty, Loading, Page, ProblemError, Split, useClient, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { TemporalRow } from "@joinedcontext/sdk";
 import { computeAnalysis, strength, strongest } from "../analysis";
 import type { Analysis, Pair } from "../analysis";
 import { ChartCard } from "../components/ChartCard";
 import { MapView } from "../components/MapView";
 import type { MapPoint } from "../components/MapView";
-import { Empty, Loading } from "../components/states";
 import { localeOf, number, useLang, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
 import { AIR, nearest, PLACE_ATTRS, POLLUTANTS, readingsOf, stationsOf, VARIABLES, WEATHER } from "../stations";
@@ -241,10 +240,15 @@ export function Explore() {
     ],
     [airStations, weatherStations, station, weather, tokens, lang],
   );
+  // A station on the map is picked for the comparison and opened in the SDK's panel (SDK-40).
+  const { select } = useEntitySelection();
   const pick = (id: string) => {
     const [kind, local] = id.split(":");
+    const picked = (kind === "air" ? airStations : weatherStations).find((s) => s.local === local);
+    if (!picked) return;
     if (kind === "air") setStation(local);
     else setWeather(local);
+    select({ id: picked.id, type: kind === "air" ? AIR : WEATHER });
   };
 
   const error = airRows.error ?? weatherRows.error ?? historyError;
@@ -354,6 +358,18 @@ export function Explore() {
           </select>
         </label>
       </form>
+      <div className="app-open">
+        {station && (
+          <button type="button" className="jc-button" onClick={() => select({ id: station.id, type: AIR })}>
+            {t(lang, "open", { name: station.name })}
+          </button>
+        )}
+        {weather && (
+          <button type="button" className="jc-button" onClick={() => select({ id: weather.id, type: WEATHER })}>
+            {t(lang, "open", { name: weather.name })}
+          </button>
+        )}
+      </div>
       <ChartCard
         title={t(lang, "series", { air: air ? t(lang, air as Pollutant) : "–", weather: variable ? t(lang, variable as Variable) : "–" })}
         option={error ? null : series}

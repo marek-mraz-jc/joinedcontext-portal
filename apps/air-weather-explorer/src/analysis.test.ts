@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { analyseHere, computeAnalysis, readAnswer, strength, strongest } from "./analysis";
 
 const HOUR = 3_600_000;
@@ -35,5 +35,49 @@ describe("analysis", () => {
 
   it("says in words what it could not read", () => {
     expect(() => readAnswer(JSON.stringify({ error: "the readings could not be read: x" }))).toThrow("the readings could not be read");
+  });
+});
+
+/** A worker that answers as the given function says, so the page's side of the messages is tested. */
+class FakeWorker {
+  static last: FakeWorker | null = null;
+  static answer: (worker: FakeWorker, id: number) => void = () => undefined;
+  onmessage: ((event: { data: unknown }) => void) | null = null;
+  onerror: (() => void) | null = null;
+  constructor() {
+    FakeWorker.last = this;
+  }
+  postMessage(message: { id: number }): void {
+    queueMicrotask(() => FakeWorker.answer(this, message.id));
+  }
+}
+
+describe("the analysis off the page's thread", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("hands each answer to its own question, an error in its words, and ignores a stray one", async () => {
+    vi.stubGlobal("Worker", FakeWorker);
+    const result = { hours: [], air: [], weather: [], pairs: [] };
+    FakeWorker.answer = (worker, id) => {
+      worker.onmessage?.({ data: { id: id + 1000, result } });
+      worker.onmessage?.({ data: { id, result } });
+    };
+    await expect(computeAnalysis({ air: {}, weather: {}, settings: {} })).resolves.toEqual(result);
+    FakeWorker.answer = (worker, id) => worker.onmessage?.({ data: { id, error: "the readings could not be read: x" } });
+    await expect(computeAnalysis({ air: {}, weather: {}, settings: {} })).rejects.toThrow("the readings could not be read: x");
+    FakeWorker.answer = (worker, id) => worker.onmessage?.({ data: { id } });
+    await expect(computeAnalysis({ air: {}, weather: {}, settings: {} })).rejects.toThrow("The analysis did not answer.");
+  });
+
+  it("says the analysis stopped when the worker dies, and starts a new one for the next question", async () => {
+    vi.stubGlobal("Worker", FakeWorker);
+    FakeWorker.answer = (worker) => worker.onerror?.();
+    const first = FakeWorker.last;
+    await expect(computeAnalysis({ air: {}, weather: {}, settings: {} })).rejects.toThrow("The analysis stopped. Reload the page.");
+    FakeWorker.answer = (worker, id) => worker.onmessage?.({ data: { id, result: { hours: [1], air: [], weather: [], pairs: [] } } });
+    await expect(computeAnalysis({ air: {}, weather: {}, settings: {} })).resolves.toMatchObject({ hours: [1] });
+    expect(FakeWorker.last).not.toBe(first);
   });
 });

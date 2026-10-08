@@ -247,6 +247,21 @@ function roleOf(element: Element): string {
   return tag;
 }
 
+/**
+ * The words a screen reader takes from `root`: its text without what is `aria-hidden`, and without
+ * the control a label wraps (a list's options are not its name).
+ */
+function spokenText(root: Element, skip?: Element): string {
+  let text = "";
+  const walk = (node: Node) => {
+    if (node === skip) return;
+    if (node.nodeType === Node.TEXT_NODE) text += node.textContent ?? "";
+    else if (!(node instanceof Element && node.getAttribute("aria-hidden") === "true")) node.childNodes.forEach(walk);
+  };
+  walk(root);
+  return text;
+}
+
 function nameOf(element: Element): string {
   const doc = element.ownerDocument;
   const labelledBy = element.getAttribute("aria-labelledby");
@@ -257,12 +272,14 @@ function nameOf(element: Element): string {
         .join(" ")
     : "";
   const labels = (element as HTMLInputElement).labels;
-  const fromLabel = labels && labels.length > 0 ? labels[0].textContent ?? "" : "";
+  const fromLabel = labels && labels.length > 0 ? spokenText(labels[0], element) : "";
+  // A field's content is its value or its options, never its name.
+  const fromContent = element.matches("select, textarea, input") ? "" : spokenText(element);
   const name =
     element.getAttribute("aria-label") ||
     fromIds ||
     fromLabel ||
-    element.textContent ||
+    fromContent ||
     element.getAttribute("title") ||
     element.getAttribute("placeholder") ||
     element.getAttribute("name") ||
@@ -276,7 +293,8 @@ export function controlId(element: Element): string {
 }
 
 function usable(element: Element): boolean {
-  return !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true" && element.closest('[aria-hidden="true"]') === null;
+  // A control removed before the observer reported it was never on screen, and has no name left.
+  return element.isConnected && !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true" && element.closest('[aria-hidden="true"]') === null;
 }
 
 /** An environment variable under vitest, `undefined` in a browser; no Node types needed. */
@@ -289,7 +307,7 @@ function envOf(name: string): string | undefined {
  * Records which controls a test file rendered and which its tests clicked or typed into, for the
  * Apps' coverage gate (T-3373): a control no test exercises fails it. Call it once from the test
  * setup, `recordControls(afterAll)`; it writes one JSON file into `JC_CONTROLS_DIR` when that is set
- * and does nothing otherwise. A disabled or hidden control is not counted.
+ * and does nothing otherwise. A disabled or hidden control, or one gone before it was reported, is not counted.
  */
 export function recordControls(afterAll: (done: () => Promise<void>) => void, dir: string | undefined = envOf("JC_CONTROLS_DIR")): void {
   if (!dir || typeof document === "undefined" || typeof MutationObserver === "undefined") return;
