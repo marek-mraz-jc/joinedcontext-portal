@@ -1,7 +1,7 @@
 /**
- * Light and dark (T-3332, as alerts-heatmap): the SDK sets the tokens it is given and has no dark variant, so the App
- * picks the set the reader's system asks for and applies the other when the system switches.
- * The dark colours keep WCAG AA contrast on their surfaces.
+ * Light and dark (T-3331, as alerts-heatmap): the SDK sets the tokens it is given and has no dark
+ * variant, so the App picks the set the reader's system asks for and applies the other when the
+ * system switches. The dark colours keep WCAG AA contrast on their surfaces.
  */
 import { useEffect, useState } from "react";
 import { applyTokens } from "@joinedcontext/sdk";
@@ -21,6 +21,7 @@ export const DARK = {
     success: "#6ee7b7",
     warning: "#fcd34d",
   },
+  map: { point: "#2dd4bf", selected: "#93c5fd", low: "#38bdf8", high: "#fb923c", stroke: "#0f172a" },
 };
 
 const QUERY = "(prefers-color-scheme: dark)";
@@ -30,17 +31,17 @@ export function prefersDark(): boolean {
 }
 
 /**
- * The chart's own colours: measured, model, forecast, odd readings. The SDK keeps only the token
- * keys it knows, so these live here, per scheme.
+ * The map's own colours: the bands near to far, the stops, the starting point, the outlines. The
+ * SDK keeps only the token keys it knows, so these live here, per scheme.
  */
-export const SERIES = {
-  light: { history: "#0f766e", fitted: "#64748b", forecast: "#2563eb", anomaly: "#dc2626" },
-  dark: { history: "#2dd4bf", fitted: "#a3b1c6", forecast: "#93c5fd", anomaly: "#fca5a5" },
+export const REACH = {
+  light: { near: "#0f766e", mid: "#0284c7", far: "#7c3aed", stop: "#1e293b", origin: "#dc2626", stroke: "#ffffff" },
+  dark: { near: "#2dd4bf", mid: "#38bdf8", far: "#c4b5fd", stop: "#f1f5f9", origin: "#fca5a5", stroke: "#0f172a" },
 };
 
-/** The chart's colours for the scheme in force. */
-export function seriesColours(): typeof SERIES.light {
-  return prefersDark() ? SERIES.dark : SERIES.light;
+/** The map's colours for the scheme in force. */
+export function reachColours(): typeof REACH.light {
+  return prefersDark() ? REACH.dark : REACH.light;
 }
 
 /** The tokens to start with. */

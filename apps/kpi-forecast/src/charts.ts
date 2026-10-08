@@ -1,16 +1,7 @@
-import { currentTokens } from "@joinedcontext/sdk";
 import type { SeriesResult } from "./analysis";
 import { dayShort, moment, t, value } from "./i18n";
 import type { Lang } from "./i18n";
-import { LIGHT } from "./theme";
-
-type Colours = typeof LIGHT.series;
-
-/** The series colours of the tokens in force; the SDK's tokens carry no `series` group of their own. */
-function coloursOf(tokens: unknown): Colours {
-  const group = (tokens as { series?: Partial<Colours> }).series;
-  return { ...LIGHT.series, ...group };
-}
+import { seriesColours } from "./theme";
 
 interface Hovered {
   seriesName?: string;
@@ -39,7 +30,7 @@ export function tooltipOf(params: unknown, lang: Lang): string {
  */
 export function detailOption(result: SeriesResult, lang: Lang): Record<string, unknown> | null {
   if (result.history.length === 0) return null;
-  const colours = coloursOf(currentTokens());
+  const colours = seriesColours();
   const ahead = result.forecast;
   // The band is drawn as its floor and its height stacked on it, the height filled.
   const floor = ahead.map((a) => [a.t, a.lo]);

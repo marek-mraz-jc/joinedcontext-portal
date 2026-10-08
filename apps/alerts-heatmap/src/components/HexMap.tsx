@@ -75,6 +75,11 @@ export function HexMap({
         canvasContextAttributes: { preserveDrawingBuffer: true },
       });
       map.current = instance;
+      // The page lays out after the map is built: the canvas follows its box, not its first size.
+      const box = container.current;
+      const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(() => instance?.resize());
+      observer?.observe(box);
+      instance.on("remove", () => observer?.disconnect());
       instance.on("error", (event) => console.error("alerts-heatmap: map error", event.error?.message ?? event));
       instance.on("load", () => {
         if (gone || !instance) return;

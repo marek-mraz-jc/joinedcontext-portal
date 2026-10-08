@@ -7,8 +7,8 @@
     "card": "#f8fafc",
     "line": "#e2e8f0",
     "danger": "#dc2626",
-    "success": "#047857",
-    "warning": "#b45309"
+    "success": "#059669",
+    "warning": "#d97706"
   },
   "font": {
     "body": "\"Inter\", system-ui, -apple-system, \"Segoe UI\", sans-serif",
@@ -44,5 +44,12 @@
       "#db2777",
       "#4b5563"
     ]
+  },
+  "map": {
+    "point": "#0f766e",
+    "selected": "#2563eb",
+    "low": "#0284c7",
+    "high": "#ea580c",
+    "stroke": "#ffffff"
   }
 }
