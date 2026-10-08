@@ -160,7 +160,11 @@ export function stubTransport(fixture?: Fixture): StubTransport {
 
     if (pathname.endsWith("/ngsi-ld/v1/temporal/entities") && method === "GET") {
       const type = params.get("type");
-      return { status: 200, body: (fixture?.temporal ?? []).filter((item) => !type || item.type === type) };
+      const ids = params.get("id")?.split(",");
+      return {
+        status: 200,
+        body: (fixture?.temporal ?? []).filter((item) => (!type || item.type === type) && (!ids || ids.includes(item.id))),
+      };
     }
 
     if (pathname.endsWith("/schema/index.json") && method === "GET") {

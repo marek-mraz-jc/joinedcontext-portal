@@ -246,6 +246,20 @@ describe("temporal, schema, and functions", () => {
     ]);
   });
 
+  it("temporal.list asks for the named entities only, and refuses an id that is no URN", async () => {
+    let reqPath = "";
+    const transport: Transport = async (req) => {
+      reqPath = req.path;
+      return { status: 200, body: [] };
+    };
+    const client = createClient(CONFIG, transport);
+    await client.temporal.list("T", { timerel: "after", timeAt: "2026-09-12T00:00:00Z", id: ["urn:ngsi-ld:T:a", "urn:ngsi-ld:T:b"] });
+    expect(new URLSearchParams(reqPath.slice(reqPath.indexOf("?") + 1)).get("id")).toBe("urn:ngsi-ld:T:a,urn:ngsi-ld:T:b");
+    for (const bad of ["a", "urn:x,urn:y", "urn:x y", ""]) {
+      await expect(client.temporal.list("T", { timerel: "after", timeAt: "2026-09-12T00:00:00Z", id: [bad] })).rejects.toThrow("Invalid entity id");
+    }
+  });
+
   it("schema resolves version from index.json, caches success, and retries on failure", async () => {
     let count = 0;
     const transport: Transport = async (req) => {
