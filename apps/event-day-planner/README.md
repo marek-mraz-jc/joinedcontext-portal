@@ -15,6 +15,10 @@ English as the Portal's language asks):
 - how many events start each hour; a click on a bar lists that hour's;
 - the day as a calendar file (.ics) to save.
 
+An event's name in the plan or the list, or its stop on the map, opens it in the SDK shell's
+entity panel, in the page's language, with a link to the event in the Portal; the App writes
+nothing, so the panel offers no Edit. The language is the shell's switch, Suomi or English.
+
 The day, the search, the hour and the picks are kept in the address (`?day=`, `?q=`, `?hour=`,
 `?pick=`, `?lang=`), so a reload or a shared link shows the same day.
 

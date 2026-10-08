@@ -42,15 +42,15 @@ export function dayBounds(day: string): [number, number] | null {
   if (!match) return null;
   const [year, month, date] = [Number(match[1]), Number(match[2]), Number(match[3])];
   const midnight = (d: number) => {
+    // Four digits of year: always an instant JavaScript can hold.
     const guess = Date.UTC(year, month - 1, d);
-    if (Number.isNaN(guess)) return Number.NaN;
     // Twice: the offset at the guess, then at the corrected instant (a day the clock changes).
     const first = guess - zoneOffset(guess);
     return guess - zoneOffset(first);
   };
   const start = midnight(date);
   const end = midnight(date + 1);
-  if (Number.isNaN(start) || Number.isNaN(end) || dayOf(new Date(start)) !== day) return null;
+  if (dayOf(new Date(start)) !== day) return null;
   return [start, end];
 }
 

@@ -82,7 +82,7 @@ export function AppShell({
   const page = pages.find((candidate) => candidate.id === active) ?? pages[0];
 
   return (
-    <EntitySelectionProvider source={source}>
+    <EntitySelectionProvider source={source} language={language}>
       <div className="jc-shell">
         <header className="jc-header">
           <h1>{title}</h1>

@@ -4,8 +4,6 @@
 banskabystrica-mapa T-3379
 banskabystrica-ovzdusie T-3380
 banskabystrica-skoly T-3381
-event-day-planner T-3393
-news-topics T-3401
 plain-html-events T-3416
 react-rust-wasm T-3416
 rust-wasm-server T-3416

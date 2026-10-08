@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { LngLatBounds, Map as MapLibreMap, Popup } from "maplibre-gl";
+import { LngLatBounds, Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
 import { currentTokens, mapWorkerReady, NO_BASEMAP, styleFor, useClient } from "@joinedcontext/sdk";
 
-/** One point on the map: where, in which colour, and the lines its popup shows (text only). */
+/** One point on the map: where, and in which colour. */
 export interface MapPoint {
   id: string;
   at: [number, number];
   color: string;
-  lines: string[];
 }
 
 /**
  * A MapLibre map of `points`, with `line` drawn under them when given (a route). It fits the
  * points once, when they first arrive, so a refresh never moves the reader's view; a click on a
- * point opens its popup and calls `onPick`.
+ * point calls `onPick` with its id.
  */
 export function MapView({
   points,
@@ -80,17 +79,7 @@ export function MapView({
         instance.on("click", "app-points", (event: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => {
           const id: unknown = event.features?.[0]?.properties?.id;
           const point = pointsRef.current.find((p) => p.id === id);
-          if (!point || !instance) return;
-          onPickRef.current?.(point.id);
-          // Text nodes only: an entity's values never reach the page as markup.
-          const body = document.createElement("div");
-          body.className = "jc-map-popup";
-          for (const [index, text] of point.lines.entries()) {
-            const element = document.createElement(index === 0 ? "strong" : "p");
-            element.textContent = text;
-            body.append(element);
-          }
-          new Popup({ closeButton: true, maxWidth: "260px" }).setLngLat(point.at).setDOMContent(body).addTo(instance);
+          if (point) onPickRef.current?.(point.id);
         });
         setReady(true);
       });

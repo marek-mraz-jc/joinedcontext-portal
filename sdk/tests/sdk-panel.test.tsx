@@ -287,6 +287,20 @@ describe("the entity panel (SDK-40)", () => {
     expect((await axe.run(panel)).violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
   });
 
+  // An App that switches languages in its shell gets its panel switched too, whatever the served
+  // configuration said at first.
+  it("speaks the language the App's shell speaks now", async () => {
+    const client = stubClient({ entities: [STATION], schema: SCHEMA, access: READ }, { user: PERSON, portal: PORTAL, language: "en" });
+    render(
+      <JcProvider client={client}>
+        <AppShell title="Pyörät" language="fi" pages={[{ id: "stations", label: "Asemat", render: () => <Openers /> }]} />
+      </JcProvider>,
+    );
+    const panel = await openFromTable();
+    expect(await within(panel).findByRole("link", { name: "Avaa portaalissa" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Sulje" })).toBeInTheDocument();
+  });
+
   it("speaks the App's language", async () => {
     show(READ, { language: "fi" });
     const panel = await openFromTable();

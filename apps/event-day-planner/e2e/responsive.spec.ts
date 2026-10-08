@@ -35,3 +35,38 @@ test("picked events are planned in order and stay picked after a reload", async 
   await page.reload();
   await expect(page.getByRole("list", { name: "The plan" }).getByRole("listitem").last()).toContainText("Jazz at Stoa");
 });
+
+// SDK-40, T-3393: an event of the plan opens in the shell's entity panel, read through the app's
+// endpoint, at a phone and a laptop, light and dark; a public App writes nothing, so the panel links
+// to the Portal. Finnish speaks in the panel too.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: an event in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { outside, missing, problems } = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await page.getByRole("list", { name: "The plan" }).getByRole("button", { name: "Workshop for Families" }).click();
+      const panel = page.getByRole("dialog");
+      await expect(panel.getByText("Siltakatu 11, Helsinki")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+
+test("switches to Finnish, and the panel speaks it", async ({ page }) => {
+  await serve(page);
+  await page.goto(BASE);
+  await page.getByRole("combobox", { name: "Language" }).selectOption("fi");
+  await expect(page.getByRole("heading", { level: 1, name: "Tapahtumapäiväni" })).toBeVisible();
+  // The page's words switch; the events keep the language the Portal serves them in.
+  await page.getByRole("list", { name: "Suunnitelma" }).getByRole("button", { name: "Workshop for Families" }).click();
+  await expect(page.getByRole("dialog").getByRole("link", { name: "Avaa portaalissa" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Tapahtumapäiväni" })).toBeVisible();
+});
