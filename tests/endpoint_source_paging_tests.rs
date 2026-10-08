@@ -130,21 +130,6 @@ async fn sunk(
     seen
 }
 
-/// A stream name no other run of this binary holds: the two tests start at once, and two threads
-/// can read one clock value, which named both streams alike and the runner refused the second as
-/// existing (400, ci-full 37759338077, T-3411). The counter tells them apart; the clock tells this
-/// run from an earlier one on the same runner.
-fn stream_name(nanos: u128) -> String {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    format!("t3132-{nanos}-{}-{n}", std::process::id())
-}
-
-#[test]
-fn two_streams_named_at_one_clock_value_get_two_names() {
-    assert_ne!(stream_name(42), stream_name(42));
-}
-
 async fn run(total: usize, stated: bool) -> (Option<Value>, usize) {
     let runner = runner_url().expect("checked by the caller");
     let server = gateway(total, stated).await;
@@ -152,11 +137,17 @@ async fn run(total: usize, stated: bool) -> (Option<Value>, usize) {
         .timeout(Duration::from_secs(30))
         .build()
         .expect("a client");
-    let name = stream_name(
+    // The two tests run in parallel against one runner, and the clock can hand them the same
+    // nanosecond: the process and a counter keep their stream names apart (a duplicate is a 400).
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let name = format!(
+        "t3132-{}-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("after 1970")
-            .as_nanos(),
+            .as_nanos()
     );
     let created = client
         .post(format!("{runner}/streams/{name}"))
@@ -164,12 +155,7 @@ async fn run(total: usize, stated: bool) -> (Option<Value>, usize) {
         .send()
         .await
         .expect("the runner answers");
-    let status = created.status();
-    assert!(
-        status.is_success(),
-        "{status}: {}",
-        created.text().await.unwrap_or_default()
-    );
+    assert!(created.status().is_success(), "{}", created.status());
     let seen = sunk(&server, &client, &runner, &name).await;
     let reads = server
         .received_requests()
