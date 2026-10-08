@@ -1,12 +1,9 @@
 # Apps the coverage gate measures but does not yet fail (T-3373), one per line: the App and the task
 # that brings it to green and removes its line in the same commit. The list only shrinks: the
 # gate refuses a new line, and fails a listed App that already passes. Thresholds never move.
-banskabystrica-data T-3378
 banskabystrica-ovzdusie T-3380
 banskabystrica-skoly T-3381
 banskabystrica-zaznamy T-3382
-bbsk-data T-3383
-bbsk-mapa T-3384
 bbsk-mosty T-3385
 bbsk-ukazovatele T-3386
 bbsk-zaznamy T-3387

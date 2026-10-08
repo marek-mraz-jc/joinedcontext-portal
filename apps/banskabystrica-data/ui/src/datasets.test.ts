@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COLUMNS, DATASETS, exportUrl, gridConfig } from "./datasets";
+import { answer } from "./fixtures/verejne";
 import { LOCALES, stringsFor } from "./locales";
 
 const SLUG = "fq4xw2ztnbe7rcav3ms6kd5ypu";
@@ -30,5 +31,10 @@ describe("locales", () => {
     for (const attr of Object.values(COLUMNS).flat()) expect(LOCALES.sk.column[attr]).toBeTruthy();
     expect(stringsFor("en-US").locale).toBe("en");
     expect(stringsFor("de").locale).toBe("sk");
+  });
+
+  it("answers nothing for a type the public space does not hold", () => {
+    expect(answer("Parking")).toEqual([]);
+    expect(answer(null)).toEqual([]);
   });
 });

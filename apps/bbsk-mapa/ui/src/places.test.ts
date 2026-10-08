@@ -1,31 +1,41 @@
 import { describe, expect, it } from "vitest";
 import { toRichRow } from "@joinedcontext/sdk";
-import { byOrder, featuresOf, matches, placeOf, safeUrl } from "./places";
-import { HOSPITALS, ORGANIZATIONS, SOCIAL } from "./fixtures/registre";
+import { byOrder, featuresOf, matches, placeOf } from "./places";
+import { answer, HOSPITALS, ORGANIZATIONS, SOCIAL } from "./fixtures/registre";
 
 const hospital = (i: number) => placeOf(toRichRow(HOSPITALS[i]), "hospital", "sk");
 const social = (i: number) => placeOf(toRichRow(SOCIAL[i]), "social", "sk");
 const organization = (i: number) => placeOf(toRichRow(ORGANIZATIONS[i]), "organization", "sk");
 
 describe("placeOf", () => {
-  it("reads a hospital's kind, operator, specialties and position", () => {
-    expect(hospital(0)).toMatchObject({
-      name: "Fakultná nemocnica s poliklinikou F. D. Roosevelta",
-      category: "general",
-      specialties: ["chirurgia", "interná medicína", "pediatria"],
-      coordinates: [19.1386, 48.7432],
-    });
+  it("reads a place's name in the reader's language, its position, district and kind of service", () => {
+    expect(hospital(0)).toMatchObject({ name: "Fakultná nemocnica s poliklinikou F. D. Roosevelta", coordinates: [19.1386, 48.7432] });
+    expect(social(0)).toMatchObject({ district: "Rimavská Sobota", serviceKind: "domov sociálnych služieb" });
   });
 
-  it("reads a social service's form, capacity, provider and district, and keeps missing values missing", () => {
-    expect(social(0)).toMatchObject({ category: "residentialYearRound", capacity: 48, provider: "regionFounded", district: "Rimavská Sobota" });
-    expect(social(1)).toMatchObject({ capacity: null, serviceKind: null, coordinates: null, url: null });
-    expect(hospital(1)).toMatchObject({ operator: null, specialties: [] });
+  it("reads a name in the reader's language, else Slovak, else the one written, and a plain text name too", () => {
+    const named = (name: unknown) => placeOf(toRichRow({ id: "urn:ngsi-ld:Hospital:x", type: "Hospital", name }), "hospital", "en").name;
+    expect(named({ type: "LanguageProperty", languageMap: { sk: "Nemocnica", en: "Hospital" } })).toBe("Hospital");
+    expect(named({ type: "LanguageProperty", languageMap: { sk: "Nemocnica" } })).toBe("Nemocnica");
+    expect(named({ type: "LanguageProperty", languageMap: { de: "Krankenhaus" } })).toBe("Krankenhaus");
+    expect(named({ type: "LanguageProperty", languageMap: { en: "  " } })).toBeNull();
+    expect(named({ type: "Property", value: " Poliklinika " })).toBe("Poliklinika");
+    expect(named({ type: "Property", value: "" })).toBeNull();
+    expect(named({ type: "Property", value: 7 })).toBeNull();
   });
 
-  it("never opens a link that is not http or https", () => {
-    expect(safeUrl("javascript:alert(1)")).toBeNull();
-    expect(social(0).url).toBe("https://www.dsstisovec.sk/");
+  it("draws only a point inside the world", () => {
+    const at = (value: unknown) => placeOf(toRichRow({ id: "urn:ngsi-ld:Hospital:x", type: "Hospital", location: { type: "GeoProperty", value } }), "hospital", "sk").coordinates;
+    expect(at({ type: "Point", coordinates: [19.1, 48.7] })).toEqual([19.1, 48.7]);
+    expect(at({ type: "Point", coordinates: [190, 48.7] })).toBeNull();
+    expect(at({ type: "Point", coordinates: [19.1, -91] })).toBeNull();
+    expect(at({ type: "Point", coordinates: ["19", 48.7] })).toBeNull();
+    expect(at({ type: "Polygon", coordinates: [] })).toBeNull();
+  });
+
+  it("keeps a value the register does not publish missing", () => {
+    expect(social(1)).toMatchObject({ serviceKind: null, coordinates: null });
+    expect(hospital(1)).toMatchObject({ district: null });
   });
 });
 
@@ -40,5 +50,19 @@ describe("search and order", () => {
     const sorted = [organization(1), hospital(1), organization(0)].sort(byOrder).map((p) => p.name);
     expect(sorted).toEqual(["Nemocnica Zvolen", "Spojená škola Detva", "Stredoslovenské múzeum"]);
     expect(featuresOf([hospital(0), social(0), organization(1)], null).features).toHaveLength(1);
+  });
+
+  it("puts a place without a name last, and two of them side by side", () => {
+    const unnamed = { ...hospital(1), id: "u1", name: null };
+    const other = { ...hospital(1), id: "u2", name: null };
+    expect([unnamed, hospital(1)].sort(byOrder).map((p) => p.id)).toEqual([hospital(1).id, "u1"]);
+    expect([hospital(1), unnamed].sort(byOrder).map((p) => p.id)).toEqual([hospital(1).id, "u1"]);
+    expect(byOrder(unnamed, other)).toBe(0);
+  });
+
+  it("marks the picked place, and the fixtures answer nothing for a type the space does not hold", () => {
+    const [drawn] = featuresOf([hospital(0)], hospital(0).id).features;
+    expect(drawn.properties.picked).toBe(true);
+    expect(answer("Bridge")).toEqual([]);
   });
 });

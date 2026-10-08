@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COLUMNS, DATASETS, ENUMS, exportUrl, gridConfig } from "./datasets";
 import { LOCALES, stringsFor } from "./locales";
+import { answer } from "./fixtures/registre";
 
 const SLUG = "tw3jx6pcam2qzk7nre5bdv4yfh";
 
@@ -13,6 +14,16 @@ describe("the grids", () => {
       expect(grid.columns.filter((c) => c.pinned).map((c) => c.attr)).toEqual(["name"]);
       expect(grid.filters.allowed).toEqual(COLUMNS[dataset]);
     }
+  });
+
+  it("label a column it has no word for by its attribute, and refuse a slug that is a path", () => {
+    expect(gridConfig(SLUG, "areas", {}).columns.map((c) => c.label)).toEqual(COLUMNS.areas);
+    expect(() => gridConfig("a/b", "areas", LOCALES.sk.column)).toThrow(/^grid areas: /);
+  });
+
+  it("are read from fixtures that answer nothing for a type the space does not hold", () => {
+    expect(answer("Unknown")).toEqual([]);
+    expect(answer(null)).toEqual([]);
   });
 
   it("downloads a whole register from the endpoint's own files", () => {
@@ -32,5 +43,9 @@ describe("locales", () => {
       expect(LOCALES.en.values[value]).toBeTruthy();
     }
     expect(stringsFor("en").locale).toBe("en");
+    expect(stringsFor("EN-gb").locale).toBe("en");
+    // No language, or one it does not speak: Slovak, the region's own.
+    expect(stringsFor(undefined).locale).toBe("sk");
+    expect(stringsFor("de").locale).toBe("sk");
   });
 });

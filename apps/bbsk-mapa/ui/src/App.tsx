@@ -6,13 +6,15 @@
  *
  * A map is not readable by a screen reader or a keyboard, so the same places are a list beside it;
  * the list is the screen and the map is the picture of it. Each kind loads on its own: one the
- * endpoint refuses is a sentence saying why, and the others stay.
+ * endpoint refuses is a sentence saying why, and the others stay. It sits in the SDK's shell
+ * (SDK-39), and a place picked in the list or on the map opens in the shell's entity panel (SDK-40),
+ * read fresh through the same endpoint; a public App, so the panel links it to the Portal (AP-140).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { endpointSource, Header, Page, SourceError, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, Page, SourceError, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { EntitySource } from "@joinedcontext/sdk";
 import { byOrder, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, matches, placeOf, TYPE_OF } from "./places";
 import type { Kind, Place } from "./places";
@@ -28,15 +30,17 @@ export const MOST = 1000;
 const CENTRE: [number, number] = [19.45, 48.55];
 const SOURCE_ID = "places";
 
-type Layer =
+export type Layer =
   | { status: "loading" }
   | { status: "ready"; places: Place[]; truncated: boolean }
   | { status: "failed"; reason: string };
 
-function useEndpointSlug(): string | null {
+/** The endpoint of the register space: the one the Portal lists for it, else the App's own. */
+function useEndpoint(): { slug: string; name?: string } | null {
   const { config } = useClient();
-  const listed = config.endpoints?.find((candidate) => candidate.space === SPACE)?.slug;
-  return listed ?? (config.space === SPACE ? config.slug : null) ?? null;
+  const listed = config.endpoints?.find((candidate) => candidate.space === SPACE);
+  if (listed) return { slug: listed.slug, name: listed.name };
+  return config.space === SPACE && config.slug ? { slug: config.slug } : null;
 }
 
 function reasonOf(cause: unknown): string {
@@ -45,7 +49,7 @@ function reasonOf(cause: unknown): string {
 }
 
 /** Every place of one kind, page by page up to `MOST`. */
-async function loadKind(source: EntitySource, kind: Kind, locale: string): Promise<Layer> {
+export async function loadKind(source: EntitySource, kind: Kind, locale: string): Promise<Layer> {
   const places: Place[] = [];
   for (let offset = 0; offset < MOST; offset += PAGE) {
     const page = await source.query({ type: TYPE_OF[kind] }, { offset, limit: PAGE });
@@ -57,7 +61,7 @@ async function loadKind(source: EntitySource, kind: Kind, locale: string): Promi
 
 export function useLayers(): { layers: Record<Kind, Layer> | null } {
   const { config } = useClient();
-  const slug = useEndpointSlug();
+  const slug = useEndpoint()?.slug ?? null;
   const language = config.language ?? "sk";
   const [layers, setLayers] = useState<Record<Kind, Layer> | null>(null);
   const source = useMemo(
@@ -89,11 +93,18 @@ export function useLayers(): { layers: Record<Kind, Layer> | null } {
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  return <AppShell title={s.title} pages={[{ id: "map", label: s.title, render: () => <RegionMap /> }]} language={config.language} />;
+}
+
+function RegionMap() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
   const { layers } = useLayers();
+  const endpoint = useEndpoint()?.name;
+  const { selected, select } = useEntitySelection();
   const [shown, setShown] = useState<Record<Kind, boolean>>({ hospital: true, social: true, organization: true });
   const [search, setSearch] = useState("");
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  const listRef = useRef<HTMLUListElement | null>(null);
+  const pickedId = selected?.id ?? null;
 
   const all = useMemo(
     () => KINDS.flatMap((kind) => (layers?.[kind].status === "ready" ? layers[kind].places : [])),
@@ -107,124 +118,120 @@ export default function App() {
         .sort(byOrder),
     [all, shown, search],
   );
-  const picked = visible.find((place) => place.id === pickedId) ?? null;
-
-  const close = () => {
-    const id = pickedId;
-    setPickedId(null);
-    // Focus goes back to the place in the list the person came from, never to the top of the page.
-    requestAnimationFrame(() => {
-      const items = listRef.current?.querySelectorAll<HTMLButtonElement>("button[data-id]") ?? [];
-      Array.from(items).find((item) => item.dataset.id === id)?.focus();
-    });
+  // A place opens in the shell's panel, which gives the focus back to what opened it on close.
+  const pick = (id: string) => {
+    const place = all.find((candidate) => candidate.id === id);
+    if (place) select({ id, type: TYPE_OF[place.kind], endpoint });
   };
 
   const loading = layers !== null && KINDS.some((kind) => layers[kind].status === "loading");
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page>
+      <p className="subtitle">{s.subtitle}</p>
 
-        {layers === null && <p role="status">{s.noEndpoint}</p>}
-        {layers !== null && (
-          <>
-            <div className="controls">
-              <div className="search">
-                <label htmlFor="search">{s.search}</label>
-                <input
-                  id="search"
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  aria-describedby="search-help"
-                />
-                <small id="search-help">{s.searchHelp}</small>
-              </div>
-              <fieldset className="layers">
-                <legend>{s.show}</legend>
-                {KINDS.map((kind) => {
-                  const layer = layers[kind];
-                  const count = layer.status === "ready" ? layer.places.length : null;
-                  return (
-                    <label key={kind} className="layer">
-                      <input
-                        type="checkbox"
-                        checked={shown[kind]}
-                        onChange={(event) => setShown({ ...shown, [kind]: event.target.checked })}
-                      />
-                      <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[kind] }}>
-                        {KIND_SHAPE[kind]}
-                      </span>
-                      <span>
-                        {s.kind[kind]}
-                        {count !== null ? ` (${count})` : ""}
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
+      {layers === null && <p role="status">{s.noEndpoint}</p>}
+      {layers !== null && (
+        <>
+          <div className="controls">
+            <div className="search">
+              <label htmlFor="search">{s.search}</label>
+              <input
+                id="search"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                aria-describedby="search-help"
+              />
+              <small id="search-help">{s.searchHelp}</small>
             </div>
-
-            {loading && <p role="status">{s.loading}</p>}
-            {KINDS.map((kind) => {
-              const layer = layers[kind];
-              if (layer.status === "failed") {
+            <fieldset className="layers">
+              <legend>{s.show}</legend>
+              {KINDS.map((kind) => {
+                const layer = layers[kind];
+                const count = layer.status === "ready" ? layer.places.length : null;
                 return (
-                  <p key={kind} role="alert" className="failed">
-                    {s.refused(s.kind[kind], layer.reason)}
-                  </p>
+                  <label key={kind} className="layer">
+                    <input
+                      type="checkbox"
+                      checked={shown[kind]}
+                      onChange={(event) => setShown({ ...shown, [kind]: event.target.checked })}
+                    />
+                    <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[kind] }}>
+                      {KIND_SHAPE[kind]}
+                    </span>
+                    <span>
+                      {s.kind[kind]}
+                      {count !== null ? ` (${count})` : ""}
+                    </span>
+                  </label>
                 );
-              }
-              if (layer.status === "ready" && layer.truncated) {
-                return (
-                  <p key={kind} className="note">
-                    {s.truncated(s.kind[kind], MOST)}
-                  </p>
-                );
-              }
-              return null;
-            })}
+              })}
+            </fieldset>
+          </div>
 
-            <div className="map-screen">
-              <PlaceMap places={visible} picked={pickedId} onPick={setPickedId} s={s} />
-              <div className="side">
-                {picked ? <PlaceSheet place={picked} onClose={close} s={s} /> : null}
-                <section className="results" aria-labelledby="results-heading">
-                  <h2 id="results-heading">{s.results(visible.length)}</h2>
-                  {!loading && visible.length === 0 ? <p>{s.noResults}</p> : null}
-                  <ul ref={listRef}>
-                    {visible.map((place) => (
-                      <li key={place.id}>
-                        <button
-                          type="button"
-                          data-id={place.id}
-                          aria-pressed={place.id === pickedId}
-                          onClick={() => setPickedId(place.id)}
-                        >
-                          <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[place.kind] }}>
-                            {KIND_SHAPE[place.kind]}
-                          </span>
-                          <span className="name">{place.name ?? s.unnamed}</span>
-                          <span className="sub">
-                            {s.kind[place.kind]}
-                            {place.district ? ` · ${place.district}` : ""}
-                            {place.coordinates === null ? ` · ${s.notOnMap}` : ""}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              </div>
+          {loading && <p role="status">{s.loading}</p>}
+          <LayerNotes layers={layers} s={s} />
+
+          <div className="map-screen">
+            <PlaceMap places={visible} picked={pickedId} onPick={pick} s={s} />
+            <div className="side">
+              <section className="results" aria-labelledby="results-heading">
+                <h2 id="results-heading">{s.results(visible.length)}</h2>
+                {!loading && visible.length === 0 ? <p>{s.noResults}</p> : null}
+                <ul>
+                  {visible.map((place) => (
+                    <li key={place.id}>
+                      <button
+                        type="button"
+                        data-id={place.id}
+                        aria-pressed={place.id === pickedId}
+                        onClick={() => pick(place.id)}
+                      >
+                        <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[place.kind] }}>
+                          {KIND_SHAPE[place.kind]}
+                        </span>
+                        <span className="name">{place.name ?? s.unnamed}</span>
+                        <span className="sub">
+                          {s.kind[place.kind]}
+                          {place.district ? ` · ${place.district}` : ""}
+                          {place.coordinates === null ? ` · ${s.notOnMap}` : ""}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             </div>
-          </>
-        )}
+          </div>
+        </>
+      )}
 
-        <p className="source">{s.attribution}</p>
-      </Page>
-    </main>
+      <p className="source">{s.attribution}</p>
+    </Page>
   );
+}
+
+/** Why a kind is missing, or that it was cut off at `MOST`: said beside the map, once per kind. */
+export function LayerNotes({ layers, s }: { layers: Record<Kind, Layer>; s: Strings }) {
+  return KINDS.map((kind) => {
+    const layer = layers[kind];
+    if (layer.status === "failed") {
+      return (
+        <p key={kind} role="alert" className="failed">
+          {s.refused(s.kind[kind], layer.reason)}
+        </p>
+      );
+    }
+    if (layer.status === "ready" && layer.truncated) {
+      return (
+        <p key={kind} className="note">
+          {s.truncated(s.kind[kind], MOST)}
+        </p>
+      );
+    }
+    return null;
+  });
 }
 
 function PlaceMap({
@@ -247,6 +254,9 @@ function PlaceMap({
   const collection = useMemo(() => featuresOf(places, picked), [places, picked]);
   const latest = useRef(collection);
   latest.current = collection;
+  // The click handler is bound once with the map; it opens what the latest render knows.
+  const latestPick = useRef(onPick);
+  latestPick.current = onPick;
 
   useEffect(() => {
     if (!holder.current || map.current) return;
@@ -268,7 +278,7 @@ function PlaceMap({
     });
     drawn.on("click", SOURCE_ID, (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
       const id = event.features?.[0]?.properties?.id;
-      if (typeof id === "string") onPick(id);
+      if (typeof id === "string") latestPick.current(id);
     });
     map.current = drawn;
     return () => {
@@ -290,80 +300,5 @@ function PlaceMap({
       <div className="jc-map-canvas" ref={holder} data-testid="jc-map" role="application" aria-label={s.mapLabel} />
       {!basemap && <p className="jc-map-notice">{s.noBasemap}</p>}
     </div>
-  );
-}
-
-/** One place whole: a bottom sheet on a phone, a panel beside the list on a wider screen. */
-function PlaceSheet({ place, onClose, s }: { place: Place; onClose: () => void; s: Strings }) {
-  const heading = useRef<HTMLHeadingElement | null>(null);
-  useEffect(() => {
-    heading.current?.focus();
-  }, [place.id]);
-  const name = place.name ?? s.unnamed;
-  return (
-    <section
-      className="sheet"
-      aria-labelledby="sheet-heading"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <div className="sheet-head">
-        <h2 id="sheet-heading" ref={heading} tabIndex={-1}>
-          {s.detailOf(name)}
-        </h2>
-        <button type="button" onClick={onClose}>
-          {s.close}
-        </button>
-      </div>
-      <p className="sub">
-        <span aria-hidden="true" style={{ color: KIND_COLOUR[place.kind] }}>
-          {KIND_SHAPE[place.kind]}
-        </span>{" "}
-        {s.kind[place.kind]}
-      </p>
-      <dl>
-        <dt>{s.category[place.kind]}</dt>
-        <dd>{place.category ? (s.values[place.category] ?? place.category) : s.noValue}</dd>
-        {place.kind === "hospital" && (
-          <>
-            <dt>{s.operator}</dt>
-            <dd>{place.operator ?? s.noValue}</dd>
-            <dt>{s.specialties}</dt>
-            <dd>{place.specialties.length > 0 ? place.specialties.join(", ") : s.noValue}</dd>
-          </>
-        )}
-        {place.kind === "social" && (
-          <>
-            <dt>{s.serviceKind}</dt>
-            <dd>{place.serviceKind ?? s.noValue}</dd>
-            <dt>{s.targetGroup}</dt>
-            <dd>{place.targetGroup ?? s.noValue}</dd>
-            <dt>{s.capacity}</dt>
-            <dd>{place.capacity === null ? s.noValue : new Intl.NumberFormat(s.locale).format(place.capacity)}</dd>
-            <dt>{s.provider}</dt>
-            <dd>{place.provider ? (s.values[place.provider] ?? place.provider) : s.noValue}</dd>
-          </>
-        )}
-        <dt>{s.address}</dt>
-        <dd>{place.address ?? s.noValue}</dd>
-        {place.district ? (
-          <>
-            <dt>{s.district}</dt>
-            <dd>{place.district}</dd>
-          </>
-        ) : null}
-      </dl>
-      {place.url ? (
-        <p>
-          <a href={place.url} target="_blank" rel="noopener noreferrer">
-            {s.website}
-          </a>
-        </p>
-      ) : null}
-    </section>
   );
 }
