@@ -86,7 +86,8 @@ describe("a kind's forms at their own addresses", () => {
 
     await userEvent.click(back(page));
     await waitFor(() => expect(window.location.pathname).toBe(LIST));
-    expect(queryFormPage()).toBeNull();
+    // The address changes a render before the form leaves: wait for it to go, it must go.
+    await waitFor(() => expect(queryFormPage()).toBeNull());
     expect(await screen.findByRole("heading", { level: 1, name: en.policies.title })).toBeInTheDocument();
   });
 

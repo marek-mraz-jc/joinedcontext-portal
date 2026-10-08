@@ -44,7 +44,13 @@ ADD --checksum=sha256:${RUNNER_SHA256} \
 FROM rust:1.90-slim-bookworm AS crates
 WORKDIR /src
 COPY . .
-RUN CARGO_HOME=/opt/cargo cargo fetch --locked
+# The SDK's React + Rust/WebAssembly example and the Apps with a WebAssembly part keep their own
+# lock (AP-142): their crates too.
+RUN CARGO_HOME=/opt/cargo cargo fetch --locked \
+    && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm; do \
+         [ -f "$crate/Cargo.toml" ] || continue; \
+         CARGO_HOME=/opt/cargo cargo fetch --locked --manifest-path "$crate/Cargo.toml" || exit 1; \
+       done
 
 # The toolchain of the rust-1.90 runner. The tag pins the toolchain, not its Debian: upgrade the
 # base's packages so the image carries the security fixes bookworm has shipped since the tag was
@@ -53,7 +59,13 @@ FROM rust:1.90-slim-bookworm AS toolchain
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends git curl ca-certificates musl-tools \
     && rm -rf /var/lib/apt/lists/* \
-    && rustup target add x86_64-unknown-linux-musl
+    && rustup target add x86_64-unknown-linux-musl wasm32-unknown-unknown
+
+# The bindings of a `ui` App's WebAssembly part (AP-142): one wasm-bindgen-cli, pinned here; an
+# App's wasm/Cargo.lock names this version or the lane refuses it (builder/build-wasm.sh).
+FROM toolchain AS wasm-bindgen
+ARG WASM_BINDGEN_VERSION=0.2.129
+RUN cargo install --locked --root /opt/wasm-bindgen wasm-bindgen-cli --version ${WASM_BINDGEN_VERSION}
 
 # The dependencies of the reference fullstack apps, compiled here, by CI, from their own
 # Cargo.lock (AP-106, T-2794): the lane's two builds, `cargo test` and the release musl binary,
@@ -93,6 +105,13 @@ COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
 COPY --from=seed /opt/cargo/target-seed /opt/cargo/target-seed
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
+COPY builder/build-wasm.sh /usr/local/bin/build-wasm
+COPY --from=wasm-bindgen /opt/wasm-bindgen/bin/wasm-bindgen /usr/local/bin/wasm-bindgen
+# The browser checks of a ui App built here (AP-142, T-2827), as on the Node runner.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN /opt/template/node_modules/.bin/playwright install --with-deps --only-shell chromium \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -n "$(find /opt/ms-playwright -name chrome-headless-shell -type f)"
 COPY --from=runner --chmod=0755 /gitea-runner /usr/local/bin/gitea-runner
 COPY builder/runner.sh /usr/local/bin/runner
 COPY builder/runner.yaml /opt/runner/runner.yaml

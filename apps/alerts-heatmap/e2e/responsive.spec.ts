@@ -1,0 +1,46 @@
+import { expect, test } from "@playwright/test";
+import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
+import { BASE, serve } from "./serve";
+
+// T-3333: the page at a phone, a tablet, a laptop and a wall, light and dark, in Finnish and English: the answer on
+// arrival (computed by the WebAssembly module under the static host's CSP), the map, the hours of
+// the week, the repeat places; no sideways scroll, no overlap, nothing axe finds.
+for (const scheme of ["light", "dark"] as const) {
+for (const lang of ["fi", "en"] as const) {
+  for (const size of WIDTHS) {
+    test(`${scheme} ${lang} at ${size.width} px: answers on arrival, no sideways scroll, no overlap, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { outside, missing, problems } = await serve(page);
+      await page.setViewportSize(size);
+      await page.goto(`${BASE}?lang=${lang}`);
+      const summary = lang === "fi" ? /^8 tiedotetta 7\.10\.2030–21\.10\.2030\./ : /^8 alerts from 7 Oct 2030 to 21 Oct 2030\./;
+      await expect(page.locator(".app-summary")).toHaveText(summary);
+      await expect(page.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
+      // One chart; ECharts draws a heat map on more than one canvas layer.
+      await expect(page.locator(".jc-chart-canvas")).toHaveCount(1);
+      await expect(page.locator(".jc-chart-canvas canvas").first()).toBeVisible();
+      await expect(page.locator(".app-places li")).toHaveCount(1);
+      await testInfo.attach(`${scheme}-${lang}-${size.width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      // Sideways scroll, overlap, cut-off controls and what axe finds at WCAG 2.1 AA.
+      expect(await layoutProblems(page)).toEqual([]);
+      expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+}
+
+test("a click on an hour of the week keeps only that hour, and the address says so", async ({ page }) => {
+  await serve(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}?lang=en&day=0&hour=8`);
+  await expect(page.locator(".app-summary")).toHaveText(/^4 alerts /);
+  await page.getByRole("button", { name: "Show every hour, not only Monday 08:00–09:00" }).click();
+  await expect(page.locator(".app-summary")).toHaveText(/^8 alerts /);
+  expect(new URL(page.url()).searchParams.get("day")).toBeNull();
+});
+
+test("no alerts says so instead of an empty map", async ({ page }) => {
+  await serve(page, []);
+  await page.goto(`${BASE}?lang=en`);
+  await expect(page.getByText("No alerts.")).toBeVisible();
+});
