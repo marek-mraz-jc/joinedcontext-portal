@@ -35,6 +35,16 @@ struct World {
     db: AppsDb,
     superuser: PgPool,
     host: PgConnectOptions,
+    /// Unique to this run: roles are the server's, not the database's, so an App of an earlier
+    /// run's database would otherwise share this run's App roles.
+    run: String,
+}
+
+impl World {
+    /// A project name of this run alone.
+    fn project(&self, name: &str) -> String {
+        format!("{name}-{}", self.run)
+    }
 }
 
 /// A fresh database owned by the Portal's CREATEROLE login, with the shards' login roles.
@@ -89,6 +99,7 @@ async fn world(test: &str) -> World {
         db,
         superuser,
         host: here,
+        run: nanos.to_string(),
     }
 }
 
@@ -131,20 +142,26 @@ async fn published(w: &World, project: &str, name: &str) -> (String, u32) {
 #[tokio::test]
 async fn apps_are_placed_on_the_emptiest_shard_and_stay_there() {
     let w = world("place").await;
-    let (a, sa) = w.db.place("p-place", "a").await.expect("a");
-    let (b, sb) = w.db.place("p-place", "b").await.expect("b");
+    let (a, sa) = w.db.place(&w.project("p-place"), "a").await.expect("a");
+    let (b, sb) = w.db.place(&w.project("p-place"), "b").await.expect("b");
     assert_eq!((sa, sb), (0, 1));
-    assert_eq!(a, app_id("p-place", "a"));
-    assert_eq!(w.db.place("p-place", "a").await.expect("again"), (a, 0));
-    let (_, sc) = w.db.place("p-place", "c").await.expect("c");
+    assert_eq!(a, app_id(&w.project("p-place"), "a"));
+    assert_eq!(
+        w.db.place(&w.project("p-place"), "a").await.expect("again"),
+        (a, 0)
+    );
+    let (_, sc) = w.db.place(&w.project("p-place"), "c").await.expect("c");
     assert_eq!(sc, 0);
-    assert_ne!(b, app_id("p-place", "c"));
+    assert_ne!(b, app_id(&w.project("p-place"), "c"));
 }
 
 #[tokio::test]
 async fn migrations_run_in_order_once_and_the_host_reads_and_writes_but_never_creates() {
     let w = world("migrate").await;
-    let (id, shard) = w.db.place("p-migrate", "notes").await.expect("placed");
+    let (id, shard) =
+        w.db.place(&w.project("p-migrate"), "notes")
+            .await
+            .expect("placed");
     w.db.provision(&id, shard).await.expect("provisioned");
     w.db.provision(&id, shard)
         .await
@@ -207,8 +224,8 @@ async fn migrations_run_in_order_once_and_the_host_reads_and_writes_but_never_cr
 #[tokio::test]
 async fn postgres_itself_keeps_apps_and_shards_apart() {
     let w = world("isolation").await;
-    let (a, sa) = published(&w, "p-iso", "a").await;
-    let (b, sb) = published(&w, "p-iso", "b").await;
+    let (a, sa) = published(&w, &w.project("p-iso"), "a").await;
+    let (b, sb) = published(&w, &w.project("p-iso"), "b").await;
     assert_ne!(sa, sb, "two Apps, two shards");
     // App A's role on App B's table: refused by Postgres, with no host check in the way.
     let mut tx = w.superuser.begin().await.expect("tx");
@@ -247,7 +264,7 @@ async fn postgres_itself_keeps_apps_and_shards_apart() {
 #[tokio::test]
 async fn a_changed_migration_is_refused_and_a_failed_one_leaves_the_last_good_schema() {
     let w = world("failed").await;
-    let (id, _) = published(&w, "p-failed", "notes").await;
+    let (id, _) = published(&w, &w.project("p-failed"), "notes").await;
     let changed =
         w.db.migrate(&id, &[file("0001_notes.sql", "CREATE TABLE notes (x int)")])
             .await;
@@ -302,8 +319,11 @@ async fn a_changed_migration_is_refused_and_a_failed_one_leaves_the_last_good_sc
 #[tokio::test]
 async fn a_migration_can_never_become_another_app_or_reach_outside_its_schema() {
     let w = world("escape").await;
-    let (victim, _) = published(&w, "p-escape", "victim").await;
-    let (id, shard) = w.db.place("p-escape", "attacker").await.expect("placed");
+    let (victim, _) = published(&w, &w.project("p-escape"), "victim").await;
+    let (id, shard) =
+        w.db.place(&w.project("p-escape"), "attacker")
+            .await
+            .expect("placed");
     w.db.provision(&id, shard).await.expect("provisioned");
     for (n, sql) in [
         format!("SET ROLE app_{victim}_owner"),
@@ -314,12 +334,20 @@ async fn a_migration_can_never_become_another_app_or_reach_outside_its_schema() 
         "CREATE TEMPORARY TABLE scratch (x int)".to_owned(),
         "INSERT INTO jc_apps.apps (id, project, name, shard) VALUES ('0000000000000000', 'x', 'y', 0)".to_owned(),
         format!("SELECT jc_apps.provision('{victim}', 'wasm_host_0')"),
+        // T-3342's case: a view over another App's table, refused by Postgres because each App
+        // migrates as its own owner.
+        format!("CREATE VIEW peek AS SELECT * FROM app_{victim}.notes"),
+        "CREATE FUNCTION f() RETURNS int LANGUAGE sql AS 'select 1'".to_owned(),
+        "CREATE TABLE t (r text DEFAULT set_config('role', 'x', true))".to_owned(),
     ]
     .into_iter()
     .enumerate()
     {
         let outcome = w.db.migrate(&id, &[file(&format!("{n:04}_try.sql"), &sql)]).await;
-        assert!(matches!(outcome, Err(Error::Failed { .. })), "`{sql}` ran: {outcome:?}");
+        assert!(
+            matches!(outcome, Err(Error::Failed { .. }) | Err(Error::Refused { .. })),
+            "`{sql}` ran: {outcome:?}"
+        );
     }
     let victim_notes: Option<String> = sqlx::query_scalar("SELECT to_regclass($1)::text")
         .bind(format!("app_{victim}.notes"))
@@ -332,7 +360,7 @@ async fn a_migration_can_never_become_another_app_or_reach_outside_its_schema() 
 #[tokio::test]
 async fn retire_drops_the_schema_the_roles_and_the_records() {
     let w = world("retire").await;
-    let (id, _) = published(&w, "p-retire", "gone").await;
+    let (id, _) = published(&w, &w.project("p-retire"), "gone").await;
     w.db.retire(&id).await.expect("retired");
     w.db.retire(&id)
         .await
@@ -350,7 +378,40 @@ async fn retire_drops_the_schema_the_roles_and_the_records() {
     .expect("count");
     assert_eq!(left, 0);
     // Published again it starts empty, on a shard of its own again.
-    let (again, shard) = published(&w, "p-retire", "gone").await;
+    let (again, shard) = published(&w, &w.project("p-retire"), "gone").await;
     assert_eq!(again, id);
     assert!(shard < 2);
+}
+
+/// T-3358: a refused file is named, and nothing of the run is applied, not even the files before it.
+#[tokio::test]
+async fn a_refused_migration_runs_nothing_and_names_its_file() {
+    let w = world("refused").await;
+    let (id, shard) =
+        w.db.place(&w.project("p-refused"), "app")
+            .await
+            .expect("placed");
+    w.db.provision(&id, shard).await.expect("provisioned");
+    let outcome = w
+        .db
+        .migrate(
+            &id,
+            &[
+                file("0001_notes.sql", NOTES),
+                file("0002_trigger.sql", "CREATE TRIGGER t BEFORE INSERT ON notes FOR EACH ROW EXECUTE FUNCTION nothing()"),
+            ],
+        )
+        .await;
+    match outcome {
+        Err(Error::Refused { file, what }) => {
+            assert_eq!((file.as_str(), what), ("0002_trigger.sql", "a trigger"))
+        }
+        other => panic!("{other:?}"),
+    }
+    let notes: Option<String> = sqlx::query_scalar("SELECT to_regclass($1)::text")
+        .bind(format!("app_{id}.notes"))
+        .fetch_one(&w.superuser)
+        .await
+        .expect("regclass");
+    assert_eq!(notes, None, "0001 did not run either");
 }
