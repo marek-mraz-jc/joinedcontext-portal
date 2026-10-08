@@ -510,4 +510,36 @@ mod tests {
         // Linear: well under two seconds even unoptimised, as the build lane runs the tests.
         assert!(elapsed.as_millis() < 2000, "1M points took {:?}", elapsed);
     }
+
+    #[test]
+    fn floor_division_rounds_down_for_a_negative_dividend() {
+        assert_eq!(div_floor(-7, 2), -4);
+        assert_eq!(div_floor(-8, 2), -4);
+        assert_eq!(div_floor(7, 2), 3);
+    }
+
+    #[test]
+    fn a_civil_date_that_does_not_exist_is_none() {
+        assert_eq!(days_from_civil(2026, 4, 31), None);
+        assert_eq!(days_from_civil(2026, 2, 29), None);
+        assert_eq!(days_from_civil(2026, 13, 1), None);
+        // A leap year counts its 29 February before March.
+        assert_eq!(
+            days_from_civil(2024, 3, 1),
+            Some(days_from_civil(2024, 2, 28).expect("a date") + 2)
+        );
+    }
+
+    #[test]
+    fn a_timestamp_with_the_wrong_shape_is_none() {
+        for bad in [
+            "2026-03-01",
+            "2026/03/01T00:00:00Z",
+            "2026-03-01X00:00:00Z",
+            "2026-03-01T00-00-00Z",
+            "2026-02-30T00:00:00Z",
+        ] {
+            assert_eq!(parse_rfc3339(bad), None, "{bad}");
+        }
+    }
 }
