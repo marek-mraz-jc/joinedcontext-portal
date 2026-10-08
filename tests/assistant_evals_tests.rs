@@ -54,7 +54,11 @@ const UNRECORDED_CASES_ON_2026_10_06: usize = 5;
 /// Workflows the matrix gained after 2026-09-25, each still owing its first recording, with the
 /// task that added it. They are counted apart, so the 23 of that day can still only fall; an entry
 /// goes the moment its recording lands, and the guard below refuses one that is recorded.
-const UNRECORDED_LATER: [(&str, &str); 2] = [("knowledge", "T-3057"), ("navigation", "T-3238")];
+const UNRECORDED_LATER: [(&str, &str); 3] = [
+    ("knowledge", "T-3057"),
+    ("navigation", "T-3238"),
+    ("feedback", "T-3272"),
+];
 
 /// What separates a workflow from its case in a conversation's file name.
 const CASE: &str = "--";

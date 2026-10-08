@@ -93,6 +93,7 @@ function UserMenu() {
   const { identity, signOut } = useAuth();
   const firstRun = useFirstRun();
   const navigate = useNavigate();
+  const { administers } = useAdministers();
   if (!identity) {
     return null;
   }
@@ -121,6 +122,16 @@ function UserMenu() {
           {identity.name ? <span className="block truncate font-mono">{identity.username}</span> : null}
         </MenuLabel>
         <MenuSeparator />
+        {/* On a phone the header has no room for Administration beside 44 px targets (T-3319):
+            it is here instead. */}
+        {administers ? (
+          <MenuItem asChild className="sm:hidden">
+            <Link to="/organization/$tab" params={{ tab: "settings" }}>
+              <Icon name="access" className="size-4" />
+              {t("nav.organization")}
+            </Link>
+          </MenuItem>
+        ) : null}
         {/* The way back to what the first run offered (T-3233, T-3236). */}
         <MenuItem
           onSelect={() => {
@@ -335,6 +346,8 @@ export function Shell({
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   // The sidebar is a drawer on a phone; a navigation closes it.
   const [navOpen, setNavOpen] = useState(false);
+  // The feedback dialog, opened by its header button or, on a phone, from the Help menu (T-3319).
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const closeNav = () => setNavOpen(false);
   const menuButton = useRef<HTMLButtonElement>(null);
 
@@ -470,7 +483,7 @@ export function Shell({
               params={{ tab: "settings" }}
               aria-label={t("nav.organization")}
               aria-current={organizationActive ? "page" : undefined}
-              className={buttonClass("ghost", "sm")}
+              className={buttonClass("ghost", "sm", "max-sm:hidden")}
             >
               <Icon name="access" className="size-4" />
               <span aria-hidden="true" className="hidden sm:inline">
@@ -480,8 +493,8 @@ export function Shell({
           ) : null}
           <LanguageSwitcher />
           <JobsMenu />
-          <FeedbackButton />
-          <HelpMenu />
+          <FeedbackButton open={feedbackOpen} onOpenChange={setFeedbackOpen} buttonClassName="hidden sm:inline-flex" />
+          <HelpMenu onFeedback={() => setFeedbackOpen(true)} />
           <InboxButton project={project} />
           <UserMenu />
         </div>

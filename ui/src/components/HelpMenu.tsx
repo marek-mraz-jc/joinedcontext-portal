@@ -13,7 +13,8 @@ import { Badge, Button, Dialog, ExternalLink, Icon, Menu, MenuContent, MenuItem,
  * use the Portal with a dot until it is read (T-3271), and the glossary. The dot is this browser's:
  * it remembers the newest entry read.
  */
-export function HelpMenu(): JSX.Element {
+/** `onFeedback` adds "Send feedback", for a phone, where the header has no room for its button. */
+export function HelpMenu({ onFeedback }: { onFeedback?: () => void } = {}): JSX.Element {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -57,6 +58,12 @@ export function HelpMenu(): JSX.Element {
             <Icon name="inbox" className="size-4" />
             {unread > 0 ? t("whatsNew.menuUnread", { count: unread }) : t("whatsNew.menu")}
           </MenuItem>
+          {onFeedback ? (
+            <MenuItem className="sm:hidden" onSelect={onFeedback}>
+              <Icon name="chat" className="size-4" />
+              {t("feedback.button")}
+            </MenuItem>
+          ) : null}
           <MenuItem asChild>
             <a href="/glossary">
               <Icon name="info" className="size-4" />
