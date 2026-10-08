@@ -3,6 +3,11 @@ import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
 import { currentTokens, mapWorkerReady, NO_BASEMAP, styleFor, useClient } from "@joinedcontext/sdk";
 import type { DistrictOutput, Measure } from "../districts";
+
+// The source's own GeoJSON types, by way of its `setData`: naming the `GeoJSON` namespace needs
+// @types/geojson, which the build lane's store does not carry for this App (T-3335, dev 00137db).
+type Collection = Extract<Parameters<GeoJSONSource["setData"]>[0], { type: "FeatureCollection" }>;
+type Geometry = Collection["features"][number]["geometry"];
 import { choroplethValue } from "../districts";
 
 export interface DistrictMapProps {
@@ -79,7 +84,7 @@ export function DistrictMap({
             hasValue: val !== null,
             selected: selectedCodes.includes(d.code) ? 1 : 0,
           },
-          geometry: geo as GeoJSON.Geometry,
+          geometry: geo as Geometry,
         };
       })
       .filter((f): f is NonNullable<typeof f> => f !== null);
