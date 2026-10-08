@@ -9,7 +9,9 @@ Helsinki districts compared side by side: events, bike stations, alerts, and air
 - ranked district list allowing selection via checkboxes or directly on the map;
 - URL hash keeping the active selection and measure (`#compare?d=101,102&m=events`).
 
-Finnish or English (`?lang=fi|en`, else the browser's language). Light and dark themes follow the reader's system.
+Finnish or English (`?lang=fi|en`, else the browser's language), switched in the SDK's `AppShell` (SDK-39), with the SDK's loading, empty and error states. Light and dark themes follow the reader's system.
+
+A district picked on the map joins the comparison and opens in the SDK's entity panel (SDK-40); each compared district has its Details button. The App is public and writes nothing, so the panel links the district to the Portal and offers no Edit (AP-140).
 
 ## How it is built
 

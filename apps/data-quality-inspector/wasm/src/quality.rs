@@ -279,8 +279,9 @@ pub fn inspect_type(now: f64, type_input: &TypeInput) -> TypeOutput {
     let mut invalid_entities: BTreeSet<String> = BTreeSet::new();
 
     for row in &type_input.rows {
+        // An entity is its whole id: two with the same local id under different prefixes are two
+        // entities, and the page opens a finding's entity by it (SDK-40).
         let full_id = row.get("id").and_then(Value::as_str).unwrap_or("");
-        let local_id = full_id.rsplit(':').next().unwrap_or(full_id);
         let Some(row_obj) = row.as_object() else {
             continue;
         };
@@ -291,12 +292,12 @@ pub fn inspect_type(now: f64, type_input: &TypeInput) -> TypeOutput {
             }
             if row_obj.get(req).is_none_or(Value::is_null) {
                 all_findings.push(Finding {
-                    entity: local_id.to_string(),
+                    entity: full_id.to_string(),
                     attribute: req.clone(),
                     rule: "required".to_string(),
                     detail: "required".to_string(),
                 });
-                invalid_entities.insert(local_id.to_string());
+                invalid_entities.insert(full_id.to_string());
             }
         }
 
@@ -307,12 +308,12 @@ pub fn inspect_type(now: f64, type_input: &TypeInput) -> TypeOutput {
                 }
                 if !props_obj.contains_key(k) {
                     all_findings.push(Finding {
-                        entity: local_id.to_string(),
+                        entity: full_id.to_string(),
                         attribute: k.clone(),
                         rule: "unknown".to_string(),
                         detail: "additionalProperties: false".to_string(),
                     });
-                    invalid_entities.insert(local_id.to_string());
+                    invalid_entities.insert(full_id.to_string());
                 }
             }
         }
@@ -324,9 +325,9 @@ pub fn inspect_type(now: f64, type_input: &TypeInput) -> TypeOutput {
                 }
                 if let Some(comp_schema) = compiled_props.get(attr_name) {
                     let (findings, not_checked) =
-                        validate_value(local_id, attr_name, val, comp_schema);
+                        validate_value(full_id, attr_name, val, comp_schema);
                     if !findings.is_empty() {
-                        invalid_entities.insert(local_id.to_string());
+                        invalid_entities.insert(full_id.to_string());
                         all_findings.extend(findings);
                     }
                     *attr_not_checked_counts
@@ -445,6 +446,65 @@ pub fn run(input: &Input) -> Output {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn a_timestamp_reads_its_fraction_and_its_offset_and_a_broken_one_is_none() {
+        let z = parse_timestamp_seconds("2026-10-08T12:00:00Z").expect("a time");
+        assert_eq!(
+            parse_timestamp_seconds("2026-10-08T12:00:00.5Z"),
+            Some(z + 0.5)
+        );
+        assert_eq!(
+            parse_timestamp_seconds("2026-10-08T15:00:00+03:00"),
+            Some(z)
+        );
+        assert_eq!(parse_timestamp_seconds("2026-10-08T15:00:00+0300"), Some(z));
+        assert_eq!(parse_timestamp_seconds("2026-10-08T15:00:00+03"), Some(z));
+        assert_eq!(
+            parse_timestamp_seconds("2026-10-08T11:30:00-00:30"),
+            Some(z)
+        );
+        // A date alone is its midnight.
+        assert_eq!(
+            parse_timestamp_seconds("2026-10-08"),
+            Some(z - 12.0 * 3600.0)
+        );
+        for bad in [
+            "2026-10",
+            "2026/10/08",
+            "2026-1x-08T12:00:00Z",
+            "2026-10-08T12:00:00.Z",
+            "20x6-10-08T12:00:00Z",
+            "2026-10-0xT12:00:00Z",
+            "2026-10-08T1x:00:00Z",
+        ] {
+            assert_eq!(parse_timestamp_seconds(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn two_entities_sharing_a_local_id_are_two_entities_named_by_their_whole_id() {
+        let input = TypeInput {
+            entity_type: "PointOfInterest".to_string(),
+            schema: Some(json!({
+                "properties": { "name": { "type": "string" } },
+                "required": ["name"]
+            })),
+            rows: vec![
+                json!({ "id": "urn:ngsi-ld:POI:hel.fi:a:1" }),
+                json!({ "id": "urn:ngsi-ld:POI:hel.fi:b:1" }),
+                json!({ "id": "urn:ngsi-ld:POI:hel.fi:b:2", "name": "Esplanadi" }),
+            ],
+        };
+        let out = inspect_type(1_700_000_000.0, &input);
+        let named: Vec<&str> = out.findings.iter().map(|f| f.entity.as_str()).collect();
+        assert_eq!(
+            named,
+            ["urn:ngsi-ld:POI:hel.fi:a:1", "urn:ngsi-ld:POI:hel.fi:b:1"]
+        );
+        // Two of three invalid, not one: the local id `1` is two entities.
+        assert_eq!(out.valid, Some(1.0 / 3.0));
+    }
 
     #[test]
     fn required_missing_produces_finding() {

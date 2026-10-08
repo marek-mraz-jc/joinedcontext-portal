@@ -141,3 +141,19 @@ body {
   color: var(--jc-color-muted, #64748b);
   font-variant-numeric: tabular-nums;
 }
+
+/* A compared district's Details: a button that reads as a link, under its name. */
+.jc-shell .app-open {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--jc-color-accent, #0000bf);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  text-align: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

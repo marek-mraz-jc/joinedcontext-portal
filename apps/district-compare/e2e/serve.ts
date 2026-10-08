@@ -14,6 +14,8 @@ const CONFIG = {
   space: "helsinki",
   transport: "origin",
   appName: "district-compare",
+  // Where the entity panel links a district (SDK-40); shown, never followed.
+  portal: "https://portal.hel.fi/projects/helsinki",
 };
 
 const TYPES: Record<string, string> = {

@@ -57,3 +57,27 @@ test("all types failing displays retryable problem message", async ({ page }) =>
   // All types have 0 entities with empty rows, Vehicle has no schema
   await expect(page.locator(".jc-tiles")).toBeVisible();
 });
+
+// T-3391, SDK-40: a failing entity opened in the SDK's entity panel by its id, at a phone and a
+// laptop, light and dark. The App is public, so the panel links to the Portal and offers no Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a failing entity in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en`);
+      await page.getByRole("button", { name: "BikeHireDockingStation", exact: true }).click();
+      await page.getByRole("table", { name: "Failing entities" }).getByRole("button", { name: "fail-neg" }).first().click();
+      // The panel names the entity by its name once read, by its id until then.
+      const panel = page.getByRole("dialog");
+      await expect(panel.getByText("BikeHireDockingStation")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
