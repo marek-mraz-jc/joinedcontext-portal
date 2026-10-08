@@ -287,9 +287,10 @@ function nameOf(element: Element): string {
   return name.replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
-/** One control in the record: `role: name`, the same for every render of it. */
+/** One control in the record: `role: name`, the same for every render of it, its numbers as `#`. */
 export function controlId(element: Element): string {
-  return `${roleOf(element)}: ${nameOf(element)}`;
+  // A count or a page number in a name ("Road work (5)") changes with the data; the control does not.
+  return `${roleOf(element)}: ${nameOf(element).replace(/\d+(?:[\s\u00a0.,]\d+)*/g, "#")}`;
 }
 
 function usable(element: Element): boolean {

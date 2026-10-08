@@ -96,6 +96,19 @@ body {
   display: flex;
   flex-direction: column;
 }
+/* A place opens its alert in the entity panel: its name reads as a link and is a button. */
+.app-place {
+  all: unset;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--jc-color-accent, #0000bf);
+  text-decoration: underline;
+  min-height: 1.5rem;
+}
+.app-place:focus-visible {
+  outline: 2px solid var(--jc-color-accent, #0000bf);
+  outline-offset: 2px;
+}
 .app-places span {
   color: var(--jc-color-muted, #64748b);
   font-size: var(--jc-font-size-sm, 0.75rem);
