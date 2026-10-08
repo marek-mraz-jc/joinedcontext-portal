@@ -19,16 +19,7 @@ export interface Strings {
   mapLabel: string;
   noBasemap: string;
   notOnMap: string;
-  close: string;
-  detailOf: (name: string) => string;
   unnamed: string;
-  address: string;
-  website: string;
-  openingHours: string;
-  temperature: string;
-  measuredAt: string;
-  atPlace: string;
-  noValue: string;
   attribution: string;
 }
 
@@ -50,16 +41,7 @@ const fi: Strings = {
   mapLabel: "Paikkojen kartta; samat paikat ovat luettelossa kartan vieressä",
   noBasemap: "Taustakarttaa ei ole määritetty, joten paikat näytetään tyhjällä taustalla.",
   notOnMap: "ei sijaintia, vain luettelossa",
-  close: "Sulje",
-  detailOf: (name) => `Tiedot: ${name}`,
   unnamed: "Nimetön",
-  address: "Osoite",
-  website: "Verkkosivu",
-  openingHours: "Aukioloajat",
-  temperature: "Veden lämpötila",
-  measuredAt: "Mitattu",
-  atPlace: "Paikka",
-  noValue: "ei tiedossa",
   attribution: "Lähteet: Helsingin kaupunki, palvelukartta; Helsingin kaupunki, uimarantojen vedenlämpöanturit; julkisen tilan helsinki kautta.",
 };
 
@@ -81,16 +63,7 @@ const en: Strings = {
   mapLabel: "Map of the places; the same places are in the list beside the map",
   noBasemap: "No base map is configured, so the places are drawn on a plain background.",
   notOnMap: "no position, in the list only",
-  close: "Close",
-  detailOf: (name) => `Details: ${name}`,
   unnamed: "Unnamed",
-  address: "Address",
-  website: "Website",
-  openingHours: "Opening hours",
-  temperature: "Water temperature",
-  measuredAt: "Measured",
-  atPlace: "Place",
-  noValue: "not given",
   attribution: "Sources: City of Helsinki, service map; City of Helsinki, beach water-temperature sensors; through the public space helsinki.",
 };
 

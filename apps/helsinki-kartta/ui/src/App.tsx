@@ -6,13 +6,15 @@
  *
  * A map is not readable by a screen reader or a keyboard, so the same places are a list beside it;
  * the list is the screen and the map is the picture of it. Each kind loads on its own: one the
- * endpoint refuses is a sentence saying why, and the others stay.
+ * endpoint refuses is a sentence saying why, and the others stay. It sits in the SDK's shell
+ * (SDK-39), and a place picked on the map or in the list opens in the shell's entity panel (SDK-40),
+ * linked to the Portal: a public App writes nothing.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { endpointSource, Header, Page, SourceError, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, Page, SourceError, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { EntitySource } from "@joinedcontext/sdk";
 import { byOrder, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, KINDS_OF, kindOf, matches, placeOf, TYPES } from "./places";
 import type { Kind, Place, Type } from "./places";
@@ -28,10 +30,7 @@ export const MOST = 4000;
 const CENTRE: [number, number] = [24.9384, 60.1699];
 const SOURCE_ID = "places";
 
-type Layer =
-  | { status: "loading" }
-  | { status: "ready"; places: Place[]; truncated: boolean }
-  | { status: "failed"; reason: string };
+type Layer = { status: "loading" } | { status: "ready"; places: Place[]; truncated: boolean } | { status: "failed"; reason: string };
 
 function useEndpointSlug(): string | null {
   const { config } = useClient();
@@ -92,16 +91,20 @@ export function useLayers(): { layers: Record<Type, Layer> | null } {
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  return <AppShell title={s.title} pages={[{ id: "map", label: s.title, render: () => <ServiceMap /> }]} language={config.language} />;
+}
+
+/** The places on a map and as a list; the one picked opens in the shell's entity panel. */
+function ServiceMap() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
   const { layers } = useLayers();
   const [shown, setShown] = useState<Record<Kind, boolean>>({ library: true, healthStation: true, swimmingHall: true, beach: true, school: true, water: true });
   const [search, setSearch] = useState("");
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  const listRef = useRef<HTMLUListElement | null>(null);
+  const { selected, select } = useEntitySelection();
+  const pickedId = selected?.id ?? null;
 
-  const all = useMemo(
-    () => TYPES.flatMap((type) => (layers?.[type].status === "ready" ? layers[type].places : [])),
-    [layers],
-  );
+  const all = useMemo(() => TYPES.flatMap((type) => (layers?.[type].status === "ready" ? layers[type].places : [])), [layers]);
   const visible = useMemo(
     () =>
       all
@@ -110,140 +113,114 @@ export default function App() {
         .sort(byOrder),
     [all, shown, search],
   );
-  const picked = visible.find((place) => place.id === pickedId) ?? null;
-
-  const close = () => {
-    const id = pickedId;
-    setPickedId(null);
-    // Focus goes back to the place in the list the person came from, never to the top of the page.
-    requestAnimationFrame(() => {
-      const items = listRef.current?.querySelectorAll<HTMLButtonElement>("button[data-id]") ?? [];
-      Array.from(items).find((item) => item.dataset.id === id)?.focus();
-    });
-  };
-
   const loading = layers !== null && TYPES.some((type) => layers[type].status === "loading");
   const typeOf = (kind: Kind): Type => (KINDS_OF.PointOfInterest.includes(kind) ? "PointOfInterest" : "WaterQualityObserved");
-  // A water sensor names the place it stands at; the sheet says that place's name.
-  const nameOf = (id: string | null) => (id === null ? null : (all.find((place) => place.id === id)?.name ?? null));
+  const pick = (id: string) => {
+    const place = all.find((candidate) => candidate.id === id);
+    if (place) select({ id, type: typeOf(place.kind) });
+  };
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page>
+      <p className="subtitle">{s.subtitle}</p>
 
-        {layers === null && <p role="status">{s.noEndpoint}</p>}
-        {layers !== null && (
-          <>
-            <div className="controls">
-              <div className="search">
-                <label htmlFor="search">{s.search}</label>
-                <input
-                  id="search"
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  aria-describedby="search-help"
-                />
-                <small id="search-help">{s.searchHelp}</small>
-              </div>
-              <fieldset className="layers">
-                <legend>{s.show}</legend>
-                {KINDS.map((kind) => {
-                  const layer = layers[typeOf(kind)];
-                  const count = layer.status === "ready" ? layer.places.filter((place) => place.kind === kind).length : null;
-                  return (
-                    <label key={kind} className="layer">
-                      <input
-                        type="checkbox"
-                        checked={shown[kind]}
-                        onChange={(event) => setShown({ ...shown, [kind]: event.target.checked })}
-                      />
-                      <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[kind] }}>
-                        {KIND_SHAPE[kind]}
-                      </span>
-                      <span>
-                        {s.kind[kind]}
-                        {count !== null ? ` (${count})` : ""}
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
+      {layers === null && <p role="status">{s.noEndpoint}</p>}
+      {layers !== null && (
+        <>
+          <div className="controls">
+            <div className="search">
+              <label htmlFor="search">{s.search}</label>
+              <input id="search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} aria-describedby="search-help" />
+              <small id="search-help">{s.searchHelp}</small>
             </div>
-
-            {loading && <p role="status">{s.loading}</p>}
-            {TYPES.map((type) => {
-              const layer = layers[type];
-              if (layer.status === "failed") {
+            <fieldset className="layers">
+              <legend>{s.show}</legend>
+              {KINDS.map((kind) => {
+                const layer = layers[typeOf(kind)];
+                const count = layer.status === "ready" ? layer.places.filter((place) => place.kind === kind).length : null;
                 return (
-                  <p key={type} role="alert" className="failed">
-                    {s.refused(s.type[type], layer.reason)}
-                  </p>
+                  <label key={kind} className="layer">
+                    {/* Named by the layer; its count is its description, so the name holds while it loads. */}
+                    <input
+                      type="checkbox"
+                      aria-label={s.kind[kind]}
+                      aria-describedby={`count-${kind}`}
+                      checked={shown[kind]}
+                      onChange={(event) => setShown({ ...shown, [kind]: event.target.checked })}
+                    />
+                    <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[kind] }}>
+                      {KIND_SHAPE[kind]}
+                    </span>
+                    <span>{s.kind[kind]}</span>
+                    <span id={`count-${kind}`}>{count !== null ? ` (${count})` : ""}</span>
+                  </label>
                 );
-              }
-              if (layer.status === "ready" && layer.truncated) {
-                return (
-                  <p key={type} className="note">
-                    {s.truncated(s.type[type], MOST)}
-                  </p>
-                );
-              }
-              return null;
-            })}
+              })}
+            </fieldset>
+          </div>
 
-            <div className="map-screen">
-              <PlaceMap places={visible} picked={pickedId} onPick={setPickedId} s={s} />
-              <div className="side">
-                {picked ? <PlaceSheet place={picked} onClose={close} placeName={nameOf(picked.refPlace)} s={s} /> : null}
-                <section className="results" aria-labelledby="results-heading">
-                  <h2 id="results-heading">{s.results(visible.length)}</h2>
-                  {!loading && visible.length === 0 ? <p>{s.noResults}</p> : null}
-                  <ul ref={listRef}>
-                    {visible.map((place) => (
-                      <li key={place.id}>
-                        <button
-                          type="button"
-                          data-id={place.id}
-                          aria-pressed={place.id === pickedId}
-                          onClick={() => setPickedId(place.id)}
-                        >
-                          <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[place.kind] }}>
-                            {KIND_SHAPE[place.kind]}
-                          </span>
-                          <span className="name">{place.name ?? s.unnamed}</span>
-                          <span className="sub">
-                            {s.kind[place.kind]}
-                            {place.kind === "water" && place.temperature !== null ? ` · ${place.temperature.toLocaleString(s.locale)} °C` : ""}
-                            {place.coordinates === null ? ` · ${s.notOnMap}` : ""}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              </div>
+          {loading && <p role="status">{s.loading}</p>}
+          {TYPES.map((type) => {
+            const layer = layers[type];
+            if (layer.status === "failed") {
+              return (
+                <p key={type} role="alert" className="failed">
+                  {s.refused(s.type[type], layer.reason)}
+                </p>
+              );
+            }
+            if (layer.status === "ready" && layer.truncated) {
+              return (
+                <p key={type} className="note">
+                  {s.truncated(s.type[type], MOST)}
+                </p>
+              );
+            }
+            return null;
+          })}
+
+          <div className="map-screen">
+            <PlaceMap places={visible} picked={pickedId} onPick={pick} s={s} />
+            <div className="side">
+              <section className="results" aria-labelledby="results-heading">
+                <h2 id="results-heading">{s.results(visible.length)}</h2>
+                {!loading && visible.length === 0 ? <p>{s.noResults}</p> : null}
+                <ul>
+                  {visible.map((place) => (
+                    <li key={place.id}>
+                      <button
+                        type="button"
+                        data-id={place.id}
+                        aria-pressed={place.id === pickedId}
+                        aria-label={place.name ?? s.unnamed}
+                        aria-describedby={`about-${place.id}`}
+                        onClick={() => pick(place.id)}
+                      >
+                        <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[place.kind] }}>
+                          {KIND_SHAPE[place.kind]}
+                        </span>
+                        <span className="name">{place.name ?? s.unnamed}</span>
+                        <span className="sub" id={`about-${place.id}`}>
+                          {s.kind[place.kind]}
+                          {place.kind === "water" && place.temperature !== null ? ` · ${place.temperature.toLocaleString(s.locale)} °C` : ""}
+                          {place.coordinates === null ? ` · ${s.notOnMap}` : ""}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             </div>
-          </>
-        )}
+          </div>
+        </>
+      )}
 
-        <p className="source">{s.attribution}</p>
-      </Page>
-    </main>
+      <p className="source">{s.attribution}</p>
+    </Page>
   );
 }
 
-function PlaceMap({
-  places,
-  picked,
-  onPick,
-  s,
-}: {
-  places: Place[];
-  picked: string | null;
-  onPick: (id: string) => void;
-  s: Strings;
-}) {
+function PlaceMap({ places, picked, onPick, s }: { places: Place[]; picked: string | null; onPick: (id: string) => void; s: Strings }) {
   // The basemap is the platform's, named in the document the Portal served; the app names no tile
   // host of its own, which the app's policy would refuse anyway (AP-67, AP-12).
   const { basemap } = useClient().config;
@@ -253,6 +230,10 @@ function PlaceMap({
   const collection = useMemo(() => featuresOf(places, picked), [places, picked]);
   const latest = useRef(collection);
   latest.current = collection;
+  // The map is built once and keeps its click handler: it calls the latest pick, which knows the
+  // places loaded since.
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
 
   useEffect(() => {
     if (!holder.current || map.current) return;
@@ -274,7 +255,7 @@ function PlaceMap({
     });
     drawn.on("click", SOURCE_ID, (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
       const id = event.features?.[0]?.properties?.id;
-      if (typeof id === "string") onPick(id);
+      if (typeof id === "string") pickRef.current(id);
     });
     map.current = drawn;
     return () => {
@@ -297,73 +278,4 @@ function PlaceMap({
       {!basemap && <p className="jc-map-notice">{s.noBasemap}</p>}
     </div>
   );
-}
-
-/** One place whole: a bottom sheet on a phone, a panel beside the list on a wider screen. */
-function PlaceSheet({ place, onClose, placeName, s }: { place: Place; onClose: () => void; placeName: string | null; s: Strings }) {
-  const heading = useRef<HTMLHeadingElement | null>(null);
-  useEffect(() => {
-    heading.current?.focus();
-  }, [place.id]);
-  const name = place.name ?? s.unnamed;
-  return (
-    <section
-      className="sheet"
-      aria-labelledby="sheet-heading"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <div className="sheet-head">
-        <h2 id="sheet-heading" ref={heading} tabIndex={-1}>
-          {s.detailOf(name)}
-        </h2>
-        <button type="button" onClick={onClose}>
-          {s.close}
-        </button>
-      </div>
-      <p className="sub">
-        <span aria-hidden="true" style={{ color: KIND_COLOUR[place.kind] }}>
-          {KIND_SHAPE[place.kind]}
-        </span>{" "}
-        {s.kind[place.kind]}
-      </p>
-      <dl>
-        {place.kind === "water" ? (
-          <>
-            <dt>{s.temperature}</dt>
-            <dd>{place.temperature === null ? s.noValue : `${place.temperature.toLocaleString(s.locale)} °C`}</dd>
-            <dt>{s.measuredAt}</dt>
-            <dd>{place.observedAt ? moment(place.observedAt, s) : s.noValue}</dd>
-            <dt>{s.atPlace}</dt>
-            <dd>{placeName ?? s.noValue}</dd>
-          </>
-        ) : (
-          <>
-            <dt>{s.openingHours}</dt>
-            <dd>{place.openingHours ?? s.noValue}</dd>
-            <dt>{s.address}</dt>
-            <dd>{place.address ?? s.noValue}</dd>
-          </>
-        )}
-      </dl>
-      {place.url ? (
-        <p>
-          <a href={place.url} target="_blank" rel="noopener noreferrer">
-            {s.website}
-          </a>
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
-function moment(iso: string, s: Strings): string {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime())
-    ? iso
-    : new Intl.DateTimeFormat(s.locale, { dateStyle: "medium", timeStyle: "short" }).format(at);
 }

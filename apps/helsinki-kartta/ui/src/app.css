@@ -1,8 +1,8 @@
 /*
  * The city map on the SDK's own tokens (SDK-04). Its own look (T-2779): a full-width map with the
- * list of places beside it on a wide screen and under it on a phone; the picked place opens as a
- * sheet from the bottom on a phone and as a panel over the list's column on a wide screen. The
- * three kind colours are `places.ts`'s, the same values the map draws with.
+ * list of places beside it on a wide screen and under it on a phone; the picked place opens in the
+ * SDK's entity panel (SDK-40). The kind colours are `places.ts`'s, the same values the map draws
+ * with.
  */
 main {
   padding: var(--jc-gutter, 1rem);
@@ -145,19 +145,6 @@ small {
   font-size: 0.875rem;
 }
 
-.sheet {
-  background: var(--jc-color-surface, #fff);
-  border: 1px solid var(--jc-color-border, #d0d0d0);
-  border-radius: var(--jc-radius-md, 0.5rem) var(--jc-radius-md, 0.5rem) 0 0;
-  padding: var(--jc-space-3, 0.75rem);
-  box-shadow: 0 -4px 16px rgb(0 0 0 / 12%);
-  position: fixed;
-  inset: auto 0 0 0;
-  max-height: 60vh;
-  overflow-y: auto;
-  z-index: 2;
-}
-
 .side {
   display: flex;
   flex-direction: column;
@@ -165,40 +152,3 @@ small {
   min-width: 0;
 }
 
-/* Beside the map there is room: the sheet is the top of the side column, above the list. */
-@media (min-width: 64rem) {
-  .sheet {
-    position: static;
-    max-height: none;
-    box-shadow: none;
-    border-radius: var(--jc-radius-md, 0.5rem);
-  }
-}
-
-.sheet-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--jc-space-2, 0.5rem);
-}
-
-.sheet-head h2 {
-  margin: 0;
-  font-size: 1.15rem;
-  overflow-wrap: anywhere;
-}
-
-.sheet dl {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--jc-space-1, 0.25rem) var(--jc-space-3, 0.75rem);
-}
-
-.sheet dt {
-  font-weight: 600;
-}
-
-.sheet dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
