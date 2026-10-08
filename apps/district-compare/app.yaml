@@ -1,0 +1,35 @@
+# Compare Helsinki districts side by side (T-3335): events, bike stations, alerts and air
+# quality, as counts and per km², with rankings across all districts. The spatial analysis
+# runs in the visitor's browser as WebAssembly compiled from the Rust crate in wasm/ (AP-142),
+# so the App is a `ui` bundle and costs no pod: the static host serves its files and nothing
+# else runs for it. Hand written, so no generated-by annotation (AP-35).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: district-compare
+  namespace: helsinki
+  title:
+    en: "Compare districts"
+    fi: "Vertaa kaupunginosia"
+  description:
+    en: "Compare Helsinki districts side by side: events, bike stations, alerts and air quality as totals and per square kilometre, with rankings across all districts."
+    fi: "Vertaa Helsingin kaupunginosia rinnakkain: tapahtumat, kaupunkipyöräasemat, tiedotteet ja ilmanlaatu kokonaisina ja neliökilometriä kohti sekä sijoitukset."
+spec:
+  kind: ui
+  source:
+    git:
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_district-compare.git
+      ref: main
+  build:
+    node: "22"
+    rust: "1.90"
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [CityDistrict, Event, BikeHireDockingStation, Alert, AirQualityObserved]
+      attrs: [name, districtCode, divisionLevel, location, startDate, totalSlotNumber, validFrom, pm25, airQualityIndex, dateObserved]
+      operations: [queryEntity, retrieveEntity]
+      representations: [ngsi-ld]
