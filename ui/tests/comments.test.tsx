@@ -138,6 +138,22 @@ describe("notifications", () => {
     vi.unstubAllGlobals();
   });
 
+  it("lists an alert notice beside the mentions, counts it, and mutes its subscription for a day (T-3261)", async () => {
+    const notice = { id: 9, subscription: 4, project: "helsinki", pipeline: "bikes", event: "zero", change: "opened", detail: "records in, nothing out", createdAt: "2026-10-07T08:00:00Z", read: false };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      const path = new URL(request.url).pathname;
+      if (request.method === "POST") return json(path.endsWith("/mute") ? { id: 4 } : null, path.endsWith("/mute") ? 200 : 204);
+      return path.endsWith("/alerts/notices") ? json({ items: [notice], unread: 1 }) : json({ items: [], unread: 0 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    wrap(<NotificationsMenu />);
+    await userEvent.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    expect(await screen.findByRole("menuitem", { name: /bikes: it writes nothing/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Mute the alerts of bikes for a day" }));
+    await waitFor(() => expect(sentTo(fetchMock, "/alerts/4/mute").map((r) => r.method)).toEqual(["POST"]));
+  });
+
   it("counts the unread on the button, lists them, and marks one read when it is opened", async () => {
     const item = {
       id: 5,
@@ -153,7 +169,11 @@ describe("notifications", () => {
     };
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const request = input as Request;
-      return request.method === "POST" ? json(null, 204) : json({ items: [item], unread: 1 });
+      if (request.method === "POST") return json(null, 204);
+      // The alert notices are the inbox's second list (T-3261); this test is about mentions.
+      return new URL(request.url).pathname.endsWith("/alerts/notices")
+        ? json({ items: [], unread: 0 })
+        : json({ items: [item], unread: 1 });
     });
     vi.stubGlobal("fetch", fetchMock);
     wrap(<NotificationsMenu />);

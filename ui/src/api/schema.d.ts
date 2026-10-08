@@ -25,6 +25,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Alerts
+         * @description The caller's alert subscriptions (API/01 §37).
+         */
+        get: operations["list_alerts"];
+        /**
+         * Subscribe To An Alert
+         * @description Subscribes the caller to a pipeline's, a space's or a type's failure, stale and zero-output alerts, or changes their subscription of the same target (API/01 §37). E-mail is refused while the Portal has no mail relay.
+         */
+        put: operations["subscribe"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Alert Notices
+         * @description The caller's alert notices, newest first, at most 200, only of pipelines they still may read, with how many are unread (API/01 §37).
+         */
+        get: operations["list_notices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/notices/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark An Alert Notice Read
+         * @description Marks one of the caller's alert notices read (API/01 §37). Another caller's is 404.
+         */
+        post: operations["read_notice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop An Alert
+         * @description Removes one of the caller's subscriptions and its notices (API/01 §37). Another caller's is 404.
+         */
+        delete: operations["unsubscribe"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{id}/mute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mute An Alert
+         * @description Mutes one of the caller's subscriptions for 1h, 1d, 7d or forever, or unmutes it with null (API/01 §37).
+         */
+        post: operations["mute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/app-templates": {
         parameters: {
             query?: never;
@@ -3009,6 +3113,55 @@ export interface components {
          * @enum {string}
          */
         AgentRunStatus: "queued" | "starting" | "interviewing" | "building" | "testing" | "previewing" | "awaiting_approval" | "published" | "failed" | "cancelled" | "expired";
+        /** @enum {string} */
+        AlertDelivery: "portal" | "digest";
+        /** @enum {string} */
+        AlertEvent: "failure" | "stale" | "zero";
+        /** @description How long a subscription stays muted, or `null` to unmute. */
+        AlertMute: {
+            for?: string | null;
+        };
+        /** @description One notice left for a subscriber. */
+        AlertNotice: {
+            /** @description `opened`, `recovered` or `digest`. */
+            change: string;
+            /** @description RFC 3339. */
+            createdAt: string;
+            detail: string;
+            event: components["schemas"]["AlertEvent"];
+            /** Format: int64 */
+            id: number;
+            pipeline: string;
+            project: string;
+            read: boolean;
+            /**
+             * Format: int64
+             * @description The subscription it came from, which "Mute" names.
+             */
+            subscription: number;
+        };
+        AlertNotices: {
+            items: components["schemas"]["AlertNotice"][];
+            /** Format: int64 */
+            unread: number;
+        };
+        /** @enum {string} */
+        AlertScope: "pipeline" | "space" | "type";
+        /** @description One subscription as the API shows it. */
+        AlertSubscription: {
+            delivery: components["schemas"]["AlertDelivery"];
+            events: components["schemas"]["AlertEvent"][];
+            /** Format: int64 */
+            id: number;
+            /** @description RFC 3339; none when it is not muted. */
+            mutedUntil?: string | null;
+            project: string;
+            scope: components["schemas"]["AlertScope"];
+            target: string;
+        };
+        AlertSubscriptions: {
+            items: components["schemas"]["AlertSubscription"][];
+        };
         /** @description An answer to one question the agent asked (AG-45). */
         AnswerRequest: {
             answers: unknown;
@@ -4462,6 +4615,14 @@ export interface components {
             /** @description Why it has to be provided, in words. */
             why: string;
         };
+        /** @description What a person asks to be told about. */
+        NewAlertSubscription: {
+            delivery: string;
+            events: string[];
+            project: string;
+            scope: string;
+            target: string;
+        };
         /** @description One object in the graph. */
         Node: {
             /** @description `ok`, `degraded` or `unknown` (UI-27). */
@@ -5728,6 +5889,365 @@ export interface operations {
             };
             /** @description Not the collector's own service account */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_alerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's subscriptions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSubscriptions"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The alerts are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The project, the scope (`pipeline`, `space` or `type`), its target, the events and the delivery */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "delivery": "portal",
+                 *       "events": [
+                 *         "failure",
+                 *         "zero"
+                 *       ],
+                 *       "project": "helsinki",
+                 *       "scope": "space",
+                 *       "target": "bikes"
+                 *     }
+                 */
+                "application/json": components["schemas"]["NewAlertSubscription"];
+            };
+        };
+        responses: {
+            /** @description The subscription */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSubscription"];
+                };
+            };
+            /** @description An unknown scope, event or delivery, or e-mail */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A target the caller may not read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description An unknown key */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The alerts are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_notices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's notices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertNotices"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The alerts are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    read_notice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The notice's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Read */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such notice of the caller's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The alerts are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The subscription's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such subscription of the caller's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The alerts are not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    mute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The subscription's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        /** @description How long to mute: `1h`, `1d`, `7d` or `forever`; `null` unmutes */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "for": "1d"
+                 *     }
+                 */
+                "application/json": components["schemas"]["AlertMute"];
+            };
+        };
+        responses: {
+            /** @description The subscription */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSubscription"];
+                };
+            };
+            /** @description A duration that is not 1h, 1d, 7d or forever */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such subscription of the caller's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The alerts are not reachable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

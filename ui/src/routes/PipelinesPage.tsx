@@ -1,3 +1,4 @@
+import { AlertDialog } from "../components/AlertDialog";
 import { useFormRoute, useOpenFromAddress } from "../components/forms/FormRoute";
 import { RecordLink } from "../components/RecordLink";
 import { useRef, useState } from "react";
@@ -238,6 +239,8 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   const [runsOf, setRunsOf] = useState<string | null>(null);
   // The run a rejected record names, opened when the person follows it (T-3252).
   const [runOpened, setRunOpened] = useState<string | null>(null);
+  // The pipeline whose alerts are being chosen (T-3261).
+  const [alertOf, setAlertOf] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "pipelines"),
@@ -559,6 +562,11 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                         label: t("pipelines.rejected.open"),
                         onSelect: () => setRejectedOf(pipeline.metadata.name),
                       },
+                      {
+                        key: "alerts",
+                        label: t("alerts.open"),
+                        onSelect: () => setAlertOf(pipeline.metadata.name),
+                      },
                     ]}
                     onEdit={() =>
                       formRoute ? formRoute.openEdit(pipeline.metadata.name) : openEditor(pipeline)
@@ -595,6 +603,9 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
             setRejectedOf(null);
           }}
         />
+      ) : null}
+      {alertOf !== null ? (
+        <AlertDialog project={project} scope="pipeline" target={alertOf} label={alertOf} onClose={() => setAlertOf(null)} />
       ) : null}
       {runsOf !== null ? (
         <PipelineRunsDialog

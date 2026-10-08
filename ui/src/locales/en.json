@@ -6330,6 +6330,53 @@
       "close": "Close the welcome"
     }
   },
+  "alerts": {
+    "open": "Alerts…",
+    "title": "Alerts for {name}",
+    "close": "Close",
+    "lead": {
+      "pipeline": "Choose what to be told about this pipeline.",
+      "space": "Choose what to be told about every pipeline writing into this space.",
+      "type": "Choose what to be told about every pipeline writing this type into the space."
+    },
+    "events": "Tell me when",
+    "event": {
+      "failure": "it fails",
+      "stale": "its data goes stale",
+      "zero": "it writes nothing"
+    },
+    "delivery": "How",
+    "portal": "In the Portal, as it happens",
+    "portalHint": "One notice when it starts and one when it recovers, in the inbox at the top.",
+    "digest": "A daily digest",
+    "digestHint": "One notice a day after 07:00 UTC naming what happened since the last.",
+    "email": "By e-mail",
+    "emailHint": "Not yet: this Portal has no mail relay.",
+    "noEvent": "Tick at least one event.",
+    "subscribe": "Alert me",
+    "change": "Save",
+    "stop": "Stop these alerts",
+    "active": "Active.",
+    "mutedUntil": "Muted until {until}.",
+    "mute": "Mute",
+    "muteChoose": "Choose…",
+    "muteFor": {
+      "1h": "for an hour",
+      "1d": "for a day",
+      "7d": "for a week",
+      "forever": "until unmuted"
+    },
+    "unmute": "Unmute now",
+    "forSpace": "Alerts",
+    "forType": "Alerts for {type}",
+    "notices": "Alerts",
+    "notice": {
+      "opened": "{pipeline}: {event}",
+      "recovered": "{pipeline} recovered: no longer {event}",
+      "digest": "Today's digest, {pipeline}: {event}"
+    },
+    "muteDay": "Mute the alerts of {pipeline} for a day"
+  },
   "help": {
     "title": "Help",
     "label": "Help{count, plural, =0 {} one {, # new change} other {, # new changes}}"

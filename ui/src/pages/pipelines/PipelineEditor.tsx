@@ -1,3 +1,4 @@
+import { RecipeGallery } from "./RecipeGallery";
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -15,7 +16,6 @@ import type { EndpointOption, PipelineShown } from "../../schemas/kinds";
 import { PipelineStudio } from "./PipelineStudio";
 import { PipelineWorkbench } from "./PipelineWorkbench";
 import type { UiSchema } from "../../components/forms/types";
-import { RecipeGallery } from "./RecipeGallery";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
 export interface PipelineForm {

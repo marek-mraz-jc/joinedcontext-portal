@@ -40,7 +40,7 @@ describe("a schedule's next runs", () => {
   });
 });
 
-describe("a schedule in words", () => {
+describe("a schedule in words (PL-69)", () => {
   it("writes the cron of each choice and reads the same choice back", () => {
     const choices: Choice[] = [
       { kind: "minutes", every: 15 },

@@ -304,6 +304,30 @@ routes:
     rule: "signed-in"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
     note: "the caller's own notification only; the fixture holds none, so every signed-in caller meets 404"
+  - route: GET /alerts
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: PUT /alerts
+    rule: "project-verb:read:Pipeline"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    body: {"project": "helsinki", "scope": "pipeline", "target": "existing", "events": ["failure"], "delivery": "portal"}
+    note: "subscribing to a pipeline needs read on it (API/01 §37); a caller without it is told it is not there"
+  - route: DELETE /alerts/{id}
+    rule: "signed-in"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the caller's own subscription only; the fixture holds none, so every signed-in caller meets 404"
+  - route: POST /alerts/{id}/mute
+    rule: "signed-in"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    body: {"for": "1h"}
+    note: "the caller's own subscription only; the fixture holds none, so every signed-in caller meets 404"
+  - route: GET /alerts/notices
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /alerts/notices/{id}/read
+    rule: "signed-in"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the caller's own notice only; the fixture holds none, so every signed-in caller meets 404"
   - route: GET /projects/{project}/knowledge/sources
     rule: "project-verb:read:KnowledgeSource"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
