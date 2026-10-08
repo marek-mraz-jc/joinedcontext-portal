@@ -34,7 +34,7 @@ test.describe("who may edit a station record", () => {
     await page.setExtraHTTPHeaders(edge("viewer"));
     await page.goto(BASE);
 
-    await expect(page.getByText("demo.viewer@hel.fi")).toBeVisible();
+    await expect(page.getByText("demo.viewer@hel.fi", { exact: true })).toBeVisible();
     const edit = page.getByRole("button", { name: "Edit Kallio" });
     await expect(edit).toBeDisabled();
     await expect(edit).toHaveAccessibleDescription("Only a steward adds, corrects or removes station records.");
