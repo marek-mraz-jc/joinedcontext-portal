@@ -13,6 +13,7 @@ describe("i18n", () => {
   it("writes numbers as Finland does, in either language", () => {
     expect(number(1234.5, 1)).toBe("1\u00a0234,5");
     expect(number(-0.25, 1)).toBe("−0,3");
+    expect(number(-0.004, 2)).toBe("0,00");
   });
 
   it("fills a text's names and leaves an unknown one as it is", () => {

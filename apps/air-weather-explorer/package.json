@@ -1,0 +1,35 @@
+{
+  "name": "air-weather-explorer",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.20.0",
+  "scripts": {
+    "build:wasm": "cargo build --manifest-path wasm/Cargo.toml --release --locked --target wasm32-unknown-unknown --target-dir wasm/target && wasm-bindgen --target web --out-dir src/wasm-pkg wasm/target/wasm32-unknown-unknown/release/air_weather_explorer.wasm",
+    "test:wasm": "cargo test --manifest-path wasm/Cargo.toml --locked --target-dir wasm/target",
+    "dev": "pnpm build:wasm && vite",
+    "build": "pnpm build:wasm && tsc -b && vite build",
+    "typecheck": "pnpm build:wasm && tsc -b --noEmit",
+    "test": "pnpm test:wasm && pnpm build:wasm && vitest run",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@joinedcontext/sdk": "0.1.0",
+    "echarts": "^6.1.0",
+    "maplibre-gl": "^6.7.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "jsdom": "^30.0.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  }
+}

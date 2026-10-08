@@ -17,7 +17,7 @@ describe("i18n", () => {
   });
 
   it("fills a text's names and leaves an unknown one as it is", () => {
-    expect(t("fi", "late", { min: 3 })).toBe("3 min myöhässä");
-    expect(t("en", "late")).toBe("{min} min late");
+    expect(t("fi", "days", { n: 3 })).toBe("3 vrk");
+    expect(t("en", "days")).toBe("{n} days");
   });
 });

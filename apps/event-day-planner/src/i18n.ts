@@ -20,9 +20,13 @@ export function localeOf(lang: Lang): string {
   return lang === "fi" ? "fi-FI" : "en-FI";
 }
 
-/** A number as Finland writes it, `1 234,5`, in either language: `digits` after the decimal comma. */
+/**
+ * A number as Finland writes it, `1 234,5`, in either language: `digits` after the decimal comma.
+ * A value that rounds to zero is written `0`, never `−0`.
+ */
 export function number(value: number, digits = 0): string {
-  return new Intl.NumberFormat("fi-FI", { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(value);
+  const shown = Number(value.toFixed(digits)) === 0 ? 0 : value;
+  return new Intl.NumberFormat("fi-FI", { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(shown);
 }
 
 /** The page's language from the address and the Portal's configuration. */
