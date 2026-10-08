@@ -90,7 +90,7 @@ function parseValue(field: Field, text: string, language: SdkLanguage): { value:
 function portalLinkOf(portal: string | undefined, space: string, id: string): string | null
 const SDK_WORDS; function sdkLanguage(configured?): SdkLanguage; function sdkWord(language, word, slots?): string
 ```
-Every App renders `AppShell`; it holds the selection and the one `EntityPanel`. Make any map feature, table row, chart point or card open an entity with `select({ id, type })` (or spread `selectable(...)` on an element for click and Enter). The panel lists the attributes with the schema's labels; **Edit** shows only to a signed-in reader whose access document allows `updateAttrs` on the type (and the attribute), checks each value against the schema, shows the change and writes it through the App's Endpoint after the reader confirms; a 409 or 403 is said in words. Without the right, or on a `public` App, it links to the entity in the Portal (`config.portal`). Escape closes it and gives the focus back; the words are in en, fi, sk and cs. An App that reads through its own backend (`ui-rust`, no served configuration) passes `source: PanelSource` — `get`, `update`, `mayEdit(type, attr?)` and optionally `portalLink`, `schema`, `language` — and `userName`; the shell then needs no client (`useOptionalClient` answers `null`).
+Every App renders `AppShell`; it holds the selection and the one `EntityPanel`. Make any map feature, table row, chart point or card open an entity with `select({ id, type })` (or spread `selectable(...)` for click and Enter). The panel lists the attributes with the schema's labels; **Edit** shows only to a signed-in reader whose access document allows `updateAttrs` on the type (and the attribute), checks each value against the schema, shows the change and writes it through the App's Endpoint after the reader confirms; a 409 or 403 is said in words. Without the right, or on a `public` App, it links to the entity in the Portal (`config.portal`).
 
 ### Tables, forms, maps, exports
 ```ts
@@ -444,7 +444,7 @@ Constructs a server function execution context capturing log statements.
 function recordControls(afterAll: (done: () => Promise<void>) => void, dir?: string): void
 function controlId(element: Element): string
 ```
-For the Apps' coverage gate (T-3373): call `recordControls(afterAll)` once in the test setup. With `JC_CONTROLS_DIR` set it writes which controls (`role: name`, from `controlId`) the test file rendered and which a test clicked or typed into; the gate fails a control no test exercises. A disabled or hidden control is not counted; without the directory it does nothing.
+Call `recordControls(afterAll)` in the test setup; the gate (T-3373) fails controls no test uses.
 
 ---
 
