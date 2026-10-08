@@ -6,15 +6,6 @@ banskabystrica-ovzdusie T-3380
 banskabystrica-skoly T-3381
 banskabystrica-zaznamy T-3382
 bbsk-zaznamy T-3387
-<<<<<<< HEAD
-data-quality-inspector T-3391
-district-compare T-3392
-zilina-vyskum T-3409
-zilina-zaznamy T-3410
-=======
-event-day-planner T-3393
-news-topics T-3401
->>>>>>> origin/main
 plain-html-events T-3416
 react-rust-wasm T-3416
 rust-wasm-server T-3416
