@@ -22,9 +22,6 @@ hsl-transport T-3399
 kpi-forecast T-3400
 news-topics T-3401
 praha-data T-3402
-praha-mapa T-3403
-praha-mesto T-3404
-praha-odpad T-3405
 transit-reach T-3406
 zilina-mapa T-3407
 zilina-ukazovatele T-3408

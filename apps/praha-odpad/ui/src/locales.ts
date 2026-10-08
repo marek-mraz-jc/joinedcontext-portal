@@ -4,6 +4,8 @@ import type { SortKey } from "./containers";
 export interface Strings {
   locale: string;
   title: string;
+  /** The one page's name in the shell. */
+  page: string;
   subtitle: string;
   loading: string;
   failed: (reason: string) => string;
@@ -34,6 +36,7 @@ export interface Strings {
 const cs: Strings = {
   locale: "cs",
   title: "Tříděný odpad Prahy",
+  page: "Kontejnery",
   subtitle: "Pracoviště svozu: zaplněnost kontejnerů se senzorem, stáří posledního měření a stanoviště.",
   loading: "Načítám kontejnery…",
   failed: (reason) => `Kontejnery se nepodařilo načíst: ${reason}`,
@@ -74,6 +77,7 @@ const cs: Strings = {
 const en: Strings = {
   locale: "en",
   title: "Prague recycling",
+  page: "Containers",
   subtitle: "A collection desk: how full the sensor containers are, how old their last reading is, and where they stand.",
   loading: "Loading containers…",
   failed: (reason) => `The containers could not be loaded: ${reason}`,

@@ -4,6 +4,8 @@ import type { Kind, Type } from "./places";
 export interface Strings {
   locale: string;
   title: string;
+  /** The one page's name in the shell. */
+  page: string;
   subtitle: string;
   search: string;
   searchHelp: string;
@@ -19,28 +21,14 @@ export interface Strings {
   mapLabel: string;
   noBasemap: string;
   notOnMap: string;
-  close: string;
-  detailOf: (name: string) => string;
   unnamed: string;
-  address: string;
-  website: string;
-  facilityType: string;
-  openingHours: string;
-  wheelchair: string;
-  yes: string;
-  no: string;
-  capacity: string;
-  pupils: string;
-  stationCode: string;
-  access: string;
-  values: Record<string, string>;
-  noValue: string;
   attribution: string;
 }
 
 const cs: Strings = {
   locale: "cs",
   title: "Mapa Prahy",
+  page: "Mapa",
   subtitle: "Školy, kultura, veřejné toalety, prodej jízdenek a tříděný odpad z otevřených dat Prahy, na jedné mapě.",
   search: "Hledat podle názvu, adresy nebo druhu",
   searchHelp: "Hledá i bez diakritiky, například „skola“.",
@@ -56,28 +44,14 @@ const cs: Strings = {
   mapLabel: "Mapa míst; stejná místa jsou v seznamu vedle mapy",
   noBasemap: "Podkladová mapa není nastavena, místa jsou zobrazena na prázdném pozadí.",
   notOnMap: "bez polohy, jen v seznamu",
-  close: "Zavřít",
-  detailOf: (name) => `Detail: ${name}`,
   unnamed: "Bez názvu",
-  address: "Adresa",
-  website: "Webová stránka",
-  facilityType: "Druh",
-  openingHours: "Otevírací doba",
-  wheelchair: "Bezbariérový přístup",
-  yes: "ano",
-  no: "ne",
-  capacity: "Kapacita",
-  pupils: "Žáci",
-  stationCode: "Kód stanoviště",
-  access: "Přístup",
-  values: { public: "veřejné", residents: "jen pro obyvatele domu" },
-  noValue: "neuvedeno",
   attribution: "Zdroje: IPR Praha (školská a kulturní zařízení, veřejné toalety, stanoviště tříděného odpadu s MHMP); PID (prodejní místa jízdenek); přes veřejný prostor praha-mesto.",
 };
 
 const en: Strings = {
   locale: "en",
   title: "Map of Prague",
+  page: "Map",
   subtitle: "Schools, culture, public toilets, ticket sale and recycling from Prague's open data, on one map.",
   search: "Search by name, address or kind",
   searchHelp: "Finds words without diacritics too, for example “skola”.",
@@ -93,22 +67,7 @@ const en: Strings = {
   mapLabel: "Map of the places; the same places are in the list beside the map",
   noBasemap: "No base map is configured, so the places are drawn on a plain background.",
   notOnMap: "no position, in the list only",
-  close: "Close",
-  detailOf: (name) => `Details: ${name}`,
   unnamed: "Unnamed",
-  address: "Address",
-  website: "Website",
-  facilityType: "Kind",
-  openingHours: "Opening hours",
-  wheelchair: "Wheelchair access",
-  yes: "yes",
-  no: "no",
-  capacity: "Capacity",
-  pupils: "Pupils",
-  stationCode: "Point code",
-  access: "Access",
-  values: { public: "public", residents: "residents of the building only" },
-  noValue: "not given",
   attribution: "Sources: IPR Praha (school and cultural facilities, public toilets, sorted-waste points with MHMP); PID (ticket points); through the public space praha-mesto.",
 };
 
