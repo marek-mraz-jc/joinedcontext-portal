@@ -21,9 +21,10 @@ spec:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_news-topics.git
       ref: main
+  # The interface on Node, the topic clustering in wasm/ compiled to WebAssembly (AP-142).
   build:
-    # `rust` is added when T-3327's build lane accepts it.
     node: "22"
+    rust: "1.90"
   # The news endpoint of Helsinki is public (GW22): an anonymous reader gets what the public
   # role is granted and nothing more.
   visibility: public
