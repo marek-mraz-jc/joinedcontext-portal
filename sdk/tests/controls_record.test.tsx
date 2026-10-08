@@ -29,6 +29,19 @@ describe("the controls record (T-3373)", () => {
     expect(controlId(screen.getByRole("link"))).toBe("link: Open in the Portal");
   });
 
+  it("names a control the same whatever counts its name carries", () => {
+    render(
+      <div>
+        <label>
+          <input type="checkbox" /> Road work (5)
+        </label>
+        <button type="button">Page 1 of 1 234,5</button>
+      </div>,
+    );
+    expect(controlId(screen.getByRole("checkbox"))).toBe("checkbox: Road work (#)");
+    expect(controlId(screen.getByRole("button"))).toBe("button: Page # of #");
+  });
+
   it("leaves what is hidden from a screen reader out of a control's name", () => {
     render(
       <button type="button">
@@ -72,6 +85,9 @@ describe("the controls record (T-3373)", () => {
           Disabled
         </button>
         <input aria-label="Typed into" />
+        <div data-jc-sdk="grid">
+          <button type="button">Sort by name</button>
+        </div>
       </div>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Clicked" }));
@@ -81,6 +97,8 @@ describe("the controls record (T-3373)", () => {
     const record = JSON.parse(readFileSync(join(dir, file), "utf8")) as { rendered: string[]; exercised: string[] };
     expect(record.rendered).toEqual(expect.arrayContaining(["button: Clicked", "button: Never touched", "textbox: Typed into"]));
     expect(record.rendered).not.toContain("button: Disabled");
+    // The SDK's own components are tested by the SDK's suite, not by each App.
+    expect(record.rendered).not.toContain("button: Sort by name");
     expect(record.exercised).toEqual(["button: Clicked", "textbox: Typed into"]);
   });
 

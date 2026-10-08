@@ -287,14 +287,16 @@ function nameOf(element: Element): string {
   return name.replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
-/** One control in the record: `role: name`, the same for every render of it. */
+/** One control in the record: `role: name`, the same for every render of it, its numbers as `#`. */
 export function controlId(element: Element): string {
-  return `${roleOf(element)}: ${nameOf(element)}`;
+  // A count or a page number in a name ("Road work (5)") changes with the data; the control does not.
+  return `${roleOf(element)}: ${nameOf(element).replace(/\d+(?:[\s\u00a0.,]\d+)*/g, "#")}`;
 }
 
 function usable(element: Element): boolean {
   // A control removed before the observer reported it was never on screen, and has no name left.
-  return element.isConnected && !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true" && element.closest('[aria-hidden="true"]') === null;
+  // Inside an SDK component that marks itself `data-jc-sdk` (the grid), a control is the SDK suite's.
+  return element.isConnected && element.closest("[data-jc-sdk]") === null && !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true" && element.closest('[aria-hidden="true"]') === null;
 }
 
 /** An environment variable under vitest, `undefined` in a browser; no Node types needed. */
@@ -307,7 +309,8 @@ function envOf(name: string): string | undefined {
  * Records which controls a test file rendered and which its tests clicked or typed into, for the
  * Apps' coverage gate (T-3373): a control no test exercises fails it. Call it once from the test
  * setup, `recordControls(afterAll)`; it writes one JSON file into `JC_CONTROLS_DIR` when that is set
- * and does nothing otherwise. A disabled or hidden control, or one gone before it was reported, is not counted.
+ * and does nothing otherwise. A disabled or hidden control, one gone before it was reported, or one
+ * inside an SDK component marked `data-jc-sdk` (its own suite tests it) is not counted.
  */
 export function recordControls(afterAll: (done: () => Promise<void>) => void, dir: string | undefined = envOf("JC_CONTROLS_DIR")): void {
   if (!dir || typeof document === "undefined" || typeof MutationObserver === "undefined") return;

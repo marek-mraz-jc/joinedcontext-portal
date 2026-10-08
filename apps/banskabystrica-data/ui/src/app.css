@@ -2,8 +2,8 @@
  * The data screen on the SDK's own tokens (SDK-04). Its own look (T-2779): a row of tabs over one
  * full-width table, the downloads in a line above it.
  */
-main {
-  padding: var(--jc-gutter, 1rem);
+.subtitle {
+  margin-top: 0;
 }
 
 .about,

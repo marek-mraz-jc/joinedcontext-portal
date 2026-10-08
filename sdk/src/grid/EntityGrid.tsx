@@ -622,7 +622,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}${virtual ? " jc-grid--virtual" : ""}`;
 
   return (
-    <div className={rootClass} data-density={hookOptions.config.density}>
+    // `data-jc-sdk`: the grid's own controls are the SDK suite's to test, not each App's (T-3373).
+    <div className={rootClass} data-density={hookOptions.config.density} data-jc-sdk="grid">
       {toolbar && <div className="jc-grid-toolbar">{toolbar}</div>}
 
       {pasteNote && (
