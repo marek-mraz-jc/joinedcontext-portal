@@ -156,12 +156,15 @@ async fn serve(
     let mut response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, mime.as_ref())
-        // The bundle is immutable per publish, but a republish reuses the path, so assets are
-        // revalidated rather than pinned for a year.
+        // A republish reuses a path, so a file is revalidated; one whose name carries its own
+        // hash never changes under that name and is kept, a WebAssembly module included (AP-142).
+        // `private`: a non-public App's files are for its readers, never a shared cache.
         .header(
             header::CACHE_CONTROL,
             if personal {
                 "private, no-store"
+            } else if hashed(&path) {
+                "private, max-age=31536000, immutable"
             } else {
                 "no-cache"
             },
@@ -618,12 +621,26 @@ pub fn content_security_policy(
     }
 
     format!(
-        "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; \
+        "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; \
          style-src 'self' 'unsafe-inline'; img-src {img}; font-src 'self' data:; \
          form-action 'self'; connect-src {}; frame-src {}; frame-ancestors {frame_ancestors}",
         connect.join(" "),
         frame.join(" ")
     )
+}
+
+/// Whether a bundle path is a build output named by its content, `assets/{name}-{hash}.{ext}` as
+/// Vite writes it: a hash of eight or more letters, digits or `_`.
+fn hashed(path: &str) -> bool {
+    let Some(file) = path.strip_prefix("assets/").filter(|f| !f.contains('/')) else {
+        return false;
+    };
+    let stem = file.split_once('.').map_or(file, |(stem, _)| stem);
+    stem.rsplit_once('-').is_some_and(|(name, hash)| {
+        !name.is_empty()
+            && hash.len() >= 8
+            && hash.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    })
 }
 
 /// CSP keywords are quoted, origins are not. A source is written into the header only when it
@@ -754,6 +771,52 @@ mod tests {
         );
     }
 
+    /// The sources of the policy's `script-src`, token by token: `'wasm-unsafe-eval'` is not
+    /// `'unsafe-eval'`, which a substring check could not tell apart.
+    fn script_sources(csp: &str) -> Vec<&str> {
+        csp.split(';')
+            .map(str::trim)
+            .find_map(|d| d.strip_prefix("script-src "))
+            .map(|d| d.split_whitespace().collect())
+            .unwrap_or_default()
+    }
+
+    /// AP-142: every ui App may compile WebAssembly, and no script may `eval` or run inline.
+    #[test]
+    fn scripts_are_the_apps_own_and_webassembly_alone_is_compiled() {
+        let csp = content_security_policy(&spec(), Some(PORTAL), None);
+        let scripts = script_sources(&csp);
+        assert_eq!(scripts, ["'self'", "'wasm-unsafe-eval'"], "{csp}");
+        assert!(!scripts.contains(&"'unsafe-eval'") && !scripts.contains(&"'unsafe-inline'"));
+        assert_eq!(
+            script_sources("default-src 'self'; script-src 'self' 'unsafe-eval'"),
+            ["'self'", "'unsafe-eval'"]
+        );
+    }
+
+    #[test]
+    fn only_a_file_named_by_its_hash_is_kept() {
+        for path in [
+            "assets/index-B4tq81Zr.js",
+            "assets/compute_bg-Cx8f2kQ9.wasm",
+            "assets/worker-a1b2c3d4_e5.js",
+        ] {
+            assert!(hashed(path), "{path}");
+        }
+        for path in [
+            "index.html",
+            "bundle.js",
+            "assets/logo.svg",
+            "assets/a-short.js",
+            "assets/x/y-B4tq81Zr.js",
+            "img/index-B4tq81Zr.js",
+            "assets/-B4tq81Zr.js",
+            "assets/index-B4tq8.1Zr",
+        ] {
+            assert!(!hashed(path), "{path}");
+        }
+    }
+
     #[test]
     fn a_manifest_value_never_opens_a_directive_of_its_own() {
         // jc-core refuses `*` but not `;` or a space: the header must not carry either (AP-12).
@@ -777,7 +840,11 @@ mod tests {
         });
         let csp = content_security_policy(&spec, Some(PORTAL), None);
         assert_eq!(csp.matches("script-src").count(), 1, "{csp}");
-        assert!(!csp.contains("unsafe-eval"), "{csp}");
+        assert_eq!(
+            script_sources(&csp),
+            ["'self'", "'wasm-unsafe-eval'"],
+            "{csp}"
+        );
         assert!(!csp.contains("a.example"), "{csp}");
         assert!(
             !csp.contains("plain.example") && !csp.contains("javascript"),
