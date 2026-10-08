@@ -1,0 +1,160 @@
+/* The App layout over design tokens; screens are laid out by SDK Card, Grid and Page primitives. */
+
+html,
+body {
+  background: var(--jc-color-surface, #ffffff);
+  color: var(--jc-color-ink, #1a1a1a);
+  color-scheme: light dark;
+}
+
+.app-type-bar {
+  margin-bottom: var(--jc-space-2, 0.5rem);
+}
+
+.app-type-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-2, 0.5rem);
+}
+
+.app-type-btn {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  font-weight: 500;
+  padding: var(--jc-space-2, 0.5rem) var(--jc-space-3, 0.75rem);
+  border-radius: 999px;
+  border: 1px solid var(--jc-color-line, #e2e8f0);
+  background: var(--jc-color-card, #f8fafc);
+  color: var(--jc-color-ink, #0f172a);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.app-type-btn:hover {
+  border-color: var(--jc-color-accent, #0000bf);
+}
+
+.app-type-btn:focus-visible {
+  outline: 2px solid var(--jc-color-accent, #0000bf);
+  outline-offset: 1px;
+}
+
+.app-type-btn[aria-pressed="true"] {
+  background: var(--jc-color-accent, #0000bf);
+  /* The page's own surface on the accent: white on the light theme's dark blue, the dark theme's
+     near-black on its light blue; a fixed white failed AA there. */
+  color: var(--jc-color-surface, #ffffff);
+  border-color: var(--jc-color-accent, #0000bf);
+}
+
+.app-tile-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-tile-clickable:hover {
+  border-color: var(--jc-color-accent, #0000bf);
+}
+
+.app-tile-clickable:focus-visible {
+  outline: 2px solid var(--jc-color-accent, #0000bf);
+  outline-offset: 1px;
+}
+
+.app-tile-selected {
+  border-color: var(--jc-color-accent, #0000bf);
+  box-shadow: 0 0 0 1px var(--jc-color-accent, #0000bf);
+}
+
+.app-tile-error {
+  border-left: 4px solid var(--jc-color-danger, #dc2626);
+}
+
+.app-tile-err-msg {
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  color: var(--jc-color-danger, #dc2626);
+  margin-top: var(--jc-space-1, 0.25rem);
+}
+
+.app-tile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--jc-space-2, 0.5rem);
+  margin-top: var(--jc-space-2, 0.5rem);
+  padding-top: var(--jc-space-2, 0.5rem);
+  border-top: 1px solid var(--jc-color-line, #e2e8f0);
+}
+
+.app-tile-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-tile-stat-k {
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  color: var(--jc-color-muted, #64748b);
+}
+
+.app-tile-stat-v {
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--jc-color-ink, #0f172a);
+}
+
+.app-freshness-dl {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: var(--jc-space-2, 0.5rem) var(--jc-space-4, 1rem);
+  margin: 0;
+}
+
+.app-freshness-dl dt {
+  color: var(--jc-color-muted, #64748b);
+  font-weight: 500;
+  font-size: var(--jc-font-size-sm, 0.75rem);
+}
+
+.app-freshness-dl dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-failing-count {
+  margin: var(--jc-space-2, 0.5rem) 0 0;
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  color: var(--jc-color-muted, #64748b);
+}
+
+.app-note {
+  color: var(--jc-color-muted, #64748b);
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  margin: 0;
+}
+
+.app-detail-header {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: var(--jc-space-2, 0.5rem);
+}
+
+.app-back-btn {
+  font-weight: 500;
+}
+
+@media (max-width: 40rem) {
+  .app-tile-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-freshness-dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
