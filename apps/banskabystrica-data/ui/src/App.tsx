@@ -23,7 +23,7 @@ const SPACE = "banskabystrica-verejne";
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
-  return <AppShell title={s.title} language={config.language} pages={[{ id: "data", label: s.title, render: () => <Datasets /> }]} />;
+  return <AppShell title={s.title} language={s.locale} pages={[{ id: "data", label: s.title, render: () => <Datasets /> }]} />;
 }
 
 function Datasets() {

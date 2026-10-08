@@ -146,9 +146,12 @@ describe("the city's datasets", () => {
     }
   });
 
-  it("falls back to Slovak for a language it does not speak", () => {
+  it("falls back to Slovak for a language it does not speak, its panel too", async () => {
     show(true, { language: "de" });
     expect(screen.getByRole("heading", { level: 1, name: s.title })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: `${s.grid.openRow}: Radvanský jarmok` }));
+    const panel = await screen.findByRole("dialog", { name: "Radvanský jarmok" });
+    expect(within(panel).getByRole("button", { name: "Zavrieť" })).toBeInTheDocument();
   });
 
   it("moves back with ArrowLeft, wraps around, and ignores any other key", async () => {
