@@ -38,6 +38,11 @@ exclude = [
   "apps/zilina-ukazovatele",
   "apps/zilina-zaznamy",
   "apps/zilina-vyskum",
+  # `kind: ui` apps with a WebAssembly part (T-3328..T-3330): their Rust is `wasm/`, a workspace of
+  # its own that `pnpm test` runs and `pnpm build` compiles to wasm32.
+  "apps/air-weather-explorer",
+  "apps/bike-rebalancing",
+  "apps/event-day-planner",
 ]
 
 [package]

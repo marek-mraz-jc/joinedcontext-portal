@@ -1,0 +1,41 @@
+# My day of events (T-3329): a visitor picks Helsinki's events they like and gets a plan for the
+# day: the order that fits most, when to be where, the walk between, what clashes, and the day as
+# a calendar file. Hand written, so no generated-by annotation (AP-35).
+#
+# A frontend only (`kind: ui`, no pod): React on the App SDK, and the planner in Rust compiled to
+# WebAssembly, run in the reader's browser in a worker (wasm/). Its source is its own repository on
+# the forge, which the build lane builds at `ref` (AP-75, AP-80); this folder of the portal
+# repository is where CI tests the same tree before it is pushed there (T-2599).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: event-day-planner
+  namespace: helsinki
+  title:
+    en: "My day of events"
+    fi: "Tapahtumapäiväni"
+  description:
+    en: "Pick the events you like in Helsinki and get a plan for the day: the best order, walking times between them, what clashes, and a calendar file."
+    fi: "Valitse Helsingin tapahtumat, jotka kiinnostavat, ja saat päivän suunnitelman: paras järjestys, kävelyajat, päällekkäisyydet ja kalenteritiedosto."
+spec:
+  kind: ui
+  source:
+    git:
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_event-day-planner.git
+      ref: main
+  build:
+    node: "22"
+  # The events endpoint of Helsinki is public (GW22): an anonymous reader gets what the public
+  # role is granted and nothing more.
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [Event]
+      # The attributes the Event entities carry on dev (read 2026-10-08 on the helsinki-events
+      # endpoint): name and description in fi, sv and en, the times, status, place and source.
+      attrs: [name, description, startDate, endDate, eventStatus, address, location, source]
+      operations: [queryEntity, retrieveEntity]
+      representations: [ngsi-ld]

@@ -195,6 +195,9 @@ jobs:
           set -eu
           for app in apps/*/; do
             [ -f "$app/playwright.config.ts" ] || continue
+            # One with a WebAssembly part runs its flows in ci.yml's wasm-example job, which builds
+            # wasm/pkg first (AP-142); built here it would miss its module.
+            [ -f "$app/wasm/Cargo.toml" ] && continue
             work=$(mktemp -d)
             cp -r "$app". "$work"
             (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
