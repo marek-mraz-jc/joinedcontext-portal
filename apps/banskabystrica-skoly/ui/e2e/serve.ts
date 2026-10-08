@@ -17,7 +17,12 @@ const CONFIG = {
   transport: "origin",
   appName: NAME,
   language: "sk",
+  // A member of staff signed in; the panel links a school to the Portal (SDK-40), shown, never followed.
+  user: { id: "u-1", name: "Referentka", roles: ["viewer"] },
+  portal: "https://portal.banskabystrica.sk/projects/banskabystrica",
 };
+/** What the gateway answers this App's reader: reading only (README). */
+const ACCESS = { permissions: [{ resource: { type: "School" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] };
 // What src/apps/static_host.rs sends for an embeddable app with no other origin to reach.
 const CSP =
   "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; " +
@@ -47,6 +52,19 @@ export async function serve(page: Page): Promise<Served> {
     if (url.origin !== ORIGIN) {
       served.outside.push(url.href);
       return route.abort();
+    }
+    if (url.pathname.includes("/api/endpoint/") && url.pathname.endsWith("/access")) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(ACCESS) });
+    }
+    // The entity panel reads one school fresh by its id (SDK-40).
+    const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
+    if (url.pathname.includes("/api/endpoint/") && one) {
+      const entity = (SCHOOLS as { id: string }[]).find((row) => row.id === decodeURIComponent(one[1]));
+      return route.fulfill({
+        status: entity ? 200 : 404,
+        contentType: "application/ld+json",
+        body: JSON.stringify(entity ?? { title: "Not Found", status: 404 }),
+      });
     }
     if (url.pathname.includes("/api/endpoint/")) {
       const body = url.searchParams.get("type") === "School" ? SCHOOLS : [];

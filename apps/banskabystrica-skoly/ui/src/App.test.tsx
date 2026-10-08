@@ -1,26 +1,41 @@
 /** The school desk over what the app's endpoint answers (T-2782). */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
-import { JcProvider } from "@joinedcontext/sdk";
+import { JcProvider, projectRow, toRichRow } from "@joinedcontext/sdk";
+import type { AccessDocument, EntitySource } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
-import App from "./App";
+import App, { loadSchools, MOST } from "./App";
 import { SCHOOLS } from "./fixtures/skoly";
 import { LOCALES } from "./locales";
 
 const s = LOCALES.sk;
 const SLUG = "hm6ypd3qzv2xcnr7wtb4kaf5je";
 
-function show(answer: () => Response = () => new Response(JSON.stringify(SCHOOLS), { status: 200, headers: { "content-type": "application/json" } }), withEndpoint = true) {
+/** What the gateway answers a signed-in member of staff on this App's endpoint: reading only (README). */
+const READS: AccessDocument = {
+  permissions: [{ resource: { type: "School" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }],
+  prohibitions: [],
+};
+
+function show(
+  answer: () => Response = () => new Response(JSON.stringify(SCHOOLS), { status: 200, headers: { "content-type": "application/json" } }),
+  withEndpoint = true,
+  endpoints?: { name: string; slug: string; space: string; types: string[] }[],
+) {
   vi.stubGlobal("fetch", vi.fn(async () => answer()));
-  const client = stubClient(undefined, {
+  // The table reads through `fetch`, the entity panel through the client: the same schools on both.
+  const client = stubClient({ entities: SCHOOLS.map((one) => projectRow(toRichRow(one, "sk"), "sk")), access: READS }, {
     slug: withEndpoint ? SLUG : "",
     orgDomain: "banskabystrica.sk",
     space: withEndpoint ? "banskabystrica-verejne" : "elsewhere",
     transport: "origin",
     appName: "banskabystrica-skoly",
     language: "sk",
+    user: { id: "u-1", name: "Referentka", roles: ["viewer"] },
+    ...(endpoints ? { endpoints } : {}),
+    portal: "https://portal.banskabystrica.sk/projects/banskabystrica",
   });
   return render(
     <JcProvider client={client}>
@@ -98,7 +113,99 @@ describe("the school desk", () => {
     show(() => new Response(JSON.stringify({ title: "Forbidden", status: 403, detail: "sign in as city staff" }), { status: 403, headers: { "content-type": "application/problem+json" } }));
     expect(await screen.findByRole("alert")).toHaveTextContent(s.failed("sign in as city staff"));
     show(undefined, false);
-    expect(screen.getAllByRole("status").some((el) => el.textContent === s.noEndpoint)).toBe(true);
+    expect(screen.getAllByText(s.noEndpoint)).toHaveLength(1);
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("opens a school by its name in the SDK's panel: a signed-in reader without a write right gets the Portal link, never Edit", async () => {
+    show();
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    const name = within(table()).getByRole("button", { name: "Základná škola, Tatranská 10" });
+    fireEvent.click(name);
+    const panel = await screen.findByRole("dialog", { name: "Základná škola, Tatranská 10" });
+    expect(name.closest("tr")).toHaveAttribute("aria-selected", "true");
+    const link = await within(panel).findByRole("link", { name: "Otvoriť v Portáli" });
+    const followed = vi.fn((event: Event) => event.preventDefault());
+    link.addEventListener("click", followed);
+    fireEvent.click(link);
+    expect(followed).toHaveBeenCalledTimes(1);
+    expect(within(panel).queryByRole("button", { name: "Upraviť" })).toBeNull();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens every school of the table, through the endpoint the Portal lists", async () => {
+    show(undefined, false, [{ name: "verejne", slug: SLUG, space: "banskabystrica-verejne", types: [] }]);
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    for (const button of within(table()).getAllByRole("button").filter((one) => one.classList.contains("row-open"))) {
+      fireEvent.click(button);
+      const panel = await screen.findByRole("dialog");
+      fireEvent.click(within(panel).getByRole("button", { name: "Zavrieť" }));
+    }
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("sorts by each sortable column, both ways", async () => {
+    show();
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    for (const key of ["name", "pupils", "teachers", "pupilsPerTeacher", "budgetPerPupil"] as const) {
+      const button = () => screen.getByRole("button", { name: s.sortBy(s.column[key]) });
+      fireEvent.click(button());
+      const first = button().closest("th")!.getAttribute("aria-sort");
+      fireEvent.click(button());
+      expect(button().closest("th")).toHaveAttribute("aria-sort", first === "ascending" ? "descending" : "ascending");
+    }
+  });
+
+  it("reads at most a thousand schools, page by page, and says when there are more", async () => {
+    const asked: number[] = [];
+    const page = (count: number) => Array.from({ length: count }, (_, at) => toRichRow({ ...SCHOOLS[0], id: `${String(SCHOOLS[0].id)}-${at}` }));
+    const full = { query: async (_q: unknown, at: { offset: number; limit: number }) => (asked.push(at.offset), { rows: page(at.limit) }) } as unknown as EntitySource;
+    const loaded = await loadSchools(full, "sk");
+    expect(asked).toHaveLength(MOST / 200);
+    expect(loaded).toMatchObject({ truncated: true });
+    expect(s.truncated(MOST)).toContain(String(MOST));
+    expect(LOCALES.en.truncated(MOST)).toContain(String(MOST));
+  });
+
+  it("says a failure that is no endpoint answer in its own words", async () => {
+    show(() => {
+      throw "offline";
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+  });
+
+  it("says why nothing is marked with fewer than ten schools, and that no school matches a search", async () => {
+    const three = SCHOOLS.slice(0, 3);
+    show(() => new Response(JSON.stringify(three), { status: 200, headers: { "content-type": "application/json" } }));
+    expect(await screen.findByText(s.tenthUnavailable)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "nikde taká" } });
+    expect(screen.getByText(s.empty)).toBeInTheDocument();
+  });
+
+  it("names a school the map publishes without a name or an address in words", async () => {
+    const bare = { id: "urn:ngsi-ld:School:banskabystrica.sk:banskabystrica-verejne:bare", type: "School" };
+    show(() => new Response(JSON.stringify([bare]), { status: 200, headers: { "content-type": "application/json" } }));
+    const row = (await screen.findByRole("button", { name: s.noValue })).closest("tr") as HTMLElement;
+    expect(row.querySelector(".address")).toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: s.noValue }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("drops an answer that arrives after the desk is gone", async () => {
+    let reply: () => void = () => undefined;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((_, reject) => (reply = () => reject(new TypeError("late"))))));
+    const client = stubClient(undefined, { slug: SLUG, orgDomain: "banskabystrica.sk", space: "banskabystrica-verejne", transport: "origin", appName: "banskabystrica-skoly" });
+    const view = render(
+      <JcProvider client={client}>
+        <App />
+      </JcProvider>,
+    );
+    view.unmount();
+    const errors = vi.spyOn(console, "error");
+    reply();
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(errors).not.toHaveBeenCalled();
   });
 
   it("has nothing axe finds", async () => {

@@ -65,3 +65,20 @@ describe("the CSV", () => {
     expect(missing).toBe("Stredná odborná škola, Tajovského 30,Tajovského 30, Banská Bystrica,,,,,,,".replace("Stredná odborná škola, Tajovského 30", '"Stredná odborná škola, Tajovského 30"').replace("Tajovského 30, Banská Bystrica", '"Tajovského 30, Banská Bystrica"'));
   });
 });
+
+describe("a school's odd shapes", () => {
+  const one = (attrs: Record<string, unknown>, locale = "en") => schoolOf(toRichRow({ id: "urn:ngsi-ld:School:x", type: "School", ...attrs }), locale);
+
+  it("reads a name in the reader's language, else Slovak, else the one written, and the first of several values", () => {
+    expect(one({ name: { type: "LanguageProperty", languageMap: { sk: "Škola", en: "School" } } }).name).toBe("School");
+    expect(one({ name: { type: "LanguageProperty", languageMap: { sk: "Škola" } } }).name).toBe("Škola");
+    expect(one({ name: { type: "LanguageProperty", languageMap: { hu: "Iskola" } } }).name).toBe("Iskola");
+    expect(one({ name: [{ type: "Property", value: "Prvá", datasetId: "urn:a" }, { type: "Property", value: "Druhá", datasetId: "urn:b" }] }).name).toBe("Prvá");
+  });
+
+  it("keeps two missing values side by side when sorting", () => {
+    const bare = [one({}), one({})];
+    expect(sorted(bare, "pupils", true)).toHaveLength(2);
+  });
+});
+

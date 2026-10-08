@@ -6,6 +6,14 @@ public space `banskabystrica-verejne`, and the two ratios a desk compares: pupil
 budget per pupil. Staff sign in: the App is opened by its `viewer` role, which its default group
 `banskabystrica-skoly-viewer` holds (T-2686, AP-118). It reads and never writes.
 
+It sits in the SDK's `AppShell` (SDK-39); a school's name in the table opens the school in the
+shell's entity panel (SDK-40), read fresh through the App's endpoint.
+
+**What staff edit here: nothing.** The `dataNeeds` keep `queryEntity` and `retrieveEntity`. The
+schools are the national school map's, written by its pipeline (T-2781) on each run, so a value
+changed here would be overwritten and lost. The panel never offers Edit; it links the school to the
+Portal, where a person with the right on the space corrects it under their own rights.
+
 ## What it claims, and what it does not
 
 - A ratio comes only from counts the school published; a missing count makes the ratio
@@ -21,5 +29,7 @@ budget per pupil. Staff sign in: the App is opened by its `viewer` role, which i
 ## Files
 
 - `ui/src/coverage.ts` — ratios, totals, the city's tenth, sorting and the CSV; `coverage.test.ts`
-- `ui/src/App.tsx` — the desk, tested in `App.test.tsx`
-- `ui/e2e/responsive.spec.ts` — 375, 768, 1440 and 2560 px: no sideways scroll, no overlap, axe clean
+- `ui/src/App.tsx` — the shell and the desk, tested in `App.test.tsx`: every control exercised,
+  the coverage gate of T-3373 held (`sh scripts/app-coverage-run.sh banskabystrica-skoly`)
+- `ui/e2e/responsive.spec.ts` — 375, 768, 1440 and 2560 px: no sideways scroll, no overlap, axe
+  clean; and a school in the entity panel at 375 and 1440 px, light and dark
