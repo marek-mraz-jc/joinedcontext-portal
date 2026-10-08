@@ -11,7 +11,7 @@ import { Button, Field, Input, Select, Tabs, tabPanelProps, Textarea } from "../
 import processorCatalogue from "../../schemas/bento-processors.json";
 import { COMPUTE_KINDS, OUTPUT_MODES, YamlFieldError } from "../../schemas/kinds";
 import type { OutputForm, PipelineForm, SourceForm, StepForm } from "./PipelineEditor";
-import { spaceOf } from "../spaces/SpaceInside";
+import { spaceOf } from "../spaces/spaceFacts";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
 import { errorAt, fromFormData, toFormData, useProcessorForms, withHelp } from "./processorForm";

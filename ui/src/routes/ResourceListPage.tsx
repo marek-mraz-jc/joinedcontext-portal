@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { JSX } from "react";
+import { lazy, useState } from "react";
+import type { ComponentType, JSX } from "react";
 import { RecordLink } from "../components/RecordLink";
 import { ResourceList } from "../components/ResourceList";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -63,20 +63,22 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../components/ui";
-import { SpacesPage } from "./SpacesPage";
-import { EndpointsPage } from "./EndpointsPage";
-import { DashboardsPage } from "./DashboardsPage";
-import { PipelinesPage } from "./PipelinesPage";
-import { PoliciesPage } from "./PoliciesPage";
-import { SubscriptionsPage } from "./SubscriptionsPage";
-import { RegistrationsPage } from "./RegistrationsPage";
-import { DataSourcesPage } from "../pages/datasources/DataSourcesPage";
-import { FlowGallery } from "../pages/flows/Gallery";
-import { AppsCatalog } from "../pages/apps/AppsCatalog";
-import { SyncSourcesPage } from "../pages/sync/SyncSourcesPage";
+// Each section's page loads with its section (T-3280): a list page beside it never pays for a map,
+// a graph or an editor it does not draw.
+const SpacesPage = lazy(() => import("./SpacesPage").then((module) => ({ default: module.SpacesPage })));
+const EndpointsPage = lazy(() => import("./EndpointsPage").then((module) => ({ default: module.EndpointsPage })));
+const DashboardsPage = lazy(() => import("./DashboardsPage").then((module) => ({ default: module.DashboardsPage })));
+const PipelinesPage = lazy(() => import("./PipelinesPage").then((module) => ({ default: module.PipelinesPage })));
+const PoliciesPage = lazy(() => import("./PoliciesPage").then((module) => ({ default: module.PoliciesPage })));
+const SubscriptionsPage = lazy(() => import("./SubscriptionsPage").then((module) => ({ default: module.SubscriptionsPage })));
+const RegistrationsPage = lazy(() => import("./RegistrationsPage").then((module) => ({ default: module.RegistrationsPage })));
+const DataSourcesPage = lazy(() => import("../pages/datasources/DataSourcesPage").then((module) => ({ default: module.DataSourcesPage })));
+const FlowGallery = lazy(() => import("../pages/flows/Gallery").then((module) => ({ default: module.FlowGallery })));
+const AppsCatalog = lazy(() => import("../pages/apps/AppsCatalog").then((module) => ({ default: module.AppsCatalog })));
+const SyncSourcesPage = lazy(() => import("../pages/sync/SyncSourcesPage").then((module) => ({ default: module.SyncSourcesPage })));
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../schemas/knowledge";
 
-const VIEWS: Record<string, (props: { project: string; edit?: string }) => JSX.Element> = {
+const VIEWS: Record<string, ComponentType<{ project: string; edit?: string }>> = {
   spaces: SpacesPage,
   endpoints: EndpointsPage,
   pipelines: PipelinesPage,

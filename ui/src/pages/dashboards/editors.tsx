@@ -9,7 +9,7 @@ import { filterSlotsOf, useModelSource } from "../../components/entities/filters
 import { useProposal } from "../../api/proposal";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { dashboardSchema, dashboardUiSchema, layerSchema, layerUiSchema } from "../../schemas/kinds";
-import { entityTypesOf, spaceOf } from "../spaces/SpaceInside";
+import { entityTypesOf, spaceOf } from "../spaces/spaceFacts";
 
 const API_VERSION = "joinedcontext.com/v1alpha1";
 

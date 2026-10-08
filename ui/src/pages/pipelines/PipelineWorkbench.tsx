@@ -27,7 +27,7 @@ import {
 } from "../../components/ui";
 import { classSlots, parseModel, unitCode } from "../models/linkml";
 import type { LinkmlModel, LinkmlSlot } from "../models/linkml";
-import { entityTypesOf, spaceOf } from "../spaces/SpaceInside";
+import { entityTypesOf, spaceOf } from "../spaces/spaceFacts";
 import type { PipelineForm } from "./PipelineEditor";
 import { inlineEndpointSample } from "../../api/pipelineTest";
 import { sampleUrlOf } from "./PipelineStudio";

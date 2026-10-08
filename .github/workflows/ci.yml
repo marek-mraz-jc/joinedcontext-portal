@@ -94,6 +94,10 @@ jobs:
         run: cd ui && pnpm vitest run --shard=${{ matrix.shard }}/3
       - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
         run: cd ui && pnpm build
+      # What every page downloads before it answers stays under its budget (T-3280).
+      - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
+        name: the weight of every visit
+        run: node --test scripts/bundle-budget.test.mjs && node scripts/bundle-budget.mjs ui/dist
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
   # The applications, beside the UI rather than after it: each app installs, tests and builds on

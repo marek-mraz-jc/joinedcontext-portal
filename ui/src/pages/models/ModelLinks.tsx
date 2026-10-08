@@ -6,7 +6,7 @@
 import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Manifest } from "../../api/manifest";
-import { entityTypesOf, spaceOf } from "../spaces/SpaceInside";
+import { entityTypesOf, spaceOf } from "../spaces/spaceFacts";
 import { useProjectList } from "./ModelsList";
 
 const LINK = "focus-ring text-primary-soft-fg underline-offset-2 hover:underline";

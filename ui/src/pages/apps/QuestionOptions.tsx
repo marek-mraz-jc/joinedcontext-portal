@@ -1,9 +1,9 @@
 import type { JSX, KeyboardEvent } from "react";
-import { Fragment, useId, useRef, useState } from "react";
+import { Fragment, Suspense, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { SchemaForm } from "../../components/forms/SchemaForm";
+import { SchemaForm } from "../../components/forms/LazySchemaForm";
 import type { JsonSchema } from "../../components/forms/types";
-import { Button, Input } from "../../components/ui";
+import { Button, Input, PageLoading } from "../../components/ui";
 
 /** One option of a question: the value the answer carries and what the person reads. */
 export interface Choice {
@@ -120,12 +120,14 @@ export function QuestionOptions({
 
   if (!found || typing) {
     return (
-      <SchemaForm
-        schema={schema}
-        disabled={disabled}
-        submitLabel={t("agentRun.conversation.answer")}
-        onSubmit={onAnswer}
-      />
+      <Suspense fallback={<PageLoading label={t("app.loading")} lines={1} />}>
+        <SchemaForm
+          schema={schema}
+          disabled={disabled}
+          submitLabel={t("agentRun.conversation.answer")}
+          onSubmit={onAnswer}
+        />
+      </Suspense>
     );
   }
 

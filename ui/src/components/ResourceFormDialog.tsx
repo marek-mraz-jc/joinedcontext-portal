@@ -4,7 +4,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import validator from "./forms/validator";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { errorMessageKey, SchemaForm } from "./forms/SchemaForm";
+import { errorMessageKey } from "./forms/errorMessages";
+import { SchemaForm } from "./forms/LazySchemaForm";
 import { namesOfRefs } from "../schemas/pickers";
 import { mergeObjects } from "@rjsf/utils";
 import type { ErrorSchema } from "@rjsf/utils";
@@ -15,7 +16,7 @@ import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, forPeople, queryKeys, unwrap } from "../api/client";
 import type { ResourceProposal } from "../api/manifest";
-import { Alert, Badge, Button, Checkbox, ExternalLink, Tabs, tabPanelProps } from "./ui";
+import { Alert, Badge, Button, Checkbox, ExternalLink, Tabs, tabPanelProps, PageLoading } from "./ui";
 import { FormFrame } from "./forms/FormRoute";
 import type { BadgeTone, DialogSize } from "./ui";
 import { ago } from "../pages/apps/CatalogCards";
@@ -1055,6 +1056,7 @@ export function ResourceFormDialog<T>({
               </Alert>
             ) : null}
 
+            <Suspense fallback={<PageLoading label={t("app.loading")} lines={2} />}>
             <SchemaForm<T>
               schema={schema}
               project={project}
@@ -1107,6 +1109,7 @@ export function ResourceFormDialog<T>({
                 </div>
               }
             />
+            </Suspense>
           </div>
         ) : (
           <div {...tabPanelProps(viewsId, "yaml")} className="flex flex-col gap-3">

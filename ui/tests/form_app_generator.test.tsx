@@ -132,10 +132,9 @@ describe("the application generator (T-1760)", () => {
   it("refuses_the_build_with_its_reason_to_a_person_who_may_not_propose_an_app", async () => {
     mayPropose = false;
     renderPage(generator(), { path: `/projects/${PROJECT}`, answer: reads() });
-    expectDenied(
-      await screen.findByRole("button", { name: i18n.t("apps.generate.submit") }),
-      /propose/,
-    );
+    // Refused once the person's permissions are read, not before: the button exists earlier.
+    const button = await screen.findByRole("button", { name: i18n.t("apps.generate.submit") });
+    await waitFor(() => expectDenied(button, /propose/));
   });
 
   it("refuses_a_typed_name_that_could_not_be_a_url_segment", async () => {
