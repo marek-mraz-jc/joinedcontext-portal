@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { NotificationsMenu } from "../../pages/spaces/Comments";
+import { useDecisions } from "../../api/decision";
 import { HelpMenu } from "../HelpMenu";
 import { JobsMenu } from "../JobsMenu";
 import { useFirstRun } from "../../pages/home/firstRun";
@@ -13,10 +14,7 @@ import { CommandPalette } from "../../navigation/CommandPalette";
 import { PageTools } from "../../navigation/PageTools";
 import { useAuth } from "../../auth/AuthProvider";
 import { rememberProject, useProjects } from "../../api/projects";
-import { useQuery } from "@tanstack/react-query";
-import { api, queryKeys, unwrap } from "../../api/client";
-import { approvalStanding } from "../../api/approval";
-import { useAdministers, usePermissions } from "../../api/permissions";
+import { useAdministers } from "../../api/permissions";
 import { logoUrl, useBranding, useHiddenSections } from "../../branding";
 import {
   Alert,
@@ -236,25 +234,14 @@ function NavLabel({ icon, label }: { icon: IconName; label: string }) {
  * administer the kind, on a kind they may approve. The same list and key as the Approvals page,
  * polled every 30 s; a list the API refuses counts as none.
  */
-function usePendingApprovals(project: string): number {
-  const { identity } = useAuth();
-  const permissions = usePermissions(project);
-  const list = useQuery({
-    queryKey: queryKeys.changes(project),
-    queryFn: async () =>
-      unwrap(await api.GET("/api/v1/projects/{project}/changes", { params: { path: { project } } })),
-    refetchInterval: 30_000,
-  });
-  return (list.data?.items ?? []).filter(
-    (change) =>
-      change.status.phase === "PendingApproval" &&
-      approvalStanding(permissions, identity?.email ?? undefined, change).block === null,
-  ).length;
+/** The header's inbox: its mentions and the changes this person may decide here (T-3273). */
+function InboxButton({ project }: { project: string }) {
+  return <NotificationsMenu project={project} waiting={useDecisions(project).length} />;
 }
 
 function PendingBadge({ project }: { project: string }) {
   const { t } = useTranslation();
-  const count = usePendingApprovals(project);
+  const count = useDecisions(project).length;
   if (count === 0) return null;
   return (
     <span
@@ -493,7 +480,7 @@ export function Shell({
           <LanguageSwitcher />
           <JobsMenu />
           <HelpMenu />
-          <NotificationsMenu />
+          <InboxButton project={project} />
           <UserMenu />
         </div>
       </header>

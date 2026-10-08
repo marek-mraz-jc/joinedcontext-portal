@@ -199,6 +199,7 @@
         "Button": 1
       },
       "tests": [
+        "chart_widgets.test.tsx",
         "dashboard_pages.test.tsx",
         "part_failures_are_not_waits.test.tsx"
       ]
@@ -1002,6 +1003,24 @@
         "form_schema_projection.test.tsx"
       ]
     },
+    "src/pages/endpoints/ShareFlow.tsx": {
+      "controls": {
+        "Button": 2,
+        "Checkbox": 1
+      },
+      "tests": [
+        "share_flow.test.tsx"
+      ]
+    },
+    "src/pages/explore/ChartFromView.tsx": {
+      "controls": {
+        "Button": 2,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "explore_chart.test.tsx"
+      ]
+    },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
         "Button": 6
@@ -1074,6 +1093,14 @@
       },
       "tests": [
         "import_wizard.test.tsx"
+      ]
+    },
+    "src/pages/inbox/InboxPage.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "inbox_page.test.tsx"
       ]
     },
     "src/pages/knowledge/AssistantChat.tsx": {
@@ -1538,7 +1565,7 @@
     },
     "src/routes/ApprovalsHistory.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 6
       },
       "tests": [
         "approvals_history.test.tsx"

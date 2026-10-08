@@ -102,6 +102,19 @@ pub struct Run {
     pub sent: u64,
     pub rejected: u64,
     pub failed: u64,
+    /// What the written records did (T-3304): an id the pipeline never wrote before, a record
+    /// whose hash changed, one whose hash did not. `null` when the run was reported without hashes.
+    pub created: Option<u64>,
+    pub updated: Option<u64>,
+    pub unchanged: Option<u64>,
+}
+
+/// What the written records of one report did.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Changes {
+    pub created: u64,
+    pub updated: u64,
+    pub unchanged: u64,
 }
 
 type Key = (String, String);
@@ -111,6 +124,8 @@ struct Memory {
     next: i64,
     lines: Vec<LogLine>,
     runs: Vec<Run>,
+    /// The last hash written per entity id.
+    hashes: HashMap<String, String>,
 }
 
 enum Inner {
@@ -185,7 +200,8 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
         },
         "processors": [{ "mapping": format!(
             "let records = if this.type() == \"array\" {{ this }} else {{ [this] }}\n\
-             root = {{ \"run\": {RUN}, \"sent\": $records.map_each(record -> record.id.or(\"\")) }}"
+             root = {{ \"run\": {RUN}, \"sent\": $records.map_each(record -> record.id.or(\"\")), \
+             \"hashes\": $records.map_each(record -> record.format_json().hash(\"xxhash64\").string()) }}"
         ) }],
     });
     serde_json::json!({ "broker": {
@@ -266,6 +282,9 @@ type RunRow = (
     i64,
     i64,
     i64,
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
 );
 
 impl LogStore {
@@ -389,11 +408,103 @@ impl LogStore {
                         sent: sent as u64,
                         rejected: rejected as u64,
                         failed: failed as u64,
+                        created: None,
+                        updated: None,
+                        unchanged: None,
                     }),
                 }
                 let over = memory.runs.len().saturating_sub(RUNS_KEPT);
                 memory.runs.drain(..over);
                 Ok(())
+            }
+        }
+    }
+
+    /// Splits what one report wrote into created, updated and unchanged by the hash of each record
+    /// against the last one kept for its id, keeps the new hashes, and adds the split to the run
+    /// `append` just counted (T-3304). An id written twice in one report is compared with itself.
+    pub async fn record_changes(
+        &self,
+        project: &str,
+        pipeline: &str,
+        run: &str,
+        written: &[(String, String)],
+    ) -> Result<Changes, sqlx::Error> {
+        let written: Vec<(String, String)> = written
+            .iter()
+            .filter(|(id, _)| !id.is_empty())
+            .map(|(id, hash)| (clean(id), hash.chars().take(64).collect()))
+            .collect();
+        let tally = |known: &mut HashMap<String, String>| {
+            let mut changes = Changes::default();
+            for (id, hash) in &written {
+                match known.insert(id.clone(), hash.clone()) {
+                    None => changes.created += 1,
+                    Some(before) if &before == hash => changes.unchanged += 1,
+                    Some(_) => changes.updated += 1,
+                }
+            }
+            changes
+        };
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let ids: Vec<&str> = written.iter().map(|(id, _)| id.as_str()).collect();
+                let mut tx = pool.begin().await?;
+                let rows: Vec<(String, String)> = sqlx::query_as(
+                    "SELECT record, hash FROM pipeline_record_hashes \
+                     WHERE project = $1 AND pipeline = $2 AND record = ANY($3::text[])",
+                )
+                .bind(project)
+                .bind(pipeline)
+                .bind(&ids)
+                .fetch_all(&mut *tx)
+                .await?;
+                let mut known: HashMap<String, String> = rows.into_iter().collect();
+                let changes = tally(&mut known);
+                let (records, hashes): (Vec<&str>, Vec<&str>) = known
+                    .iter()
+                    .filter(|(id, _)| ids.contains(&id.as_str()))
+                    .map(|(id, hash)| (id.as_str(), hash.as_str()))
+                    .unzip();
+                sqlx::query(
+                    "INSERT INTO pipeline_record_hashes (project, pipeline, record, hash) \
+                     SELECT $1, $2, r, h FROM UNNEST($3::text[], $4::text[]) AS t(r, h) \
+                     ON CONFLICT (project, pipeline, record) DO UPDATE SET hash = EXCLUDED.hash",
+                )
+                .bind(project)
+                .bind(pipeline)
+                .bind(&records)
+                .bind(&hashes)
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "UPDATE pipeline_runs SET created = coalesce(created, 0) + $4, \
+                     updated = coalesce(updated, 0) + $5, unchanged = coalesce(unchanged, 0) + $6 \
+                     WHERE project = $1 AND pipeline = $2 AND run = $3",
+                )
+                .bind(project)
+                .bind(pipeline)
+                .bind(run)
+                .bind(changes.created as i64)
+                .bind(changes.updated as i64)
+                .bind(changes.unchanged as i64)
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
+                Ok(changes)
+            }
+            Inner::Memory(map) => {
+                let mut map = map.write().unwrap_or_else(|e| e.into_inner());
+                let memory = map
+                    .entry((project.to_owned(), pipeline.to_owned()))
+                    .or_default();
+                let changes = tally(&mut memory.hashes);
+                if let Some(kept) = memory.runs.iter_mut().find(|r| r.run == run) {
+                    kept.created = Some(kept.created.unwrap_or_default() + changes.created);
+                    kept.updated = Some(kept.updated.unwrap_or_default() + changes.updated);
+                    kept.unchanged = Some(kept.unchanged.unwrap_or_default() + changes.unchanged);
+                }
+                Ok(changes)
             }
         }
     }
@@ -419,6 +530,9 @@ impl LogStore {
                      UNNEST($2::text[], $3::text[]) AS k(project, pipeline) \
                      WHERE k.project = r.project AND k.pipeline = r.pipeline)",
                     "DELETE FROM pipeline_runs r WHERE r.project = ANY($1::text[]) AND NOT EXISTS (SELECT 1 FROM \
+                     UNNEST($2::text[], $3::text[]) AS k(project, pipeline) \
+                     WHERE k.project = r.project AND k.pipeline = r.pipeline)",
+                    "DELETE FROM pipeline_record_hashes r WHERE r.project = ANY($1::text[]) AND NOT EXISTS (SELECT 1 FROM \
                      UNNEST($2::text[], $3::text[]) AS k(project, pipeline) \
                      WHERE k.project = r.project AND k.pipeline = r.pipeline)",
                 ] {
@@ -455,7 +569,7 @@ impl LogStore {
         match &self.inner {
             Inner::Postgres(pool) => {
                 let rows: Vec<RunRow> = sqlx::query_as(
-                    "SELECT run, first_at, last_at, sent, rejected, failed FROM pipeline_runs \
+                    "SELECT run, first_at, last_at, sent, rejected, failed, created, updated, unchanged FROM pipeline_runs \
                      WHERE project = $1 AND pipeline = $2 ORDER BY last_at DESC LIMIT $3",
                 )
                 .bind(project)
@@ -465,14 +579,29 @@ impl LogStore {
                 .await?;
                 Ok(rows
                     .into_iter()
-                    .map(|(run, first, last, sent, rejected, failed)| Run {
-                        run,
-                        first_at: rfc3339(first),
-                        last_at: rfc3339(last),
-                        sent: u64::try_from(sent).unwrap_or_default(),
-                        rejected: u64::try_from(rejected).unwrap_or_default(),
-                        failed: u64::try_from(failed).unwrap_or_default(),
-                    })
+                    .map(
+                        |(
+                            run,
+                            first,
+                            last,
+                            sent,
+                            rejected,
+                            failed,
+                            created,
+                            updated,
+                            unchanged,
+                        )| Run {
+                            run,
+                            first_at: rfc3339(first),
+                            last_at: rfc3339(last),
+                            sent: u64::try_from(sent).unwrap_or_default(),
+                            rejected: u64::try_from(rejected).unwrap_or_default(),
+                            failed: u64::try_from(failed).unwrap_or_default(),
+                            created: created.and_then(|n| u64::try_from(n).ok()),
+                            updated: updated.and_then(|n| u64::try_from(n).ok()),
+                            unchanged: unchanged.and_then(|n| u64::try_from(n).ok()),
+                        },
+                    )
                     .collect())
             }
             Inner::Memory(map) => Ok(map
@@ -596,6 +725,26 @@ mod tests {
         assert_eq!(
             resident, before,
             "a stream without a clock has no pass to report"
+        );
+    }
+
+    /// T-3304: the sink sends the hash of each record beside its id, so the Portal can tell a
+    /// record that changed from one that did not; the mapping is the one Bento runs.
+    #[test]
+    fn the_outcome_sink_sends_a_hash_beside_each_id() {
+        let stream = with_outcomes(serde_json::json!({ "drop": {} }), "http://portal/outcomes");
+        let mapping = stream
+            .pointer("/broker/outputs/1/processors/0/mapping")
+            .and_then(serde_json::Value::as_str)
+            .expect("the sink's mapping");
+        println!("{mapping}");
+        assert!(
+            mapping.contains(r#""sent": $records.map_each(record -> record.id.or(""))"#),
+            "{mapping}"
+        );
+        assert!(
+            mapping.contains(r#""hashes": $records.map_each(record -> record.format_json().hash("xxhash64").string())"#),
+            "{mapping}"
         );
     }
 

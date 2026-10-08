@@ -166,6 +166,16 @@ export function PipelineRunsDialog({
                     </TableCell>
                     <TableCell>
                       <span className="tabular-nums">{run.sent.toLocaleString(locale)}</span>
+                      {run.created != null && run.updated != null && run.unchanged != null ? (
+                        // What the written records did (T-3304); unknown for an older stream.
+                        <span className="block text-caption text-fg-muted">
+                          {t("pipelines.runs.split", {
+                            created: run.created,
+                            updated: run.updated,
+                            unchanged: run.unchanged,
+                          })}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <span className={run.rejected > 0 ? "tabular-nums text-warning" : "tabular-nums"}>

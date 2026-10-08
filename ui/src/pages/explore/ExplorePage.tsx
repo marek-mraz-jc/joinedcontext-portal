@@ -18,6 +18,7 @@ import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
 import { ExportView } from "./ExportView";
 import { UseThisData } from "./UseThisData";
+import { ChartFromView } from "./ChartFromView";
 import { ExploreMap, isLocated } from "./ExploreMap";
 import { andQ } from "./exportView";
 import type { ViewSort } from "./exportView";
@@ -437,6 +438,16 @@ export function ExplorePage({
                     query={{ ...query, q: andQ(query.q, gridAsk.q), idPattern: gridAsk.idPattern }}
                     open={endpoint?.spec.audience === "public"}
                   />
+                  {endpoint && query.type ? (
+                    <ChartFromView
+                      project={project}
+                      endpoint={endpoint.metadata.name}
+                      slug={slug}
+                      type={query.type}
+                      q={andQ(query.q, gridAsk.q)}
+                      slots={slots}
+                    />
+                  ) : null}
                 </div>
               ) : null
             }

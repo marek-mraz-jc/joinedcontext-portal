@@ -64,6 +64,7 @@ const PAGES = [
   "/d/abcdefghijklmnopqrstuvwxyz234567",
   "/glossary",
   `/projects/${PROJECT}/home`,
+  `/projects/${PROJECT}/inbox`,
   `/projects/${PROJECT}/import`,
   `/projects/${PROJECT}/federation`,
   `/projects/${PROJECT}/spaces/complete`,

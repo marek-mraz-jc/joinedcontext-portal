@@ -60,6 +60,16 @@ const SOURCES = {
       visibility: "public",
     },
     {
+      source: "bb-catalogue",
+      type: "catalogue",
+      state: "not-crawled",
+      startUrls: [],
+      ckanInstanceRef: null,
+      contextSpaces: [],
+      schedule: null,
+      visibility: "public",
+    },
+    {
       source: "bb-old",
       type: "website",
       state: "crawled",
@@ -192,6 +202,10 @@ describe("the knowledge sources page (T-3057)", () => {
     expect(within(data).getByText("Not crawled yet")).toBeInTheDocument();
     expect(within(data).getByText("Data catalogue")).toBeInTheDocument();
     expect(within(data).queryByRole("link", { name: "bb-data" })).toBeNull();
+    // AG-116: the project's own catalogue, of every space when it names none.
+    const catalogue = within(table).getByText("bb-catalogue").closest("tr") as HTMLElement;
+    expect(within(catalogue).getByText("Context spaces' catalogue")).toBeInTheDocument();
+    expect(within(catalogue).getByText("every space of the project")).toBeInTheDocument();
     const old = within(table).getByRole("link", { name: "bb-old" }).closest("tr") as HTMLElement;
     expect(within(old).getByText("Last crawl failed")).toBeInTheDocument();
     expect(within(old).getByText("https://old.banskabystrica.sk/ answered 503")).toBeInTheDocument();

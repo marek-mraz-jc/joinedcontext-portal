@@ -54,6 +54,8 @@ test("a new user fills the Policy form from what it offers and proposes it", asy
     await folded.click();
   }
   await form.getByLabel(/^Valid to/).fill("2020-01-01T00:00");
+  // T-3276: what the form grants, in words, as it is filled.
+  await expect(form.getByTestId("policy-sentence")).toContainText(`Members of the group ${offered[0]} may read`);
   await form.getByRole("button", { name: /Propose/ }).click();
   change = await proposedChange(page);
   expect(change).toMatch(/\S/);

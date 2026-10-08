@@ -11,10 +11,12 @@ export interface SourceJob {
 
 export interface KnowledgeSourceRow {
   source: string;
-  type: "website" | "ckan";
+  type: "website" | "ckan" | "catalogue";
   state: "crawled" | "not-crawled";
   startUrls: string[];
   ckanInstanceRef: string | null;
+  /** The spaces a `catalogue` source reads; empty is every space of the project (AG-116). */
+  contextSpaces?: string[];
   schedule: string | null;
   visibility: "public" | "internal";
   lastCrawl?: string | null;

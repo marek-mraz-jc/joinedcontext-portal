@@ -476,6 +476,10 @@ routes:
     rule: "project-read, then project-verb:propose:<restored kind>"
     expect: [403, allow, allow, allow, allow, allow, 404, allow]
     note: "the fixture's forge holds no change chg-00000000, so a caller who passes the check meets its 404"
+  - route: POST /projects/{project}/changes/{id}/undo
+    rule: "project-read, then project-verb:propose:<kind put back>"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    note: "the fixture's forge holds no change chg-00000000, so a caller who passes the check meets its 404"
   - route: GET /projects/{project}/ckan/status
     rule: "project-verb:read:CkanInstance"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

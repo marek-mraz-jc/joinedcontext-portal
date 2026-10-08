@@ -51,6 +51,9 @@ pub struct Sent {
     pub run: Option<String>,
     /// The `id` of each record of the batch; a record without one is an empty string.
     pub sent: Vec<Value>,
+    /// The hash of each record, beside its id (T-3304); empty from a stream rendered before.
+    #[serde(default)]
+    pub hashes: Vec<Value>,
 }
 
 /// The largest batch the gateway takes, and so the most lines one report carries.
@@ -186,6 +189,10 @@ pub(crate) async fn log_sent(
     if sent.sent.len() > BATCH {
         return StatusCode::PAYLOAD_TOO_LARGE;
     }
+    // A hash per id or none: a report whose two lists disagree says nothing of what changed.
+    if !sent.hashes.is_empty() && sent.hashes.len() != sent.sent.len() {
+        return StatusCode::BAD_REQUEST;
+    }
     let lines: Vec<NewLine> = sent
         .sent
         .iter()
@@ -196,11 +203,29 @@ pub(crate) async fn log_sent(
             message: String::new(),
         })
         .collect();
-    match state
-        .pipeline_log
-        .append(project, name, &run_name(sent.run.as_deref()), &lines)
-        .await
-    {
+    let run = run_name(sent.run.as_deref());
+    let written: Vec<(String, String)> = sent
+        .sent
+        .iter()
+        .zip(&sent.hashes)
+        .map(|(id, hash)| {
+            let hash = hash
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| hash.to_string());
+            (id.as_str().unwrap_or_default().to_owned(), hash)
+        })
+        .collect();
+    let kept = match state.pipeline_log.append(project, name, &run, &lines).await {
+        Ok(()) if written.is_empty() => Ok(()),
+        Ok(()) => state
+            .pipeline_log
+            .record_changes(project, name, &run, &written)
+            .await
+            .map(|_| ()),
+        Err(error) => Err(error),
+    };
+    match kept {
         Ok(()) => StatusCode::NO_CONTENT,
         Err(error) => {
             tracing::warn!(project, pipeline = name, %error, "a run's log lines were not kept");
@@ -257,6 +282,7 @@ pub fn router() -> Router<AppState> {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::pipeline_log::Run;
     use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
     use serde_json::json;
     use std::sync::Arc;
@@ -455,6 +481,7 @@ mod tests {
         )
         .await;
         let sent = Sent {
+            hashes: Vec::new(),
             run: Some("2026-09-25T08:00:00Z".into()),
             sent: vec![json!("urn:a"), json!("urn:b"), json!(null)],
         };
@@ -497,12 +524,82 @@ mod tests {
         assert_eq!(failed.step, Some(0));
     }
 
+    /// T-3304: what each report wrote splits into created, updated and unchanged by the hash the
+    /// sink sends beside each id; a report without hashes leaves the split unknown, and one whose
+    /// two lists disagree is refused.
+    #[tokio::test]
+    async fn a_run_counts_what_its_records_created_updated_and_left_unchanged() {
+        let state = world();
+        let report = |run: &str, items: &[(&str, &str)]| Sent {
+            run: Some(run.into()),
+            sent: items.iter().map(|(id, _)| json!(id)).collect(),
+            hashes: items.iter().map(|(_, hash)| json!(hash)).collect(),
+        };
+        let runs = |state: &AppState| {
+            let log = Arc::clone(&state.pipeline_log);
+            async move { log.runs("ovzdusie", "stations", 10).await.expect("runs") }
+        };
+        assert_eq!(
+            log_sent(
+                &state,
+                "ovzdusie",
+                "stations",
+                report("r1", &[("urn:a", "1"), ("urn:b", "2")])
+            )
+            .await,
+            StatusCode::NO_CONTENT
+        );
+        assert_eq!(
+            log_sent(
+                &state,
+                "ovzdusie",
+                "stations",
+                report("r2", &[("urn:a", "1"), ("urn:b", "3"), ("urn:c", "4")])
+            )
+            .await,
+            StatusCode::NO_CONTENT
+        );
+        let split = |run: &Run| (run.created, run.updated, run.unchanged);
+        let all = runs(&state).await;
+        let r1 = all.iter().find(|run| run.run == "r1").expect("r1");
+        let r2 = all.iter().find(|run| run.run == "r2").expect("r2");
+        assert_eq!(split(r1), (Some(2), Some(0), Some(0)));
+        assert_eq!(split(r2), (Some(1), Some(1), Some(1)));
+
+        let old = Sent {
+            run: Some("r3".into()),
+            sent: vec![json!("urn:a")],
+            hashes: Vec::new(),
+        };
+        assert_eq!(
+            log_sent(&state, "ovzdusie", "stations", old).await,
+            StatusCode::NO_CONTENT
+        );
+        let r3 = runs(&state)
+            .await
+            .into_iter()
+            .find(|run| run.run == "r3")
+            .expect("r3");
+        assert_eq!((r3.sent, split(&r3)), (1, (None, None, None)));
+
+        let lopsided = Sent {
+            run: Some("r4".into()),
+            sent: vec![json!("urn:a"), json!("urn:b")],
+            hashes: vec![json!("1")],
+        };
+        assert_eq!(
+            log_sent(&state, "ovzdusie", "stations", lopsided).await,
+            StatusCode::BAD_REQUEST
+        );
+    }
+
     /// T-3001, PL-62: a pass that wrote nothing is still a run, with its counts at zero, so a
     /// person can tell "ran, nothing new" from "did not run".
     #[tokio::test]
     async fn a_pass_that_wrote_nothing_is_a_run_with_its_counts_at_zero() {
         let state = world();
         let pass = Sent {
+            hashes: Vec::new(),
             run: Some("2026-09-26T01:00:00Z".into()),
             sent: Vec::new(),
         };
@@ -530,6 +627,7 @@ mod tests {
     async fn a_report_for_an_unknown_pipeline_or_larger_than_a_batch_is_refused() {
         let state = world();
         let many = Sent {
+            hashes: Vec::new(),
             run: None,
             sent: vec![json!("urn:x"); BATCH + 1],
         };
@@ -538,6 +636,7 @@ mod tests {
             StatusCode::PAYLOAD_TOO_LARGE
         );
         let unknown = Sent {
+            hashes: Vec::new(),
             run: None,
             sent: vec![json!("urn:x")],
         };
