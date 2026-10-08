@@ -5,8 +5,6 @@ banskabystrica-mapa T-3379
 banskabystrica-ovzdusie T-3380
 banskabystrica-skoly T-3381
 banskabystrica-zaznamy T-3382
-bbsk-mosty T-3385
-bbsk-ukazovatele T-3386
 bbsk-zaznamy T-3387
 bike-rebalancing T-3388
 bike-stations T-3389
@@ -19,9 +17,6 @@ helsinki-bikes T-3395
 helsinki-events T-3397
 hsl-transport T-3399
 news-topics T-3401
-praha-mapa T-3403
-praha-mesto T-3404
-praha-odpad T-3405
 transit-reach T-3406
 zilina-mapa T-3407
 zilina-ukazovatele T-3408

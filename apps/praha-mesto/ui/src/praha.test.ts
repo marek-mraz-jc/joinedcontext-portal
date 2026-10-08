@@ -112,3 +112,56 @@ describe("the map and the histogram", () => {
     expect(between("rebeccapurple", "#ff8800", 0.5)).toBe("#ff8800");
   });
 });
+
+describe("the edges of a row", () => {
+  const named = (name: unknown) => rows([{ id: "urn:ngsi-ld:X:a:b:c", type: "X", name }])[0];
+
+  it("names a row in its first language, as plain text, and not at all when blank", () => {
+    expect(nameOf(named({ type: "LanguageProperty", languageMap: { de: "Platz" } }), "en")).toBe("Platz");
+    expect(nameOf(named({ type: "Property", value: "Plain" }), "en")).toBe("Plain");
+    expect(nameOf(named({ type: "Property", value: "  " }), "en")).toBeNull();
+    expect(nameOf(rows([{ id: "urn:ngsi-ld:X:a:b:d", type: "X" }])[0], "en")).toBeNull();
+  });
+
+  it("reads no row of another type, and none without a name", () => {
+    const [bike] = rows([bikes[0]]);
+    expect(toCarPark(bike, "cs")).toBeNull();
+    expect(toAirStation(bike, "cs")).toBeNull();
+    expect(toBikeStation(rows([parking[0]])[0], "cs")).toBeNull();
+    const nameless = (entity: Record<string, unknown>) => rows([{ ...entity, name: { type: "Property", value: "" } }])[0];
+    expect(toCarPark(nameless(parking[0]), "cs")).toBeNull();
+    expect(toAirStation(nameless(air[0]), "cs")).toBeNull();
+  });
+
+  it("keeps a broken date and a shape that is no point out", () => {
+    const [row] = rows([{ ...bikes[0], dateModified: { type: "Property", value: "yesterday" }, location: { type: "GeoProperty", value: { type: "LineString", coordinates: [[14, 50]] } } }]);
+    expect(toBikeStation(row, "cs")).toMatchObject({ reportedAt: undefined, at: undefined });
+    const [half] = rows([{ ...bikes[0], location: { type: "GeoProperty", value: { type: "Point", coordinates: ["14", 50] } } }]);
+    expect(toBikeStation(half, "cs")?.at).toBeUndefined();
+  });
+
+  it("dates a reading by its station when the reading carries no hour of its own", () => {
+    const [row] = rows([{ id: air[0].id, type: "AirQualityObserved", name: air[0].name, pm10: { type: "Property", value: 7 }, dateObserved: { type: "Property", value: "2026-09-25T05:00:00Z" } }]);
+    expect(toAirStation(row, "cs")?.readings.pm10).toEqual({ value: 7, at: "2026-09-25T05:00:00Z" });
+    const [negative] = rows([{ id: air[0].id, type: "AirQualityObserved", name: air[0].name, pm10: { type: "Property", value: -1 } }]);
+    expect(toAirStation(negative, "cs")).toBeNull();
+  });
+
+  it("counts a station in service that reports no bikes or docks as none", () => {
+    const station: BikeStation = { id: "x", name: "x", bikes: null, docks: null, working: true };
+    expect(bikeTotals([station])).toEqual({ stations: 1, working: 1, bikes: 0, docks: 0 });
+  });
+
+  it("leaves a count below the first step out, and colours bars past the legend with its last colour", () => {
+    const station: BikeStation = { id: "x", name: "x", bikes: 0, docks: 1, working: true };
+    expect(bikeHistogram([station], [1, 3])).toEqual([0, 0]);
+    expect(histogramBars([1, 2], [{ colour: "#111111" }])).toEqual([
+      { value: 1, itemStyle: { color: "#111111" } },
+      { value: 2, itemStyle: { color: "#111111" } },
+    ]);
+    expect(histogramBars([1], [])).toEqual([{ value: 1, itemStyle: { color: "" } }]);
+    expect(legendOf([0], "#000000", "#ffffff")).toEqual([{ from: 0, label: "0+", colour: "#ffffff" }]);
+    expect(between("#000000", "#ffffff", 2)).toBe("#ffffff");
+    expect(between("#000000", "#ffffff", -1)).toBe("#000000");
+  });
+});

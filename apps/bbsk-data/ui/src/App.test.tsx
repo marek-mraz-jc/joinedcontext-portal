@@ -80,7 +80,7 @@ describe("the region's registers", () => {
 
   it("says it has nothing to read when the app has no endpoint of the register space", () => {
     show(false);
-    expect(screen.getByRole("status")).toHaveTextContent(s.noEndpoint);
+    expect(screen.getByText(s.noEndpoint)).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).toBeNull();
   });
 

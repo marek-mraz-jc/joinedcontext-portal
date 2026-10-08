@@ -4,6 +4,8 @@ import type { Pollutant } from "./praha";
 export interface Strings {
   locale: string;
   title: string;
+  /** The one page's name in the shell. */
+  page: string;
   subtitle: string;
   loading: string;
   empty: string;
@@ -38,6 +40,7 @@ export const LOCALES: Record<"cs" | "en", Strings> = {
   cs: {
     locale: "cs-CZ",
     title: "Praha teď",
+    page: "Teď",
     subtitle: "Sdílená kola, parkoviště P+R a kvalita ovzduší z otevřených dat města, jak jsou právě teď.",
     loading: "Načítám…",
     empty: "Prostor zatím žádné záznamy nemá.",
@@ -84,6 +87,7 @@ export const LOCALES: Record<"cs" | "en", Strings> = {
   en: {
     locale: "en-GB",
     title: "Prague right now",
+    page: "Now",
     subtitle: "Shared bikes, park-and-ride car parks and air quality from the city's open data, as they are right now.",
     loading: "Loading…",
     empty: "The space holds no records yet.",

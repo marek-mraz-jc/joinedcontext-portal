@@ -10,18 +10,26 @@
  * The two sections load independently. One publisher's endpoint being down leaves the other's
  * cards on screen and turns its own section into a sentence saying what failed — a dashboard
  * that blanks because one of two sources is unreachable tells a reader less than nothing.
+ *
+ * It sits in the SDK's shell (SDK-39). A card's territory, a district's bar and a district on the
+ * map open that indicator in the shell's entity panel (SDK-40), read fresh through its body's
+ * endpoint. The indicators are their pipelines' (T-2307), so the App writes none of them: the
+ * panel links each to the Portal (README).
  */
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import {
+  AppShell,
   currentTokens,
+  Empty,
   endpointSource,
   Grid,
-  Header,
+  Loading,
   Page,
-  SourceError,
+  Problem,
   transportFor,
   useClient,
+  useEntitySelection,
 } from "@joinedcontext/sdk";
 import type { DesignTokens, JcEndpoint, RichRow } from "@joinedcontext/sdk";
 import { DistrictChart } from "./DistrictChart";
@@ -60,6 +68,9 @@ export function bodyColor(body: Body, tokens: DesignTokens = currentTokens()): s
 /** One page is enough for the 31 indicators the contract declares, and caps a hostile answer. */
 const LIMIT = 200;
 
+/** What a card, a bar or a district opens: the indicator, through its body's endpoint. */
+type Open = (indicator: Indicator) => void;
+
 type Load =
   | { status: "loading" }
   | { status: "ready"; indicators: Indicator[] }
@@ -69,22 +80,22 @@ type Load =
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  return <AppShell title={s.title} pages={[{ id: "indicators", label: s.title, render: () => <Indicators /> }]} language={config.language} />;
+}
+
+function Indicators() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
   const trends = useTrends();
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
-        {trends.status === "failed" && (
-          <p role="status" className="failed">
-            {s.trendUnavailable}: {trends.reason}
-          </p>
-        )}
-        {BODIES.map((body) => (
-          <BodySection key={body} body={body} s={s} series={body === "bbsk" && trends.status === "ready" ? trends.series : undefined} />
-        ))}
-      </Page>
-    </main>
+    <Page>
+      <p className="subtitle">{s.subtitle}</p>
+      {trends.status === "failed" && <Problem error={new Error(`${s.trendUnavailable}: ${trends.reason}`)} />}
+      {BODIES.map((body) => (
+        <BodySection key={body} body={body} s={s} series={body === "bbsk" && trends.status === "ready" ? trends.series : undefined} />
+      ))}
+    </Page>
   );
 }
 
@@ -240,14 +251,17 @@ function useTrends(): Trends {
   return trends;
 }
 
+/** A refusal's words (a `SourceError` is an `Error`), else whatever was thrown. */
 function reasonOf(cause: unknown): string {
-  if (cause instanceof SourceError) return cause.message;
   return cause instanceof Error ? cause.message : String(cause);
 }
 
 function BodySection({ body, s, series }: { body: Body; s: Strings; series?: Map<string, Point[]> }) {
   const load = useIndicators(body);
   const { config } = useClient();
+  const { select } = useEntitySelection();
+  const endpoint = (config.endpoints ?? []).find((candidate) => candidate.space === SPACE_OF[body])?.name;
+  const open: Open = (indicator) => select({ id: indicator.id, type: "KeyPerformanceIndicator", endpoint });
   const districts = useDistricts(body === "bbsk");
   const [picked, setPicked] = useState<string | null>(null);
   const [marked, setMarked] = useState<string | null>(null);
@@ -270,19 +284,11 @@ function BodySection({ body, s, series }: { body: Body; s: Strings; series?: Map
     >
       <h2 id={headingId}>{s.body[body]}</h2>
       <p className="note">{s.bodyNote[body]}</p>
-      {load.status === "loading" && <p role="status">{s.loading}</p>}
-      {load.status === "unreachable" && <p role="status">{s.noEndpoint}</p>}
-      {load.status === "failed" && (
-        <p role="alert" className="failed">
-          {s.unavailable} {s.unavailableWhy}: {load.reason}
-        </p>
-      )}
-      {load.status === "ready" && load.indicators.length === 0 && <p role="status">{s.empty}</p>}
-      {districts.status === "failed" && mapped && (
-        <p role="status" className="failed">
-          {s.mapUnavailable}: {districts.reason}
-        </p>
-      )}
+      {load.status === "loading" && <Loading label={s.loading} />}
+      {load.status === "unreachable" && <Empty>{s.noEndpoint}</Empty>}
+      {load.status === "failed" && <Problem error={new Error(`${s.unavailable} ${s.unavailableWhy}: ${load.reason}`)} />}
+      {load.status === "ready" && load.indicators.length === 0 && <Empty>{s.empty}</Empty>}
+      {districts.status === "failed" && mapped && <Problem error={new Error(`${s.mapUnavailable}: ${districts.reason}`)} />}
       {mapped && shapes && (
         <section className="map-panel" aria-labelledby={mapId}>
           <h3 id={mapId}>{s.map}</h3>
@@ -309,7 +315,11 @@ function BodySection({ body, s, series }: { body: Body; s: Strings; series?: Map
             title={s.indicator[mapped.key]?.title ?? mapped.key}
             unit={unitOf(mapped.key, mapped.rows, s)}
             marked={marked}
-            onMark={setMarked}
+            onMark={(territory) => {
+              setMarked(territory);
+              const indicator = mapped.rows.find((row) => row.territory === territory);
+              if (indicator) open(indicator);
+            }}
             basemap={config.basemap}
             s={s}
           />
@@ -323,6 +333,7 @@ function BodySection({ body, s, series }: { body: Body; s: Strings; series?: Map
           s={s}
           body={body}
           series={series}
+          onOpen={open}
           marked={shapes && group.key === mapped?.key ? marked : undefined}
           onMark={shapes && group.key === mapped?.key ? setMarked : undefined}
           // Under a map every chart takes its scale: the mapped indicator the map's own range, the
@@ -351,12 +362,14 @@ function Group({
   onMark,
   ramp,
   series,
+  onOpen,
 }: {
   groupKey: string;
   rows: Indicator[];
   s: Strings;
   body: Body;
   series?: Map<string, Point[]>;
+  onOpen: Open;
   marked?: string | null;
   onMark?: (territory: string) => void;
   ramp?: [number, number] | null;
@@ -376,13 +389,24 @@ function Group({
           bars={bars}
           s={s}
           marked={marked}
-          onMark={onMark}
+          // A bar opens its district's indicator; under a map it marks the district there as well.
+          onMark={(territory) => {
+            onMark?.(territory);
+            const indicator = rows.find((row) => row.territory === territory);
+            if (indicator) onOpen(indicator);
+          }}
           ramp={ramp}
         />
       )}
       <Grid columns={4}>
         {rows.map((indicator) => (
-          <IndicatorCard key={indicator.id} indicator={indicator} s={s} points={series?.get(seriesKey(indicator.key, indicator.territory))} />
+          <IndicatorCard
+            key={indicator.id}
+            indicator={indicator}
+            s={s}
+            points={series?.get(seriesKey(indicator.key, indicator.territory))}
+            onOpen={() => onOpen(indicator)}
+          />
         ))}
       </Grid>
     </section>
@@ -393,7 +417,7 @@ function Group({
  * One indicator. Everything a reader needs to place the number is on the card and not in a
  * legend: whose it is, what it is measured in, the window it covers and when it was computed.
  */
-function IndicatorCard({ indicator, s, points }: { indicator: Indicator; s: Strings; points?: Point[] }) {
+function IndicatorCard({ indicator, s, points, onOpen }: { indicator: Indicator; s: Strings; points?: Point[]; onOpen: () => void }) {
   const territory = s.territory[indicator.territory] ?? indicator.territory;
   const unit = s.indicator[indicator.key]?.unit;
   const contracted = unitAsContracted(indicator);
@@ -402,7 +426,10 @@ function IndicatorCard({ indicator, s, points }: { indicator: Indicator; s: Stri
   return (
     <article className={isWhole(indicator.territory) ? "card whole" : "card"} aria-labelledby={headingId}>
       <h4 id={headingId} className="territory">
-        {territory}
+        {/* The territory opens the indicator in the entity panel: the card's one way in. */}
+        <button type="button" className="card-open" onClick={onOpen}>
+          {territory}
+        </button>
       </h4>
 
       {indicator.value === null ? (

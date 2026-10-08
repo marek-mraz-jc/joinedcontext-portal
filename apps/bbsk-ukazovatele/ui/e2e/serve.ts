@@ -9,6 +9,9 @@ const NAME = "bbsk-ukazovatele";
 const ORIGIN = "http://portal.test";
 export const BASE = `${ORIGIN}/apps/${NAME}/`;
 const CONFIG = {
+  // A member of the project signed in; the panel links an indicator to the Portal (SDK-40), shown, never followed.
+  user: { id: "u-1", name: "Členka Projektu" },
+  portal: "https://portal.bbsk.sk/projects/bbsk",
   slug: "7u4ns3cdg2mqlx5gmxhk7rqai6pmokdj",
   orgDomain: "bbsk.sk",
   space: "bbsk-kpi",
@@ -22,6 +25,8 @@ const CONFIG = {
     { name: "bbsk-kraj-verejne", slug: "krajverejne", space: "bbsk-kraj", types: ["StatisticalObservation"] },
   ],
 };
+/** What the gateway answers this App's reader on each endpoint: reading only (README). */
+const ACCESS = JSON.stringify({ permissions: [{ resource: { type: "KeyPerformanceIndicator" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] });
 /** What each body's endpoint answers: the fixtures the component tests read. */
 const ANSWERS: Record<string, string> = {
   "7u4ns3cdg2mqlx5gmxhk7rqai6pmokdj": fixture("bbsk-kpi.json"),
@@ -57,6 +62,19 @@ export async function serve(page: Page): Promise<Served> {
     if (url.origin !== ORIGIN) {
       served.outside.push(url.href);
       return route.abort();
+    }
+    if (url.pathname.includes("/api/endpoint/") && url.pathname.endsWith("/access")) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: ACCESS });
+    }
+    // The entity panel reads one indicator fresh by its id (SDK-40).
+    const one = /\/api\/endpoint\/([^/]+)\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
+    if (one) {
+      const entity = (JSON.parse(ANSWERS[one[1]] ?? "[]") as { id: string }[]).find((row) => row.id === decodeURIComponent(one[2]));
+      return route.fulfill({
+        status: entity ? 200 : 404,
+        contentType: "application/ld+json",
+        body: JSON.stringify(entity ?? { title: "Not Found", status: 404 }),
+      });
     }
     if (url.pathname.includes("/api/endpoint/")) {
       const answer = ANSWERS[/\/api\/endpoint\/([^/]+)\//.exec(url.pathname)?.[1] ?? ""];

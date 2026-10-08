@@ -5,10 +5,10 @@
  * endpoint source: the same URL building, the same NGSI-LD parsing and the same refusal handling
  * the published bundle uses. A card that renders here renders on the cluster.
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
-import { currentTokens, JcProvider } from "@joinedcontext/sdk";
+import { currentTokens, JcProvider, projectRow, toRichRow } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App, { bodyColor } from "./App";
 import region from "./fixtures/bbsk-kpi.json";
@@ -52,7 +52,8 @@ function show(
   options?: { language?: string; endpoints?: typeof ENDPOINTS },
 ) {
   vi.stubGlobal("fetch", serving(bySlug));
-  const client = stubClient(undefined, {
+  // The cards read through `fetch`, the entity panel through the client: the same indicators on both.
+  const client = stubClient({ entities: [...region, ...city].map((entity) => projectRow(toRichRow(entity, "sk"), "sk")) }, {
     slug: REGION_SLUG,
     orgDomain: "bbsk.sk",
     space: "bbsk-kpi",
@@ -60,6 +61,7 @@ function show(
     appName: "bbsk-ukazovatele",
     language: options?.language ?? "sk",
     endpoints: options?.endpoints ?? ENDPOINTS,
+    portal: "https://portal.bbsk.sk/projects/bbsk",
   });
   return render(
     <JcProvider client={client}>
@@ -221,7 +223,7 @@ describe("when one of the two does not answer", () => {
     show(both, { endpoints: [ENDPOINTS[0]] });
 
     const mesto = sectionOf(LOCALES.sk.body.banskabystrica);
-    await waitFor(() => expect(within(mesto).getByRole("status")).toHaveTextContent(LOCALES.sk.noEndpoint));
+    await waitFor(() => expect(within(mesto).getByText(LOCALES.sk.noEndpoint)).toBeInTheDocument());
     expect(within(mesto).queryAllByRole("article")).toHaveLength(0);
   });
 
@@ -229,7 +231,7 @@ describe("when one of the two does not answer", () => {
     show({ [REGION_SLUG]: () => answer([]), [CITY_SLUG]: () => answer(city) });
 
     const bbsk = sectionOf(LOCALES.sk.body.bbsk);
-    await waitFor(() => expect(within(bbsk).getByRole("status")).toHaveTextContent(LOCALES.sk.empty));
+    await waitFor(() => expect(within(bbsk).getByText(LOCALES.sk.empty)).toBeInTheDocument());
     expect(within(bbsk).queryByRole("alert")).toBeNull();
   });
 });
@@ -347,4 +349,162 @@ describe("colour, charts and the details a reader opens (T-2922)", () => {
       expect(card.textContent).toContain(LOCALES.sk.territory.kraj);
     }
   });
+});
+
+/** Clicks each button and reads the indicator the panel opens for it, then closes the panel. */
+async function opensEach(buttons: HTMLElement[], close: string) {
+  for (const button of buttons) {
+    fireEvent.click(button);
+    const panel = await screen.findByRole("dialog");
+    expect(within(panel).getByText("KeyPerformanceIndicator")).toBeInTheDocument();
+    // The Portal link is the panel's way to a change: followed here, held back from navigating.
+    const link = within(panel).getByRole("link");
+    link.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(link);
+    fireEvent.click(within(panel).getByRole("button", { name: close }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  }
+}
+
+describe("what the cards make of an odd answer", () => {
+  const CITY_KPI = "urn:ngsi-ld:KeyPerformanceIndicator:banskabystrica.sk:banskabystrica-kpi:";
+  const odd = (name: string, attrs: Record<string, unknown>) => ({
+    id: `${CITY_KPI}${name}`,
+    type: "KeyPerformanceIndicator",
+    name: { type: "Property", value: name },
+    ...attrs,
+  });
+
+  it("names an indicator and a district it has no words for by their own tokens, and a value in another unit by its code", async () => {
+    show({
+      [REGION_SLUG]: () => answer([]),
+      [CITY_SLUG]: () =>
+        answer([
+          odd("novy-ukazovatel-mesto", {
+            currentValue: { type: "Property", value: 3, unitCode: "XYZ" },
+            calculationPeriod: { type: "Property", value: { start: "not a date", end: "neither" } },
+            updatedAt: { type: "Property", value: "someday" },
+          }),
+          odd("pm10-24h-okres-novy", { currentValue: { type: "Property", value: 12, unitCode: "XYZ" } }),
+          odd("pm10-24h-okres-stary", { currentValue: { type: "Property", value: 0, unitCode: "XYZ" } }),
+          odd("novy-ukazovatel-okres-novy", { currentValue: { type: "Property", value: 2 } }),
+        ]),
+    });
+    const mesto = sectionOf(LOCALES.sk.body.banskabystrica);
+    expect(await within(mesto).findByRole("heading", { name: "novy-ukazovatel" })).toBeInTheDocument();
+    const cards = within(mesto).getAllByRole("article");
+    expect(cards.map((card) => within(card).getByRole("heading").textContent)).toEqual(expect.arrayContaining(["okres-novy", "okres-stary"]));
+    // A district it has no words for opens its indicator like any other.
+    for (const name of ["okres-novy", "okres-stary"]) {
+      fireEvent.click(within(mesto).getAllByRole("button", { name })[0]);
+      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Zavrieť" }));
+    }
+    const first = cards.find((card) => card.textContent?.includes("someday"))!;
+    // The unit's own code where it is not the contracted one, and the dates as written when they are none.
+    expect(first.textContent).toContain(`${LOCALES.sk.rawUnit}: XYZ`);
+    expect(first.querySelector("time[datetime='not a date']")?.textContent).toBe("not a date");
+    // Two districts of one indicator: a chart, its zero a bar of no length.
+    const chart = within(mesto).getByRole("figure");
+    expect(within(chart).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("reads nothing when the configuration names no endpoint at all", async () => {
+    const fetched = vi.fn();
+    vi.stubGlobal("fetch", fetched);
+    const client = stubClient(undefined, { slug: REGION_SLUG, orgDomain: "bbsk.sk", space: "bbsk-kpi", transport: "origin", appName: "bbsk-ukazovatele", language: "sk" });
+    render(
+      <JcProvider client={client}>
+        <App />
+      </JcProvider>,
+    );
+    expect(await screen.findAllByText(LOCALES.sk.noEndpoint)).toHaveLength(2);
+    expect(fetched).not.toHaveBeenCalled();
+  });
+
+  it("says a request that failed before any answer in its own words", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string) => {
+        if (path.includes(CITY_SLUG)) throw new TypeError("offline");
+        throw "down";
+      }),
+    );
+    const client = stubClient(undefined, { slug: REGION_SLUG, orgDomain: "bbsk.sk", space: "bbsk-kpi", transport: "origin", appName: "bbsk-ukazovatele", language: "sk", endpoints: ENDPOINTS });
+    render(
+      <JcProvider client={client}>
+        <App />
+      </JcProvider>,
+    );
+    expect(await within(sectionOf(LOCALES.sk.body.banskabystrica)).findByRole("alert")).toHaveTextContent("offline");
+    expect(await within(sectionOf(LOCALES.sk.body.bbsk)).findByRole("alert")).toHaveTextContent("down");
+  });
+
+  it("drops an answer, or a failure, that arrives after the screen is gone", async () => {
+    const all = [
+      ...ENDPOINTS,
+      { name: "bbsk-registre", slug: "register", space: "bbsk-registre", types: ["AdministrativeArea"] },
+      { name: "bbsk-kraj", slug: "kraj", space: "bbsk-kraj", types: ["StatisticalObservation"] },
+    ];
+    for (const fails of [false, true]) {
+      const answers: Array<() => void> = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          () =>
+            new Promise<Response>((resolve, reject) => {
+              answers.push(() => (fails ? reject(new TypeError("late")) : resolve(answer(region))));
+            }),
+        ),
+      );
+      const client = stubClient(undefined, { slug: REGION_SLUG, orgDomain: "bbsk.sk", space: "bbsk-kpi", transport: "origin", appName: "bbsk-ukazovatele", language: "sk", endpoints: all });
+      const { unmount } = render(
+        <JcProvider client={client}>
+          <App />
+        </JcProvider>,
+      );
+      // The two bodies, the district outlines and the yearly rows: four reads in flight.
+      await waitFor(() => expect(answers).toHaveLength(4));
+      unmount();
+      const errors = vi.spyOn(console, "error");
+      answers.forEach((reply) => reply());
+      await new Promise((settle) => setTimeout(settle, 0));
+      expect(errors).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe("the entity panel (SDK-40)", () => {
+  it("opens a card's indicator, read fresh, links it to the Portal and offers no edit", async () => {
+    show(both);
+    const mesto = sectionOf(LOCALES.sk.body.banskabystrica);
+    const [card] = await within(mesto).findAllByRole("article");
+    fireEvent.click(within(card).getByRole("button", { name: LOCALES.sk.territory.mesto }));
+    const panel = await screen.findByRole("dialog", { name: String(city[0].name.value) });
+    expect(within(panel).getByText("KeyPerformanceIndicator")).toBeInTheDocument();
+    expect(await within(panel).findByText(String(city[0].calculationFormula.value))).toBeInTheDocument();
+    const link = within(panel).getByRole("link", { name: "Otvoriť v Portáli" });
+    expect(link).toHaveAttribute("href", expect.stringContaining(`entityId=${encodeURIComponent(city[0].id)}`));
+    // Following the link leaves the App; jsdom does not navigate, so the click is only seen to reach it.
+    const followed = vi.fn((event: Event) => event.preventDefault());
+    link.addEventListener("click", followed);
+    fireEvent.click(link);
+    expect(followed).toHaveBeenCalledTimes(1);
+    expect(within(panel).queryByRole("button", { name: "Upraviť" })).toBeNull();
+  });
+
+  it("opens every card and every district's bar of both bodies, in Slovak and in English", async () => {
+    for (const [language, close] of [["sk", "Zavrieť"], ["en", "Close"]] as const) {
+      const { unmount } = show(both, { language });
+      const words = LOCALES[language];
+      await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(region.length + city.length));
+      await waitFor(() => expect(screen.getAllByRole("figure")).toHaveLength(2));
+      await opensEach(screen.getAllByRole("button").filter((one) => one.classList.contains("card-open")), close);
+      for (const chart of screen.getAllByRole("figure")) {
+        await opensEach(within(chart).getAllByRole("button"), close);
+      }
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(words.title);
+      unmount();
+    }
+    // Forty-some panels opened and read in two languages: longer than one click.
+  }, 30_000);
 });
