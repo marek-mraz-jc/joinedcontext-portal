@@ -1564,7 +1564,7 @@
       },
       "preset": {
         "title": "Předvolba",
-        "load": "Načtení (DataSource)",
+        "load": "Načtení (zdroj dat)",
         "kpi": "Analýza (KPI)",
         "hint": "Načtení kopíruje záznamy z externího zdroje do prostoru; Analýza počítá ukazatel z toho, co endpoint už poskytuje."
       },

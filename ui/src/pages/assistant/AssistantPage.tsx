@@ -66,6 +66,11 @@ const RUNS_PER_PAGE = 20;
  * past runs into the assistant panel. Work starts from the assistant's paths, never from a form here
  * (UI-55, T-2745).
  */
+/** Milliseconds as seconds with one decimal, in the person's language (T-3278). */
+function seconds(ms: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(ms / 1000);
+}
+
 export function AssistantPage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const endpointTitles = useEndpointTitles(project);
@@ -293,7 +298,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                             <dt>{t("agentRun.timing.firstFrame")}</dt>
                             <dd className="text-right tabular-nums">
                               {t("agentRun.timing.seconds", {
-                                seconds: (run.firstFrameMs / 1000).toFixed(1),
+                                seconds: seconds(run.firstFrameMs, i18n.language),
                               })}
                             </dd>
                           </>
@@ -303,7 +308,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                             <dt>{t("agentRun.timing.firstVersion")}</dt>
                             <dd className="text-right tabular-nums">
                               {t("agentRun.timing.seconds", {
-                                seconds: (run.firstVersionMs / 1000).toFixed(1),
+                                seconds: seconds(run.firstVersionMs, i18n.language),
                               })}
                             </dd>
                           </>

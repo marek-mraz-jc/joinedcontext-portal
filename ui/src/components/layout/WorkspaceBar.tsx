@@ -17,7 +17,7 @@ export function WorkspaceBar({ project }: { project: string }): React.JSX.Elemen
   const { name, leave } = useWorkspace();
   const { identity } = useAuth();
   // The language the person reads the Portal in, not the browser's: a Slovak Portal wrote
-  // 9/27/2026 because `toLocaleDateString()` was called with no locale at all (UI-15).
+  // 9/27/2026 because `toLocaleDateString` was called with no locale at all (UI-15).
   const locale = i18n.resolvedLanguage ?? i18n.language;
 
   const workspace = useQuery({

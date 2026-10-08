@@ -60,7 +60,8 @@ export function ApprovalDetailPage({
   project: string;
   id: string;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const queryClient = useQueryClient();
   const { identity } = useAuth();
   const permissions = usePermissions(project);
@@ -265,7 +266,7 @@ export function ApprovalDetailPage({
               {t("approvals.fromWorkspace", {
                 name: proposal.workspace,
                 author: proposal.author.name,
-                date: new Date(proposal.createdAt).toLocaleDateString(),
+                date: new Date(proposal.createdAt).toLocaleDateString(locale),
               })}
             </dd>
           </div>
