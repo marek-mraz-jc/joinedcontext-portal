@@ -56,3 +56,19 @@ test("a change elsewhere runs no App, and APPS_ALL or an unknown base runs them 
   assert.equal(touched(change, "apps/a/", { APPS_ALL: "1" }), true);
   assert.equal(touched({ ...change, base: "0000000000000000000000000000000000000000" }, "apps/a/"), true);
 });
+
+const ours = ({ dir, base }, path, shard) =>
+  spawnSync("sh", ["scripts/apps-ci.sh", "ours", path], { cwd: dir, env: { ...process.env, APPS_BASE: base, APPS_ALL: "", APPS_SHARD: shard } }).status === 0;
+
+test("APPS_SHARD puts every touched App in exactly one shard, an untouched one in none", () => {
+  const change = repo(["sdk/src/y.ts"]);
+  for (const path of ["apps/a/", "apps/ab", "apps/b/ui", "sdk/examples/plain-html-events"]) {
+    const shards = ["1/3", "2/3", "3/3"].filter((shard) => ours(change, path, shard));
+    assert.equal(shards.length, 1, `${path}: ${shards}`);
+    assert.equal(ours(change, path, ""), true, `${path} unsharded`);
+  }
+  // A trailing slash names the same App, so it never runs twice or not at all.
+  assert.equal(ours(change, "apps/a/", "1/3"), ours(change, "apps/a", "1/3"));
+  const untouched = repo(["README.md"]);
+  assert.equal(["1/3", "2/3", "3/3"].some((shard) => ours(untouched, "apps/a/", shard)), false);
+});

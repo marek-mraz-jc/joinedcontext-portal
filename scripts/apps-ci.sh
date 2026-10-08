@@ -5,11 +5,14 @@
 #   sh scripts/apps-ci.sh ui     # the reference apps/*/ui, the Apps in their own repository, the
 #                                # rust-wasm-server example's interface
 #   sh scripts/apps-ci.sh touched <path>   # exit 0 when the change touches <path>
+#   sh scripts/apps-ci.sh ours <path>      # touched, and in this job's shard
 #
 # The fast lane (ci.yml) runs only what a change touched: an App when a file under apps/<name>/
 # changed, everything when the SDK, the build lane's builder/ or the gate itself changed, or when
 # the change cannot be told (no base). `APPS_ALL=1` runs everything (ci-full). The base is the
 # branch's fork from main, or the commit before on main; `APPS_BASE` names another.
+# `APPS_SHARD=i/n` splits the ui mode over n jobs: every App lands in exactly one, chosen by a
+# checksum of its path, so a change to the SDK fits the job's timeout however many Apps there are.
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -43,6 +46,16 @@ touched() {
 
 skip() {
   echo "apps-ci: $1 untouched by this change, left to ci-full"
+}
+
+# Touched, and this job's to run (APPS_SHARD); says why when it is not.
+ours() {
+  touched "$1" || { skip "$1"; return 1; }
+  [ -n "${APPS_SHARD:-}" ] || return 0
+  i=${APPS_SHARD%/*} n=${APPS_SHARD#*/}
+  [ $(($(printf '%s' "${1%/}" | cksum | cut -d' ' -f1) % n + 1)) -eq "$i" ] && return 0
+  echo "apps-ci: $1 runs in another shard than $APPS_SHARD"
+  return 1
 }
 
 wasm() {
@@ -79,7 +92,7 @@ ui() {
   # this checkout, and the manifests and lockfiles are put back after (the lane test reads them).
   for app in apps/*/ui; do
     [ -f "$app/package.json" ] || continue
-    touched "$(dirname "$app")" || { skip "$app"; continue; }
+    ours "$(dirname "$app")" || continue
     (cd "$app" && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else
       npm pkg set "dependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
       && pnpm install --no-frozen-lockfile; fi && pnpm typecheck \
@@ -91,7 +104,7 @@ ui() {
   for app in apps/*/; do
     [ -f "$app/package.json" ] || continue
     [ -f "$app/wasm/Cargo.toml" ] && continue
-    touched "$app" || { skip "$app"; continue; }
+    ours "$app" || continue
     work=$(mktemp -d)
     cp -r "$app". "$work"
     (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
@@ -100,7 +113,7 @@ ui() {
   done
   # The plain-HTML example has no build and no package manager (AP-83): its tests run in a copy
   # given a throwaway package.json with the SDK's own vitest and jsdom.
-  if touched sdk/examples/plain-html-events; then
+  if ours sdk/examples/plain-html-events; then
     work=$(mktemp -d)
     cp -r sdk/examples/plain-html-events/. "$work"
     vitest=$(node -p "require('$ROOT/sdk/node_modules/vitest/package.json').version")
@@ -109,16 +122,12 @@ ui() {
       && printf '{ "name": "plain-html-events-tests", "private": true, "type": "module" }\n' > package.json \
       && pnpm add --save-dev "vitest@$vitest" "jsdom@$jsdom" "@joinedcontext/sdk@link:$ROOT/sdk" >/dev/null \
       && sh "$RUN" plain-html-events)
-  else
-    skip plain-html-events
   fi
-  if touched sdk/examples/rust-wasm-server; then
+  if ours sdk/examples/rust-wasm-server; then
     work=$(mktemp -d)
     cp -r sdk/examples/rust-wasm-server/. "$work"
     (cd "$work" && npm pkg set "devDependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
       && pnpm install --no-frozen-lockfile && sh "$RUN" rust-wasm-server && pnpm build)
-  else
-    skip rust-wasm-server
   fi
 }
 
@@ -126,5 +135,6 @@ case "${1:-}" in
   wasm) wasm ;;
   ui) ui ;;
   touched) touched "${2:?usage: apps-ci.sh touched <path>}" ;;
-  *) echo "usage: apps-ci.sh wasm|ui|touched <path>" >&2; exit 2 ;;
+  ours) ours "${2:?usage: apps-ci.sh ours <path>}" ;;
+  *) echo "usage: apps-ci.sh wasm|ui|touched <path>|ours <path>" >&2; exit 2 ;;
 esac
