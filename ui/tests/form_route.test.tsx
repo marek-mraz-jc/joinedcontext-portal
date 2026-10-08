@@ -149,6 +149,25 @@ describe("a kind's forms at their own addresses", () => {
     expect(window.location.search).toBe("");
   });
 
+  // T-3423: the editor registers in an effect, after the page's reads have answered; for one render
+  // the page took that for "nothing opened it" and showed the alert, which a screen reader announces
+  // and a slow CI run caught (row_link, ci-full 37830651396).
+  it("never says a form cannot be opened on the way to opening it", async () => {
+    const said: string[] = [];
+    const observer = new MutationObserver(() => {
+      if (document.body.textContent?.includes("This form cannot be opened")) said.push(document.body.textContent);
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    try {
+      await open(`${LIST}/open-read/edit`);
+      const page = await findFormPage(en.resourceEdit.title.replace("{name}", "open-read"));
+      expect(await within(page).findByDisplayValue("open-read")).toBeInTheDocument();
+      expect(said).toEqual([]);
+    } finally {
+      observer.disconnect();
+    }
+  });
+
   it("says so when the address names something the list does not hold, with a way back", async () => {
     await open(`${LIST}/no-such-policy/edit`);
 
