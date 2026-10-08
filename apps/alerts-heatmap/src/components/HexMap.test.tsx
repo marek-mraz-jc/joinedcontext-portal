@@ -74,7 +74,8 @@ describe("HexMap", () => {
   });
 
   it("follows its box when the page lays out again", async () => {
-    let resized: (() => void) | null = null;
+    // Asserted, not inferred: TypeScript would narrow a `let` only a callback assigns to `null`.
+    let resized = null as (() => void) | null;
     vi.stubGlobal(
       "ResizeObserver",
       class {
