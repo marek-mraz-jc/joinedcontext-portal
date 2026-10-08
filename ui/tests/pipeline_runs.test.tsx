@@ -146,6 +146,18 @@ describe("a pipeline's runs and log", () => {
     expect(rows[3]).toHaveTextContent("+5");
   });
 
+  it("says what a run's written records did, and nothing for a run reported without hashes (T-3304)", async () => {
+    const runs = [
+      { ...run(TICK, 12, 0, 0), created: 3, updated: 2, unchanged: 7 },
+      { ...run(HOUR, 40, 0, 0), created: null, updated: null, unchanged: null },
+    ];
+    await renderRoute({ path: PATH, answer: answering({ items: runs }, {}) });
+    const dialog = await openRuns();
+    const rows = within(await within(dialog).findByRole("table", { name: en.pipelines.runs.caption })).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("3 new, 2 changed, 7 unchanged");
+    expect(rows[2]).not.toHaveTextContent("new,");
+  });
+
   it("opens_another_run_and_pages_its_log_older_and_back", async () => {
     await renderRoute({
       path: PATH,

@@ -18801,6 +18801,15 @@
           "failed"
         ],
         "properties": {
+          "created": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "What the written records did (T-3304): an id the pipeline never wrote before, a record\nwhose hash changed, one whose hash did not. `null` when the run was reported without hashes.",
+            "minimum": 0
+          },
           "failed": {
             "type": "integer",
             "format": "int64",
@@ -18824,6 +18833,22 @@
           },
           "sent": {
             "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "unchanged": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "updated": {
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int64",
             "minimum": 0
           }
