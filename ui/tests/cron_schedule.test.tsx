@@ -68,7 +68,7 @@ function show(initial?: string, form: unknown = {}, frequency?: string) {
   return seen;
 }
 
-describe("a schedule in words", () => {
+describe("a schedule in words (PL-69)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     vi.useFakeTimers({ toFake: ["Date"] });

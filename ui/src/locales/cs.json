@@ -1564,7 +1564,7 @@
       },
       "preset": {
         "title": "Předvolba",
-        "load": "Načtení (DataSource)",
+        "load": "Načtení (zdroj dat)",
         "kpi": "Analýza (KPI)",
         "hint": "Načtení kopíruje záznamy z externího zdroje do prostoru; Analýza počítá ukazatel z toho, co endpoint už poskytuje."
       },
@@ -6380,6 +6380,53 @@
       },
       "close": "Zavřít uvítání"
     }
+  },
+  "alerts": {
+    "open": "Upozornění…",
+    "title": "Upozornění pro {name}",
+    "close": "Zavřít",
+    "lead": {
+      "pipeline": "Vyberte, o čem vás u této pipeline upozornit.",
+      "space": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje do tohoto prostoru.",
+      "type": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje tento typ do prostoru."
+    },
+    "events": "Upozornit, když",
+    "event": {
+      "failure": "selže",
+      "stale": "její data zastarají",
+      "zero": "nic nezapíše"
+    },
+    "delivery": "Jak",
+    "portal": "V Portálu, hned",
+    "portalHint": "Jedno upozornění, když to začne, a jedno, když se to spraví, ve schránce nahoře.",
+    "digest": "Denní přehled",
+    "digestHint": "Jedno upozornění denně po 07:00 UTC o tom, co se stalo od posledního.",
+    "email": "E-mailem",
+    "emailHint": "Zatím ne: tento Portál nemá poštovní server.",
+    "noEvent": "Zaškrtněte aspoň jednu událost.",
+    "subscribe": "Upozorňovat mě",
+    "change": "Uložit",
+    "stop": "Zrušit tato upozornění",
+    "active": "Aktivní.",
+    "mutedUntil": "Ztlumeno do {until}.",
+    "mute": "Ztlumit",
+    "muteChoose": "Vyberte…",
+    "muteFor": {
+      "1h": "na hodinu",
+      "1d": "na den",
+      "7d": "na týden",
+      "forever": "dokud se nezruší"
+    },
+    "unmute": "Zrušit ztlumení",
+    "forSpace": "Upozornění",
+    "forType": "Upozornění pro {type}",
+    "notices": "Upozornění",
+    "notice": {
+      "opened": "{pipeline}: {event}",
+      "recovered": "{pipeline} je v pořádku: už {event} neplatí",
+      "digest": "Dnešní přehled, {pipeline}: {event}"
+    },
+    "muteDay": "Ztlumit upozornění {pipeline} na den"
   },
   "help": {
     "title": "Nápověda",

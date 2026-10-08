@@ -64,16 +64,26 @@ describe("the run timeline", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  // What the run has spent, with the thousands separated by the reader's own locale.
+  // What the run has spent, with the thousands separated in the Portal's language, never the
+  // browser's (T-3278): 48,210 in English, 48 210 in Slovak.
   it("counts the steps and the tokens", () => {
     renderPart(<RunTimeline status="building" steps={12} tokensUsed={48210} />);
     expect(
       screen.getByText(
         en.agentRun.timeline.usage
           .replace("{steps}", "12")
-          .replace("{tokens}", (48210).toLocaleString()),
+          .replace("{tokens}", new Intl.NumberFormat("en").format(48210)),
       ),
     ).toBeInTheDocument();
+  });
+
+  it("writes the tokens the Slovak way in Slovak", async () => {
+    await i18n.changeLanguage("sk");
+    renderPart(<RunTimeline status="building" steps={12} tokensUsed={48210} />);
+    const sk = new Intl.NumberFormat("sk").format(48210);
+    expect(sk).not.toBe("48,210");
+    expect(screen.getByText(new RegExp(sk.replace(/\s/g, "\\s")))).toBeInTheDocument();
+    await i18n.changeLanguage("en");
   });
 
   it("names every state in every language", async () => {

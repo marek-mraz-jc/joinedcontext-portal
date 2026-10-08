@@ -22,7 +22,8 @@ export function BringBackPage({
   project: string;
   name: string;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const { identity } = useAuth();
   const queryClient = useQueryClient();
   const [resolutions, setResolutions] = useState<
@@ -165,7 +166,7 @@ export function BringBackPage({
 
   const { title, owner, createdAt } = workspace.data;
   const display = title ?? name;
-  const date = new Date(createdAt).toLocaleDateString();
+  const date = new Date(createdAt).toLocaleDateString(locale);
 
   return (
     <section aria-label={t("workspaces.bringBack.title")} className="space-y-6">

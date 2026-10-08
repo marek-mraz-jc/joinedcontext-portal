@@ -39,7 +39,9 @@ const WINDOW_MS = 60 * 60 * 1000;
 
 /** "What happened in the last hour", over the same events the feed below it lists. */
 export function ActivitySummary({ project }: { project: string }): JSX.Element | null {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+
   // The hour before the page opened, read once: a window that moved on every render would
   // make a new query key on every render too.
   const [since] = useState(() => new Date(Date.now() - WINDOW_MS).toISOString());
@@ -72,7 +74,7 @@ export function ActivitySummary({ project }: { project: string }): JSX.Element |
           <div key={bucket.key} className="flex flex-col gap-0.5">
             <dt className="text-caption text-fg-muted">{t(`activity.bucket.${bucket.key}`)}</dt>
             <dd className="text-title font-semibold tabular-nums text-fg">
-              {page.isPending ? "—" : totals[bucket.key].toLocaleString()}
+              {page.isPending ? "—" : totals[bucket.key].toLocaleString(locale)}
             </dd>
           </div>
         ))}

@@ -1,3 +1,4 @@
+import { AlertDialog } from "../../components/AlertDialog";
 import { useCallback, useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -361,6 +362,8 @@ function SpaceData({
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const [chosen, setChosen] = useState("");
+  // The type's alerts are being chosen (T-3261).
+  const [alertingType, setAlertingType] = useState(false);
   const type = types.includes(chosen) ? chosen : (types[0] ?? "");
   const modelSource = useModelSource(project, model);
   const enums = useMemo(
@@ -579,6 +582,18 @@ function SpaceData({
             <Button variant="secondary" onClick={() => setImporting(true)}>
               {t("spaces.import.open")}
             </Button>
+          ) : null}
+          <Button variant="ghost" onClick={() => setAlertingType(true)}>
+            {t("alerts.forType", { type })}
+          </Button>
+          {alertingType ? (
+            <AlertDialog
+              project={project}
+              scope="type"
+              target={`${space}/${type}`}
+              label={type}
+              onClose={() => setAlertingType(false)}
+            />
           ) : null}
           <ExportLinks
             endpoints={endpoints}
@@ -964,6 +979,8 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const { t, i18n } = useTranslation();
   const identity = useIdentity();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  // The space's alerts are being chosen (T-3261).
+  const [alerting, setAlerting] = useState(false);
   // What the whole space holds, the broker's count (T-2889); the table below breaks it down by
   // type through the person's own endpoint.
   const usage = useQuery(spaceUsageQuery(project, name));
@@ -1044,8 +1061,22 @@ export function SpaceInside({ project, name }: { project: string; name: string }
             description={<span className="font-mono">{manifest.metadata.name}</span>}
           />
         </div>
-        <LifecycleBadge kind="phase" value={manifest.status?.phase} />
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
+            {t("alerts.forSpace")}
+          </Button>
+          <LifecycleBadge kind="phase" value={manifest.status?.phase} />
+        </div>
       </div>
+      {alerting ? (
+        <AlertDialog
+          project={project}
+          scope="space"
+          target={manifest.metadata.name}
+          label={localized(manifest.metadata.title, locale, manifest.metadata.name)}
+          onClose={() => setAlerting(false)}
+        />
+      ) : null}
 
       <Section title={t("spaces.inside.model")}>
         <SpaceModel project={project} space={name} model={model} models={models} />

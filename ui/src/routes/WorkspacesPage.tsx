@@ -212,7 +212,8 @@ function WorkspaceTable({
   onOpen: (name: string) => void;
   onDiscard?: (name: string) => void;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   return (
     <Table data-records="" caption={t("workspaces.tableCaption")}>
       <TableHead>
@@ -259,7 +260,7 @@ function WorkspaceTable({
             </TableCell>
             <TableCell>
               {t("workspaces.expires", {
-                date: new Date(ws.expiresAt).toLocaleDateString(),
+                date: new Date(ws.expiresAt).toLocaleDateString(locale),
               })}
             </TableCell>
             <TableCell>
