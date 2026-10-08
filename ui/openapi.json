@@ -1254,6 +1254,82 @@
         }
       }
     },
+    "/api/v1/feedback": {
+      "post": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "Send Feedback",
+        "description": "A signed-in person's feedback from a page: scrubbed of e-mail addresses, phone numbers and credentials, kept without an author.",
+        "operationId": "send_feedback",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackBody"
+              },
+              "example": {
+                "page": "/projects/helsinki/approvals",
+                "text": "The Approve button stays grey after I type the name"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Kept",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown member, or a field out of bounds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Ten in the last hour already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/forms": {
       "get": {
         "tags": [
@@ -1550,6 +1626,130 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/feedback": {
+      "get": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "List Feedback",
+        "description": "The feedback after an id, oldest first, at most 100: what the board's proposed tasks are made from.",
+        "operationId": "list_feedback",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "description": "The id the previous page ended at; `0` for the first.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/feedback/{id}/screenshot": {
+      "get": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "Read A Feedback's Screenshot",
+        "description": "The PNG sent with one feedback; 404 when it has none.",
+        "operationId": "feedback_screenshot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The feedback's id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The screenshot",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feedback, or none sent with it",
             "content": {
               "application/json": {
                 "schema": {
@@ -16970,6 +17170,90 @@
               "$ref": "#/components/schemas/Node"
             },
             "description": "Every object the federation touches, keyed by `kind/name`."
+          }
+        }
+      },
+      "Feedback": {
+        "type": "object",
+        "description": "One feedback as the administrators' list shows it.",
+        "required": [
+          "id",
+          "createdAt",
+          "page",
+          "version",
+          "text",
+          "screenshot"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "description": "RFC 3339."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page": {
+            "type": "string"
+          },
+          "screenshot": {
+            "type": "boolean",
+            "description": "Whether a screenshot was sent with it."
+          },
+          "text": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "FeedbackAccepted": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "FeedbackBody": {
+        "type": "object",
+        "required": [
+          "text",
+          "page"
+        ],
+        "properties": {
+          "page": {
+            "type": "string"
+          },
+          "screenshot": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A PNG `data:` URL, only when the person ticked it."
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FeedbackList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Feedback"
+            }
           }
         }
       },

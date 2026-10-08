@@ -1,16 +1,26 @@
 import { useState } from "react";
 import type { JSX } from "react";
+import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { askAbout } from "../assistant/state";
+import { guideUrl, useBranding } from "../branding";
+import { helpFor } from "../pageHelp";
 import { WHATS_NEW, isUnread, lastSeen, markSeen } from "../whatsNew";
-import { Badge, Button, Dialog, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, safeHref } from "./ui";
+import { Badge, Button, Dialog, ExternalLink, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, safeHref } from "./ui";
 
 /**
- * Help in the header (T-3271): what changed for the people who use the Portal, with a dot until
- * it is read, and the glossary. The dot is this browser's: it remembers the newest entry read.
+ * Help in the header: help for the page the person is on (T-3269), what changed for the people who
+ * use the Portal with a dot until it is read (T-3271), and the glossary. The dot is this browser's:
+ * it remembers the newest entry read.
  */
 export function HelpMenu(): JSX.Element {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const branding = useBranding();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const page = helpFor(pathname);
+  const guide = page ? guideUrl(branding, page.guide) : undefined;
   // The dot follows what was read; the list marks what was new when it was opened.
   const [seen, setSeen] = useState(lastSeen);
   const [readBefore, setReadBefore] = useState<string | undefined>();
@@ -37,6 +47,12 @@ export function HelpMenu(): JSX.Element {
         </MenuTrigger>
         <MenuContent align="end" className="min-w-52">
           <MenuLabel>{t("help.title")}</MenuLabel>
+          {page ? (
+            <MenuItem onSelect={() => setHelpOpen(true)}>
+              <Icon name="info" className="size-4" />
+              {t("pageHelp.menu")}
+            </MenuItem>
+          ) : null}
           <MenuItem onSelect={read}>
             <Icon name="inbox" className="size-4" />
             {unread > 0 ? t("whatsNew.menuUnread", { count: unread }) : t("whatsNew.menu")}
@@ -49,6 +65,46 @@ export function HelpMenu(): JSX.Element {
           </MenuItem>
         </MenuContent>
       </Menu>
+      {page ? (
+        <Dialog
+          open={helpOpen}
+          onOpenChange={setHelpOpen}
+          title={t(`pageHelp.${page.key}.title`)}
+          description={t(`pageHelp.${page.key}.purpose`)}
+          closeLabel={t("whatsNew.close")}
+          footer={
+            <Button
+              variant="primary"
+              onClick={() => {
+                setHelpOpen(false);
+                // The question is written for the person to send or edit; the page goes with it.
+                askAbout(t("pageHelp.ask", { page: t(`pageHelp.${page.key}.title`) }));
+              }}
+            >
+              <Icon name="chat" className="size-4" />
+              {t("pageHelp.askButton")}
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-4">
+            <section aria-labelledby="page-help-steps" className="flex flex-col gap-2">
+              <h3 id="page-help-steps" className="text-body font-semibold text-fg">
+                {t("pageHelp.steps")}
+              </h3>
+              <ol className="list-decimal pl-5 text-body text-fg">
+                {(["one", "two", "three"] as const).map((step) => (
+                  <li key={step}>{t(`pageHelp.${page.key}.${step}`)}</li>
+                ))}
+              </ol>
+            </section>
+            {guide ? (
+              <p className="text-body">
+                <ExternalLink href={guide}>{t("pageHelp.guide")}</ExternalLink>
+              </p>
+            ) : null}
+          </div>
+        </Dialog>
+      ) : null}
       <Dialog
         open={open}
         onOpenChange={setOpen}
