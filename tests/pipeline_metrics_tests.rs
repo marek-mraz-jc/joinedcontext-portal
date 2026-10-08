@@ -78,6 +78,7 @@ fn mirror_with_pipeline() -> Arc<Mirror> {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            shard: None,
             domain_verification: None,
         }),
     });

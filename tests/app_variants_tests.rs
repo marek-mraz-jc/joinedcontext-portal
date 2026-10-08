@@ -40,8 +40,8 @@ const APP: &str = "desk";
 const IMAGE: &str =
     "ghcr.io/liptov/apps/desk@sha256:2222222222222222222222222222222222222222222222222222222222222222";
 
-/// The four kinds of T-2705, as the manifest spells each.
-const KINDS: [&str; 4] = ["react", "html", "react-functions", "fullstack"];
+/// The kinds of T-2705, as the manifest spells each, and the server WASM App (AP-148, T-3415).
+const KINDS: [&str; 5] = ["react", "html", "react-functions", "fullstack", "wasm"];
 /// The builder's presets (AP-132), the operations each adds as `ACCESS_PRESETS` in AppGenerator.
 const PRESETS: [(&str, &[&str]); 3] = [
     (
@@ -102,7 +102,7 @@ impl Variant {
     }
 }
 
-/// Every combination: 120 variants, each rendered and decided in-process.
+/// Every combination: 150 variants, each rendered and decided in-process.
 fn variants() -> Vec<Variant> {
     let mut all = Vec::new();
     for kind in KINDS {
@@ -126,7 +126,7 @@ fn variants() -> Vec<Variant> {
 fn refused_by(variant: &Variant) -> Option<&'static str> {
     match (variant.kind, variant.visibility) {
         (_, "private") => Some("AP-18"),
-        ("fullstack", "roles") => Some("AP-94"),
+        ("fullstack" | "wasm", "roles") => Some("AP-94"),
         _ => None,
     }
 }
@@ -145,6 +145,7 @@ fn operations(access: &str) -> Vec<&'static str> {
 fn manifest(variant: &Variant) -> RawManifest {
     let (class, build) = match variant.kind {
         "fullstack" => ("ui-rust", json!({ "rust": "1.90", "node": "22" })),
+        "wasm" => ("wasm", json!({ "rust": "1.90", "node": "22" })),
         "html" => ("ui", json!({})),
         _ => ("ui", json!({ "node": "22" })),
     };
@@ -190,6 +191,9 @@ fn manifest(variant: &Variant) -> RawManifest {
         "lifecycle": "published",
         "dataNeeds": needs,
     });
+    if variant.kind == "wasm" {
+        spec["storage"] = json!({ "sql": {}, "blob": {} });
+    }
     if variant.visibility == "roles" {
         spec["roles"] = json!([
             { "name": "viewer", "title": { "en": "Viewer" } },
@@ -323,7 +327,7 @@ fn expected(variant: &Variant, persona: Persona, operation: Operation) -> bool {
 #[test]
 fn every_variant_renders_and_the_gateway_decides_what_its_access_says() {
     let all = variants();
-    assert_eq!(all.len(), 120);
+    assert_eq!(all.len(), 150);
     let mut decided = 0;
     for variant in &all {
         let label = variant.label();
@@ -489,7 +493,7 @@ fn who_opens_each_visibility_and_the_page_a_roles_app_refuses_with() {
 #[test]
 fn the_edge_lets_an_anonymous_request_through_to_a_public_app_alone() {
     for visibility in VISIBILITIES {
-        for kind in ["react", "fullstack"] {
+        for kind in ["react", "fullstack", "wasm"] {
             let variant = Variant {
                 kind,
                 access: "read",
@@ -557,10 +561,10 @@ fn every_class_visibility_and_preset_has_a_variant() {
     let covered: BTreeSet<String> = KINDS
         .iter()
         .map(|kind| {
-            if *kind == "fullstack" {
-                "ui-rust"
-            } else {
-                "ui"
+            match *kind {
+                "fullstack" => "ui-rust",
+                "wasm" => "wasm",
+                _ => "ui",
             }
             .to_owned()
         })
@@ -568,10 +572,6 @@ fn every_class_visibility_and_preset_has_a_variant() {
     for class in &classes {
         // `ui-node` is declared and not built yet (AP-125): no run starts one.
         if class == "ui-node" {
-            continue;
-        }
-        // `wasm` (AP-148) has no variant yet: T-3415 adds it and removes this line.
-        if class == "wasm" {
             continue;
         }
         assert!(covered.contains(class), "the class {class} has no variant");

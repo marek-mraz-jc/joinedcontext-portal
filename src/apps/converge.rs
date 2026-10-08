@@ -88,6 +88,9 @@ pub enum Outcome {
 /// Why one app could not be converged.
 #[derive(Debug, thiserror::Error)]
 pub enum ConvergeError {
+    /// A retired wasm App's export or drop failed; what is left stays in place (AP-150).
+    #[error("{0}")]
+    Wasm(String),
     /// The manifest does not compile into objects.
     #[error("{0}")]
     Render(#[from] RenderError),
@@ -116,12 +119,27 @@ pub enum ConvergeError {
 pub struct Converger {
     kube: KubeClient,
     settings: Settings,
+    /// Where a retired `wasm` App's schema and files are exported and dropped (AP-150).
+    wasm: Option<std::sync::Arc<crate::apps::wasm_apps::WasmApps>>,
 }
 
 impl Converger {
     /// A converger for one installation's apps namespace.
     pub fn new(kube: KubeClient, settings: Settings) -> Self {
-        Self { kube, settings }
+        Self {
+            kube,
+            settings,
+            wasm: None,
+        }
+    }
+
+    /// With the `wasm` Apps' database and bucket, so a retired one is exported and dropped.
+    pub fn with_wasm_apps(
+        mut self,
+        wasm: Option<std::sync::Arc<crate::apps::wasm_apps::WasmApps>>,
+    ) -> Self {
+        self.wasm = wasm;
+        self
     }
 
     /// Converges every App in the repository, in the loader's deterministic order.
@@ -234,6 +252,16 @@ impl Converger {
         // A retired app is the one lifecycle that acts without rendering: there is nothing to
         // compile, only four objects to remove (AP-21).
         if spec.lifecycle == AppLifecycle::Retired {
+            // A wasm App's schema and files: exported, and dropped only after (AP-150). A failed
+            // export leaves everything in place, and the next sync tries again.
+            if spec.class == jc_core::kinds::AppClass::Wasm {
+                if let Some(wasm) = &self.wasm {
+                    let at = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+                    wasm.retire(&project, &name, &at)
+                        .await
+                        .map_err(ConvergeError::Wasm)?;
+                }
+            }
             // Where it ran before projects had namespaces, and where it runs now; a namespace
             // that cannot be named held nothing of it.
             self.delete_objects(&self.settings.namespace, &name).await?;

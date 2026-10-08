@@ -1229,9 +1229,11 @@ async fn propose_engine(
     // 8b. A lane's build is checked against the App's repository and published by the Portal
     //     before anything is written: the lane's token names a build, it never makes one
     //     (AP-101, AP-104).
+    let mut published = None;
     if build_write {
-        crate::apps::built::check_and_publish(
+        published = crate::apps::built::check_and_publish(
             gitea,
+            state.wasm_apps.as_deref(),
             project,
             &envelope.metadata.name,
             &envelope.spec,
@@ -1287,6 +1289,16 @@ async fn propose_engine(
     let repo_path = manifest_path;
 
     let mut envelope_to_commit = envelope.clone();
+    // A wasm App's component and shard are the Portal's, taken from the bundle it checked and
+    // the placement it recorded; whatever a proposal said of them is never committed (AP-151).
+    if build_write {
+        if let Some(status) = envelope_to_commit.status.as_mut() {
+            status.shard = published.as_ref().map(|p| p.shard);
+            if let Some(build) = status.build.as_mut() {
+                build.component = published.as_ref().map(|p| p.component.clone());
+            }
+        }
+    }
     if !build_write {
         envelope_to_commit.strip_status();
     }
