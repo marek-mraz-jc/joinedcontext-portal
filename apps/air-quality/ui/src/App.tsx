@@ -94,7 +94,8 @@ function StationsPage({
 
   return (
     <Page>
-      <p className="identity">{who(identity)}</p>
+      {/* The shell names a signed-in reader; the page says only what the shell cannot. */}
+      {identity && !identity.signedIn && <p className="identity">You are viewing anonymously.</p>}
       {readOnly && <p id="read-only-reason">{READ_ONLY}</p>}
 
       {error && <p role="alert">{error}</p>}
@@ -152,15 +153,6 @@ function StationHistory({ id, name }: { id: string; name: string }): JSX.Element
 
 function problem(cause: unknown): string {
   return cause instanceof ApiError ? cause.detail : String(cause);
-}
-
-function who(identity: Identity | null): string {
-  if (!identity) {
-    return "…";
-  }
-  return identity.signedIn
-    ? `Signed in as ${identity.email ?? identity.user ?? "unknown"}`
-    : "You are viewing anonymously.";
 }
 
 function StationCard({
