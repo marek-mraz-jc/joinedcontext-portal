@@ -141,6 +141,75 @@
         }
       }
     },
+    "/api/v1/app-templates/{name}/screenshot/{width}": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Read an App Template's Screenshot",
+        "description": "The template as its live demo shows it, at 1440 or 375 pixels wide (T-3306).",
+        "operationId": "screenshot",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "A template's name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "width",
+            "in": "path",
+            "description": "1440 or 375",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A PNG",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such template or width",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/backchannel-logout": {
       "post": {
         "tags": [

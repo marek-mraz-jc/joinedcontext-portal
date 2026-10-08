@@ -230,8 +230,12 @@ describe("sync sources view", () => {
     await waitFor(() => {
       expect(calls.some((call) => call.path.endsWith("/detach"))).toBe(true);
     });
-    const notice = await screen.findByRole("status");
-    expect(notice).toHaveTextContent(en.syncSources.detached);
+    // The page's notice among the Shell's own live regions (the jobs menu, T-3245).
+    const notice = (await screen.findAllByRole("status")).find((region) =>
+      region.textContent?.includes(en.syncSources.detached),
+    );
+    expect(notice).toBeDefined();
+    if (!notice) return;
     expect(within(notice).getByRole("link", { name: new RegExp(`^${en.syncSources.review}`) })).toHaveAttribute(
       "href",
       "https://forge.example/pulls/9",

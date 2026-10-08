@@ -109,6 +109,14 @@
         "browser_security.test.tsx"
       ]
     },
+    "src/components/HelpMenu.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "whats_new.test.tsx"
+      ]
+    },
     "src/components/ImportProjectDialog.tsx": {
       "controls": {
         "Button": 4,

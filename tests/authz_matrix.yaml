@@ -25,6 +25,15 @@ routes:
   - route: GET /apps/{name}/{*path}
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /templates/{name}
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /templates/{name}/
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /templates/assets/{file}
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
   - route: POST /apps/{name}/api/functions/{fn}
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
@@ -179,6 +188,9 @@ routes:
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: GET /app-templates
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /app-templates/{name}/screenshot/{width}
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: PUT /preferences

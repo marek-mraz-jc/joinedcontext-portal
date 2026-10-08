@@ -13,6 +13,7 @@ use sha2::{Digest, Sha256};
 #[derive(RustEmbed)]
 #[folder = "sdk/dist"]
 #[exclude = "runtime/*"]
+#[exclude = "demos/*"]
 struct Dist;
 
 /// `kit-worker.js` as base64, for any document that carries the map's worker inline.
