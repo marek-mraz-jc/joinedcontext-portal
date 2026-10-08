@@ -258,7 +258,8 @@ describe("service accounts view", () => {
     await userEvent.click(await screen.findByRole("button", { name: en.access.keys.revoke }));
     const confirm = await screen.findByRole("alertdialog", { name: /3f9c2a7b1d4e8f06/ });
     // The safe answer holds the focus, so Enter on arrival revokes nothing.
-    expect(within(confirm).getByRole("button", { name: en.form.cancel })).toHaveFocus();
+    // The dialog moves the focus there after it opens; on a loaded runner that lands a tick later.
+    await waitFor(() => expect(within(confirm).getByRole("button", { name: en.form.cancel })).toHaveFocus());
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(fetchMock.mock.calls.some((call) => (call[0] as Request).method === "DELETE")).toBe(false);

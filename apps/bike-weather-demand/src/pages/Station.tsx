@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Page, useClient, useEntities } from "@joinedcontext/sdk";
+import { Card, Empty, Loading, Page, Problem, useClient, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { Row, TemporalPoint } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
 import { StationMap } from "../components/StationMap";
-import { Empty, Loading, Problem } from "../components/states";
 import type { WeatherHistoryPoint } from "../bikes";
 import {
   defaultStationId,
@@ -129,7 +128,9 @@ function lineChartOption(
 
 /**
  * Main station screen: station picker, live availability tiles, map, 7-day + 6-hour chart,
- * natural language weather effects, and 7x24 hour-of-week profile heat grid table.
+ * natural language weather effects, and 7x24 hour-of-week profile heat grid table. A station picked
+ * on the map, and the chosen station and its weather station by their Details buttons, open in the
+ * SDK's entity panel (SDK-40); the App is public, so the panel links them to the Portal (AP-140).
  */
 export function Station({ lang }: { lang: Lang }): React.JSX.Element {
   const client = useClient();
@@ -141,12 +142,15 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
     return readHash(hash).stationId;
   });
   const [stationSearch, setStationSearch] = useState("");
+  const { select } = useEntitySelection();
 
   const [bikeHistory, setBikeHistory] = useState<TemporalPoint[]>([]);
   const [weatherHistory, setWeatherHistory] = useState<WeatherHistoryPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<Error | null>(null);
   const [weatherFailed, setWeatherFailed] = useState(false);
+  // Retry reads the history again: picking the same station would change nothing to re-run on.
+  const [attempt, setAttempt] = useState(0);
 
   const stations = stationsRes.rows;
   const weatherStations = weatherRes.rows;
@@ -274,7 +278,7 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
     return () => {
       active = false;
     };
-  }, [client, selectedId, nearestWeather]);
+  }, [client, selectedId, nearestWeather, attempt]);
 
   const estimateInput = useMemo(() => {
     if (!chosenStation || bikeHistory.length === 0) return null;
@@ -329,14 +333,10 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
   return (
     <Page label={t(lang, "title")}>
       <Problem error={stationsRes.error} onRetry={stationsRes.reload} />
-      <Problem error={historyError} onRetry={() => selectStation(selectedId ?? "")} />
+      <Problem error={historyError} onRetry={() => setAttempt((n) => n + 1)} />
       {estimateError && <Problem error={new Error(t(lang, "estimationFailed", { reason: estimateError.message }))} />}
 
-      {weatherReadFailed && !stationsRes.error && (
-        <div className="jc-problem" role="status">
-          <p>{t(lang, "weatherUnreadable")}</p>
-        </div>
-      )}
+      {weatherReadFailed && !stationsRes.error && <Problem error={new Error(t(lang, "weatherUnreadable"))} />}
 
       {stationsRes.loading && stations.length === 0 ? (
         <Loading label={t(lang, "loading")} />
@@ -386,11 +386,27 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
             <StationMap
               stations={stations}
               selectedId={selectedId}
-              onSelect={selectStation}
+              onSelect={(id) => {
+                selectStation(id);
+                select({ id, type: "BikeHireDockingStation" });
+              }}
               label={t(lang, "mapTitle")}
             />
             <p className="app-legend-text">{t(lang, "mapNotice")}</p>
           </Card>
+
+          <div className="app-open">
+            {chosenStation && (
+              <button type="button" className="jc-button" onClick={() => select({ id: chosenStation.id, type: "BikeHireDockingStation" })}>
+                {t(lang, "details", { name: stationName(chosenStation) })}
+              </button>
+            )}
+            {nearestWeather && (
+              <button type="button" className="jc-button" onClick={() => select({ id: nearestWeather.station.id, type: "WeatherObserved" })}>
+                {t(lang, "details", { name: stationName(nearestWeather.station) })}
+              </button>
+            )}
+          </div>
 
           {chosenStation && (
             <div className="jc-tiles">

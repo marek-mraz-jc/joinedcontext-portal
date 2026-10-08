@@ -5,6 +5,7 @@ import { JcProvider, ProblemError } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
 import { AnalyserContext } from "./analysis";
+import type { AnalysisInput } from "./analysis";
 import { NETWORK_ROWS } from "./fixtures/network";
 import { HISTORY } from "./fixtures/vehicles";
 import { inProcess } from "./test-analyser";
@@ -83,6 +84,26 @@ describe("transit-reach", () => {
       expect(window.location.search).toContain("at=");
       await user.click(screen.getByRole("button", { name: "Takaisin Rautatientorille" }));
     }
+  });
+
+  // Found by worker-4 (chyby.md): before the history read began, the page analysed an empty history
+  // and a walking-only answer flashed before the vehicles' one.
+  it("never answers from an empty history before the history has been read", async () => {
+    const asked: AnalysisInput[] = [];
+    const watching = (input: AnalysisInput) => {
+      asked.push(input);
+      return inProcess(input);
+    };
+    render(
+      <JcProvider client={client()}>
+        <AnalyserContext.Provider value={watching}>
+          <App />
+        </AnalyserContext.Provider>
+      </JcProvider>,
+    );
+    await screen.findByText(FI_SUMMARY);
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.filter((input) => input.vehicles.length === 0)).toEqual([]);
   });
 
   it("reads the history window the address names and asks again for another", async () => {
