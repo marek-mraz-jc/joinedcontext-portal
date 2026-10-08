@@ -172,4 +172,36 @@
     outline: var(--portal-ring-width) solid var(--portal-ring);
     outline-offset: var(--portal-ring-offset);
   }
+
+  /*
+   * A finger needs 44 px (WCAG 2.5.5, T-3279). On a touch screen every control grows to it; a
+   * mouse keeps the denser layout the Portal is drawn for. `min-height` wins over a size utility's
+   * `height`, so a 32 px button becomes 44 px without a class of its own.
+   */
+  @media (pointer: coarse) {
+    button,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    select,
+    summary,
+    input:not([type="checkbox"], [type="radio"], [type="hidden"]) {
+      min-height: 44px;
+    }
+
+    button,
+    [role="button"] {
+      min-width: 44px;
+    }
+
+    /* A box is ticked by its label, so the label is the target. */
+    label:has(> input[type="checkbox"]),
+    label:has(> input[type="radio"]) {
+      min-height: 44px;
+      align-items: center;
+    }
+  }
 }
