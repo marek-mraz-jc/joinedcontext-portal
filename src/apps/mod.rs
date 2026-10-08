@@ -19,6 +19,7 @@ pub mod reconciler;
 /// A person's roles in an application (ADR-N-027).
 pub mod roles;
 pub mod static_host;
+pub mod template_demos;
 
 /// The warning an App still written with a shape name of the previous release gets (AP-124):
 /// `static` and `fullstack` are read as `ui` and `ui-rust` for one release, so the manifest passes,

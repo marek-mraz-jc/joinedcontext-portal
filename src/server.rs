@@ -73,6 +73,8 @@ pub fn app(state: AppState) -> Router {
 
     Router::new()
         .merge(apps::static_host::router())
+        // The App templates' demos (AP-141): their own CSP, which forbids every connection.
+        .merge(apps::template_demos::router())
         // The kit preview is an application document too: its own CSP, outside the Portal's.
         .merge(api::agent_runs::preview_router())
         // OPS-16: what `components/monitoring` scrapes. Outside the Portal's own security
