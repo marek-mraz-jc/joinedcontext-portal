@@ -26,6 +26,8 @@ export interface JcConfig {
   user?: JcUser | null;
   /** Every endpoint of an application that reads several, the primary first; absent for one. */
   endpoints?: JcEndpoint[];
+  /** The Portal's page of the App's project, where the entity panel links an entity (SDK-40). */
+  portal?: string;
 }
 
 export class ConfigError extends Error {
@@ -82,6 +84,11 @@ export function parseConfig(input: unknown): JcConfig {
         errors.push("basemap: must be an http(s) URL");
       }
     }
+  }
+
+  // An https address of a project in the Portal, nothing else: the panel puts it in a link.
+  if (raw.portal !== undefined && (typeof raw.portal !== "string" || !/^https:\/\/[^\s/?#]+(?:\/[^\s?#]*)?\/projects\/[a-z0-9-]+$/i.test(raw.portal))) {
+    errors.push("portal: must be https://{host}/projects/{project}");
   }
 
   if (raw.endpointName !== undefined && typeof raw.endpointName !== "string") {
@@ -157,6 +164,7 @@ export function parseConfig(input: unknown): JcConfig {
     language: typeof raw.language === "string" && raw.language !== "" ? raw.language : "en",
     user,
     ...(endpoints ? { endpoints } : {}),
+    ...(typeof raw.portal === "string" ? { portal: raw.portal } : {}),
   };
 }
 

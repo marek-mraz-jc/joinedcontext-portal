@@ -80,6 +80,13 @@ export { originTransport, transportFor } from "./transport";
 // Layout primitives: every screen responsive without the app writing CSS (T-2777, UI-84)
 export { Card, Grid, Header, Page, Sidebar, Split, Tabs } from "./layout";
 export type { Tab } from "./layout";
+// The one shell and the entity panel every App shares (SDK-39, SDK-40).
+export { AppShell, Empty, ErrorBoundary, Loading, Problem } from "./shell";
+export type { ShellLanguage, ShellPage } from "./shell";
+export { EntityPanel, EntitySelectionProvider, attributeOrder, labelOf, parseValue, portalLinkOf, selectable, useEntitySelection } from "./panel";
+export type { SelectedEntity } from "./panel";
+export { SDK_WORDS, sdkLanguage, sdkWord } from "./words";
+export type { SdkLanguage, SdkWord } from "./words";
 
 // Tables, maps, exports: what the template's components stand on
 export { compare } from "../views/Table";

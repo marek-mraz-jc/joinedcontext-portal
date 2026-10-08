@@ -38,6 +38,9 @@ const SCHEMA = {
   Note: { properties: { text: { type: "string" } } },
 } as Schema;
 
+// Edit is offered to a signed-in reader whose grants allow the write (SDK-40).
+const PERSON = { id: "u1", name: "Aino", roles: ["steward"] };
+
 const ACCESS = {
   permissions: [
     { resource: { type: "*" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
@@ -52,7 +55,7 @@ function app() {
     schema: SCHEMA,
     access: ACCESS,
     functions: { summary: () => ({ types: [{ type: "Note", count: 1, averages: {} }] }) },
-  }, { appName: "bikes" });
+  }, { appName: "bikes", user: PERSON });
   render(
     <JcProvider client={client}>
       <App />
@@ -90,7 +93,7 @@ describe("template", () => {
     expect(within(note).queryByTestId("jc-map")).not.toBeInTheDocument();
   });
 
-  it("a type with a location gets a map, filters from the schema and an edit form where writes are granted", async () => {
+  it("a type with a location gets a map, filters from the schema, and a row opens the entity panel that edits where writes are granted", async () => {
     const client = app();
     fireEvent.click(await screen.findByRole("button", { name: "Station" }));
 
@@ -100,25 +103,28 @@ describe("template", () => {
     expect(within(page).getByRole("combobox")).toBeInTheDocument(); // the status select
 
     fireEvent.click(within(page).getByText("Kallio"));
-    fireEvent.click(within(page).getByRole("button", { name: "Edit" }));
-    // The form reads the grant itself; Save stays disabled until it has.
-    const save = within(page).getByRole("button", { name: "Save" });
-    await waitFor(() => expect(save).toBeEnabled());
-    fireEvent.change(within(page).getByRole("spinbutton", { name: "bikes" }), { target: { value: "9" } });
-    fireEvent.click(save);
+    const panel = await screen.findByRole("dialog", { name: "Kallio" });
+    fireEvent.click(await within(panel).findByRole("button", { name: "Edit" }));
+    // Only the granted attributes are inputs; `name` is shown, not edited.
+    expect(within(panel).queryByLabelText("Name")).not.toBeInTheDocument();
+    fireEvent.change(within(panel).getByLabelText("Bikes"), { target: { value: "9" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Review the change" }));
+    expect(within(panel).getByText("Bikes: 7 → 9")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Save the change" }));
 
     await waitFor(() => expect(client.transport.rows().find((r) => r.id === STATIONS[1].id)?.bikes).toBe(9));
   });
 
-  it("a type without a location or a write grant gets no map and no edit button", async () => {
+  it("a type without a location or a write grant gets no map, and its panel no edit button", async () => {
     app();
     fireEvent.click(await screen.findByRole("button", { name: "Note" }));
 
     const page = screen.getByRole("region", { name: "Note" });
     fireEvent.click(await within(page).findByText("check the lock"));
     expect(within(page).queryByTestId("jc-map")).not.toBeInTheDocument();
-    expect(within(page).getByRole("heading", { name: "check the lock" })).toBeInTheDocument();
-    expect(within(page).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    const panel = await screen.findByRole("dialog");
+    expect(await within(panel).findByText("check the lock")).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
 });
 
@@ -149,7 +155,7 @@ describe("template over several endpoints", () => {
           return slug && grants[slug] ? { status: 200, body: grants[slug] } : null;
         },
       },
-      { appName: "bikes", endpoints: endpoints.map((e) => ({ ...e, slug: e.name, space: "demo" })) },
+      { appName: "bikes", user: PERSON, endpoints: endpoints.map((e) => ({ ...e, slug: e.name, space: "demo" })) },
     );
     render(
       <JcProvider client={client}>
@@ -167,7 +173,8 @@ describe("template over several endpoints", () => {
     const page = screen.getByRole("region", { name: "Station" });
     fireEvent.click(await within(page).findByText("Kallio"));
     // Endpoint a grants no write; b does, and b serves Station.
-    expect(await within(page).findByRole("button", { name: "Edit" })).toBeInTheDocument();
+    const panel = await screen.findByRole("dialog", { name: "Kallio" });
+    expect(await within(panel).findByRole("button", { name: "Edit" })).toBeInTheDocument();
     const paths = client.transport.calls.map((call) => call.path);
     expect(paths.some((path) => path.startsWith("/api/endpoint/b/ngsi-ld/v1/entities?") && path.includes("type=Station"))).toBe(true);
     expect(paths.some((path) => path.startsWith("/api/endpoint/a/ngsi-ld/v1/entities?") && path.includes("type=Station"))).toBe(false);

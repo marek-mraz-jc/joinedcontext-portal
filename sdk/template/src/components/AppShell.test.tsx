@@ -63,7 +63,7 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "Second" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("navigate() switches page via custom event", () => {
+  it("navigate() opens a page through the address the shell follows", async () => {
     const client = stubClient();
     const pages = [
       { id: "home", label: "Home", render: () => <div>Home View</div> },
@@ -77,12 +77,11 @@ describe("AppShell", () => {
     );
 
     expect(screen.getByText("Home View")).toBeInTheDocument();
-
     act(() => {
       navigate("detail");
     });
-
-    expect(screen.getByText("Detail View")).toBeInTheDocument();
+    expect(await screen.findByText("Detail View")).toBeInTheDocument();
+    expect(window.location.hash).toBe("#/detail");
   });
 
   it("a throwing page shows Problem with Retry and the other pages still work", () => {

@@ -142,6 +142,10 @@ async fn serve(
                     if let Some(url) = crate::api::basemap::style_url(&state.config, &project) {
                         config["basemap"] = serde_json::Value::String(url);
                     }
+                    // Where the entity panel links an entity the reader may not edit here (SDK-40).
+                    if let Some(portal) = portal_of(&state.config.public_base_url, &project) {
+                        config["portal"] = serde_json::Value::String(portal);
+                    }
                     with_config(&html, &config).into_bytes()
                 }
                 Err(raw) => raw.into_bytes(),
@@ -420,6 +424,14 @@ pub(crate) fn served_endpoints(
         unique.truncate(MAX_ENDPOINTS);
     }
     unique
+}
+
+/// The Portal's page of the App's project, which the SDK's entity panel links an entity to
+/// (SDK-40): only over https, the one scheme the SDK takes for it, and never with a token or a
+/// person in it.
+pub(super) fn portal_of(base: &url::Url, project: &str) -> Option<String> {
+    (base.scheme() == "https")
+        .then(|| format!("{}/projects/{project}", base.as_str().trim_end_matches('/')))
 }
 
 /// The index with its `#jc-config` element, first thing in the head so it is the one
@@ -750,6 +762,22 @@ pub fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_entity_panel_links_to_the_project_in_the_portal_over_https_only() {
+        let base = url::Url::parse("https://portal.dev.example.org/").expect("url");
+        assert_eq!(
+            portal_of(&base, "helsinki").as_deref(),
+            Some("https://portal.dev.example.org/projects/helsinki")
+        );
+        let prefixed = url::Url::parse("https://dev.example.org/portal/").expect("url");
+        assert_eq!(
+            portal_of(&prefixed, "helsinki").as_deref(),
+            Some("https://dev.example.org/portal/projects/helsinki")
+        );
+        let plain = url::Url::parse("http://localhost:8080/").expect("url");
+        assert_eq!(portal_of(&plain, "helsinki"), None);
+    }
     use super::*;
     use jc_core::kinds::ContentSecurityPolicy;
 

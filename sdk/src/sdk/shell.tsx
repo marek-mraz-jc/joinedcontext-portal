@@ -1,0 +1,168 @@
+import { Component, useEffect, useState, type ReactNode } from "react";
+import { ProblemError } from "./client";
+import { useClient, useMe } from "./hooks";
+import { EntityPanel, EntitySelectionProvider } from "./panel";
+import { reportError } from "./report";
+import { sdkLanguage, sdkWord } from "./words";
+
+/**
+ * The one shell of every App (SDK-39): the title, the pages, the language switch, the reader's
+ * name, and the loading, empty and error states in the same words and look everywhere. It holds
+ * the entity selection, so any map, table, chart or card of a page opens the one entity panel.
+ */
+
+export interface ShellPage {
+  id: string;
+  label: string;
+  render: () => ReactNode;
+}
+
+export interface ShellLanguage {
+  code: string;
+  label: string;
+}
+
+function initialPage(pages: ShellPage[], initial?: string): string {
+  const fromHash = typeof window !== "undefined" ? window.location.hash.replace(/^#\/?/, "").split("?")[0] : "";
+  if (pages.some((page) => page.id === fromHash)) return fromHash;
+  if (initial && pages.some((page) => page.id === initial)) return initial;
+  return pages[0]?.id ?? "";
+}
+
+export function AppShell({
+  title,
+  pages,
+  actions,
+  initial,
+  languages,
+  language,
+  onLanguage,
+}: {
+  title: string;
+  pages: ShellPage[];
+  actions?: ReactNode;
+  initial?: string;
+  /** The languages the App speaks; the switch shows when there are two or more. */
+  languages?: ShellLanguage[];
+  language?: string;
+  onLanguage?: (code: string) => void;
+}): React.JSX.Element {
+  const client = useClient();
+  const user = useMe();
+  const words = sdkLanguage(language ?? client.config.language);
+  const [active, setActive] = useState(() => initialPage(pages, initial));
+
+  useEffect(() => {
+    // Native controls follow the reader's light or dark system.
+    document.documentElement.style.colorScheme = "light dark";
+    const onHash = () => {
+      const id = window.location.hash.replace(/^#\/?/, "").split("?")[0];
+      if (pages.some((page) => page.id === id)) setActive(id);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, [pages]);
+
+  const open = (id: string) => {
+    setActive(id);
+    try {
+      window.history.replaceState(null, "", `#/${id}`);
+    } catch {
+      // A sandboxed preview may refuse; the page still changes.
+    }
+  };
+
+  const page = pages.find((candidate) => candidate.id === active) ?? pages[0];
+
+  return (
+    <EntitySelectionProvider>
+      <div className="jc-shell">
+        <header className="jc-header">
+          <h1>{title}</h1>
+          {pages.length > 1 && (
+            <nav aria-label={sdkWord(words, "nav.label")}>
+              {pages.map((candidate) => (
+                <button key={candidate.id} type="button" aria-current={candidate.id === page?.id ? "page" : undefined} onClick={() => open(candidate.id)}>
+                  {candidate.label}
+                </button>
+              ))}
+            </nav>
+          )}
+          {languages && languages.length > 1 && onLanguage && (
+            <label className="jc-language">
+              <span>{sdkWord(words, "language.label")}</span>
+              <select value={language} onChange={(event) => onLanguage(event.target.value)}>
+                {languages.map((candidate) => (
+                  <option key={candidate.code} value={candidate.code}>
+                    {candidate.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {actions}
+          {user?.name && <span className="jc-user">{user.name}</span>}
+        </header>
+        <main className="jc-main">
+          {page ? <ErrorBoundary key={page.id}>{page.render()}</ErrorBoundary> : <Empty>{sdkWord(words, "nav.none")}</Empty>}
+        </main>
+        <EntityPanel />
+      </div>
+    </EntitySelectionProvider>
+  );
+}
+
+function useWords() {
+  const client = useClient();
+  return sdkLanguage(client.config.language);
+}
+
+export function Loading({ label }: { label?: string }): React.JSX.Element {
+  const words = useWords();
+  return (
+    <div className="jc-loading" role="status" aria-live="polite">
+      {label ?? sdkWord(words, "state.loading")}
+    </div>
+  );
+}
+
+export function Empty({ children }: { children?: ReactNode }): React.JSX.Element {
+  const words = useWords();
+  return <p className="jc-empty">{children ?? sdkWord(words, "state.empty")}</p>;
+}
+
+/** An error in words a person can act on: the problem's title and detail, and a retry when there is one. */
+export function Problem({ error, onRetry }: { error: ProblemError | Error | null | undefined; onRetry?: () => void }): React.JSX.Element | null {
+  const words = useWords();
+  if (!error) return null;
+  const title = error instanceof ProblemError ? error.title : error.message;
+  const detail = error instanceof ProblemError && error.detail && error.detail !== error.title ? error.detail : undefined;
+  return (
+    <div className="jc-problem" role="alert">
+      <strong>{title}</strong>
+      {detail && <p>{detail}</p>}
+      {onRetry && (
+        <button type="button" onClick={onRetry}>
+          {sdkWord(words, "state.retry")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** A page that throws shows the problem and a retry instead of a blank App, and is reported. */
+export class ErrorBoundary extends Component<{ children?: ReactNode }, { error: Error | null }> {
+  override state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error };
+  }
+
+  override componentDidCatch(error: Error): void {
+    reportError(error);
+  }
+
+  override render(): ReactNode {
+    return this.state.error ? <Problem error={this.state.error} onRetry={() => this.setState({ error: null })} /> : this.props.children;
+  }
+}

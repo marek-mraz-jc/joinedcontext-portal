@@ -34,7 +34,12 @@ const READINGS: Row[] = [
 
 describe("the template on the helsinki air-quality endpoint", () => {
   it("renders the type page with map, time series, table and label from the committed schema alone", async () => {
-    const client = stubClient({ entities: READINGS, schema: helsinki.definitions as unknown as Schema, functions: { summary: () => ({ types: [] }) } });
+    // A signed-in steward whose grants allow the write: the panel offers Edit (SDK-40).
+    const access = { permissions: [{ resource: { type: "*" }, actions: ["queryEntity", "retrieveEntity", "updateAttrs"], attributes: "*" as const }], prohibitions: [] };
+    const client = stubClient(
+      { entities: READINGS, schema: helsinki.definitions as unknown as Schema, access, functions: { summary: () => ({ types: [] }) } },
+      { user: { id: "u1", name: "Aino", roles: ["steward"] } },
+    );
     render(
       <JcProvider client={client}>
         <App />
@@ -52,12 +57,14 @@ describe("the template on the helsinki air-quality endpoint", () => {
     await waitFor(() => expect(echarts.init).toHaveBeenCalled());
 
     fireEvent.click(within(page).getByText("Leppävaara"));
-    expect(within(page).getByRole("heading", { name: "Leppävaara" })).toBeInTheDocument();
+    const panel = await screen.findByRole("dialog");
+    expect(await within(panel).findByText("Leppävaara")).toBeInTheDocument();
 
-    // Optional numbers are ["number", "null"] and the language map is an object in the schema.
-    fireEvent.click(within(page).getByRole("button", { name: "Edit" }));
-    expect(within(page).getByRole("spinbutton", { name: "temperature" })).toHaveValue(16);
-    expect(within(page).getByRole("textbox", { name: "stationName" })).toHaveValue("Leppävaara");
-    expect(within(page).getByRole("textbox", { name: "location" })).toHaveAttribute("placeholder", "lat, lon");
+    // Optional numbers are ["number", "null"] in the schema: an input with the value; the geometry
+    // is the Portal's, shown and not edited here.
+    fireEvent.click(await within(panel).findByRole("button", { name: "Edit" }));
+    expect(within(panel).getByLabelText("Temperature")).toHaveValue("16");
+    expect(within(panel).queryByLabelText("Location")).not.toBeInTheDocument();
+    expect(within(panel).getAllByText(/edited in the Portal/).length).toBeGreaterThan(0);
   });
 });
