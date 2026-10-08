@@ -12,9 +12,12 @@
  *
  * Above the table, the same records as charts with the statistics office's names (T-2966): the
  * table keeps the publisher's codes, because its filters ask the endpoint about those.
+ *
+ * It sits in the SDK's shell (SDK-39), and a record opens in the shell's entity panel (SDK-40),
+ * which offers Edit to a reader whose rights allow the note, on the note alone (README).
  */
 import { useMemo } from "react";
-import { endpointSource, EntityGrid, Header, Page, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, EntityGrid, Page, Problem, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import { recordRenderers } from "./cells";
 import { Overview } from "./Overview";
 import { gridConfig, notesOnly } from "./records";
@@ -24,13 +27,21 @@ export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
   const body = bodyOf(config.space);
+  const title = body ? s.title[body] : s.records;
+  return <AppShell title={title} pages={[{ id: "records", label: title, render: () => <Records /> }]} language={config.language} />;
+}
+
+function Records() {
+  const { config } = useClient();
+  const { select } = useEntitySelection();
+  const s = stringsFor(config.language);
+  const body = bodyOf(config.space);
   const language = config.language;
 
   // The endpoint of this application's own space, found by space and never by position: a
   // configuration that names another body's endpoint first must not decide whose rows are shown.
-  const slug = body
-    ? (config.endpoints?.find((candidate) => candidate.space === SPACE_OF[body])?.slug ?? config.slug)
-    : null;
+  const listed = body ? config.endpoints?.find((candidate) => candidate.space === SPACE_OF[body]) : undefined;
+  const slug = body ? (listed?.slug ?? config.slug) : null;
 
   const source = useMemo(
     () => (slug ? notesOnly(endpointSource(slug, transportFor(config), language), noteWords(s)) : null),
@@ -39,43 +50,43 @@ export default function App() {
     [slug, language],
   );
   const grid = useMemo(() => (slug ? gridConfig(slug, s.column) : null), [slug, s.column]);
+  const endpoint = listed?.name;
   const renderers = useMemo(
-    () => recordRenderers(s.locale.startsWith("sk") ? "sk" : "en", { locale: s.locale, showId: s.showId }),
-    [s.locale, s.showId],
+    () =>
+      recordRenderers(s.locale.startsWith("sk") ? "sk" : "en", { locale: s.locale, showId: s.showId, openRecord: s.openRecord }, (row) =>
+        select({ id: row.id, type: row.type, endpoint }),
+      ),
+    [s.locale, s.showId, s.openRecord, select, endpoint],
   );
 
   if (!body) {
     return (
-      <main>
-        <Page>
-          <p role="alert">{s.unknownSpace}</p>
-        </Page>
-      </main>
+      <Page>
+        <Problem error={new Error(s.unknownSpace)} />
+      </Page>
     );
   }
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title[body]} subtitle={s.subtitle[body]} />
-        {source && grid ? (
-          <>
-            <Overview body={body} source={source} s={s} />
-            <section className="records" aria-labelledby="records-title">
-              <h2 id="records-title">{s.records}</h2>
-              <div className="notes">
-                <p className="note">{s.recordsWhy}</p>
-                <p className="note">{s.readOnlyWhy}</p>
-                <p className="note">{s.noteWhy}</p>
-              </div>
-              <EntityGrid config={grid} source={source} labels={s.grid} renderers={renderers} />
-            </section>
-          </>
-        ) : (
-          <p role="alert">{s.noEndpoint}</p>
-        )}
-        <p className="source">{s.source[body]}</p>
-      </Page>
-    </main>
+    <Page>
+      <p className="subtitle">{s.subtitle[body]}</p>
+      {source && grid ? (
+        <>
+          <Overview body={body} source={source} s={s} />
+          <section className="records" aria-labelledby="records-title">
+            <h2 id="records-title">{s.records}</h2>
+            <div className="notes">
+              <p className="note">{s.recordsWhy}</p>
+              <p className="note">{s.readOnlyWhy}</p>
+              <p className="note">{s.noteWhy}</p>
+            </div>
+            <EntityGrid config={grid} source={source} labels={s.grid} renderers={renderers} />
+          </section>
+        </>
+      ) : (
+        <Problem error={new Error(s.noEndpoint)} />
+      )}
+      <p className="source">{s.source[body]}</p>
+    </Page>
   );
 }

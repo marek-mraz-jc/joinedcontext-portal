@@ -30,3 +30,25 @@ for (const view of ["the records", "a note under review"]) {
     });
   }
 }
+
+// T-3387, SDK-40: a record opened in the SDK's entity panel by its row's button, at a phone and a
+// laptop, light and dark. Nobody is signed in here, so the panel links to the Portal and offers no Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a record in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await page.getByRole("button", { name: "Otvoriť záznam" }).first().click();
+      const panel = page.getByRole("dialog");
+      await expect(panel.getByText("StatisticalObservation")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Otvoriť v Portáli" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Upraviť" })).toHaveCount(0);
+      expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
