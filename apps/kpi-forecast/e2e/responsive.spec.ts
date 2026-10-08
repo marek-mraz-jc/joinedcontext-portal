@@ -28,19 +28,42 @@ for (const scheme of ["light", "dark"] as const) {
   }
 }
 
+// SDK-40: the chosen indicator in the SDK's entity panel, at a phone and a laptop, light and dark.
+// A public App writes nothing, so the panel links to the indicator in the Portal instead of Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: an indicator in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { outside, missing, problems } = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en`);
+      await expect(page.locator(".app-summary")).toHaveText(/^4 indicators /);
+      await page.getByRole("button", { name: "Demo counter" }).click();
+      await page.getByRole("button", { name: "All details" }).click();
+      const panel = page.getByRole("dialog", { name: "Demo counter" });
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+
 test("a picked indicator and the period go into the address and come back from it", async ({ page }) => {
   await serve(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${BASE}?lang=en`);
   await expect(page.locator(".app-summary")).toHaveText(/^4 indicators /);
-  await page.getByRole("button", { name: /^Demo counter/ }).click();
+  await page.getByRole("button", { name: "Demo counter" }).click();
   await page.getByRole("combobox", { name: "Period" }).selectOption("7");
   await expect(page.locator(".app-summary")).toHaveText(/^4 indicators over the last 7 days/);
   const url = new URL(page.url());
   expect(url.searchParams.get("days")).toBe("7");
   expect(url.searchParams.get("kpi")).toMatch(/demo-counter-1$/);
   await page.reload();
-  await expect(page.getByRole("button", { name: /^Demo counter/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Demo counter" })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("no indicators says so instead of an empty page", async ({ page }) => {

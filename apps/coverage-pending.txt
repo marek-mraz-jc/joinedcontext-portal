@@ -24,7 +24,6 @@ helsinki-data T-3396
 helsinki-events T-3397
 helsinki-kartta T-3398
 hsl-transport T-3399
-kpi-forecast T-3400
 news-topics T-3401
 praha-data T-3402
 praha-mapa T-3403

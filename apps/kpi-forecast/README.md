@@ -12,7 +12,10 @@ Every indicator of Helsinki's `helsinki-kpi` space on one page:
 - the period (7, 30 or 90 days), "only indicators with odd readings" and the chosen indicator in
   the address, so a view is a link (`?kpi=urn:…&days=7&odd=1&lang=en`).
 
-Finnish or English (`?lang=fi|en`, else the browser's language); the indicators' names are the
+The page sits in the SDK's shell (SDK-39), and "All details" opens the chosen indicator in the
+SDK's entity panel (SDK-40), which links it to the Portal: a public App writes nothing.
+
+Finnish or English (`?lang=fi|en`, else the browser's language, switched in the shell); the indicators' names are the
 pipelines' own, in English. Light and dark follow the reader's system. Times are Helsinki's.
 
 ## How it is built
@@ -41,7 +44,7 @@ pnpm wasm          # cargo build --target wasm32-unknown-unknown, then wasm-bind
 (cd wasm && cargo test)
 pnpm test          # vitest, with the compiled module run in-process
 pnpm build
-pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe
+pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe, the panel
 ```
 
 `pnpm wasm` comes first: the tests, the type check and the build import `wasm/pkg/`. The build lane

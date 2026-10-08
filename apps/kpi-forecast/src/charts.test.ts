@@ -52,4 +52,16 @@ describe("the indicator's chart", () => {
     expect(text).toBe("3 Oct 2030, 12:00<br/>●Measured: 3,848<br/>○Model: 3,800");
     expect(tooltipOf([], "fi")).toBe("");
   });
+
+  it("writes its axes and tooltip in the language and Helsinki's time", () => {
+    const option = detailOption(result({}), "fi") as {
+      tooltip: { formatter: (p: unknown) => string };
+      xAxis: { axisLabel: { formatter: (ms: number) => string } };
+      yAxis: { axisLabel: { formatter: (v: number) => string } };
+    };
+    const at = Date.UTC(2030, 9, 3, 9, 0);
+    expect(option.xAxis.axisLabel.formatter(at)).toBe("3.10.");
+    expect(option.yAxis.axisLabel.formatter(3848)).toBe("3\u00a0848");
+    expect(option.tooltip.formatter([{ seriesName: "Mitattu", marker: "", value: [at, 5.5] }])).toBe("3.10.2030 klo 12.00<br/>Mitattu: 5,5");
+  });
 });
