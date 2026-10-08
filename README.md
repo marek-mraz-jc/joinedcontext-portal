@@ -60,10 +60,13 @@ cd ui && pnpm lint && pnpm exec tsc -b && pnpm test -- --run
 ```
 
 `cargo test --lib --bins` does not run an integration test, and each one is its own binary.
-A change to a response shape needs the whole crate:
+A change to a response shape needs the whole crate. Its apps-database tests need a PostgreSQL 16
+whose user may create roles and databases, and fail without one rather than skip (AP-149):
 
 ```bash
-cargo test -p joinedcontext-portal
+docker run -d --rm --name jc-apps-db -e POSTGRES_PASSWORD=pw -p 5434:5432 postgres:16
+until docker exec jc-apps-db pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done
+JC_APPS_DB_TEST_URL=postgres://postgres:pw@127.0.0.1:5434/postgres cargo test -p joinedcontext-portal
 ```
 
 `pnpm exec tsc -b` rather than `tsc -p`: the project build covers `ui/tests` as well, and a
