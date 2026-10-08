@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { format, isLanguageMap } from "@joinedcontext/sdk";
+import { format } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 
 export interface ArticleInput {
@@ -46,14 +46,9 @@ export interface TopicsHookResult {
   error: Error | null;
 }
 
-/** A cell as text: a language map the SDK left unresolved gives its English, else its first value. */
+/** A cell as text; the SDK has already resolved a language map to the reader's language. */
 function textOf(cell: Row[string]): string {
-  if (isLanguageMap(cell)) {
-    const map = cell.languageMap as Record<string, unknown>;
-    const chosen = map.en ?? Object.values(map)[0];
-    return typeof chosen === "string" ? chosen.trim() : "";
-  }
-  return (format(cell) ?? "").trim();
+  return format(cell).trim();
 }
 
 /** Formats SDK rows into the typed input expected by the WASM topic clusterer; the module clamps k. */
