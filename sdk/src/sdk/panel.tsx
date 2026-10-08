@@ -4,7 +4,7 @@ import { optionLabel } from "../enums";
 import type { Cell, Row } from "../ngsi";
 import { fieldOf } from "../write";
 import type { Field, FieldSchema, Schema, TypeSchema } from "../write";
-import { ProblemError } from "./client";
+import { endpointsOf, ProblemError } from "./client";
 import { useAccess, useClient, useMe, useSchema } from "./hooks";
 import { sdkLanguage, sdkWord, type SdkLanguage, type SdkWord } from "./words";
 
@@ -198,7 +198,8 @@ function ClientPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element 
     load: () => client.entities.get(entity.id, undefined, { endpoint: entity.endpoint }),
     save: (patch) => client.entities.update(entity.id, patch, { endpoint: entity.endpoint }),
     mayEdit: (attr) => signedIn && can("updateAttrs", entity.type, attr).ok,
-    portal: portalLinkOf(client.config.portal, client.config.space, entity.id),
+    // The space the entity was read from: a named endpoint may serve another project's space.
+    portal: portalLinkOf(client.config.portal, endpointsOf(client.config).find((one) => one.name === entity.endpoint)?.space ?? client.config.space, entity.id),
     typeSchema,
     defs: schema,
     language: sdkLanguage(client.config.language),
