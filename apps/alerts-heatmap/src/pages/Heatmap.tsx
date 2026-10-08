@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Grid, Page, ProblemError, displayName, format, useEntities } from "@joinedcontext/sdk";
+import { Card, Empty, Grid, Loading, Page, ProblemError, displayName, format, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { useAnalysis } from "../analysis";
 import type { AnalysisOutput, Place } from "../analysis";
@@ -8,7 +8,6 @@ import type { ViewState } from "../alerts";
 import { cellOf, weekOption } from "../charts";
 import { ChartCard } from "../components/ChartCard";
 import { HexMap } from "../components/HexMap";
-import { Empty, Loading } from "../components/states";
 import { day, hourOfWeek, number, subCategory, t } from "../i18n";
 import type { Lang } from "../i18n";
 
@@ -62,6 +61,9 @@ export function Heatmap({ lang }: { lang: Lang }) {
 
   const unreadable =
     error instanceof ProblemError && error.status > 0 ? t(lang, "unreadableStatus", { status: error.status }) : t(lang, "unreadable");
+  // A repeat place opens its first alert in the SDK's panel (SDK-40); a hexagon is a count, not an entity.
+  const { select } = useEntitySelection();
+  const openPlace = (place: Place) => select({ id: place.ids[0], type: ALERT });
   const toggle = (kind: string) =>
     setView((current) => ({ ...current, kinds: current.kinds.includes(kind) ? current.kinds.filter((k) => k !== kind) : [...current.kinds, kind] }));
 
@@ -128,6 +130,7 @@ export function Heatmap({ lang }: { lang: Lang }) {
           hexes={output?.hexes ?? []}
           places={output?.places ?? []}
           label={t(lang, "map")}
+          onPlace={openPlace}
           describe={(what) =>
             what.kind === "hex"
               ? [t(lang, "hexLine", { count: number(lang, what.hex.count) })]
@@ -156,12 +159,17 @@ export function Heatmap({ lang }: { lang: Lang }) {
             <Empty>{t(lang, "placesEmpty")}</Empty>
           ) : (
             <ol className="app-places" aria-label={t(lang, "places")}>
-              {output.places.slice(0, 10).map((place) => (
-                <li key={place.ids.join(",")}>
-                  <strong>{placeName(place, byId) || `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`}</strong>
-                  <span>{t(lang, "placeLine", { count: number(lang, place.count), radius: number(lang, place.radius) })}</span>
-                </li>
-              ))}
+              {output.places.slice(0, 10).map((place) => {
+                const name = placeName(place, byId) || `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`;
+                return (
+                  <li key={place.ids.join(",")}>
+                    <button type="button" className="app-place" aria-label={t(lang, "open", { name })} onClick={() => openPlace(place)}>
+                      {name}
+                    </button>
+                    <span>{t(lang, "placeLine", { count: number(lang, place.count), radius: number(lang, place.radius) })}</span>
+                  </li>
+                );
+              })}
             </ol>
           )}
         </Card>

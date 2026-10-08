@@ -44,3 +44,24 @@ test("no alerts says so instead of an empty map", async ({ page }) => {
   await page.goto(`${BASE}?lang=en`);
   await expect(page.getByText("No alerts.")).toBeVisible();
 });
+
+// T-3377, SDK-40, AP-140: a repeat place's alert opened in the SDK's entity panel at a phone and a
+// laptop, light and dark. A public App: the panel reads it and links to it in the Portal, no Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a repeat place's alert in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { outside, missing, problems } = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en`);
+      await page.getByRole("button", { name: "Details of Mannerheimintie, Helsinki. Tietyö." }).click();
+      const panel = page.getByRole("dialog", { name: "Mannerheimintie, Helsinki. Tietyö." });
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toHaveAttribute("href", /entityId=urn%3Angsi-ld%3AAlert/);
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page)).toEqual([]);
+      await panel.getByRole("button", { name: "Close" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}

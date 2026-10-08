@@ -30,7 +30,7 @@ const WORDS = {
   to: { fi: "Päättyen", en: "To" },
   kinds: { fi: "Tyyppi", en: "Kind" },
   clear: { fi: "Tyhjennä valinnat", en: "Clear filters" },
-  language: { fi: "In English", en: "Suomeksi" },
+  open: { fi: "Tiedot: {name}", en: "Details of {name}" },
   map: { fi: "Kartta: tiedotteet kuusikulmioittain", en: "Map: alerts per hexagon" },
   mapLegend: { fi: "Värin tummuus: tiedotteiden määrä kuusikulmiossa. Ympyrä: toistuva paikka.", en: "Darker colour: more alerts in the hexagon. Circle: a place alerts keep coming back to." },
   onMap: { fi: "{n} kuusikulmiota kartalla", en: "{n} hexagons on the map" },

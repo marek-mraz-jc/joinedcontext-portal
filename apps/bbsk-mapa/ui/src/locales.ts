@@ -18,21 +18,7 @@ export interface Strings {
   mapLabel: string;
   noBasemap: string;
   notOnMap: string;
-  close: string;
-  detailOf: (name: string) => string;
   unnamed: string;
-  address: string;
-  district: string;
-  website: string;
-  category: Record<Kind, string>;
-  values: Record<string, string>;
-  operator: string;
-  specialties: string;
-  serviceKind: string;
-  targetGroup: string;
-  capacity: string;
-  provider: string;
-  noValue: string;
   attribution: string;
 }
 
@@ -53,36 +39,7 @@ const sk: Strings = {
   mapLabel: "Mapa miest; rovnaké miesta sú v zozname vedľa mapy",
   noBasemap: "Podkladová mapa nie je nastavená, miesta sú zobrazené na prázdnom pozadí.",
   notOnMap: "bez polohy, iba v zozname",
-  close: "Zavrieť",
-  detailOf: (name) => `Detail: ${name}`,
   unnamed: "Bez názvu",
-  address: "Adresa",
-  district: "Okres",
-  website: "Webová stránka",
-  category: { hospital: "Druh nemocnice", social: "Forma služby", organization: "Oblasť" },
-  values: {
-    general: "všeobecná nemocnica",
-    specialised: "špecializovaná nemocnica",
-    field: "terénna",
-    outpatient: "ambulantná",
-    residentialYearRound: "pobytová, celoročná",
-    residentialWeekly: "pobytová, týždenná",
-    remote: "na diaľku",
-    school: "školstvo",
-    socialCare: "sociálna starostlivosť",
-    culture: "kultúra",
-    office: "úrad",
-    municipality: "obec alebo mesto",
-    municipalityFounded: "založená obcou alebo mestom",
-    regionFounded: "založená krajom",
-  },
-  operator: "Prevádzkovateľ",
-  specialties: "Odbornosti",
-  serviceKind: "Druh služby",
-  targetGroup: "Pre koho",
-  capacity: "Kapacita (miest)",
-  provider: "Poskytovateľ",
-  noValue: "neuvedené",
   attribution:
     "Zdroj: Banskobystrický samosprávny kraj — zoznam zdravotníckych zariadení (nemocnice), zoznam verejných poskytovateľov sociálnych služieb a organizácie v jeho zriaďovateľskej pôsobnosti; cez verejný priestor bbsk-registre.",
 };
@@ -104,36 +61,7 @@ const en: Strings = {
   mapLabel: "Map of the places; the same places are in the list beside the map",
   noBasemap: "No base map is configured, so the places are drawn on a plain background.",
   notOnMap: "no position, in the list only",
-  close: "Close",
-  detailOf: (name) => `Details: ${name}`,
   unnamed: "Unnamed",
-  address: "Address",
-  district: "District",
-  website: "Website",
-  category: { hospital: "Kind of hospital", social: "Form of service", organization: "Area" },
-  values: {
-    general: "general hospital",
-    specialised: "specialised hospital",
-    field: "where the person lives",
-    outpatient: "the person comes to it",
-    residentialYearRound: "residential, all year",
-    residentialWeekly: "residential, weekly",
-    remote: "remote",
-    school: "education",
-    socialCare: "social care",
-    culture: "culture",
-    office: "office",
-    municipality: "a municipality or town",
-    municipalityFounded: "founded by a municipality or town",
-    regionFounded: "founded by the region",
-  },
-  operator: "Operator",
-  specialties: "Specialties",
-  serviceKind: "Kind of service",
-  targetGroup: "For whom",
-  capacity: "Capacity (places)",
-  provider: "Provider",
-  noValue: "not given",
   attribution:
     "Source: Banská Bystrica Self-Governing Region — its list of health-care facilities (hospitals), of public social-service providers and of the organizations it founded; through the public space bbsk-registre.",
 };
