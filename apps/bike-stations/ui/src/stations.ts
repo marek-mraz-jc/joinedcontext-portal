@@ -13,9 +13,6 @@ export interface Station {
   coordinates: [number, number] | null;
   bikes: number | null;
   docks: number | null;
-  capacity: number | null;
-  status: string | null;
-  updatedAt: string | null;
 }
 
 /** How a station stands right now: the colour and the shape tell it without colour too. */
@@ -68,9 +65,6 @@ export function stationOf(row: RichRow, locale: string): Station {
     coordinates: point(row),
     bikes: count(row, "availableBikeNumber"),
     docks: count(row, "freeSlotNumber"),
-    capacity: count(row, "totalSlotNumber"),
-    status: text(row, "status"),
-    updatedAt: text(row, "dateModified"),
   };
 }
 

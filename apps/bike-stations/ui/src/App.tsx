@@ -5,13 +5,16 @@
  * reads and never writes, and holds no token of its own (AP-28).
  *
  * A map is not readable by a screen reader or a keyboard, so the same stations are a list beside
- * it; the list is the screen and the map is the picture of it.
+ * it; the list is the screen and the map is the picture of it. It sits in the SDK's shell (SDK-39),
+ * and a station picked in the list or on the map opens in the shell's entity panel (SDK-40), read
+ * fresh through the shared endpoint; the App writes nothing, so the panel links it to the Portal.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { endpointSource, Header, Page, SourceError, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, Empty, endpointSource, Loading, Page, Problem, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import type { EntitySource } from "@joinedcontext/sdk";
 import { byName, featuresOf, matches, STANDING_COLOUR, STANDING_SHAPE, standingOf, stationOf, totals, TYPE } from "./stations";
 import type { Station } from "./stations";
 import { stringsFor } from "./locales";
@@ -26,25 +29,36 @@ export const MOST = 2000;
 const CENTRE: [number, number] = [24.9384, 60.1699];
 const SOURCE_ID = "stations";
 
-type Load =
+export type Load =
   | { status: "loading" }
   | { status: "ready"; stations: Station[]; truncated: boolean }
   | { status: "failed"; reason: string };
 
 /** The endpoint of the shared stations, found by its space and never by position (AP-04). */
-function useStationsSlug(): string | null {
+function useStationsEndpoint(): { slug: string; name: string } | null {
   const { config } = useClient();
-  return config.endpoints?.find((candidate) => candidate.space === SHARED_SPACE)?.slug ?? null;
+  return config.endpoints?.find((candidate) => candidate.space === SHARED_SPACE) ?? null;
 }
 
+/** A refusal's words (a `SourceError` is an `Error`), else whatever was thrown. */
 function reasonOf(cause: unknown): string {
-  if (cause instanceof SourceError) return cause.message;
   return cause instanceof Error ? cause.message : String(cause);
+}
+
+/** Every station of the shared endpoint, page by page up to `MOST`. */
+export async function loadStations(source: EntitySource, locale: string): Promise<Load> {
+  const stations: Station[] = [];
+  for (let offset = 0; offset < MOST; offset += PAGE) {
+    const page = await source.query({ type: TYPE }, { offset, limit: PAGE });
+    stations.push(...page.rows.map((row) => stationOf(row, locale)));
+    if (page.rows.length < PAGE) return { status: "ready", stations, truncated: false };
+  }
+  return { status: "ready", stations, truncated: true };
 }
 
 export function useStations(): Load | null {
   const { config } = useClient();
-  const slug = useStationsSlug();
+  const slug = useStationsEndpoint()?.slug ?? null;
   const language = config.language ?? "en";
   const [load, setLoad] = useState<Load>({ status: "loading" });
 
@@ -53,15 +67,7 @@ export function useStations(): Load | null {
     let live = true;
     setLoad({ status: "loading" });
     const source = endpointSource(slug, transportFor(config), language);
-    (async (): Promise<Load> => {
-      const stations: Station[] = [];
-      for (let offset = 0; offset < MOST; offset += PAGE) {
-        const page = await source.query({ type: TYPE }, { offset, limit: PAGE });
-        stations.push(...page.rows.map((row) => stationOf(row, language.slice(0, 2))));
-        if (page.rows.length < PAGE) return { status: "ready", stations, truncated: false };
-      }
-      return { status: "ready", stations, truncated: true };
-    })()
+    loadStations(source, language.slice(0, 2))
       .catch((cause: unknown): Load => ({ status: "failed", reason: reasonOf(cause) }))
       .then((next) => {
         if (live) setLoad(next);
@@ -79,108 +85,99 @@ export function useStations(): Load | null {
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  return <AppShell title={s.title} pages={[{ id: "stations", label: s.title, render: () => <Stations /> }]} language={config.language} />;
+}
+
+function Stations() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
   const load = useStations();
+  const endpoint = useStationsEndpoint()?.name;
+  const { selected, select } = useEntitySelection();
   const [search, setSearch] = useState("");
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  const listRef = useRef<HTMLUListElement | null>(null);
+  const pickedId = selected?.id ?? null;
 
   const all = useMemo(() => (load?.status === "ready" ? load.stations : []), [load]);
   const visible = useMemo(() => all.filter((station) => matches(station, search)).sort(byName), [all, search]);
-  const picked = visible.find((station) => station.id === pickedId) ?? null;
   const sum = totals(all);
-
-  const close = () => {
-    const id = pickedId;
-    setPickedId(null);
-    // Focus goes back to the station in the list the person came from, never to the top.
-    requestAnimationFrame(() => {
-      const items = listRef.current?.querySelectorAll<HTMLButtonElement>("button[data-id]") ?? [];
-      Array.from(items).find((item) => item.dataset.id === id)?.focus();
-    });
-  };
+  // A station opens in the shell's panel, which gives the focus back to what opened it on close.
+  const pick = (id: string) => select({ id, type: TYPE, endpoint });
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page>
+      <p className="subtitle">{s.subtitle}</p>
 
-        {load === null && <p role="status">{s.noEndpoint}</p>}
-        {load?.status === "loading" && <p role="status">{s.loading}</p>}
-        {load?.status === "failed" && (
-          <p role="alert" className="failed">
-            {s.refused(load.reason)}
+      {load === null && <Empty>{s.noEndpoint}</Empty>}
+      {load?.status === "loading" && <Loading label={s.loading} />}
+      {load?.status === "failed" && <Problem error={new Error(s.refused(load.reason))} />}
+      {load?.status === "ready" && (
+        <>
+          <p className="totals" role="status">
+            {s.totals(all.length, sum.bikes, sum.docks)}
           </p>
-        )}
-        {load?.status === "ready" && (
-          <>
-            <p className="totals" role="status">
-              {s.totals(all.length, sum.bikes, sum.docks)}
-            </p>
-            {load.truncated && <p className="note">{s.truncated(MOST)}</p>}
-            <div className="controls">
-              <div className="search">
-                <label htmlFor="search">{s.search}</label>
-                <input
-                  id="search"
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  aria-describedby="search-help"
-                />
-                <small id="search-help">{s.searchHelp}</small>
-              </div>
-              <ul className="legend" aria-label={s.status}>
-                {(["available", "empty", "full", "unknown"] as const).map((standing) => (
-                  <li key={standing}>
-                    <span aria-hidden="true" className="shape" style={{ color: STANDING_COLOUR[standing] }}>
-                      {STANDING_SHAPE[standing]}
-                    </span>
-                    {s.standing[standing]}
-                  </li>
-                ))}
-              </ul>
+          {load.truncated && <p className="note">{s.truncated(MOST)}</p>}
+          <div className="controls">
+            <div className="search">
+              <label htmlFor="search">{s.search}</label>
+              <input
+                id="search"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                aria-describedby="search-help"
+              />
+              <small id="search-help">{s.searchHelp}</small>
             </div>
+            <ul className="legend" aria-label={s.status}>
+              {(["available", "empty", "full", "unknown"] as const).map((standing) => (
+                <li key={standing}>
+                  <span aria-hidden="true" className="shape" style={{ color: STANDING_COLOUR[standing] }}>
+                    {STANDING_SHAPE[standing]}
+                  </span>
+                  {s.standing[standing]}
+                </li>
+              ))}
+            </ul>
+          </div>
 
-            <div className="map-screen">
-              <StationMap stations={visible} picked={pickedId} onPick={setPickedId} s={s} />
-              <div className="side">
-                {picked ? <StationSheet station={picked} onClose={close} s={s} /> : null}
-                <section className="results" aria-labelledby="results-heading">
-                  <h2 id="results-heading">{s.results(visible.length)}</h2>
-                  {visible.length === 0 ? <p>{s.noResults}</p> : null}
-                  <ul ref={listRef}>
-                    {visible.map((station) => {
-                      const standing = standingOf(station);
-                      return (
-                        <li key={station.id}>
-                          <button
-                            type="button"
-                            data-id={station.id}
-                            aria-pressed={station.id === pickedId}
-                            onClick={() => setPickedId(station.id)}
-                          >
-                            <span aria-hidden="true" className="shape" style={{ color: STANDING_COLOUR[standing] }}>
-                              {STANDING_SHAPE[standing]}
-                            </span>
-                            <span className="name">{station.name ?? s.unnamed}</span>
-                            <span className="sub">
-                              {s.bikesAndDocks(station.bikes, station.docks)} · {s.standing[standing]}
-                              {station.coordinates === null ? ` · ${s.notOnMap}` : ""}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              </div>
+          <div className="map-screen">
+            <StationMap stations={visible} picked={pickedId} onPick={pick} s={s} />
+            <div className="side">
+              <section className="results" aria-labelledby="results-heading">
+                <h2 id="results-heading">{s.results(visible.length)}</h2>
+                {visible.length === 0 ? <p>{s.noResults}</p> : null}
+                <ul>
+                  {visible.map((station) => {
+                    const standing = standingOf(station);
+                    return (
+                      <li key={station.id}>
+                        <button
+                          type="button"
+                          data-id={station.id}
+                          aria-pressed={station.id === pickedId}
+                          onClick={() => pick(station.id)}
+                        >
+                          <span aria-hidden="true" className="shape" style={{ color: STANDING_COLOUR[standing] }}>
+                            {STANDING_SHAPE[standing]}
+                          </span>
+                          <span className="name">{station.name ?? s.unnamed}</span>
+                          <span className="sub">
+                            {s.bikesAndDocks(station.bikes, station.docks)} · {s.standing[standing]}
+                            {station.coordinates === null ? ` · ${s.notOnMap}` : ""}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
             </div>
-          </>
-        )}
+          </div>
+        </>
+      )}
 
-        <p className="source">{s.attribution}</p>
-      </Page>
-    </main>
+      <p className="source">{s.attribution}</p>
+    </Page>
   );
 }
 
@@ -203,6 +200,9 @@ function StationMap({
   const collection = useMemo(() => featuresOf(stations, picked), [stations, picked]);
   const latest = useRef(collection);
   latest.current = collection;
+  // The click handler is bound once with the map; it opens what the latest render knows.
+  const latestPick = useRef(onPick);
+  latestPick.current = onPick;
 
   useEffect(() => {
     if (!holder.current || map.current) return;
@@ -224,7 +224,7 @@ function StationMap({
     });
     drawn.on("click", SOURCE_ID, (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
       const id = event.features?.[0]?.properties?.id;
-      if (typeof id === "string") onPick(id);
+      if (typeof id === "string") latestPick.current(id);
     });
     map.current = drawn;
     return () => {
@@ -247,61 +247,4 @@ function StationMap({
       {!basemap && <p className="jc-map-notice">{s.noBasemap}</p>}
     </div>
   );
-}
-
-/** One station whole: a bottom sheet on a phone, a panel beside the list on a wider screen. */
-function StationSheet({ station, onClose, s }: { station: Station; onClose: () => void; s: Strings }) {
-  const heading = useRef<HTMLHeadingElement | null>(null);
-  useEffect(() => {
-    heading.current?.focus();
-  }, [station.id]);
-  const name = station.name ?? s.unnamed;
-  const standing = standingOf(station);
-  const shown = (value: number | null) => (value === null ? s.noValue : String(value));
-  return (
-    <section
-      className="sheet"
-      aria-labelledby="sheet-heading"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <div className="sheet-head">
-        <h2 id="sheet-heading" ref={heading} tabIndex={-1}>
-          {s.detailOf(name)}
-        </h2>
-        <button type="button" onClick={onClose}>
-          {s.close}
-        </button>
-      </div>
-      <p className="sub">
-        <span aria-hidden="true" style={{ color: STANDING_COLOUR[standing] }}>
-          {STANDING_SHAPE[standing]}
-        </span>{" "}
-        {s.standing[standing]}
-      </p>
-      <dl>
-        <dt>{s.freeBikes}</dt>
-        <dd>{shown(station.bikes)}</dd>
-        <dt>{s.freeDocks}</dt>
-        <dd>{shown(station.docks)}</dd>
-        <dt>{s.capacity}</dt>
-        <dd>{shown(station.capacity)}</dd>
-        <dt>{s.status}</dt>
-        <dd>{station.status ?? s.noValue}</dd>
-        <dt>{s.updated}</dt>
-        <dd>{station.updatedAt ? moment(station.updatedAt, s) : s.noValue}</dd>
-      </dl>
-    </section>
-  );
-}
-
-function moment(iso: string, s: Strings): string {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime())
-    ? iso
-    : new Intl.DateTimeFormat(s.locale, { dateStyle: "medium", timeStyle: "short" }).format(at);
 }

@@ -4,19 +4,23 @@
  * `fetch` is what is stubbed, so every case goes through the SDK's own endpoint source. MapLibre
  * needs WebGL, which jsdom does not have, so the library is a double recording what it was given.
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
-import { JcProvider } from "@joinedcontext/sdk";
+import { JcProvider, projectRow, toRichRow } from "@joinedcontext/sdk";
+import type { EntitySource } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 
 const setData = vi.fn();
+/** What the map does on a click of a drawn station, as MapLibre would call it. */
+let clickStation: ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null = null;
 
 vi.mock("maplibre-gl", () => {
   class Map {
-    on(event: string, handler: () => void) {
-      if (event === "load") handler();
+    on(event: string, layerOrHandler: unknown, handler?: (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) {
+      if (event === "load" && typeof layerOrHandler === "function") layerOrHandler();
+      if (event === "click" && handler) clickStation = handler;
     }
     addSource = vi.fn();
     addLayer = vi.fn();
@@ -27,8 +31,9 @@ vi.mock("maplibre-gl", () => {
 });
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 
-const App = (await import("./App")).default;
+const { default: App, loadStations, MOST } = await import("./App");
 const { answer } = await import("./fixtures/bikes");
+const STATIONS = answer("BikeHireDockingStation") as Array<Record<string, unknown> & { id: string }>;
 const { LOCALES } = await import("./locales");
 const s = LOCALES.en;
 
@@ -50,7 +55,8 @@ function show({ refuse = false, endpoints = [OWN, SHARED], language = "en" } = {
     return json(answer(new URL(path, "http://portal.test").searchParams.get("type")));
   });
   vi.stubGlobal("fetch", fetch);
-  const client = stubClient(undefined, {
+  // The list reads through `fetch`, the entity panel through the client: the same stations on both.
+  const client = stubClient({ entities: STATIONS.map((station) => projectRow(toRichRow(station, "en"), "en")) }, {
     slug: OWN.slug,
     orgDomain: "hel.fi",
     space: "mobility",
@@ -58,6 +64,7 @@ function show({ refuse = false, endpoints = [OWN, SHARED], language = "en" } = {
     appName: "bike-stations",
     language,
     endpoints,
+    portal: "https://portal.hel.fi/projects/helsinki-mobility",
   });
   return {
     fetch,
@@ -74,7 +81,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const results = () => screen.getByRole("region", { name: /station/ });
+const results = () => screen.getByRole("region", { name: /station|asem/ });
 const names = () => within(results()).queryAllByRole("button").map((button) => button.querySelector(".name")?.textContent);
 
 describe("the city bike stations of the mobility project", () => {
@@ -111,17 +118,48 @@ describe("the city bike stations of the mobility project", () => {
     expect(within(results()).getByText(s.noResults)).toBeInTheDocument();
   });
 
-  it("opens a station as a sheet, says what it does not report, and Escape returns to the list", async () => {
+  it("opens a station from the list in the SDK's panel, read through the shared endpoint and linked to its space", async () => {
     show();
     await waitFor(() => expect(names()).toContain("Sompasaari"));
     const item = within(results()).getByRole("button", { name: /Sompasaari/ });
     await userEvent.click(item);
-    const sheet = screen.getByRole("region", { name: s.detailOf("Sompasaari") });
-    expect(within(sheet).getByText("closed")).toBeInTheDocument();
-    expect(within(sheet).getAllByText(s.noValue)).toHaveLength(4);
+    expect(item).toHaveAttribute("aria-pressed", "true");
+    const panel = await screen.findByRole("dialog", { name: "Sompasaari" });
+    expect(await within(panel).findByText("closed")).toBeInTheDocument();
+    const link = within(panel).getByRole("link", { name: "Open in the Portal" });
+    // The station is the helsinki project's: the link names that space, not the App's own.
+    expect(link.getAttribute("href")).toContain("space=helsinki&");
+    expect(within(panel).queryByRole("button", { name: "Edit" })).toBeNull();
     await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("region", { name: s.detailOf("Sompasaari") })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(item).toHaveFocus());
+  });
+
+  it("opens a station clicked on the map, and ignores a click on nothing", async () => {
+    show();
+    await waitFor(() => expect(names()).toContain("Kaivopuisto"));
+    act(() => clickStation?.({ features: [] }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    act(() => clickStation?.({ features: [{ properties: { id: STATIONS[0].id } }] }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["en", "Close", "Open in the Portal"],
+    ["fi", "Sulje", "Avaa portaalissa"],
+  ] as const)("in %s, opens every station of the list and searches it", async (language, close, portal) => {
+    show({ language });
+    await waitFor(() => expect(names()).toHaveLength(5));
+    for (const button of within(results()).getAllByRole("button")) {
+      fireEvent.click(button);
+      const panel = await screen.findByRole("dialog");
+      const link = within(panel).getByRole("link", { name: portal });
+      link.addEventListener("click", (event) => event.preventDefault());
+      fireEvent.click(link);
+      fireEvent.click(within(panel).getByRole("button", { name: close }));
+    }
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "kaivo" } });
+    expect(names()).toEqual(["Kaivopuisto"]);
   });
 
   it("says why the stations could not be read", async () => {
@@ -129,9 +167,46 @@ describe("the city bike stations of the mobility project", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(s.refused("the policy does not grant this type"));
   });
 
+  it("reads at most two thousand stations, page by page, and says when there are more", async () => {
+    const asked: number[] = [];
+    const page = (count: number) => Array.from({ length: count }, (_, at) => toRichRow({ ...STATIONS[0], id: `${STATIONS[0].id}-${at}` }));
+    const full = { query: async (_q: unknown, at: { offset: number; limit: number }) => (asked.push(at.offset), { rows: page(at.limit) }) } as unknown as EntitySource;
+    const loaded = await loadStations(full, "en");
+    expect(asked).toHaveLength(MOST / 200);
+    expect(loaded).toMatchObject({ status: "ready", truncated: true });
+    expect(LOCALES.en.truncated(MOST)).toContain(String(MOST));
+    expect(LOCALES.fi.truncated(MOST)).toContain(String(MOST));
+  });
+
+  it("says a failure that is no endpoint answer in its own words, and drops an answer after it is gone", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw "offline";
+    }));
+    const config = { slug: OWN.slug, orgDomain: "hel.fi", space: "mobility", transport: "origin" as const, appName: "bike-stations", endpoints: [OWN, SHARED] };
+    const first = render(
+      <JcProvider client={stubClient(undefined, config)}>
+        <App />
+      </JcProvider>,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+    first.unmount();
+    let answerLate: (response: Response) => void = () => undefined;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answerLate = resolve))));
+    const second = render(
+      <JcProvider client={stubClient(undefined, config)}>
+        <App />
+      </JcProvider>,
+    );
+    second.unmount();
+    const errors = vi.spyOn(console, "error");
+    answerLate(json([]));
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(errors).not.toHaveBeenCalled();
+  });
+
   it("says it has nothing to read when the shared endpoint is not among its endpoints", () => {
     const { fetch } = show({ endpoints: [OWN] });
-    expect(screen.getByRole("status")).toHaveTextContent(s.noEndpoint);
+    expect(screen.getByText(s.noEndpoint)).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });
 
