@@ -322,6 +322,13 @@ fn words(sql: &str) -> Result<Vec<String>, &'static str> {
                     (None, _) => return Err("an unterminated comment"),
                 }
             }
+        } else if (c == 'u' || c == 'U')
+            && next == Some('&')
+            && matches!(chars.get(i + 2), Some('"') | Some('\''))
+        {
+            // `U&"…"` and `U&'…'` spell a name or a string in escapes (`U&"set\005fconfig"`),
+            // which this does not decode: refused, as nothing a migration needs is written so.
+            return Err("a Unicode-escaped name or string (U&)");
         } else if c == '\'' {
             // A string constant, `''` an escaped quote; an E'' string's backslash escapes too.
             let escapes = matches!(out.last().map(String::as_str), Some("e"))
@@ -516,6 +523,8 @@ mod tests {
             ("CREATE TABLE t (x int CHECK (pg_catalog.\"SET_CONFIG\"('role','x',true) IS NOT NULL))", "`set_config`"),
             ("CREATE TABLE t (x int); /* unterminated", "an unterminated comment"),
             ("INSERT INTO t VALUES ('open", "an unterminated string"),
+            ("CREATE TABLE t (x text DEFAULT U&\"set\\005fconfig\"('role', 'x', true))", "a Unicode-escaped name or string (U&)"),
+            ("CREATE TABLE t (x text DEFAULT u&'\\0041')", "a Unicode-escaped name or string (U&)"),
         ] {
             assert_eq!(refused_in(sql), Some(what), "{sql}");
         }
