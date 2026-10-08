@@ -160,12 +160,13 @@ describe("the Subscription form", () => {
     expect(errorsOf({ ...FILLED, expiresAt: "next year" })).toContain(".expiresAt");
   });
 
-  it("knows a subscription that watches nothing before the API refuses it", () => {
+  it("knows a subscription that watches nothing before the API refuses it", async () => {
     // CC-72: jc-core refuses it with "a subscription watches something"; the page says so first.
     expect(watchesSomething({ ...FILLED, entities: [], watchedAttributes: [] })).toBe(false);
     expect(watchesSomething({ ...FILLED, entities: [{ type: "" }], watchedAttributes: [" "] })).toBe(false);
     expect(watchesSomething({ ...FILLED, entities: [], watchedAttributes: ["pm10"] })).toBe(true);
     expect(watchesSomething({ ...FILLED, watchedAttributes: [] })).toBe(true);
+    await i18n.loadLanguages(["sk", "cs", "de"]);
     for (const locale of ["en", "sk", "cs", "de"] as const) {
       const bundle = i18n.getResourceBundle(locale, "translation") as typeof en;
       expect(bundle.subscriptions.watchesNothing.length, locale).toBeGreaterThan(20);

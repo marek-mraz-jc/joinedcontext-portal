@@ -14,7 +14,8 @@ describe("document language", () => {
     window.history.replaceState(null, "", "/login?lang=sk");
     document.documentElement.lang = "en";
     vi.resetModules();
-    const { default: i18n } = await import("../src/i18n");
+    const { default: i18n, i18nReady } = await import("../src/i18n");
+    await i18nReady;
     expect(i18n.language).toBe("sk");
     expect(document.documentElement.lang).toBe("sk");
   });

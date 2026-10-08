@@ -165,9 +165,10 @@ describe("the Policy form", () => {
     ).toEqual([]);
   });
 
-  it("reads a prohibition as a refusal and never as a shade of permission", () => {
+  it("reads a prohibition as a refusal and never as a shade of permission", async () => {
     // GW4, GW8: a prohibition is evaluated before every grant, so it may not read as "a grant,
     // but less". Each locale says it in its own word, and none of them is the permission's word.
+    await i18n.loadLanguages(["sk", "cs", "de"]);
     for (const locale of ["en", "sk", "cs", "de"] as const) {
       const bundle = i18n.getResourceBundle(locale, "translation") as typeof en;
       expect(bundle.policies.effect.prohibition).toBeTruthy();

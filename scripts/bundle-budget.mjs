@@ -11,10 +11,10 @@ import { gzipSync } from "node:zlib";
 
 /**
  * KB, gzipped. Measured 1 679 on 2026-10-08 before T-3280 and 978 after the heavy pages, the form
- * engine and the map loaded with their routes; the budget holds that and nothing more. The next
- * cuts are owed in T-3280's follow-up (the four locales in every visit, the form widgets' names).
+ * engine and the map loaded with their routes; 1 000 before and 729 after T-3316 loaded only the
+ * chosen language. The budget is the last measure plus 5 %.
  */
-export const ENTRY_BUDGET_KB = 1000;
+export const ENTRY_BUDGET_KB = 766;
 
 /** The scripts index.html loads at once: the entry, and the chunks it preloads. */
 export function entryScripts(html) {

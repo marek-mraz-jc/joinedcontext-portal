@@ -97,6 +97,7 @@ describe("a kind's list page", () => {
     // (UI-02, API/01 §8a), so the project page lists and reads, and says where the change is made.
     expect(await screen.findByText(en.resourceList.emptyHintFor.uischemas)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /new|add|create/i })).toBeNull();
+    await i18n.loadLanguages(["sk", "cs", "de"]);
     for (const locale of ["en", "sk", "cs", "de"] as const) {
       const bundle = i18n.getResourceBundle(locale, "translation") as typeof en;
       expect(bundle.resourceList.emptyHintFor.uischemas, locale).toContain("portal/forms/");
