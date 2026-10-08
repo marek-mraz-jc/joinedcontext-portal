@@ -12,7 +12,6 @@ district-compare T-3392
 event-day-planner T-3393
 helsinki-alerts T-3394
 news-topics T-3401
-zilina-vyskum T-3409
 zilina-zaznamy T-3410
 plain-html-events T-3416
 react-rust-wasm T-3416
