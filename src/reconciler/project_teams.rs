@@ -48,11 +48,33 @@ impl TeamOutcome {
     }
 }
 
-/// Brings the organization's project teams to `projects`, slug → repository name.
-pub async fn converge(
-    forge: &GiteaClient,
-    projects: &BTreeMap<String, String>,
-) -> Vec<TeamOutcome> {
+/// What a run did with the project teams.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Teams {
+    /// The forge user owns the organization: each team, and what was done with it.
+    Kept(Vec<TeamOutcome>),
+    /// It does not, so it writes no team: the bootstrap keeps them (T-2647), and who is in them
+    /// still follows the bindings through the Keycloak groups of the same names (T-3323).
+    LeftToTheBootstrap,
+}
+
+/// Brings the organization's project teams to `projects`, slug → repository name, when the
+/// forge user may; asks nothing more of a forge that would refuse every write (T-3323).
+pub async fn converge(forge: &GiteaClient, projects: &BTreeMap<String, String>) -> Teams {
+    match forge.owns_organization().await {
+        Ok(true) => Teams::Kept(keep(forge, projects).await),
+        Ok(false) => Teams::LeftToTheBootstrap,
+        Err(error) => {
+            let mut outcome = TeamOutcome::of("*");
+            outcome.error = Some(format!(
+                "the forge did not say whether this user owns the organization: {error}"
+            ));
+            Teams::Kept(vec![outcome])
+        }
+    }
+}
+
+async fn keep(forge: &GiteaClient, projects: &BTreeMap<String, String>) -> Vec<TeamOutcome> {
     let existing = match forge.org_teams().await {
         Ok(teams) => teams,
         Err(error) => {

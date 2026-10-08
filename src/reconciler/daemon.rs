@@ -188,6 +188,9 @@ pub struct Syncer {
     )>,
     /// Each Live stream's written count and when it last moved, across syncs (T-2967).
     stalls: super::stall::StallWatch,
+    /// Whether the last run found the project teams the bootstrap's, so that is said once and
+    /// not on every sync (T-3323).
+    teams_left_to_bootstrap: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Syncer {
@@ -209,6 +212,7 @@ impl Syncer {
             converger: None,
             streams: None,
             stalls: super::stall::StallWatch::default(),
+            teams_left_to_bootstrap: Arc::default(),
             registrations: None,
             drift: None,
             quality: None,
@@ -1054,7 +1058,27 @@ impl Syncer {
         // 5c*. The forge teams those groups map onto: two per project of layout 2, each
         //      reaching its project's repository alone; a gone project's teams go (PF-87).
         if fresh_mirror.layout() == 2 {
-            for outcome in super::project_teams::converge(&self.gitea, &projects).await {
+            let outcomes = match super::project_teams::converge(&self.gitea, &projects).await {
+                super::project_teams::Teams::Kept(outcomes) => {
+                    self.teams_left_to_bootstrap
+                        .store(false, std::sync::atomic::Ordering::Relaxed);
+                    outcomes
+                }
+                super::project_teams::Teams::LeftToTheBootstrap => {
+                    // Said once, and again only after the forge user was an owner in between.
+                    if !self
+                        .teams_left_to_bootstrap
+                        .swap(true, std::sync::atomic::Ordering::Relaxed)
+                    {
+                        tracing::info!(
+                            organization = %self.gitea.owner,
+                            "project teams are the bootstrap's: the Portal's forge user owns no organization, so it writes no team (T-2647)"
+                        );
+                    }
+                    Vec::new()
+                }
+            };
+            for outcome in outcomes {
                 match (&outcome.error, outcome.changes.is_empty()) {
                     (Some(error), _) => {
                         tracing::warn!(team = %outcome.team, %error, "project team did not converge")
