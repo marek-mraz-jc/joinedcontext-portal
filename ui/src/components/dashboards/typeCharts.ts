@@ -80,7 +80,8 @@ export function suggestChart(slot: { range?: string; values?: string[] } | undef
   return numbers.length > 0 && numbers.every((value) => typeof value === "number") ? "histogram" : "bar-chart";
 }
 
-/** The reader's own time zone, as a time axis states it. */
+/** The reader's own time zone, as a time axis states it. Only the zone is read, so the locale named
+ * here formats nothing a person sees. */
 export function readerTimeZone(): string {
-  return new Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  return new Intl.DateTimeFormat("en").resolvedOptions().timeZone || "UTC";
 }
