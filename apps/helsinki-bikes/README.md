@@ -2,7 +2,7 @@
 
 Every city bike station in Helsinki. The overview shows three numbers: stations, bikes available
 now, and stations with no bike. The Stations page has a map coloured by bikes available, a table,
-a search by name, "Only stations with bikes", and a detail panel.
+a search by name, "Only stations with bikes", and a station chosen on a map or in the table opened in the SDK's entity panel (SDK-40, linked to the Portal), all in the SDK's shell (SDK-39).
 
 It is a `static` application on the joinedcontext App SDK: React, read-only, one data need on the
 Context Space `helsinki` (`BikeHireDockingStation`). The Portal serves it under

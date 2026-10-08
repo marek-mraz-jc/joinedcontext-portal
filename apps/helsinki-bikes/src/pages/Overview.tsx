@@ -3,7 +3,7 @@ import { Card, currentTokens, extent, Grid, Page, Split, useEntities } from "@jo
 import { histogramOption, rankedOption } from "../charts";
 import { ChartCard } from "../components/ChartCard";
 import { EntityMap } from "../components/EntityMap";
-import { Problem } from "../components/states";
+import { Problem, useEntitySelection } from "@joinedcontext/sdk";
 import { SHARE, STATION, totals, withShare } from "../stations";
 
 const TILES = [
@@ -18,6 +18,7 @@ const TILES = [
  * fullest and emptiest.
  */
 export function Overview() {
+  const { selected, select } = useEntitySelection();
   const { rows, loading, error, reload } = useEntities(STATION);
   const sum = totals(rows);
   const shaded = useMemo(() => withShare(rows), [rows]);
@@ -41,7 +42,7 @@ export function Overview() {
       </section>
       <Split ratio="2:1">
         <Card title="Stations now">
-          <EntityMap rows={shaded} location="location" label="name" color={SHARE} height={420} />
+          <EntityMap rows={shaded} location="location" label="name" color={SHARE} height={420} selected={selected?.id ?? null} onSelect={(row) => select({ id: row.id, type: STATION })} />
           <div className="app-legend" aria-label="Map colour: share of docks with a bike">
             <span>{range ? `${range[0]} %` : "–"}</span>
             <span
