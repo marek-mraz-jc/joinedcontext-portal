@@ -51,6 +51,35 @@ describe("plain", () => {
   });
 });
 
+describe("plain, of what a source writes otherwise", () => {
+  const cell = (attrs: Record<string, unknown>) => toRichRow({ id: "urn:ngsi-ld:Thing:x", type: "Thing", a: attrs }).cells.a;
+
+  it("writes a name in Slovak, else any language, and nothing for an empty map", () => {
+    const name = (languageMap: Record<string, string>) => cell({ type: "LanguageProperty", languageMap });
+    expect(plain(name({ sk: "Hrad", de: "Burg" }), "en")).toBe("Hrad");
+    expect(plain(name({ de: "Burg" }), "en")).toBe("Burg");
+    expect(plain(name({}), "en")).toBeNull();
+  });
+
+  it("writes a relationship's object, several as one field, and none as nothing", () => {
+    expect(plain(cell({ type: "Relationship", object: "urn:a" }), "sk")).toBe("urn:a");
+    expect(plain(cell({ type: "Relationship", object: ["urn:a", "urn:b"] }), "sk")).toBe("urn:a urn:b");
+    expect(plain(cell({ type: "Relationship" }), "sk")).toBeNull();
+  });
+
+  it("writes a value as it is, a typed literal by its value, a window by its ends, a point whole, anything else as JSON", () => {
+    expect(plain(cell({ type: "Property", value: null }), "sk")).toBeNull();
+    expect(plain(cell({ type: "Property", value: true }), "sk")).toBe(true);
+    expect(plain(cell({ type: "Property", value: "x" }), "sk")).toBe("x");
+    expect(plain(cell({ type: "Property", value: { "@type": "DateTime", "@value": "2026-10-06T19:00:00Z" } }), "sk")).toBe("2026-10-06T19:00:00Z");
+    expect(plain(cell({ type: "Property", value: { start: "2025-01-01", end: "2025-12-31" } }), "sk")).toBe("2025-01-01/2025-12-31");
+    expect(plain(cell({ type: "GeoProperty", value: { type: "Point", coordinates: [18.7, 49.2] } }), "sk")).toEqual({ type: "Point", coordinates: [18.7, 49.2] });
+    expect(plain(cell({ type: "Property", value: { a: 1 } }), "sk")).toBe('{"a":1}');
+    expect(plain(cell({ type: "Property", value: [1, 2] }), "sk")).toBe("[1,2]");
+    expect(plain([cell({ type: "Property", value: 1 }), cell({ type: "Property", value: 2 })].flat() as never, "sk")).toBe(1);
+  });
+});
+
 describe("exportCsv", () => {
   it("reads every page and writes one row per entity under the attribute names", async () => {
     const many = Array.from({ length: 1201 }, (_, index) => rows(MONUMENTS)[index % MONUMENTS.length]);
