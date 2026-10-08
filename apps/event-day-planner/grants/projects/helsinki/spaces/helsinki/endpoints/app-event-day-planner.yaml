@@ -1,0 +1,19 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Endpoint
+metadata:
+  name: app-event-day-planner
+  namespace: helsinki
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: My day of events
+    fi: Tapahtumapäiväni
+spec:
+  audience: public
+  callerRole: true
+  contextSpaceRef:
+    kind: ContextSpace
+    name: helsinki
+  enabledRepresentations:
+  - ngsi-ld
+  slug: fxqtz5wpwqicquej2ocrixp3cp
