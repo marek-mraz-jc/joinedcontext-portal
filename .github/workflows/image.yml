@@ -45,6 +45,13 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
           provenance: true
           sbom: true
+      # AP-142: the rust runner builds the SDK's React + Rust/WebAssembly example to a static
+      # bundle, offline, its browser checks included, before the image is signed.
+      - if: matrix.name == 'app-builder-rust'
+        name: the rust runner builds a ui App with WebAssembly
+        run: |
+          docker run --rm -v "$PWD/sdk/examples/react-rust-wasm:/src:ro" -v "$PWD/builder/lane-wasm-check.sh:/lane-wasm-check.sh:ro" \
+            --entrypoint sh "${{ matrix.image }}@${{ steps.push.outputs.digest }}" /lane-wasm-check.sh
       - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
       - run: cosign sign --yes ${{ matrix.image }}@${{ steps.push.outputs.digest }}
       - run: echo "${{ matrix.name }} digest ${{ steps.push.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"

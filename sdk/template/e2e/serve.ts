@@ -11,7 +11,7 @@ const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://app.test/";
 const SLUG = "app";
 const CONFIG = { slug: SLUG, orgDomain: "example.org", space: "demo", transport: "origin", appName: "app" };
-const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
+const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".wasm": "application/wasm" };
 const FUNCTION = /^\/api\/functions\/([a-z][a-z0-9-]{0,39})$/;
 
 /** What the served page did that it should not: a host it called, a file it missed, an error it threw. */

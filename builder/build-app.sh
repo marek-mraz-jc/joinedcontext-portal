@@ -11,7 +11,8 @@
 #
 # A repository with `package.json` at its root is a Vite project; one without is its own bundle,
 # the `build: {}` shape (AP-83). One with `Cargo.toml` at its root is a `fullstack` App, built on
-# the rust-1.90 runner into an image instead (AP-105).
+# the rust-1.90 runner into an image instead (AP-105). A Vite project with `wasm/Cargo.toml`
+# compiles that crate to WebAssembly first, on the app-build-rust runner (AP-142).
 set -eu
 
 fail() { echo "build failed: $*" >&2; exit 1; }
@@ -125,6 +126,11 @@ TESTS=$(node "$LANE/lane.mjs" vitest-config "$APP") || fail "cannot write the te
 
 if [ "$JC_APP_BUILD" = node ]; then
   [ -f package.json ] || fail "a node build needs package.json at the repository root"
+  # The module the interface imports and its tests load, before either runs (AP-142).
+  if [ -f wasm/Cargo.toml ]; then
+    command -v build-wasm >/dev/null || fail "a ui App with wasm/ builds on the app-build-rust runner (AP-142)"
+    untrusted build-wasm "$APP" "$WORK" || fail "the WebAssembly part does not build"
+  fi
   echo "== tests"
   untrusted "$BIN/vitest" run --config "$TESTS" || fail "the interface or function tests fail (SDK-24)"
   echo "== build"
@@ -160,5 +166,8 @@ node "$LANE/app-integrity.mjs" "$OUT" >/dev/null || fail "cannot compute integri
 echo "== package"
 rm -f "$WORK/bundle.tar" "$WORK/bundle.tar.gz"
 pack "$OUT" "$WORK/bundle.tar" && gzip -n "$WORK/bundle.tar" || fail "cannot pack the bundle"
-node "$LANE/lane.mjs" sbom "$LANE/node_modules" "$WORK/sbom.cdx.json" || fail "cannot write the SBOM"
+# The crates of a WebAssembly part are in the bundle too (AP-142).
+WASM_LOCK=
+[ -f "$APP/wasm/Cargo.lock" ] && WASM_LOCK=$APP/wasm/Cargo.lock
+node "$LANE/lane.mjs" sbom "$LANE/node_modules" "$WORK/sbom.cdx.json" $WASM_LOCK || fail "cannot write the SBOM"
 built "sha256:$(sha256sum "$WORK/bundle.tar.gz" | cut -d' ' -f1)"
