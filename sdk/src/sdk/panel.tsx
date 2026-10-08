@@ -284,18 +284,22 @@ function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backi
   }, [clear]);
 
   const properties = typeSchema?.properties;
+  // An attribute the schema names and the entity does not hold yet, shown only to a reader who
+  // may write it, so a first value can be filled in (a note never written, T-3422).
+  const mayWrite = backing.mayEdit();
+  const fillable = row && mayWrite ? Object.keys(properties ?? {}).filter((name) => !(name in row) && backing.mayEdit(name)) : [];
+  const fillableKey = fillable.join(",");
   const { names, fields } = useMemo(() => {
-    const attrs = row ? attributeOrder(row, typeSchema?.properties) : [];
+    const attrs = row ? [...attributeOrder(row, typeSchema?.properties), ...(fillableKey ? fillableKey.split(",") : [])] : [];
     const map: Record<string, Field> = {};
     for (const name of attrs) {
       map[name] = fieldOf(name, typeSchema ?? undefined, columnKind(row ? [row] : [], name), schema ?? undefined, language);
     }
     return { names: attrs, fields: map };
-  }, [row, typeSchema, schema, language]);
+  }, [row, typeSchema, schema, language, fillableKey]);
 
   // Edit only where the reader may write this type; the attributes they may not change stay
   // read-only in the form.
-  const mayWrite = backing.mayEdit();
   const editable = (name: string) => mayWrite && EDITABLE.has(fields[name]?.input ?? "") && backing.mayEdit(name);
   const portal = backing.portal;
 

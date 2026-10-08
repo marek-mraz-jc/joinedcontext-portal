@@ -245,6 +245,39 @@ describe("the entity panel (SDK-40)", () => {
     expect(screen.getByTestId("saved")).toHaveTextContent("1");
   });
 
+  it("lets a writer fill in an attribute the entity does not hold yet, and shows a reader none of it", async () => {
+    const schema = { BikeHireDockingStation: { properties: { ...SCHEMA.BikeHireDockingStation.properties, note: { type: ["string", "null"], title: "Note", "x-ngsi-ld-kind": "Property" } } } };
+    const client = stubClient({ entities: [STATION], schema, access: WRITE }, { user: PERSON, portal: PORTAL });
+    render(
+      <JcProvider client={client}>
+        <AppShell title="Bikes" pages={[{ id: "stations", label: "Stations", render: () => <Openers /> }]} />
+      </JcProvider>,
+    );
+    const panel = await openFromTable();
+    // Read, the empty attribute is shown as empty so a writer sees it can be filled in.
+    expect(await within(panel).findByText("Note")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Edit" }));
+    fireEvent.change(within(panel).getByLabelText("Note"), { target: { value: "New dock" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Review the change" }));
+    expect(within(panel).getByText("Note: — → New dock")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole("button", { name: "Save the change" }));
+    });
+    expect(client.transport.calls.find((call) => call.method === "PATCH")?.body).toEqual({ note: { type: "Property", value: "New dock" } });
+  });
+
+  it("does not list an attribute the entity lacks to a reader who may not write it", async () => {
+    const schema = { BikeHireDockingStation: { properties: { ...SCHEMA.BikeHireDockingStation.properties, note: { type: ["string", "null"], title: "Note" } } } };
+    render(
+      <JcProvider client={stubClient({ entities: [STATION], schema, access: READ }, { user: PERSON, portal: PORTAL })}>
+        <AppShell title="Bikes" pages={[{ id: "stations", label: "Stations", render: () => <Openers /> }]} />
+      </JcProvider>,
+    );
+    const panel = await openFromTable();
+    await within(panel).findByText("Available bike number");
+    expect(within(panel).queryByText("Note")).toBeNull();
+  });
+
   it("says nothing changed when nothing did, and writes nothing", async () => {
     const client = show(WRITE);
     const panel = await openFromTable();
