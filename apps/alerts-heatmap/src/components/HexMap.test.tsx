@@ -74,13 +74,13 @@ describe("HexMap", () => {
   });
 
   it("follows its box when the page lays out again", async () => {
-    // Asserted, not inferred: TypeScript would narrow a `let` only a callback assigns to `null`.
-    let resized = null as (() => void) | null;
+    // A holder, not a `let`: TypeScript narrows a `let` that only a callback assigns to `null`.
+    const observer: { resized?: () => void } = {};
     vi.stubGlobal(
       "ResizeObserver",
       class {
         constructor(callback: () => void) {
-          resized = callback;
+          observer.resized = callback;
         }
         observe() {}
         disconnect() {}
@@ -89,7 +89,7 @@ describe("HexMap", () => {
     show();
     const map = await built();
     const resize = vi.spyOn(map, "resize");
-    resized?.();
+    observer.resized?.();
     expect(resize).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
   });
