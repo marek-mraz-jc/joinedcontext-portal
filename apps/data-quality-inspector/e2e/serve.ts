@@ -14,6 +14,8 @@ const CONFIG = {
   space: "helsinki",
   transport: "origin",
   appName: "data-quality-inspector",
+  // Where the entity panel links an entity (SDK-40); shown, never followed.
+  portal: "https://portal.hel.fi/projects/helsinki",
 };
 
 const TYPES: Record<string, string> = {

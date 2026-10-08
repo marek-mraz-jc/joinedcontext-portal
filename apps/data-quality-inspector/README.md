@@ -5,12 +5,12 @@ Helsinki open data quality inspector for data stewards: how complete, fresh and 
 - Overview tile per entity type showing entities read, completeness %, valid %, and median age of the newest timestamp (sorted with the lowest valid % first).
 - Bar chart of completeness across all entity types.
 - Type-level detail with completeness per schema attribute.
-- Failing entities table showing the local id, failing attribute, and reason in plain words (first 200 rows with count of remaining).
+- Failing entities table showing the local id, failing attribute, and reason in plain words (first 200 rows with count of remaining). The inspector names an entity by its whole id, so two with the same local id under different prefixes count as two; the id opens the entity in the SDK's entity panel (SDK-40), which links it to the Portal for correcting: the App is public and writes nothing (AP-140).
 - Freshness metrics (median, oldest, share older than 24 h) based on the first timestamp property present in the type schema.
 - A rule behind a `$ref` (the enum definitions the SDK's schema leaves out) is counted as not checked, never as a failure.
 - Types without a published schema show completeness over the attributes they carry with a "no published schema" note.
 - URL hash navigation (`#quality?type=BikeHireDockingStation`).
-- Finnish and English (`?lang=fi|en`, else browser preference), with light and dark themes.
+- Finnish and English (`?lang=fi|en`, else browser preference), switched in the SDK's `AppShell` (SDK-39), with light and dark themes; the loading, empty and error states are the SDK's.
 
 ## How it is built
 

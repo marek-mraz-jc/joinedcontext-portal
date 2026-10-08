@@ -35,9 +35,7 @@ const WORDS = {
   },
   partialFailed: { fi: "Tietotyyppejä ei voitu lukea: {types}", en: "Some data could not be read: {types}" },
   analysisFailed: { fi: "Vertailu epäonnistui: {reason}", en: "Comparison failed: {reason}" },
-  retry: { fi: "Yritä uudelleen", en: "Retry" },
   clear: { fi: "Tyhjennä valinnat", en: "Clear selection" },
-  language: { fi: "In English", en: "Suomeksi" },
   map: { fi: "Kartta: kaupunginosat", en: "Map: districts" },
   mapLegend: {
     fi: "Väri sinisestä, mittarin pienin arvo, oranssiin, suurin; vaalea: ei arvoa. Paksu reuna: valittu kaupunginosa.",
@@ -46,6 +44,7 @@ const WORDS = {
   chartTitle: { fi: "Valitut kaupunginosat: {measure}", en: "Selected districts: {measure}" },
   chartEmpty: { fi: "Ei valittuja kaupunginosia.", en: "No districts selected." },
   noneSelected: { fi: "Valitse vähintään yksi kaupunginosa vertailuun.", en: "Select at least one district to compare." },
+  details: { fi: "Tiedot: {name}", en: "Details: {name}" },
   deselectDistrict: { fi: "Poista valinta: {name}", en: "Deselect {name}" },
   selectDistrict: { fi: "Valitse {name}", en: "Select {name}" },
   type_CityDistrict: { fi: "Kaupunginosat", en: "City districts" },

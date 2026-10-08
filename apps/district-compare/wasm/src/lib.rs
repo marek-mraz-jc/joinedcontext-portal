@@ -592,4 +592,59 @@ mod tests {
         assert_eq!(out.outside.alerts, 1);
         assert_eq!(out.outside.air, 1);
     }
+
+    #[test]
+    fn bikes_and_alerts_count_where_they_stand_and_outside_where_no_district_holds_them() {
+        let input = Input {
+            districts: vec![sample_district("1", "Kamppi", 24.0, 60.0, 25.0, 61.0)],
+            events: vec![],
+            bikes: vec![
+                BikeInput {
+                    at: Some(vec![24.5, 60.5]),
+                    slots: Some(12),
+                },
+                BikeInput {
+                    at: Some(vec![26.0, 60.5]),
+                    slots: Some(8),
+                },
+                BikeInput {
+                    at: None,
+                    slots: Some(4),
+                },
+                // A negative slot count counts as none.
+                BikeInput {
+                    at: Some(vec![24.6, 60.6]),
+                    slots: Some(-3),
+                },
+            ],
+            alerts: vec![vec![24.5, 60.5], vec![30.0, 60.0], vec![]],
+            air: vec![AirInput {
+                at: Some(vec![30.0, 60.0]),
+                pm25: Some(5.0),
+                aqi: None,
+            }],
+        };
+        let out = run(&input);
+        assert_eq!(out.districts[0].bikes, 2);
+        assert_eq!(out.districts[0].bike_slots, 12);
+        assert_eq!(out.districts[0].alerts, 1);
+        assert_eq!(out.outside.bikes, 2);
+        assert_eq!(out.outside.alerts, 2);
+        assert_eq!(out.outside.air, 1);
+        assert_eq!(out.districts[0].pm25, None);
+    }
+
+    #[test]
+    fn the_entry_answers_a_whole_comparison_as_json() {
+        let raw = compare(
+            &json!({
+                "districts": [{ "code": "1", "name": "Kamppi", "geometry": { "type": "Polygon", "coordinates": [[[24.0, 60.0], [25.0, 60.0], [25.0, 61.0], [24.0, 61.0], [24.0, 60.0]]] } }],
+                "events": [[24.5, 60.5]]
+            })
+            .to_string(),
+        );
+        let parsed: Value = serde_json::from_str(&raw).expect("json");
+        assert_eq!(parsed["districts"][0]["events"], 1);
+        assert!(parsed.get("error").is_none());
+    }
 }
