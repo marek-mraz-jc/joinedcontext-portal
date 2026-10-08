@@ -28,18 +28,19 @@ main {
   margin: 0 0 0.75rem;
 }
 
-dl {
+/* The station cards' own lists; the SDK's panel lays out its own. */
+.jc-card dl {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.25rem 1rem;
   margin: 0.5rem 0;
 }
 
-dt {
+.jc-card dt {
   opacity: 0.75;
 }
 
-dd {
+.jc-card dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
 }

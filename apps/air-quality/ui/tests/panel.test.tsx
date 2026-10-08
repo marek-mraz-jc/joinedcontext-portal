@@ -47,6 +47,8 @@ describe("the App in the SDK's shell (T-3374)", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { level: 1, name: "Air quality" })).toBeInTheDocument();
     expect(screen.getByText("demo.steward@hel.fi", { selector: ".jc-user" })).toBeInTheDocument();
+    // The shell names the reader; the page does not say it a second time.
+    expect(screen.getAllByText(/demo\.steward@hel\.fi/)).toHaveLength(1);
 
     fireEvent.click(await screen.findByRole("button", { name: "Details of Kallio" }));
     const panel = await screen.findByRole("dialog", { name: "Kallio" });

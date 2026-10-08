@@ -135,6 +135,14 @@ describe("layout.css", () => {
     expect([...used].filter((name) => !css.includes(`.${name} `) && !css.includes(`.${name},`))).toEqual([]);
   });
 
+  it("falls back to the system's colours in the shell and the panel, so an App without tokens stays readable dark or light", () => {
+    const start = css.indexOf(".jc-shell {");
+    const end = css.indexOf(".jc-panel-actions");
+    const own = css.slice(start, end);
+    // A fixed light colour as the fallback paints dark text on an App's dark card (axe colour contrast).
+    expect(own).not.toMatch(/var\(--jc-color-(ink|surface|card|muted|danger|success), #/);
+  });
+
   it("widens by the box's own width and keeps a 44 px target on a phone", () => {
     expect(css).toMatch(/\.jc-grid-box,\s*\.jc-split-box\s*\{\s*container-type: inline-size;/);
     expect(css.match(/@container \(width >= \d+rem\)/g)).toHaveLength(4);

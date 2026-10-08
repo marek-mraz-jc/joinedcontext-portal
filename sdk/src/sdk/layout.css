@@ -309,14 +309,15 @@
 }
 
 /* The shell every App shares (SDK-39): the title, the pages, the language and the reader's name in
-   one wrapping row, the page under it. An App's own stylesheet may restyle any of it. */
+   one wrapping row, the page under it. An App's own stylesheet may restyle any of it. Without the
+   App's tokens the colours are the system's, so they follow its colour scheme, dark or light. */
 .jc-shell {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
   font-family: var(--jc-font-body, system-ui, sans-serif);
-  color: var(--jc-color-ink, #0f172a);
-  background: var(--jc-color-surface, #ffffff);
+  color: var(--jc-color-ink, CanvasText);
+  background: var(--jc-color-surface, Canvas);
   line-height: 1.5;
 }
 .jc-header {
@@ -344,7 +345,7 @@
 }
 .jc-user {
   margin-inline-start: auto;
-  color: var(--jc-color-muted, #64748b);
+  color: var(--jc-color-muted, color-mix(in srgb, CanvasText 72%, Canvas));
 }
 .jc-main {
   flex: 1;
@@ -354,17 +355,17 @@
 .jc-loading,
 .jc-empty {
   padding: var(--jc-space-4, 1rem);
-  color: var(--jc-color-muted, #64748b);
+  color: var(--jc-color-muted, color-mix(in srgb, CanvasText 72%, Canvas));
   text-align: center;
 }
 .jc-problem {
   padding: var(--jc-space-3, 0.75rem) var(--jc-space-4, 1rem);
-  border-inline-start: 4px solid var(--jc-color-danger, #b91c1c);
-  background: var(--jc-color-card, #f8fafc);
+  border-inline-start: 4px solid var(--jc-color-danger, light-dark(#b91c1c, #fca5a5));
+  background: var(--jc-color-card, color-mix(in srgb, CanvasText 6%, Canvas));
 }
 .jc-problem strong {
   display: block;
-  color: var(--jc-color-danger, #b91c1c);
+  color: var(--jc-color-danger, light-dark(#b91c1c, #fca5a5));
 }
 
 /* The entity panel every App shares (SDK-40): beside the page on a wide screen, over it on a phone. */
@@ -375,8 +376,8 @@
   width: min(26rem, 100vw);
   overflow-y: auto;
   padding: var(--jc-space-4, 1rem);
-  background: var(--jc-color-surface, #ffffff);
-  color: var(--jc-color-ink, #0f172a);
+  background: var(--jc-color-surface, Canvas);
+  color: var(--jc-color-ink, CanvasText);
   border-inline-start: 1px solid var(--jc-color-line, #e2e8f0);
   box-shadow: -4px 0 16px rgb(0 0 0 / 0.12);
   z-index: 20;
@@ -400,7 +401,7 @@
 }
 .jc-panel-type,
 .jc-panel-hint {
-  color: var(--jc-color-muted, #64748b);
+  color: var(--jc-color-muted, color-mix(in srgb, CanvasText 72%, Canvas));
   font-size: var(--jc-font-size-sm, 0.875rem);
 }
 .jc-panel-attrs {
@@ -409,7 +410,7 @@
 }
 .jc-panel-attrs dt {
   font-size: var(--jc-font-size-sm, 0.875rem);
-  color: var(--jc-color-muted, #64748b);
+  color: var(--jc-color-muted, color-mix(in srgb, CanvasText 72%, Canvas));
 }
 .jc-panel-attrs dd {
   margin: 0;
@@ -422,10 +423,10 @@
 }
 .jc-panel-error,
 .jc-panel-problem {
-  color: var(--jc-color-danger, #b91c1c);
+  color: var(--jc-color-danger, light-dark(#b91c1c, #fca5a5));
 }
 .jc-panel-ok {
-  color: var(--jc-color-success, #047857);
+  color: var(--jc-color-success, light-dark(#047857, #6ee7b7));
 }
 .jc-panel-actions {
   display: flex;

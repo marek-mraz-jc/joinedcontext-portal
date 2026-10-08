@@ -59,13 +59,15 @@ impl Driver {
         if self.prompt.trim().is_empty() {
             // A path picked without words: its first step, before any model call (AG-91).
             if let Some(path) = picked {
-                self.first_step(path).await?;
+                // Boxed, as each turn below: the steps' futures nest deep enough that a release
+                // build's layout query of this one overflowed the depth limit (T-3422).
+                Box::pin(self.first_step(path)).await?;
             }
         } else {
             if self.current_path().is_none() {
                 self.choose_path(&self.prompt).await?;
             }
-            self.turn(&mut conversation, self.prompt.clone()).await;
+            Box::pin(self.turn(&mut conversation, self.prompt.clone())).await;
         }
 
         loop {
@@ -108,7 +110,7 @@ impl Driver {
                     if text.trim().is_empty() {
                         continue;
                     }
-                    self.turn(&mut conversation, text).await;
+                    Box::pin(self.turn(&mut conversation, text)).await;
                 }
                 "message" if sent_by_person(&event) => {
                     // The page the person sent this from is the one they ask about now (T-2763).
@@ -150,7 +152,7 @@ impl Driver {
                             continue;
                         }
                     }
-                    self.turn(&mut conversation, text).await;
+                    Box::pin(self.turn(&mut conversation, text)).await;
                 }
                 _ => {}
             }
