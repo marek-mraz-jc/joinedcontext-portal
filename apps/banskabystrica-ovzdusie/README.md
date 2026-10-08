@@ -5,6 +5,14 @@ of station SK0263A land (T-2781, T-2949): the measuring stations on a map, colou
 latest PM10 against the daily limit, and one day of history for the station a reader picks. It
 reads and never writes, and it never asks anybody to sign in.
 
+
+It sits in the SDK's `AppShell` (SDK-39) with the SDK's states. A station picked on the map is shown
+with its day and opens in the shell's entity panel (SDK-40); each card has its Details button too.
+The App is public and writes nothing, so the panel links the station to the Portal and offers no
+Edit (AP-140). The tests exercise every control and hold the coverage gate of T-3373
+(`sh scripts/app-coverage-run.sh banskabystrica-ovzdusie`); the e2e adds a station in the panel at
+375 and 1440 px, light and dark.
+
 ## Why staleness is a band and not a footnote
 
 A station that stops reporting keeps its last number. Drawn by that number alone, a station that

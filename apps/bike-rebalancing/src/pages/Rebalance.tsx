@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, currentTokens, Page, ProblemError, Split, useEntities } from "@joinedcontext/sdk";
+import { Card, currentTokens, Empty, Loading, Page, Problem, ProblemError, Split, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
 import { MapView } from "../components/MapView";
 import type { MapPoint } from "../components/MapView";
-import { Empty, Loading } from "../components/states";
 import { localeOf, number, useLang, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
 import { computePlan } from "../planner";
@@ -50,6 +49,21 @@ export function watched(needs: Need[], touched: Set<string>, limit = WATCHED): N
     .slice(0, limit);
 }
 
+/**
+ * What a station's choice button does, and so what it says: a station left out goes back; one added,
+ * on the route, or about to run empty or full (which the planner routes unless it is left out)
+ * is left out; any other is added.
+ */
+export function choiceOf(
+  id: string,
+  critical: boolean,
+  { add, skip, route }: { add: string[]; skip: string[]; route: Set<string> },
+): "putBack" | "leaveOut" | "addIn" {
+  if (skip.includes(id)) return "putBack";
+  if (add.includes(id) || route.has(id) || critical) return "leaveOut";
+  return "addIn";
+}
+
 function fillChart(needs: Need[], lang: Lang): Record<string, unknown> | null {
   const bands = fillBands(needs);
   if (bands.every((count) => count === 0)) return null;
@@ -73,7 +87,9 @@ function unreadable(error: Error, lang: Lang): string {
  * The operator's question, answered on opening (T-3328): which stations are about to run empty
  * or full, and the van's route that moves bikes from the one to the other. The plan is computed
  * by the WebAssembly planner in a worker, again whenever the counts change or the operator takes
- * a station in or out of the route; every choice is kept in the address.
+ * a station in or out of the route; every choice is kept in the address. A station's name, in the
+ * route or the table, and a station on the map open it in the SDK's entity panel (SDK-40); the
+ * App writes nothing, so the panel links it to the Portal (README).
  */
 export function Rebalance() {
   const lang = useLang();
@@ -93,6 +109,8 @@ export function Rebalance() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planning, setPlanning] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const { select } = useEntitySelection();
+  const open = (id: string) => select({ id, type: STATION });
 
   useEffect(() => {
     if (stations.length === 0) {
@@ -135,17 +153,18 @@ export function Rebalance() {
   const waiting = loading && rows.length === 0;
   const updated = newest(rows);
 
+  const critical = (id: string) => ["empty", "low", "high", "full"].includes(needOf.get(id)?.level ?? "unknown");
+  const actionKey = (id: string) => choiceOf(id, critical(id), { add, skip, route: new Set(order.keys()) });
+  // The button says what its click does: both read `choiceOf`.
   const toggle = (id: string) => {
-    const need = needOf.get(id);
-    const critical = need ? ["empty", "low", "high", "full"].includes(need.level) : false;
-    if (skip.includes(id)) setSkip(skip.filter((x) => x !== id).join(","));
+    const action = actionKey(id);
+    if (action === "putBack") setSkip(skip.filter((x) => x !== id).join(","));
     else if (add.includes(id)) setAdd(add.filter((x) => x !== id).join(","));
-    else if (critical || order.has(id)) setSkip([...skip, id].join(","));
+    else if (action === "leaveOut") setSkip([...skip, id].join(","));
     else setAdd([...add, id].join(","));
   };
-  const choiceOf = (id: string): string => (skip.includes(id) ? t(lang, "excluded") : add.includes(id) ? t(lang, "included") : t(lang, "auto"));
-  const actionOf = (id: string): string =>
-    skip.includes(id) ? t(lang, "putBack") : add.includes(id) || order.has(id) ? t(lang, "leaveOut") : t(lang, "addIn");
+  const nowOf = (id: string): string => (skip.includes(id) ? t(lang, "excluded") : add.includes(id) ? t(lang, "included") : t(lang, "auto"));
+  const actionOf = (id: string): string => t(lang, actionKey(id));
 
   const points: MapPoint[] = useMemo(
     () =>
@@ -176,6 +195,12 @@ export function Rebalance() {
   const chart = useMemo(() => fillChart(needs, lang), [needs, lang]);
   const list = useMemo(() => watched(needs, touched), [needs, touched]);
 
+  // A station on the map goes into or out of the route, as it always did, and opens in the panel.
+  const pick = (id: string) => {
+    toggle(id);
+    open(id);
+  };
+
   const reset = () => {
     setVanText(DEFAULT_VAN);
     setStart("");
@@ -185,19 +210,8 @@ export function Rebalance() {
 
   return (
     <Page label={t(lang, "page")}>
-      {error && (
-        <div className="jc-problem" role="alert">
-          <strong>{unreadable(error, lang)}</strong>
-          <button type="button" className="jc-button" onClick={reload}>
-            {t(lang, "retry")}
-          </button>
-        </div>
-      )}
-      {failed && (
-        <div className="jc-problem" role="alert">
-          <strong>{t(lang, "plannerFailed", { why: failed })}</strong>
-        </div>
-      )}
+      {error && <Problem error={new Error(unreadable(error, lang))} onRetry={reload} />}
+      {failed && <Problem error={new Error(t(lang, "plannerFailed", { why: failed }))} />}
       <ul className="app-summary" aria-label={t(lang, "page")}>
         <li>
           <span className="app-summary-label">{t(lang, "soonEmpty")}</span>
@@ -257,7 +271,7 @@ export function Rebalance() {
       </form>
       <Split ratio="1:1">
         <Card title={t(lang, "map")}>
-          <MapView points={points} line={line} label={t(lang, "mapLabel")} onPick={toggle} />
+          <MapView points={points} line={line} label={t(lang, "mapLabel")} onPick={pick} />
           <ul className="app-legend" aria-label={t(lang, "state")}>
             {(["empty", "low", "balanced", "high", "full", "unknown"] as Level[]).map((level) => (
               <li key={level}>
@@ -281,7 +295,9 @@ export function Rebalance() {
               {route.stops.map((stop) => (
                 <li key={stop.id} className="app-stop" data-action={stop.action}>
                   <div>
-                    <strong>{stop.name}</strong>
+                    <button type="button" className="app-open" onClick={() => open(stop.id)}>
+                      <strong>{stop.name}</strong>
+                    </button>
                     <p>
                       <span className="app-chip" data-action={stop.action}>
                         {t(lang, stop.action, { n: number(stop.bikes) })}
@@ -327,7 +343,9 @@ export function Rebalance() {
                       <tr key={need.id}>
                         <th scope="row">
                           {order.has(need.id) ? `${order.get(need.id)}. ` : ""}
-                          {s.name}
+                          <button type="button" className="app-open" onClick={() => open(need.id)}>
+                            {s.name}
+                          </button>
                         </th>
                         <td className="jc-num">
                           {s.bikes ?? "–"} / {s.capacity ?? "–"}
@@ -343,7 +361,7 @@ export function Rebalance() {
                           <button type="button" className="jc-button app-choice" onClick={() => toggle(need.id)} aria-label={`${actionOf(need.id)}: ${s.name}`}>
                             {actionOf(need.id)}
                           </button>
-                          <span className="app-choice-now">{choiceOf(need.id)}</span>
+                          <span className="app-choice-now">{nowOf(need.id)}</span>
                         </td>
                       </tr>
                     );

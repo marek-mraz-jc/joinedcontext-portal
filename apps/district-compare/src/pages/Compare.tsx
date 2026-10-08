@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, Grid, Page, pointOf, useEntities } from "@joinedcontext/sdk";
+import { Card, Empty, Grid, Loading, Page, pointOf, Problem, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
 import { DistrictMap } from "../components/DistrictMap";
-import { Empty, Loading, Problem } from "../components/states";
 import { useCompare } from "../compare";
 import type { DistrictOutput, Measure } from "../districts";
 import {
@@ -60,7 +59,7 @@ function formatTableCell(
   );
 }
 
-function barChartOption(
+export function barChartOption(
   districts: DistrictOutput[],
   measure: Measure,
   lang: Lang,
@@ -100,7 +99,9 @@ function barChartOption(
 }
 
 /**
- * Compare districts side by side: map choropleth, comparison table, bar chart, and ranked list.
+ * Compare districts side by side: map choropleth, comparison table, bar chart, and ranked list. A
+ * district picked on the map opens in the SDK's entity panel (SDK-40), and each compared district
+ * has its Details button; the App is public, so the panel links it to the Portal (AP-140).
  */
 export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
   const districtsRes = useEntities("CityDistrict", DISTRICT_QUERY);
@@ -118,12 +119,18 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
     return readHash(hash).measure;
   });
   const initialized = useRef(false);
+  const { select } = useEntitySelection();
 
   const districtRows = useMemo(
     () => districtsRes.rows.filter((r) => r.divisionLevel === "district"),
     [districtsRes.rows],
   );
 
+  const idOf = useMemo(() => new Map(districtRows.map((r) => [String(r.districtCode ?? ""), r.id])), [districtRows]);
+  const open = (code: string) => {
+    const id = idOf.get(code);
+    if (id) select({ id, type: "CityDistrict" });
+  };
   const geometries = useMemo(
     () => new Map(districtRows.map((r) => [String(r.districtCode ?? ""), r.location])),
     [districtRows],
@@ -235,9 +242,7 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
       {compareError ? <Problem error={new Error(t(lang, "analysisFailed", { reason: compareError.message }))} /> : null}
 
       {failedTypes.length > 0 && !isDistrictsError && (
-        <div className="jc-problem" role="status">
-          <p>{t(lang, "partialFailed", { types: failedTypes.map((type) => translateType(type, lang)).join(", ") })}</p>
-        </div>
+        <Problem error={new Error(t(lang, "partialFailed", { types: failedTypes.map((type) => translateType(type, lang)).join(", ") }))} />
       )}
 
       {districtsRes.loading && districtRows.length === 0 ? (
@@ -277,7 +282,11 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
               geometries={geometries}
               selectedCodes={selectedCodes}
               measure={measure}
-              onToggle={toggleDistrict}
+              onToggle={(code) => {
+                // A district picked on the map joins the comparison and opens in the panel.
+                if (!selectedCodes.includes(code)) open(code);
+                toggleDistrict(code);
+              }}
               label={t(lang, "map")}
             />
             <p className="app-legend-text">{t(lang, "mapLegend")}</p>
@@ -301,6 +310,9 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
                             aria-label={t(lang, "deselectDistrict", { name: d.name })}
                           >
                             {d.name} ×
+                          </button>
+                          <button type="button" className="app-open" onClick={() => open(d.code)}>
+                            {t(lang, "details", { name: d.name })}
                           </button>
                         </th>
                       ))}

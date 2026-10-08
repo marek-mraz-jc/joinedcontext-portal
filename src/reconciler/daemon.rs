@@ -146,6 +146,7 @@ pub struct Syncer {
     /// The certificate and edge Ingress of every published App's host (ADR-N-037, AP-133).
     /// `None` outside a cluster.
     app_hosts: Option<Arc<super::app_hosts::AppHosts>>,
+    wasm_shards: Option<Arc<super::wasm_shards::WasmShards>>,
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
@@ -228,6 +229,7 @@ impl Syncer {
             mcp_clients: None,
             edge_file: None,
             app_hosts: None,
+            wasm_shards: None,
             activity: None,
             apps_cache_dir: None,
             apps_dir: None,
@@ -389,6 +391,12 @@ impl Syncer {
         settings: crate::apps::reconciler::Settings,
     ) -> Self {
         self.edge_file = Some((edge_file, settings));
+        self
+    }
+
+    /// Makes each run write every WASM shard's placement and store key (AP-157, AP-158).
+    pub fn with_wasm_shards(mut self, shards: Arc<super::wasm_shards::WasmShards>) -> Self {
+        self.wasm_shards = Some(shards);
         self
     }
 
@@ -1458,6 +1466,23 @@ impl Syncer {
                 }
                 transitions.keep(&mut envelope);
                 self.mirror.upsert(envelope);
+            }
+        }
+
+        // 6a2. Each WASM shard's placement of the published `wasm` Apps placed on it, and its
+        //      store key (AP-157, AP-158): after 6, so an App retired this run has left it.
+        if let Some(shards) = self.wasm_shards.as_ref() {
+            let placed: Vec<super::wasm_shards::PlacedApp> = self
+                .mirror
+                .matching(|env| env.kind == "App")
+                .iter()
+                .filter_map(super::wasm_shards::PlacedApp::of)
+                .collect();
+            for problem in shards
+                .converge(&placed, self.artifact_store.as_deref())
+                .await
+            {
+                tracing::warn!(%problem, "a WASM shard is not as it should be");
             }
         }
 

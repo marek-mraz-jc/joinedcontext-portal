@@ -4,7 +4,7 @@ import { optionLabel } from "../enums";
 import type { Cell, Row } from "../ngsi";
 import { fieldOf } from "../write";
 import type { Field, FieldSchema, Schema, TypeSchema } from "../write";
-import { ProblemError } from "./client";
+import { endpointsOf, ProblemError } from "./client";
 import { useAccess, useClient, useMe, useSchema } from "./hooks";
 import { sdkLanguage, sdkWord, type SdkLanguage, type SdkWord } from "./words";
 
@@ -44,12 +44,18 @@ export interface PanelSource {
 }
 
 interface Selection {
+  /** Whether a shell holds the panel: outside one, a grid keeps its own row detail. */
+  inShell: boolean;
   source?: PanelSource;
-  /** The shell's language, which the panel speaks too. */
+  /** The language the App's shell speaks now, which the panel speaks too. */
   language?: string;
   selected: SelectedEntity | null;
   select(entity: SelectedEntity): void;
   clear(): void;
+  /** How many changes the panel has saved: a page that lists the entities reads them again when it moves. */
+  saved: number;
+  /** Counts one saved change; the panel calls it. */
+  markSaved(): void;
 }
 
 const SelectionContext = createContext<Selection | null>(null);
@@ -57,6 +63,8 @@ const SelectionContext = createContext<Selection | null>(null);
 /** Holds what is selected and remembers what opened it, so closing gives the focus back. */
 export function EntitySelectionProvider({ children, source, language }: { children?: ReactNode; source?: PanelSource; language?: string }): React.JSX.Element {
   const [selected, setSelected] = useState<SelectedEntity | null>(null);
+  const [saved, setSaved] = useState(0);
+  const markSaved = useCallback(() => setSaved((count) => count + 1), []);
   const opener = useRef<HTMLElement | null>(null);
   const select = useCallback((entity: SelectedEntity) => {
     if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
@@ -71,7 +79,10 @@ export function EntitySelectionProvider({ children, source, language }: { childr
     // After the panel is gone, so the focus lands on what opened it and not on nothing.
     if (back && typeof window !== "undefined") window.setTimeout(() => back.isConnected && back.focus(), 0);
   }, []);
-  const value = useMemo(() => ({ source, language, selected, select, clear }), [source, language, selected, select, clear]);
+  const value = useMemo(
+    () => ({ inShell: true, source, language, selected, select, clear, saved, markSaved }),
+    [source, language, selected, select, clear, saved, markSaved],
+  );
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
 
@@ -80,7 +91,7 @@ export function useEntitySelection(): Selection {
   return useContext(SelectionContext) ?? NO_SELECTION;
 }
 
-const NO_SELECTION: Selection = { selected: null, select: () => undefined, clear: () => undefined };
+const NO_SELECTION: Selection = { inShell: false, selected: null, select: () => undefined, clear: () => undefined, saved: 0, markSaved: () => undefined };
 
 /** Props that make any element open the panel on a click and on Enter or Space. */
 export function selectable(entity: SelectedEntity, select: (entity: SelectedEntity) => void): {
@@ -170,13 +181,9 @@ type Stage = { kind: "view" } | { kind: "edit" } | { kind: "review"; patch: Reco
 
 /** The one panel of the shell, showing the selected entity; nothing while nothing is selected. */
 export function EntityPanel(): React.JSX.Element | null {
-  const { selected, source, language } = useEntitySelection();
+  const { selected, source } = useEntitySelection();
   if (!selected) return null;
-  return source ? (
-    <SourcePanel key={selected.id} entity={selected} source={source} language={language} />
-  ) : (
-    <ClientPanel key={selected.id} entity={selected} language={language} />
-  );
+  return source ? <SourcePanel key={selected.id} entity={selected} source={source} /> : <ClientPanel key={selected.id} entity={selected} />;
 }
 
 /** What the panel works from, whichever way the App reads its entities. */
@@ -192,8 +199,9 @@ interface Backing {
 }
 
 /** The panel of an App that reads through the SDK's client: the reader's own access document decides Edit. */
-function ClientPanel({ entity, language }: { entity: SelectedEntity; language?: string }): React.JSX.Element {
+function ClientPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
   const client = useClient();
+  const { language: selectionLanguage } = useEntitySelection();
   const user = useMe();
   const { schema, typeSchema } = useSchema(entity.type);
   const { can } = useAccess(entity.endpoint);
@@ -202,16 +210,18 @@ function ClientPanel({ entity, language }: { entity: SelectedEntity; language?: 
     load: () => client.entities.get(entity.id, undefined, { endpoint: entity.endpoint }),
     save: (patch) => client.entities.update(entity.id, patch, { endpoint: entity.endpoint }),
     mayEdit: (attr) => signedIn && can("updateAttrs", entity.type, attr).ok,
-    portal: portalLinkOf(client.config.portal, client.config.space, entity.id),
+    // The space the entity was read from: a named endpoint may serve another project's space.
+    portal: portalLinkOf(client.config.portal, endpointsOf(client.config).find((one) => one.name === entity.endpoint)?.space ?? client.config.space, entity.id),
     typeSchema,
     defs: schema,
-    language: sdkLanguage(language ?? client.config.language),
+    // The shell's language first: an App that switches languages gets its panel switched too.
+    language: sdkLanguage(selectionLanguage ?? client.config.language),
   };
   return <PanelView entity={entity} backing={backing} />;
 }
 
 /** The panel of an App that reads through its own backend (`PanelSource`). */
-function SourcePanel({ entity, source, language }: { entity: SelectedEntity; source: PanelSource; language?: string }): React.JSX.Element {
+function SourcePanel({ entity, source }: { entity: SelectedEntity; source: PanelSource }): React.JSX.Element {
   const backing: Backing = {
     load: () => source.get(entity),
     save: (patch) => source.update(entity, patch),
@@ -219,13 +229,13 @@ function SourcePanel({ entity, source, language }: { entity: SelectedEntity; sou
     portal: source.portalLink?.(entity) ?? null,
     typeSchema: source.schema?.[entity.type] ?? null,
     defs: source.schema ?? null,
-    language: sdkLanguage(language ?? source.language),
+    language: sdkLanguage(source.language),
   };
   return <PanelView entity={entity} backing={backing} />;
 }
 
 function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backing }): React.JSX.Element {
-  const { clear } = useEntitySelection();
+  const { clear, markSaved } = useEntitySelection();
   const { language, typeSchema, defs } = backing;
   const schema = defs;
   const word = (key: SdkWord, slots?: Record<string, string | number>) => sdkWord(language, key, slots);
@@ -274,18 +284,22 @@ function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backi
   }, [clear]);
 
   const properties = typeSchema?.properties;
+  // An attribute the schema names and the entity does not hold yet, shown only to a reader who
+  // may write it, so a first value can be filled in (a note never written, T-3422).
+  const mayWrite = backing.mayEdit();
+  const fillable = row && mayWrite ? Object.keys(properties ?? {}).filter((name) => !(name in row) && backing.mayEdit(name)) : [];
+  const fillableKey = fillable.join(",");
   const { names, fields } = useMemo(() => {
-    const attrs = row ? attributeOrder(row, typeSchema?.properties) : [];
+    const attrs = row ? [...attributeOrder(row, typeSchema?.properties), ...(fillableKey ? fillableKey.split(",") : [])] : [];
     const map: Record<string, Field> = {};
     for (const name of attrs) {
       map[name] = fieldOf(name, typeSchema ?? undefined, columnKind(row ? [row] : [], name), schema ?? undefined, language);
     }
     return { names: attrs, fields: map };
-  }, [row, typeSchema, schema, language]);
+  }, [row, typeSchema, schema, language, fillableKey]);
 
   // Edit only where the reader may write this type; the attributes they may not change stay
   // read-only in the form.
-  const mayWrite = backing.mayEdit();
   const editable = (name: string) => mayWrite && EDITABLE.has(fields[name]?.input ?? "") && backing.mayEdit(name);
   const portal = backing.portal;
 
@@ -325,6 +339,7 @@ function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backi
     setStage({ kind: "saving", patch });
     try {
       await backing.save(patch);
+      markSaved();
       await read();
       setNotice({ tone: "ok", text: word("panel.saved") });
       setStage({ kind: "view" });

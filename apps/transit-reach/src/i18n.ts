@@ -59,6 +59,8 @@ const WORDS = {
   reached: { fi: "Pysäkit {limit} minuutissa", en: "Stops within {limit} minutes" },
   reachedLine: { fi: "{minutes} min: linjat {routes}", en: "{minutes} min: routes {routes}" },
   startFrom: { fi: "{stop}: lähde tästä", en: "{stop}: start from here" },
+  details: { fi: "Tiedot", en: "Details" },
+  detailsOf: { fi: "{stop}: tiedot", en: "{stop}: details" },
   noReached: { fi: "Ei pysäkkejä {limit} minuutin sisällä.", en: "No stop within {limit} minutes." },
   language: { fi: "In English", en: "Suomeksi" },
 } as const;

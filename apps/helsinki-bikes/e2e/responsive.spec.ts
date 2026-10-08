@@ -28,7 +28,10 @@ for (const view of VIEWS) {
         await expect(stations.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
         if (view.choose) {
           await stations.getByRole("table").getByText(view.choose).click();
-          await expect(stations.getByRole("heading", { name: view.choose })).toBeVisible();
+          // SDK-40: the station opens in the shell's entity panel, linked to the Portal, no Edit.
+          const panel = page.getByRole("dialog", { name: view.choose });
+          await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+          await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
         }
       }
       await testInfo.attach(`${view.name}-${size.width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
@@ -36,4 +39,20 @@ for (const view of VIEWS) {
       expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
     });
   }
+}
+
+// The panel in the dark as well, at a phone and a laptop, and Escape closes it (SDK-40, T-3395).
+for (const width of [375, 1440]) {
+  test(`dark at ${width} px: a station in the entity panel, axe clean, Escape closes it`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: "dark" });
+    const { outside, missing, problems } = await serve(page);
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${BASE}#stations`);
+    await page.getByRole("region", { name: "Stations" }).getByRole("table").getByText("Kaivopuisto").click();
+    await expect(page.getByRole("dialog", { name: "Kaivopuisto" })).toBeVisible();
+    expect(await layoutProblems(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+  });
 }

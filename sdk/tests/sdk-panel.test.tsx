@@ -47,10 +47,11 @@ const PORTAL = "https://portal.dev.example.org/projects/helsinki";
 
 /** A page with the three kinds of opener the panel serves: a map feature, a table row and a chart point. */
 function Openers(): React.JSX.Element {
-  const { select } = useEntitySelection();
+  const { select, saved } = useEntitySelection();
   const entity = { id: STATION.id, type: STATION.type };
   return (
     <div>
+      <p data-testid="saved">{saved}</p>
       <div data-testid="map-feature" aria-label="Kaivopuisto on the map" {...selectable(entity, select)} />
       <table>
         <tbody>
@@ -195,6 +196,40 @@ describe("the entity panel (SDK-40)", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  it("links an entity read through another space's endpoint to that space, not the App's own", async () => {
+    function Shared(): React.JSX.Element {
+      const { select } = useEntitySelection();
+      return (
+        <button type="button" onClick={() => select({ id: STATION.id, type: STATION.type, endpoint: "city-bikes" })}>
+          shared Kaivopuisto
+        </button>
+      );
+    }
+    const client = stubClient(
+      { entities: [STATION], schema: SCHEMA, access: READ },
+      {
+        user: PERSON,
+        portal: PORTAL,
+        space: "mobility",
+        endpoints: [
+          { name: "own", slug: "own", space: "mobility", types: [] },
+          { name: "city-bikes", slug: "shared", space: "helsinki", types: [] },
+        ],
+      },
+    );
+    render(
+      <JcProvider client={client}>
+        <AppShell title="Bikes" pages={[{ id: "stations", label: "Stations", render: () => <Shared /> }]} />
+      </JcProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "shared Kaivopuisto" }));
+    const panel = await screen.findByRole("dialog", { name: "Kaivopuisto" });
+    expect(within(panel).getByRole("link", { name: "Open in the Portal" })).toHaveAttribute(
+      "href",
+      `${PORTAL}/explore?space=helsinki&entityId=${encodeURIComponent(STATION.id)}`,
+    );
+  });
+
   it("offers no Edit to an anonymous reader even where the access document would allow it", async () => {
     show(WRITE, { user: null });
     const panel = await openFromTable();
@@ -227,6 +262,41 @@ describe("the entity panel (SDK-40)", () => {
     expect(patches[0].path).toContain(`/entities/${encodeURIComponent(STATION.id)}/attrs`);
     expect(patches[0].body).toEqual({ availableBikeNumber: { type: "Property", value: 7 } });
     expect(await within(panel).findByText("Saved.")).toBeInTheDocument();
+    // The page hears of the change, to read its list again.
+    expect(screen.getByTestId("saved")).toHaveTextContent("1");
+  });
+
+  it("lets a writer fill in an attribute the entity does not hold yet, and shows a reader none of it", async () => {
+    const schema = { BikeHireDockingStation: { properties: { ...SCHEMA.BikeHireDockingStation.properties, note: { type: ["string", "null"], title: "Note", "x-ngsi-ld-kind": "Property" } } } };
+    const client = stubClient({ entities: [STATION], schema, access: WRITE }, { user: PERSON, portal: PORTAL });
+    render(
+      <JcProvider client={client}>
+        <AppShell title="Bikes" pages={[{ id: "stations", label: "Stations", render: () => <Openers /> }]} />
+      </JcProvider>,
+    );
+    const panel = await openFromTable();
+    // Read, the empty attribute is shown as empty so a writer sees it can be filled in.
+    expect(await within(panel).findByText("Note")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Edit" }));
+    fireEvent.change(within(panel).getByLabelText("Note"), { target: { value: "New dock" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Review the change" }));
+    expect(within(panel).getByText("Note: — → New dock")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole("button", { name: "Save the change" }));
+    });
+    expect(client.transport.calls.find((call) => call.method === "PATCH")?.body).toEqual({ note: { type: "Property", value: "New dock" } });
+  });
+
+  it("does not list an attribute the entity lacks to a reader who may not write it", async () => {
+    const schema = { BikeHireDockingStation: { properties: { ...SCHEMA.BikeHireDockingStation.properties, note: { type: ["string", "null"], title: "Note" } } } };
+    render(
+      <JcProvider client={stubClient({ entities: [STATION], schema, access: READ }, { user: PERSON, portal: PORTAL })}>
+        <AppShell title="Bikes" pages={[{ id: "stations", label: "Stations", render: () => <Openers /> }]} />
+      </JcProvider>,
+    );
+    const panel = await openFromTable();
+    await within(panel).findByText("Available bike number");
+    expect(within(panel).queryByText("Note")).toBeNull();
   });
 
   it("says nothing changed when nothing did, and writes nothing", async () => {
@@ -258,6 +328,8 @@ describe("the entity panel (SDK-40)", () => {
       fireEvent.click(within(panel).getByRole("button", { name: "Save the change" }));
     });
     expect(await within(panel).findByRole("alert")).toHaveTextContent("You may not change this entity: no write on availableBikeNumber");
+    // Nothing was saved, so the page has nothing to read again.
+    expect(screen.getByTestId("saved")).toHaveTextContent("0");
   });
 
   it("is axe clean, open and in its edit form", async () => {
@@ -267,6 +339,20 @@ describe("the entity panel (SDK-40)", () => {
     expect((await axe.run(panel)).violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
     fireEvent.click(within(panel).getByRole("button", { name: "Edit" }));
     expect((await axe.run(panel)).violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+  });
+
+  // An App that switches languages in its shell gets its panel switched too, whatever the served
+  // configuration said at first.
+  it("speaks the language the App's shell speaks now", async () => {
+    const client = stubClient({ entities: [STATION], schema: SCHEMA, access: READ }, { user: PERSON, portal: PORTAL, language: "en" });
+    render(
+      <JcProvider client={client}>
+        <AppShell title="Pyörät" language="fi" pages={[{ id: "stations", label: "Asemat", render: () => <Openers /> }]} />
+      </JcProvider>,
+    );
+    const panel = await openFromTable();
+    expect(await within(panel).findByRole("link", { name: "Avaa portaalissa" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Sulje" })).toBeInTheDocument();
   });
 
   it("speaks the App's language", async () => {

@@ -4,7 +4,7 @@ What the City of Helsinki's news talks about: topics, how their share changes we
 
 - a ranked list of topics for the chosen period with their keywords and share;
 - a stacked bar chart of topic share per ISO week (ECharts via ChartCard), with an accessible table alternative for screen readers;
-- the articles behind the selected topic, with links to original sources;
+- the articles behind the selected topic, with links to original sources; an article's title opens it in the SDK shell's entity panel, with a link to it in the Portal (the App writes nothing, so the panel offers no Edit);
 - filters in the URL hash query (`#topics?weeks=8&topic=2&q=…`): period (4, 8, 12 weeks, or all), number of topics k (3–8, default 5), and title text search;
 - bilingual interface in English and Finnish (`?lang=fi|en`).
 

@@ -128,10 +128,15 @@
   background: var(--jc-color-danger, #dc2626);
 }
 
-.jc-map-popup {
-  font-size: var(--jc-font-size-sm, 0.75rem);
-  overflow-wrap: anywhere;
-}
-.jc-map-popup p {
-  margin: var(--jc-space-1, 0.25rem) 0 0;
+/* An event's name opens it in the entity panel: a button that reads as the title it is. */
+.app-open {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }

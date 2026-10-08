@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import * as echarts from "echarts";
 import { currentTokens, echartsTheme } from "@joinedcontext/sdk";
 import type { ProblemError } from "@joinedcontext/sdk";
-import { Empty, Loading, Problem } from "./states";
+import { Empty, Loading, Problem } from "@joinedcontext/sdk";
 
 /** One ECharts chart with a caption, in the SDK's theme; the loading, error and empty states in its place. */
 export function ChartCard({

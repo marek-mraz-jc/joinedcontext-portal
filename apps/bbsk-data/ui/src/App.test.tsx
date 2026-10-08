@@ -7,7 +7,7 @@ import { JcProvider, projectRow, toRichRow } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
 import { ALL, answer } from "./fixtures/registre";
-import { COLUMNS, DATASETS, TYPE_OF } from "./datasets";
+import { DATASETS, TYPE_OF } from "./datasets";
 import type { Dataset } from "./datasets";
 import { LOCALES } from "./locales";
 
@@ -80,7 +80,7 @@ describe("the region's registers", () => {
 
   it("says it has nothing to read when the app has no endpoint of the register space", () => {
     show(false);
-    expect(screen.getByRole("status")).toHaveTextContent(s.noEndpoint);
+    expect(screen.getByText(s.noEndpoint)).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).toBeNull();
   });
 
@@ -106,7 +106,7 @@ describe("the region's registers", () => {
   it("opens a row by its name in the SDK's panel, links it to the Portal and offers no edit", async () => {
     show();
     const panel = screen.getByRole("tabpanel", { name: s.dataset.hospitals });
-    fireEvent.click(await within(panel).findByRole("button", { name: "Nemocnica Zvolen" }));
+    fireEvent.click(await within(panel).findByRole("button", { name: `${s.grid.openRow}: Nemocnica Zvolen` }));
     const dialog = await screen.findByRole("dialog", { name: "Nemocnica Zvolen" });
     expect(await within(dialog).findByText("Kuzmányho nábrežie 28, Zvolen")).toBeInTheDocument();
     const link = within(dialog).getByRole("link", { name: "Otvoriť v Portáli" });
@@ -124,28 +124,18 @@ describe("the region's registers", () => {
   it("reads the register space through the endpoint the Portal names for it and opens a row from it", async () => {
     show(false, [{ name: "registre", slug: SLUG, space: "bbsk-registre", types: [] }]);
     const panel = screen.getByRole("tabpanel", { name: s.dataset.hospitals });
-    fireEvent.click(await within(panel).findByRole("button", { name: "Nemocnica Zvolen" }));
+    fireEvent.click(await within(panel).findByRole("button", { name: `${s.grid.openRow}: Nemocnica Zvolen` }));
     const dialog = await screen.findByRole("dialog", { name: "Nemocnica Zvolen" });
     expect(await within(dialog).findByText("Kuzmányho nábrežie 28, Zvolen")).toBeInTheDocument();
     expect(asked.every((url) => url.pathname.startsWith(`/api/endpoint/${SLUG}/`))).toBe(true);
   });
 
-  // Every control of every register's grid is one a reader uses: each sorts, shows its details,
-  // and narrows at the endpoint with its own `q`; the downloads are the register's own files.
-  it.each(DATASETS)("%s: every column sorts, shows its details and filters at the endpoint", async (dataset: Dataset) => {
-    const clipboard = vi.fn(async () => undefined);
-    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: clipboard } });
+  // The App's own controls on every register: its tab, its two downloads, and a row it opens in the
+  // shell's panel. The grid's own controls (sort, filter, details) are the SDK suite's (T-3373).
+  it.each(DATASETS)("%s: the tab, the register's downloads and a row opened by its name", async (dataset: Dataset) => {
     show();
     fireEvent.click(screen.getByRole("tab", { name: s.dataset[dataset] }));
     const panel = screen.getByRole("tabpanel", { name: s.dataset[dataset] });
-    // Every row opens by its name in the shell's panel.
-    for (const row of answer(TYPE_OF[dataset]) as { id: string; name?: { languageMap: { sk: string } } }[]) {
-      // A row without a name opens by its identifier, and the panel names it by its last part.
-      fireEvent.click(await within(panel).findByRole("button", { name: row.name?.languageMap.sk ?? row.id }));
-      const dialog = await screen.findByRole("dialog", { name: row.name?.languageMap.sk ?? row.id.slice(row.id.lastIndexOf(":") + 1) });
-      fireEvent.click(within(dialog).getByRole("button", { name: "Zavrieť" }));
-    }
-
     for (const format of [s.csv, s.geojson]) {
       const link = within(panel).getByRole("link", { name: `${format} ${s.dataset[dataset]}` });
       expect(link).toHaveAttribute("download");
@@ -154,51 +144,13 @@ describe("the region's registers", () => {
       fireEvent.click(link);
       expect(kept).toHaveBeenCalledTimes(1);
     }
-
-    for (const attr of COLUMNS[dataset]) {
-      const label = s.column[attr];
-      fireEvent.click(within(panel).getByRole("button", { name: `${s.grid.sortPage} ${label}` }));
-      await waitFor(() => expect(within(panel).getByRole("button", { name: `${s.grid.sortPage} ${label}` })).toHaveTextContent(/[↑↓]/));
-
-      fireEvent.click(within(panel).getByRole("button", { name: `${s.grid.showMetadata} ${attr}` }));
-      // Each detail adds a column of its own and takes it away again, so the grid ends as it began.
-      const menu = () => within(panel).getAllByRole("checkbox").filter((one) => one.closest(".jc-grid-meta-menu"));
-      const sorts = () => within(panel).getAllByRole("button", { name: new RegExp(`^${s.grid.sortPage} `) }).length;
-      for (const at of menu().keys()) {
-        const columns = sorts();
-        fireEvent.click(menu()[at]);
-        expect(sorts()).toBe(columns + 1);
-        fireEvent.click(menu()[at]);
-        expect(sorts()).toBe(columns);
-      }
-      fireEvent.click(within(panel).getByRole("button", { name: `${s.grid.showMetadata} ${attr}` }));
-
-      const before = asked.length;
-      const op = within(panel).getByRole("combobox", { name: `${s.grid.filter}: ${label}` }) as HTMLSelectElement;
-      fireEvent.change(op, { target: { value: op.options[1].value } });
-      const many = within(panel).queryByRole("listbox", { name: `${s.grid.value}: ${label}` }) as HTMLSelectElement | null;
-      if (many) {
-        many.options[0].selected = true;
-        fireEvent.change(many);
-      }
-      for (const field of within(panel).queryAllByRole("textbox").concat(within(panel).queryAllByRole("spinbutton"))) {
-        if (!field.getAttribute("aria-label")?.endsWith(`: ${label}`)) continue;
-        fireEvent.change(field, { target: { value: field.getAttribute("type") === "number" ? "1" : "a" } });
-      }
-      for (const field of Array.from(panel.querySelectorAll<HTMLInputElement>('input[type="date"]'))) {
-        fireEvent.change(field, { target: { value: "2026-01-01" } });
-      }
-      await waitFor(() => expect(asked.slice(before).some((url) => (url.searchParams.get("q") ?? "").includes(attr))).toBe(true));
-      fireEvent.change(op, { target: { value: "" } });
+    for (const row of answer(TYPE_OF[dataset]) as { id: string; name?: { languageMap: { sk: string } } }[]) {
+      // A row without a name opens by its identifier, and the panel names it by its last part.
+      const name = row.name?.languageMap.sk ?? row.id;
+      fireEvent.click(await within(panel).findByRole("button", { name: `${s.grid.openRow}: ${name}` }));
+      const dialog = await screen.findByRole("dialog", { name: row.name?.languageMap.sk ?? row.id.slice(row.id.lastIndexOf(":") + 1) });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Zavrieť" }));
     }
-
-    fireEvent.click(within(panel).getByRole("button", { name: s.grid.copyQuery }));
-    expect(clipboard).toHaveBeenCalledTimes(1);
-    fireEvent.click(within(panel).getByRole("checkbox", { name: s.grid.editAsText }));
-    const typed = within(panel).getByRole("textbox", { name: s.grid.query });
-    fireEvent.change(typed, { target: { value: 'name~=".*a.*"' } });
-    await waitFor(() => expect(asked.some((url) => url.searchParams.get("q") === 'name~=".*a.*"')).toBe(true));
-    // A register of eleven columns, each filter waiting for its request: longer than one click.
-  }, 20_000);
+  });
 });
 

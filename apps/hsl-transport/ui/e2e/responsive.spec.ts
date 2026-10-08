@@ -26,3 +26,26 @@ for (const scheme of ["light", "dark"] as const) {
     });
   }
 }
+
+// SDK-40, T-3399: a bus chosen from those in view opens in the shell's entity panel, read from the
+// app's own backend, at a phone and a laptop, light and dark; the app writes nothing, so the panel
+// links the bus to the Portal.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a bus in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      const { missing, problems } = await serve(page);
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await page.getByRole("combobox", { name: "Open a bus" }).selectOption("3");
+      const panel = page.getByRole("dialog");
+      await expect(panel.getByText("23", { exact: true })).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect({ missing, problems }).toEqual({ missing: [], problems: [] });
+    });
+  }
+}

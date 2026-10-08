@@ -6,8 +6,9 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
 import { JcProvider } from "@joinedcontext/sdk";
+import type { Row } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
-import App from "./App";
+import App, { reasonOf } from "./App";
 import bikes from "./fixtures/bikes.json";
 import parking from "./fixtures/parking.json";
 import air from "./fixtures/air.json";
@@ -37,25 +38,28 @@ function serving(override: Record<string, () => Response> = {}) {
   });
 }
 
-function show(options: { override?: Record<string, () => Response>; language?: string; endpoints?: typeof ENDPOINTS; basemap?: string } = {}) {
+function show(options: { override?: Record<string, () => Response>; language?: string; endpoints?: typeof ENDPOINTS | null; basemap?: string } = {}) {
   const fetch = serving(options.override);
   vi.stubGlobal("fetch", fetch);
-  const client = stubClient(undefined, {
+  // The tables read through `fetch` above; the entity panel reads one entity through the client (SDK-40).
+  const rows = [...bikes, ...parking, ...air] as unknown as Row[];
+  const client = stubClient({ entities: rows }, {
+    portal: "https://portal.praha.cz/projects/praha",
     slug: SLUG,
     orgDomain: "praha.cz",
     space: "praha-mesto",
     transport: "origin",
     appName: "praha-mesto",
     language: options.language ?? "cs",
-    endpoints: options.endpoints ?? ENDPOINTS,
+    ...(options.endpoints === null ? {} : { endpoints: options.endpoints ?? ENDPOINTS }),
     basemap: options.basemap,
   });
-  render(
+  const view = render(
     <JcProvider client={client}>
       <App />
     </JcProvider>,
   );
-  return fetch;
+  return Object.assign(fetch, { view });
 }
 
 const section = (name: string) => screen.getByRole("region", { name });
@@ -176,5 +180,97 @@ describe("Prague right now", () => {
       expect(box).toHaveAttribute("tabindex", "0");
       expect(within(box).getByRole("table")).toBeInTheDocument();
     }
+  });
+
+  it("opens a station, a car park and an air station in the entity panel, with a Portal link and no Edit", async () => {
+    show();
+    for (const [heading, kind] of [
+      [cs.bikes.title, "bike"],
+      [cs.parking.title, "parking"],
+      [cs.air.title, "air"],
+    ] as const) {
+      const table = await within(section(heading)).findByRole("table");
+      const first = within(table).getAllByRole("button")[0];
+      fireEvent.click(first);
+      const panel = await screen.findByRole("dialog");
+      await waitFor(() => expect(within(panel).getByRole("link", { name: "Otevřít v Portálu" })).toBeInTheDocument(), { timeout: 3000 });
+      expect(within(panel).queryByRole("button", { name: "Upravit" })).toBeNull();
+      fireEvent.click(within(panel).getByRole("button", { name: "Zavřít" }));
+      expect(screen.queryByRole("dialog"), kind).toBeNull();
+    }
+  });
+
+  it("opens every row of every table, and links the opened one to the Portal", async () => {
+    show();
+    for (const heading of [cs.bikes.title, cs.parking.title, cs.air.title]) {
+      const table = await within(section(heading)).findByRole("table");
+      for (const button of within(table).getAllByRole("button")) {
+        fireEvent.click(button);
+        expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      }
+    }
+    const link = await within(screen.getByRole("dialog")).findByRole("link", { name: "Otevřít v Portálu" }, { timeout: 3000 });
+    fireEvent.click(link);
+    expect(link).toHaveAttribute("href", expect.stringContaining("https://portal.praha.cz/projects/praha/explore?"));
+  });
+
+  it("finds a station by an English search too", async () => {
+    show({ language: "en" });
+    const bikesSection = section(LOCALES.en.bikes.title);
+    await waitFor(() => expect(within(bikesSection).getAllByRole("row")).toHaveLength(4));
+    fireEvent.change(within(bikesSection).getByLabelText(LOCALES.en.search), { target: { value: "cechovo" } });
+    expect(within(bikesSection).getAllByRole("row")).toHaveLength(2);
+  });
+
+  it("shows a dash for a count, a capacity or a reading a row does not carry", async () => {
+    const bare = { ...bikes[0], availableBikeNumber: undefined, freeSlotNumber: undefined, status: { type: "Property", value: "outOfService" } };
+    const park = { ...parking[1], totalSpotNumber: undefined, availableSpotNumber: undefined, occupiedSpotNumber: { type: "Property", value: 5 }, dateModified: undefined };
+    const station = { id: air[0].id, type: "AirQualityObserved", name: air[0].name, no2: { type: "Property", value: 12 } };
+    show({
+      override: {
+        BikeHireDockingStation: () => answer([bare, ...bikes.slice(1)]),
+        OffStreetParking: () => answer([park]),
+        AirQualityObserved: () => answer([station]),
+      },
+    });
+    const bikeRow = (await within(section(cs.bikes.title)).findByRole("rowheader", { name: new RegExp(cs.outOfService) })).closest("tr");
+    expect(bikeRow).toHaveTextContent("–");
+    const parkRow = (await within(section(cs.parking.title)).findByRole("rowheader")).closest("tr");
+    expect(parkRow?.textContent?.match(/–/g)?.length).toBeGreaterThanOrEqual(3);
+    const airRow = (await within(section(cs.air.title)).findByRole("rowheader")).closest("tr");
+    expect(airRow?.textContent?.match(/–/g)?.length).toBe(4);
+  });
+
+  it("says it cannot reach the space when the served configuration lists no endpoints", async () => {
+    const fetch = show({ endpoints: null });
+    await waitFor(() => expect(screen.getAllByText(cs.noEndpoint)).toHaveLength(3));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("drops what arrives after the screen is gone", async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((done) => (release = done));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string) => {
+        await held;
+        return answer(BY_TYPE[new URL(path, "https://portal.example").searchParams.get("type") ?? ""] ?? []);
+      }),
+    );
+    const client = stubClient(undefined, { slug: SLUG, orgDomain: "praha.cz", space: "praha-mesto", transport: "origin", appName: "praha-mesto", language: "cs", endpoints: ENDPOINTS });
+    const view = render(
+      <JcProvider client={client}>
+        <App />
+      </JcProvider>,
+    );
+    view.unmount();
+    release();
+    await new Promise((done) => setTimeout(done, 20));
+    expect(document.body.textContent).toBe("");
+  });
+
+  it("says a failure that is not even an error as it came", () => {
+    expect(reasonOf("the proxy hung up")).toBe("the proxy hung up");
+    expect(reasonOf(new Error("refused"))).toBe("refused");
   });
 });

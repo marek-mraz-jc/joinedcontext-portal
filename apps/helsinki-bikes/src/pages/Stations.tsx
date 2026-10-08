@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { Card, displayName, Page, Split, useEntities, useFilters } from "@joinedcontext/sdk";
+import { Card, Page, Split, useEntities, useEntitySelection, useFilters } from "@joinedcontext/sdk";
 import type { FilterDef } from "@joinedcontext/sdk";
-import { EntityDetail } from "../components/EntityDetail";
 import { EntityMap } from "../components/EntityMap";
 import { EntityTable } from "../components/EntityTable";
 import type { ColumnDef } from "../components/EntityTable";
@@ -9,7 +8,6 @@ import { FilterBar, SearchBox } from "../components/filters";
 import { STATION, hasBikes } from "../stations";
 
 const SEARCH: FilterDef[] = [{ kind: "search", attrs: ["name"], label: "Station" }];
-const COLUMNS = ["name", "availableBikeNumber", "freeSlotNumber", "totalSlotNumber", "status", "dateModified"];
 
 /** The table's columns in words, the status as a coloured chip (T-2924). */
 export const TABLE: ColumnDef[] = [
@@ -33,16 +31,17 @@ export const TABLE: ColumnDef[] = [
 ];
 
 /**
- * Every station: a search by name, "only stations with bikes", the map coloured by bikes with the
- * chosen station beside it (under it on a phone), and the table.
+ * Every station: a search by name, "only stations with bikes", the map coloured by bikes and the
+ * table; a station chosen on either opens in the shell's entity panel (SDK-40), linked to the
+ * Portal: a public App writes nothing.
  */
 export function Stations() {
   const { rows, loading, error } = useEntities(STATION);
   const { shown: searched, bind, reset } = useFilters(rows, SEARCH);
   const [withBikes, setWithBikes] = useState(false);
   const shown = useMemo(() => (withBikes ? searched.filter(hasBikes) : searched), [searched, withBikes]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = shown.find((row) => row.id === selectedId) ?? null;
+  const { selected, select } = useEntitySelection();
+  const selectedId = selected?.id ?? null;
 
   return (
     <Page label="Stations">
@@ -67,15 +66,11 @@ export function Stations() {
           label="name"
           color="availableBikeNumber"
           selected={selectedId}
-          onSelect={(row) => setSelectedId(row.id)}
+          onSelect={(row) => select({ id: row.id, type: STATION })}
         />
-        {selected ? (
-          <EntityDetail row={selected} attrs={COLUMNS} title={displayName(selected)} onClose={() => setSelectedId(null)} />
-        ) : (
-          <Card label="Station">
-            <p>Choose a station on the map or in the table to see its bikes and free slots.</p>
-          </Card>
-        )}
+        <Card label="Station">
+          <p>Choose a station on the map or in the table to see its bikes and free slots.</p>
+        </Card>
       </Split>
       <EntityTable
         rows={shown}
@@ -83,7 +78,7 @@ export function Stations() {
         loading={loading}
         error={error}
         selected={selectedId}
-        onSelect={(row) => setSelectedId(row.id)}
+        onSelect={(row) => select({ id: row.id, type: STATION })}
         initialSort={{ attr: "name", dir: "asc" }}
         caption="Stations"
         empty="No station matches."

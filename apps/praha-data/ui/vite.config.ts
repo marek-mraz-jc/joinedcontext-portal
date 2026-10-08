@@ -18,5 +18,7 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // The recorded answers the tests serve are data, not the App (T-3373).
+    coverage: { exclude: ["src/fixtures/**"] },
   },
 });

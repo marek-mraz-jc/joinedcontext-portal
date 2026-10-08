@@ -18,5 +18,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // The wasm-bindgen glue is generated; the planner's own code is measured by its Rust coverage
+    // (cargo llvm-cov in wasm/, T-3373), the fixtures are test data.
+    coverage: { exclude: ["wasm/pkg/**", "src/fixtures/**"] },
   },
 });

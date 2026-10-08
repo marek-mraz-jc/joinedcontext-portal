@@ -4,20 +4,24 @@
  * `fetch` is what is stubbed, so every case goes through the SDK's own endpoint source. MapLibre
  * needs WebGL, which jsdom does not have, so the library is a double recording what it was given.
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
 import { JcProvider } from "@joinedcontext/sdk";
+import type { Row } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 
 const setData = vi.fn();
 const addSource = vi.fn();
+/** What a click on a place of the map hands the App, as MapLibre would. */
+let clickPlace: (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void = () => undefined;
 
 vi.mock("maplibre-gl", () => {
   class Map {
-    on(event: string, handler: () => void) {
-      if (event === "load") handler();
+    on(event: string, layerOrHandler: unknown, handler?: (event: never) => void) {
+      if (event === "load") (layerOrHandler as () => void)();
+      if (event === "click" && handler) clickPlace = handler as typeof clickPlace;
     }
     addSource = addSource;
     addLayer = vi.fn();
@@ -29,7 +33,7 @@ vi.mock("maplibre-gl", () => {
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 
 const App = (await import("./App")).default;
-const { answer } = await import("./fixtures/helsinki");
+const { SERVICES, WATER, answer } = await import("./fixtures/helsinki");
 const { LOCALES } = await import("./locales");
 const s = LOCALES.fi;
 
@@ -52,7 +56,8 @@ function show(refuse?: string, withEndpoint = true) {
       return json(answer(type));
     }),
   );
-  const client = stubClient(undefined, {
+  // The entity panel reads the entity it shows through the App's client, as key-values.
+  const client = stubClient({ entities: [...SERVICES, ...WATER].map(keyValues) }, {
     slug: withEndpoint ? SLUG : "",
     orgDomain: "hel.fi",
     space: withEndpoint ? "helsinki" : "elsewhere",
@@ -67,13 +72,23 @@ function show(refuse?: string, withEndpoint = true) {
   );
 }
 
+/** A normalized entity as the endpoint answers it with `options=keyValues`. */
+function keyValues(entity: Record<string, unknown>): Row {
+  const out: Record<string, unknown> = {};
+  for (const [name, attr] of Object.entries(entity)) {
+    const a = attr as { type?: string; value?: unknown; object?: unknown; languageMap?: Record<string, string> };
+    out[name] = typeof attr !== "object" || attr === null ? attr : a.type === "Relationship" ? a.object : a.type === "LanguageProperty" ? (a.languageMap?.fi ?? null) : a.value;
+  }
+  return out as Row;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 const results = () => screen.getByRole("region", { name: /paikka/ });
-const names = () => within(results()).queryAllByRole("button").map((button) => button.querySelector(".name")?.textContent);
+const names = () => within(results()).queryAllByRole("button").map((button) => button.getAttribute("aria-label"));
 
 describe("the Helsinki service map", () => {
   it("lists the services and the water sensors, and draws those with a position", async () => {
@@ -99,8 +114,9 @@ describe("the Helsinki service map", () => {
   it("counts each layer and narrows by layer and by search, without diacritics", async () => {
     show();
     await waitFor(() => expect(names()).toContain("Keskustakirjasto Oodi"));
-    expect(screen.getByRole("checkbox", { name: `${s.kind.water} (2)` })).toBeChecked();
-    await userEvent.click(screen.getByRole("checkbox", { name: `${s.kind.water} (2)` }));
+    expect(screen.getByRole("checkbox", { name: s.kind.water })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: s.kind.water })).toHaveAccessibleDescription("(2)");
+    await userEvent.click(screen.getByRole("checkbox", { name: s.kind.water }));
     expect(names()).not.toContain("Hietaniemi, vesi");
     await userEvent.type(screen.getByRole("searchbox", { name: s.search }), "yrjonkadun");
     expect(names()).toEqual(["Yrjönkadun uimahalli"]);
@@ -109,28 +125,87 @@ describe("the Helsinki service map", () => {
     expect(within(results()).getByText(s.noResults)).toBeInTheDocument();
   });
 
-  it("opens a water sensor as a sheet with its temperature and the beach it stands at, and Escape returns", async () => {
+  // SDK-40: a place opens in the shell's entity panel, from the list or from the map; a public App
+  // writes nothing, so the panel offers no Edit, and closing it gives the focus back.
+  it("opens a water sensor from the list in the entity panel with its temperature, and closing returns", async () => {
     show();
     await waitFor(() => expect(names()).toContain("Hietaniemi, vesi"));
-    const item = within(results()).getByRole("button", { name: /Hietaniemi, vesi/ });
+    const item = within(results()).getByRole("button", { name: "Hietaniemi, vesi" });
     await userEvent.click(item);
-    const sheet = screen.getByRole("region", { name: s.detailOf("Hietaniemi, vesi") });
-    expect(within(sheet).getByText(/16,4\s°C/)).toBeInTheDocument();
-    expect(within(sheet).getByText("Hietaniemen uimaranta")).toBeInTheDocument();
-    await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("region", { name: /Tiedot:/ })).toBeNull();
+    expect(item).toHaveAttribute("aria-pressed", "true");
+    const panel = await screen.findByRole("dialog", { name: "Hietaniemi, vesi" });
+    expect(await within(panel).findByText(/^16[.,]4/)).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: "Muokkaa" })).toBeNull();
+    await userEvent.click(within(panel).getByRole("button", { name: "Sulje" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(item).toHaveFocus());
   });
 
-  it("says what a sensor does not report, never links a script, and links a real site", async () => {
+  it("opens a place clicked on the map, and ignores a click on nothing it knows", async () => {
     show();
-    await waitFor(() => expect(names()).toContain("Irrallinen anturi"));
-    await userEvent.click(within(results()).getByRole("button", { name: /Irrallinen anturi/ }));
-    expect(within(screen.getByRole("region", { name: s.detailOf("Irrallinen anturi") })).getAllByText(s.noValue)).toHaveLength(3);
-    await userEvent.click(within(results()).getByRole("button", { name: /Kallion ala-asteen koulu/ }));
-    expect(within(screen.getByRole("region", { name: s.detailOf("Kallion ala-asteen koulu") })).queryByRole("link")).toBeNull();
-    await userEvent.click(within(results()).getByRole("button", { name: /Keskustakirjasto Oodi/ }));
-    expect(screen.getByRole("link", { name: s.website })).toHaveAttribute("href", "https://www.oodihelsinki.fi/");
+    await waitFor(() => expect(names()).toContain("Keskustakirjasto Oodi"));
+    act(() => clickPlace({ features: [{ properties: { id: "urn:ngsi-ld:PointOfInterest:hel.fi:helsinki:nowhere" } }] }));
+    act(() => clickPlace({ features: [] }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    act(() => clickPlace({ features: [{ properties: { id: SERVICES[0].id } }] }));
+    expect(await screen.findByRole("dialog", { name: "Keskustakirjasto Oodi" })).toBeInTheDocument();
+    expect(within(results()).getByRole("button", { name: "Keskustakirjasto Oodi" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("opens every place of the list in the panel, and every layer turns off and on", async () => {
+    show();
+    // Five services and two sensors; the service of a category the map does not show is not one.
+    await waitFor(() => expect(names()).toHaveLength(7));
+    const user = userEvent.setup();
+    for (const name of names()) {
+      await user.click(within(results()).getByRole("button", { name: name! }));
+      const panel = await screen.findByRole("dialog", { name: name! });
+      await user.click(within(panel).getByRole("button", { name: "Sulje" }));
+    }
+    for (const kind of Object.values(s.kind)) {
+      await user.click(screen.getByRole("checkbox", { name: kind }));
+      await user.click(screen.getByRole("checkbox", { name: kind }));
+    }
+    expect(names()).toHaveLength(7);
+  });
+
+  it("toggles the layers while they still load", async () => {
+    let answerNow: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (answerNow = resolve));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string) => {
+        await held;
+        return json(answer(new URL(path, "http://portal.test").searchParams.get("type")));
+      }),
+    );
+    render(
+      <JcProvider client={stubClient(undefined, { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "helsinki-kartta", language: "fi" })}>
+        <App />
+      </JcProvider>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(s.loading);
+    const user = userEvent.setup();
+    for (const kind of Object.values(s.kind)) await user.click(screen.getByRole("checkbox", { name: kind }));
+    answerNow();
+    await waitFor(() => expect(screen.queryByText(s.loading)).toBeNull());
+    expect(names()).toEqual([]);
+  });
+
+  it("says a failure that is no endpoint answer in its own words", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    render(
+      <JcProvider client={stubClient(undefined, { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "helsinki-kartta", language: "fi" })}>
+        <App />
+      </JcProvider>,
+    );
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.map((a) => a.textContent).join(" ")).toMatch(/Failed to fetch/);
   });
 
   it("says why a type the endpoint refuses is missing and keeps the other", async () => {

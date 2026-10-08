@@ -346,4 +346,65 @@ mod tests {
         assert_eq!(out.estimate.len(), 6);
         assert!(out.assumption.is_some());
     }
+
+    /// Two days of hourly counts from 2026-03-01, a slow daily wave around ten bikes.
+    fn two_days() -> Vec<BikePointInput> {
+        (0..48)
+            .map(|h| BikePointInput {
+                at: format!("2026-03-{:02}T{:02}:00:00Z", 1 + h / 24, h % 24),
+                value: 10.0 + (h % 24) as f64 / 4.0,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn enough_history_without_weather_estimates_from_the_profile_alone() {
+        let mut bikes = two_days();
+        // A count that is no count, and a time that is no time, are never a point.
+        bikes.push(BikePointInput {
+            at: "2026-03-03T00:00:00Z".to_string(),
+            value: f64::NAN,
+        });
+        bikes.push(BikePointInput {
+            at: "2026-03-03T01:00:00Z".to_string(),
+            value: -1.0,
+        });
+        bikes.push(BikePointInput {
+            at: "yesterday".to_string(),
+            value: 5.0,
+        });
+        let input = Input {
+            now: 1_772_668_800,
+            total_slots: 20,
+            bikes,
+            weather: vec![],
+        };
+        let out = run_estimate(&input);
+        assert_eq!(out.hours, 48);
+        assert!(out.enough);
+        assert_eq!(out.weather, None);
+        assert_eq!(out.assumption, None);
+        assert!(out.sigma.is_some());
+        assert_eq!(out.estimate.len(), 6);
+        assert!(out
+            .estimate
+            .iter()
+            .all(|e| e.low <= e.mean && e.mean <= e.high && e.high <= 20.0));
+    }
+
+    #[test]
+    fn the_entry_answers_a_whole_estimate_as_json() {
+        let points: Vec<serde_json::Value> = two_days()
+            .iter()
+            .map(|p| serde_json::json!({ "at": p.at, "value": p.value }))
+            .collect();
+        let raw = estimate(
+            &serde_json::json!({ "now": 1_772_668_800, "totalSlots": 20, "bikes": points })
+                .to_string(),
+        );
+        let parsed: serde_json::Value = serde_json::from_str(&raw).expect("should answer json");
+        assert_eq!(parsed["enough"], true);
+        assert_eq!(parsed["hours"], 48);
+        assert!(parsed.get("error").is_none());
+    }
 }

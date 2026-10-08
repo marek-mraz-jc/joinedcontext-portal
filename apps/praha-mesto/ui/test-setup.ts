@@ -32,3 +32,8 @@ vi.mock("maplibre-gl", () => {
   }
   return { Map: FakeMap, setWorkerUrl: () => {} };
 });
+
+// Every control a test file renders and which its tests use, for the Apps' coverage gate (T-3373).
+import { afterAll } from "vitest";
+import { recordControls } from "@joinedcontext/sdk/testing";
+recordControls(afterAll);

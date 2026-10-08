@@ -1045,7 +1045,8 @@ fn a_fullstack_pod_pulls_with_the_secret_and_runs_the_binary_as_a_numeric_user()
 
 /// AP-95, AP-126 (T-2724): a pod App's backend is handed the `#jc-config` the static host would
 /// write, without `user` and without a token, so the App SDK in its `ui/` reads its endpoint as a
-/// `ui` App does: its slug, the organisation's domain, its one space and the types it reads.
+/// `ui` App does: its slug, the organisation's domain, its one space and the types it reads, and
+/// the project's page in the Portal its entity panel links to (SDK-40, T-3399).
 #[test]
 fn a_pod_app_is_handed_the_sdk_configuration_of_its_one_endpoint() {
     let slug = generate_slug();
@@ -1071,6 +1072,8 @@ fn a_pod_app_is_handed_the_sdk_configuration_of_its_one_endpoint() {
                 "space": "ovzdusie",
                 "types": ["AirQualityObserved", "District"],
             }],
+            // SDK-40: where the entity panel links an entity, as the static host writes it.
+            "portal": "https://bb.example.com/projects/ovzdusie",
         })
     );
     assert!(

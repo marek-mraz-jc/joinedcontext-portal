@@ -4,6 +4,7 @@ import type { Kind, Pollutant } from "./places";
 export interface Strings {
   locale: string;
   title: string;
+  page: string;
   subtitle: string;
   search: string;
   searchHelp: string;
@@ -19,28 +20,16 @@ export interface Strings {
   mapLabel: string;
   noBasemap: string;
   notOnMap: string;
-  close: string;
-  detailOf: (name: string) => string;
   unnamed: string;
-  address: string;
-  monumentNumber: string;
-  monumentKind: string;
-  style: string;
-  period: string;
-  cadastralArea: string;
-  ownership: string;
-  departures: string;
   departuresToday: (count: number) => string;
   pollutant: Record<Pollutant, string>;
-  measuredAt: (time: string) => string;
-  notReported: string;
-  noValue: string;
   attribution: string;
 }
 
 const sk: Strings = {
   locale: "sk",
   title: "Mapa mesta Žilina",
+  page: "Mapa",
   subtitle: "Kultúrne pamiatky, železničné stanice a ovzdušie z otvorených dát o meste, na jednej mape.",
   search: "Hľadať podľa názvu, adresy alebo slohu",
   searchHelp: "Hľadá aj bez diakritiky, napríklad „kastiel“.",
@@ -56,22 +45,9 @@ const sk: Strings = {
   mapLabel: "Mapa miest; rovnaké miesta sú v zozname",
   noBasemap: "Podkladová mapa nie je nastavená, miesta sú zobrazené na prázdnom pozadí.",
   notOnMap: "bez adresy, iba v zozname",
-  close: "Zavrieť",
-  detailOf: (name) => `Detail: ${name}`,
   unnamed: "Bez názvu",
-  address: "Adresa",
-  monumentNumber: "Číslo v ÚZPF",
-  monumentKind: "Objekt",
-  style: "Sloh",
-  period: "Vznik",
-  cadastralArea: "Katastrálne územie",
-  ownership: "Forma vlastníctva",
-  departures: "Odchody vlakov dnes",
   departuresToday: (count) => `${count} ${count === 1 ? "odchod" : count >= 2 && count <= 4 ? "odchody" : "odchodov"} dnes`,
   pollutant: { pm10: "PM10", pm25: "PM2,5", no2: "NO₂", o3: "O₃", co: "CO" },
-  measuredAt: (time) => `hodina končiaca ${time}`,
-  notReported: "stanica nenahlásila",
-  noValue: "neuvedené",
   attribution:
     "Zdroje: Pamiatkový úrad SR (register NKP) a MV SR (register adries), CC BY 4.0; ŽSR, grafikon vlakovej dopravy (GTFS); Európska environmentálna agentúra, údaje SHMÚ (stanica SK0020A), CC BY 4.0.",
 };
@@ -79,6 +55,7 @@ const sk: Strings = {
 const en: Strings = {
   locale: "en",
   title: "Map of Žilina",
+  page: "Map",
   subtitle: "Cultural monuments, railway stations and air quality from the open data about the city, on one map.",
   search: "Search by name, address or style",
   searchHelp: "Finds words without diacritics too, for example “kastiel”.",
@@ -94,22 +71,9 @@ const en: Strings = {
   mapLabel: "Map of the places; the same places are in the list",
   noBasemap: "No base map is configured, so the places are drawn on a plain background.",
   notOnMap: "no address, in the list only",
-  close: "Close",
-  detailOf: (name) => `Details: ${name}`,
   unnamed: "Unnamed",
-  address: "Address",
-  monumentNumber: "Number in the central list",
-  monumentKind: "Object",
-  style: "Style",
-  period: "Built",
-  cadastralArea: "Cadastral area",
-  ownership: "Form of ownership",
-  departures: "Trains leaving today",
   departuresToday: (count) => `${count} ${count === 1 ? "train" : "trains"} leaving today`,
   pollutant: { pm10: "PM10", pm25: "PM2.5", no2: "NO₂", o3: "O₃", co: "CO" },
-  measuredAt: (time) => `hour ending ${time}`,
-  notReported: "not reported by the station",
-  noValue: "not given",
   attribution:
     "Sources: Monuments Board of the SR (register of monuments) and Ministry of Interior of the SR (register of addresses), CC BY 4.0; ŽSR, train timetable (GTFS); European Environment Agency, SHMÚ's data (station SK0020A), CC BY 4.0.",
 };

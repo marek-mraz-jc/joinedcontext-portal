@@ -1,10 +1,11 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider, ProblemError } from "@joinedcontext/sdk";
 import type { Schema } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
+import { completenessBarOption } from "./pages/Quality";
 import { InspectorContext, parseAnswer, type Inspector } from "./inspect";
 import { ENTITIES, NOW, SCHEMA_WITH_VEHICLE } from "./fixtures/quality";
 import wasm from "../wasm/pkg/data_quality_inspector_bg.wasm?url&inline";
@@ -15,12 +16,17 @@ initSync({ module: Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)) });
 
 const runInspector: Inspector = async (input) => parseAnswer(inspect(JSON.stringify(input)));
 
+/** What ECharts would call on a click of a bar, kept by the double below. */
+const chart = vi.hoisted(() => ({ click: null as ((params: unknown) => void) | null }));
+
 vi.mock("echarts", () => ({
   init: vi.fn(() => ({
     setOption: vi.fn(),
     resize: vi.fn(),
     dispose: vi.fn(),
-    on: vi.fn(),
+    on: (event: string, handler: (params: unknown) => void) => {
+      if (event === "click") chart.click = handler;
+    },
   })),
 }));
 
@@ -42,7 +48,7 @@ const STUB_SCHEMA = SCHEMA_WITH_VEHICLE as unknown as Schema;
 function show(
   client = stubClient(
     { entities: ENTITIES, schema: STUB_SCHEMA, access: ACCESS },
-    { appName: "data-quality-inspector" },
+    { appName: "data-quality-inspector", portal: "https://portal.hel.fi/projects/helsinki" },
   ),
   inspector: Inspector = runInspector,
 ) {
@@ -199,7 +205,22 @@ describe("data-quality-inspector", () => {
     expect(
       await screen.findByText("The published schema could not be read; validity is not checked."),
     ).toBeInTheDocument();
-  });
+    // Without a schema the types are the ones dev holds: each opens, and closes again.
+    const typeList = await screen.findByRole("list", { name: "Entity types" });
+    for (const button of within(typeList).getAllByRole("button")) {
+      fireEvent.click(button);
+      expect(button).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(button);
+      expect(button).toHaveAttribute("aria-pressed", "false");
+    }
+    // A type dev holds none of has its tile too, which opens its type and says it holds nothing.
+    // The tiles come with the second answer, after the notice: wait for them, do not race them.
+    const tiles = await screen.findAllByRole("button", { name: / entities$/ });
+    for (const name of tiles.map((tile) => tile.getAttribute("aria-label")!)) {
+      fireEvent.click(screen.getByRole("button", { name }));
+      fireEvent.click(await screen.findByRole("button", { name: "← All types" }));
+    }
+  }, 20_000); // every tile opened and closed under coverage: 868 ms here, past 5 s on a CI runner (ci-full 37840079043)
 
   it("supports Finnish with ?lang=fi and toggles language", async () => {
     window.history.replaceState(null, "", "/?lang=fi");
@@ -208,13 +229,145 @@ describe("data-quality-inspector", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Helsingin datan laatu" })).toBeInTheDocument();
     expect(await screen.findByRole("img", { name: "Tietotyyppien kattavuus" })).toBeInTheDocument();
 
-    const switchBtn = screen.getByRole("button", { name: "In English" });
-    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(switchBtn);
+    fireEvent.change(screen.getByRole("combobox", { name: "Kieli" }), { target: { value: "en" } });
 
     expect(screen.getByRole("heading", { level: 1, name: "Helsinki data quality" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
     await waitFor(() => {
       expect(new URLSearchParams(window.location.search).get("lang")).toBe("en");
     });
+  });
+
+  it.each([
+    ["en", "Entity types", "entities", "All types", "Language", "fi"],
+    ["fi", "Tietotyypit", "kohteet", "Kaikki tyypit", "Kieli", "en"],
+  ] as const)("in %s, every type and tile opens its type, and Back returns", async (lang, list, entities, back, language, other) => {
+    window.history.replaceState(null, "", `/?lang=${lang}`);
+    show();
+    const typeList = await screen.findByRole("list", { name: list });
+    await screen.findAllByRole("button", { name: new RegExp(`: \\d+ ${entities}$`) });
+    for (const button of within(typeList).getAllByRole("button")) {
+      fireEvent.click(button);
+      expect(button).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(await screen.findByRole("button", { name: `← ${back}` }));
+    }
+    const tiles = () => screen.getAllByRole("button", { name: new RegExp(`: \\d+ ${entities}$`) });
+    for (const name of tiles().map((tile) => tile.getAttribute("aria-label")!)) {
+      const tile = screen.getByRole("button", { name });
+      // Every other tile by the keyboard, the rest by a click: both open the type.
+      if (name.length % 2 === 0) fireEvent.keyDown(tile, { key: "Enter" });
+      else fireEvent.click(tile);
+      expect(decodeURIComponent(window.location.hash)).toContain(`type=${name.slice(0, name.indexOf(":"))}`);
+      fireEvent.click(await screen.findByRole("button", { name: `← ${back}` }));
+    }
+    fireEvent.keyDown(tiles()[0], { key: " " });
+    expect(await screen.findByRole("button", { name: `← ${back}` })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("button", { name: `← ${back}` }), { key: "Tab" });
+    fireEvent.change(screen.getByRole("combobox", { name: language }), { target: { value: other } });
+    expect(new URLSearchParams(window.location.search).get("lang")).toBe(other);
+  });
+
+  it("opens a type from its bar in the chart, and nothing from a click beside the bars", async () => {
+    show();
+    await screen.findByRole("img", { name: "Completeness by type" });
+    chart.click?.({});
+    expect(screen.queryByRole("button", { name: "← All types" })).toBeNull();
+    chart.click?.({ name: "Event" });
+    expect(await screen.findByRole("button", { name: "← All types" })).toBeInTheDocument();
+    expect(decodeURIComponent(window.location.hash)).toContain("type=Event");
+  });
+
+  it("opens each failing entity in the SDK's panel, linked to the Portal, with no Edit on a public App", async () => {
+    show();
+    for (const type of ["BikeHireDockingStation", "CityDistrict", "Event"]) {
+    fireEvent.click(await screen.findByRole("button", { name: type }));
+    const failing = await screen.findByRole("table", { name: "Failing entities" });
+    const ids = within(failing).getAllByRole("button");
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of new Set(ids.map((one) => one.textContent))) {
+      fireEvent.click(within(failing).getAllByRole("button").find((one) => one.textContent === id)!);
+      const panel = await screen.findByRole("dialog");
+      expect(within(panel).getByText(type)).toBeInTheDocument();
+      const link = await within(panel).findByRole("link", { name: "Open in the Portal" });
+      expect(link.getAttribute("href")).toContain("https://portal.hel.fi/projects/helsinki/explore?");
+      link.addEventListener("click", (event) => event.preventDefault());
+      fireEvent.click(link);
+      expect(within(panel).queryByRole("button", { name: "Edit" })).toBeNull();
+      fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "← All types" }));
+    }
+  });
+
+  it("follows a type named in the address after the page opened, and goes back to all types without one", async () => {
+    show();
+    await screen.findByRole("img", { name: "Completeness by type" });
+    window.location.hash = "#quality?type=Event";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    expect(await screen.findByRole("button", { name: "← All types" })).toBeInTheDocument();
+    window.location.hash = "";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    expect(await screen.findByRole("img", { name: "Completeness by type" })).toBeInTheDocument();
+  });
+
+  it("says when no type could be read, and reads them all again on Retry", async () => {
+    const client = stubClient({ entities: ENTITIES, schema: STUB_SCHEMA, access: ACCESS }, { appName: "data-quality-inspector" });
+    const all = client.entities.all.bind(client.entities);
+    let refuse = true;
+    client.entities.all = (async (type: string, query?: Parameters<typeof all>[1]) => {
+      if (refuse) throw new Error("offline");
+      return all(type, query);
+    }) as typeof client.entities.all;
+    show(client);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Could not read entities for any type.");
+    refuse = false;
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("button", { name: /^BikeHireDockingStation: 6 entities/i })).toBeInTheDocument();
+  });
+
+  it("says why one type could not be read when it is opened, reads it again on Retry, and ignores other keys on a tile", async () => {
+    const client = stubClient({ entities: ENTITIES, schema: STUB_SCHEMA, access: ACCESS }, { appName: "data-quality-inspector" });
+    const all = client.entities.all.bind(client.entities);
+    let refuse = true;
+    client.entities.all = (async (type: string, query?: Parameters<typeof all>[1]) => {
+      if (refuse && type === "Event") throw "Event service unavailable";
+      return all(type, query);
+    }) as typeof client.entities.all;
+    show(client);
+    const tile = await screen.findByRole("button", { name: /^BikeHireDockingStation: 6 entities/i });
+    fireEvent.keyDown(tile, { key: "a" });
+    expect(screen.queryByRole("button", { name: "← All types" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Event" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Event service unavailable");
+    refuse = false;
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("table", { name: "Failing entities" })).toBeInTheDocument();
+  });
+
+  it("ignores a language it does not speak", async () => {
+    show();
+    const language = await screen.findByRole("combobox", { name: "Language" });
+    fireEvent.change(language, { target: { value: "sv" } });
+    expect(new URLSearchParams(window.location.search).get("lang")).toBe("en");
+  });
+
+  it("says a failed inspection in words", async () => {
+    show(undefined, async () => {
+      throw new Error("out of memory");
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("out of memory");
+  });
+
+  it("says a bar's type and share in the chart's tooltip", () => {
+    const option = completenessBarOption(
+      [{ type: "Event", entities: 2, completeness: 0.5, valid: 0.5, attributes: [], findings: [], findingsTotal: 0, freshness: null }],
+      "en",
+    ) as { tooltip: { formatter: (params: unknown) => string } };
+    expect(option.tooltip.formatter([{ name: "Event", value: 50 }])).toBe("Event: 50%");
+    expect(option.tooltip.formatter({ name: "Event", value: 50 })).toBe("Event: 50%");
+    expect(completenessBarOption([], "en")).toBeNull();
   });
 });

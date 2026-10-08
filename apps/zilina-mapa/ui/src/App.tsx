@@ -6,17 +6,18 @@
  *
  * A map is not readable by a screen reader or a keyboard, so the same places are a list; the list
  * is the screen and the map is the picture of it. Its own look (T-2779): the list is the left
- * column with the search above it, one kind or all of them at a time, and a picked place opens as
- * a card over the map. Each kind loads on its own: one the endpoint refuses is a sentence saying
- * why, and the others stay.
+ * column with the search above it, one kind or all of them at a time. Each kind loads on its own:
+ * one the endpoint refuses is a sentence saying why, and the others stay. A place picked in the
+ * list or on the map opens in the SDK's entity panel, which links to it in the Portal: a public App
+ * writes nothing (SDK-39, SDK-40, AP-140).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { endpointSource, Header, Page, SourceError, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
-import type { EntitySource } from "@joinedcontext/sdk";
-import { byOrder, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, matches, placeOf, POLLUTANTS, TYPE_OF } from "./places";
+import { AppShell, endpointSource, Page, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import type { EntitySource, ShellPage } from "@joinedcontext/sdk";
+import { byOrder, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, matches, placeOf, TYPE_OF } from "./places";
 import type { Kind, Place } from "./places";
 import { stringsFor } from "./locales";
 import type { Strings } from "./locales";
@@ -43,8 +44,14 @@ function useEndpointSlug(): string | null {
   return listed ?? (config.space === SPACE ? config.slug : null) ?? null;
 }
 
-function reasonOf(cause: unknown): string {
-  if (cause instanceof SourceError) return cause.message;
+/** The name the panel reads a place through: the listed endpoint of the space, else the App's own. */
+function useEndpointName(): string | undefined {
+  const { config } = useClient();
+  return config.endpoints?.find((candidate) => candidate.space === SPACE)?.name;
+}
+
+/** A failure in words: the endpoint's own (a `SourceError` is an `Error`), else what was thrown. */
+export function reasonOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
@@ -90,14 +97,23 @@ export function useLayers(): { layers: Record<Kind, Layer> | null } {
   return { layers: source ? layers : null };
 }
 
+/** The map in the SDK's shell, which holds the entity panel (SDK-39). */
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  const pages: ShellPage[] = [{ id: "map", label: s.page, render: () => <PlacesPage /> }];
+  return <AppShell title={s.title} pages={pages} language={s.locale} />;
+}
+
+function PlacesPage() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
   const { layers } = useLayers();
+  const { selected, select } = useEntitySelection();
+  const endpoint = useEndpointName();
   const [shown, setShown] = useState<Shown>("all");
   const [search, setSearch] = useState("");
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  const listRef = useRef<HTMLUListElement | null>(null);
+  const pickedId = selected?.id ?? null;
 
   const all = useMemo(
     () => KINDS.flatMap((kind) => (layers?.[kind].status === "ready" ? layers[kind].places : [])),
@@ -111,25 +127,17 @@ export default function App() {
         .sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || byOrder(a, b)),
     [all, shown, search],
   );
-  const picked = visible.find((place) => place.id === pickedId) ?? null;
-
-  const close = () => {
-    const id = pickedId;
-    setPickedId(null);
-    // Focus goes back to the place in the list the person came from, never to the top of the page.
-    requestAnimationFrame(() => {
-      const items = listRef.current?.querySelectorAll<HTMLButtonElement>("button[data-id]") ?? [];
-      Array.from(items).find((item) => item.dataset.id === id)?.focus();
-    });
-  };
 
   const loading = layers !== null && KINDS.some((kind) => layers[kind].status === "loading");
   const count = (kind: Kind) => (layers?.[kind].status === "ready" ? (layers[kind] as { places: Place[] }).places.length : null);
+  const pick = (id: string) => {
+    const place = all.find((candidate) => candidate.id === id);
+    if (place) select({ id: place.id, type: TYPE_OF[place.kind], endpoint });
+  };
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page label={s.page}>
+        <p className="subtitle">{s.subtitle}</p>
 
         {layers === null && <p role="status">{s.noEndpoint}</p>}
         {layers !== null && (
@@ -190,14 +198,14 @@ export default function App() {
                 <section className="results" aria-labelledby="results-heading">
                   <h2 id="results-heading">{s.results(visible.length)}</h2>
                   {!loading && visible.length === 0 ? <p>{s.noResults}</p> : null}
-                  <ul ref={listRef}>
+                  <ul>
                     {visible.map((place) => (
                       <li key={place.id}>
                         <button
                           type="button"
                           data-id={place.id}
                           aria-pressed={place.id === pickedId}
-                          onClick={() => setPickedId(place.id)}
+                          onClick={() => pick(place.id)}
                         >
                           <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[place.kind] }}>
                             {KIND_SHAPE[place.kind]}
@@ -211,16 +219,14 @@ export default function App() {
                 </section>
               </div>
               <div className="map-column">
-                <PlaceMap places={visible} picked={pickedId} onPick={setPickedId} s={s} />
-                {picked ? <PlaceSheet place={picked} onClose={close} s={s} /> : null}
+                <PlaceMap places={visible} picked={pickedId} onPick={pick} s={s} />
               </div>
             </div>
           </>
         )}
 
         <p className="source">{s.attribution}</p>
-      </Page>
-    </main>
+    </Page>
   );
 }
 
@@ -257,6 +263,9 @@ function PlaceMap({
   const collection = useMemo(() => featuresOf(places, picked), [places, picked]);
   const latest = useRef(collection);
   latest.current = collection;
+  // The handler the map was built with would keep the places of its first render: read the latest.
+  const onPickLatest = useRef(onPick);
+  onPickLatest.current = onPick;
 
   useEffect(() => {
     if (!holder.current || map.current) return;
@@ -278,7 +287,7 @@ function PlaceMap({
     });
     drawn.on("click", SOURCE_ID, (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
       const id = event.features?.[0]?.properties?.id;
-      if (typeof id === "string") onPick(id);
+      if (typeof id === "string") onPickLatest.current(id);
     });
     map.current = drawn;
     return () => {
@@ -303,83 +312,7 @@ function PlaceMap({
   );
 }
 
-/** One place whole: a bottom sheet on a phone, a card over the map on a wider screen. */
-function PlaceSheet({ place, onClose, s }: { place: Place; onClose: () => void; s: Strings }) {
-  const heading = useRef<HTMLHeadingElement | null>(null);
-  useEffect(() => {
-    heading.current?.focus();
-  }, [place.id]);
-  const name = place.name ?? s.unnamed;
-  const field = (label: string, value: string | null) => (
-    <>
-      <dt>{label}</dt>
-      <dd>{value ?? s.noValue}</dd>
-    </>
-  );
-  return (
-    <section
-      className="sheet"
-      aria-labelledby="sheet-heading"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <div className="sheet-head">
-        <h2 id="sheet-heading" ref={heading} tabIndex={-1}>
-          {s.detailOf(name)}
-        </h2>
-        <button type="button" onClick={onClose}>
-          {s.close}
-        </button>
-      </div>
-      <p className="sub">
-        <span aria-hidden="true" style={{ color: KIND_COLOUR[place.kind] }}>
-          {KIND_SHAPE[place.kind]}
-        </span>{" "}
-        {s.kind[place.kind]}
-      </p>
-      <dl>
-        {place.kind === "monument" && (
-          <>
-            {field(s.monumentKind, place.monumentKind)}
-            {field(s.style, place.style)}
-            {field(s.period, place.period)}
-            {field(s.cadastralArea, place.cadastralArea)}
-            {field(s.ownership, place.ownership)}
-            {field(s.monumentNumber, place.monumentNumber)}
-            {field(s.address, place.address)}
-          </>
-        )}
-        {place.kind === "station" &&
-          field(s.departures, place.departures === null ? null : new Intl.NumberFormat(s.locale).format(place.departures))}
-        {place.kind === "air" &&
-          POLLUTANTS.map((pollutant) => {
-            const reading = place.readings[pollutant];
-            return (
-              <div key={pollutant} className="reading">
-                <dt>{s.pollutant[pollutant]}</dt>
-                <dd>
-                  {reading ? amount(reading.value, reading.unit, s) : s.notReported}
-                  {reading?.at ? <small> ({s.measuredAt(moment(reading.at, s))})</small> : null}
-                </dd>
-              </div>
-            );
-          })}
-      </dl>
-    </section>
-  );
-}
-
 function amount(value: number, unit: string, s: Strings): string {
   return `${new Intl.NumberFormat(s.locale, { maximumFractionDigits: unit === "mg/m³" ? 2 : 1 }).format(value)} ${unit}`;
 }
 
-function moment(iso: string, s: Strings): string {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime())
-    ? iso
-    : new Intl.DateTimeFormat(s.locale, { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Bratislava" }).format(at);
-}

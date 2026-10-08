@@ -529,4 +529,52 @@ mod tests {
         );
         assert_eq!(bbox(&json!({ "type": "Polygon", "coordinates": [] })), None);
     }
+
+    fn square(x: f64) -> Value {
+        json!([[[x, 0.0], [x + 1.0, 0.0], [x + 1.0, 1.0], [x, 1.0], [x, 0.0]]])
+    }
+
+    #[test]
+    fn a_multipolygon_and_a_collection_hold_their_parts_and_add_their_areas() {
+        let multi = json!({ "type": "MultiPolygon", "coordinates": [square(0.0), square(5.0)] });
+        let collection = json!({ "type": "GeometryCollection", "geometries": [{ "type": "Polygon", "coordinates": square(0.0) }, { "type": "Polygon", "coordinates": square(5.0) }] });
+        for geometry in [&multi, &collection] {
+            assert!(point_in_geometry((5.5, 0.5), geometry));
+            assert!(!point_in_geometry((3.0, 0.5), geometry));
+        }
+        let one = area_km2(&json!({ "type": "Polygon", "coordinates": square(0.0) }));
+        assert!(one > 0.0);
+        assert!((area_km2(&multi) - 2.0 * one).abs() < one * 0.01);
+        assert!((area_km2(&collection) - area_km2(&multi)).abs() < 1e-9);
+        assert_eq!(bbox(&collection), Some([0.0, 0.0, 6.0, 1.0]));
+        assert!(place_of(&collection).is_some());
+    }
+
+    #[test]
+    fn a_hole_is_taken_out_of_the_area() {
+        let with_hole = json!({ "type": "Polygon", "coordinates": [
+            [[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0], [0.0, 0.0]],
+            [[1.0, 1.0], [2.0, 1.0], [2.0, 2.0], [1.0, 2.0], [1.0, 1.0]]
+        ] });
+        let whole = json!({ "type": "Polygon", "coordinates": [[[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0], [0.0, 0.0]]] });
+        assert!(area_km2(&with_hole) < area_km2(&whole));
+    }
+
+    #[test]
+    fn a_geometry_without_its_parts_holds_nothing_and_has_no_area() {
+        for broken in [
+            json!({ "type": "Polygon" }),
+            json!({ "type": "MultiPolygon" }),
+            json!({ "type": "GeometryCollection" }),
+            json!({ "type": "LineString", "coordinates": [[0.0, 0.0], [1.0, 1.0]] }),
+            json!({}),
+        ] {
+            assert!(!point_in_geometry((0.5, 0.5), &broken), "{broken}");
+            assert_eq!(area_km2(&broken), 0.0, "{broken}");
+        }
+        assert_eq!(
+            place_of(&json!({ "type": "GeometryCollection", "geometries": [] })),
+            None
+        );
+    }
 }

@@ -29,6 +29,8 @@ export async function serve(page: Page, role: "viewer" | "steward", access: Acce
     transport: "origin",
     appName: "helsinki-alerts",
     user: { id: `demo.${role}`, name: `Demo ${role}`, roles: [role] },
+    // Where the entity panel links an alert (SDK-40); shown, never followed.
+    portal: "https://portal.test/projects/helsinki",
   };
   const writes: Call[] = [];
   const outside: string[] = [];

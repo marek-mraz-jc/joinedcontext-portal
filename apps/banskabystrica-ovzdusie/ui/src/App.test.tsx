@@ -6,11 +6,11 @@
  * the published bundle uses. MapLibre needs WebGL, which jsdom does not have, so the library is
  * replaced by a double that records what the app asked it to draw.
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
-import { JcProvider } from "@joinedcontext/sdk";
+import { JcProvider, projectRow, toRichRow } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 
 const setData = vi.fn();
@@ -19,16 +19,19 @@ const addLayer = vi.fn();
 const remove = vi.fn();
 /** The style each map was built with: the platform's URL, or the SDK's plain background. */
 const styles: unknown[] = [];
+/** What MapLibre would call on a click of a drawn station. */
+const map = vi.hoisted(() => ({ click: null as ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null }));
 
 vi.mock("maplibre-gl", () => {
   class Map {
     constructor(public options: { style?: unknown }) {
       styles.push(options.style);
     }
-    on(event: string, handler: () => void) {
+    on(event: string, layerOrHandler: unknown, handler?: (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) {
       // The app adds its source and layer on `load`; firing it at once is what the browser does
       // before anybody looks at the page.
-      if (event === "load") handler();
+      if (event === "load" && typeof layerOrHandler === "function") layerOrHandler();
+      if (event === "click" && handler) map.click = handler;
     }
     addSource = addSource;
     addLayer = addLayer;
@@ -72,12 +75,20 @@ function serving(options: { entities?: () => Response; temporal?: () => Response
   });
 }
 
-function show(options: Parameters<typeof serving>[0] = {}, language = "sk", basemap?: string) {
+function show(
+  options: Parameters<typeof serving>[0] = {},
+  language = "sk",
+  basemap?: string,
+  over: { space?: string; endpoints?: { name: string; slug: string; space: string; types: string[] }[] } = {},
+) {
   vi.stubGlobal("fetch", serving(options));
-  const client = stubClient(undefined, {
+  // The cards read through `fetch`, the entity panel through the client: the same stations on both.
+  const client = stubClient({ entities: answer(NOW).map((entity) => projectRow(toRichRow(entity as Record<string, unknown>, "sk"), "sk")) }, {
+    portal: "https://portal.banskabystrica.sk/projects/banskabystrica",
     slug: SLUG,
     orgDomain: "banskabystrica.sk",
-    space: "banskabystrica-verejne",
+    space: over.space ?? "banskabystrica-verejne",
+    ...(over.endpoints ? { endpoints: over.endpoints } : {}),
     transport: "origin",
     appName: "banskabystrica-ovzdusie",
     language,
@@ -124,6 +135,9 @@ describe("the stations of the city", () => {
     // The read went to the configured endpoint of the city's public space.
     expect(calls.some((call) => call.path.includes(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities`))).toBe(true);
     expect(screen.getByText(LOCALES.sk.source)).toBeInTheDocument();
+    // Its card opens it in the entity panel by its published name.
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "Podrobnosti: Stanica SK0263A, mestské pozadie" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
   it("draws one point per station that publishes a place, and lists every station", async () => {
@@ -160,7 +174,7 @@ describe("the stations of the city", () => {
 
   it("says there is no station rather than drawing an empty map", async () => {
     show({ entities: () => json([]) });
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(LOCALES.sk.empty));
+    await waitFor(() => expect(screen.getByText(new RegExp(LOCALES.sk.empty))).toBeInTheDocument());
     expect(screen.queryByRole("region", { name: LOCALES.sk.stationsLabel })).toBeNull();
     expect(addSource).not.toHaveBeenCalled();
   });
@@ -267,3 +281,97 @@ describe("what the screen says about itself", () => {
     expect(screen.getByText(LOCALES.en.noBasemap)).toBeVisible();
   });
 });
+
+describe("the entity panel (SDK-40)", () => {
+  it.each([
+    ["sk", "Podrobnosti", "Zavrieť", "Otvoriť v Portáli", "Upraviť"],
+    ["en", "Details", "Close", "Open in the Portal", "Edit"],
+  ] as const)("in %s, each station opens from its card, linked to the Portal, with no Edit", async (language, details, close, portal, edit) => {
+    show({}, language);
+    const buttons = await screen.findAllByRole("button", { name: new RegExp(`^${details}: `) });
+    for (const button of buttons) {
+      fireEvent.click(button);
+      const panel = await screen.findByRole("dialog");
+      const link = await within(panel).findByRole("link", { name: portal });
+      link.addEventListener("click", (event) => event.preventDefault());
+      fireEvent.click(link);
+      expect(within(panel).queryByRole("button", { name: edit })).toBeNull();
+      fireEvent.click(within(panel).getByRole("button", { name: close }));
+    }
+    // Each card's pick button picks its station for the history; the picked one stays picked.
+    for (const pick of screen.getAllByRole("button", { pressed: false })) fireEvent.click(pick);
+    fireEvent.click(screen.getAllByRole("button", { pressed: true })[0]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The history's own controls: each range, and the copy of the day as CSV.
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    const ranges = await screen.findAllByRole("radio");
+    // The last range is "between": its two days are typed, then a fixed range is chosen again.
+    fireEvent.click(ranges[ranges.length - 1]);
+    for (const label of language === "sk" ? ["Od", "Do"] : ["From", "To"]) {
+      const day = await screen.findByLabelText(label);
+      fireEvent.change(day, { target: { value: (day as HTMLInputElement).type === "date" ? "2026-09-19" : "2026-09-19T08:00" } });
+    }
+    for (const range of ranges.slice(0, -1).reverse()) fireEvent.click(range);
+    fireEvent.click(await screen.findByRole("button", { name: language === "sk" ? "Kopírovať ako CSV" : "Copy as CSV" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+  });
+
+  it("picks a station clicked on the map and opens it, and ignores a click on nothing", async () => {
+    show();
+    await screen.findAllByRole("button", { name: /^Podrobnosti: / });
+    await waitFor(() => expect(map.click).not.toBeNull());
+    act(() => map.click?.({ features: [] }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    act(() => map.click?.({ features: [{ properties: { id: String(answer(NOW)[0].id) } }] }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("the edges of reading", () => {
+  it("reads through the endpoint the Portal lists for the space, and says so when there is none", async () => {
+    show({}, "sk", undefined, { space: "elsewhere", endpoints: [{ name: "verejne", slug: SLUG, space: "banskabystrica-verejne", types: [] }] });
+    expect(await screen.findAllByRole("button", { name: /^Podrobnosti: / })).not.toHaveLength(0);
+    cleanup();
+    show({}, "sk", undefined, { space: "elsewhere" });
+    expect(screen.getByText(LOCALES.sk.noEndpoint)).toBeInTheDocument();
+  });
+
+  it("says a failure that is no endpoint answer in its own words, and drops answers after it is gone", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw "offline";
+    }));
+    const client = stubClient(undefined, { slug: SLUG, orgDomain: "banskabystrica.sk", space: "banskabystrica-verejne", transport: "origin", appName: "banskabystrica-ovzdusie", language: "sk" });
+    const first = render(
+      <JcProvider client={client}>
+        <App />
+      </JcProvider>,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+    first.unmount();
+    for (const fails of [false, true]) {
+      let reply: () => void = () => undefined;
+      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve, reject) => (reply = () => (fails ? reject(new TypeError("late")) : resolve(json(answer(NOW))))))));
+      const view = render(
+        <JcProvider client={client}>
+          <App />
+        </JcProvider>,
+      );
+      view.unmount();
+      const errors = vi.spyOn(console, "error");
+      reply();
+      await new Promise((settle) => setTimeout(settle, 0));
+      expect(errors).not.toHaveBeenCalled();
+    }
+  });
+
+  it("says a station has no reading time when it publishes none", async () => {
+    const bare = { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:banskabystrica-verejne:bare", type: "AirQualityObserved", name: { type: "Property", value: "Bez času" }, pm10: { type: "Property", value: 5 } };
+    show({ entities: () => json([bare]) });
+    const card = (await screen.findByRole("heading", { name: "Bez času" })).closest("article") as HTMLElement;
+    expect(within(card).getAllByText(LOCALES.sk.noReading).length).toBeGreaterThan(0);
+    fireEvent.click(within(card).getByRole("button", { name: "Podrobnosti: Bez času" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+

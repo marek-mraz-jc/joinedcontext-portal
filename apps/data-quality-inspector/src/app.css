@@ -158,3 +158,16 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* A failing entity's id opens it in the entity panel: a button that reads as the id. */
+.jc-shell .app-open {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--jc-color-accent, #0000bf);
+  font: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

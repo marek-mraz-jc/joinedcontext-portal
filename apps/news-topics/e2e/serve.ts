@@ -8,7 +8,8 @@ import { ARTICLES as NEWS } from "../src/fixtures/news";
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://portal.test/";
 const SLUG = "newstopics";
-const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "news-topics" };
+// `portal`: where the entity panel links an article (SDK-40); shown, never followed.
+const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "news-topics", portal: "https://portal.test/projects/helsinki" };
 const TYPES: Record<string, string> = {
   ".html": "text/html",
   ".js": "text/javascript",

@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ProblemError } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
-import { EntityDetail } from "./EntityDetail";
 import { EntityTable, defaultColumns } from "./EntityTable";
 
 const STATIONS: Row[] = [
@@ -55,6 +54,11 @@ describe("EntityTable", () => {
     view.rerender(<EntityTable rows={STATIONS} columns={["name", "bikes"]} />);
     expect(bikes()).toHaveAttribute("aria-sort", "ascending");
     expect(screen.getAllByRole("row")[1]).toHaveTextContent("Kamppi");
+    // A second click turns the order round.
+    fireEvent.click(screen.getByRole("button", { name: "bikes ▲" }));
+    expect(bikes()).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(screen.getByRole("button", { name: "bikes ▼" }));
+    expect(bikes()).toHaveAttribute("aria-sort", "ascending");
   });
 
   it("renders Problem state when error is provided", () => {
@@ -123,6 +127,10 @@ describe("EntityTable", () => {
     expect(nextBtn).toBeDisabled();
     expect(prevBtn).not.toBeDisabled();
 
+    fireEvent.click(prevBtn);
+    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+    fireEvent.click(nextBtn);
+
     // Sort change resets page to 1
     const nameBtn = screen.getByRole("button", { name: "name" });
     fireEvent.click(nameBtn);
@@ -157,35 +165,5 @@ describe("EntityTable", () => {
 
     fireEvent.keyDown(rows[2], { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith(STATIONS[2]);
-  });
-});
-
-describe("EntityDetail", () => {
-  it("renders empty message without a row", () => {
-    render(<EntityDetail row={null} />);
-    expect(screen.getByText("Select an entity to see its details.")).toBeInTheDocument();
-  });
-
-  it("renders details with id, format, geometry as 'lat, lon', and calls onClose", () => {
-    const onClose = vi.fn();
-    render(<EntityDetail row={STATIONS[0]} onClose={onClose} />);
-
-    expect(screen.getByText("urn:ngsi-ld:Station:1", { selector: "code" })).toBeInTheDocument();
-    // 60.15 lat, 24.95 lon formatted to 5 decimals
-    expect(screen.getByText("60.15000, 24.95000")).toBeInTheDocument();
-
-    const closeBtn = screen.getByRole("button", { name: "Close" });
-    fireEvent.click(closeBtn);
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it("renders non-point geometry as its type", () => {
-    const rowWithPolygon: Row = {
-      id: "urn:area:1",
-      type: "Area",
-      boundary: { type: "Polygon", coordinates: [[[24.9, 60.1], [24.95, 60.15]]] },
-    };
-    render(<EntityDetail row={rowWithPolygon} attrs={["id", "boundary"]} />);
-    expect(screen.getByText("Polygon")).toBeInTheDocument();
   });
 });

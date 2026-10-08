@@ -16,5 +16,7 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // The module's bindings are generated; its Rust is measured by cargo llvm-cov (T-3373).
+    coverage: { exclude: ["wasm/pkg/**"] },
   },
 });

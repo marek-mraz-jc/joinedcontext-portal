@@ -1,13 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JcProvider, ProblemError } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
+import { barChartOption } from "./pages/Compare";
 import { ComparerContext } from "./compare";
 import type { Comparer } from "./compare";
 import type { CompareInput, CompareOutput, Measure } from "./districts";
 import { ENTITIES } from "./fixtures/districts";
+
+/** What MapLibre would call on a click of a drawn district, kept by the double below. */
+const map = vi.hoisted(() => ({ click: null as ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null }));
 
 vi.mock("maplibre-gl", () => {
   class MockMap {
@@ -16,6 +20,7 @@ vi.mock("maplibre-gl", () => {
       if (cb && event === "load") {
         queueMicrotask(() => cb());
       }
+      if (cb && event === "click") map.click = cb as typeof map.click;
     }
     once = vi.fn();
     remove = vi.fn();
@@ -32,12 +37,17 @@ vi.mock("maplibre-gl", () => {
   };
 });
 
+/** What ECharts would call on a click of a bar, kept by the double below. */
+const chart = vi.hoisted(() => ({ click: null as ((params: unknown) => void) | null }));
+
 vi.mock("echarts", () => ({
   init: vi.fn(() => ({
     setOption: vi.fn(),
     resize: vi.fn(),
     dispose: vi.fn(),
-    on: vi.fn(),
+    on: (event: string, handler: (params: unknown) => void) => {
+      if (event === "click") chart.click = handler;
+    },
   })),
 }));
 
@@ -236,7 +246,7 @@ function simulateCompare(input: CompareInput): CompareOutput {
 const defaultComparer: Comparer = async (input) => simulateCompare(input);
 
 function show(
-  client = stubClient({ entities: ENTITIES, access: ACCESS }, { appName: "district-compare" }),
+  client = stubClient({ entities: ENTITIES, access: ACCESS }, { appName: "district-compare", portal: "https://portal.hel.fi/projects/helsinki" }),
   comparer: Comparer = defaultComparer,
 ) {
   render(
@@ -369,8 +379,7 @@ describe("district-compare", () => {
     expect(screen.getByRole("combobox", { name: "Mittari" })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Kaupunginosat järjestyksessä" })).toBeInTheDocument();
 
-    const switchBtn = screen.getByRole("button", { name: "In English" });
-    await userEvent.setup().click(switchBtn);
+    fireEvent.change(screen.getByRole("combobox", { name: "Kieli" }), { target: { value: "en" } });
 
     expect(screen.getByRole("heading", { level: 1, name: "Compare districts" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
@@ -442,5 +451,108 @@ describe("district-compare", () => {
   it("shows empty state when no district boundaries exist", async () => {
     show(stubClient({ entities: [], access: ACCESS }, { appName: "district-compare" }));
     expect(await screen.findByText("No district boundaries readable.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["en", "Details", "Deselect", "Close", "Open in the Portal", "Measure", "Clear selection", "Language", "fi"],
+    ["fi", "Tiedot", "Poista valinta:", "Sulje", "Avaa portaalissa", "Mittari", "Tyhjennä valinnat", "Kieli", "en"],
+  ] as const)("in %s, every district opens in the panel, joins and leaves the comparison", async (lang, details, deselect, close, portal, measure, clear, language, other) => {
+    window.history.replaceState(null, "", `/?lang=${lang}`);
+    show();
+    const list = await screen.findByRole("list", { name: lang === "en" ? "Districts ranked" : "Kaupunginosat järjestyksessä" });
+    // Every district into the comparison by its checkbox: each then has its Details and its Deselect.
+    for (const box of within(list).getAllByRole("checkbox")) {
+      if (!(box as HTMLInputElement).checked) fireEvent.click(box);
+    }
+    for (const button of screen.getAllByRole("button", { name: new RegExp(`^${details}: `) })) {
+      fireEvent.click(button);
+      const panel = await screen.findByRole("dialog");
+      expect(within(panel).getByText("CityDistrict")).toBeInTheDocument();
+      const link = await within(panel).findByRole("link", { name: portal });
+      expect(link.getAttribute("href")).toContain("https://portal.hel.fi/projects/helsinki/explore?");
+      link.addEventListener("click", (event) => event.preventDefault());
+      fireEvent.click(link);
+      // A public App: the panel never offers Edit.
+      expect(within(panel).queryByRole("button", { name: lang === "en" ? "Edit" : "Muokkaa" })).toBeNull();
+      fireEvent.click(within(panel).getByRole("button", { name: close }));
+    }
+    for (const button of screen.getAllByRole("button", { name: new RegExp(`^${deselect} `) })) fireEvent.click(button);
+    expect(screen.queryAllByRole("button", { name: new RegExp(`^${details}: `) })).toHaveLength(0);
+    for (const box of within(list).getAllByRole("checkbox")) fireEvent.click(box);
+    fireEvent.change(screen.getByRole("combobox", { name: measure }), { target: { value: "bikes" } });
+    expect(decodeURIComponent(window.location.hash)).toContain("bikes");
+    fireEvent.click(screen.getByRole("button", { name: clear }));
+    expect(screen.queryAllByRole("button", { name: new RegExp(`^${details}: `) })).toHaveLength(0);
+    fireEvent.change(screen.getByRole("combobox", { name: language }), { target: { value: other } });
+    expect(new URLSearchParams(window.location.search).get("lang")).toBe(other);
+  });
+
+  it("puts a district picked on the map into the comparison and opens it, and takes it out again", async () => {
+    show();
+    const list = await screen.findByRole("list", { name: "Districts ranked" });
+    await waitFor(() => expect(map.click).not.toBeNull());
+    const unchecked = within(list).getAllByRole("checkbox").find((box) => !(box as HTMLInputElement).checked)!;
+    const name = unchecked.getAttribute("aria-label")!;
+    const code = String(ENTITIES.find((row) => row.name === name)?.districtCode);
+    act(() => map.click!({ features: [{ properties: { code } }] }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(unchecked).toBeChecked();
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    act(() => map.click!({ features: [{ properties: { code } }] }));
+    expect(unchecked).not.toBeChecked();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("says every other type that could not be read, by name, and marks its rows", async () => {
+    const client = stubClient({ entities: ENTITIES, access: ACCESS }, { appName: "district-compare" });
+    const all = client.entities.all.bind(client.entities);
+    client.entities.all = (async (type: string, query?: Parameters<typeof all>[1]) => {
+      if (type === "Event" || type === "BikeHireDockingStation" || type === "Alert") throw new ProblemError(500, { title: "down", status: 500 });
+      return all(type, query);
+    }) as typeof client.entities.all;
+    show(client);
+    expect(await screen.findByText(/^Some data could not be read: Events, .*Alerts/)).toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: "Selected districts compared" });
+    expect(within(table).getAllByText("Data could not be read.").length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("toggles a district from its bar in the chart, and nothing from a bar it does not know", async () => {
+    show();
+    const table = await screen.findByRole("table", { name: "Selected districts compared" });
+    const before = within(table).getAllByRole("columnheader").length;
+    await waitFor(() => expect(chart.click).not.toBeNull());
+    act(() => chart.click!({ name: "Atlantis" }));
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(before);
+    const first = within(table).getAllByRole("button", { name: /^Deselect / })[0].getAttribute("aria-label")!.replace("Deselect ", "");
+    act(() => chart.click!({ name: first }));
+    expect(within(screen.getByRole("table", { name: "Selected districts compared" })).getAllByRole("columnheader")).toHaveLength(before - 1);
+  });
+
+  it("follows districts and a measure named in the address after the page opened", async () => {
+    show();
+    await screen.findByRole("table", { name: "Selected districts compared" });
+    const code = String(ENTITIES.find((row) => row.type === "CityDistrict" && row.divisionLevel === "district")?.districtCode);
+    window.location.hash = `#compare?d=${code}&m=bikes`;
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Measure" })).toHaveValue("bikes"));
+    // A measure alone keeps the districts compared.
+    window.location.hash = "#compare?m=alerts";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Measure" })).toHaveValue("alerts"));
+    expect(screen.getAllByRole("button", { name: /^Deselect / }).length).toBeGreaterThan(0);
+  });
+
+  it("says a bar's district and value in the chart's tooltip, and a missing value in words", () => {
+    const [kamppi] = [{ code: "1", name: "Kamppi", areaKm2: 1, events: 3, bikes: 0, bikeSlots: 0, alerts: 0, pm25: 7.5, aqi: null, perKm2: { events: 3, bikes: 0, bikeSlots: 0, alerts: 0 }, rank: { events: 1, bikes: null, bikeSlots: null, alerts: null, pm25: 1, aqi: null } }];
+    const many = Array.from({ length: 4 }, (_, at) => ({ ...kamppi, code: String(at) }));
+    const option = barChartOption(many, "pm25", "en") as { tooltip: { formatter: (params: unknown) => string }; xAxis: { axisLabel: { rotate: number } } };
+    expect(option.xAxis.axisLabel.rotate).toBe(30);
+    expect(option.tooltip.formatter([{ name: "Kamppi", value: 7.5 }])).toBe("Kamppi: 7.5 µg/m³");
+    expect(option.tooltip.formatter({ name: "Kamppi", value: "-" })).toBe("Kamppi: no station");
+    expect(option.tooltip.formatter({ name: "Kamppi" })).toBe("Kamppi: no station");
+    expect(option.tooltip.formatter({ name: "Kamppi", value: null })).toBe("Kamppi: no station");
+    const events = barChartOption([kamppi], "events", "en") as { tooltip: { formatter: (params: unknown) => string } };
+    expect(events.tooltip.formatter({ name: "Kamppi", value: 3 })).toBe("Kamppi: 3");
+    expect(barChartOption([], "events", "en")).toBeNull();
   });
 });

@@ -1,6 +1,10 @@
 //! joinedcontext Portal library: the axum application, the resource API, and the embedded reconciler
 //! (see docs/Architecture/09-portal.md). The binary in `main.rs` only starts it.
 
+// The release build lays out the editing agent's conversation future 130 queries deep, past the
+// default of 128 (ci-full readme, 534379bd).
+#![recursion_limit = "256"]
+
 pub mod activity;
 pub mod agents;
 pub mod alerts;

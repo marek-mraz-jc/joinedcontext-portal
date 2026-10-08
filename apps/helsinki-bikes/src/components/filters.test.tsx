@@ -118,6 +118,14 @@ describe("Filter UI components with useFilters", () => {
     expect(screen.queryByText("Kallio")).not.toBeInTheDocument();
 
     expect(toInput.value).toBe("2024-05-10");
+
+    // From the 10th: only Kaivopuisto is left; both cleared, every station is back.
+    const fromInput = screen.getByLabelText("registered from") as HTMLInputElement;
+    fireEvent.change(fromInput, { target: { value: "2024-05-10" } });
+    expect(screen.getByText("1 of 3")).toBeInTheDocument();
+    fireEvent.change(fromInput, { target: { value: "" } });
+    fireEvent.change(toInput, { target: { value: "" } });
+    expect(screen.getByText("3 of 3")).toBeInTheDocument();
   });
 
   it("FilterBar displays count and Reset button restores all rows", () => {

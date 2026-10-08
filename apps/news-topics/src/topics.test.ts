@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Row } from "@joinedcontext/sdk";
-import { toInput } from "./topics";
+import { toInput, useTopics } from "./topics";
+import type { AnalysisOutput } from "./topics";
 
 describe("toInput", () => {
   it("converts SDK rows with complete attributes to article inputs", () => {
@@ -119,5 +121,100 @@ describe("toInput", () => {
       k: 5,
       seed: 42,
     });
+  });
+});
+
+// The page's clustering runs off its thread: one request at a time, a stale answer dropped, and
+// every way the worker can fail said in words.
+describe("useTopics", () => {
+  const started: FakeWorker[] = [];
+  class FakeWorker {
+    onmessage: ((event: { data: unknown }) => void) | null = null;
+    onerror: ((event: { message: string }) => void) | null = null;
+    posted: Array<{ id: number }> = [];
+    terminated = false;
+    constructor() {
+      started.push(this);
+    }
+    postMessage(message: { id: number }) {
+      this.posted.push(message);
+    }
+    terminate() {
+      this.terminated = true;
+    }
+  }
+  const ROW: Row = { id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:1", type: "NewsArticle", name: "Tram line opens" };
+  const ANSWER: AnalysisOutput = { topics: [], weeks: [], unassigned: ["urn:ngsi-ld:NewsArticle:hel.fi:helsinki:1"] };
+
+  beforeEach(() => {
+    started.length = 0;
+    vi.stubGlobal("Worker", FakeWorker);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("answers the latest request only, and stops the worker with the page", () => {
+    const view = renderHook(({ k }) => useTopics([ROW], k), { initialProps: { k: 3 } });
+    const worker = started[0];
+    expect(view.result.current.status).toBe("loading");
+    view.rerender({ k: 4 });
+    const [old, latest] = worker.posted;
+    act(() => worker.onmessage?.({ data: { id: old.id, output: ANSWER } }));
+    act(() => worker.onmessage?.({ data: null }));
+    expect(view.result.current.status).toBe("loading");
+    act(() => worker.onmessage?.({ data: { id: latest.id, output: ANSWER } }));
+    expect(view.result.current).toEqual({ status: "ready", result: ANSWER, error: null });
+    // A message with neither an answer nor an error changes nothing.
+    act(() => worker.onmessage?.({ data: { id: latest.id } }));
+    expect(view.result.current.status).toBe("ready");
+    view.unmount();
+    expect(worker.terminated).toBe(true);
+  });
+
+  it("says what the worker or the module could not do", () => {
+    const view = renderHook(() => useTopics([ROW]));
+    const worker = started[0];
+    const id = worker.posted[0].id;
+    act(() => worker.onmessage?.({ data: { id, error: "the module stopped" } }));
+    expect(view.result.current.error?.message).toBe("the module stopped");
+    act(() => worker.onmessage?.({ data: { id, output: { error: "Invalid input JSON" } } }));
+    expect(view.result.current).toMatchObject({ status: "error", result: null });
+    expect(view.result.current.error?.message).toBe("Invalid input JSON");
+    act(() => worker.onerror?.({ message: "" }));
+    expect(view.result.current.error?.message).toBe("Worker error");
+    act(() => worker.onerror?.({ message: "out of memory" }));
+    expect(view.result.current.error?.message).toBe("out of memory");
+  });
+
+  it("answers no article with no topic, without asking the worker", () => {
+    const view = renderHook(() => useTopics([]));
+    expect(view.result.current).toEqual({ status: "ready", result: { topics: [], weeks: [], unassigned: [] }, error: null });
+    expect(started[0].posted).toEqual([]);
+  });
+
+  it("says so when no worker can be started", () => {
+    vi.stubGlobal(
+      "Worker",
+      class {
+        constructor() {
+          throw new Error("Workers are blocked");
+        }
+      },
+    );
+    const view = renderHook(() => useTopics([ROW]));
+    expect(view.result.current).toMatchObject({ status: "error" });
+    expect(view.result.current.error?.message).toBe("Workers are blocked");
+  });
+
+  it("says so in words when the browser refuses a worker with no Error at all", () => {
+    vi.stubGlobal(
+      "Worker",
+      class {
+        constructor() {
+          throw "refused";
+        }
+      },
+    );
+    const view = renderHook(() => useTopics([{ id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:2", type: "NewsArticle" }]));
+    expect(view.result.current.error?.message).toBe("refused");
   });
 });

@@ -25,10 +25,27 @@ export const PERMITS = [
   { id: URN("PublicAreaPermit", "kaivuu-1"), type: "PublicAreaPermit", name: { type: "LanguageProperty", languageMap: { fi: "Kaukolämpöputken korjaus" } }, permitKind: value("excavation"), permitStatus: value("ongoing"), permitNumber: value("KAI-2026-1234"), permitStart: value("2026-10-01"), permitEnd: value("2026-10-20"), address: value("Mannerheimintie 5") },
 ];
 
+const fi = (text: string) => ({ type: "LanguageProperty", languageMap: { fi: text } });
+
+/** One of each other type the grids show, as their pipelines write them (T-3396). */
+export const OTHERS: Record<string, unknown[]> = {
+  Event: [{ id: URN("Event", "helsinki-paivat"), type: "Event", name: fi("Helsinki-päivä"), startDate: value("2030-06-12T10:00:00+03:00"), endDate: value("2030-06-12T22:00:00+03:00"), eventStatus: value("EventScheduled"), address: value("Kaivopuisto") }],
+  Alert: [{ id: URN("Alert", "GUID1"), type: "Alert", name: fi("Mannerheimintie, Helsinki. Tietyö."), category: value("traffic"), subCategory: value("ROAD_WORK"), address: value("Helsinki"), dateIssued: value("2030-10-01T08:00:00Z"), validFrom: value("2030-10-07T05:00:00Z"), validTo: value("2030-10-21T15:00:00Z") }],
+  ParkingZone: [{ id: URN("ParkingZone", "fee-1"), type: "ParkingZone", name: fi("Maksuvyöhyke 1"), zoneKind: value("fee"), zoneCode: value("1"), url: value("https://www.hel.fi/pysakointi") }],
+  CityDistrict: [{ id: URN("CityDistrict", "district-1"), type: "CityDistrict", name: fi("Kruununhaka"), districtCode: value("1"), divisionLevel: value("district") }],
+  AirQualityObserved: [{ id: URN("AirQualityObserved", "kallio"), type: "AirQualityObserved", name: fi("Kallio 2"), dateObserved: value("2030-10-07T09:00:00Z"), pm10: value(12.5), pm25: value(5.1), airQualityIndex: value(2) }],
+  WeatherObserved: [{ id: URN("WeatherObserved", "lahdenvayla"), type: "WeatherObserved", name: fi("vt4 Lahdenväylä"), dateObserved: value("2030-10-07T09:00:00Z"), temperature: value(6.2), roadSurfaceTemperature: value(4.8), relativeHumidity: value(88), windSpeed: value(3.4), windDirection: value(210), precipitation: value(0.2) }],
+};
+
 /** The rows of one type, as `GET …/entities?type=…` answers them. */
 export function answer(type: string | null): unknown[] {
   if (type === "PointOfInterest") return SERVICES;
   if (type === "WaterQualityObserved") return WATER;
   if (type === "PublicAreaPermit") return PERMITS;
-  return [];
+  return OTHERS[type ?? ""] ?? [];
+}
+
+/** One entity by its id, as `GET …/entities/{id}` answers it (the entity panel's read), or none. */
+export function byId(id: string): unknown | undefined {
+  return [...SERVICES, ...WATER, ...PERMITS, ...Object.values(OTHERS).flat()].find((entity) => (entity as { id: string }).id === id);
 }

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { columnKind, fieldOf, format, optionLabel, pointOf, useAccess, useClient, useSave, useSchema } from "@joinedcontext/sdk";
+import { columnKind, fieldOf, format, optionLabel, pointOf, Problem, useAccess, useClient, useSave, useSchema } from "@joinedcontext/sdk";
 import type { Cell, Field, LanguageMap, Row } from "@joinedcontext/sdk";
-import { Problem } from "./states";
 
 export function parseInput(field: Field, text: string): { value: Cell } | { error: string } {
   if (text.trim() === "") {

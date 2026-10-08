@@ -9,7 +9,7 @@ import { HISTORY } from "../src/fixtures/vehicles";
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://portal.test/";
 const SLUG = "transitreach";
-const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "transit-reach" };
+const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "transit-reach", portal: "https://portal.test/projects/helsinki" };
 // The static host's types (AP-142): a module the browser compiles must come as application/wasm.
 const TYPES: Record<string, string> = {
   ".html": "text/html",

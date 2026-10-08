@@ -4,6 +4,7 @@ import type { Key } from "./indicators";
 export interface Strings {
   locale: string;
   title: string;
+  page: string;
   subtitle: string;
   label: Record<Key, string>;
   question: Record<Key, string>;
@@ -26,6 +27,7 @@ export interface Strings {
 const sk: Strings = {
   locale: "sk",
   title: "Ukazovatele mesta Žilina",
+  page: "Ukazovatele",
   subtitle: "Šesť čísel o meste z otvorených údajov Štatistického úradu SR, každé so svojím obdobím a výpočtom.",
   label: {
     "obyvatelstvo-stav": "Obyvatelia",
@@ -69,6 +71,7 @@ const sk: Strings = {
 const en: Strings = {
   locale: "en",
   title: "Indicators of the city of Žilina",
+  page: "Indicators",
   subtitle: "Six numbers about the city from the Statistical Office's open data, each with its period and how it is computed.",
   label: {
     "obyvatelstvo-stav": "Residents",

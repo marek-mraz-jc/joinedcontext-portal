@@ -402,4 +402,51 @@ mod tests {
             assert_eq!(h.low, 0.0);
         }
     }
+
+    #[test]
+    fn a_raw_sigma_needs_two_residuals() {
+        assert_eq!(compute_raw_sigma(&[]), None);
+        assert_eq!(compute_raw_sigma(&[1.0]), None);
+        let sigma = compute_raw_sigma(&[1.0, -1.0]).expect("two residuals");
+        assert!((sigma - 2.0_f64.sqrt()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_degenerate_system_has_no_solution() {
+        assert_eq!(solve_3x3([[0.0; 3]; 3], [1.0, 2.0, 3.0]), None);
+        assert_eq!(
+            solve_3x3(
+                [[1.0, 2.0, 3.0], [2.0, 4.0, 6.0], [1.0, 1.0, 1.0]],
+                [1.0, 2.0, 3.0]
+            ),
+            None
+        );
+        assert_eq!(
+            solve_regression(&[1.0, 2.0, 3.0], &[1.0, 2.0], &[0.0, 0.0, 0.0]),
+            None
+        );
+        assert_eq!(
+            compute_residual_sigma(&[1.0, 2.0], &[1.0, 2.0], &[0.0, 0.0], [0.0, 0.0, 0.0]),
+            None
+        );
+    }
+
+    #[test]
+    fn weather_terms_without_an_assumed_weather_add_nothing() {
+        let profile: Vec<ProfileSlot> = (0..168)
+            .map(|slot| ProfileSlot {
+                slot,
+                mean: Some(5.0),
+                count: 3,
+            })
+            .collect();
+        let weather = WeatherEffect {
+            per_degree: 1.0,
+            rain: -2.0,
+            hours: 10,
+        };
+        let with = compute_estimate(0, 10, &profile, Some(&weather), None, &|_| 3.0, None);
+        let without = compute_estimate(0, 10, &profile, None, None, &|_| 3.0, None);
+        assert_eq!(with, without);
+    }
 }

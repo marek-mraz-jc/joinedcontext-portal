@@ -373,8 +373,24 @@ export function FormRouteHost({
   );
 
   const showing = open > 0;
-  // The address names a form, the page's reads have answered, and nothing opened it.
-  const unopened = form !== null && !showing && fetching === 0;
+  // The address names a form, the page's reads have answered, and nothing opened it. Decided in an
+  // effect, which runs after the children's: an editor registers in its own effect once the reads
+  // have answered, and a verdict taken in that render said "cannot be opened" for a moment, an
+  // alert a screen reader announced on the way to every form (T-3423). The effect records it once
+  // the commit is done, when every registration of that commit has been counted.
+  const formKey = form === null ? null : form.mode === "new" ? "new" : `edit:${form.name}`;
+  const [settledFor, setSettledFor] = useState<string | null>(null);
+  useEffect(() => {
+    // After this commit, the children's registrations included; a later change drops the verdict.
+    let live = true;
+    queueMicrotask(() => {
+      if (live) setSettledFor(fetching === 0 ? formKey : null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [fetching, formKey]);
+  const unopened = form !== null && !showing && fetching === 0 && settledFor === formKey;
   // The last form closed, by its back control, its Cancel, a saved proposal or a page that
   // dropped its editor: the address leaves the form too, so a reload or the back button does
   // not land on a form that is no longer there. (The browser's back button leaves the address

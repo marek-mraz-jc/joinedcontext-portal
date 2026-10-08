@@ -2,11 +2,13 @@
  * Prague right now (T-2917, AP-07, AP-14): the city's shared bikes, park-and-ride car parks and
  * air quality, read live from the praha-mesto space through this app's own endpoint with the
  * reader's own token. Each section loads on its own, so one type failing leaves the others on
- * screen and says what failed in its own place.
+ * screen and says what failed in its own place. A station, car park or air station named in a
+ * table opens in the SDK's entity panel, which links to it in the Portal: a public App writes
+ * nothing (SDK-39, SDK-40, AP-140).
  */
 import { createContext, useContext, useEffect, useId, useMemo, useState } from "react";
-import { endpointSource, Header, mapColors, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
-import type { RichRow } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, mapColors, Page, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import type { RichRow, ShellPage } from "@joinedcontext/sdk";
 import {
   BIKE_STEPS,
   bikeHistogram,
@@ -36,19 +38,38 @@ const SHOWN = 50;
 
 type Load<T> = { status: "loading" } | { status: "ready"; rows: T[] } | { status: "failed"; reason: string } | { status: "unreachable" };
 
+/** The city right now in the SDK's shell, which holds the entity panel (SDK-39). */
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  const pages: ShellPage[] = [{ id: "now", label: s.page, render: () => <Now s={s} /> }];
+  return <AppShell title={s.title} pages={pages} language={s.locale} />;
+}
+
+function Now({ s }: { s: Strings }) {
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
-        <Bikes s={s} />
-        <Parking s={s} />
-        <Air s={s} />
-        <p className="note source">{s.source}</p>
-      </Page>
-    </main>
+    <Page label={s.page}>
+      <p className="subtitle">{s.subtitle}</p>
+      <Bikes s={s} />
+      <Parking s={s} />
+      <Air s={s} />
+      <p className="note source">{s.source}</p>
+    </Page>
+  );
+}
+
+/**
+ * The name of one row as a button that opens the entity in the panel, read through this App's
+ * endpoint of the space (SDK-40).
+ */
+function Opens({ id, type, name }: { id: string; type: string; name: string }) {
+  const { config } = useClient();
+  const { select } = useEntitySelection();
+  const endpoint = (config.endpoints ?? []).find((candidate) => candidate.space === SPACE)?.name;
+  return (
+    <button type="button" className="opens" onClick={() => select({ id, type, endpoint })}>
+      {name}
+    </button>
   );
 }
 
@@ -91,8 +112,8 @@ function useRows<T>(type: string, parse: (row: RichRow, language: string) => T |
   return load;
 }
 
-function reasonOf(cause: unknown): string {
-  if (cause instanceof SourceError) return cause.message;
+/** A failure in words: the endpoint's own (a `SourceError` is an `Error`), else what was thrown. */
+export function reasonOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
@@ -229,7 +250,7 @@ function BikeList({ stations, total, s }: { stations: BikeStation[]; total: numb
             {shown.map((station) => (
               <tr key={station.id}>
                 <th scope="row">
-                  {station.name}
+                  <Opens id={station.id} type="BikeHireDockingStation" name={station.name} />
                   {!station.working && <span className="off"> ({s.outOfService})</span>}
                 </th>
                 <td className="num">{station.bikes === null ? "–" : number(station.bikes, s)}</td>
@@ -270,7 +291,9 @@ function Parking({ s }: { s: Strings }) {
             <tbody>
               {matching(load.rows, "", s.locale).map((park) => (
                 <tr key={park.id}>
-                  <th scope="row">{park.name}</th>
+                  <th scope="row">
+                    <Opens id={park.id} type="OffStreetParking" name={park.name} />
+                  </th>
                   <td className="num">{park.capacity === null ? "–" : number(park.capacity, s)}</td>
                   {park.free === null && park.occupied === null ? (
                     <td colSpan={2} className="off">
@@ -359,7 +382,9 @@ function Air({ s }: { s: Strings }) {
                 const at = POLLUTANTS.map((pollutant) => station.readings[pollutant]?.at).find(Boolean);
                 return (
                   <tr key={station.id}>
-                    <th scope="row">{station.name}</th>
+                    <th scope="row">
+                      <Opens id={station.id} type="AirQualityObserved" name={station.name} />
+                    </th>
                     {POLLUTANTS.map((pollutant) => {
                       const reading = station.readings[pollutant];
                       return (

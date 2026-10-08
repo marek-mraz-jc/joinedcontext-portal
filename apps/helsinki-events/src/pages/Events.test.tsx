@@ -15,24 +15,7 @@ const maps: Array<{
   load?: () => void;
   clicks: Record<string, Handler>;
 }> = [];
-const popups: Array<{ body?: HTMLElement }> = [];
 vi.mock("maplibre-gl", () => {
-  class Popup {
-    body?: HTMLElement;
-    constructor() {
-      popups.push(this);
-    }
-    setLngLat() {
-      return this;
-    }
-    setDOMContent(body: HTMLElement) {
-      this.body = body;
-      return this;
-    }
-    addTo() {
-      return this;
-    }
-  }
   class Map {
     setData = vi.fn();
     easeTo = vi.fn();
@@ -54,7 +37,7 @@ vi.mock("maplibre-gl", () => {
       if (event === "click" && typeof layer === "string") this.clicks[layer] = handler as Handler;
     }
   }
-  return { Map, Popup, setWorkerUrl: vi.fn() };
+  return { Map, setWorkerUrl: vi.fn() };
 });
 vi.mock("@deck.gl/mapbox", () => ({ MapboxOverlay: class {} }));
 vi.mock("@deck.gl/layers", () => ({ ScatterplotLayer: class {} }));
@@ -118,7 +101,6 @@ describe("the events page", () => {
   beforeEach(() => {
     maps.length = 0;
     charts.length = 0;
-    popups.length = 0;
     // The page opens on today in Helsinki; the fixtures are in October 2030.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2030-10-20T06:00:00Z"));
@@ -163,6 +145,9 @@ describe("the events page", () => {
     expect(optionOf("Events per day, next 30 days").series[0].data.every((count: number) => count === 1)).toBe(true);
     await clickBar("Events per day, next 30 days", "2030-10-25");
     expect(listed()).toEqual(["Children's Town"]);
+    // Outside the shell there is no panel to open the event in (App.test.tsx opens it in one).
+    fireEvent.click(screen.getByRole("button", { name: "Children's Town" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("says the 30 days hold no event instead of drawing an empty axis", async () => {
@@ -189,7 +174,7 @@ describe("the events page", () => {
     expect(colours.size).toBe(3);
   });
 
-  it("clusters close markers, zooms in on a clicked cluster and shows a clicked event in a popup", async () => {
+  it("clusters close markers and zooms in on a clicked cluster", async () => {
     events();
     await waitFor(() => expect(maps.length).toBeGreaterThan(0));
     const map = maps[0];
@@ -197,20 +182,6 @@ describe("the events page", () => {
     expect(map.addSource).toHaveBeenCalledWith("jc-rows", expect.objectContaining({ cluster: true }));
     map.clicks["jc-clusters"]({ features: [{ properties: { cluster_id: 7 }, geometry: { type: "Point", coordinates: [24.94, 60.17] } }] });
     await waitFor(() => expect(map.easeTo).toHaveBeenCalledWith({ center: [24.94, 60.17], zoom: 13 }));
-    map.clicks["jc-points"]({
-      features: [{ properties: { id: "urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-agf2" } }],
-      lngLat: { lng: 24.9522, lat: 60.1703 },
-    });
-    const body = popups.at(-1)?.body;
-    expect([...(body?.children ?? [])].map((line) => line.textContent)).toEqual([
-      "Organ concert",
-      "20 Oct 2030, 20:00 – 20 Oct 2030, 21:30",
-      "Unioninkatu 29, Helsinki",
-      "City of Helsinki",
-    ]);
-    // An id the map does not hold opens nothing.
-    map.clicks["jc-points"]({ features: [{ properties: { id: "urn:ngsi-ld:Event:hel.fi:helsinki:gone" } }], lngLat: { lng: 0, lat: 0 } });
-    expect(popups).toHaveLength(1);
   });
 
   it("shows only the day or the register whose bar is clicked, and the chip puts them back", async () => {
@@ -222,7 +193,10 @@ describe("the events page", () => {
     await waitFor(() => expect(listed()).toHaveLength(5));
     await clickBar("Events by register", "Culture centres");
     expect(listed()).toEqual(["Dance workshop", "Jazz at Stoa"]);
+    fireEvent.click(screen.getByRole("button", { name: "Show every register, not only Culture centres" }));
+    await waitFor(() => expect(listed()).toHaveLength(5));
     // A second click on the same bar is the way back too.
+    await clickBar("Events by register", "Culture centres");
     await clickBar("Events by register", "Culture centres");
     expect(listed()).toHaveLength(5);
   });
@@ -234,6 +208,10 @@ describe("the events page", () => {
     expect(listed()).toEqual(["Dance workshop", "Jazz at Stoa"]);
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2030-10-31" } });
     expect(listed()).toEqual(["Dance workshop"]);
+    // From after the dance workshop leaves nothing in the range.
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2030-10-30" } });
+    expect(screen.getByText("No event matches the filters.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2030-10-20" } });
     fireEvent.change(screen.getByRole("searchbox", { name: "Search" }), { target: { value: "opera" } });
     expect(screen.getByText("No event matches the filters.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -246,7 +224,10 @@ describe("the events page", () => {
     const card = (name: string) => screen.getByRole("heading", { name }).closest("li") as HTMLElement;
     expect(within(card("Jazz at Stoa")).getByText("Cancelled")).toBeInTheDocument();
     expect(within(card("Organ concert")).queryByText("Cancelled")).toBeNull();
-    expect(within(card("Organ concert")).getByRole("link", { name: "Source" })).toHaveAttribute("href", "https://api.hel.fi/linkedevents/v1/");
+    const source = within(card("Organ concert")).getByRole("link", { name: "Source" });
+    expect(source).toHaveAttribute("href", "https://api.hel.fi/linkedevents/v1/");
+    expect(source).toHaveAttribute("rel", "noopener noreferrer");
+    fireEvent.click(source);
     expect(within(card("Story hour")).queryByRole("link")).toBeNull();
   });
 

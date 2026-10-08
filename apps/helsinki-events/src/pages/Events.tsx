@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
-import { Card, Grid, Page, ProblemError, Split, useEntities } from "@joinedcontext/sdk";
+import { Card, Empty, Grid, Loading, Page, ProblemError, Split, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { dayLabel, perDayOption, registerColours, registerOption } from "../charts";
 import { ChartCard } from "../components/ChartCard";
 import { EntityMap } from "../components/EntityMap";
-import { Empty, Loading } from "../components/states";
 import {
   byRegister,
   dateOf,
@@ -28,11 +27,6 @@ function today(): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
-/** The popup of a marker: the event's name, when, where and who publishes it. */
-function popupOf(row: Row): string[] {
-  return [textOf(row, "name") || row.id.slice(row.id.lastIndexOf(":") + 1), when(row), textOf(row, "address"), registerOf(row)].filter(Boolean);
-}
-
 /** What went wrong in words a reader can act on, with the endpoint's status (T-2597's error state). */
 function unreadable(error: Error): string {
   return error instanceof ProblemError && error.status > 0
@@ -45,7 +39,8 @@ const UNREAD = "Nothing to chart until the events are read.";
 /**
  * Helsinki's upcoming events (T-2923): a search and a date range, the events per day for the next
  * 30 days and per register (a bar picks them out), every located event on the map in its
- * register's colour, and the list, soonest first.
+ * register's colour, and the list, soonest first. An event on the map or in the list opens in the
+ * shell's entity panel (SDK-40), linked to the Portal: a public App writes nothing.
  */
 export function Events() {
   const [start] = useState(today);
@@ -56,6 +51,8 @@ export function Events() {
   const [to, setTo] = useState("");
   const [day, setDay] = useState<string | null>(null);
   const [register, setRegister] = useState<string | null>(null);
+  const { selected, select } = useEntitySelection();
+  const open = (row: Row) => select({ id: row.id, type: EVENT });
 
   const ranked = useMemo(() => byRegister(rows), [rows]);
   const colours = useMemo(() => registerColours(ranked.map((entry) => entry.register)), [ranked]);
@@ -138,7 +135,7 @@ export function Events() {
       </Grid>
       <Split ratio="1:1">
         <Card title="On the map">
-          <EntityMap rows={mapped} location="location" label="name" colorOf={colourOf} cluster popupOf={popupOf} height={420} />
+          <EntityMap rows={mapped} location="location" label="name" colorOf={colourOf} cluster selected={selected?.id ?? null} onSelect={open} height={420} />
           <ul className="app-legend" aria-label="Map colour: the register that publishes the event">
             {ranked.map((entry) => (
               <li key={entry.register}>
@@ -156,7 +153,7 @@ export function Events() {
           ) : (
             <ul className="app-events" aria-label="Upcoming events">
               {shown.map((row) => (
-                <EventCard key={row.id} row={row} colour={colourOf(row)} />
+                <EventCard key={row.id} row={row} colour={colourOf(row)} onOpen={() => open(row)} />
               ))}
             </ul>
           )}
@@ -166,7 +163,7 @@ export function Events() {
   );
 }
 
-function EventCard({ row, colour }: { row: Row; colour: string }) {
+function EventCard({ row, colour, onOpen }: { row: Row; colour: string; onOpen: () => void }) {
   const start = dateOf(row, "startDate");
   const description = textOf(row, "description");
   const source = sourceOf(row);
@@ -184,7 +181,11 @@ function EventCard({ row, colour }: { row: Row; colour: string }) {
         )}
       </div>
       <div className="app-event-body">
-        <h3>{textOf(row, "name") || row.id.slice(row.id.lastIndexOf(":") + 1)}</h3>
+        <h3>
+          <button type="button" className="app-open" onClick={onOpen}>
+            {textOf(row, "name") || row.id.slice(row.id.lastIndexOf(":") + 1)}
+          </button>
+        </h3>
         <p className="app-event-when">
           <time dateTime={start ? dayOf(start) : undefined}>{when(row)}</time>
         </p>

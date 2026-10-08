@@ -6,15 +6,14 @@
  * The table is the SDK's `EntityGrid`: paging, a filter per column that becomes the endpoint's own
  * `q`, the model's enums as pick lists, the name as the row's primary field opening the whole row.
  * What this application adds is one tab per register, the region's labels and the endpoint's own
- * downloads of each register. It sits in the SDK's shell (SDK-39), and a row's name opens the row in
- * the shell's entity panel (SDK-40): a public App, so the panel links to it in the Portal and never
- * offers Edit (AP-140).
+ * downloads of each register. It sits in the SDK's shell (SDK-39), where the grid opens a row by
+ * its name in the shell's entity panel (SDK-40): a public App, so the panel links to it in the
+ * Portal and never offers Edit (AP-140).
  */
 import { useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { AppShell, cellText, endpointSource, EntityGrid, Page, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
-import type { RichCell, RichRow } from "@joinedcontext/sdk";
-import { DATASETS, ENUMS, exportUrl, gridConfig, TYPE_OF } from "./datasets";
+import { AppShell, Empty, endpointSource, EntityGrid, Page, transportFor, useClient } from "@joinedcontext/sdk";
+import { DATASETS, ENUMS, exportUrl, gridConfig } from "./datasets";
 import type { Dataset } from "./datasets";
 import { stringsFor } from "./locales";
 
@@ -29,11 +28,9 @@ export default function App() {
 
 function Registers() {
   const { config } = useClient();
-  const { select } = useEntitySelection();
   const s = stringsFor(config.language);
   const language = config.language;
-  const endpoint = config.endpoints?.find((candidate) => candidate.space === SPACE);
-  const slug = endpoint?.slug ?? (config.space === SPACE ? config.slug : null);
+  const slug = config.endpoints?.find((candidate) => candidate.space === SPACE)?.slug ?? (config.space === SPACE ? config.slug : null);
   const [dataset, setDataset] = useState<Dataset>("hospitals");
   const tabs = useRef<Partial<Record<Dataset, HTMLButtonElement | null>>>({});
 
@@ -50,18 +47,6 @@ function Registers() {
         Object.entries(ENUMS).map(([attr, values]) => [attr, values.map((value) => ({ value, title: s.values[value] }))]),
       ),
     [s.values],
-  );
-
-  // The row's name opens it in the shell's panel, read fresh through the same endpoint.
-  const renderers = useMemo(
-    () => ({
-      name: (cell: RichCell | RichCell[] | undefined, row: RichRow) => (
-        <button type="button" className="jc-grid-open" title={row.id} onClick={() => select({ id: row.id, type: TYPE_OF[dataset], endpoint: endpoint?.name })}>
-          {cellText(cell) || row.id}
-        </button>
-      ),
-    }),
-    [select, dataset, endpoint?.name],
   );
 
   // The tabs move with the arrow keys, Home and End, as a tablist does (WAI-ARIA APG).
@@ -119,11 +104,11 @@ function Registers() {
               </a>
               <small>{s.downloadNote}</small>
             </div>
-            <EntityGrid key={dataset} config={grid} source={source} labels={s.grid} enums={enums} renderers={renderers} />
+            <EntityGrid key={dataset} config={grid} source={source} labels={s.grid} enums={enums} />
           </section>
         </>
       ) : (
-        <p role="status">{s.noEndpoint}</p>
+        <Empty>{s.noEndpoint}</Empty>
       )}
       <p className="source">{s.source}</p>
     </Page>

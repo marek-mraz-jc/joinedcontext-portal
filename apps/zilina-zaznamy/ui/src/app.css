@@ -3,8 +3,8 @@
  * column of described buttons on the left and the grid fills the rest; on a phone the buttons are
  * a wrapping row above the grid and the descriptions stay under the chosen one's heading.
  */
-main {
-  padding: var(--jc-gutter, 1rem);
+.subtitle {
+  color: var(--jc-color-text-muted, #555);
 }
 
 .source,

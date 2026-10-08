@@ -1,27 +1,25 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider, ProblemError } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
 import { AnalyserContext } from "./analysis";
+import type { AnalysisInput } from "./analysis";
 import { NETWORK_ROWS } from "./fixtures/network";
 import { HISTORY } from "./fixtures/vehicles";
 import { inProcess } from "./test-analyser";
+import { Map as FakeMap } from "./testing/maplibre";
 
-vi.mock("maplibre-gl", () => ({
-  Map: class {
-    on = vi.fn();
-    remove = vi.fn();
-  },
-  Popup: class {},
-  setWorkerUrl: vi.fn(),
-}));
+vi.mock("maplibre-gl", () => import("./testing/maplibre"));
 
 const READ = { permissions: [{ resource: { type: "Vehicle" }, actions: ["retrieveTemporal"], attributes: "*" as const }], prohibitions: [] };
 
 function client(temporal: unknown[] = HISTORY, entities: NonNullable<Parameters<typeof stubClient>[0]>["entities"] = []) {
-  return stubClient({ entities, temporal: temporal as { id: string; type: string }[], access: READ }, { appName: "transit-reach" });
+  return stubClient(
+    { entities, temporal: temporal as { id: string; type: string }[], access: READ },
+    { appName: "transit-reach", portal: "https://portal.hel.fi/projects/helsinki" },
+  );
 }
 
 function show(c = client()) {
@@ -39,7 +37,11 @@ const FI_SUMMARY = /^Saavutettava alue tästä pisteestä: 10 min \d+,\d km², 2
 
 describe("transit-reach", () => {
   beforeEach(() => window.history.replaceState(null, "", "/?lang=fi"));
-  afterEach(() => window.history.replaceState(null, "", "/"));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
+    FakeMap.built.length = 0;
+  });
 
   // AP-04: read through the app's own endpoint only, never written to; the first screen answers
   // how far one gets from Rautatientori without a click.
@@ -76,8 +78,32 @@ describe("transit-reach", () => {
     await user.click(screen.getByRole("button", { name: "Takaisin Rautatientorille" }));
     expect(await screen.findByText(FI_SUMMARY)).toBeInTheDocument();
     expect(window.location.search).toBe("?lang=fi");
-    await user.click(screen.getAllByRole("button", { name: /: lähde tästä$/ })[1]);
-    expect(window.location.search).toContain("at=");
+    const names = screen.getAllByRole("button", { name: /: lähde tästä$/ }).map((b) => b.textContent ?? "");
+    for (const name of names) {
+      await user.click(await screen.findByRole("button", { name: `${name}: lähde tästä` }));
+      expect(window.location.search).toContain("at=");
+      await user.click(screen.getByRole("button", { name: "Takaisin Rautatientorille" }));
+    }
+  });
+
+  // Found by worker-4 (chyby.md): before the history read began, the page analysed an empty history
+  // and a walking-only answer flashed before the vehicles' one.
+  it("never answers from an empty history before the history has been read", async () => {
+    const asked: AnalysisInput[] = [];
+    const watching = (input: AnalysisInput) => {
+      asked.push(input);
+      return inProcess(input);
+    };
+    render(
+      <JcProvider client={client()}>
+        <AnalyserContext.Provider value={watching}>
+          <App />
+        </AnalyserContext.Provider>
+      </JcProvider>,
+    );
+    await screen.findByText(FI_SUMMARY);
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.filter((input) => input.vehicles.length === 0)).toEqual([]);
   });
 
   it("reads the history window the address names and asks again for another", async () => {
@@ -117,7 +143,7 @@ describe("transit-reach", () => {
     const c = show(client(HISTORY, NETWORK_ROWS));
     expect(await screen.findByText(/^Pysäkit ja linjat HSL:n rekistereistä \(4 pysäkkiä, 2 linjaversiota\)\./)).toBeInTheDocument();
     const reached = screen.getByRole("list", { name: "Pysäkit 30 minuutissa" });
-    expect(within(reached).getAllByRole("button").map((b) => b.textContent)).toEqual([
+    expect(within(reached).getAllByRole("button", { name: /lähde tästä/ }).map((b) => b.textContent)).toEqual([
       "Rautatientori (H0019): linjat M1",
       "Kaisaniemi (H0012): linjat 550, M1",
       "Hakaniemi (H0026): linjat M1",
@@ -137,5 +163,104 @@ describe("transit-reach", () => {
     show(c);
     expect(await screen.findByText(/HSL:n pysäkkejä ja linjoja ei voitu lukea \(HTTP 502\)/)).toBeInTheDocument();
     expect(await screen.findByText(FI_SUMMARY)).toBeInTheDocument();
+  });
+
+  // SDK-40, AP-140: an HSL stop reached opens in the entity panel, with a Portal link and no Edit.
+  it("opens every reached HSL stop in the entity panel, with a Portal link and no Edit", async () => {
+    show(client(HISTORY, NETWORK_ROWS));
+    const reached = await screen.findByRole("list", { name: "Pysäkit 30 minuutissa" });
+    const user = userEvent.setup();
+    for (const button of within(reached).getAllByRole("button", { name: /: tiedot$/ })) {
+      await user.click(button);
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    }
+    const panel = screen.getByRole("dialog");
+    const link = await within(panel).findByRole("link", { name: "Avaa portaalissa" });
+    await user.click(link);
+    expect(within(panel).queryByRole("button", { name: "Muokkaa" })).toBeNull();
+    await user.click(within(panel).getByRole("button", { name: "Sulje" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("starts from every reached stop in turn, in either language, and from a point clicked on the map", async () => {
+    show(client(HISTORY, NETWORK_ROWS));
+    const user = userEvent.setup();
+    const reached = await screen.findByRole("list", { name: "Pysäkit 30 minuutissa" });
+    const names = within(reached).getAllByRole("button", { name: /: lähde tästä$/ }).map((b) => b.getAttribute("aria-label") ?? b.textContent ?? "");
+    for (const name of names) {
+      await user.click(await screen.findByRole("button", { name }));
+      if (screen.queryByRole("button", { name: "Takaisin Rautatientorille" })) await user.click(screen.getByRole("button", { name: "Takaisin Rautatientorille" }));
+    }
+    const map = FakeMap.built.at(-1) as FakeMap;
+    await vi.waitFor(() => expect(map.sources.cells).toBeDefined());
+    map.under = [];
+    act(() => map.fire("click", { point: { x: 1, y: 1 }, lngLat: { lng: 24.951234567, lat: 60.181234567 } }));
+    expect(window.location.search).toContain("at=24.95123%2C60.18123");
+  });
+
+  it("starts from each reached stop in English, and from a stop picked in the English list", async () => {
+    window.history.replaceState(null, "", "/?lang=en");
+    show();
+    const user = userEvent.setup();
+    await screen.findByText(/^Reachable from this point: /);
+    const reached = await screen.findByRole("list", { name: /Stops within 30 minutes/ });
+    const names = within(reached).getAllByRole("button", { name: /: start from here$/ }).map((b) => b.getAttribute("aria-label") ?? b.textContent ?? "");
+    for (const name of names) {
+      await user.click(await screen.findByRole("button", { name }));
+      if (screen.queryByRole("button", { name: "Back to Rautatientori" })) await user.click(screen.getByRole("button", { name: "Back to Rautatientori" }));
+    }
+    const select = await screen.findByRole("combobox", { name: "Start from a stop" });
+    await user.selectOptions(select, within(select).getAllByRole("option")[1]);
+    expect(window.location.search).toContain("at=");
+    await user.selectOptions(select, "");
+    expect(window.location.search).toContain("at=");
+  });
+
+  it("asks for another history window in Finnish, and switches back to Finnish", async () => {
+    window.history.replaceState(null, "", "/?lang=fi&hours=6");
+    const c = show();
+    await screen.findByText(FI_SUMMARY);
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Ajoneuvojen historia" }), "1");
+    expect(c.transport.calls.filter((call) => call.path.includes("/temporal/entities"))).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "In English" }));
+    await user.click(await screen.findByRole("button", { name: "Suomeksi" }));
+    expect(document.documentElement.lang).toBe("fi");
+    expect(window.location.search).toContain("lang=fi");
+  });
+
+  it("switches language even where the address cannot be written, and takes the browser's language", async () => {
+    window.history.replaceState(null, "", "/");
+    vi.spyOn(navigator, "languages", "get").mockReturnValue(undefined as unknown as readonly string[]);
+    vi.spyOn(navigator, "language", "get").mockReturnValue("en-GB");
+    show();
+    await screen.findByText(/^Reachable from this point: /);
+    vi.spyOn(window.history, "replaceState").mockImplementation(() => {
+      throw new DOMException("sandboxed", "SecurityError");
+    });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Suomeksi" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Kuinka pitkälle pääsen joukkoliikenteellä" })).toBeInTheDocument();
+  });
+
+  it("tries the stops and the history again after a failure that is no HTTP answer", async () => {
+    const c = client(HISTORY, NETWORK_ROWS);
+    const list = c.entities.list.bind(c.entities);
+    const temporal = c.temporal.list.bind(c.temporal);
+    let failing = true;
+    c.entities.list = (async (type: string, query?: Parameters<typeof list>[1]) => {
+      if (failing) throw "network down";
+      return list(type, query);
+    }) as typeof c.entities.list;
+    c.temporal.list = (async (...args: Parameters<typeof temporal>) => {
+      if (failing) throw new Error("socket closed");
+      return temporal(...args);
+    }) as typeof c.temporal.list;
+    show(c);
+    const user = userEvent.setup();
+    expect(await screen.findByText(/HSL:n pysäkkejä ja linjoja ei voitu lukea \(HTTP 0\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/Ajoneuvojen historiaa ei voitu lukea \(HTTP 0\)/)).toBeInTheDocument();
+    failing = false;
+    for (const retry of screen.getAllByRole("button", { name: "Yritä uudelleen" })) await user.click(retry);
+    expect(await screen.findByText(/^Pysäkit ja linjat HSL:n rekistereistä/)).toBeInTheDocument();
   });
 });

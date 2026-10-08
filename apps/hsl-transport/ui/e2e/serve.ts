@@ -9,6 +9,9 @@ const ORIGIN = "http://hsl-transport.apps.test";
 export const BASE = `${ORIGIN}/`;
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
 
+/** The page's `JC_APP_CONFIG` as the reconciler hands it, without `user`; the Portal is shown, never followed. */
+const CONFIG = { space: "helsinki", appName: "hsl-transport", portal: "https://portal.test/projects/helsinki" };
+
 /** Six buses on four lines around the centre, in the shape the backend's snapshot answers. */
 export const FLEET = [
   { id: "1", coordinates: [24.941, 60.171], bearing: 90, speed: 8.2, refLine: "550" },
@@ -46,7 +49,12 @@ export async function serve(page: Page): Promise<Served> {
       served.missing.push(url.pathname);
       return route.fulfill({ status: 404, body: "" });
     }
-    return route.fulfill({ status: 200, contentType: TYPES[extname(file)] ?? "application/octet-stream", body: readFileSync(join(DIST, file)) });
+    let body = readFileSync(join(DIST, file));
+    // The backend writes JC_APP_CONFIG into its page; the entity panel links a bus from it (SDK-40).
+    if (file === "index.html") {
+      body = Buffer.from(body.toString("utf8").replace("<head>", `<head><script id="jc-config" type="application/json">${JSON.stringify(CONFIG)}</script>`));
+    }
+    return route.fulfill({ status: 200, contentType: TYPES[extname(file)] ?? "application/octet-stream", body });
   });
   return served;
 }

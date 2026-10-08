@@ -12,6 +12,8 @@ export const BASE = `${ORIGIN}/apps/${NAME}/`;
 export const NOW = new Date("2026-10-07T09:00:00Z");
 // The App's own endpoint over the mobility space, and the helsinki project's shared bikes endpoint.
 const CONFIG = {
+  // Where the entity panel links a station (SDK-40); shown, never followed.
+  portal: "https://portal.hel.fi/projects/helsinki-mobility",
   slug: "own7kq3zr5mx2vwt6nbc4pjd7fgs3mob",
   orgDomain: "hel.fi",
   space: "mobility",
@@ -52,6 +54,16 @@ export async function serve(page: Page): Promise<Served> {
     if (url.origin !== ORIGIN) {
       served.outside.push(url.href);
       return route.abort();
+    }
+    // The entity panel reads one station fresh by its id (SDK-40).
+    const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
+    if (url.pathname.includes("/api/endpoint/") && one) {
+      const entity = (answer("BikeHireDockingStation") as { id: string }[]).find((row) => row.id === decodeURIComponent(one[1]));
+      return route.fulfill({
+        status: entity ? 200 : 404,
+        contentType: "application/ld+json",
+        body: JSON.stringify(entity ?? { title: "Not Found", status: 404 }),
+      });
     }
     if (url.pathname.includes("/api/endpoint/")) {
       const body = answer(url.searchParams.get("type"));

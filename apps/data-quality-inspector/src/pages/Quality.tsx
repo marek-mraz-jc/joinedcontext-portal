@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Row } from "@joinedcontext/sdk";
-import { Card, Page, ProblemError, currentTokens, useClient, useSchema } from "@joinedcontext/sdk";
+import { Card, Empty, Loading, Page, Problem, ProblemError, currentTokens, useClient, useEntitySelection, useSchema } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
-import { Empty, Loading, Problem } from "../components/states";
 import type { Lang } from "../i18n";
 import { number, t } from "../i18n";
 import { useInspect } from "../inspect";
@@ -61,10 +60,13 @@ export function completenessBarOption(types: TypeQuality[], _lang: Lang): Record
 }
 
 /**
- * Helsinki data quality overview and type detail inspection screen.
+ * Helsinki data quality overview and type detail inspection screen. A failing entity opens in the
+ * SDK's entity panel (SDK-40) by its id; the App is public, so the panel links it to the Portal,
+ * where it is corrected (AP-140).
  */
 export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
   const client = useClient();
+  const { select } = useEntitySelection();
   const { schema, error: schemaError } = useSchema();
 
   const [selectedType, setSelectedType] = useState<string | null>(() => {
@@ -189,11 +191,7 @@ export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
         <Problem error={new Error(t(lang, "inspectFailed", { reason: inspectError.message }))} />
       ) : null}
 
-      {schemaError && (
-        <div className="jc-problem" role="status">
-          <p>{t(lang, "schemaUnreadable")}</p>
-        </div>
-      )}
+      {schemaError && <Problem error={new Error(t(lang, "schemaUnreadable"))} />}
 
       {allTypesFailed ? (
         <Problem
@@ -407,7 +405,9 @@ export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
                           {selectedQuality.findings.slice(0, 200).map((f, idx) => (
                             <tr key={`${f.entity}-${f.attribute}-${f.rule}-${idx}`}>
                               <td>
-                                <code>{localId(f.entity)}</code>
+                                <button type="button" className="app-open" title={f.entity} onClick={() => select({ id: f.entity, type: selectedType })}>
+                                  <code>{localId(f.entity)}</code>
+                                </button>
                               </td>
                               <td>
                                 <code>{f.attribute}</code>

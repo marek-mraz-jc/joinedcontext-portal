@@ -4,7 +4,7 @@
  * edited and why, and the source line. The column and the heading are the SDK's Page and Header
  * (T-2825).
  */
-main {
+.jc-main {
   padding: var(--jc-gutter, 1rem);
 }
 
@@ -210,6 +210,17 @@ main {
 
 .coded .code {
   font-family: var(--jc-font-mono, monospace);
+}
+
+/* A record opens in the entity panel by this button, above its URN's disclosure. */
+.row-open {
+  font: inherit;
+  color: var(--jc-color-primary, #1f5fa8);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .urn summary {
