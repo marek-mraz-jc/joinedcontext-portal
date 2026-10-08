@@ -1,0 +1,43 @@
+# Apps the coverage gate measures but does not yet fail (T-3373), one per line: the App and the task
+# that brings it to green and removes its line in the same commit. The list only shrinks: the
+# gate refuses a new line, and fails a listed App that already passes. Thresholds never move.
+air-quality T-3374
+air-weather-explorer T-3375
+alerts-desk T-3376
+alerts-heatmap T-3377
+banskabystrica-data T-3378
+banskabystrica-mapa T-3379
+banskabystrica-ovzdusie T-3380
+banskabystrica-skoly T-3381
+banskabystrica-zaznamy T-3382
+bbsk-data T-3383
+bbsk-mapa T-3384
+bbsk-mosty T-3385
+bbsk-ukazovatele T-3386
+bbsk-zaznamy T-3387
+bike-rebalancing T-3388
+bike-stations T-3389
+bike-weather-demand T-3390
+data-quality-inspector T-3391
+district-compare T-3392
+event-day-planner T-3393
+helsinki-alerts T-3394
+helsinki-bikes T-3395
+helsinki-data T-3396
+helsinki-events T-3397
+helsinki-kartta T-3398
+hsl-transport T-3399
+kpi-forecast T-3400
+news-topics T-3401
+praha-data T-3402
+praha-mapa T-3403
+praha-mesto T-3404
+praha-odpad T-3405
+transit-reach T-3406
+zilina-mapa T-3407
+zilina-ukazovatele T-3408
+zilina-vyskum T-3409
+zilina-zaznamy T-3410
+plain-html-events T-3416
+react-rust-wasm T-3416
+rust-wasm-server T-3416

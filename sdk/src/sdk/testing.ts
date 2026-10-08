@@ -225,3 +225,102 @@ export function fakeContext(
     logs,
   };
 }
+
+/** What a control of the page is called in the record: its role and the name a person reads. */
+const CONTROLS =
+  'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="menuitem"], [role="option"], [role="slider"]';
+
+function roleOf(element: Element): string {
+  const role = element.getAttribute("role");
+  if (role) return role;
+  const tag = element.tagName.toLowerCase();
+  if (tag === "a") return "link";
+  if (tag === "select") return "combobox";
+  if (tag === "textarea") return "textbox";
+  if (tag === "input") {
+    const type = (element.getAttribute("type") ?? "text").toLowerCase();
+    if (type === "checkbox" || type === "radio") return type;
+    if (type === "range") return "slider";
+    if (type === "submit" || type === "button" || type === "reset") return "button";
+    return "textbox";
+  }
+  return tag;
+}
+
+function nameOf(element: Element): string {
+  const doc = element.ownerDocument;
+  const labelledBy = element.getAttribute("aria-labelledby");
+  const fromIds = labelledBy
+    ? labelledBy
+        .split(/\s+/)
+        .map((id) => doc.getElementById(id)?.textContent ?? "")
+        .join(" ")
+    : "";
+  const labels = (element as HTMLInputElement).labels;
+  const fromLabel = labels && labels.length > 0 ? labels[0].textContent ?? "" : "";
+  const name =
+    element.getAttribute("aria-label") ||
+    fromIds ||
+    fromLabel ||
+    element.textContent ||
+    element.getAttribute("title") ||
+    element.getAttribute("placeholder") ||
+    element.getAttribute("name") ||
+    "";
+  return name.replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+/** One control in the record: `role: name`, the same for every render of it. */
+export function controlId(element: Element): string {
+  return `${roleOf(element)}: ${nameOf(element)}`;
+}
+
+function usable(element: Element): boolean {
+  return !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true" && element.closest('[aria-hidden="true"]') === null;
+}
+
+/**
+ * Records which controls a test file rendered and which its tests clicked or typed into, for the
+ * Apps' coverage gate (T-3373): a control no test exercises fails it. Call it once from the test
+ * setup, `recordControls(afterAll)`; it writes one JSON file into `JC_CONTROLS_DIR` when that is set
+ * and does nothing otherwise. A disabled or hidden control is not counted.
+ */
+export function recordControls(afterAll: (done: () => Promise<void>) => void, dir: string | undefined = typeof process !== "undefined" ? process.env.JC_CONTROLS_DIR : undefined): void {
+  if (!dir || typeof document === "undefined" || typeof MutationObserver === "undefined") return;
+  const rendered = new Set<string>();
+  const exercised = new Set<string>();
+  const scan = (root: ParentNode) => {
+    if (root instanceof Element && root.matches(CONTROLS) && usable(root)) rendered.add(controlId(root));
+    for (const element of Array.from(root.querySelectorAll(CONTROLS))) {
+      if (usable(element)) rendered.add(controlId(element));
+    }
+  };
+  const take = (mutations: MutationRecord[]) => {
+    for (const mutation of mutations) {
+      for (const node of Array.from(mutation.addedNodes)) {
+        if (node instanceof Element) scan(node);
+      }
+      // A control's name can change after it is added (a count, a loaded label).
+      if (mutation.target instanceof Element) scan(mutation.target);
+    }
+  };
+  const observer = new MutationObserver(take);
+  observer.observe(document, { childList: true, subtree: true, characterData: true });
+  scan(document);
+  const touched = (event: Event) => {
+    const target = event.target instanceof Element ? event.target.closest(CONTROLS) : null;
+    if (target) exercised.add(controlId(target));
+  };
+  for (const type of ["click", "input", "change", "keydown"]) document.addEventListener(type, touched, true);
+  afterAll(async () => {
+    // The observer reports in a later task: what is still queued, and what is on the page now.
+    take(observer.takeRecords());
+    observer.disconnect();
+    scan(document);
+    const { mkdirSync, writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `controls-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.json`);
+    writeFileSync(file, JSON.stringify({ rendered: [...rendered].sort(), exercised: [...exercised].sort() }));
+  });
+}

@@ -439,6 +439,11 @@ Constructs an SDK Client wired to stub transport for unit tests.
 function fakeContext(fixture?: Fixture & { user?: JcUser | null }): { jc: DataClient; log(...parts: unknown[]): void; logs: unknown[][] }
 ```
 Constructs a server function execution context capturing log statements.
+```ts
+function recordControls(afterAll: (done: () => Promise<void>) => void, dir?: string): void
+function controlId(element: Element): string
+```
+For the Apps' coverage gate (T-3373): call `recordControls(afterAll)` once in the test setup. With `JC_CONTROLS_DIR` set it writes which controls (`role: name`, from `controlId`) the test file rendered and which a test clicked or typed into; the gate fails a control no test exercises. A disabled or hidden control is not counted; without the directory it does nothing.
 
 ---
 
