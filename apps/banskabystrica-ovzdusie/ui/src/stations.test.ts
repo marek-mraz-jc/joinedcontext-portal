@@ -97,3 +97,23 @@ describe("the list of stations", () => {
     expect(stationsOf([], NOW)).toEqual([]);
   });
 });
+
+describe("a station's odd shapes", () => {
+  const ID = "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:banskabystrica-verejne:x";
+  const one = (attrs: Record<string, unknown>) => toStation(rowOf({ id: ID, type: "AirQualityObserved", ...attrs }));
+
+  it("takes the first of several values, and no place from a point that is not a number", () => {
+    expect(one({ pm10: [{ type: "Property", value: 12, datasetId: "urn:a" }, { type: "Property", value: 40, datasetId: "urn:b" }] }).pm10).toBe(12);
+    expect(one({ location: { type: "GeoProperty", value: { type: "Point", coordinates: [Infinity, 48.7] } } }).coordinates).toBeNull();
+  });
+
+  it("has no age for a time that is no time, and lists stations without one last", () => {
+    expect(ageOf("someday", NOW)).toBeNull();
+    const stations = stationsOf(
+      [rowOf({ id: `${ID}-a`, type: "AirQualityObserved" }), rowOf(station({ localId: "b", minutesAgo: 5, pm10: 1 }, NOW)), rowOf({ id: `${ID}-c`, type: "AirQualityObserved" })],
+      NOW,
+    );
+    expect(stations[0].localId).toBe("b");
+  });
+});
+

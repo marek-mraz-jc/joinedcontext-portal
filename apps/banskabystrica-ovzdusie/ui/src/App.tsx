@@ -9,13 +9,29 @@
  * clean air, so staleness is a band of its own and is decided before the thresholds
  * (`stations.ts`). And a map is not readable by a screen reader or a keyboard, so the same
  * stations are a list beside it, with the same colours said in words — the list is the screen and
- * the map is the picture of it.
+ * the map is the picture of it. It sits in the SDK's shell (SDK-39); a station picked on the map
+ * and a card's Details button open the station in the shell's entity panel (SDK-40), which links
+ * it to the Portal: a public App writes nothing (AP-140).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { endpointSource, EntityHistory, Grid, Header, Page, SourceError, Split, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
+import {
+  AppShell,
+  Empty,
+  endpointSource,
+  EntityHistory,
+  Grid,
+  Loading,
+  Page,
+  Problem,
+  Split,
+  styleFor,
+  transportFor,
+  useClient,
+  useEntitySelection,
+} from "@joinedcontext/sdk";
 import type { EntitySource, RichRow } from "@joinedcontext/sdk";
 import { BAND_COLOUR, bandOf, stationsOf } from "./stations";
 import type { Band, Station } from "./stations";
@@ -40,11 +56,12 @@ type Load =
   | { status: "unreachable" };
 
 /** The endpoint this application reads, found by space and never by position (SDK-02). */
-function useEndpointSlug(): string | null {
+function useEndpoint(): { slug: string; name?: string } | null {
   const { config } = useClient();
-  const listed = config.endpoints?.find((candidate) => candidate.space === SPACE)?.slug;
+  const listed = config.endpoints?.find((candidate) => candidate.space === SPACE);
+  if (listed) return { slug: listed.slug, name: listed.name };
   // An application with one data need is served without the list; its own slug is the endpoint.
-  return listed ?? (config.space === SPACE ? config.slug : null) ?? null;
+  return config.space === SPACE && config.slug ? { slug: config.slug } : null;
 }
 
 export function useStations(now: () => Date = () => new Date()): {
@@ -52,7 +69,7 @@ export function useStations(now: () => Date = () => new Date()): {
   source: EntitySource | null;
 } {
   const { config } = useClient();
-  const slug = useEndpointSlug();
+  const slug = useEndpoint()?.slug ?? null;
   const language = config.language;
   const [load, setLoad] = useState<Load>({ status: "loading" });
 
@@ -87,60 +104,74 @@ export function useStations(now: () => Date = () => new Date()): {
   return { load, source };
 }
 
+/** A refusal's words (a `SourceError` is an `Error`), else whatever was thrown. */
 function reasonOf(cause: unknown): string {
-  if (cause instanceof SourceError) return cause.message;
   return cause instanceof Error ? cause.message : String(cause);
 }
 
 export default function App() {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  return <AppShell title={s.title} pages={[{ id: "air", label: s.title, render: () => <Air /> }]} language={config.language} />;
+}
+
+function Air() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
   const now = useMemo(() => new Date(), []);
   const { load, source } = useStations(() => now);
+  const endpoint = useEndpoint()?.name;
+  const { select } = useEntitySelection();
   const [pickedId, setPickedId] = useState<string | null>(null);
 
   const stations = load.status === "ready" ? load.stations : [];
   const picked = stations.find((station) => station.id === pickedId) ?? stations[0] ?? null;
+  const open = (id: string) => select({ id, type: "AirQualityObserved", endpoint });
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page>
+      <p className="subtitle">{s.subtitle}</p>
 
-        {load.status === "loading" && <p role="status">{s.loading}</p>}
-        {load.status === "unreachable" && <p role="status">{s.noEndpoint}</p>}
-        {load.status === "failed" && (
-          <p role="alert" className="failed">
-            {s.failed} {s.failedWhy}: {load.reason}
-          </p>
-        )}
-        {load.status === "ready" && stations.length === 0 && (
-          <p role="status">
-            {s.empty} {s.emptyWhy}
-          </p>
-        )}
+      {load.status === "loading" && <Loading label={s.loading} />}
+      {load.status === "unreachable" && <Empty>{s.noEndpoint}</Empty>}
+      {load.status === "failed" && <Problem error={new Error(`${s.failed} ${s.failedWhy}: ${load.reason}`)} />}
+      {load.status === "ready" && stations.length === 0 && (
+        <Empty>
+          {s.empty} {s.emptyWhy}
+        </Empty>
+      )}
 
-        {stations.length > 0 && (
-          <>
-            <Split ratio="2:1">
-              <StationMap stations={stations} now={now} picked={picked} onPick={setPickedId} s={s} />
-              {picked && source ? <StationDetail station={picked} source={source} now={now} s={s} /> : null}
-            </Split>
-            <StationList
+      {stations.length > 0 && (
+        <>
+          <Split ratio="2:1">
+            <StationMap
               stations={stations}
               now={now}
-              pickedId={picked?.id ?? null}
-              onPick={setPickedId}
+              picked={picked}
+              onPick={(id) => {
+                // A station on the map is picked for its history and opened in the panel.
+                setPickedId(id);
+                open(id);
+              }}
               s={s}
             />
-            <p className="note">{s.limitNote}</p>
-            <p className="note">{s.staleNote}</p>
-          </>
-        )}
+            {picked && source ? <StationDetail station={picked} source={source} now={now} s={s} /> : null}
+          </Split>
+          <StationList
+            stations={stations}
+            now={now}
+            pickedId={picked?.id ?? null}
+            onPick={setPickedId}
+            onOpen={open}
+            s={s}
+          />
+          <p className="note">{s.limitNote}</p>
+          <p className="note">{s.staleNote}</p>
+        </>
+      )}
 
-        <p className="source">{s.source}</p>
-      </Page>
-    </main>
+      <p className="source">{s.source}</p>
+    </Page>
   );
 }
 
@@ -179,6 +210,9 @@ function StationMap({
   const map = useRef<MapLibreMap | null>(null);
   const ready = useRef(false);
   const collection = featuresOf(stations, now);
+  // The click handler is bound once with the map; it calls what the latest render passed.
+  const latestPick = useRef(onPick);
+  latestPick.current = onPick;
   const centre = picked?.coordinates ?? stations.find((one) => one.coordinates)?.coordinates ?? BANSKA_BYSTRICA;
 
   useEffect(() => {
@@ -201,7 +235,7 @@ function StationMap({
     });
     drawn.on("click", SOURCE_ID, (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
       const id = event.features?.[0]?.properties?.id;
-      if (typeof id === "string") onPick(id);
+      if (typeof id === "string") latestPick.current(id);
     });
     map.current = drawn;
     return () => {
@@ -234,12 +268,14 @@ function StationList({
   now,
   pickedId,
   onPick,
+  onOpen,
   s,
 }: {
   stations: Station[];
   now: Date;
   pickedId: string | null;
   onPick: (id: string) => void;
+  onOpen: (id: string) => void;
   s: Strings;
 }) {
   return (
@@ -253,6 +289,7 @@ function StationList({
             band={bandOf(station, now)}
             picked={station.id === pickedId}
             onPick={onPick}
+            onOpen={onOpen}
             s={s}
           />
         ))}
@@ -266,12 +303,14 @@ function StationCard({
   band,
   picked,
   onPick,
+  onOpen,
   s,
 }: {
   station: Station;
   band: Band;
   picked: boolean;
   onPick: (id: string) => void;
+  onOpen: (id: string) => void;
   s: Strings;
 }) {
   const name = nameOf(station, s);
@@ -303,6 +342,9 @@ function StationCard({
       {station.coordinates === null && <p className="note">{s.noLocation}</p>}
       <button type="button" onClick={() => onPick(station.id)} aria-pressed={picked}>
         {picked ? s.picked : s.pick}
+      </button>
+      <button type="button" onClick={() => onOpen(station.id)}>
+        {s.details(name)}
       </button>
     </article>
   );
