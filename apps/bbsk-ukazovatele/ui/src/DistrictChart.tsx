@@ -33,9 +33,10 @@ export function DistrictChart({
   unit: string;
   bars: Bar[];
   s: Strings;
-  /** The district picked on the map, drawn marked; with `onMark` each name is that choice by keyboard. */
+  /** The district picked on the map, drawn marked. */
   marked?: string | null;
-  onMark?: (territory: string) => void;
+  /** A district's name is a button: it opens the district's indicator, and marks it on a map. */
+  onMark: (territory: string) => void;
   /** The range the map's colour scale spans for these bars; `null` where no map is drawn. */
   ramp?: [number, number] | null;
 }) {
@@ -54,18 +55,9 @@ export function DistrictChart({
           const share = max > 0 ? Math.max(0, bar.value / max) : 0;
           return (
             <li key={bar.territory} className={bar.territory === marked ? "bar-row marked" : "bar-row"}>
-              {onMark ? (
-                <button
-                  type="button"
-                  className="bar-label"
-                  aria-pressed={bar.territory === marked}
-                  onClick={() => onMark(bar.territory)}
-                >
-                  {name}
-                </button>
-              ) : (
-                <span className="bar-label">{name}</span>
-              )}
+              <button type="button" className="bar-label" aria-pressed={bar.territory === marked} onClick={() => onMark(bar.territory)}>
+                {name}
+              </button>
               <span className="bar-track" aria-hidden="true">
                 <span
                   className="bar"

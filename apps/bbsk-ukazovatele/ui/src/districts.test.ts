@@ -122,3 +122,17 @@ describe("a value's colour on the map's scale", () => {
     expect(rangeOf([3, -1, 2])).toEqual([-1, 3]);
   });
 });
+
+describe("a register row's odd shapes", () => {
+  it("takes the first of several names", () => {
+    const row = area("SK0322", {
+      name: [
+        { type: "LanguageProperty", languageMap: { sk: "Okres Brezno" }, datasetId: "urn:a" },
+        { type: "LanguageProperty", languageMap: { sk: "Brezno" }, datasetId: "urn:b" },
+      ],
+      divisionLevel: { type: "Property", value: "district" },
+      location: { type: "GeoProperty", value: SQUARE },
+    });
+    expect(districtsOf([row]).map((district) => district.territory)).toEqual(["okres-brezno"]);
+  });
+});

@@ -3,6 +3,16 @@
 One screen showing the `KeyPerformanceIndicator` entities of two public bodies side by side: the
 Banskobystrický samosprávny kraj and the city of Banská Bystrica. It reads and never writes.
 
+It sits in the SDK's `AppShell` (SDK-39). A card's territory, a district's bar in a chart and a
+district on the map open that indicator in the shell's entity panel (SDK-40), read fresh through
+its body's endpoint.
+
+**What a reader edits here: nothing.** The `dataNeeds` keep `queryEntity` and `retrieveEntity`. Every
+indicator is computed by its pipeline (T-2307), which rewrites it on each run, so a value changed by
+hand would be overwritten and lost, and a hand-typed figure under a publisher's heading is the
+confusion this screen exists to prevent. The panel never offers Edit; it links the indicator to the
+Portal.
+
 ## Why it is two sections and not one table
 
 The region has roughly 607 581 inhabitants and the city 72 123. The same question — how many
@@ -58,7 +68,9 @@ pnpm e2e
 
 `pnpm e2e` serves the built bundle under `/apps/bbsk-ukazovatele/` with the static host's Content
 Security Policy and both bodies' fixtures, and holds the indicators to 375, 768, 1440 and 2560 px:
-no sideways scroll, no overlapping cards, no control cut off, axe clean (T-2825).
+no sideways scroll, no overlapping cards, no control cut off, axe clean (T-2825); and an indicator
+in the entity panel at 375 and 1440 px, light and dark. The tests exercise every control and hold
+the coverage gate of T-3373 (`sh scripts/app-coverage-run.sh bbsk-ukazovatele`).
 
 `@joinedcontext/sdk` is linked from this repository, which is why `vite.config.ts` dedupes React:
 the linked SDK carries its own copy and two Reacts leave every hook with a null dispatcher. A
