@@ -55,6 +55,7 @@ fn mirror_naming(digest: &str) -> Mirror {
             commit: COMMIT.to_owned(),
             sdk_version: "0.4.1".to_owned(),
             built_at: chrono::Utc::now(),
+            component: None,
         }),
         domain_verification: None,
     });

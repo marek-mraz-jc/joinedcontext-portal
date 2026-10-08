@@ -721,6 +721,21 @@ fn a_static_app_gets_its_grants_and_no_pod() {
     assert_eq!(rendered.endpoint.spec["audience"], "organization");
 }
 
+/// AP-148 (T-3359): a wasm App's interface is static and its server the shared host's, so it
+/// renders its grants and no pod, with no image to ask for.
+#[test]
+fn a_wasm_app_gets_its_grants_and_no_pod() {
+    let rendered = render(
+        &app(json!({ "kind": "wasm", "visibility": "organization", "build": { "node": "22", "rust": "1.90" } })),
+        None,
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("a wasm app renders without an image");
+    assert!(rendered.workload.is_none());
+    assert_eq!(rendered.policies.len(), 1);
+}
+
 #[test]
 fn an_image_that_is_not_pinned_by_digest_is_refused() {
     let refused = render(

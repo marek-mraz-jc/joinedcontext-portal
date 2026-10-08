@@ -339,7 +339,8 @@ pub fn render(
     let (endpoint, policies) =
         compiled_grants(manifest, name, project, &spec, slug, &settings.org_domain)?;
     let workload = match spec.class {
-        AppClass::Ui => None,
+        // A wasm App's interface is static and its server the shared host's (AP-148): no pod.
+        AppClass::Ui | AppClass::Wasm => None,
         class => {
             let image = image.ok_or_else(|| RenderError::NoImage {
                 class: class.to_string(),
@@ -449,7 +450,9 @@ fn own_needs(spec: &AppSpec) -> Result<OwnNeeds<'_>, RenderError> {
             continue;
         }
         let seen = further.contains(&space);
-        if spec.class != AppClass::Ui || (!seen && further.len() == FURTHER_SPACES) {
+        if !matches!(spec.class, AppClass::Ui | AppClass::Wasm)
+            || (!seen && further.len() == FURTHER_SPACES)
+        {
             return Err(RenderError::SeveralSpaces {
                 first: own.to_owned(),
                 second: space.to_owned(),
