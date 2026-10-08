@@ -8,7 +8,17 @@ import { STATIONS } from "../src/fixtures/stations";
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://portal.test/";
 const SLUG = "bikerebalancing";
-const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "bike-rebalancing", language: "en" };
+// An operator of the project signed in; the panel links a station to the Portal (SDK-40), shown, never followed.
+const CONFIG = {
+  slug: SLUG,
+  orgDomain: "hel.fi",
+  space: "helsinki",
+  transport: "origin",
+  appName: "bike-rebalancing",
+  language: "en",
+  user: { id: "u-1", name: "Operaattori" },
+  portal: "https://portal.hel.fi/projects/helsinki",
+};
 const TYPES: Record<string, string> = {
   ".html": "text/html",
   ".js": "text/javascript",

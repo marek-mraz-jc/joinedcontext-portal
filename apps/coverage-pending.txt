@@ -6,7 +6,6 @@ banskabystrica-ovzdusie T-3380
 banskabystrica-skoly T-3381
 banskabystrica-zaznamy T-3382
 bbsk-zaznamy T-3387
-bike-rebalancing T-3388
 bike-stations T-3389
 bike-weather-demand T-3390
 data-quality-inspector T-3391

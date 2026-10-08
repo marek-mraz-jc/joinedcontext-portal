@@ -8,11 +8,17 @@ in Finnish or English:
   bikes the van moves, over how many kilometres and stops;
 - the controls: the van's capacity and where it starts (the fullest station when none is chosen);
 - the map, every station in its state's colour and the van's route over them; a click on a station
-  takes it into or out of the route;
+  takes it into or out of the route and opens it in the entity panel;
 - the route, stop by stop: take or leave how many bikes, what is on board after, the distance from
   the last stop;
 - the stations most out of balance, each with its button to add it to the route or leave it out;
 - the stations by fill, in tenths.
+
+The page sits in the SDK's `AppShell` (SDK-39), with its Suomi/English switch. A station's name in
+the route or the table, and a station on the map, open the station in the shell's entity panel
+(SDK-40), read fresh through the App's endpoint. A station's choice button says what its click
+does: a station about to run empty or full is routed unless left out, so it reads "Leave out" even
+before the plan on screen has reached it.
 
 Every choice is kept in the address (`?van=`, `?start=`, `?add=`, `?skip=`, `?lang=`), so a reload
 or a shared link shows the same plan. The counts are read again every minute.
@@ -39,6 +45,11 @@ One data need on the Context Space `helsinki`: `BikeHireDockingStation` with `na
 bikes pipeline writes them from HSL's feed. The app reads through its own endpoint and writes
 nothing.
 
+**What an operator edits here: nothing.** The `dataNeeds` keep `queryEntity` and
+`retrieveEntity`. Every station attribute is the feed's: the pipeline rewrites the counts each
+minute, so a value changed by hand would be gone at the next run. The panel never offers Edit; it
+links the station to the Portal.
+
 ## Run the tests
 
 Needs Rust with the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.129, the version
@@ -47,7 +58,7 @@ Needs Rust with the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.1
 ```sh
 pnpm install
 pnpm wasm          # cargo test of wasm/, then the module into wasm/pkg (the lane runs builder/build-wasm.sh)
-pnpm test          # vitest, with the real WebAssembly module
+pnpm test          # vitest, with the real WebAssembly module; every control exercised (T-3373)
 pnpm build         # the bundle the build lane publishes
 pnpm e2e           # the built bundle in Chromium at four widths, light and dark (needs `pnpm build`)
 ```
