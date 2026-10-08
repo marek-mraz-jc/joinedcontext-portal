@@ -55,6 +55,27 @@ describe("the controls record (T-3373)", () => {
     expect(record.exercised).toEqual(["button: Clicked", "textbox: Typed into"]);
   });
 
+  it("leaves out a control that was gone before anyone could see it, and so has no name", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "controls-"));
+    let done: (() => Promise<void>) | undefined;
+    recordControls((callback) => {
+      done = callback;
+    }, dir);
+    // Added and removed in one task: the observer reports it detached, its label no longer found.
+    const label = document.createElement("label");
+    label.htmlFor = "brief";
+    label.textContent = "Brief";
+    const input = document.createElement("input");
+    input.id = "brief";
+    document.body.append(label, input);
+    label.remove();
+    input.remove();
+    await done?.();
+    const [file] = readdirSync(dir);
+    const record = JSON.parse(readFileSync(join(dir, file), "utf8")) as { rendered: string[] };
+    expect(record.rendered).not.toContain("textbox: ");
+  });
+
   it("does nothing without a directory to write to", () => {
     let registered = false;
     recordControls(() => {

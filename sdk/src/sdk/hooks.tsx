@@ -19,6 +19,14 @@ export function useClient(): Client {
   return context ?? jc();
 }
 
+/**
+ * The provided client, or `null` where there is none: the shell of an App that reads through its
+ * own backend has no served configuration to build one from (SDK-39).
+ */
+export function useOptionalClient(): Client | null {
+  return useContext(JcContext);
+}
+
 export interface Loaded {
   loading: boolean;
   error: ProblemError | null;

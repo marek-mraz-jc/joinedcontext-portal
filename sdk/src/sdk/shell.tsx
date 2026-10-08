@@ -1,7 +1,8 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import { ProblemError } from "./client";
-import { useClient, useMe } from "./hooks";
+import { useOptionalClient } from "./hooks";
 import { EntityPanel, EntitySelectionProvider } from "./panel";
+import type { PanelSource } from "./panel";
 import { reportError } from "./report";
 import { sdkLanguage, sdkWord } from "./words";
 
@@ -37,6 +38,8 @@ export function AppShell({
   languages,
   language,
   onLanguage,
+  source,
+  userName,
 }: {
   title: string;
   pages: ShellPage[];
@@ -46,10 +49,14 @@ export function AppShell({
   languages?: ShellLanguage[];
   language?: string;
   onLanguage?: (code: string) => void;
+  /** Where the entity panel reads and writes, for an App that goes through its own backend. */
+  source?: PanelSource;
+  /** The reader's name, for an App with no served configuration to carry it. */
+  userName?: string;
 }): React.JSX.Element {
-  const client = useClient();
-  const user = useMe();
-  const words = sdkLanguage(language ?? client.config.language);
+  const client = useOptionalClient();
+  const name = userName ?? client?.config.user?.name;
+  const words = sdkLanguage(language ?? source?.language ?? client?.config.language);
   const [active, setActive] = useState(() => initialPage(pages, initial));
 
   useEffect(() => {
@@ -75,7 +82,7 @@ export function AppShell({
   const page = pages.find((candidate) => candidate.id === active) ?? pages[0];
 
   return (
-    <EntitySelectionProvider>
+    <EntitySelectionProvider source={source}>
       <div className="jc-shell">
         <header className="jc-header">
           <h1>{title}</h1>
@@ -101,7 +108,7 @@ export function AppShell({
             </label>
           )}
           {actions}
-          {user?.name && <span className="jc-user">{user.name}</span>}
+          {name && <span className="jc-user">{name}</span>}
         </header>
         <main className="jc-main">
           {page ? <ErrorBoundary key={page.id}>{page.render()}</ErrorBoundary> : <Empty>{sdkWord(words, "nav.none")}</Empty>}
@@ -113,8 +120,8 @@ export function AppShell({
 }
 
 function useWords() {
-  const client = useClient();
-  return sdkLanguage(client.config.language);
+  const client = useOptionalClient();
+  return sdkLanguage(client?.config.language);
 }
 
 export function Loading({ label }: { label?: string }): React.JSX.Element {

@@ -3,7 +3,7 @@ import { columnKind, format } from "../ngsi";
 import { optionLabel } from "../enums";
 import type { Cell, Row } from "../ngsi";
 import { fieldOf } from "../write";
-import type { Field, FieldSchema } from "../write";
+import type { Field, FieldSchema, Schema, TypeSchema } from "../write";
 import { ProblemError } from "./client";
 import { useAccess, useClient, useMe, useSchema } from "./hooks";
 import { sdkLanguage, sdkWord, type SdkLanguage, type SdkWord } from "./words";
@@ -23,7 +23,28 @@ export interface SelectedEntity {
   endpoint?: string;
 }
 
+/**
+ * Where the panel reads and writes when the App does not go through the SDK's client: a `ui-rust`
+ * App's own backend, which holds the endpoint so the browser never reaches it (AP-04). The App
+ * answers what the reader may change from what its backend knows of the reader's roles; the
+ * backend and the gateway still decide every write.
+ */
+export interface PanelSource {
+  /** One entity, read fresh; a `ProblemError` with status 404 says it is gone. */
+  get(entity: SelectedEntity): Promise<Row>;
+  /** Writes the changed attributes; a refusal is a `ProblemError` with the endpoint's status. */
+  update(entity: SelectedEntity, patch: Record<string, Cell>): Promise<void>;
+  /** Whether the reader may change `attr` of `type`, or any attribute of it without one. */
+  mayEdit(type: string, attr?: string): boolean;
+  /** The entity's page in the Portal, when the reader should change it there instead. */
+  portalLink?(entity: SelectedEntity): string | null;
+  /** The App's schema, for the labels and the checks of a change. */
+  schema?: Schema;
+  language?: string;
+}
+
 interface Selection {
+  source?: PanelSource;
   selected: SelectedEntity | null;
   select(entity: SelectedEntity): void;
   clear(): void;
@@ -32,7 +53,7 @@ interface Selection {
 const SelectionContext = createContext<Selection | null>(null);
 
 /** Holds what is selected and remembers what opened it, so closing gives the focus back. */
-export function EntitySelectionProvider({ children }: { children?: ReactNode }): React.JSX.Element {
+export function EntitySelectionProvider({ children, source }: { children?: ReactNode; source?: PanelSource }): React.JSX.Element {
   const [selected, setSelected] = useState<SelectedEntity | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const select = useCallback((entity: SelectedEntity) => {
@@ -48,7 +69,7 @@ export function EntitySelectionProvider({ children }: { children?: ReactNode }):
     // After the panel is gone, so the focus lands on what opened it and not on nothing.
     if (back && typeof window !== "undefined") window.setTimeout(() => back.isConnected && back.focus(), 0);
   }, []);
-  const value = useMemo(() => ({ selected, select, clear }), [selected, select, clear]);
+  const value = useMemo(() => ({ source, selected, select, clear }), [source, selected, select, clear]);
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
 
@@ -88,8 +109,8 @@ export function attributeOrder(row: Row, properties: Record<string, FieldSchema>
 
 /** An attribute's label: the schema's `title` where it has one, else its name in words. */
 export function labelOf(name: string, property: FieldSchema | undefined): string {
-  const title = (property as { title?: unknown } | undefined)?.title;
-  if (typeof title === "string" && title.trim() !== "") return title;
+  const title = property?.title;
+  if (title && title.trim() !== "") return title;
   const words = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
@@ -147,19 +168,61 @@ type Stage = { kind: "view" } | { kind: "edit" } | { kind: "review"; patch: Reco
 
 /** The one panel of the shell, showing the selected entity; nothing while nothing is selected. */
 export function EntityPanel(): React.JSX.Element | null {
-  const { selected } = useEntitySelection();
+  const { selected, source } = useEntitySelection();
   if (!selected) return null;
-  return <OpenPanel key={selected.id} entity={selected} />;
+  return source ? <SourcePanel key={selected.id} entity={selected} source={source} /> : <ClientPanel key={selected.id} entity={selected} />;
 }
 
-function OpenPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
-  const { clear } = useEntitySelection();
+/** What the panel works from, whichever way the App reads its entities. */
+interface Backing {
+  load(): Promise<Row>;
+  save(patch: Record<string, Cell>): Promise<void>;
+  /** Whether the reader may change `attr`, or any attribute without one. */
+  mayEdit(attr?: string): boolean;
+  portal: string | null;
+  typeSchema: TypeSchema | null;
+  defs: Schema | null;
+  language: SdkLanguage;
+}
+
+/** The panel of an App that reads through the SDK's client: the reader's own access document decides Edit. */
+function ClientPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
   const client = useClient();
   const user = useMe();
-  const language = sdkLanguage(client.config.language);
-  const word = (key: SdkWord, slots?: Record<string, string | number>) => sdkWord(language, key, slots);
   const { schema, typeSchema } = useSchema(entity.type);
   const { can } = useAccess(entity.endpoint);
+  const signedIn = user !== null && user !== undefined;
+  const backing: Backing = {
+    load: () => client.entities.get(entity.id, undefined, { endpoint: entity.endpoint }),
+    save: (patch) => client.entities.update(entity.id, patch, { endpoint: entity.endpoint }),
+    mayEdit: (attr) => signedIn && can("updateAttrs", entity.type, attr).ok,
+    portal: portalLinkOf(client.config.portal, client.config.space, entity.id),
+    typeSchema,
+    defs: schema,
+    language: sdkLanguage(client.config.language),
+  };
+  return <PanelView entity={entity} backing={backing} />;
+}
+
+/** The panel of an App that reads through its own backend (`PanelSource`). */
+function SourcePanel({ entity, source }: { entity: SelectedEntity; source: PanelSource }): React.JSX.Element {
+  const backing: Backing = {
+    load: () => source.get(entity),
+    save: (patch) => source.update(entity, patch),
+    mayEdit: (attr) => source.mayEdit(entity.type, attr),
+    portal: source.portalLink?.(entity) ?? null,
+    typeSchema: source.schema?.[entity.type] ?? null,
+    defs: source.schema ?? null,
+    language: sdkLanguage(source.language),
+  };
+  return <PanelView entity={entity} backing={backing} />;
+}
+
+function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backing }): React.JSX.Element {
+  const { clear } = useEntitySelection();
+  const { language, typeSchema, defs } = backing;
+  const schema = defs;
+  const word = (key: SdkWord, slots?: Record<string, string | number>) => sdkWord(language, key, slots);
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -171,9 +234,13 @@ function OpenPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<{ tone: "ok" | "problem"; text: string } | null>(null);
 
+  const { load } = backing;
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  // Read once per entity: the backing is rebuilt each render, the entity is what changes.
   const read = useCallback(async () => {
     try {
-      setRow(await client.entities.get(entity.id, undefined, { endpoint: entity.endpoint }));
+      setRow(await loadRef.current());
       setReadError(null);
     } catch (err) {
       if (err instanceof ProblemError && err.status === 404) {
@@ -182,7 +249,7 @@ function OpenPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
         setReadError(err instanceof ProblemError ? err : new ProblemError(0, { title: err instanceof Error ? err.message : String(err) }));
       }
     }
-  }, [client, entity.id, entity.endpoint]);
+  }, []);
 
   useEffect(() => {
     void read();
@@ -210,11 +277,11 @@ function OpenPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
     return { names: attrs, fields: map };
   }, [row, typeSchema, schema, language]);
 
-  // Edit only for a signed-in reader whose own access document allows a write of this type; the
-  // attributes it may not change stay read-only in the form.
-  const mayWrite = user !== null && user !== undefined && can("updateAttrs", entity.type).ok;
-  const editable = (name: string) => mayWrite && EDITABLE.has(fields[name]?.input ?? "") && can("updateAttrs", entity.type, name).ok;
-  const portal = portalLinkOf(client.config.portal, client.config.space, entity.id);
+  // Edit only where the reader may write this type; the attributes they may not change stay
+  // read-only in the form.
+  const mayWrite = backing.mayEdit();
+  const editable = (name: string) => mayWrite && EDITABLE.has(fields[name]?.input ?? "") && backing.mayEdit(name);
+  const portal = backing.portal;
 
   const startEdit = () => {
     if (!row) return;
@@ -229,6 +296,8 @@ function OpenPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
     const patch: Record<string, Cell> = {};
     const found: Record<string, string> = {};
     for (const [name, text] of Object.entries(draft)) {
+      // Only what the reader changed is checked: a value left as it was is not theirs to fix.
+      if (text === draftOf(row[name], fields[name])) continue;
       const parsed = parseValue(fields[name], text, language);
       if ("error" in parsed) {
         found[name] = parsed.error;
@@ -249,7 +318,7 @@ function OpenPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
   const save = async (patch: Record<string, Cell>) => {
     setStage({ kind: "saving", patch });
     try {
-      await client.entities.update(entity.id, patch, { endpoint: entity.endpoint });
+      await backing.save(patch);
       await read();
       setNotice({ tone: "ok", text: word("panel.saved") });
       setStage({ kind: "view" });
@@ -306,7 +375,7 @@ function OpenPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
           <dl className="jc-panel-attrs">
             {names.map((name) => (
               <div key={name}>
-                <dt title={(properties?.[name] as { description?: string } | undefined)?.description}>{labelOf(name, properties?.[name])}</dt>
+                <dt title={properties?.[name]?.description}>{labelOf(name, properties?.[name])}</dt>
                 <dd>{shown(row[name], language)}</dd>
               </div>
             ))}

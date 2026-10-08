@@ -275,17 +275,31 @@ export function controlId(element: Element): string {
   return `${roleOf(element)}: ${nameOf(element)}`;
 }
 
+// The record is written by the test runner, which is Node; an App's own types need not know Node
+// for its tests to import this module (T-3374), so the two Node pieces it uses are named here.
+const NODE_FS: string = "node:fs";
+interface NodeFs {
+  mkdirSync(path: string, options: { recursive: true }): void;
+  writeFileSync(path: string, data: string): void;
+}
+
+function controlsDir(): string | undefined {
+  const runner = (globalThis as { process?: { env: Record<string, string | undefined> } }).process;
+  return runner?.env.JC_CONTROLS_DIR;
+}
+
 function usable(element: Element): boolean {
-  return !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true" && element.closest('[aria-hidden="true"]') === null;
+  // A control removed before the observer reported it was never on screen, and has no name left.
+  return element.isConnected && !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true" && element.closest('[aria-hidden="true"]') === null;
 }
 
 /**
  * Records which controls a test file rendered and which its tests clicked or typed into, for the
  * Apps' coverage gate (T-3373): a control no test exercises fails it. Call it once from the test
  * setup, `recordControls(afterAll)`; it writes one JSON file into `JC_CONTROLS_DIR` when that is set
- * and does nothing otherwise. A disabled or hidden control is not counted.
+ * and does nothing otherwise. A disabled or hidden control, or one gone before it was reported, is not counted.
  */
-export function recordControls(afterAll: (done: () => Promise<void>) => void, dir: string | undefined = typeof process !== "undefined" ? process.env.JC_CONTROLS_DIR : undefined): void {
+export function recordControls(afterAll: (done: () => Promise<void>) => void, dir: string | undefined = controlsDir()): void {
   if (!dir || typeof document === "undefined" || typeof MutationObserver === "undefined") return;
   const rendered = new Set<string>();
   const exercised = new Set<string>();
@@ -317,10 +331,9 @@ export function recordControls(afterAll: (done: () => Promise<void>) => void, di
     take(observer.takeRecords());
     observer.disconnect();
     scan(document);
-    const { mkdirSync, writeFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
+    const { mkdirSync, writeFileSync } = (await import(/* @vite-ignore */ NODE_FS)) as NodeFs;
     mkdirSync(dir, { recursive: true });
-    const file = join(dir, `controls-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.json`);
+    const file = `${dir}/controls-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.json`;
     writeFileSync(file, JSON.stringify({ rendered: [...rendered].sort(), exercised: [...exercised].sort() }));
   });
 }

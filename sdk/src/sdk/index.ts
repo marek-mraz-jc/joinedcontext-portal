@@ -29,7 +29,7 @@ export { applyTokens, currentTokens, DEFAULT_TOKENS, echartsTheme, mapColors, re
 export type { DesignTokens } from "./tokens";
 
 // Hooks
-export { JcProvider, useAccess, useClient, useEntities, useEntity, useFunction, useMe, useSave, useSchema } from "./hooks";
+export { JcProvider, useAccess, useClient, useEntities, useEntity, useFunction, useMe, useOptionalClient, useSave, useSchema } from "./hooks";
 export type { Loaded } from "./hooks";
 
 // Filters logic
@@ -84,7 +84,7 @@ export type { Tab } from "./layout";
 export { AppShell, Empty, ErrorBoundary, Loading, Problem } from "./shell";
 export type { ShellLanguage, ShellPage } from "./shell";
 export { EntityPanel, EntitySelectionProvider, attributeOrder, labelOf, parseValue, portalLinkOf, selectable, useEntitySelection } from "./panel";
-export type { SelectedEntity } from "./panel";
+export type { PanelSource, SelectedEntity } from "./panel";
 export { SDK_WORDS, sdkLanguage, sdkWord } from "./words";
 export type { SdkLanguage, SdkWord } from "./words";
 
