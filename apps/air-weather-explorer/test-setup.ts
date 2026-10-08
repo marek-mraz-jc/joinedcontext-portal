@@ -1,9 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { initSync } from "./src/wasm-pkg/air_weather_explorer.js";
+import { initSync } from "./wasm/pkg/air_weather_explorer.js";
 
-// The planner as the build lane compiles it (`pnpm build:wasm`), loaded once: jsdom has no
+// The module as the build lane binds it into wasm/pkg (builder/build-wasm.sh, or `pnpm wasm`), loaded once: jsdom has no
 // worker, so the page calls it in place, and every test runs the real WebAssembly.
 // jsdom gives this module an http: address, so the file is found from the app's folder, where vitest runs.
-initSync({ module: readFileSync(resolve(process.cwd(), "src/wasm-pkg/air_weather_explorer_bg.wasm")) });
+initSync({ module: readFileSync(resolve(process.cwd(), "wasm/pkg/air_weather_explorer_bg.wasm")) });

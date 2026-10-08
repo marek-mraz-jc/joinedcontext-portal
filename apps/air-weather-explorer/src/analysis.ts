@@ -1,4 +1,4 @@
-import init, { analyse } from "./wasm-pkg/air_weather_explorer.js";
+import init, { analyse } from "../wasm/pkg/air_weather_explorer.js";
 
 export interface Series {
   name: string;

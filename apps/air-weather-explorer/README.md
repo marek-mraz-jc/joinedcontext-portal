@@ -41,12 +41,13 @@ nothing.
 
 ## Run the tests
 
-Needs Rust with the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.128 (the version
-`wasm/Cargo.lock` names).
+Needs Rust with the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.129, the version
+`wasm/Cargo.lock` pins and the build lane binds with.
 
 ```sh
 pnpm install
-pnpm test          # cargo test of the statistics, then vitest with the WebAssembly module built
-pnpm build         # the statistics to WebAssembly, then the bundle the build lane publishes
+pnpm wasm          # cargo test of wasm/, then the module into wasm/pkg (the lane runs builder/build-wasm.sh)
+pnpm test          # vitest, with the real WebAssembly module
+pnpm build         # the bundle the build lane publishes
 pnpm e2e           # the built bundle in Chromium at four widths, light and dark (needs `pnpm build`)
 ```

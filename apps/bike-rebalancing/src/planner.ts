@@ -1,4 +1,4 @@
-import init, { plan } from "./wasm-pkg/bike_rebalancing.js";
+import init, { plan } from "../wasm/pkg/bike_rebalancing.js";
 
 /** A docking station as the planner reads it (wasm/src/lib.rs `Station`). */
 export interface Station {

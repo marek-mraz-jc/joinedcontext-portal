@@ -170,13 +170,8 @@ jobs:
       # be here too (AP-34, AP-40).
       - if: steps.has.outputs.ui == 'yes'
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-        with: { targets: wasm32-unknown-unknown }
       - if: steps.has.outputs.ui == 'yes'
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      # The apps with a WebAssembly part compile it in `pnpm build` (T-3328).
-      - if: steps.has.outputs.ui == 'yes'
-        name: wasm-bindgen, as the apps' lockfiles name it
-        run: cargo install wasm-bindgen-cli --version 0.2.128 --locked
       - if: steps.has.outputs.ui == 'yes'
         name: the reference app flows
         # Built first: the SDK-template apps serve their own `dist/` (their playwright config says
@@ -200,6 +195,9 @@ jobs:
           set -eu
           for app in apps/*/; do
             [ -f "$app/playwright.config.ts" ] || continue
+            # One with a WebAssembly part runs its flows in ci.yml's wasm-example job, which builds
+            # wasm/pkg first (AP-142); built here it would miss its module.
+            [ -f "$app/wasm/Cargo.toml" ] && continue
             work=$(mktemp -d)
             cp -r "$app". "$work"
             (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \

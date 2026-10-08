@@ -1,4 +1,4 @@
-import init, { plan } from "./wasm-pkg/event_day_planner.js";
+import init, { plan } from "../wasm/pkg/event_day_planner.js";
 
 /** An event as the day planner reads it (wasm/src/lib.rs `Event`): times in epoch milliseconds. */
 export interface PlanEvent {

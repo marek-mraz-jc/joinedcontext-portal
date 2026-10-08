@@ -1,5 +1,5 @@
-# The planner's build output: `pnpm build:wasm` writes it from wasm/.
-src/wasm-pkg/
+# The WebAssembly build: the lane (or `pnpm wasm`) writes wasm/pkg from wasm/.
+wasm/pkg/
 wasm/target/
 node_modules/
 dist/
