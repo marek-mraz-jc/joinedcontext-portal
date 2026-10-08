@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Page } from "@joinedcontext/sdk";
+import { Card, Loading, Page, useEntitySelection } from "@joinedcontext/sdk";
 import { useAnalysis } from "../analysis";
 import type { AnalysisOutput, StopOut } from "../analysis";
 import { ReachMap } from "../components/ReachMap";
-import { Loading } from "../components/states";
 import { useHistory } from "../history";
-import { useNetwork } from "../network";
+import { pointKey, STOP, useNetwork } from "../network";
 import { decimal, moment, number, t } from "../i18n";
 import type { Lang } from "../i18n";
 import { reachColours } from "../theme";
@@ -57,7 +56,8 @@ export function stopLabel(lang: Lang, stop: StopOut, index: number): string {
  * reached in 10, 20 and 30 minutes, the map of it (a click starts from there), the stops reached in
  * time, and what the answer rests on: HSL's stops and lines when the space holds them, else stops
  * derived from where the vehicles stood still. The point and the history's hours are in the
- * address.
+ * address. An HSL stop reached opens in the SDK's entity panel, which links to it in the Portal: a
+ * public App writes nothing (SDK-40, AP-140).
  */
 export function Reach({ lang }: { lang: Lang }) {
   const [view, setView] = useState<ViewState>(() => readView(window.location.search));
@@ -71,7 +71,8 @@ export function Reach({ lang }: { lang: Lang }) {
 
   // HSL's network first; the vehicles' history only when the space holds no network or refuses it.
   const hsl = useNetwork();
-  const { network, loading: networkLoading, error: networkError } = hsl;
+  const { network, entities, loading: networkLoading, error: networkError } = hsl;
+  const { select } = useEntitySelection();
   const onNetwork = !networkLoading && network.stops.length > 0 && network.routes.length > 0;
   const history = useHistory(view.hours, !networkLoading && !onNetwork);
   const vehicles = useMemo(() => toVehicles(history.history), [history.history]);
@@ -264,6 +265,16 @@ export function Reach({ lang }: { lang: Lang }) {
                     minutes: decimal(lang, stop.minutes ?? 0),
                   })}
                 </span>
+                {entities.has(pointKey(stop)) && (
+                  <button
+                    type="button"
+                    className="jc-button app-details"
+                    aria-label={t(lang, "detailsOf", { stop: stopLabel(lang, stop, index) })}
+                    onClick={() => select({ id: entities.get(pointKey(stop)) as string, type: STOP })}
+                  >
+                    {t(lang, "details")}
+                  </button>
+                )}
               </li>
             ))}
           </ol>

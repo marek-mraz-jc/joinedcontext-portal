@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { AppShell } from "./components/AppShell";
-import type { Page } from "./components/AppShell";
+import { AppShell } from "@joinedcontext/sdk";
+import type { ShellPage } from "@joinedcontext/sdk";
 import { langOf, t } from "./i18n";
 import type { Lang } from "./i18n";
 import { Reach } from "./pages/Reach";
@@ -25,11 +25,12 @@ export default function App() {
   document.title = t(lang, "title");
   // A new scheme redraws the page, so the map and its legend take their colours again.
   const scheme = useScheme();
-  const pages: Page[] = [{ id: "reach", label: t(lang, "page"), render: () => <Reach key={scheme} lang={lang} /> }];
+  const pages: ShellPage[] = [{ id: "reach", label: t(lang, "page"), render: () => <Reach key={scheme} lang={lang} /> }];
   return (
     <AppShell
       title={t(lang, "title")}
       pages={pages}
+      language={lang}
       actions={
         <button type="button" className="jc-button" lang={lang === "fi" ? "en" : "fi"} onClick={() => switchTo(lang === "fi" ? "en" : "fi")}>
           {t(lang, "language")}
