@@ -20,7 +20,6 @@ helsinki-events T-3397
 helsinki-kartta T-3398
 hsl-transport T-3399
 news-topics T-3401
-praha-data T-3402
 praha-mapa T-3403
 praha-mesto T-3404
 praha-odpad T-3405
