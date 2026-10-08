@@ -174,6 +174,40 @@ describe("the entity panel (SDK-40)", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  it("links an entity read through another space's endpoint to that space, not the App's own", async () => {
+    function Shared(): React.JSX.Element {
+      const { select } = useEntitySelection();
+      return (
+        <button type="button" onClick={() => select({ id: STATION.id, type: STATION.type, endpoint: "city-bikes" })}>
+          shared Kaivopuisto
+        </button>
+      );
+    }
+    const client = stubClient(
+      { entities: [STATION], schema: SCHEMA, access: READ },
+      {
+        user: PERSON,
+        portal: PORTAL,
+        space: "mobility",
+        endpoints: [
+          { name: "own", slug: "own", space: "mobility", types: [] },
+          { name: "city-bikes", slug: "shared", space: "helsinki", types: [] },
+        ],
+      },
+    );
+    render(
+      <JcProvider client={client}>
+        <AppShell title="Bikes" pages={[{ id: "stations", label: "Stations", render: () => <Shared /> }]} />
+      </JcProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "shared Kaivopuisto" }));
+    const panel = await screen.findByRole("dialog", { name: "Kaivopuisto" });
+    expect(within(panel).getByRole("link", { name: "Open in the Portal" })).toHaveAttribute(
+      "href",
+      `${PORTAL}/explore?space=helsinki&entityId=${encodeURIComponent(STATION.id)}`,
+    );
+  });
+
   it("offers no Edit to an anonymous reader even where the access document would allow it", async () => {
     show(WRITE, { user: null });
     const panel = await openFromTable();
