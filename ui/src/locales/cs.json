@@ -1776,7 +1776,8 @@
       "minutes": "{count, plural, one {# minuta} few {# minuty} other {# minut}}",
       "same": "stejně",
       "silentBadge": "Nezapsal nic",
-      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu."
+      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu.",
+      "split": "nové: {created}, změněné: {updated}, beze změny: {unchanged}"
     },
     "workbench": {
       "failed": "Krok se nepodařilo spustit; zkuste to znovu.",

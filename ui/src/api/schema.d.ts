@@ -4929,6 +4929,12 @@ export interface components {
         PipelineOutcome: "sent" | "rejected" | "failed";
         /** @description One run with its counts. */
         PipelineRun: {
+            /**
+             * Format: int64
+             * @description What the written records did (T-3304): an id the pipeline never wrote before, a record
+             *     whose hash changed, one whose hash did not. `null` when the run was reported without hashes.
+             */
+            created?: number | null;
             /** Format: int64 */
             failed: number;
             /** @description The first and the last line the Portal took for it, RFC 3339. */
@@ -4940,6 +4946,10 @@ export interface components {
             run: string;
             /** Format: int64 */
             sent: number;
+            /** Format: int64 */
+            unchanged?: number | null;
+            /** Format: int64 */
+            updated?: number | null;
         };
         /** @description A pipeline's latest runs with their counts (PL-62). */
         PipelineRunList: {

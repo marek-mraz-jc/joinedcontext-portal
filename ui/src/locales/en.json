@@ -1776,7 +1776,8 @@
       "minutes": "{count, plural, one {# minute} other {# minutes}}",
       "same": "same",
       "silentBadge": "Wrote nothing",
-      "silent": "The last run wrote nothing, while the run before wrote {before}. The source may have stopped answering, or the mapping may drop every record; open the run's log."
+      "silent": "The last run wrote nothing, while the run before wrote {before}. The source may have stopped answering, or the mapping may drop every record; open the run's log.",
+      "split": "{created} new, {updated} changed, {unchanged} unchanged"
     },
     "workbench": {
       "failed": "The step could not run; try again.",

@@ -1776,7 +1776,8 @@
       "minutes": "{count, plural, one {# Minute} other {# Minuten}}",
       "same": "gleich",
       "silentBadge": "Nichts geschrieben",
-      "silent": "Der letzte Lauf hat nichts geschrieben, der Lauf davor {before}. Die Quelle antwortet vielleicht nicht mehr oder das Mapping verwirft jeden Datensatz; öffnen Sie das Log des Laufs."
+      "silent": "Der letzte Lauf hat nichts geschrieben, der Lauf davor {before}. Die Quelle antwortet vielleicht nicht mehr oder das Mapping verwirft jeden Datensatz; öffnen Sie das Log des Laufs.",
+      "split": "{created} neu, {updated} geändert, {unchanged} unverändert"
     },
     "workbench": {
       "failed": "Der Schritt konnte nicht laufen; versuchen Sie es erneut.",
