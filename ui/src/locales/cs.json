@@ -3166,7 +3166,9 @@
       "create": "Vytvořit z této",
       "mayNot": "Vaše role v tomto projektu nesmí navrhnout aplikaci.",
       "createTitle": "Vytvořit ze šablony {title}",
-      "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony."
+      "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony.",
+      "screenshot": "{title}, jak ji ukazuje ukázka",
+      "demo": "Otevřít ukázku"
     }
   },
   "appLifecycle": {
