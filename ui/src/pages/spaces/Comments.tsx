@@ -168,6 +168,8 @@ export function CommentsPanel({ project, space, urn }: { project: string; space:
  * The signed-in person's notifications in the header: the unread count on the button, the latest
  * in its menu; opening one marks it read and goes to its space.
  */
+const ALERT_NOTICES_KEY = ["alerts", "notices"];
+
 export function NotificationsMenu(): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -187,10 +189,38 @@ export function NotificationsMenu(): JSX.Element {
       await queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
     },
   });
-  const unread = inbox.data?.unread ?? 0;
+  // The alerts the person chose (API/01 §37, T-3261), beside the mentions.
+  const alerts = useQuery({
+    queryKey: ALERT_NOTICES_KEY,
+    retry: false,
+    refetchInterval: 60_000,
+    queryFn: async () => unwrap(await api.GET("/api/v1/alerts/notices", {})),
+  });
+  const readAlert = useMutation({
+    mutationFn: async (id: number) => {
+      await unwrap(await api.POST("/api/v1/alerts/notices/{id}/read", { params: { path: { id } } }));
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ALERT_NOTICES_KEY });
+    },
+  });
+  const muteAlert = useMutation({
+    mutationFn: async (subscription: number) => {
+      await unwrap(await api.POST("/api/v1/alerts/{id}/mute", { params: { path: { id: subscription } }, body: { for: "1d" } }));
+    },
+  });
+  const notices = alerts.data?.items ?? [];
+  const unread = (inbox.data?.unread ?? 0) + (alerts.data?.unread ?? 0);
   const items = inbox.data?.items ?? [];
   return (
-    <Menu onOpenChange={(open) => (open ? void inbox.refetch() : undefined)}>
+    <Menu
+      onOpenChange={(open) => {
+        if (open) {
+          void inbox.refetch();
+          void alerts.refetch();
+        }
+      }}
+    >
       <MenuTrigger asChild>
         <Button variant="ghost" className="relative px-1.5" aria-label={t("notifications.label", { count: unread })}>
           <Icon name="inbox" className="size-5" />
@@ -220,6 +250,29 @@ export function NotificationsMenu(): JSX.Element {
             <span className="line-clamp-2 text-caption text-fg-muted [overflow-wrap:anywhere]">{item.excerpt}</span>
             <span className="text-caption text-fg-subtle">{when(item.createdAt, i18n.language)}</span>
           </MenuItem>
+        ))}
+        {notices.length > 0 ? <MenuLabel>{t("alerts.notices")}</MenuLabel> : null}
+        {notices.map((notice) => (
+          <div key={`alert-${notice.id}`} className="flex flex-col">
+            <MenuItem
+              className="flex-col items-start gap-0.5"
+              onSelect={() => {
+                if (!notice.read) readAlert.mutate(notice.id);
+                void navigate({ href: `/projects/${encodeURIComponent(notice.project)}/pipelines` });
+              }}
+            >
+              <span className={notice.read ? "text-fg-muted" : "font-semibold"}>
+                {t(`alerts.notice.${notice.change}`, { pipeline: notice.pipeline, event: t(`alerts.event.${notice.event}`) })}
+              </span>
+              {notice.detail ? (
+                <span className="line-clamp-2 text-caption text-fg-muted [overflow-wrap:anywhere]">{notice.detail}</span>
+              ) : null}
+              <span className="text-caption text-fg-subtle">{when(notice.createdAt, i18n.language)}</span>
+            </MenuItem>
+            <MenuItem className="pl-6 text-caption" onSelect={() => muteAlert.mutate(notice.subscription)}>
+              {t("alerts.muteDay", { pipeline: notice.pipeline })}
+            </MenuItem>
+          </div>
         ))}
       </MenuContent>
     </Menu>

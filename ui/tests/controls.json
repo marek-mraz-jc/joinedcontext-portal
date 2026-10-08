@@ -66,6 +66,16 @@
         "form_activity_feed.test.tsx"
       ]
     },
+    "src/components/AlertDialog.tsx": {
+      "controls": {
+        "Button": 2,
+        "Checkbox": 1,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "alert_dialog.test.tsx"
+      ]
+    },
     "src/components/DeleteProjectDialog.tsx": {
       "controls": {
         "Button": 4
@@ -1441,7 +1451,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 7
       },
       "tests": [
         "endpoint_admits_person.test.ts",

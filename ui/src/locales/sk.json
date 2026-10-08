@@ -6294,5 +6294,52 @@
       },
       "close": "Zavrieť privítanie"
     }
+  },
+  "alerts": {
+    "open": "Upozornenia…",
+    "title": "Upozornenia pre {name}",
+    "close": "Zavrieť",
+    "lead": {
+      "pipeline": "Vyberte, o čom vás pri tejto pipeline upozorniť.",
+      "space": "Vyberte, o čom vás upozorniť pri každej pipeline, ktorá zapisuje do tohto priestoru.",
+      "type": "Vyberte, o čom vás upozorniť pri každej pipeline, ktorá zapisuje tento typ do priestoru."
+    },
+    "events": "Upozorniť, keď",
+    "event": {
+      "failure": "zlyhá",
+      "stale": "jej údaje zastarajú",
+      "zero": "nič nezapíše"
+    },
+    "delivery": "Ako",
+    "portal": "V Portáli, hneď",
+    "portalHint": "Jedno upozornenie, keď to začne, a jedno, keď sa to napraví, v schránke hore.",
+    "digest": "Denný prehľad",
+    "digestHint": "Jedno upozornenie denne po 07:00 UTC o tom, čo sa stalo od posledného.",
+    "email": "E-mailom",
+    "emailHint": "Zatiaľ nie: tento Portál nemá poštový server.",
+    "noEvent": "Zaškrtnite aspoň jednu udalosť.",
+    "subscribe": "Upozorňovať ma",
+    "change": "Uložiť",
+    "stop": "Zrušiť tieto upozornenia",
+    "active": "Aktívne.",
+    "mutedUntil": "Stlmené do {until}.",
+    "mute": "Stlmiť",
+    "muteChoose": "Vyberte…",
+    "muteFor": {
+      "1h": "na hodinu",
+      "1d": "na deň",
+      "7d": "na týždeň",
+      "forever": "kým sa nezruší"
+    },
+    "unmute": "Zrušiť stlmenie",
+    "forSpace": "Upozornenia",
+    "forType": "Upozornenia pre {type}",
+    "notices": "Upozornenia",
+    "notice": {
+      "opened": "{pipeline}: {event}",
+      "recovered": "{pipeline} je v poriadku: už {event} neplatí",
+      "digest": "Dnešný prehľad, {pipeline}: {event}"
+    },
+    "muteDay": "Stlmiť upozornenia {pipeline} na deň"
   }
 }

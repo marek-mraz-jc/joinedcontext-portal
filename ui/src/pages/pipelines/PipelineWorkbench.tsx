@@ -1,3 +1,4 @@
+import { SpaceChanges } from "./SpaceChanges";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -35,7 +36,6 @@ import type { SampleFormat } from "./PipelineTest";
 import { SlotUnit } from "./SlotUnit";
 import { OutputMapper } from "./OutputMapper";
 import { HEADER } from "./outputMapper";
-import { SpaceChanges } from "./SpaceChanges";
 
 /** How long the mapping rests before the workbench tries it again: one pause in typing. */
 export const QUIET_MS = 600;
