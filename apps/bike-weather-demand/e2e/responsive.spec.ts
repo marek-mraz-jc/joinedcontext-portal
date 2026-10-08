@@ -15,7 +15,7 @@ for (const scheme of ["light", "dark"] as const) {
         await expect(page.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
 
         // The station selector is present
-        const combobox = page.getByRole("combobox");
+        const combobox = page.getByRole("combobox", { name: lang === "fi" ? "Asema" : "Station" });
         await expect(combobox).toBeVisible();
 
         // Availability tiles are visible
@@ -61,7 +61,7 @@ test("switching language toggles between Finnish and English", async ({ page }) 
 
   await expect(page.getByRole("heading", { level: 1, name: "Pyörät ja sää" })).toBeVisible();
 
-  await page.getByRole("button", { name: "In English" }).click();
+  await page.getByRole("combobox", { name: "Kieli" }).selectOption("en");
   await expect(page.getByRole("heading", { level: 1, name: "Bikes and the weather" })).toBeVisible();
   expect(page.url()).toContain("lang=en");
 });
@@ -71,3 +71,25 @@ test("empty stations shows message instead of broken UI", async ({ page }) => {
   await page.goto(`${BASE}?lang=en`);
   await expect(page.getByText("No bike stations readable.")).toBeVisible();
 });
+
+// T-3390, SDK-40: the chosen station opened in the SDK's entity panel by its Details button, at a
+// phone and a laptop, light and dark. The App is public, so the panel links to the Portal, no Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: the station in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en`);
+      await page.getByRole("button", { name: "Details: Rautatientori" }).click();
+      const panel = page.getByRole("dialog", { name: "Rautatientori" });
+      await expect(panel.getByText("BikeHireDockingStation")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}

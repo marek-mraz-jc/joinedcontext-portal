@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JcProvider, ProblemError } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
@@ -19,6 +19,9 @@ import {
   WEATHER_1,
 } from "./fixtures/bikes";
 
+/** What MapLibre would call on a click of a drawn station, kept by the double below. */
+const map = vi.hoisted(() => ({ click: null as ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null }));
+
 vi.mock("maplibre-gl", () => {
   class MockMap {
     on(event: string, ...args: unknown[]) {
@@ -26,6 +29,7 @@ vi.mock("maplibre-gl", () => {
       if (cb && event === "load") {
         queueMicrotask(() => cb());
       }
+      if (cb && event === "click") map.click = cb as typeof map.click;
     }
     once = vi.fn();
     remove = vi.fn();
@@ -65,8 +69,10 @@ const ACCESS = {
 initSync({ module: Uint8Array.from(atob(wasm.slice(wasm.indexOf(",") + 1)), (c) => c.charCodeAt(0)) });
 const defaultEstimater: Estimater = async (input) => JSON.parse(estimate(JSON.stringify(input))) as EstimateOutput;
 
+const PORTAL = "https://portal.hel.fi/projects/helsinki";
+
 function show(
-  client = stubClient({ entities: ENTITIES, temporal: TEMPORAL, access: ACCESS }, { appName: "bike-weather-demand" }),
+  client = stubClient({ entities: ENTITIES, temporal: TEMPORAL, access: ACCESS }, { appName: "bike-weather-demand", portal: PORTAL }),
   estimater: Estimater = defaultEstimater,
 ) {
   render(
@@ -184,8 +190,7 @@ describe("bike-weather-demand App", () => {
       await screen.findByText(/1 °C lämpimämpi: \+0,5 pyörää; sade: −2,0 pyörää; 168 tunnista sään kanssa/),
     ).toBeInTheDocument();
 
-    const switchBtn = screen.getByRole("button", { name: "In English" });
-    await userEvent.setup().click(switchBtn);
+    fireEvent.change(screen.getByRole("combobox", { name: "Kieli" }), { target: { value: "en" } });
 
     expect(screen.getByRole("heading", { level: 1, name: "Bikes and the weather" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
@@ -224,5 +229,52 @@ describe("bike-weather-demand App", () => {
   it("shows empty state when no bike stations readable", async () => {
     show(stubClient({ entities: [], access: ACCESS }, { appName: "bike-weather-demand" }));
     expect(await screen.findByText("No bike stations readable.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["en", "Details", "Close", "Open in the Portal", "Search station…", "Station"],
+    ["fi", "Tiedot", "Sulje", "Avaa portaalissa", "Etsi asemaa…", "Asema"],
+  ] as const)("in %s, opens the station and its weather station in the SDK's panel, linked to the Portal", async (lang, details, close, portal, search, station) => {
+    window.history.replaceState(null, "", `/?lang=${lang}`);
+    show();
+    const buttons = await screen.findAllByRole("button", { name: new RegExp(`^${details}: `) });
+    expect(buttons.map((one) => one.textContent)).toEqual([`${details}: ${STATION_1.name}`, `${details}: ${WEATHER_1.name}`]);
+    for (const button of buttons) {
+      fireEvent.click(button);
+      const panel = await screen.findByRole("dialog");
+      const link = within(panel).getByRole("link", { name: portal });
+      expect(link.getAttribute("href")).toContain(`${PORTAL}/explore?`);
+      link.addEventListener("click", (event) => event.preventDefault());
+      fireEvent.click(link);
+      // A public App writes nothing: no Edit, whatever the access document says.
+      expect(within(panel).queryByRole("button", { name: lang === "en" ? "Edit" : "Muokkaa" })).toBeNull();
+      fireEvent.click(within(panel).getByRole("button", { name: close }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }
+    // The search narrows the station list, and the list picks the station.
+    fireEvent.change(screen.getByRole("searchbox", { name: search }), { target: { value: String(STATION_3.name).slice(0, 4) } });
+    const list = screen.getByRole("combobox", { name: station });
+    expect(within(list).getAllByRole("option").map((option) => (option as HTMLOptionElement).value)).toContain(STATION_3.id);
+    fireEvent.change(list, { target: { value: STATION_3.id } });
+    expect(decodeURIComponent(window.location.hash)).toContain(STATION_3.id);
+    // The Details button follows the chosen station.
+    fireEvent.click(await screen.findByRole("button", { name: `${details}: ${STATION_3.name}` }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: close }));
+    // And the shell's language switch turns the page to the other language in place.
+    const other = lang === "en" ? "fi" : "en";
+    fireEvent.change(screen.getByRole("combobox", { name: lang === "en" ? "Language" : "Kieli" }), { target: { value: other } });
+    expect(new URLSearchParams(window.location.search).get("lang")).toBe(other);
+  });
+
+  it("picks a station clicked on the map and opens it in the panel", async () => {
+    show();
+    await screen.findByRole("combobox", { name: "Station" });
+    await waitFor(() => expect(map.click).not.toBeNull());
+    act(() => map.click!({ features: [{ properties: { id: STATION_2.id } }] }));
+    expect(await screen.findByRole("dialog", { name: String(STATION_2.name) })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Station" })).toHaveValue(STATION_2.id);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    fireEvent.click(await screen.findByRole("button", { name: `Details: ${STATION_2.name}` }));
+    expect(await screen.findByRole("dialog", { name: String(STATION_2.name) })).toBeInTheDocument();
   });
 });
