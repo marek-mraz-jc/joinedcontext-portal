@@ -2,9 +2,8 @@
  * T-3271: what changed, for the people who use the Portal. A dot on Help until the list is read,
  * the entries newest first in the person's language, and the dot gone once read.
  */
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
@@ -12,13 +11,10 @@ import sk from "../src/locales/sk.json";
 import { HelpMenu } from "../src/components/HelpMenu";
 import { WHATS_NEW, isUnread } from "../src/whatsNew";
 import { expectNoViolations } from "./checks";
+import { renderPage } from "./page_contract";
 
-const show = () =>
-  render(
-    <I18nextProvider i18n={i18n}>
-      <HelpMenu />
-    </I18nextProvider>,
-  );
+/** Help reads the page it is on, so it is drawn inside the router, on a page with no help of its own. */
+const show = () => renderPage(<HelpMenu />, { answer: () => undefined, path: "/glossary" });
 
 describe("what's new (T-3271)", () => {
   beforeEach(async () => {
@@ -42,7 +38,7 @@ describe("what's new (T-3271)", () => {
 
   it("help says how many changes are new until the list is read, then nothing", async () => {
     show();
-    const help = screen.getByRole("button", { name: `Help, ${WHATS_NEW.length} new changes` });
+    const help = await screen.findByRole("button", { name: `Help, ${WHATS_NEW.length} new changes` });
     await userEvent.click(help);
     await userEvent.click(await screen.findByRole("menuitem", { name: `What's new (${WHATS_NEW.length} new)` }));
     const dialog = await screen.findByRole("dialog", { name: en.whatsNew.title });
@@ -65,7 +61,7 @@ describe("what's new (T-3271)", () => {
   it("reads in Slovak", async () => {
     await i18n.changeLanguage("sk");
     show();
-    await userEvent.click(screen.getByRole("button", { name: /^Pomocník/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Pomocník/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /^Čo je nové/ }));
     expect(await screen.findByRole("dialog", { name: sk.whatsNew.title })).toBeInTheDocument();
   });

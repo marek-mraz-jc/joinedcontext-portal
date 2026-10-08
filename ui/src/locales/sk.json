@@ -6592,6 +6592,155 @@
       }
     }
   },
+  "feedback": {
+    "button": "Poslať spätnú väzbu",
+    "title": "Poslať spätnú väzbu",
+    "lead": "Povedzte správcom platformy, čo vám prekážalo. Vaše meno sa neposiela; adresa stránky a verzia Portálu áno.",
+    "text": "Čo sa stalo?",
+    "textHelp": "Zo stránky {page}. E-mailové adresy, telefónne čísla a všetko, čo vyzerá ako heslo alebo token, sa pred uložením odstráni.",
+    "screenshot": "Priložiť snímku tejto stránky",
+    "screenshotHelp": "Prehliadač sa opýta, čo zdieľať. Každé pole formulára sa na snímke pred odoslaním zakryje.",
+    "send": "Poslať",
+    "close": "Zavrieť",
+    "sent": "Ďakujeme: vaša spätná väzba bola odoslaná.",
+    "needText": "Najprv napíšte, čo sa stalo.",
+    "tooLong": "Najviac {max} znakov.",
+    "screenshotRefused": "Snímka sa nevytvorila: prehliadač nedostal povolenie zdieľať stránku. Zrušte snímku a pošlite len text.",
+    "screenshotUnsupported": "Tento prehliadač nevie urobiť snímku stránky. Zrušte snímku a pošlite len text."
+  },
+  "pageHelp": {
+    "menu": "Pomoc k tejto stránke",
+    "steps": "Ako na to",
+    "guide": "Viac v používateľskej príručke",
+    "ask": "Pomôž mi so stránkou {page}: na čo slúži a čo mám urobiť najprv?",
+    "askButton": "Spýtať sa asistenta na túto stránku",
+    "home": {
+      "title": "Domov",
+      "purpose": "Odtiaľto začínate: čo môžete vo svojich projektoch urobiť ďalej a čo ste nedávno navštívili.",
+      "one": "Vyberte projekt, alebo ak ste nový, prejdite prvými krokmi.",
+      "two": "Otvorte nedávnu alebo označenú stránku a pokračujte, kde ste skončili.",
+      "three": "Stlačte Ctrl+K a nájdite stránku, priestor alebo zdroj podľa názvu."
+    },
+    "organization": {
+      "title": "Organizácia",
+      "purpose": "Nastavenia, ľudia, skupiny a roly celej organizácie, pre jej správcov.",
+      "one": "Pozvite ľudí a zaraďte ich do skupín.",
+      "two": "Dajte skupine rolu v organizácii alebo v projekte.",
+      "three": "Skontrolujte limity organizácie a stav jej konfigurácie."
+    },
+    "spaces": {
+      "title": "Kontextové priestory",
+      "purpose": "Kontextový priestor drží údaje jednej témy, napríklad kvality ovzdušia, ako entity typov, ktoré definuje jeho dátový model.",
+      "one": "Vytvorte priestor a dajte mu dátový model.",
+      "two": "Prineste údaje cez pipeline alebo nahratím súboru.",
+      "three": "Pozrite sa do priestoru, čítajte, filtrujte a opravujte jeho entity."
+    },
+    "models": {
+      "title": "Dátové modely",
+      "purpose": "Dátový model hovorí, ktoré typy entít priestor drží a aké atribúty má každý typ.",
+      "one": "Začnite z typu Smart Data Models alebo napíšte vlastný.",
+      "two": "Pridajte atribúty s typom, jednotkou a či sú povinné.",
+      "three": "Navrhnite model; pipeliny potom svoje údaje overujú proti nemu."
+    },
+    "datasources": {
+      "title": "Zdroje údajov",
+      "purpose": "Zdroj údajov je miesto, odkiaľ údaje prichádzajú: webová adresa, dataset CKAN, broker MQTT, feed GTFS.",
+      "one": "Pridajte zdroj zo šablóny alebo vyplňte jeho adresu.",
+      "two": "Heslo uložte ako odkaz na tajomstvo, nikdy nie do formulára.",
+      "three": "Overte zdroj: Portál ho raz stiahne a ukáže vzorku."
+    },
+    "pipelines": {
+      "title": "Pipeliny",
+      "purpose": "Pipeline podľa plánu číta zdroj údajov, mapuje každý záznam a zapisuje entity do priestoru.",
+      "one": "Vyberte zdroj a priestor, do ktorého zapisuje.",
+      "two": "Priraďte polia k atribútom typu entity.",
+      "three": "Otestujte ju na vzorke a navrhnite; schvaľovateľ ju spustí."
+    },
+    "endpoints": {
+      "title": "Endpointy",
+      "purpose": "Endpoint otvorí priestor ľuďom a aplikáciám, ktoré ho čítajú, ako NGSI-LD, GeoJSON, CSV a ďalšie.",
+      "one": "Vyberte priestor, reprezentácie a kto ho smie čítať.",
+      "two": "Vyskúšajte ho v prehliadači a skopírujte požiadavku ako curl.",
+      "three": "Navrhnite ho; verejný endpoint potrebuje schválenie publikujúceho."
+    },
+    "policies": {
+      "title": "Politiky",
+      "purpose": "Politika hovorí, kto smie čo v priestore čítať alebo zapisovať, až po typy, atribúty a oblasti.",
+      "one": "Vyberte priestor a človeka, skupinu alebo aplikáciu, na ktorú platí.",
+      "two": "Zaškrtnite operácie a zúžte ich na typy alebo atribúty.",
+      "three": "Ak má skončiť, dajte jej dátumy, a navrhnite ju."
+    },
+    "ckan": {
+      "title": "Katalóg otvorených údajov",
+      "purpose": "Zverejnite endpoint priestoru ako dataset v katalógu CKAN, s metadátami a licenciou.",
+      "one": "Pripojte inštanciu CKAN, do ktorej organizácia publikuje.",
+      "two": "Zverejnite endpoint ako dataset jedným krokom.",
+      "three": "Skontrolujte, čo je zverejnené, a udržiavajte to aktuálne."
+    },
+    "dashboards": {
+      "title": "Dashboardy",
+      "purpose": "Dashboard ukazuje údaje priestoru na mapách, grafoch a v tabuľkách, ktoré sa samy aktualizujú.",
+      "one": "Vytvorte dashboard a pridajte vrstvu pre každý typ, ktorý má ukázať.",
+      "two": "Vyberte, ako každá vrstva vyzerá: body, teplotná mapa, graf.",
+      "three": "Zdieľajte dashboard alebo ho umiestnite do aplikácie."
+    },
+    "explore": {
+      "title": "Prieskum",
+      "purpose": "Prezrite si údaje endpointu s filtrami a mapou skôr, než na nich niečo postavíte.",
+      "one": "Vyberte priestor a endpoint, ktorý smiete čítať.",
+      "two": "Filtrujte podľa typu, atribútu alebo oblasti.",
+      "three": "Exportujte, čo vidíte, alebo skopírujte úryvok na použitie údajov inde."
+    },
+    "approvals": {
+      "title": "Schvaľovanie",
+      "purpose": "Každá zmena projektu tu čaká, kým o nej schvaľovateľ rozhodne; história ukazuje, čo sa rozhodlo.",
+      "one": "Otvorte zmenu a prečítajte si presne, čo urobí.",
+      "two": "Schváľte alebo zamietnite ju, pri riskantnej s opísaným názvom.",
+      "three": "Na karte História uvidíte, kto čo rozhodol, a môžete obnoviť odstránené."
+    },
+    "activity": {
+      "title": "Aktivita",
+      "purpose": "Čo sa v projekte stalo: použité zmeny, behy pipelinov, odmietnuté požiadavky a ďalšie, od najnovšieho.",
+      "one": "Filtrujte podľa druhu, zdroja alebo závažnosti.",
+      "two": "Sledujte živý prehľad počas práce.",
+      "three": "Otvorte objekt alebo zmenu udalosti a uvidíte viac."
+    },
+    "assistant": {
+      "title": "Asistent",
+      "purpose": "Asistent vám pomáha stavať: navrhuje zdroje a formuláre, ktoré skontrolujete, a odpovedá na otázky o projekte.",
+      "one": "Opíšte jednou vetou, čo chcete.",
+      "two": "Skontrolujte návrh, ktorý otvorí; nič sa neuloží, kým ho nenavrhnete.",
+      "three": "Zmeny schvaľujete sami; asistent nikdy neschvaľuje."
+    },
+    "knowledge": {
+      "title": "Znalosti",
+      "purpose": "Stránky a dokumenty, z ktorých znalostný asistent odpovedá, a kde je umiestnený.",
+      "one": "Pridajte web alebo katalóg ako zdroj znalostí.",
+      "two": "Prehľadajte ho a vyberte stránky, ktoré zahrnúť.",
+      "three": "Umiestnite asistenta na svoj web alebo do Portálu."
+    },
+    "workspaces": {
+      "title": "Kópie",
+      "purpose": "Kópia drží viac zmien spolu, aby ste ich mohli vyskúšať a vrátiť naraz.",
+      "one": "Začnite kópiu projektu.",
+      "two": "Urobte a otestujte v nej zmeny; nič nie je v prevádzke.",
+      "three": "Vráťte ju ako jednu zmenu pre schvaľovateľa."
+    },
+    "apps": {
+      "title": "Aplikácie",
+      "purpose": "Aplikácie postavené na endpointoch projektu, vygenerované asistentom alebo postavené zo SDK.",
+      "one": "Vygenerujte aplikáciu opisom, alebo otvorte existujúcu.",
+      "two": "Overte ju so skutočnými údajmi v náhľade.",
+      "three": "Zverejnite ju, keď je kontrolný zoznam hotový."
+    },
+    "settings": {
+      "title": "Nastavenia projektu",
+      "purpose": "Vlastné nastavenia projektu: jeho členovia a ich roly, servisné účty a váš vlastný prístup.",
+      "one": "Dajte ľuďom a skupinám rolu v projekte.",
+      "two": "Vytvorte servisné účty pre programy, ktoré ho čítajú alebo zapisujú.",
+      "three": "Pozrite si svoj prístup a čo ktorá rola dovoľuje."
+    }
+  },
   "inbox": {
     "title": "Doručené",
     "lead": "Čo na vás čaká: zmeny, o ktorých smiete rozhodnúť v každom projekte, a komentáre, ktoré vás spomínajú.",

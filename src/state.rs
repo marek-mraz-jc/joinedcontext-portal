@@ -80,6 +80,7 @@ pub struct AppState {
     pub trash: Arc<crate::entity_trash::TrashStore>,
     /// Comments on a space's entities and the notifications of their mentions (API/01 §35).
     pub comments: Arc<crate::entity_comments::CommentStore>,
+    pub feedback: Arc<crate::feedback::FeedbackStore>,
     /// The alerts people chose, their incidents and notices (API/01 §37, T-3261).
     pub alerts: Arc<crate::alerts::AlertStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
@@ -177,6 +178,7 @@ impl AppState {
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             trash: Arc::new(crate::entity_trash::TrashStore::new(None)),
             comments: Arc::new(crate::entity_comments::CommentStore::new(None)),
+            feedback: Arc::new(crate::feedback::FeedbackStore::new(None)),
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
@@ -235,6 +237,7 @@ impl AppState {
         self.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(Some(db.clone())));
         self.trash = Arc::new(crate::entity_trash::TrashStore::new(Some(db.clone())));
         self.comments = Arc::new(crate::entity_comments::CommentStore::new(Some(db.clone())));
+        self.feedback = Arc::new(crate::feedback::FeedbackStore::new(Some(db.clone())));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(Some(db.clone())));
         self.db = Some(db);
         self
@@ -283,6 +286,7 @@ impl AppState {
         state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
         state.trash = Arc::new(crate::entity_trash::TrashStore::new(db.clone()));
         state.comments = Arc::new(crate::entity_comments::CommentStore::new(db.clone()));
+        state.feedback = Arc::new(crate::feedback::FeedbackStore::new(db.clone()));
         state.alerts = Arc::new(crate::alerts::AlertStore::new(db.clone()));
         // The live updates write their subscriptions as the reconciler writes declared ones: through
         // the space surface, as this Portal's own ServiceAccount (API/01 §32).

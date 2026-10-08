@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "../LanguageSwitcher";
 import { NotificationsMenu } from "../../pages/spaces/Comments";
 import { useDecisions } from "../../api/decision";
 import { HelpMenu } from "../HelpMenu";
+import { FeedbackButton } from "../FeedbackButton";
 import { JobsMenu } from "../JobsMenu";
 import { useFirstRun } from "../../pages/home/firstRun";
 import { AssistantDock } from "../../assistant/AssistantDock";
@@ -478,6 +479,7 @@ export function Shell({
           ) : null}
           <LanguageSwitcher />
           <JobsMenu />
+          <FeedbackButton />
           <HelpMenu />
           <InboxButton project={project} />
           <UserMenu />
