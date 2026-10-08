@@ -1320,6 +1320,35 @@
       "meaning": "Was er festlegt",
       "parametersOf": "Parameter von {path}",
       "lead": "Worauf dieser Endpunkt antwortet, mit einem Beispielaufruf für jedes Lesen."
+    },
+    "shareFlow": {
+      "section": "Mit einem anderen Projekt teilen",
+      "lead": "Wählen Sie das Projekt, was es liest und bis wann; die Freigabe und ihr Ende sind eine Änderung, über die ein Genehmigender entscheidet.",
+      "already": {
+        "organization": "Jedes Projekt der Organisation liest diesen Endpunkt bereits: es gibt kein einzelnes Projekt, mit dem er geteilt würde.",
+        "public": "Dieser Endpunkt ist öffentlich: jeder liest ihn bereits."
+      },
+      "sharedWith": "Geteilt mit",
+      "nobody": "Noch mit keinem anderen Projekt.",
+      "state": {
+        "open": "ohne Ende",
+        "until": "bis {until}",
+        "ended": "beendet {until}",
+        "noGrant": "zugelassen, aber keine Berechtigung dieser Freigabe lässt es lesen"
+      },
+      "revoke": "Freigabe beenden",
+      "revokeOf": "Freigabe mit {project} beenden",
+      "title": "Mit einem Projekt teilen",
+      "project": "Projekt",
+      "types": "Was es liest",
+      "until": "Bis",
+      "untilHint": "Optional. Nach diesem Tag liest das Projekt darüber nichts mehr; leer lässt die Freigabe bestehen, bis sie beendet wird.",
+      "preview": "Was {project} sehen wird",
+      "previewLead": "Die Typen {types} durch die Projektion dieses Endpunkts, nie seine verborgenen Attribute ({hidden}). Einige Entitäten, wie sie sie lesen werden:",
+      "pickProject": "Wählen Sie zuerst das Projekt.",
+      "pickType": "Wählen Sie mindestens einen Typ.",
+      "propose": "Freigabe vorschlagen",
+      "newGroup": "Die Freigabe berechtigt die Gruppe {group}, die es noch nicht gibt: sie wird leer mit der Freigabe vorgeschlagen. Fügen Sie nach der Genehmigung die Personen von {group} hinzu, die lesen sollen."
     }
   },
   "datasources": {

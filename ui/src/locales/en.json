@@ -1320,6 +1320,35 @@
       "meaning": "What it sets",
       "parametersOf": "Parameters of {path}",
       "lead": "What this endpoint answers, with an example call for each read."
+    },
+    "shareFlow": {
+      "section": "Share with another project",
+      "lead": "Choose the project, what it reads and until when; the share and its end are one change an approver decides.",
+      "already": {
+        "organization": "Every project of the organization reads this endpoint already: there is no one project to share it with.",
+        "public": "This endpoint is public: anyone reads it already."
+      },
+      "sharedWith": "Shared with",
+      "nobody": "No other project yet.",
+      "state": {
+        "open": "no end set",
+        "until": "until {until}",
+        "ended": "ended {until}",
+        "noGrant": "admitted, but no grant of this endpoint's share lets it read"
+      },
+      "revoke": "Stop sharing",
+      "revokeOf": "Stop sharing with {project}",
+      "title": "Share with a project",
+      "project": "Project",
+      "types": "What it reads",
+      "until": "Until",
+      "untilHint": "Optional. After this day the project reads nothing through it; empty keeps the share until it is stopped.",
+      "preview": "What {project} will see",
+      "previewLead": "The types {types}, through this endpoint's projection, never its hidden attributes ({hidden}). A few entities as they will read them:",
+      "pickProject": "Choose the project first.",
+      "pickType": "Choose at least one type.",
+      "propose": "Propose the share",
+      "newGroup": "The share grants the group {group}, which does not exist yet: it is proposed empty with the share. Add the people of {group} who should read to it once the change is approved."
     }
   },
   "datasources": {

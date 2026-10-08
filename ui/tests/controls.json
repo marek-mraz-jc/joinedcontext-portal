@@ -992,6 +992,15 @@
         "form_schema_projection.test.tsx"
       ]
     },
+    "src/pages/endpoints/ShareFlow.tsx": {
+      "controls": {
+        "Button": 2,
+        "Checkbox": 1
+      },
+      "tests": [
+        "share_flow.test.tsx"
+      ]
+    },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
         "Button": 6

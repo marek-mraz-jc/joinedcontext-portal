@@ -1320,6 +1320,35 @@
       "meaning": "Čo nastavuje",
       "parametersOf": "Parametre {path}",
       "lead": "Na čo tento endpoint odpovedá, s príkladom volania ku každému čítaniu."
+    },
+    "shareFlow": {
+      "section": "Zdieľať s iným projektom",
+      "lead": "Zvoľte projekt, čo číta a dokedy; zdieľanie a jeho koniec sú jedna zmena, o ktorej rozhodne schvaľovateľ.",
+      "already": {
+        "organization": "Tento endpoint už číta každý projekt organizácie: nie je s kým ďalším ho zdieľať.",
+        "public": "Tento endpoint je verejný: číta ho už ktokoľvek."
+      },
+      "sharedWith": "Zdieľané s",
+      "nobody": "Zatiaľ so žiadnym iným projektom.",
+      "state": {
+        "open": "bez konca",
+        "until": "do {until}",
+        "ended": "skončilo {until}",
+        "noGrant": "pripustený, ale žiadne oprávnenie tohto zdieľania mu nedovoľuje čítať"
+      },
+      "revoke": "Prestať zdieľať",
+      "revokeOf": "Prestať zdieľať s {project}",
+      "title": "Zdieľať s projektom",
+      "project": "Projekt",
+      "types": "Čo číta",
+      "until": "Do",
+      "untilHint": "Nepovinné. Po tomto dni cez neho projekt nič neprečíta; prázdne ponechá zdieľanie, kým ho nezastavíte.",
+      "preview": "Čo uvidí {project}",
+      "previewLead": "Typy {types} cez projekciu tohto endpointu, nikdy jeho skryté atribúty ({hidden}). Niekoľko entít tak, ako ich budú čítať:",
+      "pickProject": "Najprv zvoľte projekt.",
+      "pickType": "Zvoľte aspoň jeden typ.",
+      "propose": "Navrhnúť zdieľanie",
+      "newGroup": "Zdieľanie oprávňuje skupinu {group}, ktorá ešte neexistuje: navrhne sa prázdna spolu so zdieľaním. Po schválení do nej pridajte ľudí z {group}, ktorí majú čítať."
     }
   },
   "datasources": {
