@@ -8,7 +8,8 @@ import { EVENTS } from "../src/fixtures/events";
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://portal.test/";
 const SLUG = "helsinkievents";
-const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "helsinki-events" };
+// `portal`: where the entity panel links an event (SDK-40); shown, never followed.
+const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "helsinki-events", portal: "https://portal.test/projects/helsinki" };
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
 
 /** What the served page did that it should not: a host it called, a file it missed, an error it threw. */
