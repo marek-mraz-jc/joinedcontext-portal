@@ -201,6 +201,25 @@ pub struct HistoryQuery {
     pub kind: Option<String>,
     /// Closed changes whose resource name contains this, any case.
     pub name: Option<String>,
+    /// Closed changes whose author's name or e-mail contains this, any case (T-3274).
+    pub author: Option<String>,
+    /// Closed changes decided on or after this day, `YYYY-MM-DD` (T-3274).
+    pub since: Option<String>,
+    /// Closed changes decided on or before this day, `YYYY-MM-DD` (T-3274).
+    pub until: Option<String>,
+}
+
+/// A `YYYY-MM-DD` day of a history filter, or the `400` that names the field.
+fn history_day(field: &str, value: Option<&str>) -> Result<Option<String>, ApiError> {
+    let Some(value) = value.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+    time::Date::parse(
+        value,
+        time::macros::format_description!("[year]-[month]-[day]"),
+    )
+    .map_err(|_| ApiError::BadRequest(format!("{field} is a day, YYYY-MM-DD, not '{value}'")))?;
+    Ok(Some(value.to_owned()))
 }
 
 /// Closed merge requests the forge is asked for per history page; each costs up to three reads.
@@ -529,7 +548,7 @@ async fn bundle_headline(
     files.sort_by_key(|file| !file.path.ends_with("/project.yaml"));
     for file in files {
         let git_ref = if file.deleted {
-            &pr.base_branch
+            pr.base_ref()
         } else {
             pr.head_ref()
         };
@@ -545,7 +564,7 @@ async fn bundle_headline(
             (Operation::Create, None, Some(envelope.clone()))
         } else {
             let base = gitea
-                .get_file(&file.path, &pr.base_branch)
+                .get_file(&file.path, pr.base_ref())
                 .await?
                 .and_then(|base| serde_yaml_ng::from_str::<ResourceEnvelope>(&base.content).ok());
             (Operation::Update, base, Some(envelope.clone()))
@@ -596,7 +615,7 @@ async fn load_manifest_data(
 
             let mut path = None;
             for candidate in candidates {
-                if let Ok(Some(_)) = gitea.get_file(&candidate, &pr.base_branch).await {
+                if let Ok(Some(_)) = gitea.get_file(&candidate, pr.base_ref()).await {
                     path = Some(candidate);
                     break;
                 }
@@ -605,13 +624,8 @@ async fn load_manifest_data(
             let path = match path {
                 Some(p) => Some(p),
                 None => {
-                    find_manifest_in_tree(
-                        gitea,
-                        &pr.base_branch,
-                        project,
-                        &branch_info.resource_name,
-                    )
-                    .await?
+                    find_manifest_in_tree(gitea, pr.base_ref(), project, &branch_info.resource_name)
+                        .await?
                 }
             };
 
@@ -620,7 +634,7 @@ async fn load_manifest_data(
             };
 
             let base_file = gitea
-                .get_file(&repo_path, &pr.base_branch)
+                .get_file(&repo_path, pr.base_ref())
                 .await?
                 .ok_or_else(|| {
                     ApiError::NotFound(format!(
@@ -679,7 +693,7 @@ async fn load_manifest_data(
                 .map_err(|e| ApiError::Internal(format!("failed to parse head manifest: {e}")))?;
 
             let base_env = if branch_info.operation == Operation::Update {
-                if let Ok(Some(base_file)) = gitea.get_file(&repo_path, &pr.base_branch).await {
+                if let Ok(Some(base_file)) = gitea.get_file(&repo_path, pr.base_ref()).await {
                     serde_yaml_ng::from_str::<ResourceEnvelope>(&base_file.content).ok()
                 } else {
                     None
@@ -919,6 +933,14 @@ pub async fn change_history_readable(
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let gitea: &GiteaClient = &gitea;
     let name = query.name.as_deref().map(str::trim).map(str::to_lowercase);
+    let author = query
+        .author
+        .as_deref()
+        .map(str::trim)
+        .filter(|a| !a.is_empty())
+        .map(str::to_lowercase);
+    let since = history_day("since", query.since.as_deref())?;
+    let until = history_day("until", query.until.as_deref())?;
 
     let prs = gitea
         .list_pull_requests_page("closed", page, HISTORY_PAGE)
@@ -927,6 +949,13 @@ pub async fn change_history_readable(
     let mut items = Vec::new();
     for pr in &prs {
         if !is_change_branch(&pr.head_branch) {
+            continue;
+        }
+        // The day it was decided, `closed_at`'s first ten characters, against the filter's days.
+        let day = pr.closed_at.get(..10).unwrap_or_default();
+        if since.as_deref().is_some_and(|since| day < since)
+            || until.as_deref().is_some_and(|until| day > until)
+        {
             continue;
         }
         let files = gitea.pull_request_files(pr.number).await?;
@@ -948,6 +977,17 @@ pub async fn change_history_readable(
         let mut proposal = build_proposal(pr, project, &data, plan, None, lane_of_paths(&files));
         proposal.metadata = change_meta(state, gitea, pr.number, project);
         proposal.author = human_author(gitea, pr).await;
+        if let Some(author) = &author {
+            let who = format!(
+                "{} {}",
+                proposal.author.name,
+                proposal.author.email.as_deref().unwrap_or_default()
+            )
+            .to_lowercase();
+            if !who.contains(author.as_str()) {
+                continue;
+            }
+        }
         proposal.file_count = Some(files.len());
         proposal.decision = decision_of(gitea, pr).await?;
         items.push(proposal);
@@ -1380,7 +1420,7 @@ async fn changed_files(gitea: &GiteaClient, pr: &PullRequest) -> Result<Vec<Chan
         let base = if file.added {
             None
         } else {
-            read(&pr.base_branch).await?
+            read(pr.base_ref()).await?
         };
         let parse = |content: &Option<String>| {
             content
@@ -1451,7 +1491,7 @@ async fn approve_every_file(
             .entry(home.clone())
             .or_insert_with(|| crate::permissions::for_request(state, identity, &home));
         let git_ref = if file.deleted {
-            &pr.base_branch
+            pr.base_ref()
         } else {
             pr.head_ref()
         };

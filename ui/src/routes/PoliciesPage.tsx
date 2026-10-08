@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { policySentence } from "../pages/policies/policySentence";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
@@ -271,6 +272,8 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
                     <Badge tone="danger">{t("policies.effect.prohibition")}</Badge>
                   ) : null}
                 </div>
+                {/* What the policy grants, as a sentence (T-3276). */}
+                <p className="mt-0.5 max-w-prose text-caption text-fg-muted">{policySentence(shape, t, locale)}</p>
               </TableCell>
               <TableCell>
                 <span className="font-mono text-caption">{shape.contextSpaceRef || "—"}</span>
@@ -334,6 +337,17 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
         submitting={create.isPending}
         error={formError}
         onSubmit={(form) => create.mutate(form)}
+        afterFields={
+          // What the form grants, as a sentence, while it is being filled (T-3276).
+          <section aria-labelledby="policy-in-words" className="rounded-md border border-border bg-surface-subtle p-3">
+            <h3 id="policy-in-words" className="text-caption font-semibold text-fg">
+              {t("policies.sentence.title")}
+            </h3>
+            <p className="text-body text-fg" aria-live="polite" data-testid="policy-sentence">
+              {policySentence(form ?? {}, t, locale)}
+            </p>
+          </section>
+        }
       />
     </div>
   );

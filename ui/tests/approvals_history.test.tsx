@@ -99,7 +99,7 @@ describe("the change history", () => {
     expect(rows).toHaveLength(3);
     expect(
       within(rows[1]).getByRole("link", {
-        name: 'Update Endpoint "public-air"',
+        name: "Jana Kováčová proposed to change Endpoint public-air",
       }),
     ).toHaveAttribute("href", "/projects/helsinki/approvals/chg-00000002");
     expect(within(rows[1]).getByText("Rejected")).toBeInTheDocument();
@@ -330,4 +330,44 @@ describe("the change history", () => {
       screen.getByRole("search", { name: en.approvals.history.filter }),
     ).toBeInTheDocument();
   });
+
+  // T-3274: by person and by day, each row in words, what it changed in words, and Undo.
+  it("filters_by_person_and_day_and_says_each_change_and_its_fields_in_words", async () => {
+    const update = closed("chg-00000006", {
+      summary: { key: "change.summary.update", params: { kind: "Endpoint", name: "public-air", fields: 1 } },
+    });
+    const { answer, asked } = historyOf({ "1": { items: [update] } });
+    const undone: string[] = [];
+    await renderRoute({
+      path: PATH,
+      answer: (path, request) => {
+        if (path.endsWith("/changes/chg-00000006") && request.method === "GET") {
+          return jsonResponse({ ...update, planFields: [{ path: "spec.audience", from: "organization", to: "public" }, { path: "spec.rateLimitClass", to: "strict" }] });
+        }
+        if (path.endsWith("/undo") && request.method === "POST") {
+          undone.push(path);
+          return jsonResponse(
+            { apiVersion: "joinedcontext.com/v1alpha1", kind: "Change", metadata: { name: "chg-0000000a", namespace: "helsinki" }, status: { lane: "yellow", phase: "PendingApproval", plan: { create: 0, update: 1, delete: 0 } } },
+            202,
+          );
+        }
+        return answer(path, request);
+      },
+    });
+    const table = await openHistory();
+    const row = (await within(table).findByRole("link", { name: "Jana Kováčová changed Endpoint public-air" })).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: en.approvals.history.whatChanged }));
+    expect(await within(row).findByText("changed Audience from organization to public")).toBeInTheDocument();
+    expect(within(row).getByText("set Rate limit class to strict")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(en.approvals.history.author), "jana");
+    await userEvent.type(screen.getByLabelText(en.approvals.history.since), "2026-10-01");
+    await userEvent.click(screen.getByRole("button", { name: en.approvals.history.apply }));
+    await waitFor(() => expect(asked.at(-1)).toBe("?page=1&author=jana&since=2026-10-01"));
+
+    await userEvent.click(await within(await openHistory()).findByRole("button", { name: "Undo the change to public-air" }));
+    expect(undone).toEqual(["/api/v1/projects/helsinki/changes/chg-00000006/undo"]);
+    expect(await screen.findByText("chg-0000000a")).toBeInTheDocument();
+  });
 });
+

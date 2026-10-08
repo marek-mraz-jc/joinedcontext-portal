@@ -88,7 +88,8 @@
     "projections": "Projekcie modelov",
     "knowledge": "Zdroje znalostí",
     "mcp": "MCP servery",
-    "home": "Domov"
+    "home": "Domov",
+    "inbox": "Doručené"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -248,7 +249,29 @@
       "emptyHint": "Zmena sa tu objaví aj s tým, kto o nej rozhodol, keď ju na karte Otvorené schválite alebo zamietnete.",
       "noneOnPage": "Žiadnu z týchto zmien nemáte právo čítať. Staršie možno áno.",
       "restore": "Obnoviť",
-      "restoreOf": "Obnoviť {name}"
+      "restoreOf": "Obnoviť {name}",
+      "author": "Navrhol",
+      "since": "Rozhodnuté od",
+      "until": "Rozhodnuté do",
+      "whatChanged": "Čo zmenila",
+      "noFields": "Pri tejto zmene nie je čo ukázať z polí manifestu.",
+      "undo": "Vrátiť späť",
+      "undoOf": "Vrátiť späť zmenu {name}",
+      "said": {
+        "create": "{author} vytvoril {kind} {name}",
+        "update": "{author} zmenil {kind} {name}",
+        "delete": "{author} odstránil {kind} {name}"
+      },
+      "field": {
+        "set": "nastavil {field} na {to}",
+        "removed": "odstránil {field} (bolo {from})",
+        "changed": "zmenil {field} z {from} na {to}"
+      },
+      "proposed": {
+        "create": "{author} navrhol vytvoriť {kind} {name}",
+        "update": "{author} navrhol zmeniť {kind} {name}",
+        "delete": "{author} navrhol odstrániť {kind} {name}"
+      }
     }
   },
   "lane": {
@@ -1297,6 +1320,35 @@
       "meaning": "Čo nastavuje",
       "parametersOf": "Parametre {path}",
       "lead": "Na čo tento endpoint odpovedá, s príkladom volania ku každému čítaniu."
+    },
+    "shareFlow": {
+      "section": "Zdieľať s iným projektom",
+      "lead": "Zvoľte projekt, čo číta a dokedy; zdieľanie a jeho koniec sú jedna zmena, o ktorej rozhodne schvaľovateľ.",
+      "already": {
+        "organization": "Tento endpoint už číta každý projekt organizácie: nie je s kým ďalším ho zdieľať.",
+        "public": "Tento endpoint je verejný: číta ho už ktokoľvek."
+      },
+      "sharedWith": "Zdieľané s",
+      "nobody": "Zatiaľ so žiadnym iným projektom.",
+      "state": {
+        "open": "bez konca",
+        "until": "do {until}",
+        "ended": "skončilo {until}",
+        "noGrant": "pripustený, ale žiadne oprávnenie tohto zdieľania mu nedovoľuje čítať"
+      },
+      "revoke": "Prestať zdieľať",
+      "revokeOf": "Prestať zdieľať s {project}",
+      "title": "Zdieľať s projektom",
+      "project": "Projekt",
+      "types": "Čo číta",
+      "until": "Do",
+      "untilHint": "Nepovinné. Po tomto dni cez neho projekt nič neprečíta; prázdne ponechá zdieľanie, kým ho nezastavíte.",
+      "preview": "Čo uvidí {project}",
+      "previewLead": "Typy {types} cez projekciu tohto endpointu, nikdy jeho skryté atribúty ({hidden}). Niekoľko entít tak, ako ich budú čítať:",
+      "pickProject": "Najprv zvoľte projekt.",
+      "pickType": "Zvoľte aspoň jeden typ.",
+      "propose": "Navrhnúť zdieľanie",
+      "newGroup": "Zdieľanie oprávňuje skupinu {group}, ktorá ešte neexistuje: navrhne sa prázdna spolu so zdieľaním. Po schválení do nej pridajte ľudí z {group}, ktorí majú čítať."
     }
   },
   "datasources": {
@@ -4613,6 +4665,29 @@
       "didHint": "Napíšte decentralizovaný identifikátor, napríklad did:web:example.org; zoznam na výber neexistuje.",
       "peopleHidden": "Zoznam osôb vidí len správca organizácie; napíšte e-mail, ktorým sa osoba prihlasuje.",
       "noneYet": "Zatiaľ tu nie je nič tohto druhu na výber ({kind}); napíšte názov tak, ako ho píše poskytovateľ identity."
+    },
+    "sentence": {
+      "title": "Slovami",
+      "who": {
+        "role": "Držitelia roly {id}",
+        "group": "Členovia skupiny {id}",
+        "user": "Osoba {id}",
+        "serviceAccount": "Servisný účet {id}",
+        "did": "Účastník {id}"
+      },
+      "nobody": "Zatiaľ nikto",
+      "nothing": "zatiaľ nič",
+      "everyType": "každý typ",
+      "may": "{who} smú {what} na {types} v priestore {space}",
+      "mayNot": "{who} nesmú {what} na {types} v priestore {space}",
+      "attributes": "len atribúty {attributes}",
+      "q": "kde {q}",
+      "scope": "v rámci rozsahu {scope}",
+      "geo": "v oblasti {geo}",
+      "temporal": "pre čas {temporal}",
+      "between": "od {from} do {to}",
+      "from": "od {from}",
+      "until": "do {to}"
     }
   },
   "subscriptions": {
@@ -5295,7 +5370,7 @@
       "roles": "Roly",
       "service-accounts": "Servisné účty",
       "access": "Váš prístup",
-      "danger": "Zmazať projekt"
+      "danger": "Odstrániť alebo odovzdať"
     },
     "field": {
       "title": "Názov",
@@ -5322,10 +5397,27 @@
     },
     "danger": {
       "title": "Zmazať projekt",
-      "lead": "Zmazanie projektu odstráni všetko napísané preň jednou zmenou v červenom pruhu, ktorú schváli administrátor. Dialóg pred potvrdením vypíše, čo odíde s ním."
+      "lead": "Zmazanie projektu odstráni všetko napísané preň jednou zmenou v červenom pruhu, ktorú schváli administrátor. Dialóg pred potvrdením vypíše, čo odíde s ním.",
+      "handoverTitle": "Odovzdať projekt",
+      "handoverLead": "Projekt nemá jedného vlastníka: spravuje ho ten, kto má jeho rolu administrátora. Ak ho chcete odovzdať, priraďte novú osobu k tejto role v Členoch a po schválení odstráňte vlastné priradenie.",
+      "handoverLink": "Otvoriť Členov"
     },
     "roles": {
       "organizationKinds": "Rola projektu nesmie menovať {kinds}: tie patria vlastným rolám organizácie."
+    },
+    "search": {
+      "label": "Nájsť nastavenie",
+      "placeholder": "kvóta, členovia, odstrániť…",
+      "nothing": "Žiadne nastavenie tohto projektu sa tak nevolá ani to nemení.",
+      "results": "Nájdené nastavenia"
+    },
+    "about": {
+      "organization": "Organizácia, do ktorej projekt patrí; patrí inštalácii a tu sa nemení.",
+      "duplicateLabel": "Duplikovať projekt",
+      "duplicate": "Vytvorí nový projekt s rovnakými priestormi, endpointmi, pipelinami a aplikáciami, bez dát.",
+      "members": "Kto je v projekte priradený a s akou rolou: čo tu každý smie čítať, navrhovať, schvaľovať a mazať.",
+      "roles": "Vlastné roly projektu: ktoré druhy smie každá čítať, navrhovať, schvaľovať alebo mazať.",
+      "serviceAccounts": "Účty, ktorými programy volajú endpointy projektu, a ich kľúče."
     }
   },
   "projectDuplicate": {
@@ -6499,5 +6591,25 @@
         "body": "Galéria, nástenka a kalendár, komentáre so @zmienkami, história riadkov s vrátením a verejné formuláre."
       }
     }
+  },
+  "inbox": {
+    "title": "Doručené",
+    "lead": "Čo na vás čaká: zmeny, o ktorých smiete rozhodnúť v každom projekte, a komentáre, ktoré vás spomínajú.",
+    "decisions": "Čaká na vaše rozhodnutie",
+    "decisionsHint": "Schválenie zmeny v červenom pruhu si pýta jej názov, ako na jej vlastnej stránke.",
+    "noDecisions": "Nič nečaká na vaše rozhodnutie.",
+    "by": "navrhol {author} v {project}",
+    "openChange": "Otvoriť zmenu",
+    "showDiff": "Ukázať, čo mení",
+    "hideDiff": "Skryť, čo mení",
+    "diffFailed": "Zmenu nebolo možné prečítať; otvorte ju a skúste znova.",
+    "reasonFirst": "Najprv uveďte dôvod: autor si ho prečíta.",
+    "decided": {
+      "approved": "Schválené: nasadzuje sa.",
+      "rejected": "Zamietnuté: autor si prečíta váš dôvod."
+    },
+    "mentions": "Zmienky o vás",
+    "noMentions": "Žiadny komentár vás nespomína.",
+    "open": "Otvoriť doručené ({count} čaká)"
   }
 }

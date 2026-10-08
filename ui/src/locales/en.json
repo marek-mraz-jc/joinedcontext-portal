@@ -88,7 +88,8 @@
     "projections": "Model projections",
     "knowledge": "Knowledge sources",
     "mcp": "MCP servers",
-    "home": "Home"
+    "home": "Home",
+    "inbox": "Inbox"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -248,7 +249,29 @@
       "emptyHint": "A change lands here with who decided it once it is approved or rejected on the Open tab.",
       "noneOnPage": "None of these changes is one you may read. Older ones may be.",
       "restore": "Restore",
-      "restoreOf": "Restore {name}"
+      "restoreOf": "Restore {name}",
+      "author": "Proposed by",
+      "since": "Decided from",
+      "until": "Decided until",
+      "whatChanged": "What it changed",
+      "noFields": "No field of the manifest to show for this change.",
+      "undo": "Undo",
+      "undoOf": "Undo the change to {name}",
+      "said": {
+        "create": "{author} created {kind} {name}",
+        "update": "{author} changed {kind} {name}",
+        "delete": "{author} removed {kind} {name}"
+      },
+      "field": {
+        "set": "set {field} to {to}",
+        "removed": "removed {field} (was {from})",
+        "changed": "changed {field} from {from} to {to}"
+      },
+      "proposed": {
+        "create": "{author} proposed to create {kind} {name}",
+        "update": "{author} proposed to change {kind} {name}",
+        "delete": "{author} proposed to remove {kind} {name}"
+      }
     }
   },
   "lane": {
@@ -1297,6 +1320,35 @@
       "meaning": "What it sets",
       "parametersOf": "Parameters of {path}",
       "lead": "What this endpoint answers, with an example call for each read."
+    },
+    "shareFlow": {
+      "section": "Share with another project",
+      "lead": "Choose the project, what it reads and until when; the share and its end are one change an approver decides.",
+      "already": {
+        "organization": "Every project of the organization reads this endpoint already: there is no one project to share it with.",
+        "public": "This endpoint is public: anyone reads it already."
+      },
+      "sharedWith": "Shared with",
+      "nobody": "No other project yet.",
+      "state": {
+        "open": "no end set",
+        "until": "until {until}",
+        "ended": "ended {until}",
+        "noGrant": "admitted, but no grant of this endpoint's share lets it read"
+      },
+      "revoke": "Stop sharing",
+      "revokeOf": "Stop sharing with {project}",
+      "title": "Share with a project",
+      "project": "Project",
+      "types": "What it reads",
+      "until": "Until",
+      "untilHint": "Optional. After this day the project reads nothing through it; empty keeps the share until it is stopped.",
+      "preview": "What {project} will see",
+      "previewLead": "The types {types}, through this endpoint's projection, never its hidden attributes ({hidden}). A few entities as they will read them:",
+      "pickProject": "Choose the project first.",
+      "pickType": "Choose at least one type.",
+      "propose": "Propose the share",
+      "newGroup": "The share grants the group {group}, which does not exist yet: it is proposed empty with the share. Add the people of {group} who should read to it once the change is approved."
     }
   },
   "datasources": {
@@ -4613,6 +4665,29 @@
       "didHint": "Type the decentralised identifier, such as did:web:example.org; there is no list of them to pick from.",
       "peopleHidden": "Only an administrator of the organization sees the list of people; type the person's e-mail as they sign in with it.",
       "noneYet": "Nothing of this kind to pick from yet ({kind}); type the name as the identity provider spells it."
+    },
+    "sentence": {
+      "title": "In words",
+      "who": {
+        "role": "Holders of the role {id}",
+        "group": "Members of the group {id}",
+        "user": "The person {id}",
+        "serviceAccount": "The service account {id}",
+        "did": "The participant {id}"
+      },
+      "nobody": "Nobody yet",
+      "nothing": "nothing yet",
+      "everyType": "every type",
+      "may": "{who} may {what} on {types} in the space {space}",
+      "mayNot": "{who} may not {what} on {types} in the space {space}",
+      "attributes": "only the attributes {attributes}",
+      "q": "where {q}",
+      "scope": "within the scope {scope}",
+      "geo": "in the area {geo}",
+      "temporal": "for the time {temporal}",
+      "between": "from {from} until {to}",
+      "from": "from {from}",
+      "until": "until {to}"
     }
   },
   "subscriptions": {
@@ -5295,7 +5370,7 @@
       "roles": "Roles",
       "service-accounts": "Service accounts",
       "access": "Your access",
-      "danger": "Delete project"
+      "danger": "Delete or hand over"
     },
     "field": {
       "title": "Title",
@@ -5322,10 +5397,27 @@
     },
     "danger": {
       "title": "Delete project",
-      "lead": "Deleting the project removes everything written for it in one red-lane change an administrator approves. The dialog lists what goes with it before you confirm."
+      "lead": "Deleting the project removes everything written for it in one red-lane change an administrator approves. The dialog lists what goes with it before you confirm.",
+      "handoverTitle": "Hand the project over",
+      "handoverLead": "A project has no single owner: whoever holds its administrator role administers it. To hand it over, bind the new person to that role in Members, and once that is approved, take your own binding away.",
+      "handoverLink": "Open Members"
     },
     "roles": {
       "organizationKinds": "A role of a project cannot name {kinds}: those belong to the organization's own roles."
+    },
+    "search": {
+      "label": "Find a setting",
+      "placeholder": "quota, members, delete…",
+      "nothing": "No setting of this project is called that or changes that.",
+      "results": "Settings found"
+    },
+    "about": {
+      "organization": "The organization the project belongs to; it is the installation's and not changed here.",
+      "duplicateLabel": "Duplicate the project",
+      "duplicate": "Makes a new project with the same spaces, endpoints, pipelines and apps, and none of the data.",
+      "members": "Who is bound in the project and with which role: what each person may read, propose, approve and delete here.",
+      "roles": "The project's own roles: which kinds each may read, propose, approve or delete.",
+      "serviceAccounts": "The accounts programs use to call the project's endpoints, and their keys."
     }
   },
   "projectDuplicate": {
@@ -6499,5 +6591,25 @@
         "body": "Gallery, board and calendar views, comments with @mentions, row history with undo, and public forms."
       }
     }
+  },
+  "inbox": {
+    "title": "Inbox",
+    "lead": "What waits for you: the changes you may decide in every project, and the comments that mention you.",
+    "decisions": "Waiting for your decision",
+    "decisionsHint": "Approving a red-lane change asks for its name, as on its own page.",
+    "noDecisions": "Nothing waits for your decision.",
+    "by": "proposed by {author} in {project}",
+    "openChange": "Open the change",
+    "showDiff": "Show what it changes",
+    "hideDiff": "Hide what it changes",
+    "diffFailed": "The change could not be read; open it to try again.",
+    "reasonFirst": "Say why first: the author reads it.",
+    "decided": {
+      "approved": "Approved: it is being deployed.",
+      "rejected": "Rejected: the author reads your reason."
+    },
+    "mentions": "Mentions of you",
+    "noMentions": "No comment mentions you.",
+    "open": "Open your inbox ({count} waiting)"
   }
 }

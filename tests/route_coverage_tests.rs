@@ -113,6 +113,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/changes/{id}/approve", "jc_change_approve"),
 ("POST", "/projects/{project}/changes/{id}/reject", "jc_change_reject"),
 ("POST", "/projects/{project}/changes/{id}/restore", "a person brings back what a merged removal took from the Approvals history (T-3247); an agent proposes the manifest again with jc_resource_propose"),
+("POST", "/projects/{project}/changes/{id}/undo", "a person puts back what a merged update altered from the Approvals history (T-3274); an agent proposes the earlier manifest with jc_resource_propose"),
 ("GET", "/projects/{project}/ckan/status", "jc_ckan_status"),
 ("GET", "/organization/datamodels", "the list behind the model and type pickers (DM-63); an agent reads a project's models through jc_resource_list and the catalogue through jc_catalog_search"),
 ("GET", "/projects/{project}/datamodels/{name}/source", "jc_model_source_get"),

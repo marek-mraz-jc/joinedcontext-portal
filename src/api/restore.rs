@@ -186,9 +186,178 @@ pub async fn restore_change_for(
     ))
 }
 
-pub fn router() -> Router<AppState> {
-    Router::new().route(
-        "/projects/{project}/changes/{id}/restore",
-        axum::routing::post(restore_change),
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/changes/{id}/undo",
+    summary = "Undo What a Change Altered",
+    description = "Proposes, as one new change, every file a merged change modified as it was before, read at the commit its branch was cut from, while each file still holds what that change wrote. Needs `propose` on every kind it puts back (T-3274).",
+    tag = "changes",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("id" = String, Path, description = "The merged change that modified something: chg- + 8 hex digits"),
+    ),
+    responses(
+        (status = 202, description = "The undoing change, waiting for an approver", body = Change),
+        (status = 400, description = "Not a change id", body = ProblemDetails),
+        (status = 401, description = "Not signed in", body = ProblemDetails),
+        (status = 403, description = "No `propose` on a kind it puts back", body = ProblemDetails),
+        (status = 404, description = "No such change the caller may read", body = ProblemDetails),
+        (status = 409, description = "Not merged, modified nothing, or a file changed again since", body = ProblemDetails),
+        (status = 503, description = "Git forge unavailable", body = ProblemDetails),
     )
+)]
+pub async fn undo_change(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, id)): Path<(String, String)>,
+) -> Result<(StatusCode, Json<Change>), ApiError> {
+    let change = undo_change_for(&state, &user.0.identity, &project, &id).await?;
+    Ok((StatusCode::ACCEPTED, Json(change)))
+}
+
+/// Puts back what the merged change `id` modified, as `identity` (T-3274). Only while nothing
+/// changed the same files after it: undoing over a later change would quietly drop that one too.
+pub async fn undo_change_for(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    id: &str,
+) -> Result<Change, ApiError> {
+    let missing = || ApiError::NotFound(format!("change '{id}' not found in project '{project}'"));
+    let effective = crate::permissions::for_request(state, identity, project);
+    if !effective.may_read_project() {
+        return Err(missing());
+    }
+    parse_change_id(id)?;
+    let (gitea, number) = resolve_change(state, project, id)?;
+    let gitea: &crate::git::GiteaClient = &gitea;
+    let pr = gitea.pull_request(number).await?;
+    let branch = pr
+        .head_branch
+        .strip_prefix("refs/heads/")
+        .unwrap_or(&pr.head_branch);
+    if !branch.starts_with("portal/") && !branch.starts_with("workspace/") {
+        return Err(missing());
+    }
+    if !pr.merged {
+        return Err(ApiError::Conflict(format!(
+            "change {id} is not merged, so it altered nothing yet; reject it instead"
+        )));
+    }
+    let home = format!("projects/{project}/");
+    let modified: Vec<String> = gitea
+        .pull_request_files(number)
+        .await?
+        .into_iter()
+        .filter(|file| !file.added && !file.deleted && file.path.starts_with(&home))
+        .map(|file| file.path)
+        .collect();
+    if modified.is_empty() {
+        return Err(ApiError::Conflict(format!(
+            "change {id} modified nothing in project '{project}': a removal is restored, a creation is removed"
+        )));
+    }
+    if pr.merge_base.is_empty() || pr.head_sha.is_empty() {
+        return Err(ApiError::Unavailable(format!(
+            "the forge did not say which commits change {id} was made of; try again"
+        )));
+    }
+
+    let default_branch = gitea.default_branch().await?;
+    let mut uploads = Vec::with_capacity(modified.len());
+    let mut put_back: Vec<ResourceEnvelope> = Vec::new();
+    for path in &modified {
+        let now = gitea.get_file(path, &default_branch).await?;
+        let made = gitea.get_file(path, &pr.head_sha).await?;
+        if now.as_ref().map(|f| &f.content) != made.as_ref().map(|f| &f.content) {
+            return Err(ApiError::Conflict(format!(
+                "'{path}' changed again after change {id}; undo the later change first"
+            )));
+        }
+        let before = gitea.get_file(path, &pr.merge_base).await?.ok_or_else(|| {
+            ApiError::Conflict(format!(
+                "'{path}' is not in the commit change {id} was cut from; it cannot be undone"
+            ))
+        })?;
+        let manifest = serde_yaml_ng::from_str::<ResourceEnvelope>(&before.content).ok();
+        let kind = match &manifest {
+            Some(envelope) => envelope.kind.clone(),
+            None => crate::api::import::native_kind(path)
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    ApiError::Conflict(format!(
+                        "'{path}' belongs to no kind this platform serves, so it cannot be undone"
+                    ))
+                })?,
+        };
+        if !effective.may(&kind, Verb::Propose) {
+            return Err(ApiError::Denied(format!(
+                "undoing '{path}' needs `propose` on {kind} in project '{project}'"
+            )));
+        }
+        if let Some(envelope) = manifest {
+            put_back.push(envelope);
+        }
+        uploads.push((path.clone(), before.content));
+    }
+    let Some(headline) = put_back.first() else {
+        return Err(ApiError::Conflict(format!(
+            "change {id} modified no manifest in project '{project}', so there is nothing to undo"
+        )));
+    };
+
+    let undo_branch = format!("portal/undo-{number:08x}");
+    let undo_branch =
+        crate::api::mutate::create_or_reuse_branch(gitea, &undo_branch, &default_branch).await?;
+    let (author_name, author_email) = crate::api::mutate::author_credentials(identity, project);
+    let what = format!("{} {}", headline.kind, headline.metadata.name);
+    gitea
+        .change_files(
+            &undo_branch,
+            &format!("undo {id} on {what}"),
+            Author {
+                name: &author_name,
+                email: &author_email,
+            },
+            &uploads,
+            &[],
+        )
+        .await?;
+    let opened = gitea
+        .create_pull_request(
+            &undo_branch,
+            &default_branch,
+            &format!("undo {id} on {what}"),
+            &format!(
+                "Puts back what change {id} altered in project `{project}`, as it was before: {}.",
+                modified.join(", ")
+            ),
+        )
+        .await?;
+    let lane = put_back.iter().fold(Lane::Green, |lane, envelope| {
+        crate::api::import::riskiest(lane, change::classify_manifest(envelope, Operation::Update))
+    });
+    let status = ChangeStatus::new(
+        lane,
+        ChangePhase::PendingApproval,
+        PlanSummary::new(0, put_back.len(), 0),
+    )
+    .in_repository(&opened.repository)
+    .with_merge_request(opened.url);
+    Ok(Change::new(
+        change_meta(state, gitea, opened.number, project),
+        status,
+    ))
+}
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/projects/{project}/changes/{id}/restore",
+            axum::routing::post(restore_change),
+        )
+        .route(
+            "/projects/{project}/changes/{id}/undo",
+            axum::routing::post(undo_change),
+        )
 }

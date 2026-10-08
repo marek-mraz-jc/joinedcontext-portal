@@ -1,6 +1,7 @@
+import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, ORG_NAMESPACE, plainTitle } from "../../api/manifest";
@@ -13,6 +14,8 @@ import type { EditableForm } from "../../components/EditResourceDialog";
 import { ProjectQuota } from "../../components/ProjectQuota";
 import {
   Alert,
+  Field,
+  Input,
   PageFailed,
   PageHeader,
   Table,
@@ -28,6 +31,7 @@ import {
 } from "../../components/ui";
 import { projectSchema } from "../../schemas/kinds";
 import { EffectivePermissions } from "../access/EffectivePermissions";
+import { findSettings, settingsIndex } from "./settingsIndex";
 import { RoleBindings } from "../access/RoleBindings";
 import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
@@ -249,13 +253,71 @@ function YourAccess({ project }: { project: string }): JSX.Element {
 function Danger({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <section className="space-y-4" aria-labelledby="project-danger-heading">
-      <h2 id="project-danger-heading" className="text-title font-semibold text-fg">
-        {t("projectSettings.danger.title")}
-      </h2>
-      <p className="text-body text-fg-muted">{t("projectSettings.danger.lead")}</p>
-      <DeleteProjectAction project={project} variant="danger" />
-    </section>
+    <div className="space-y-8">
+      {/* A project has no owner field: who administers it is a binding, so handing it over is
+          binding someone to the project's administrator role and taking one's own away (T-3277). */}
+      <section className="space-y-3" aria-labelledby="project-handover-heading">
+        <h2 id="project-handover-heading" className="text-title font-semibold text-fg">
+          {t("projectSettings.danger.handoverTitle")}
+        </h2>
+        <p className="text-body text-fg-muted">{t("projectSettings.danger.handoverLead")}</p>
+        <Link
+          to="/projects/$project/settings/$tab"
+          params={{ project, tab: "members" }}
+          className="text-body text-primary-soft-fg underline-offset-2 hover:underline"
+        >
+          {t("projectSettings.danger.handoverLink")}
+        </Link>
+      </section>
+      <section className="space-y-4 rounded-lg border border-danger p-4" aria-labelledby="project-danger-heading">
+        <h2 id="project-danger-heading" className="text-title font-semibold text-fg">
+          {t("projectSettings.danger.title")}
+        </h2>
+        <p className="text-body text-fg-muted">{t("projectSettings.danger.lead")}</p>
+        <DeleteProjectAction project={project} variant="danger" />
+      </section>
+    </div>
+  );
+}
+
+/** Find a setting by what it is called or what it changes (T-3277): every result names its tab. */
+function SettingsSearch({ project }: { project: string }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const [query, setQuery] = useState("");
+  const found = findSettings(settingsIndex(t, i18n.language), query);
+  return (
+    <div className="flex flex-col gap-2">
+      <Field id="settings-search" label={t("projectSettings.search.label")}>
+        <Input
+          id="settings-search"
+          type="search"
+          value={query}
+          placeholder={t("projectSettings.search.placeholder")}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </Field>
+      {query.trim() === "" ? null : found.length === 0 ? (
+        <p className="text-caption text-fg-muted" role="status">
+          {t("projectSettings.search.nothing")}
+        </p>
+      ) : (
+        <ul aria-label={t("projectSettings.search.results")} className="flex flex-col gap-2">
+          {found.map((setting) => (
+            <li key={setting.key} className="rounded-md border border-border p-2">
+              <Link
+                to="/projects/$project/settings/$tab"
+                params={{ project, tab: setting.tab }}
+                className="text-body font-semibold text-primary-soft-fg underline-offset-2 hover:underline"
+              >
+                {setting.label}
+              </Link>{" "}
+              <span className="text-caption text-fg-muted">· {t(`projectSettings.tab.${setting.tab}`)}</span>
+              {setting.about ? <p className="text-caption text-fg-muted">{setting.about}</p> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -270,6 +332,7 @@ export function ProjectSettingsPage({ project, tab }: { project: string; tab: Pr
   return (
     <div className="space-y-6">
       <PageHeader title={t("projectSettings.title")} description={t("projectSettings.lead", { project })} />
+      <SettingsSearch project={project} />
       <Tabs
         id="project-settings"
         label={t("projectSettings.tabsLabel")}

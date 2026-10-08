@@ -199,13 +199,15 @@ describe("Project settings", () => {
 
   // UI-16: the keyboard reaches the tab list first, then the tab's own action, and nothing takes
   // focus on arrival.
-  it("is reachable by keyboard: the selected tab, then the tab's action", async () => {
+  it("is reachable by keyboard: the settings search, the selected tab, then the tab's action", async () => {
     const { container } = renderSettings();
     await screen.findByRole("button", { name: en.access.roles.grant });
     expect(document.activeElement).toBe(document.body);
     const reached = await tabOrder(container);
-    expect(reached[0]).toBe(screen.getByRole("tab", { name: en.projectSettings.tab.members }));
-    expect(reached.indexOf(screen.getByRole("button", { name: en.access.roles.grant }))).toBe(1);
+    // T-3277: finding a setting comes first, above every tab.
+    expect(reached[0]).toBe(screen.getByRole("searchbox", { name: en.projectSettings.search.label }));
+    expect(reached[1]).toBe(screen.getByRole("tab", { name: en.projectSettings.tab.members }));
+    expect(reached.indexOf(screen.getByRole("button", { name: en.access.roles.grant }))).toBe(2);
   });
 
   // UI-11: every string of the page comes from the bundle, in all four languages.

@@ -99,7 +99,7 @@ thiserror = "2"
 regex = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-time = { version = "0.3", features = ["formatting"] }
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 url = "2"
 base64 = "0.23"
 # The code preview's transpile (SDK-12, SDK-15): TypeScript and JSX to plain modules in process,

@@ -88,7 +88,8 @@
     "projections": "Modellprojektionen",
     "knowledge": "Wissensquellen",
     "mcp": "MCP-Server",
-    "home": "Start"
+    "home": "Start",
+    "inbox": "Eingang"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -248,7 +249,29 @@
       "emptyHint": "Eine Änderung erscheint hier mit der Person, die entschieden hat, sobald sie im Reiter Offen genehmigt oder abgelehnt wurde.",
       "noneOnPage": "Keine dieser Änderungen dürfen Sie lesen. Ältere vielleicht schon.",
       "restore": "Wiederherstellen",
-      "restoreOf": "{name} wiederherstellen"
+      "restoreOf": "{name} wiederherstellen",
+      "author": "Vorgeschlagen von",
+      "since": "Entschieden ab",
+      "until": "Entschieden bis",
+      "whatChanged": "Was sie änderte",
+      "noFields": "Für diese Änderung gibt es kein Feld des Manifests zu zeigen.",
+      "undo": "Rückgängig",
+      "undoOf": "Änderung an {name} rückgängig machen",
+      "said": {
+        "create": "{author} hat {kind} {name} angelegt",
+        "update": "{author} hat {kind} {name} geändert",
+        "delete": "{author} hat {kind} {name} entfernt"
+      },
+      "field": {
+        "set": "{field} auf {to} gesetzt",
+        "removed": "{field} entfernt (war {from})",
+        "changed": "{field} von {from} auf {to} geändert"
+      },
+      "proposed": {
+        "create": "{author} schlug vor, {kind} {name} anzulegen",
+        "update": "{author} schlug vor, {kind} {name} zu ändern",
+        "delete": "{author} schlug vor, {kind} {name} zu entfernen"
+      }
     }
   },
   "lane": {
@@ -1297,6 +1320,35 @@
       "meaning": "Was er festlegt",
       "parametersOf": "Parameter von {path}",
       "lead": "Worauf dieser Endpunkt antwortet, mit einem Beispielaufruf für jedes Lesen."
+    },
+    "shareFlow": {
+      "section": "Mit einem anderen Projekt teilen",
+      "lead": "Wählen Sie das Projekt, was es liest und bis wann; die Freigabe und ihr Ende sind eine Änderung, über die ein Genehmigender entscheidet.",
+      "already": {
+        "organization": "Jedes Projekt der Organisation liest diesen Endpunkt bereits: es gibt kein einzelnes Projekt, mit dem er geteilt würde.",
+        "public": "Dieser Endpunkt ist öffentlich: jeder liest ihn bereits."
+      },
+      "sharedWith": "Geteilt mit",
+      "nobody": "Noch mit keinem anderen Projekt.",
+      "state": {
+        "open": "ohne Ende",
+        "until": "bis {until}",
+        "ended": "beendet {until}",
+        "noGrant": "zugelassen, aber keine Berechtigung dieser Freigabe lässt es lesen"
+      },
+      "revoke": "Freigabe beenden",
+      "revokeOf": "Freigabe mit {project} beenden",
+      "title": "Mit einem Projekt teilen",
+      "project": "Projekt",
+      "types": "Was es liest",
+      "until": "Bis",
+      "untilHint": "Optional. Nach diesem Tag liest das Projekt darüber nichts mehr; leer lässt die Freigabe bestehen, bis sie beendet wird.",
+      "preview": "Was {project} sehen wird",
+      "previewLead": "Die Typen {types} durch die Projektion dieses Endpunkts, nie seine verborgenen Attribute ({hidden}). Einige Entitäten, wie sie sie lesen werden:",
+      "pickProject": "Wählen Sie zuerst das Projekt.",
+      "pickType": "Wählen Sie mindestens einen Typ.",
+      "propose": "Freigabe vorschlagen",
+      "newGroup": "Die Freigabe berechtigt die Gruppe {group}, die es noch nicht gibt: sie wird leer mit der Freigabe vorgeschlagen. Fügen Sie nach der Genehmigung die Personen von {group} hinzu, die lesen sollen."
     }
   },
   "datasources": {
@@ -4613,6 +4665,29 @@
       "didHint": "Geben Sie den dezentralen Identifikator ein, etwa did:web:example.org; eine Auswahlliste gibt es nicht.",
       "peopleHidden": "Nur eine Administration der Organisation sieht die Liste der Personen; geben Sie die E-Mail ein, mit der sich die Person anmeldet.",
       "noneYet": "Von dieser Art gibt es noch nichts zur Auswahl ({kind}); geben Sie den Namen so ein, wie der Identitätsanbieter ihn schreibt."
+    },
+    "sentence": {
+      "title": "In Worten",
+      "who": {
+        "role": "Inhaber der Rolle {id}",
+        "group": "Mitglieder der Gruppe {id}",
+        "user": "Die Person {id}",
+        "serviceAccount": "Das Dienstkonto {id}",
+        "did": "Der Teilnehmer {id}"
+      },
+      "nobody": "Noch niemand",
+      "nothing": "noch nichts",
+      "everyType": "jeden Typ",
+      "may": "{who} dürfen {what} auf {types} im Raum {space}",
+      "mayNot": "{who} dürfen nicht {what} auf {types} im Raum {space}",
+      "attributes": "nur die Attribute {attributes}",
+      "q": "wo {q}",
+      "scope": "im Bereich {scope}",
+      "geo": "im Gebiet {geo}",
+      "temporal": "für die Zeit {temporal}",
+      "between": "von {from} bis {to}",
+      "from": "ab {from}",
+      "until": "bis {to}"
     }
   },
   "subscriptions": {
@@ -5295,7 +5370,7 @@
       "roles": "Rollen",
       "service-accounts": "Dienstkonten",
       "access": "Ihr Zugriff",
-      "danger": "Projekt löschen"
+      "danger": "Löschen oder übergeben"
     },
     "field": {
       "title": "Titel",
@@ -5322,10 +5397,27 @@
     },
     "danger": {
       "title": "Projekt löschen",
-      "lead": "Das Löschen entfernt alles, was für das Projekt geschrieben wurde, in einer Änderung der roten Spur, die eine Verwaltung genehmigt. Der Dialog nennt vor der Bestätigung, was mitgeht."
+      "lead": "Das Löschen entfernt alles, was für das Projekt geschrieben wurde, in einer Änderung der roten Spur, die eine Verwaltung genehmigt. Der Dialog nennt vor der Bestätigung, was mitgeht.",
+      "handoverTitle": "Projekt übergeben",
+      "handoverLead": "Ein Projekt hat keinen einzelnen Besitzer: wer seine Administratorrolle hält, verwaltet es. Zur Übergabe binden Sie die neue Person in Mitglieder an diese Rolle und entfernen nach der Genehmigung Ihre eigene Bindung.",
+      "handoverLink": "Mitglieder öffnen"
     },
     "roles": {
       "organizationKinds": "Eine Rolle eines Projekts darf {kinds} nicht nennen: das gehört zu den eigenen Rollen der Organisation."
+    },
+    "search": {
+      "label": "Einstellung finden",
+      "placeholder": "Kontingent, Mitglieder, löschen…",
+      "nothing": "Keine Einstellung dieses Projekts heißt so oder ändert das.",
+      "results": "Gefundene Einstellungen"
+    },
+    "about": {
+      "organization": "Die Organisation, zu der das Projekt gehört; sie gehört der Installation und wird hier nicht geändert.",
+      "duplicateLabel": "Projekt duplizieren",
+      "duplicate": "Legt ein neues Projekt mit denselben Räumen, Endpunkten, Pipelines und Apps an, ohne Daten.",
+      "members": "Wer im Projekt mit welcher Rolle gebunden ist: was jede Person hier lesen, vorschlagen, genehmigen und löschen darf.",
+      "roles": "Die eigenen Rollen des Projekts: welche Arten jede lesen, vorschlagen, genehmigen oder löschen darf.",
+      "serviceAccounts": "Die Konten, mit denen Programme die Endpunkte des Projekts aufrufen, und ihre Schlüssel."
     }
   },
   "projectDuplicate": {
@@ -6499,5 +6591,25 @@
         "body": "Galerie-, Board- und Kalenderansicht, Kommentare mit @Erwähnungen, Zeilenverlauf mit Rückgängig und öffentliche Formulare."
       }
     }
+  },
+  "inbox": {
+    "title": "Eingang",
+    "lead": "Was auf Sie wartet: die Änderungen, über die Sie in jedem Projekt entscheiden dürfen, und die Kommentare, die Sie erwähnen.",
+    "decisions": "Wartet auf Ihre Entscheidung",
+    "decisionsHint": "Eine Änderung der roten Spur verlangt zur Genehmigung ihren Namen, wie auf ihrer eigenen Seite.",
+    "noDecisions": "Nichts wartet auf Ihre Entscheidung.",
+    "by": "vorgeschlagen von {author} in {project}",
+    "openChange": "Änderung öffnen",
+    "showDiff": "Zeigen, was sie ändert",
+    "hideDiff": "Ausblenden, was sie ändert",
+    "diffFailed": "Die Änderung ließ sich nicht lesen; öffnen Sie sie, um es erneut zu versuchen.",
+    "reasonFirst": "Nennen Sie zuerst den Grund: der Autor liest ihn.",
+    "decided": {
+      "approved": "Genehmigt: wird bereitgestellt.",
+      "rejected": "Abgelehnt: der Autor liest Ihren Grund."
+    },
+    "mentions": "Erwähnungen von Ihnen",
+    "noMentions": "Kein Kommentar erwähnt Sie.",
+    "open": "Eingang öffnen ({count} warten)"
   }
 }

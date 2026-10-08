@@ -301,3 +301,140 @@ async fn a_file_without_a_manifest_is_held_to_the_kind_of_its_folder() {
     );
     assert!(writes(&gitea).await.is_empty());
 }
+
+/// T-3274: a merged update reads its "before" where the change was cut from, not on `main`, which
+/// already holds what it made: its page and its history say which field it changed.
+#[tokio::test]
+async fn a_merged_update_shows_the_field_it_changed() {
+    let (gitea, state) = world().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO}/contents/{MANIFEST}")))
+        .and(query_param("ref", "head-6"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({ "sha": "blob", "content": encode(&YAML.replace("name: air\n", "name: dust\n")) }),
+        ))
+        .mount(&gitea)
+        .await;
+    // The pipeline lives under its space, so the change's head tree is where its file is found.
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO}/git/trees/head-6")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "truncated": false,
+            "tree": [{ "path": MANIFEST, "type": "blob", "sha": "blob" }]
+        })))
+        .mount(&gitea)
+        .await;
+    let answer = send(
+        &state,
+        person("reader"),
+        "GET",
+        &format!("/api/v1/projects/{PROJECT}/changes/chg-00000006"),
+        None,
+    )
+    .await;
+    assert_eq!(answer.status.as_u16(), 200, "{}", answer.text);
+    let body: Value = serde_json::from_str(&answer.text).unwrap();
+    let fields = body["planFields"].as_array().expect("plan fields");
+    assert!(
+        fields
+            .iter()
+            .any(|f| f["path"] == "spec.contextSpaceRef.name"
+                && f["from"] == "air"
+                && f["to"] == "dust"),
+        "{fields:?}"
+    );
+}
+
+async fn undo(state: &AppState, who: &str, id: &str) -> (u16, Value) {
+    let answer = send(
+        state,
+        person(who),
+        "POST",
+        &format!("/api/v1/projects/{PROJECT}/changes/{id}/undo"),
+        None,
+    )
+    .await;
+    (
+        answer.status.as_u16(),
+        serde_json::from_str(&answer.text).unwrap_or(Value::Null),
+    )
+}
+
+/// What change 6 made of the pipeline, and what `main` holds now.
+async fn made_and_now(gitea: &MockServer, now: &str) {
+    let made = YAML.replace("name: air\n", "name: dust\n");
+    for (git_ref, content) in [("head-6", made.as_str()), ("main", now)] {
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/contents/{MANIFEST}")))
+            .and(query_param("ref", git_ref))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "sha": git_ref, "content": encode(content) })),
+            )
+            .mount(gitea)
+            .await;
+    }
+}
+
+/// T-3274: a merged update is undone by one new change that puts back the file as it was before.
+#[tokio::test]
+async fn a_merged_update_is_undone_by_a_change_that_puts_the_file_back() {
+    let (gitea, state) = world().await;
+    made_and_now(&gitea, &YAML.replace("name: air\n", "name: dust\n")).await;
+    let (status, body) = undo(&state, "restorer", "chg-00000006").await;
+    assert_eq!(status, 202, "{body}");
+    assert_eq!(body["status"]["plan"]["update"], json!(1), "{body}");
+    let sent = writes(&gitea).await;
+    let commit = sent
+        .iter()
+        .find(|(_, path, _)| path.ends_with("/contents"))
+        .expect("one commit");
+    let files: Value = serde_json::from_str(&commit.2).expect("a json commit");
+    assert_eq!(files["files"][0]["path"], json!(MANIFEST));
+    assert_eq!(
+        files["files"][0]["content"],
+        json!(encode(YAML)),
+        "the file as it was before"
+    );
+    assert!(sent.iter().any(
+        |(_, path, body)| path.ends_with("/branches") && body.contains("portal/undo-00000006")
+    ));
+}
+
+/// T-3274: nothing is undone over a later change, nor a change that modified nothing, nor by a
+/// person who may not propose the kind.
+#[tokio::test]
+async fn an_update_changed_again_since_or_a_removal_is_not_undone() {
+    let (gitea, state) = world().await;
+    made_and_now(&gitea, &YAML.replace("name: air\n", "name: smoke\n")).await;
+    let (status, body) = undo(&state, "restorer", "chg-00000006").await;
+    assert_eq!(status, 409, "{body}");
+    assert!(
+        body["detail"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("changed again"),
+        "{body}"
+    );
+    let (status, body) = undo(&state, "restorer", "chg-00000007").await;
+    assert_eq!(status, 409, "{body}");
+    assert!(
+        body["detail"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("modified nothing"),
+        "{body}"
+    );
+    let (status, _) = undo(&state, "restorer", "chg-00000008").await;
+    assert_eq!(status, 409);
+    assert!(writes(&gitea).await.is_empty(), "nothing is written");
+}
+
+#[tokio::test]
+async fn undoing_needs_propose_on_the_kind() {
+    let (gitea, state) = world().await;
+    made_and_now(&gitea, &YAML.replace("name: air\n", "name: dust\n")).await;
+    let (status, body) = undo(&state, "reader", "chg-00000006").await;
+    assert_eq!(status, 403, "{body}");
+    assert!(writes(&gitea).await.is_empty());
+}
