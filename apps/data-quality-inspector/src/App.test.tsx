@@ -220,7 +220,7 @@ describe("data-quality-inspector", () => {
       fireEvent.click(screen.getByRole("button", { name }));
       fireEvent.click(await screen.findByRole("button", { name: "← All types" }));
     }
-  });
+  }, 20_000); // every tile opened and closed under coverage: 868 ms here, past 5 s on a CI runner (ci-full 37840079043)
 
   it("supports Finnish with ?lang=fi and toggles language", async () => {
     window.history.replaceState(null, "", "/?lang=fi");
