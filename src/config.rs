@@ -206,6 +206,9 @@ pub struct Config {
     /// credentials with (PF-32, ADR-N-015). `None` leaves the store untouched: a Portal outside
     /// a cluster reconciles a repository and issues nothing.
     pub artifact_store: Option<crate::artifact_store::Settings>,
+    /// The apps database and bucket of the `wasm` Apps (AP-149, AP-151); `None` without
+    /// `JC_PORTAL_APPS_DB_URL`.
+    pub apps_db: Option<AppsDbSettings>,
     /// Which backend resolves a pipeline's `secretRef`s (PL-15, CC-06). A deployment setting,
     /// never a manifest field; `None` leaves a pipeline that declares one undeployed.
     pub pipeline_secrets: Option<crate::pipeline_secrets::Backend>,
@@ -281,6 +284,7 @@ impl std::fmt::Debug for Config {
             .field("apps_cache_dir", &self.apps_cache_dir)
             .field("apps_url", &self.apps_url.as_ref().map(Url::as_str))
             .field("artifact_store", &self.artifact_store)
+            .field("apps_db", &self.apps_db)
             .field("pipeline_secrets", &self.pipeline_secrets)
             .field("branding_file", &self.branding_file)
             .field("health_dir", &self.health_dir)
@@ -312,6 +316,38 @@ impl std::fmt::Debug for Config {
 /// `JC_PORTAL_ARTIFACT_STORE_REGION` (default `us-east-1`) are the same in every installation
 /// this platform deploys, so they have defaults.
 ///
+/// Where the `wasm` Apps' database is and how the host is sharded (AP-149). The URL comes from
+/// the deployment's secretRef `db-apps-admin`, never from a manifest; `Debug` never prints it.
+#[derive(Clone)]
+pub struct AppsDbSettings {
+    pub url: String,
+    /// How many shards the WASM host runs, `JC_PORTAL_WASM_SHARDS`, default 2.
+    pub shards: u32,
+    /// The bucket of `components/` and `apps/`, `JC_PORTAL_APPS_BUCKET`, default `apps`.
+    pub bucket: String,
+}
+
+impl std::fmt::Debug for AppsDbSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppsDbSettings")
+            .field("shards", &self.shards)
+            .field("bucket", &self.bucket)
+            .finish_non_exhaustive()
+    }
+}
+
+fn apps_db_settings(lookup: &impl Fn(&str) -> Option<String>) -> Option<AppsDbSettings> {
+    let present = |var: &str| lookup(var).filter(|v| !v.trim().is_empty());
+    Some(AppsDbSettings {
+        url: present("JC_PORTAL_APPS_DB_URL")?,
+        shards: present("JC_PORTAL_WASM_SHARDS")
+            .and_then(|v| v.trim().parse().ok())
+            .filter(|n| *n > 0)
+            .unwrap_or(2),
+        bucket: present("JC_PORTAL_APPS_BUCKET").unwrap_or_else(|| "apps".to_owned()),
+    })
+}
+
 /// All-or-nothing on purpose: an endpoint without the root credential would sign every admin
 /// request with nothing and log a refusal each sync, and a credential without an endpoint has
 /// no store to reach. Missing means the reconciler issues no credentials at all, which is what
@@ -1405,6 +1441,7 @@ impl Config {
         };
 
         let artifact_store = artifact_store_settings(&lookup);
+        let apps_db = apps_db_settings(&lookup);
         let pipeline_secrets = pipeline_secret_backend(&lookup);
 
         Ok(Self {
@@ -1455,6 +1492,7 @@ impl Config {
             basemap,
             apps_store_origin,
             artifact_store,
+            apps_db,
             pipeline_secrets,
         })
     }
@@ -1470,6 +1508,7 @@ impl Config {
             dashboards: true,
             setup: SetupStatements::default(),
             artifact_store: None,
+            apps_db: None,
             pipeline_secrets: None,
             cookie_key: Key::generate(),
             cookie_keys_previous: Vec::new(),

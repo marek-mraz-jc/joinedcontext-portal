@@ -5681,6 +5681,12 @@ export interface components {
             observedRevision?: string | null;
             phase?: components["schemas"]["Phase"];
             /**
+             * Format: int32
+             * @description The WASM host shard a `wasm` App runs on, recorded at its first publish and kept; the
+             *     Portal writes it in the publish commit, never a proposal (AP-149).
+             */
+            shard?: number | null;
+            /**
              * @description Forge page of the file this manifest was read from, so a view can link "Source"
              *     without knowing where a kind lives in the repository. Computed, never read from Git.
              */

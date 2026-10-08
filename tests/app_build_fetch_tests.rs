@@ -57,6 +57,7 @@ fn mirror_naming(digest: &str) -> Mirror {
             built_at: chrono::Utc::now(),
             component: None,
         }),
+        shard: None,
         domain_verification: None,
     });
     mirror.upsert(app);
