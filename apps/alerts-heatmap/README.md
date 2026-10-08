@@ -8,12 +8,18 @@ Helsinki-region traffic alerts, the whole history the city's feed holds, on one 
   coming back to (at least three within 120 metres);
 - the hours of the week the alerts start in, on Helsinki's clock; a click on a cell keeps only
   that hour;
-- the repeat places by name, the most alerts first;
+- the repeat places by name, the most alerts first; a name, or a place's circle on the map, opens
+  its alert in the entity panel;
 - a From and To date and the kinds (road works, traffic announcements), all in the address, so a
   view is a link (`?from=2026-09-01&kind=ROAD_WORK&day=0&hour=7&lang=en`).
 
 Finnish or English (`?lang=fi|en`, else the browser's language); the alerts' own texts are Finnish,
 as the feed publishes them. Light and dark follow the reader's system.
+
+The page sits in the SDK's `AppShell` (SDK-39), which carries the language switch. The entity panel
+(SDK-40) shows the alert's attributes as the App's grant reads them and links to it in the Portal,
+where a person with the rights changes it. The App is public and writes nothing, so the panel
+offers no Edit (AP-140). A hexagon is a count of alerts, not an entity: its popup says the count.
 
 ## How it is built
 
@@ -37,8 +43,12 @@ pnpm wasm          # cargo build --target wasm32-unknown-unknown, then wasm-bind
 (cd wasm && cargo test)
 pnpm test          # vitest, with the compiled module run in-process
 pnpm build
-pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe
+pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe, and an alert in the panel
 ```
+
+The App is under the Apps' coverage gate (T-3373): vitest 95 % (branches 90 %) with every control
+exercised, and `cargo llvm-cov` of `wasm/` at 95 % lines; wasm-bindgen's glue in `wasm/pkg` is not
+counted.
 
 `pnpm wasm` comes first: the tests, the type check and the build import `wasm/pkg/`. The build lane
 runs the same two steps itself (builder/build-wasm.sh) on the app-build-rust runner. It needs the
