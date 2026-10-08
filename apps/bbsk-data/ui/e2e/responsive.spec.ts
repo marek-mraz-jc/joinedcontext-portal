@@ -23,3 +23,25 @@ for (const view of VIEWS) {
     });
   }
 }
+
+// T-3383, SDK-40: a hospital opened in the SDK's entity panel by its name, at a phone and a laptop,
+// light and dark. The App is public, so the panel links to it in the Portal and offers no Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a row in the entity panel, linked to the Portal, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await page.getByRole("tabpanel", { name: "Nemocnice" }).getByRole("button", { name: "Nemocnica Zvolen" }).click();
+      const panel = page.getByRole("dialog", { name: "Nemocnica Zvolen" });
+      await expect(panel.getByText("Kuzmányho nábrežie 28, Zvolen")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Otvoriť v Portáli" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Upraviť" })).toHaveCount(0);
+      expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
