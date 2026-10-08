@@ -16,5 +16,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // wasm-bindgen's glue is generated; the Rust behind it is measured by cargo llvm-cov in wasm/
+    // (T-3373), as air-weather-explorer does.
+    coverage: { exclude: ["wasm/pkg/**", "src/test-analyser.ts", "src/fixtures/**"] },
   },
 });

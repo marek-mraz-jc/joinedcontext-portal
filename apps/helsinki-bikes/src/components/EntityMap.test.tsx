@@ -13,6 +13,7 @@ interface MapOptions {
 
 const mapInstances: any[] = [];
 let loadHandler: (() => void) | undefined;
+let errorHandler: ((event: { error?: { message?: string } }) => void) | undefined;
 const clickHandlers: Record<string, (e: any) => void> = {};
 
 vi.mock("maplibre-gl", () => {
@@ -34,6 +35,8 @@ vi.mock("maplibre-gl", () => {
     on(event: string, ...args: unknown[]) {
       if (event === "load" && typeof args[0] === "function") {
         loadHandler = args[0] as () => void;
+      } else if (event === "error" && typeof args[0] === "function") {
+        errorHandler = args[0] as typeof errorHandler;
       } else if (event === "click" && typeof args[0] === "string" && typeof args[1] === "function") {
         clickHandlers[args[0]] = args[1] as (e: any) => void;
       }
@@ -74,7 +77,9 @@ vi.mock("@deck.gl/aggregation-layers", () => {
   return { HexagonLayer, GridLayer };
 });
 
-import { HexagonLayer } from "@deck.gl/aggregation-layers";
+import { GridLayer, HexagonLayer } from "@deck.gl/aggregation-layers";
+import { ScatterplotLayer } from "@deck.gl/layers";
+import { applyTokens } from "@joinedcontext/sdk";
 import { colorRamp, EntityMap, renderPath } from "./EntityMap";
 
 const STATIONS: Row[] = [
@@ -237,5 +242,70 @@ describe("EntityMap component and helpers", () => {
 
     expect(screen.queryByText(NO_BASEMAP)).not.toBeInTheDocument();
     expect(screen.getByText("2 on the map · Kaivopuisto")).toBeInTheDocument();
+  });
+
+  // The paths a big or an aggregated map takes (T-3395): deck.gl's layers over MapLibre, each
+  // reading the rows' positions and colours, a dot clicked selecting its row.
+  it("draws fifty thousand rows as deck.gl points, coloured and clickable", async () => {
+    // A short and an odd hex colour reach deck.gl as numbers all the same.
+    applyTokens({ ...DEFAULT_TOKENS, map: { ...DEFAULT_TOKENS.map, point: "#abc", low: "#abcd", high: "#ff0000" } });
+    const many: Row[] = Array.from({ length: 50_000 }, (_, i) => ({ id: `urn:x:${i}`, type: "S", bikes: i % 7, location: { type: "Point", coordinates: [24.9, 60.1] } }));
+    many.push({ id: "urn:x:line", type: "S", location: { type: "MultiLineString", coordinates: [[[24.8, 60.2], [24.81, 60.21]]] } });
+    const onSelect = vi.fn();
+    render(
+      <JcProvider client={stubClient({ entities: [] })}>
+        <EntityMap rows={many} location="location" color="bikes" onSelect={onSelect} />
+      </JcProvider>,
+    );
+    await waitFor(() => expect(mapInstances.length).toBeGreaterThan(0));
+    loadHandler?.();
+    await waitFor(() => expect(mockOverlayInstances).toHaveLength(1));
+    const layer = mockOverlayInstances[0].props.layers[0];
+    expect(layer).toBeInstanceOf(ScatterplotLayer);
+    const first = layer.props.data[0];
+    expect(layer.props.getPosition(first)).toEqual([24.9, 60.1]);
+    expect(layer.props.getFillColor(first)).toHaveLength(3);
+    layer.props.onClick({});
+    expect(onSelect).not.toHaveBeenCalled();
+    layer.props.onClick({ object: first });
+    expect(onSelect).toHaveBeenCalledWith(many[0]);
+    applyTokens(DEFAULT_TOKENS);
+  });
+
+  it("aggregates into a grid, the hexagons read their positions, and the overlay goes for plain points", async () => {
+    const client = stubClient({ entities: STATIONS });
+    const view = (mode: "grid" | "hexbin" | "points") => (
+      <JcProvider client={client}>
+        <EntityMap rows={STATIONS} location="location" mode={mode} />
+      </JcProvider>
+    );
+    const { rerender } = render(view("grid"));
+    await waitFor(() => expect(mapInstances.length).toBeGreaterThan(0));
+    const map = mapInstances[0];
+    loadHandler?.();
+    await waitFor(() => expect(mockOverlayInstances).toHaveLength(1));
+    const grid = mockOverlayInstances[0].props.layers[0];
+    expect(grid).toBeInstanceOf(GridLayer);
+    expect(grid.props.getPosition(grid.props.data[0])).toEqual([24.95, 60.155]);
+    rerender(view("hexbin"));
+    await waitFor(() => expect(mockOverlayInstances[0].props.layers[0]).toBeInstanceOf(HexagonLayer));
+    const hex = mockOverlayInstances[0].props.layers[0];
+    expect(hex.props.getPosition(hex.props.data[1])).toEqual([24.93, 60.17]);
+    rerender(view("points"));
+    await waitFor(() => expect(map.removeControl).toHaveBeenCalled());
+  });
+
+  it("logs what the map says went wrong", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(
+      <JcProvider client={stubClient({ entities: STATIONS })}>
+        <EntityMap rows={STATIONS} location="location" />
+      </JcProvider>,
+    );
+    await waitFor(() => expect(errorHandler).toBeDefined());
+    errorHandler?.({ error: { message: "tile 404" } });
+    errorHandler?.({});
+    expect(logged).toHaveBeenCalledWith("jc: map error", "tile 404");
+    expect(logged).toHaveBeenCalledTimes(2);
   });
 });

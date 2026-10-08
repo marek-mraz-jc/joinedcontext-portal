@@ -4,7 +4,7 @@
  * (AP-04, AP-41). There is no login anywhere in this file, because the Endpoint behind the
  * app is public and the app never sees a user (AP-28).
  */
-import { currentTokens, type DesignTokens } from "@joinedcontext/sdk";
+import { currentTokens, portalLinkOf, ProblemError, type DesignTokens, type PanelSource, type Row, type SelectedEntity } from "@joinedcontext/sdk";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -186,5 +186,33 @@ export function featureCollection(vehicles: Vehicle[]): VehicleCollection {
         ...(vehicle.speed === undefined ? {} : { speed: vehicle.speed }),
       },
     })),
+  };
+}
+
+/**
+ * Where the shell's entity panel reads a bus (SDK-40): from this app's own backend, which holds
+ * the endpoint, the bus as the last poll saw it. The app writes nothing, so the panel never offers
+ * Edit; it links the bus to the Portal when the page names the project's page there.
+ */
+export function panelSource(page: { portal?: string; space?: string }): PanelSource {
+  return {
+    async get(entity: SelectedEntity): Promise<Row> {
+      const vehicle = (await getVehicles()).find((candidate) => candidate.id === entity.id);
+      if (!vehicle) throw new ProblemError(404, { title: "This bus is no longer reported." });
+      return {
+        id: vehicle.id,
+        type: "Vehicle",
+        location: { type: "Point", coordinates: vehicle.coordinates },
+        ...(vehicle.refLine ? { route: vehicle.refLine } : {}),
+        ...(vehicle.speed !== undefined ? { speed: vehicle.speed } : {}),
+        ...(vehicle.bearing !== undefined ? { heading: vehicle.bearing } : {}),
+      };
+    },
+    async update() {
+      throw new ProblemError(403, { title: "This app writes nothing." });
+    },
+    mayEdit: () => false,
+    portalLink: (entity) => (page.portal && page.space ? portalLinkOf(page.portal, page.space, entity.id) : null),
+    language: "en",
   };
 }

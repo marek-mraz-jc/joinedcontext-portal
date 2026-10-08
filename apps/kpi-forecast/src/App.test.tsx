@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider, ProblemError } from "@joinedcontext/sdk";
@@ -98,7 +98,7 @@ describe("kpi-forecast", () => {
   it("switches to English and keeps the language in the address", async () => {
     show();
     await screen.findByText(FI_SUMMARY);
-    await userEvent.setup().click(screen.getByRole("button", { name: "In English" }));
+    await userEvent.setup().selectOptions(screen.getByRole("combobox", { name: "Kieli" }), "en");
     expect(screen.getByRole("heading", { level: 1, name: "Helsinki KPIs: trend and forecast" })).toBeInTheDocument();
     expect(await screen.findByText(/^4 indicators over the last 30 days/)).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
@@ -134,5 +134,55 @@ describe("kpi-forecast", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Mittareiden historiaa ei voitu lukea (HTTP 403)");
     expect(await screen.findByText(/^4 mittaria, viimeiset 30 päivää: 0 nousee, 0 laskee, 0 pysyy ennallaan\./)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Bikes available/ })).toHaveTextContent(/Nyt 3\s848/);
+  });
+
+  // SDK-40: each indicator is chosen from the list, and the chosen one opens in the SDK's entity
+  // panel; a public App writes nothing, so the panel offers no Edit.
+  it("chooses every indicator from the list and opens the chosen one in the entity panel", async () => {
+    show();
+    await screen.findByText(FI_SUMMARY);
+    const user = userEvent.setup();
+    for (const name of ["Docking stations in the Helsinki city bike network", "Virtual stations in the city bike network", "Demo counter", "Bikes available in the city bike network"]) {
+      await user.click(screen.getByRole("button", { name }));
+      expect(screen.getByRole("button", { name })).toHaveAttribute("aria-pressed", "true");
+    }
+    expect(screen.getByRole("button", { name: "Bikes available in the city bike network" })).toHaveAccessibleDescription(/^Nyt 3\s848/);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Ajanjakso" }), "7");
+    expect(new URLSearchParams(window.location.search).get("days")).toBe("7");
+    await user.click(screen.getByRole("button", { name: "Kaikki tiedot" }));
+    const panel = await screen.findByRole("dialog", { name: "Bikes available in the city bike network" });
+    expect(within(panel).queryByRole("button", { name: "Muokkaa" })).toBeNull();
+    await user.click(within(panel).getByRole("button", { name: "Sulje" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("in English: the period, the odd ones only, clearing, the panel, and back to Finnish", async () => {
+    window.history.replaceState(null, "", "/?lang=en&days=90");
+    show();
+    await screen.findByText(/^4 indicators over the last 90 days/);
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Period" }), "30");
+    await user.click(screen.getByRole("checkbox", { name: "Only indicators with points that look wrong" }));
+    expect(within(screen.getByRole("list", { name: "Indicators" })).getAllByRole("button")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(window.location.search).toBe("?lang=en");
+    await user.click(screen.getByRole("button", { name: "All details" }));
+    const panel = await screen.findByRole("dialog");
+    await user.click(within(panel).getByRole("button", { name: "Close" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Language" }), "fi");
+    expect(screen.getByRole("heading", { level: 1, name: "Helsingin mittarit: trendi ja ennuste" })).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("lang")).toBe("fi");
+  });
+
+  it("says it is working while the history is read, and a history read that throws no Problem still says why", async () => {
+    const c = client();
+    let fail: (reason: unknown) => void = () => undefined;
+    c.temporal.list = () => new Promise((_, reject) => (fail = reject));
+    show(c);
+    expect(await screen.findByText("Lasketaan…")).toBeInTheDocument();
+    // No answer from an empty history while the real one is read.
+    expect(screen.queryByText(/^4 mittaria/)).toBeNull();
+    await act(async () => fail(new TypeError("Failed to fetch")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Mittareiden historiaa ei voitu lukea (HTTP 0)");
   });
 });

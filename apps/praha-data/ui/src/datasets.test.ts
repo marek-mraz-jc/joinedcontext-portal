@@ -33,4 +33,14 @@ describe("locales", () => {
     }
     expect(stringsFor("en").locale).toBe("en");
   });
+
+  it("speaks English where served in English, and Czech for a language it does not have or none", () => {
+    expect(stringsFor("en-GB")).toBe(LOCALES.en);
+    expect(stringsFor("de")).toBe(LOCALES.cs);
+    expect(stringsFor(undefined)).toBe(LOCALES.cs);
+  });
+
+  it("refuses a grid it could not build, naming the dataset and the finding", () => {
+    expect(() => gridConfig("", "places", LOCALES.cs.column)).toThrow("grid places: must be a non-empty string");
+  });
 });

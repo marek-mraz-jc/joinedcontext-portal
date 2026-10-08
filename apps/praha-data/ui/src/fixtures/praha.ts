@@ -31,11 +31,24 @@ export const BUDGET = [
   { id: URN("BudgetLine", "2026-0001"), type: "BudgetLine", budgetItem: value("Údržba komunikací"), fiscalYear: value(2026), budgetArea: value("Doprava"), approvedAmount: value(1250000000), adjustedAmount: value(1310000000) },
 ];
 
+/** One of each other type the grids show, as their pipelines write them (T-3402). */
+export const OTHERS: Record<string, unknown[]> = {
+  OffStreetParking: [{ id: URN("OffStreetParking", "pr-zlicin"), type: "OffStreetParking", name: name("P+R Zličín"), totalSpotNumber: value(470), availableSpotNumber: value(112), occupiedSpotNumber: value(358), dateModified: value("2026-10-06T07:40:00Z") }],
+  BikeHireDockingStation: [{ id: URN("BikeHireDockingStation", "nextbike-1"), type: "BikeHireDockingStation", name: name("Václavské náměstí"), totalSlotNumber: value(20), availableBikeNumber: value(7), freeSlotNumber: value(13), status: value("working"), dateModified: value("2026-10-06T07:40:00Z") }],
+  AirQualityObserved: [{ id: URN("AirQualityObserved", "legerova"), type: "AirQualityObserved", name: name("Praha 2 – Legerova"), dateObserved: value("2026-10-06T07:00:00Z"), pm10: value(21), pm25: value(12), no2: value(38), o3: value(41), so2: value(3), co: value(0.4) }],
+  CityDistrict: [{ id: URN("CityDistrict", "praha-1"), type: "CityDistrict", name: name("Praha 1"), districtCode: value("500054") }],
+};
+
 /** The rows of one type, as `GET …/entities?type=…` answers them. */
 export function answer(type: string | null): unknown[] {
   if (type === "PointOfInterest") return POIS;
   if (type === "WasteContainerIsle") return ISLES;
   if (type === "WasteContainer") return CONTAINERS;
   if (type === "BudgetLine") return BUDGET;
-  return [];
+  return OTHERS[type ?? ""] ?? [];
+}
+
+/** One entity by its id, as `GET …/entities/{id}` answers it (the entity panel's read), or none. */
+export function byId(id: string): unknown | undefined {
+  return [...POIS, ...ISLES, ...CONTAINERS, ...BUDGET, ...Object.values(OTHERS).flat()].find((entity) => (entity as { id: string }).id === id);
 }

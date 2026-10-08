@@ -111,6 +111,9 @@ body {
   color: var(--jc-color-warning, #d97706);
   font-weight: 600;
 }
+.app-open {
+  margin-bottom: var(--jc-space-3, 0.75rem);
+}
 .app-facts {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);

@@ -3,10 +3,10 @@
  * the three states, which take the platform's semantic tokens so they follow the theme and the
  * high-contrast setting with everything else.
  *
- * The columns are the SDK's Page, Header and Grid (T-2825): one card across on a phone, up to four
+ * The columns are the SDK's Page and Grid in its shell (T-2825, SDK-39): one card across on a phone, up to four
  * on a wall; the card is the unit that wraps, never the number and its unit.
  */
-main {
+.jc-main {
   padding: var(--jc-gutter, 1rem);
 }
 
@@ -189,6 +189,18 @@ button.bar-label {
   font-size: 1rem;
 }
 
+/* The territory opens the indicator in the entity panel: a button that reads as the card's heading. */
+.card-open {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: inherit;
+  text-decoration: underline;
+}
+
 .value {
   margin: 0 0 var(--jc-space-2, 0.5rem);
 }
@@ -238,10 +250,6 @@ button.bar-label {
 }
 
 .state-red {
-  color: var(--jc-color-danger-text, #b3261e);
-}
-
-.failed {
   color: var(--jc-color-danger-text, #b3261e);
 }
 

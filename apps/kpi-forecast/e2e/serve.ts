@@ -8,7 +8,8 @@ import { HISTORY, KPIS } from "../src/fixtures/kpis";
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://portal.test/";
 const SLUG = "kpiforecast";
-const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "kpi-forecast" };
+// `portal`: where the entity panel links an indicator for editing (SDK-40); shown, never followed.
+const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki-kpi", transport: "origin", appName: "kpi-forecast", portal: "https://portal.test/projects/helsinki" };
 // The static host's types (AP-142): a module the browser compiles must come as application/wasm.
 const TYPES: Record<string, string> = {
   ".html": "text/html",

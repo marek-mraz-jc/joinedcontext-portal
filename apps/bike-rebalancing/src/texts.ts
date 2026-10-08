@@ -4,7 +4,6 @@ import type { Lang } from "./i18n";
 const TEXTS = {
   title: { fi: "Kaupunkipyörien tasaussuunnitelma", en: "City bike rebalancing planner" },
   page: { fi: "Tasaus", en: "Rebalancing" },
-  language: { fi: "Kieli", en: "Language" },
   soonEmpty: { fi: "Tyhjenemässä", en: "About to run empty" },
   soonFull: { fi: "Täyttymässä", en: "About to be full" },
   moved: { fi: "Pakettiauto siirtää", en: "The van moves" },
@@ -40,7 +39,6 @@ const TEXTS = {
   unreadable: { fi: "Asemia ei voitu lukea (HTTP {status}). Yritä myöhemmin uudelleen.", en: "The stations could not be read (HTTP {status}). Try again later." },
   offline: { fi: "Asemia ei voitu lukea. Tarkista yhteys ja yritä uudelleen.", en: "The stations could not be read. Check the connection and try again." },
   plannerFailed: { fi: "Reittiä ei voitu laskea: {why}", en: "The route could not be planned: {why}" },
-  retry: { fi: "Yritä uudelleen", en: "Retry" },
   empty: { fi: "tyhjä", en: "empty" },
   low: { fi: "vähissä", en: "low" },
   balanced: { fi: "tasapainossa", en: "balanced" },

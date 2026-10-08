@@ -27,3 +27,8 @@ export function answer(type: string | null): unknown[] {
   if (type === "WaterQualityObserved") return WATER;
   return [];
 }
+
+/** One entity by its id, as `GET …/entities/{id}` answers it (the entity panel's read), or none. */
+export function byId(id: string): unknown | undefined {
+  return [...SERVICES, ...WATER].find((entity) => entity.id === id);
+}

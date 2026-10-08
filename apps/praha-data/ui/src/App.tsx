@@ -6,11 +6,12 @@
  * The table is the SDK's `EntityGrid`: paging, a filter per column that becomes the endpoint's own
  * `q`, the model's enums as pick lists, the name as the row's primary field opening the whole row.
  * What this application adds is one tab per dataset, the city's labels and the endpoint's own
- * downloads of each dataset.
+ * downloads of each dataset. It sits in the SDK's shell (SDK-39), so a row opened from the grid shows
+ * in the shell's entity panel (SDK-40), linked to the Portal: a public App writes nothing.
  */
 import { useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { endpointSource, EntityGrid, Header, Page, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, EntityGrid, Page, transportFor, useClient } from "@joinedcontext/sdk";
 import { DATASETS, ENUMS, exportUrl, gridConfig } from "./datasets";
 import type { Dataset } from "./datasets";
 import { stringsFor } from "./locales";
@@ -19,6 +20,13 @@ import { stringsFor } from "./locales";
 const SPACE = "praha-mesto";
 
 export default function App() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
+  return <AppShell title={s.title} pages={[{ id: "data", label: s.title, render: () => <Datasets /> }]} language={config.language} />;
+}
+
+/** The datasets, one tab each, with the grid and the downloads of the chosen one. */
+function Datasets() {
   const { config } = useClient();
   const s = stringsFor(config.language);
   const language = config.language;
@@ -34,10 +42,7 @@ export default function App() {
   );
   const grid = useMemo(() => (slug ? gridConfig(slug, dataset, s.column) : null), [slug, dataset, s.column]);
   const enums = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(ENUMS).map(([attr, values]) => [attr, values.map((value) => ({ value, title: s.values[value] ?? value }))]),
-      ),
+    () => Object.fromEntries(Object.entries(ENUMS).map(([attr, values]) => [attr, values.map((value) => ({ value, title: s.values[value] ?? value }))])),
     [s.values],
   );
 
@@ -45,11 +50,15 @@ export default function App() {
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     const at = DATASETS.indexOf(dataset);
     const next =
-      event.key === "ArrowRight" ? DATASETS[(at + 1) % DATASETS.length]
-      : event.key === "ArrowLeft" ? DATASETS[(at - 1 + DATASETS.length) % DATASETS.length]
-      : event.key === "Home" ? DATASETS[0]
-      : event.key === "End" ? DATASETS[DATASETS.length - 1]
-      : null;
+      event.key === "ArrowRight"
+        ? DATASETS[(at + 1) % DATASETS.length]
+        : event.key === "ArrowLeft"
+          ? DATASETS[(at - 1 + DATASETS.length) % DATASETS.length]
+          : event.key === "Home"
+            ? DATASETS[0]
+            : event.key === "End"
+              ? DATASETS[DATASETS.length - 1]
+              : null;
     if (next) {
       event.preventDefault();
       setDataset(next);
@@ -58,53 +67,49 @@ export default function App() {
   };
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
-        {source && grid && slug ? (
-          <>
-            <div role="tablist" aria-label={s.datasets} className="tabs">
-              {DATASETS.map((one) => (
-                <button
-                  key={one}
-                  ref={(node) => {
-                    tabs.current[one] = node;
-                  }}
-                  type="button"
-                  role="tab"
-                  id={`tab-${one}`}
-                  aria-selected={one === dataset}
-                  aria-controls={`panel-${one}`}
-                  tabIndex={one === dataset ? 0 : -1}
-                  onClick={() => setDataset(one)}
-                  onKeyDown={onTabKey}
-                >
-                  {s.dataset[one]}
-                </button>
-              ))}
+    <Page>
+      <p className="subtitle">{s.subtitle}</p>
+      {source && grid && slug ? (
+        <>
+          <div role="tablist" aria-label={s.datasets} className="tabs">
+            {DATASETS.map((one) => (
+              <button
+                key={one}
+                ref={(node) => {
+                  tabs.current[one] = node;
+                }}
+                type="button"
+                role="tab"
+                id={`tab-${one}`}
+                aria-selected={one === dataset}
+                aria-controls={`panel-${one}`}
+                tabIndex={one === dataset ? 0 : -1}
+                onClick={() => setDataset(one)}
+                onKeyDown={onTabKey}
+              >
+                {s.dataset[one]}
+              </button>
+            ))}
+          </div>
+          <section role="tabpanel" id={`panel-${dataset}`} aria-labelledby={`tab-${dataset}`} className="panel">
+            <p className="about">{s.about[dataset]}</p>
+            <div className="downloads">
+              <span>{s.download}:</span>
+              <a href={exportUrl(slug, dataset, "csv")} download>
+                {s.csv} <span className="visually-hidden">{s.dataset[dataset]}</span>
+              </a>
+              <a href={exportUrl(slug, dataset, "geojson")} download>
+                {s.geojson} <span className="visually-hidden">{s.dataset[dataset]}</span>
+              </a>
+              <small>{s.downloadNote}</small>
             </div>
-            <section role="tabpanel" id={`panel-${dataset}`} aria-labelledby={`tab-${dataset}`} className="panel">
-              <p className="about">{s.about[dataset]}</p>
-              <div className="downloads">
-                <span>{s.download}:</span>
-                <a href={exportUrl(slug, dataset, "csv")} download>
-                  {s.csv}{" "}
-                  <span className="visually-hidden">{s.dataset[dataset]}</span>
-                </a>
-                <a href={exportUrl(slug, dataset, "geojson")} download>
-                  {s.geojson}{" "}
-                  <span className="visually-hidden">{s.dataset[dataset]}</span>
-                </a>
-                <small>{s.downloadNote}</small>
-              </div>
-              <EntityGrid key={dataset} config={grid} source={source} labels={s.grid} enums={enums} />
-            </section>
-          </>
-        ) : (
-          <p role="status">{s.noEndpoint}</p>
-        )}
-        <p className="source">{s.source}</p>
-      </Page>
-    </main>
+            <EntityGrid key={dataset} config={grid} source={source} labels={s.grid} enums={enums} />
+          </section>
+        </>
+      ) : (
+        <p role="status">{s.noEndpoint}</p>
+      )}
+      <p className="source">{s.source}</p>
+    </Page>
   );
 }
