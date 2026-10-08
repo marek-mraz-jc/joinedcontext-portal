@@ -17,6 +17,8 @@ const CONFIG = {
   transport: "origin",
   appName: NAME,
   language: "sk",
+  // Where the entity panel links an indicator for editing (SDK-40).
+  portal: "https://portal.zilina.sk/projects/zilina",
 };
 // What src/apps/static_host.rs sends for an embeddable app with no other origin to reach.
 const CSP =
@@ -49,6 +51,16 @@ export async function serve(page: Page): Promise<Served> {
       return route.abort();
     }
     if (url.pathname.includes("/api/endpoint/")) {
+      // The entity panel reads one indicator by its id, and the reader's access document (SDK-40).
+      const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
+      if (one) {
+        const id = decodeURIComponent(one[1]);
+        const row = answer("KeyPerformanceIndicator").find((candidate) => (candidate as { id: string }).id === id);
+        return route.fulfill({ status: row ? 200 : 404, contentType: "application/ld+json", body: JSON.stringify(row ?? { title: "Not Found" }) });
+      }
+      if (url.pathname.endsWith("/access")) {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ permissions: [], prohibitions: [] }) });
+      }
       const body = answer(url.searchParams.get("type"));
       return route.fulfill({ status: 200, contentType: "application/ld+json", body: JSON.stringify(body) });
     }
