@@ -247,6 +247,18 @@ function roleOf(element: Element): string {
   return tag;
 }
 
+/** A label's own words: the text of the control it wraps (a list's options) is not its name. */
+function labelText(label: Element, control: Element): string {
+  let text = "";
+  const walk = (node: Node) => {
+    if (node === control) return;
+    if (node.nodeType === Node.TEXT_NODE) text += node.textContent ?? "";
+    else node.childNodes.forEach(walk);
+  };
+  walk(label);
+  return text;
+}
+
 function nameOf(element: Element): string {
   const doc = element.ownerDocument;
   const labelledBy = element.getAttribute("aria-labelledby");
@@ -257,12 +269,14 @@ function nameOf(element: Element): string {
         .join(" ")
     : "";
   const labels = (element as HTMLInputElement).labels;
-  const fromLabel = labels && labels.length > 0 ? labels[0].textContent ?? "" : "";
+  const fromLabel = labels && labels.length > 0 ? labelText(labels[0], element) : "";
+  // A field's content is its value or its options, never its name.
+  const fromContent = element.matches("select, textarea, input") ? "" : element.textContent;
   const name =
     element.getAttribute("aria-label") ||
     fromIds ||
     fromLabel ||
-    element.textContent ||
+    fromContent ||
     element.getAttribute("title") ||
     element.getAttribute("placeholder") ||
     element.getAttribute("name") ||

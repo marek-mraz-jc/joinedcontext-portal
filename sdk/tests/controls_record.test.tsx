@@ -29,6 +29,26 @@ describe("the controls record (T-3373)", () => {
     expect(controlId(screen.getByRole("link"))).toBe("link: Open in the Portal");
   });
 
+  it("names a list inside its label by the label alone, never by the options it holds", () => {
+    render(
+      <div>
+        <label>
+          <span>Weather station</span>
+          <select>
+            <option>Kaisaniemi (1,4 km)</option>
+            <option>Kumpula</option>
+          </select>
+        </label>
+        <select aria-describedby="x">
+          <option>Unnamed</option>
+        </select>
+      </div>,
+    );
+    const [named, unnamed] = screen.getAllByRole("combobox");
+    expect(controlId(named)).toBe("combobox: Weather station");
+    expect(controlId(unnamed)).toBe("combobox: ");
+  });
+
   it("writes what was rendered and what a test exercised, leaving out a disabled control", async () => {
     const dir = mkdtempSync(join(tmpdir(), "controls-"));
     let done: (() => Promise<void>) | undefined;
