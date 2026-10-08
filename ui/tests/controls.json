@@ -134,7 +134,8 @@
         "Checkbox": 1
       },
       "tests": [
-        "feedback_button.test.tsx"
+        "feedback_button.test.tsx",
+        "page_help.test.tsx"
       ]
     },
     "src/components/HelpMenu.tsx": {

@@ -9,8 +9,15 @@ test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true
 
 const READ_PATHS = ["spaces", "endpoints", "dashboards", "explore", "approvals", "assistant", "activity"];
 
-for (const path of READ_PATHS) {
-  test(`/${path} at 375 px with touch: 44 px targets and nothing sideways`, async ({ page }) => {
+/** A build this browser started and saw finish: the header then carries the jobs button too. */
+const FINISHED_BUILD = [
+  { id: "appBuild:helsinki:kartta:8", kind: "appBuild", project: PROJECT, name: "kartta", startedAt: "2026-10-08T03:00:00Z", finishedAt: "2026-10-08T03:03:00Z", outcome: "success" },
+];
+
+for (const [path, jobs] of [...READ_PATHS.map((path) => [path, []] as const), ["spaces", FINISHED_BUILD] as const]) {
+  test(`/${path} at 375 px with touch${jobs.length > 0 ? " and a finished build" : ""}: 44 px targets and nothing sideways`, async ({ page }) => {
+    // The fullest header (T-3319): an administrator (bootstrap), with a job to show.
+    await page.addInitScript((stored) => localStorage.setItem("jc.jobs", stored), JSON.stringify(jobs));
     await page.route("**/api/v1/**", async (route) => {
       const p = new URL(route.request().url()).pathname;
       const json = (b: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(b) });

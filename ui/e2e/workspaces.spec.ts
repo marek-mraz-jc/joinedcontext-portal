@@ -145,6 +145,9 @@ test.describe("the copy bar and the conflict chooser", () => {
 
     await page.goto(`/projects/${PROJECT}/spaces?workspace=${COPY}&lang=en`);
     await expect(page.getByRole("region", { name: "Copy" })).toBeVisible();
+    // The bar is the Shell's and draws first; the page under it loads with its section (T-3280),
+    // so the audit waits for the page a person reads, not for the bar alone.
+    await expect(page.locator("main h1").first()).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
 
     await page.goto(`/projects/${PROJECT}/workspaces/${COPY}/bring-back?lang=en`);

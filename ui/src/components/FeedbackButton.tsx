@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { JSX } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -75,11 +75,28 @@ async function screenshot(): Promise<string> {
 /**
  * Feedback from any page (T-3272, API/01 §38): what got in the way, in the person's words, with
  * the page it happened on. Nobody is named; a screenshot only when ticked, its fields painted over.
+ *
+ * The Shell holds `open` so the Help menu can open the same dialog: on a phone the header has no
+ * room for the button beside 44 px targets (T-3319), so `buttonClassName` hides it there and the
+ * Help menu carries "Send feedback" instead.
  */
-export function FeedbackButton(): JSX.Element {
+export function FeedbackButton({
+  open: held,
+  onOpenChange,
+  buttonClassName,
+}: {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  buttonClassName?: string;
+} = {}): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
-  const [open, setOpen] = useState(false);
+  const [own, setOwn] = useState(false);
+  const open = held ?? own;
+  const setOpen = (next: boolean) => {
+    setOwn(next);
+    onOpenChange?.(next);
+  };
   const [text, setText] = useState("");
   const [withScreenshot, setWithScreenshot] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -116,6 +133,15 @@ export function FeedbackButton(): JSX.Element {
     },
   });
 
+  // Every opening starts clean, whichever control opened it.
+  const reset = send.reset;
+  useEffect(() => {
+    if (open) {
+      setSaid("");
+      reset();
+    }
+  }, [open, reset]);
+
   const failure =
     send.error instanceof ApiError ? (send.error.problem?.detail ?? send.error.message) : send.error ? send.error.message : null;
   const tooLong = text.length > MAX_TEXT;
@@ -125,19 +151,17 @@ export function FeedbackButton(): JSX.Element {
       <span role="status" aria-live="polite" className="sr-only">
         {said}
       </span>
-      <Button
-        variant="ghost"
-        className="px-1.5"
-        aria-label={t("feedback.button")}
-        title={t("feedback.button")}
-        onClick={() => {
-          setSaid("");
-          send.reset();
-          setOpen(true);
-        }}
-      >
-        <Icon name="chat" className="size-5" />
-      </Button>
+      <span className={buttonClassName}>
+        <Button
+          variant="ghost"
+          className="px-1.5"
+          aria-label={t("feedback.button")}
+          title={t("feedback.button")}
+          onClick={() => setOpen(true)}
+        >
+          <Icon name="chat" className="size-5" />
+        </Button>
+      </span>
       <Dialog
         open={open && !capturing}
         onOpenChange={(next) => {
