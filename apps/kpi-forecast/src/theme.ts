@@ -21,13 +21,26 @@ export const DARK = {
     success: "#6ee7b7",
     warning: "#fcd34d",
   },
-  series: { history: "#2dd4bf", fitted: "#a3b1c6", forecast: "#93c5fd", anomaly: "#fca5a5" },
 };
 
 const QUERY = "(prefers-color-scheme: dark)";
 
 export function prefersDark(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(QUERY).matches;
+}
+
+/**
+ * The chart's own colours: measured, model, forecast, odd readings. The SDK keeps only the token
+ * keys it knows, so these live here, per scheme.
+ */
+export const SERIES = {
+  light: { history: "#0f766e", fitted: "#64748b", forecast: "#2563eb", anomaly: "#dc2626" },
+  dark: { history: "#2dd4bf", fitted: "#a3b1c6", forecast: "#93c5fd", anomaly: "#fca5a5" },
+};
+
+/** The chart's colours for the scheme in force. */
+export function seriesColours(): typeof SERIES.light {
+  return prefersDark() ? SERIES.dark : SERIES.light;
 }
 
 /** The tokens to start with. */

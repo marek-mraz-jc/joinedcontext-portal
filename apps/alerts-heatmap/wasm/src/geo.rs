@@ -26,10 +26,16 @@ pub fn to_lon_lat(x: f64, y: f64) -> (f64, f64) {
 }
 
 fn push_positions(value: &Value, out: &mut Vec<(f64, f64)>) {
-    let Some(items) = value.as_array() else { return };
+    let Some(items) = value.as_array() else {
+        return;
+    };
     if let [Value::Number(lon), Value::Number(lat), ..] = items.as_slice() {
         if let (Some(lon), Some(lat)) = (lon.as_f64(), lat.as_f64()) {
-            if lon.is_finite() && lat.is_finite() && (-180.0..=180.0).contains(&lon) && (-90.0..=90.0).contains(&lat) {
+            if lon.is_finite()
+                && lat.is_finite()
+                && (-180.0..=180.0).contains(&lon)
+                && (-90.0..=90.0).contains(&lat)
+            {
                 out.push((lon, lat));
             }
         }
@@ -46,18 +52,31 @@ pub fn representative_point(geometry: &Value) -> Option<(f64, f64)> {
     let mut positions = Vec::new();
     match geometry.get("type").and_then(Value::as_str) {
         Some("GeometryCollection") => {
-            for part in geometry.get("geometries").and_then(Value::as_array).into_iter().flatten() {
-                push_positions(part.get("coordinates").unwrap_or(&Value::Null), &mut positions);
+            for part in geometry
+                .get("geometries")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                push_positions(
+                    part.get("coordinates").unwrap_or(&Value::Null),
+                    &mut positions,
+                );
             }
         }
-        Some(_) => push_positions(geometry.get("coordinates").unwrap_or(&Value::Null), &mut positions),
+        Some(_) => push_positions(
+            geometry.get("coordinates").unwrap_or(&Value::Null),
+            &mut positions,
+        ),
         None => return None,
     }
     if positions.is_empty() {
         return None;
     }
     let n = positions.len() as f64;
-    let (lon, lat) = positions.iter().fold((0.0, 0.0), |(a, b), (lon, lat)| (a + lon, b + lat));
+    let (lon, lat) = positions
+        .iter()
+        .fold((0.0, 0.0), |(a, b), (lon, lat)| (a + lon, b + lat));
     Some((lon / n, lat / n))
 }
 
@@ -114,27 +133,48 @@ mod tests {
 
     #[test]
     fn a_geometry_is_stood_for_by_the_mean_of_its_positions() {
-        assert_eq!(representative_point(&json!({"type": "Point", "coordinates": [24.9, 60.2]})), Some((24.9, 60.2)));
+        assert_eq!(
+            representative_point(&json!({"type": "Point", "coordinates": [24.9, 60.2]})),
+            Some((24.9, 60.2))
+        );
         let line = json!({"type": "MultiLineString", "coordinates": [[[24.0, 60.0], [26.0, 60.0]], [[25.0, 62.0]]]});
         let (lon, lat) = representative_point(&line).expect("a point");
         assert!((lon - 25.0).abs() < 1e-12 && (lat - 60.666_666_666_666_67).abs() < 1e-9);
-        assert_eq!(representative_point(&json!({"type": "Point", "coordinates": []})), None);
-        assert_eq!(representative_point(&json!({"coordinates": [24.9, 60.2]})), None);
+        assert_eq!(
+            representative_point(&json!({"type": "Point", "coordinates": []})),
+            None
+        );
+        assert_eq!(
+            representative_point(&json!({"coordinates": [24.9, 60.2]})),
+            None
+        );
         assert_eq!(representative_point(&Value::Null), None);
         // A position outside the globe is no position.
-        assert_eq!(representative_point(&json!({"type": "Point", "coordinates": [200.0, 60.0]})), None);
+        assert_eq!(
+            representative_point(&json!({"type": "Point", "coordinates": [200.0, 60.0]})),
+            None
+        );
     }
 
     #[test]
     fn every_point_falls_in_the_hexagon_whose_centre_is_nearest() {
         let size = 500.0;
-        for (x, y) in [(0.0, 0.0), (430.0, 10.0), (-999.0, 1234.0), (433.0, 250.0), (-0.1, -0.1)] {
+        for (x, y) in [
+            (0.0, 0.0),
+            (430.0, 10.0),
+            (-999.0, 1234.0),
+            (433.0, 250.0),
+            (-0.1, -0.1),
+        ] {
             let (q, r) = hex_of(x, y, size);
             let (cx, cy) = hex_centre(q, r, size);
             let mine = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
             for (dq, dr) in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, -1), (-1, 1)] {
                 let (nx, ny) = hex_centre(q + dq, r + dr, size);
-                assert!(mine <= ((x - nx).powi(2) + (y - ny).powi(2)).sqrt() + 1e-9, "({x},{y}) in ({q},{r})");
+                assert!(
+                    mine <= ((x - nx).powi(2) + (y - ny).powi(2)).sqrt() + 1e-9,
+                    "({x},{y}) in ({q},{r})"
+                );
             }
         }
         assert_eq!(hex_of(0.0, 0.0, size), (0, 0));

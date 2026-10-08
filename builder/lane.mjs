@@ -342,6 +342,40 @@ export function missingFromStore(lock, folders, platform) {
 }
 
 /** The CycloneDX 1.5 SBOM of the packages in pnpm's store folders, sorted, without a timestamp. */
+/** The `wasi:http` handler a server component must export (AP-143, AP-151). */
+export const HTTP_HANDLER = "wasi:http/incoming-handler@";
+
+/**
+ * Whether `bytes` are a WebAssembly component (not a core module) whose own export section names
+ * `wasi:http/incoming-handler`: the preamble is the component layer's, and the top-level sections
+ * are walked by their sizes, so a name inside a nested module or a custom section does not count.
+ */
+export function isHttpComponent(bytes) {
+  const preamble = [0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00];
+  if (bytes.length < preamble.length || preamble.some((b, i) => bytes[i] !== b)) return false;
+  const leb = (at) => {
+    let value = 0;
+    let shift = 0;
+    for (let i = at; i < bytes.length && i < at + 5; i += 1) {
+      value += (bytes[i] & 0x7f) * 2 ** shift;
+      shift += 7;
+      if ((bytes[i] & 0x80) === 0) return [value, i + 1];
+    }
+    return [-1, bytes.length];
+  };
+  const name = Buffer.from(HTTP_HANDLER);
+  let at = preamble.length;
+  while (at < bytes.length) {
+    const id = bytes[at];
+    const [size, body] = leb(at + 1);
+    if (size < 0 || body + size > bytes.length) return false;
+    // Section 11 is the component's export section.
+    if (id === 11 && Buffer.from(bytes.subarray(body, body + size)).includes(name)) return true;
+    at = body + size;
+  }
+  return false;
+}
+
 export function sbomOf(folders) {
   const seen = new Map();
   for (const folder of folders) {
@@ -669,10 +703,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const store = join(appDir, ".pnpm");
       const folders = existsSync(store) ? readdirSync(store) : [];
       const sbom = sbomOf(folders);
-      // A fullstack App: the crates its lock names are in the image too.
-      const lock = process.argv[5];
-      if (lock) sbom.components.push(...cratesOf(readFileSync(lock, "utf8")));
+      // A fullstack App: the crates its lock names are in the image too; a ui or wasm App's
+      // WebAssembly crates and server component are in its bundle (AP-142, AP-151).
+      for (const lock of process.argv.slice(5)) sbom.components.push(...cratesOf(readFileSync(lock, "utf8")));
       writeFileSync(outDir, JSON.stringify(sbom, null, 2) + "\n");
+    } else if (command === "component-check" && appDir) {
+      if (!isHttpComponent(readFileSync(appDir))) {
+        throw new Error(`${appDir} is not a component exporting ${HTTP_HANDLER}… (AP-143)`);
+      }
+      console.log(`${appDir} is a component exporting ${HTTP_HANDLER}…`);
     } else if (command === "image" && appDir && outDir) {
       const image = ociImage(readFileSync(appDir));
       writeLayout(image, outDir);
@@ -743,7 +782,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | browser-checks <app-dir> <bundle-dir> <report-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | component-check <file.wasm> | upload <build-dir> | browser-checks <app-dir> <bundle-dir> <report-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

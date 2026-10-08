@@ -12,7 +12,9 @@
 # A repository with `package.json` at its root is a Vite project; one without is its own bundle,
 # the `build: {}` shape (AP-83). One with `Cargo.toml` at its root is a `fullstack` App, built on
 # the rust-1.90 runner into an image instead (AP-105). A Vite project with `wasm/Cargo.toml`
-# compiles that crate to WebAssembly first, on the app-build-rust runner (AP-142).
+# compiles that crate to WebAssembly first, on the app-build-rust runner (AP-142). One with
+# `server/Cargo.toml` beside its `package.json` is a `wasm` App: its server component goes into
+# the bundle as `.jc/component.wasm`, on the same runner (AP-151).
 set -eu
 
 fail() { echo "build failed: $*" >&2; exit 1; }
@@ -136,6 +138,11 @@ if [ "$JC_APP_BUILD" = node ]; then
   echo "== build"
   untrusted "$BIN/tsc" -b || fail "the application does not typecheck"
   untrusted "$BIN/vite" build --outDir "$OUT" --emptyOutDir || fail "vite build failed"
+  # After vite, which empties the bundle folder (AP-151).
+  if [ -f server/Cargo.toml ]; then
+    command -v build-component >/dev/null || fail "a wasm App builds on the app-build-rust runner (AP-151)"
+    untrusted build-component "$APP" "$WORK" "$OUT" || fail "the server component does not build"
+  fi
 else
   if [ -d functions ]; then
     echo "== function tests"
@@ -169,5 +176,8 @@ pack "$OUT" "$WORK/bundle.tar" && gzip -n "$WORK/bundle.tar" || fail "cannot pac
 # The crates of a WebAssembly part are in the bundle too (AP-142).
 WASM_LOCK=
 [ -f "$APP/wasm/Cargo.lock" ] && WASM_LOCK=$APP/wasm/Cargo.lock
-node "$LANE/lane.mjs" sbom "$LANE/node_modules" "$WORK/sbom.cdx.json" $WASM_LOCK || fail "cannot write the SBOM"
+# And those of a server component (AP-151).
+SERVER_LOCK=
+[ -f "$APP/server/Cargo.lock" ] && SERVER_LOCK=$APP/server/Cargo.lock
+node "$LANE/lane.mjs" sbom "$LANE/node_modules" "$WORK/sbom.cdx.json" $WASM_LOCK $SERVER_LOCK || fail "cannot write the SBOM"
 built "sha256:$(sha256sum "$WORK/bundle.tar.gz" | cut -d' ' -f1)"
