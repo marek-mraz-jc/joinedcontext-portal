@@ -197,6 +197,11 @@ pub struct Config {
     /// Where basemap tiles and styles come from (AP-67). `None` disables the basemap route:
     /// tile requests answer 404 and generated maps render on a plain canvas.
     pub basemap: Option<BasemapConfig>,
+    /// The object store's public origin (`JC_PORTAL_APPS_STORE_ORIGIN`, `https://files.{domain}`),
+    /// where the browser sends a `wasm` App's presigned uploads and downloads (AP-145, T-3359):
+    /// the one origin `connect-src` gains, for the Apps that declare blob storage. `None` adds
+    /// nothing, and such an App's uploads are refused by its policy.
+    pub apps_store_origin: Option<String>,
     /// The artifact store and the root credential the reconciler mints per-organization
     /// credentials with (PF-32, ADR-N-015). `None` leaves the store untouched: a Portal outside
     /// a cluster reconciles a repository and issues nothing.
@@ -851,6 +856,35 @@ impl std::fmt::Debug for BasemapConfig {
     }
 }
 
+/// `JC_PORTAL_APPS_STORE_ORIGIN`: an `https` origin and nothing more, or unset (T-3359). A path, a
+/// query, a wildcard or plain `http` would widen every storing App's `connect-src` past one host.
+fn apps_store_origin(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<String>, ConfigError> {
+    let Some(raw) = lookup("JC_PORTAL_APPS_STORE_ORIGIN").filter(|v| !v.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let invalid = |reason: &str| ConfigError::Invalid {
+        var: "JC_PORTAL_APPS_STORE_ORIGIN",
+        reason: reason.to_owned(),
+    };
+    let url = Url::parse(raw.trim())
+        .map_err(|_| invalid("not a URL; write the store's origin, `https://files.example.com`"))?;
+    if url.scheme() != "https" {
+        return Err(invalid("the store's origin is https"));
+    }
+    if url.host_str().is_none_or(|host| host.contains('*'))
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err(invalid("one host, no wildcard and no credentials"));
+    }
+    if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
+        return Err(invalid("an origin alone, with no path, query or fragment"));
+    }
+    Ok(Some(url.origin().ascii_serialization()))
+}
+
 /// The basemap configuration block, or `None` when this Portal proxies no basemap (AP-67).
 /// The operator's bounds file (PF-97). Absent, every entry keeps its built-in bound. A file that
 /// cannot be read, is no map of catalog paths, holds a range upside down or loosens a security
@@ -1332,6 +1366,7 @@ impl Config {
             lookup("JC_PORTAL_APPS_CACHE_DIR").filter(|dir| !dir.trim().is_empty());
         let apps_url = apps_url(&lookup)?;
         let basemap = basemap_config(&lookup)?;
+        let apps_store_origin = apps_store_origin(&lookup)?;
         let app_settings = app_settings(&lookup, &public_base_url, basemap.is_some())?;
         let build_pods = build_pod_settings(&lookup)?;
         let agent_settings = agent_settings(&lookup)?;
@@ -1418,6 +1453,7 @@ impl Config {
             agent_settings,
             app_tests,
             basemap,
+            apps_store_origin,
             artifact_store,
             pipeline_secrets,
         })
@@ -1459,6 +1495,7 @@ impl Config {
             agent_settings: None,
             app_tests: None,
             basemap: None,
+            apps_store_origin: None,
             apps_dir: None,
             apps_cache_dir: None,
             apps_url: None,
@@ -2172,6 +2209,51 @@ mod tests {
             .unwrap()
             .setup;
         assert_eq!(blank.login_theme, None);
+    }
+
+    /// T-3359: the store's public origin is one https origin, normalized, or the Portal refuses
+    /// to start saying what to write.
+    #[test]
+    fn the_apps_store_origin_is_one_https_origin() {
+        let read = |value: &str| {
+            let value = value.to_owned();
+            Config::from_vars(move |k| (k == "JC_PORTAL_APPS_STORE_ORIGIN").then(|| value.clone()))
+        };
+        assert_eq!(
+            read("https://files.dev.example.com/")
+                .expect("valid")
+                .apps_store_origin
+                .as_deref(),
+            Some("https://files.dev.example.com")
+        );
+        assert_eq!(
+            read("https://files.example.com:9443")
+                .expect("valid")
+                .apps_store_origin
+                .as_deref(),
+            Some("https://files.example.com:9443")
+        );
+        assert_eq!(read("  ").expect("unset").apps_store_origin, None);
+        for bad in [
+            "http://files.example.com",
+            "https://files.example.com/apps",
+            "https://*.example.com",
+            "https://u:p@files.example.com",
+            "https://files.example.com/?x=1",
+            "files.example.com",
+        ] {
+            let err = read(bad).expect_err(bad);
+            assert!(
+                matches!(
+                    err,
+                    ConfigError::Invalid {
+                        var: "JC_PORTAL_APPS_STORE_ORIGIN",
+                        ..
+                    }
+                ),
+                "{bad}"
+            );
+        }
     }
 
     #[test]

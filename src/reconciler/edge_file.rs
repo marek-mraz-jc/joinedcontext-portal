@@ -554,7 +554,8 @@ pub fn edge_apps(
                     continue;
                 }
             },
-            jc_core::kinds::AppClass::Ui => Upstream::Static,
+            // A wasm App's interface is served as a ui App's is (AP-148).
+            jc_core::kinds::AppClass::Ui | jc_core::kinds::AppClass::Wasm => Upstream::Static,
         };
         let slugs = crate::apps::static_host::served_endpoints(mirror, &project, &name, &spec)
             .into_iter()
