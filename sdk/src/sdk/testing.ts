@@ -327,8 +327,11 @@ export function recordControls(afterAll: (done: () => Promise<void>) => void, di
       for (const node of Array.from(mutation.addedNodes)) {
         if (node instanceof Element) scan(node);
       }
-      // A control's name can change after it is added (a count, a loaded label).
-      if (mutation.target instanceof Element) scan(mutation.target);
+      // A control's name can change after it is added (a count, a loaded label): only the control
+      // the change is in is read again, so a long list costs one pass, not one per row.
+      const node = mutation.target;
+      const control = (node instanceof Element ? node : node.parentElement)?.closest(CONTROLS);
+      if (control && usable(control)) rendered.add(controlId(control));
     }
   };
   const observer = new MutationObserver(take);

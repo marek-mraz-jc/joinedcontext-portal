@@ -123,6 +123,24 @@ describe("the controls record (T-3373)", () => {
     expect(record.rendered).not.toContain("textbox: ");
   });
 
+  it("records a control under the name it takes after a later change", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "controls-"));
+    let done: (() => Promise<void>) | undefined;
+    recordControls((callback) => {
+      done = callback;
+    }, dir);
+    const button = document.createElement("button");
+    button.textContent = "Loading";
+    document.body.append(button);
+    await Promise.resolve();
+    button.firstChild!.textContent = "Kallio stations";
+    await done?.();
+    const [file] = readdirSync(dir);
+    const record = JSON.parse(readFileSync(join(dir, file), "utf8")) as { rendered: string[] };
+    expect(record.rendered).toEqual(expect.arrayContaining(["button: Loading", "button: Kallio stations"]));
+    button.remove();
+  });
+
   it("does nothing without a directory to write to", () => {
     let registered = false;
     recordControls(() => {

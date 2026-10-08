@@ -23,19 +23,9 @@ export interface Place {
   /** `[longitude, latitude]`, or `null` for a place the publisher gave no position. */
   coordinates: [number, number] | null;
   address: string | null;
-  url: string | null;
-  /** An event's category, its first and last day (`YYYY-MM-DD`) and its start time. */
-  category: string | null;
+  /** An event's first and last day (`YYYY-MM-DD`); the rest of an entity is the panel's to show. */
   startDate: string | null;
   endDate: string | null;
-  startTime: string | null;
-  /** A school's pupils and teaching language. */
-  pupils: number | null;
-  language: string | null;
-  /** The station's latest particulate means and when they were taken. */
-  pm10: number | null;
-  pm25: number | null;
-  observedAt: string | null;
 }
 
 function first(cell: RichCell | RichCell[] | undefined): RichCell | undefined {
@@ -47,11 +37,6 @@ function text(row: RichRow, attr: string): string | null {
   if (typeof value === "string") return value.trim() === "" ? null : value.trim();
   if (typeof value === "number") return String(value);
   return null;
-}
-
-function number(row: RichRow, attr: string): number | null {
-  const value = first(row.cells[attr])?.value;
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /** A LanguageProperty in the reader's language, else Slovak, else whichever the publisher wrote. */
@@ -81,28 +66,9 @@ export function placeOf(row: RichRow, kind: Kind, locale: string): Place {
     name: localized(row, "name", locale),
     coordinates: point(row),
     address: text(row, "address"),
-    url: safeUrl(text(row, "url")),
-    category: text(row, "eventCategory"),
     startDate: text(row, "startDate"),
     endDate: text(row, "endDate"),
-    startTime: text(row, "startTime"),
-    pupils: number(row, "pupilCount"),
-    language: text(row, "teachingLanguage"),
-    pm10: number(row, "pm10"),
-    pm25: number(row, "pm25"),
-    observedAt: text(row, "dateObserved"),
   };
-}
-
-/** A link the sheet may open: http or https only, so a `javascript:` URL in the data never runs. */
-export function safeUrl(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
-  } catch {
-    return null;
-  }
 }
 
 /**

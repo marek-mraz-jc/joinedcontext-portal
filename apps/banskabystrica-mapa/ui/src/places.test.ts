@@ -1,37 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { toRichRow } from "@joinedcontext/sdk";
-import { byOrder, featuresOf, matches, placeOf, safeUrl, upcoming } from "./places";
-import { AIR, EVENTS, SCHOOLS } from "./fixtures/verejne";
+import { byOrder, featuresOf, matches, placeOf, upcoming } from "./places";
+import { EVENTS, SCHOOLS } from "./fixtures/verejne";
 
 const event = (index: number) => placeOf(toRichRow(EVENTS[index]), "event", "sk");
 const school = (index: number) => placeOf(toRichRow(SCHOOLS[index]), "school", "sk");
 
 describe("placeOf", () => {
-  it("reads an event's name, days, time, category, address and position", () => {
+  it("reads an event's name, days, address and position", () => {
     expect(event(0)).toMatchObject({
       name: "Radvanský jarmok",
       startDate: "2026-10-08",
       endDate: "2026-10-10",
-      startTime: "09:00:00",
-      category: "other",
       address: "Námestie SNP, Banská Bystrica",
-      url: "https://www.banskabystrica.sk/podujatia/radvansky-jarmok",
       coordinates: [19.1459, 48.7357],
     });
   });
 
-  it("keeps a missing value missing: no position, no pupils, no link", () => {
+  it("keeps a missing value missing, and reads a name in the reader's language, else Slovak, else any", () => {
     expect(event(2).coordinates).toBeNull();
-    expect(school(1).pupils).toBeNull();
-    expect(school(1).language).toBeNull();
-    expect(placeOf(toRichRow(AIR[0]), "air", "sk")).toMatchObject({ pm10: 21.4, pm25: null });
+    const row = (fields: Record<string, unknown>) => toRichRow({ id: "urn:ngsi-ld:Event:x", type: "Event", ...fields });
+    expect(placeOf(row({ name: { type: "LanguageProperty", languageMap: { en: "Fair", sk: "Jarmok" } } }), "event", "en").name).toBe("Fair");
+    expect(placeOf(row({ name: { type: "LanguageProperty", languageMap: { sk: "Jarmok" } } }), "event", "en").name).toBe("Jarmok");
+    expect(placeOf(row({ name: { type: "LanguageProperty", languageMap: { de: "Markt" } } }), "event", "en").name).toBe("Markt");
+    expect(placeOf(row({ name: { type: "LanguageProperty", languageMap: { sk: "  " } } }), "event", "sk").name).toBeNull();
+    expect(placeOf(row({ name: { type: "Property", value: "  " }, address: { type: "Property", value: 12 } }), "event", "sk")).toMatchObject({ name: null, address: "12" });
+    expect(placeOf(row({ address: { type: "Property", value: true } }), "event", "sk").address).toBeNull();
   });
 
-  it("never opens a link that is not http or https", () => {
-    expect(event(1).url).toBeNull();
-    expect(safeUrl("ftp://example.org/a")).toBeNull();
-    expect(safeUrl("not a url")).toBeNull();
-    expect(safeUrl("https://example.org/a")).toBe("https://example.org/a");
+  it("puts on the map only a point inside the world", () => {
+    const at = (value: unknown) => placeOf(toRichRow({ id: "urn:ngsi-ld:Event:x", type: "Event", location: { type: "GeoProperty", value } }), "event", "sk").coordinates;
+    expect(at({ type: "Point", coordinates: [19.1, 48.7] })).toEqual([19.1, 48.7]);
+    expect(at({ type: "Point", coordinates: [190, 48.7] })).toBeNull();
+    expect(at({ type: "Point", coordinates: ["19", 48.7] })).toBeNull();
+    expect(at({ type: "Polygon", coordinates: [] })).toBeNull();
   });
 });
 
@@ -53,6 +55,14 @@ describe("filters", () => {
   it("orders events by their first day and the rest by name", () => {
     const sorted = [school(1), event(2), event(0), school(0)].sort(byOrder).map((p) => p.name);
     expect(sorted.slice(0, 2)).toEqual(["Radvanský jarmok", "Výstava fotografií"]);
+    // An event without a day comes after those with one; an unnamed place after the named.
+    const undated = { ...event(0), id: "u", startDate: null };
+    expect(byOrder(undated, event(0))).toBeGreaterThan(0);
+    const unnamed = { ...school(0), id: "n", name: null };
+    expect(byOrder(unnamed, school(0))).toBeGreaterThan(0);
+    expect(byOrder(school(0), unnamed)).toBeLessThan(0);
+    expect(byOrder(unnamed, { ...unnamed, id: "m" })).toBe(0);
+    expect(byOrder({ ...event(0), id: "a" }, event(0))).toBe(0);
   });
 
   it("draws only the places with a position, the picked one marked", () => {

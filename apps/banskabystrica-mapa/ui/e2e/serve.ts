@@ -17,6 +17,8 @@ const CONFIG = {
   transport: "origin",
   appName: NAME,
   language: "sk",
+  // Where the entity panel links a place for editing (SDK-40); shown, never followed.
+  portal: "https://portal.banskabystrica.test/projects/banskabystrica",
 };
 // What src/apps/static_host.rs sends for an embeddable app with no other origin to reach.
 const CSP =
@@ -47,6 +49,15 @@ export async function serve(page: Page): Promise<Served> {
     if (url.origin !== ORIGIN) {
       served.outside.push(url.href);
       return route.abort();
+    }
+    // One entity, as the entity panel reads it; 404 for one the space does not hold.
+    const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
+    if (one) {
+      const id = decodeURIComponent(one[1]);
+      const entity = ["Event", "School", "AirQualityObserved"].flatMap((type) => answer(type)).find((each) => (each as { id: string }).id === id);
+      return entity
+        ? route.fulfill({ status: 200, contentType: "application/ld+json", body: JSON.stringify(entity) })
+        : route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ title: "Not Found", status: 404 }) });
     }
     if (url.pathname.includes("/api/endpoint/")) {
       const body = answer(url.searchParams.get("type"));
