@@ -44,9 +44,13 @@ ADD --checksum=sha256:${RUNNER_SHA256} \
 FROM rust:1.90-slim-bookworm AS crates
 WORKDIR /src
 COPY . .
-# The SDK's React + Rust/WebAssembly example keeps its own lock (AP-142): its crates too.
+# The SDK's React + Rust/WebAssembly example and the Apps with a WebAssembly part keep their own
+# lock (AP-142): their crates too.
 RUN CARGO_HOME=/opt/cargo cargo fetch --locked \
-    && CARGO_HOME=/opt/cargo cargo fetch --locked --manifest-path sdk/examples/react-rust-wasm/wasm/Cargo.toml
+    && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm; do \
+         [ -f "$crate/Cargo.toml" ] || continue; \
+         CARGO_HOME=/opt/cargo cargo fetch --locked --manifest-path "$crate/Cargo.toml" || exit 1; \
+       done
 
 # The toolchain of the rust-1.90 runner. The tag pins the toolchain, not its Debian: upgrade the
 # base's packages so the image carries the security fixes bookworm has shipped since the tag was
