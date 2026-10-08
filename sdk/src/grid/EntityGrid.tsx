@@ -10,6 +10,7 @@ import type { Observed, Refusal } from "./apply";
 import { EntityHistory } from "./EntityHistory";
 import { GridMap } from "./GridMap";
 import { unitTitle } from "../sdk/units";
+import { useEntitySelection } from "../sdk/panel";
 import type { GridMapLabels } from "./GridMap";
 import { mapAttrOf } from "./mapRows";
 import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
@@ -113,6 +114,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   } = props;
 
   const grid = useEntityGrid(hookOptions);
+  const selection = useEntitySelection();
   const { rows, columns, loading, error, labels, state, cellOf, toggleMeta, setOffset, setSort, setFilter, setFilterText, filterColumns, askedQuery, setEdit, clearEdits, pendingChanges, reload, setEdits, getGridProps, getHeaderProps, getRowProps, getCellProps } = grid;
 
   // A column offers a filter when it holds something `q` can ask about and the config allows it:
@@ -310,7 +312,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       return renderers[column.key](cell, row);
     }
     // The primary field, or the identifier where the config names none, opens the row's detail
-    // panel (T-3097): the person reads the row by its name and opens it from there.
+    // panel (T-3097): the person reads the row by its name and opens it from there. Inside an
+    // App's shell that is the shell's one entity panel (SDK-40, T-3396), else the grid's own.
     if (column.key === "id" || isPrimary(column)) {
       const name = rowName(row);
       return (
@@ -321,7 +324,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           title={row.id}
           onClick={(e) => {
             e.stopPropagation();
-            setDetailId(row.id);
+            if (selection.inShell) selection.select({ id: row.id, type: row.type });
+            else setDetailId(row.id);
           }}
         >
           {column.key === "id" ? text : text || row.id}
