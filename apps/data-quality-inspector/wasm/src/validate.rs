@@ -706,4 +706,66 @@ mod tests {
         assert_eq!(f_high[0].rule, "maximum");
         assert_eq!(f_high[0].detail, "100");
     }
+
+    #[test]
+    fn every_month_has_its_days() {
+        let lengths: Vec<u32> = (1..=12).map(|m| days_in_month(2026, m)).collect();
+        assert_eq!(lengths, [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
+        assert_eq!(days_in_month(2024, 2), 29);
+        assert_eq!(days_in_month(2026, 13), 0);
+        assert!(is_rfc3339_date("2026-04-30"));
+        assert!(!is_rfc3339_date("2026-04-31"));
+    }
+
+    #[test]
+    fn a_date_time_with_fractions_and_an_offset_is_one_and_a_broken_one_is_not() {
+        for good in [
+            "2026-10-08T12:30:00.123Z",
+            "2026-10-08t12:30:00z",
+            "2026-10-08T12:30:00+03:00",
+            "2026-10-08T12:30:00-00:30",
+        ] {
+            assert!(is_rfc3339_date_time(good), "{good}");
+        }
+        for bad in [
+            "2026-10-08T12:30:00.Z",
+            "2026-10-08T12:30:00",
+            "2026-10-08T12:30:00+0300",
+            "2026-10-08T12:30:00+24:00",
+            "2026-10-08T12:30:00+03:60",
+            "2026-10-08T12:30:00Q",
+            "2026-13-08T12:30:00Z",
+            "2026-02-30T12:30:00Z",
+            "2026-10-08T24:30:00Z",
+            "2026-10-08T12:60:00Z",
+            "2026-10-08T12:30:61Z",
+            "20x6-10-08T12:30:00Z",
+        ] {
+            assert!(!is_rfc3339_date_time(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_schema_that_is_no_object_checks_nothing() {
+        let schema = CompiledPropertySchema::compile(&json!(true));
+        assert!(schema.types.is_none() && schema.format.is_none() && !schema.has_ref);
+        let (findings, _) = validate_value("urn:x", "a", &json!(5), &schema);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn a_language_property_is_null_only_where_its_schema_allows_null() {
+        let nullable = CompiledPropertySchema::compile(
+            &json!({ "type": ["object", "null"], "x-ngsi-ld-kind": "LanguageProperty" }),
+        );
+        let required = CompiledPropertySchema::compile(
+            &json!({ "type": "object", "x-ngsi-ld-kind": "LanguageProperty" }),
+        );
+        assert!(validate_value("e1", "title", &Value::Null, &nullable)
+            .0
+            .is_empty());
+        let (findings, _) = validate_value("e1", "title", &Value::Null, &required);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule, "type");
+    }
 }
