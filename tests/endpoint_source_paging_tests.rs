@@ -137,8 +137,13 @@ async fn run(total: usize, stated: bool) -> (Option<Value>, usize) {
         .timeout(Duration::from_secs(30))
         .build()
         .expect("a client");
+    // The two tests run in parallel against one runner, and the clock can hand them the same
+    // nanosecond: the process and a counter keep their stream names apart (a duplicate is a 400).
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let name = format!(
-        "t3132-{}",
+        "t3132-{}-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("after 1970")
