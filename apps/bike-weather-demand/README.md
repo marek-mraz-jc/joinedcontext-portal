@@ -9,6 +9,15 @@ Built with React 19, TypeScript, and a WebAssembly analysis engine compiled from
 - **BikeHireDockingStation**: Current state and 7-day temporal history (`availableBikeNumber`) for the chosen station.
 - **WeatherObserved**: Current road weather observations and 7-day temporal history (`temperature`, `precipitation`) from the nearest station within 10 km (calculated via haversine distance).
 
+## In the shell
+
+The page sits in the SDK's `AppShell` (SDK-39) with its Suomi/English switch, and uses the SDK's
+loading, empty and error states. A station picked on the map, and the chosen station and its
+weather station by their Details buttons, open in the shell's entity panel (SDK-40), read fresh
+through the App's endpoint. The App is public, so the panel never offers Edit and links the entity
+to the Portal (AP-140); the stations and the weather are their feeds' pipelines', and the App writes
+nothing. Retry on a history that could not be read reads it again.
+
 ## Analysis engine
 
 - Computes Europe/Helsinki hours of week (0..=167) accounting for EU daylight saving time transitions.
@@ -26,7 +35,7 @@ pnpm wasm
 # Run development server
 pnpm dev
 
-# Run unit and integration tests
+# Run unit and integration tests (every control exercised, the coverage gate of T-3373)
 pnpm test
 
 # Check types and produce production bundle

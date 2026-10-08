@@ -1,18 +1,24 @@
 import { useState } from "react";
-import { AppShell } from "./components/AppShell";
-import type { Page } from "./components/AppShell";
+import { AppShell } from "@joinedcontext/sdk";
+import type { ShellPage } from "@joinedcontext/sdk";
 import { langOf, t } from "./i18n";
 import type { Lang } from "./i18n";
 import { Station } from "./pages/Station";
 import { useScheme } from "./theme";
 
-/** Bikes and the weather: availability and 6-hour forecast by station and weather. */
+const LANGUAGES = [
+  { code: "fi", label: "Suomi" },
+  { code: "en", label: "English" },
+];
+
+/** Bikes and the weather: availability and 6-hour forecast by station and weather, in the SDK's shell (SDK-39). */
 export default function App(): React.JSX.Element {
   const [lang, setLang] = useState<Lang>(() =>
     langOf(window.location.search, navigator.languages ?? [navigator.language]),
   );
 
-  const switchTo = (next: Lang) => {
+  const switchTo = (next: string) => {
+    if (next !== "fi" && next !== "en") return;
     setLang(next);
     document.documentElement.lang = next;
     document.title = t(next, "title");
@@ -29,7 +35,7 @@ export default function App(): React.JSX.Element {
   document.title = t(lang, "title");
   const scheme = useScheme();
 
-  const pages: Page[] = [
+  const pages: ShellPage[] = [
     {
       id: "station",
       label: t(lang, "page"),
@@ -38,19 +44,6 @@ export default function App(): React.JSX.Element {
   ];
 
   return (
-    <AppShell
-      title={t(lang, "title")}
-      pages={pages}
-      actions={
-        <button
-          type="button"
-          className="jc-button"
-          lang={lang === "fi" ? "en" : "fi"}
-          onClick={() => switchTo(lang === "fi" ? "en" : "fi")}
-        >
-          {t(lang, "language")}
-        </button>
-      }
-    />
+    <AppShell title={t(lang, "title")} pages={pages} languages={LANGUAGES} language={lang} onLanguage={switchTo} />
   );
 }

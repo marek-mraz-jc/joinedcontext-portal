@@ -47,10 +47,11 @@ const PORTAL = "https://portal.dev.example.org/projects/helsinki";
 
 /** A page with the three kinds of opener the panel serves: a map feature, a table row and a chart point. */
 function Openers(): React.JSX.Element {
-  const { select } = useEntitySelection();
+  const { select, saved } = useEntitySelection();
   const entity = { id: STATION.id, type: STATION.type };
   return (
     <div>
+      <p data-testid="saved">{saved}</p>
       <div data-testid="map-feature" aria-label="Kaivopuisto on the map" {...selectable(entity, select)} />
       <table>
         <tbody>
@@ -240,6 +241,8 @@ describe("the entity panel (SDK-40)", () => {
     expect(patches[0].path).toContain(`/entities/${encodeURIComponent(STATION.id)}/attrs`);
     expect(patches[0].body).toEqual({ availableBikeNumber: { type: "Property", value: 7 } });
     expect(await within(panel).findByText("Saved.")).toBeInTheDocument();
+    // The page hears of the change, to read its list again.
+    expect(screen.getByTestId("saved")).toHaveTextContent("1");
   });
 
   it("says nothing changed when nothing did, and writes nothing", async () => {
@@ -271,6 +274,8 @@ describe("the entity panel (SDK-40)", () => {
       fireEvent.click(within(panel).getByRole("button", { name: "Save the change" }));
     });
     expect(await within(panel).findByRole("alert")).toHaveTextContent("You may not change this entity: no write on availableBikeNumber");
+    // Nothing was saved, so the page has nothing to read again.
+    expect(screen.getByTestId("saved")).toHaveTextContent("0");
   });
 
   it("is axe clean, open and in its edit form", async () => {

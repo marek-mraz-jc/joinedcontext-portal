@@ -2,30 +2,36 @@ import { expect, test } from "@playwright/test";
 import { STEWARD, VIEWER } from "../src/fixtures/access";
 import { SLUG, serve } from "./serve";
 
-// AP-09, AP-96: the viewer reads every alert and is offered no way to change one.
+// AP-09, AP-96, SDK-40: the viewer reads an alert in the entity panel, linked to the Portal, and is
+// offered no way to change one.
 test("a viewer reads the alerts and gets no form, no edit and no delete", async ({ page }) => {
   const { alerts, writes, outside, problems } = await serve(page, "viewer", VIEWER);
 
   await alerts.getByRole("table").getByText("Kauppatori, Helsinki").click();
-  await expect(alerts.getByRole("heading", { level: 2 })).toBeVisible();
-  await expect(alerts.getByRole("button", { name: "New alert" })).toHaveCount(0);
-  await expect(alerts.getByRole("button", { name: "Edit" })).toHaveCount(0);
-  await expect(alerts.getByRole("button", { name: "Delete" })).toHaveCount(0);
+  const panel = page.getByRole("dialog");
+  await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  for (const name of ["New alert", "Correct names and place", "Delete"]) await expect(alerts.getByRole("button", { name })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
   expect(writes).toEqual([]);
   expect(outside).toEqual([]);
   expect(problems).toEqual([]);
 });
 
-// AP-62: the steward's correction is one PATCH of the attribute that changed, and nothing else.
+// AP-62, SDK-40: the steward corrects an alert in the entity panel: the change shown first, then one
+// PATCH of the attribute that changed, and nothing else.
 test("a steward corrects an alert with one PATCH of the changed attribute", async ({ page }) => {
   const { alerts, writes, outside, problems } = await serve(page, "steward", STEWARD);
 
   await alerts.getByRole("table").getByText("Mannerheimintie resurfacing").click();
-  await alerts.getByRole("button", { name: "Edit" }).click();
-  const form = alerts.getByRole("form", { name: "Edit Alert" });
-  await form.getByLabel("address").fill("Mannerheimintie 14, Helsinki");
-  await form.getByRole("button", { name: "Save" }).click();
-  await expect(form).toHaveCount(0);
+  const panel = page.getByRole("dialog");
+  await panel.getByRole("button", { name: "Edit" }).click();
+  await panel.getByLabel(/address/i).fill("Mannerheimintie 14, Helsinki");
+  await panel.getByRole("button", { name: "Review the change" }).click();
+  expect(writes).toEqual([]);
+  await panel.getByRole("button", { name: "Save the change" }).click();
+  await expect(panel.getByText("Saved.")).toBeVisible();
 
   expect(writes).toEqual([
     {
