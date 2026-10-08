@@ -129,35 +129,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
       - run: cd sdk && pnpm install --frozen-lockfile
-      - name: the example builds, passes its tests and answers in Chromium
-        run: |
-          set -eu
-          work=$(mktemp -d)
-          cp -r sdk/examples/react-rust-wasm/. "$work"
-          cargo fetch --locked --manifest-path "$work/wasm/Cargo.toml"
-          JC_CRATE_STORE="$HOME/.cargo/registry" sh builder/build-wasm.sh "$work" "$(mktemp -d)"
-          cd "$work"
-          npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk"
-          pnpm install --no-frozen-lockfile
-          sh "$GITHUB_WORKSPACE/scripts/app-coverage-run.sh" react-rust-wasm --rust && pnpm build
-          pnpm exec playwright install --with-deps --only-shell chromium
-          pnpm exec playwright test
-      # The Apps with a WebAssembly part (T-3331..T-3333), the same way: the apps job below
-      # leaves them to this one, which has the wasm32 target and the runner's wasm-bindgen.
-      - name: the Apps with a WebAssembly part build, pass their tests and answer in Chromium
-        run: |
-          set -eu
-          for app in apps/*/; do
-            [ -f "$app/wasm/Cargo.toml" ] && [ -f "$app/package.json" ] || continue
-            work=$(mktemp -d)
-            cp -r "$app". "$work"
-            cargo fetch --locked --manifest-path "$work/wasm/Cargo.toml"
-            JC_CRATE_STORE="$HOME/.cargo/registry" sh builder/build-wasm.sh "$work" "$(mktemp -d)"
-            (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
-              && pnpm install --no-frozen-lockfile && pnpm typecheck \
-              && sh "$GITHUB_WORKSPACE/scripts/app-coverage-run.sh" "$(basename "$app")" --rust && pnpm build \
-              && pnpm exec playwright test)
-          done
+      # The example and the Apps with a WebAssembly part: built by the lane's builder, tested with
+      # the coverage gate, bundled, and in Chromium; only those this change touched (T-3373), the
+      # full sweep is ci-full's.
+      - name: the touched WebAssembly Apps build, pass their tests and the gate, and answer in Chromium
+        run: sh scripts/apps-ci.sh wasm
   apps:
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -175,57 +151,18 @@ jobs:
       - if: steps.has.outputs.ui == 'yes'
         name: the SDK's dependencies, which the apps link
         run: cd sdk && pnpm install --frozen-lockfile
-      # The reference apps of AP-34 carry their own bundle; the Rust half is covered by the
-      # workspace lanes above, this is its screens. They name `@joinedcontext/sdk` as the template
-      # does, which resolves in their own forge repository through the lane's store (T-2912), and
-      # carry no lockfile; here the name is pointed at this checkout, as for the applications
-      # below. An app with a lockfile installs from it frozen.
+      # The reference apps/*/ui, the Apps in their own repository (AP-75) and the server WASM
+      # example's interface, with the SDK linked from this checkout: typecheck, the coverage gate,
+      # the bundle; only those this change touched (T-3373), the full sweep is ci-full's.
       - if: steps.has.outputs.ui == 'yes'
-        name: the reference apps build and their screens pass
-        run: |
-          set -eu
-          for app in apps/*/ui; do
-            [ -f "$app/package.json" ] || continue
-            (cd "$app" && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else
-              npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
-              && pnpm install --no-frozen-lockfile; fi && pnpm typecheck \
-              && sh "$GITHUB_WORKSPACE/scripts/app-coverage-run.sh" "$(basename "$(dirname "$app")")" && pnpm build)
-          done
-          # The lane test below reads the manifests and lockfiles as committed: undo the linked
-          # name and drop the lockfiles the install wrote.
-          git checkout -- apps && git clean -fq -- apps
-      # An application kept in its own forge repository sits at the root of apps/<name>/ (AP-75,
-      # T-2596). It is tested as that tree, copied out, with only `@joinedcontext/sdk` pointed at
-      # this checkout: the build lane resolves the same name from the SDK tarball it bakes (AP-82).
-      - if: steps.has.outputs.ui == 'yes'
-        name: the applications in their own repository build and their screens pass
-        run: |
-          set -eu
-          for app in apps/*/; do
-            [ -f "$app/package.json" ] || continue
-            # One with a WebAssembly part builds in the wasm-example job (AP-142).
-            [ -f "$app/wasm/Cargo.toml" ] && continue
-            work=$(mktemp -d)
-            cp -r "$app". "$work"
-            (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
-              && pnpm install --no-frozen-lockfile && pnpm typecheck \
-              && sh "$GITHUB_WORKSPACE/scripts/app-coverage-run.sh" "$(basename "$app")" && pnpm build)
-          done
-      # The interface of the server WASM example (T-3341): its screens and its bundle.
-      - if: steps.has.outputs.ui == 'yes'
-        name: the server WASM example's interface
-        run: |
-          set -eu
-          work=$(mktemp -d)
-          cp -r sdk/examples/rust-wasm-server/. "$work"
-          (cd "$work" && pnpm install --no-frozen-lockfile \
-            && sh "$GITHUB_WORKSPACE/scripts/app-coverage-run.sh" rust-wasm-server && pnpm build)
+        name: the touched Apps build and pass their screens and the gate
+        run: sh scripts/apps-ci.sh ui
       # The coverage gate's own tests, and its pending list only ever shrinking (T-3373): the base is
       # the branch's fork from main, or the commit before on a push to main.
       - name: the Apps' coverage gate and its shrinking pending list
         run: |
           set -eu
-          node --test scripts/app-coverage-gate.test.mjs
+          node --test scripts/app-coverage-gate.test.mjs scripts/apps-ci.test.mjs
           git fetch -q --depth=100 origin main
           base=$(git merge-base HEAD origin/main)
           [ "$base" = "$(git rev-parse HEAD)" ] && base=$(git rev-parse HEAD~1)
