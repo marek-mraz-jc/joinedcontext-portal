@@ -6202,7 +6202,9 @@
       "sources": "Zdroje",
       "question": "Vaša otázka",
       "send": "Odoslať",
-      "failed": "Odpoveď sa nepodarilo načítať. Skúste znova."
+      "failed": "Odpoveď sa nepodarilo načítať. Skúste znova.",
+      "liveData": "Živé dáta",
+      "sourceNumber": "Zdroj {n}"
     },
     "embed": {
       "title": "Vložiť",

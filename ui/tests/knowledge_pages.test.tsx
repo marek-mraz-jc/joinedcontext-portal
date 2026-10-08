@@ -115,8 +115,9 @@ const ANSWER = [
   'event: tool\ndata: {"name":"query_entities","endpoint":"ovzdusie-verejne","status":"started"}',
   'event: tool\ndata: {"name":"query_entities","endpoint":"ovzdusie-verejne","status":"done"}',
   'event: script\ndata: {"code":"return data.length;","output":"4"}',
-  'event: answer\ndata: {"text":"Štyri stanice merajú ovzdušie [1], NO2 je 21 [2]."}',
-  'event: citations\ndata: [{"n":1,"url":"https://www.banskabystrica.sk/ovzdusie"},{"n":2,"tool":"query_entities","endpoint":"ovzdusie-verejne"}]',
+  // T-3325: Markdown, a marker no citation stands behind, two citations of one page, and live data.
+  'event: answer\ndata: {"text":"**Štyri stanice** merajú ovzdušie [1, 3]:\\n- Námestie SNP [2]\\n- Stanica [9]\\n\\nNO2 je 21 [4]. <script>x</script>"}',
+  'event: citations\ndata: [{"n":1,"url":"https://www.banskabystrica.sk/ovzdusie","title":"Ovzdušie v meste"},{"n":2,"url":"https://www.banskabystrica.sk/ovzdusie"},{"n":3,"url":"https://data.example.sk/dataset/ovzdusie"},{"n":4,"tool":"query_entities","endpoint":"ovzdusie-verejne","url":"https://data.example.sk/dataset/ovzdusie","title":"Kvalita ovzdušia"}]',
   'event: done\ndata: {"tokens":900}',
 ].join("\n\n") + "\n\n";
 
@@ -328,13 +329,25 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Ask obcania" });
     expect(within(dialog).getByText(/exactly as it answers a visitor/)).toBeInTheDocument();
     await userEvent.type(within(dialog).getByRole("textbox", { name: "Your question" }), "Kde sú stanice?{Enter}");
-    expect(await within(dialog).findByText("Štyri stanice merajú ovzdušie [1], NO2 je 21 [2].")).toBeInTheDocument();
+    // The answer formatted: bold, a list, markers as links to the sources, an unknown one dropped,
+    // a script tag as text (T-3325, AG-117).
+    const answer = await within(dialog).findByTestId("assistant-answer");
+    expect(within(answer).getByText("Štyri stanice").tagName).toBe("STRONG");
+    expect(within(answer).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Námestie SNP 1", "Stanica "]);
+    expect(within(answer).getAllByRole("link", { name: /^Source / }).map((link) => link.getAttribute("href")?.replace(/^#.*-/, "#"))).toEqual(["#1", "#2", "#1", "#2"]);
+    expect(answer).toHaveTextContent("NO2 je 21 2. <script>x</script>");
+    expect(answer.querySelector("script")).toBeNull();
+    expect(answer).not.toHaveTextContent("[9]");
+    // One source per address, by its title, live data in words and never by its tool.
     const sources = within(dialog).getByRole("list", { name: "Sources" });
-    expect(within(sources).getByRole("link", { name: /https:\/\/www\.banskabystrica\.sk\/ovzdusie/ })).toHaveAttribute(
-      "href",
-      "https://www.banskabystrica.sk/ovzdusie",
-    );
-    expect(within(sources).getByText("query_entities · ovzdusie-verejne")).toBeInTheDocument();
+    const listed = within(sources).getAllByRole("listitem");
+    expect(listed).toHaveLength(2);
+    expect(within(listed[0]).getByRole("link", { name: /Ovzdušie v meste/ })).toHaveAttribute("href", "https://www.banskabystrica.sk/ovzdusie");
+    expect(listed[0]).toHaveTextContent("banskabystrica.sk");
+    expect(within(listed[1]).getByRole("link", { name: /Kvalita ovzdušia/ })).toHaveAttribute("href", "https://data.example.sk/dataset/ovzdusie");
+    expect(sources).not.toHaveTextContent("query_entities");
+    const target = within(answer).getAllByRole("link", { name: "Source 2" })[0].getAttribute("href")?.slice(1) ?? "";
+    expect(document.getElementById(target)).toBe(listed[1]);
     expect(within(dialog).getByText("Script the assistant ran")).toBeInTheDocument();
     expect(writes).toEqual([
       {
@@ -351,7 +364,7 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
       message: "A dnes?",
       history: [
         { role: "user", text: "Kde sú stanice?" },
-        { role: "assistant", text: "Štyri stanice merajú ovzdušie [1], NO2 je 21 [2]." },
+        { role: "assistant", text: "**Štyri stanice** merajú ovzdušie [1, 3]:\n- Námestie SNP [2]\n- Stanica [9]\n\nNO2 je 21 [4]. <script>x</script>" },
       ],
       connectors: [],
     });

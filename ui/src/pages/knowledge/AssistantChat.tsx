@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from "react";
-import type { FormEvent, JSX, KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { FormEvent, JSX, KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Checkbox, ExternalLink, Field, Textarea } from "../../components/ui";
 import { useBranding } from "../../branding";
 import { askAssistant, embedSnippet } from "./knowledge";
 import type { ChatEvent, ChatTurn, Citation } from "./knowledge";
 import { reasonOf } from "../../components/forms/widgets/ListFailed";
+import { label, markdown, sources } from "./answerFormat";
+import type { Block, Inline } from "./answerFormat";
 
 /** What the panel shows of one turn: the person's question or the assistant's answer as it grows. */
 interface Shown {
@@ -16,6 +18,84 @@ interface Shown {
   scripts: { code: string; result: string }[];
   citations: Citation[];
   error?: string;
+}
+
+function inlineNodes(nodes: Inline[], ids: string, position: Record<number, number>, t: (key: string, options?: Record<string, unknown>) => string): ReactNode[] {
+  return nodes.map((node, i) => {
+    if (typeof node === "string") return node;
+    switch (node.tag) {
+      case "br":
+        return <br key={i} />;
+      case "strong":
+        return <strong key={i}>{inlineNodes(node.children, ids, position, t)}</strong>;
+      case "em":
+        return <em key={i}>{inlineNodes(node.children, ids, position, t)}</em>;
+      case "code":
+        return (
+          <code key={i} className="rounded bg-surface-subtle px-1 font-mono text-caption">
+            {inlineNodes(node.children, ids, position, t)}
+          </code>
+        );
+      case "a":
+        return (
+          <ExternalLink key={i} href={node.href}>
+            {inlineNodes(node.children, ids, position, t)}
+          </ExternalLink>
+        );
+      case "cite": {
+        const places = [...new Set(node.numbers.map((n) => position[n]).filter(Boolean))];
+        return (
+          <sup key={i} className="ml-0.5">
+            {places.map((place, j) => (
+              <span key={place}>
+                {j > 0 ? "," : null}
+                <a href={`#${ids}-${place}`} aria-label={t("knowledge.chat.sourceNumber", { n: place })} className="text-primary-soft-fg underline-offset-2 hover:underline">
+                  {place}
+                </a>
+              </span>
+            ))}
+          </sup>
+        );
+      }
+    }
+  });
+}
+
+/** An answer formatted, its markers linked to the sources listed under it (T-3325, AG-117). */
+function Answer({ text, citations, ids }: { text: string; citations: Citation[]; ids: string }): JSX.Element {
+  const { t } = useTranslation();
+  const grouped = sources(citations);
+  const blocks: Block[] = markdown(text, (n) => grouped.position[n] !== undefined);
+  return (
+    <>
+      <div className="space-y-2" data-testid="assistant-answer">
+        {blocks.map((block, i) =>
+          block.tag === "p" ? (
+            <p key={i}>{inlineNodes(block.children, ids, grouped.position, t)}</p>
+          ) : (
+            <block.tag key={i} className={block.tag === "ul" ? "list-disc space-y-1 pl-5" : "list-decimal space-y-1 pl-5"}>
+              {block.children.map((item, j) => (
+                <li key={j}>{inlineNodes(item.children, ids, grouped.position, t)}</li>
+              ))}
+            </block.tag>
+          ),
+        )}
+      </div>
+      {grouped.list.length > 0 ? (
+        <ol aria-label={t("knowledge.chat.sources")} className="mt-2 list-decimal border-t border-border pl-6 pt-2 text-caption">
+          {grouped.list.map((source, i) => {
+            const name = (source.live ? `${t("knowledge.chat.liveData")}: ` : "") + label(source);
+            return (
+              <li key={i} id={`${ids}-${i + 1}`}>
+                {source.url ? <ExternalLink href={source.url}>{name}</ExternalLink> : name}
+                {source.domain && !source.live ? <span className="ml-1 text-fg-muted">{source.domain}</span> : null}
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+    </>
+  );
 }
 
 /** The turns the next question sends back, as API/05 §1.1 bounds them. */
@@ -58,6 +138,7 @@ export function AssistantChat({
   connectors: string[];
 }): JSX.Element {
   const { t } = useTranslation();
+  const ids = useId();
   const [turns, setTurns] = useState<Shown[]>([]);
   const [question, setQuestion] = useState("");
   const [on, setOn] = useState<string[]>(connectors);
@@ -150,7 +231,8 @@ export function AssistantChat({
                 {turn.reading ? t("knowledge.chat.reading", { name: turn.reading }) : t("knowledge.chat.thinking")}
               </p>
             ) : null}
-            {turn.text ? <p className="whitespace-pre-wrap">{turn.text}</p> : null}
+            {turn.text && turn.role === "user" ? <p className="whitespace-pre-wrap">{turn.text}</p> : null}
+            {turn.text && turn.role === "assistant" ? <Answer text={turn.text} citations={turn.citations} ids={`${ids}-${index}`} /> : null}
             {turn.error ? (
               <Alert role="alert" tone="danger">
                 {turn.error}
@@ -173,19 +255,6 @@ export function AssistantChat({
                 <pre className="mt-1 overflow-x-auto rounded bg-surface-subtle p-2">{script.result}</pre>
               </details>
             ))}
-            {turn.citations.length > 0 ? (
-              <ol aria-label={t("knowledge.chat.sources")} className="mt-2 list-decimal pl-6 text-caption">
-                {turn.citations.map((citation) => (
-                  <li key={citation.n} value={citation.n}>
-                    {citation.url ? (
-                      <ExternalLink href={citation.url}>{citation.url}</ExternalLink>
-                    ) : (
-                      [citation.tool, citation.endpoint].filter(Boolean).join(" · ")
-                    )}
-                  </li>
-                ))}
-              </ol>
-            ) : null}
           </li>
         ))}
       </ol>
