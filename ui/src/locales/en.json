@@ -2056,7 +2056,8 @@
       "sizeBy": "Size by",
       "range": "Radius [min, max] px",
       "popup": "Popup properties",
-      "grid": "The grid's configuration"
+      "grid": "The grid's configuration",
+      "q": "Filter (NGSI-LD q)"
     },
     "pages": "Pages",
     "page": "Page {number}",
@@ -2068,7 +2069,19 @@
       "latest": "Latest {property}: {value} ({count} readings)",
       "chartLabel": "{property} of {entity} over time",
       "badGrid": "This grid could not be drawn: {reason}",
-      "historyFailed": "This history could not be read: {reason}"
+      "historyFailed": "This history could not be read: {reason}",
+      "barTitle": "{property} of {type}: entities by value",
+      "histogramTitle": "{property} of {type}: how it spreads",
+      "rest": "other values",
+      "noValues": "No entity holds {property}.",
+      "barAxis": "Number of entities with each value of {property}.",
+      "histogramAxis": "Number of entities in each range of {property}.",
+      "histogramAxisUnit": "Number of entities in each range of {property}, in {unit}.",
+      "counted": "Counted the first {count} entities only.",
+      "entities": "Entities",
+      "row": "{label}: {count}",
+      "timeAxis": "Time in {zone}.",
+      "timeAxisUnit": "Time in {zone}; values in {unit}."
     },
     "emptyHint": "A dashboard is a page of maps and numbers built from endpoints this project can read. Make one, or ask the assistant for a dashboard of what you already publish.",
     "layerEndpointGone": "The endpoint “{name}” is not in this project any more, so this layer has no type or filter to choose from. Choose another endpoint for this layer."
@@ -3624,6 +3637,40 @@
       "truncated": "Only the first {max}: narrow the filter to see the rest.",
       "label": "Map of {type}",
       "open": "Open the entity"
+    },
+    "chart": {
+      "open": "Chart",
+      "title": "Chart an attribute of {type}",
+      "lead": "Pick an attribute: the Portal suggests the chart its values call for. Save it to a dashboard; the dashboard reads through the same endpoint with this view's filter.",
+      "attribute": "Attribute",
+      "pickAttribute": "Pick an attribute",
+      "kind": "Chart",
+      "suggested": "Suggested for this attribute: {kind}.",
+      "kinds": {
+        "temporal-chart": {
+          "label": "Over time",
+          "says": "One entity's values as a line, for an attribute observed over time."
+        },
+        "bar-chart": {
+          "label": "Bars by value",
+          "says": "How many entities hold each value, for a text, a category or a yes/no."
+        },
+        "histogram": {
+          "label": "Histogram",
+          "says": "How a number spreads over ten equal ranges."
+        }
+      },
+      "entity": "Entity",
+      "dashboard": "Save to",
+      "newDashboard": "A new dashboard",
+      "name": "Name of the new dashboard",
+      "nameHelp": "Lowercase letters, digits and hyphens, as an address shows it.",
+      "newTitle": "Charts of {type}",
+      "page": "Charts",
+      "save": "Save to the dashboard",
+      "pickFirst": "Pick an attribute and a chart first.",
+      "badName": "A dashboard name holds lowercase letters, digits and hyphens, at most 63, starting and ending with a letter or a digit.",
+      "gone": "That dashboard is no longer in the project; pick another."
     }
   },
   "agentRun": {
@@ -5374,6 +5421,8 @@
     },
     "widgetType": {
       "temporal-chart": "Chart over time",
+      "bar-chart": "Bars by value",
+      "histogram": "Histogram",
       "grid": "Table"
     },
     "columnFormat": {
@@ -5930,7 +5979,8 @@
     },
     "type": {
       "website": "Website",
-      "ckan": "Data catalogue"
+      "ckan": "Data catalogue",
+      "catalogue": "Context spaces' catalogue"
     },
     "status": {
       "pending": "Not read yet",
@@ -6070,7 +6120,8 @@
       "copied": "Copied",
       "origins": "The site's address must be one of the assistant's allowed origins; any other site's frame stays empty.",
       "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page."
-    }
+    },
+    "everySpace": "every space of the project"
   },
   "mcp": {
     "title": "MCP servers",

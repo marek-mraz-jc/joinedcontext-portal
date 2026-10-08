@@ -152,7 +152,13 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                   <TableCell>
                     {t(`knowledge.type.${row.type}`)}
                     <span className="block text-caption text-fg-muted [overflow-wrap:anywhere]">
-                      {row.type === "website" ? row.startUrls.join(", ") : (row.ckanInstanceRef ?? "")}
+                      {row.type === "website"
+                        ? row.startUrls.join(", ")
+                        : row.type === "catalogue"
+                          ? (row.contextSpaces ?? []).length > 0
+                            ? (row.contextSpaces ?? []).join(", ")
+                            : t("knowledge.everySpace")
+                          : (row.ckanInstanceRef ?? "")}
                     </span>
                   </TableCell>
                   <TableCell>
