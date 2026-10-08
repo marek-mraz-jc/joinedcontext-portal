@@ -20,7 +20,6 @@ district-compare T-3392
 event-day-planner T-3393
 helsinki-alerts T-3394
 helsinki-bikes T-3395
-helsinki-data T-3396
 helsinki-events T-3397
 helsinki-kartta T-3398
 hsl-transport T-3399
