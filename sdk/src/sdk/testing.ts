@@ -279,13 +279,19 @@ function usable(element: Element): boolean {
   return !element.hasAttribute("disabled") && element.getAttribute("aria-disabled") !== "true" && element.closest('[aria-hidden="true"]') === null;
 }
 
+/** An environment variable under vitest, `undefined` in a browser; no Node types needed. */
+function envOf(name: string): string | undefined {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  return env?.[name];
+}
+
 /**
  * Records which controls a test file rendered and which its tests clicked or typed into, for the
  * Apps' coverage gate (T-3373): a control no test exercises fails it. Call it once from the test
  * setup, `recordControls(afterAll)`; it writes one JSON file into `JC_CONTROLS_DIR` when that is set
  * and does nothing otherwise. A disabled or hidden control is not counted.
  */
-export function recordControls(afterAll: (done: () => Promise<void>) => void, dir: string | undefined = typeof process !== "undefined" ? process.env.JC_CONTROLS_DIR : undefined): void {
+export function recordControls(afterAll: (done: () => Promise<void>) => void, dir: string | undefined = envOf("JC_CONTROLS_DIR")): void {
   if (!dir || typeof document === "undefined" || typeof MutationObserver === "undefined") return;
   const rendered = new Set<string>();
   const exercised = new Set<string>();
@@ -317,10 +323,15 @@ export function recordControls(afterAll: (done: () => Promise<void>) => void, di
     take(observer.takeRecords());
     observer.disconnect();
     scan(document);
-    const { mkdirSync, writeFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
+    // Named through a variable, so neither the App's type check (no Node types, AP-82) nor its
+    // bundle sees Node's modules: the record is only ever written under vitest.
+    const fsName = "node:fs";
+    const { mkdirSync, writeFileSync } = (await import(/* @vite-ignore */ fsName)) as {
+      mkdirSync: (path: string, options: { recursive: boolean }) => void;
+      writeFileSync: (path: string, data: string) => void;
+    };
     mkdirSync(dir, { recursive: true });
-    const file = join(dir, `controls-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.json`);
+    const file = `${dir.replace(/\/+$/, "")}/controls-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.json`;
     writeFileSync(file, JSON.stringify({ rendered: [...rendered].sort(), exercised: [...exercised].sort() }));
   });
 }

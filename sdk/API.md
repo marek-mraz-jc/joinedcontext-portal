@@ -443,7 +443,7 @@ Constructs a server function execution context capturing log statements.
 function recordControls(afterAll: (done: () => Promise<void>) => void, dir?: string): void
 function controlId(element: Element): string
 ```
-For the Apps' coverage gate (T-3373): call `recordControls(afterAll)` once in the test setup. With `JC_CONTROLS_DIR` set it writes which controls (`role: name`, from `controlId`) the test file rendered and which a test clicked or typed into; the gate fails a control no test exercises. A disabled or hidden control is not counted; without the directory it does nothing.
+Call `recordControls(afterAll)` in the test setup; the gate (T-3373) fails controls no test uses.
 
 ---
 
