@@ -1302,6 +1302,16 @@
           "POST /api/v1/projects/{project}/changes/{id}/restore"
         ]
       },
+      "undo": {
+        "live": {
+          "spec": "change-history.spec.ts",
+          "test": "the history says the change and its field in words, and undoes it"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/changes/{id}/undo"
+        ]
+      },
       "drift-adopt": {
         "liveOwed": "T-2867",
         "personOnly": "which side of a drift wins is a resolution a person picks, held to propose on Entity",

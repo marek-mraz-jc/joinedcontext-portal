@@ -210,6 +210,35 @@ async fn the_history_filters_by_kind_and_name_and_refuses_what_it_cannot_read() 
     }
 }
 
+/// T-3274: by who proposed it and by the day it was decided, each a filter of its own.
+#[tokio::test]
+async fn the_history_filters_by_person_and_by_day() {
+    let (_forge, state) = world().await;
+    let (_, by_author) = history(&state, "anna", "?author=KOV%C3%81%C4%8C").await;
+    assert_eq!(
+        ids(&by_author),
+        vec!["chg-00000002", "chg-00000001"],
+        "{by_author}"
+    );
+    let (_, nobody) = history(&state, "anna", "?author=peter").await;
+    assert_eq!(ids(&nobody), Vec::<&str>::new(), "{nobody}");
+    let (_, since) = history(&state, "anna", "?since=2026-10-02").await;
+    assert_eq!(ids(&since), vec!["chg-00000002"], "{since}");
+    let (_, until) = history(&state, "anna", "?until=2026-10-01").await;
+    assert_eq!(ids(&until), vec!["chg-00000001"], "{until}");
+    let (_, between) = history(
+        &state,
+        "anna",
+        "?since=2026-10-01&until=2026-10-01&kind=ContextSpace",
+    )
+    .await;
+    assert_eq!(ids(&between), vec!["chg-00000001"], "{between}");
+    for bad in ["?since=yesterday", "?until=2026-13-01", "?since=1.10.2026"] {
+        let (status, body) = history(&state, "anna", bad).await;
+        assert_eq!(status, 400, "{bad}: {body}");
+    }
+}
+
 /// A full page of the forge's says there is an older one, even when none of it was a Change.
 #[tokio::test]
 async fn a_full_forge_page_points_at_the_next_one() {

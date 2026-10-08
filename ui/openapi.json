@@ -5030,6 +5030,33 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "author",
+            "in": "query",
+            "description": "Closed changes whose author's name or e-mail contains this, any case (T-3274).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Closed changes decided on or after this day, `YYYY-MM-DD` (T-3274).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "Closed changes decided on or before this day, `YYYY-MM-DD` (T-3274).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -5473,6 +5500,108 @@
           },
           "409": {
             "description": "Not merged, removed nothing, or the resource is there again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Git forge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/changes/{id}/undo": {
+      "post": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "Undo What a Change Altered",
+        "description": "Proposes, as one new change, every file a merged change modified as it was before, read at the commit its branch was cut from, while each file still holds what that change wrote. Needs `propose` on every kind it puts back (T-3274).",
+        "operationId": "undo_change",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The merged change that modified something: chg- + 8 hex digits",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The undoing change, waiting for an approver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a change id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No `propose` on a kind it puts back",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such change the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not merged, modified nothing, or a file changed again since",
             "content": {
               "application/json": {
                 "schema": {

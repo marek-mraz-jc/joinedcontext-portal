@@ -1445,6 +1445,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/changes/{id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo What a Change Altered
+         * @description Proposes, as one new change, every file a merged change modified as it was before, read at the commit its branch was cut from, while each file still holds what that change wrote. Needs `propose` on every kind it puts back (T-3274).
+         */
+        post: operations["undo_change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ckan/status": {
         parameters: {
             query?: never;
@@ -9467,6 +9487,12 @@ export interface operations {
                 kind?: string;
                 /** @description Closed changes whose resource name contains this, any case. */
                 name?: string;
+                /** @description Closed changes whose author's name or e-mail contains this, any case (T-3274). */
+                author?: string;
+                /** @description Closed changes decided on or after this day, `YYYY-MM-DD` (T-3274). */
+                since?: string;
+                /** @description Closed changes decided on or before this day, `YYYY-MM-DD` (T-3274). */
+                until?: string;
             };
             header?: never;
             path: {
@@ -9805,6 +9831,85 @@ export interface operations {
                 };
             };
             /** @description Not merged, removed nothing, or the resource is there again */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Git forge unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    undo_change: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The merged change that modified something: chg- + 8 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The undoing change, waiting for an approver */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Not a change id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No `propose` on a kind it puts back */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such change the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not merged, modified nothing, or a file changed again since */
             409: {
                 headers: {
                     [name: string]: unknown;

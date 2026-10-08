@@ -249,7 +249,29 @@
       "emptyHint": "Eine Änderung erscheint hier mit der Person, die entschieden hat, sobald sie im Reiter Offen genehmigt oder abgelehnt wurde.",
       "noneOnPage": "Keine dieser Änderungen dürfen Sie lesen. Ältere vielleicht schon.",
       "restore": "Wiederherstellen",
-      "restoreOf": "{name} wiederherstellen"
+      "restoreOf": "{name} wiederherstellen",
+      "author": "Vorgeschlagen von",
+      "since": "Entschieden ab",
+      "until": "Entschieden bis",
+      "whatChanged": "Was sie änderte",
+      "noFields": "Für diese Änderung gibt es kein Feld des Manifests zu zeigen.",
+      "undo": "Rückgängig",
+      "undoOf": "Änderung an {name} rückgängig machen",
+      "said": {
+        "create": "{author} hat {kind} {name} angelegt",
+        "update": "{author} hat {kind} {name} geändert",
+        "delete": "{author} hat {kind} {name} entfernt"
+      },
+      "field": {
+        "set": "{field} auf {to} gesetzt",
+        "removed": "{field} entfernt (war {from})",
+        "changed": "{field} von {from} auf {to} geändert"
+      },
+      "proposed": {
+        "create": "{author} schlug vor, {kind} {name} anzulegen",
+        "update": "{author} schlug vor, {kind} {name} zu ändern",
+        "delete": "{author} schlug vor, {kind} {name} zu entfernen"
+      }
     }
   },
   "lane": {

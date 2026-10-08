@@ -249,7 +249,29 @@
       "emptyHint": "Změna se tu objeví i s tím, kdo o ní rozhodl, jakmile ji na kartě Otevřené schválíte nebo zamítnete.",
       "noneOnPage": "Žádnou z těchto změn nemáte právo číst. Starší možná ano.",
       "restore": "Obnovit",
-      "restoreOf": "Obnovit {name}"
+      "restoreOf": "Obnovit {name}",
+      "author": "Navrhl",
+      "since": "Rozhodnuto od",
+      "until": "Rozhodnuto do",
+      "whatChanged": "Co změnila",
+      "noFields": "U této změny není co ukázat z polí manifestu.",
+      "undo": "Vrátit zpět",
+      "undoOf": "Vrátit zpět změnu {name}",
+      "said": {
+        "create": "{author} vytvořil {kind} {name}",
+        "update": "{author} změnil {kind} {name}",
+        "delete": "{author} odstranil {kind} {name}"
+      },
+      "field": {
+        "set": "nastavil {field} na {to}",
+        "removed": "odstranil {field} (bylo {from})",
+        "changed": "změnil {field} z {from} na {to}"
+      },
+      "proposed": {
+        "create": "{author} navrhl vytvořit {kind} {name}",
+        "update": "{author} navrhl změnit {kind} {name}",
+        "delete": "{author} navrhl odstranit {kind} {name}"
+      }
     }
   },
   "lane": {

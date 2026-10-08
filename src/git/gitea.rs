@@ -374,6 +374,18 @@ impl PullRequest {
             &self.head_sha
         }
     }
+
+    /// The ref the "before" of a change is read at: the base branch while the change is open,
+    /// the commit it was cut from once it is closed. After a merge the base branch already holds
+    /// what the change made, so reading it there showed a merged change as changing nothing
+    /// (T-3274).
+    pub fn base_ref(&self) -> &str {
+        if self.state == "closed" && !self.merge_base.is_empty() {
+            &self.merge_base
+        } else {
+            &self.base_branch
+        }
+    }
 }
 
 /// One commit of the repository, as the revision picker shows it (MF-16, CC-49).

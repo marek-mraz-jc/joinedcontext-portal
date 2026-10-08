@@ -11,7 +11,7 @@ export interface PlanDiffViewerProps {
 }
 
 /** `spec.enabledRepresentations` → "Enabled representations": the last segment, in words. */
-function humanize(path: string): string {
+export function humanize(path: string): string {
   const last = path.replace(/\[\d+\]/g, "").split(".").filter((part) => !/^\d+$/.test(part)).pop() ?? path;
   const words = last.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]/g, " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);

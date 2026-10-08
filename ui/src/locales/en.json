@@ -249,7 +249,29 @@
       "emptyHint": "A change lands here with who decided it once it is approved or rejected on the Open tab.",
       "noneOnPage": "None of these changes is one you may read. Older ones may be.",
       "restore": "Restore",
-      "restoreOf": "Restore {name}"
+      "restoreOf": "Restore {name}",
+      "author": "Proposed by",
+      "since": "Decided from",
+      "until": "Decided until",
+      "whatChanged": "What it changed",
+      "noFields": "No field of the manifest to show for this change.",
+      "undo": "Undo",
+      "undoOf": "Undo the change to {name}",
+      "said": {
+        "create": "{author} created {kind} {name}",
+        "update": "{author} changed {kind} {name}",
+        "delete": "{author} removed {kind} {name}"
+      },
+      "field": {
+        "set": "set {field} to {to}",
+        "removed": "removed {field} (was {from})",
+        "changed": "changed {field} from {from} to {to}"
+      },
+      "proposed": {
+        "create": "{author} proposed to create {kind} {name}",
+        "update": "{author} proposed to change {kind} {name}",
+        "delete": "{author} proposed to remove {kind} {name}"
+      }
     }
   },
   "lane": {
