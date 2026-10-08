@@ -25,6 +25,7 @@ spec:
       ref: main
   build:
     node: "22"
+    rust: "1.90"
   # The events endpoint of Helsinki is public (GW22): an anonymous reader gets what the public
   # role is granted and nothing more.
   visibility: public

@@ -25,6 +25,7 @@ spec:
       ref: main
   build:
     node: "22"
+    rust: "1.90"
   # For the operator: the people of the project, viewer and steward alike.
   visibility: project
   lifecycle: published

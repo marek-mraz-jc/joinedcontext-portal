@@ -5,6 +5,7 @@ import { JcProvider, ProblemError } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
 import { AnalyserContext } from "./analysis";
+import { NETWORK_ROWS } from "./fixtures/network";
 import { HISTORY } from "./fixtures/vehicles";
 import { inProcess } from "./test-analyser";
 
@@ -19,8 +20,8 @@ vi.mock("maplibre-gl", () => ({
 
 const READ = { permissions: [{ resource: { type: "Vehicle" }, actions: ["retrieveTemporal"], attributes: "*" as const }], prohibitions: [] };
 
-function client(temporal: unknown[] = HISTORY) {
-  return stubClient({ entities: [], temporal: temporal as { id: string; type: string }[], access: READ }, { appName: "transit-reach" });
+function client(temporal: unknown[] = HISTORY, entities: NonNullable<Parameters<typeof stubClient>[0]>["entities"] = []) {
+  return stubClient({ entities, temporal: temporal as { id: string; type: string }[], access: READ }, { appName: "transit-reach" });
 }
 
 function show(c = client()) {
@@ -56,8 +57,10 @@ describe("transit-reach", () => {
     ]);
     expect(screen.getByRole("application", { name: /^Kartta: saavutettava alue\./ })).toBeInTheDocument();
     expect(c.transport.calls.every((call) => call.method === "GET" && call.path.includes("/api/endpoint/"))).toBe(true);
-    expect(c.transport.calls[0].path).toContain("/temporal/entities");
-    expect(c.transport.calls[0].path).toContain("attrs=location%2Cspeed%2Croute");
+    // HSL's stops and lines are read first; this space has none, so the vehicles' history follows.
+    expect(c.transport.calls.filter((call) => /type=(GtfsStop|TransitRoute)/.test(call.path))).toHaveLength(2);
+    const temporal = c.transport.calls.find((call) => call.path.includes("/temporal/entities"));
+    expect(temporal?.path).toContain("attrs=location%2Cspeed%2Croute");
   });
 
   it("starts from a stop picked in the list or from the reached stops, and the address carries the point", async () => {
@@ -106,5 +109,33 @@ describe("transit-reach", () => {
     expect(screen.getByRole("heading", { level: 1, name: "How far can I get by transit" })).toBeInTheDocument();
     expect(await screen.findByText(/^Reachable from this point: 10 min \d+\.\d km², /)).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
+  });
+
+  // T-3356: with HSL's stops and lines in the space, the answer rides the whole network and names
+  // the stops; the vehicles' history is not read at all.
+  it("rides HSL's network when the space holds it, names the stops, and reads no vehicle history", async () => {
+    const c = show(client(HISTORY, NETWORK_ROWS));
+    expect(await screen.findByText(/^Pysäkit ja linjat HSL:n rekistereistä \(4 pysäkkiä, 2 linjaversiota\)\./)).toBeInTheDocument();
+    const reached = screen.getByRole("list", { name: "Pysäkit 30 minuutissa" });
+    expect(within(reached).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Rautatientori (H0019): linjat M1",
+      "Kaisaniemi (H0012): linjat 550, M1",
+      "Hakaniemi (H0026): linjat M1",
+      "Kaisaniemenranta: linjat 550",
+    ]);
+    expect(screen.queryByRole("combobox", { name: "Ajoneuvojen historia" })).toBeNull();
+    expect(c.transport.calls.some((call) => call.path.includes("/temporal/entities"))).toBe(false);
+  });
+
+  it("says HSL's stops could not be read, and answers from the vehicles instead", async () => {
+    const c = client(HISTORY, NETWORK_ROWS);
+    const list = c.entities.list.bind(c.entities);
+    c.entities.list = (async (type: string, query?: Parameters<typeof list>[1]) => {
+      if (type === "GtfsStop") throw new ProblemError(502, { title: "Bad Gateway", status: 502 });
+      return list(type, query);
+    }) as typeof c.entities.list;
+    show(c);
+    expect(await screen.findByText(/HSL:n pysäkkejä ja linjoja ei voitu lukea \(HTTP 502\)/)).toBeInTheDocument();
+    expect(await screen.findByText(FI_SUMMARY)).toBeInTheDocument();
   });
 });

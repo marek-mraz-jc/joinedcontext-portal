@@ -1,10 +1,12 @@
-//! How far one gets by transit from any point of Helsinki in 10, 20 and 30 minutes (T-3331),
-//! computed in the visitor's browser: stops and rides derived from where and when vehicles stood
-//! still, then a walk to a stop, a wait, rides and changes, and a walk on, onto a hexagon grid. One
-//! call, JSON in and JSON out, from a Web Worker.
+//! How far one gets by transit from any point of Helsinki in 10, 20 and 30 minutes (T-3331,
+//! T-3356), computed in the visitor's browser: HSL's stops and lines when the space holds them,
+//! else stops and rides derived from where and when vehicles stood still; then a walk to a stop, a
+//! wait, rides and changes, and a walk on, onto a hexagon grid. One call, JSON in and JSON out,
+//! from a Web Worker.
 
 pub mod dbscan;
 pub mod geo;
+pub mod network;
 pub mod reach;
 pub mod stops;
 
@@ -13,6 +15,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
+use network::{build, Label, Network};
 use reach::{hexes_reached, stops_reached, Rules};
 use stops::{derive, Reading};
 
@@ -73,7 +76,11 @@ fn default_hex() -> f64 {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Input {
+    #[serde(default)]
     pub vehicles: Vec<Vehicle>,
+    /// HSL's stops and lines; used over the vehicles when it holds a stop and a line.
+    #[serde(default)]
+    pub network: Option<Network>,
     pub origin: LonLat,
     /// The minutes each band ends at, ascending; the last is how far the search looks.
     #[serde(default = "default_bands")]
@@ -91,6 +98,9 @@ pub struct Input {
 pub struct StopOut {
     pub lon: f64,
     pub lat: f64,
+    /// The stop's name and sign code, from HSL's register; none for a derived stop.
+    pub name: Option<String>,
+    pub code: Option<String>,
     pub vehicles: usize,
     pub routes: Vec<String>,
     /// When it is reached on foot from the point; `None` beyond the last band.
@@ -118,6 +128,8 @@ pub struct Band {
 #[serde(rename_all = "camelCase")]
 pub struct Output {
     pub origin: LonLat,
+    /// What the stops and rides came from: `network` (HSL's registers) or `vehicles`.
+    pub source: &'static str,
     pub vehicles: usize,
     pub readings: usize,
     pub first: Option<f64>,
@@ -175,7 +187,22 @@ pub fn run(input: &Input) -> Result<Output, String> {
 
     let vehicles: Vec<Vec<Reading>> = input.vehicles.iter().map(readings_of).collect();
     let times: Vec<f64> = vehicles.iter().flatten().map(|r| r.t).collect();
-    let (stops, rides) = derive(&vehicles);
+    let (stops, labels, rides, source) = match input.network.as_ref().map(build) {
+        Some((stops, labels, rides)) if !stops.is_empty() && !rides.is_empty() => {
+            (stops, labels, rides, "network")
+        }
+        _ => {
+            let (stops, rides) = derive(&vehicles);
+            let labels = vec![
+                Label {
+                    name: None,
+                    code: None
+                };
+                stops.len()
+            ];
+            (stops, labels, rides, "vehicles")
+        }
+    };
     let origin = geo::to_metres(lon, lat);
     let at = stops_reached(
         origin,
@@ -220,6 +247,7 @@ pub fn run(input: &Input) -> Result<Output, String> {
     let routes: BTreeSet<String> = rides.iter().map(|r| r.route.clone()).collect();
     Ok(Output {
         origin: input.origin,
+        source,
         vehicles: vehicles.iter().filter(|v| !v.is_empty()).count(),
         readings: times.len(),
         first: times.iter().copied().reduce(f64::min),
@@ -227,9 +255,12 @@ pub fn run(input: &Input) -> Result<Output, String> {
         stops: stops
             .iter()
             .zip(&at)
-            .map(|(s, m)| StopOut {
+            .zip(labels)
+            .map(|((s, m), label)| StopOut {
                 lon: s.lon,
                 lat: s.lat,
+                name: label.name,
+                code: label.code,
                 vehicles: s.vehicles,
                 routes: s.routes.clone(),
                 minutes: m.map(|m| (m * 10.0).round() / 10.0),
@@ -314,6 +345,38 @@ mod tests {
             .all(|c| c["minutes"].as_f64().unwrap_or(99.0) <= 30.0));
         assert_eq!(out["vehicles"], 2);
         assert_eq!(out["readings"], 14);
+    }
+
+    #[test]
+    fn hsls_stops_and_lines_are_used_over_the_vehicles_and_name_the_stops() {
+        let stop = |id: &str, x: f64, name: &str, code: &str| json!({ "id": id, "lon": east(x), "lat": A.1, "name": name, "code": code });
+        let out = answer(json!({
+            "vehicles": [vehicle("a", 0.0), vehicle("b", 20.0 * MIN)],
+            "network": {
+                "stops": [stop("1", 0.0, "Rautatientori", "H0019"), stop("2", 4000.0, "Kalasatama", "H0026")],
+                "routes": [{ "name": "M1", "mode": "metro", "stops": ["1", "2"] }]
+            },
+            "origin": { "lon": A.0, "lat": A.1 }
+        }));
+        assert_eq!(out["source"], "network");
+        assert_eq!(out["stops"][1]["name"], "Kalasatama");
+        assert_eq!(out["stops"][1]["code"], "H0026");
+        assert_eq!(out["stops"][1]["routes"], json!(["M1"]));
+        // 5 min wait, 4 km × 1.2 at 40 km/h is 7.2 min.
+        assert_eq!(out["stops"][1]["minutes"], 12.2);
+        assert_eq!(out["routes"], json!(["M1"]));
+    }
+
+    #[test]
+    fn an_empty_network_falls_back_to_the_vehicles() {
+        let out = answer(json!({
+            "vehicles": [vehicle("a", 0.0), vehicle("b", 20.0 * MIN)],
+            "network": { "stops": [], "routes": [] },
+            "origin": { "lon": A.0, "lat": A.1 }
+        }));
+        assert_eq!(out["source"], "vehicles");
+        assert_eq!(out["stops"].as_array().map(Vec::len), Some(2));
+        assert_eq!(out["stops"][0]["name"], Value::Null);
     }
 
     #[test]

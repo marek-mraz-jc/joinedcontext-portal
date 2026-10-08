@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
+import type { Row } from "@joinedcontext/sdk";
 import { stubTransport } from "@joinedcontext/sdk/testing";
 import { HISTORY } from "../src/fixtures/vehicles";
 
@@ -28,11 +29,18 @@ export interface Served {
 }
 
 /** Serves the built bundle at the root of the App's own host, with the SDK's stub answering its endpoint. */
-export async function serve(page: Page, temporal: unknown[] = HISTORY): Promise<Served> {
+export async function serve(page: Page, temporal: unknown[] = HISTORY, entities: Row[] = []): Promise<Served> {
   const transport = stubTransport({
-    entities: [],
+    entities,
     temporal: temporal as { id: string; type: string }[],
-    access: { permissions: [{ resource: { type: "Vehicle" }, actions: ["retrieveTemporal"], attributes: "*" }], prohibitions: [] },
+    access: {
+      permissions: [
+        { resource: { type: "Vehicle" }, actions: ["retrieveTemporal"], attributes: "*" },
+        { resource: { type: "GtfsStop" }, actions: ["queryEntity"], attributes: "*" },
+        { resource: { type: "TransitRoute" }, actions: ["queryEntity"], attributes: "*" },
+      ],
+      prohibitions: [],
+    },
   });
   const served: Served = { outside: [], missing: [], problems: [] };
   page.on("pageerror", (error) => served.problems.push(error.message));

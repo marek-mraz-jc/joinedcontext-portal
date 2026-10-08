@@ -620,8 +620,15 @@ pub fn content_security_policy(
         );
     }
 
+    // WebAssembly for the static `ui` App alone (AP-142): a pod App's server sends its own page,
+    // and its policy stays the narrower one.
+    let scripts = if spec.class == jc_core::kinds::AppClass::Ui {
+        "'self' 'wasm-unsafe-eval'"
+    } else {
+        "'self'"
+    };
     format!(
-        "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; \
+        "default-src 'self'; base-uri 'self'; object-src 'none'; script-src {scripts}; \
          style-src 'self' 'unsafe-inline'; img-src {img}; font-src 'self' data:; \
          form-action 'self'; connect-src {}; frame-src {}; frame-ancestors {frame_ancestors}",
         connect.join(" "),
@@ -800,6 +807,11 @@ mod tests {
             script_sources("default-src 'self'; script-src 'self' 'unsafe-eval'"),
             ["'self'", "'unsafe-eval'"]
         );
+        // A pod App keeps the narrower policy: no WebAssembly compilation it never asked for.
+        let mut pod = spec();
+        pod.class = jc_core::kinds::AppClass::UiRust;
+        let csp = content_security_policy(&pod, Some(PORTAL), None);
+        assert_eq!(script_sources(&csp), ["'self'"], "{csp}");
     }
 
     #[test]
