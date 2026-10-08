@@ -175,10 +175,12 @@ async fn serve(
     // No `X-Frame-Options`: its `SAMEORIGIN` would refuse the Portal, whose host is not the apps
     // origin, and `frame-ancestors` says who may frame the App (AP-122).
     let basemap = crate::api::basemap::route_prefix(&state.config, &project);
-    if let Ok(csp) = HeaderValue::from_str(&content_security_policy(
+    let policy =
+        content_security_policy(&spec, portal_origin(&state).as_deref(), basemap.as_deref());
+    if let Ok(csp) = HeaderValue::from_str(&with_store(
+        &policy,
         &spec,
-        portal_origin(&state).as_deref(),
-        basemap.as_deref(),
+        state.config.apps_store_origin.as_deref(),
     )) {
         response
             .headers_mut()
@@ -620,9 +622,12 @@ pub fn content_security_policy(
         );
     }
 
-    // WebAssembly for the static `ui` App alone (AP-142): a pod App's server sends its own page,
-    // and its policy stays the narrower one.
-    let scripts = if spec.class == jc_core::kinds::AppClass::Ui {
+    // WebAssembly for the statically served interfaces, `ui` and `wasm` (AP-142, AP-148): a pod
+    // App's server sends its own page, and its policy stays the narrower one.
+    let scripts = if matches!(
+        spec.class,
+        jc_core::kinds::AppClass::Ui | jc_core::kinds::AppClass::Wasm
+    ) {
         "'self' 'wasm-unsafe-eval'"
     } else {
         "'self'"
@@ -634,6 +639,25 @@ pub fn content_security_policy(
         connect.join(" "),
         frame.join(" ")
     )
+}
+
+/// `policy` with the object store's public origin added to `connect-src`, exactly that origin,
+/// for a `wasm` App that declares blob storage: its browser sends presigned uploads and downloads
+/// there itself (AP-145, T-3359). Any other App, or no configured origin, keeps `policy` as it is.
+pub fn with_store(policy: &str, spec: &AppSpec, store: Option<&str>) -> String {
+    let stores_files = spec.class == jc_core::kinds::AppClass::Wasm
+        && spec
+            .storage
+            .as_ref()
+            .is_some_and(|storage| storage.blob.is_some());
+    match store {
+        Some(origin) if stores_files => policy.replacen(
+            "connect-src 'self'",
+            &format!("connect-src 'self' {origin}"),
+            1,
+        ),
+        _ => policy.to_owned(),
+    }
 }
 
 /// Whether a bundle path is a build output named by its content, `assets/{name}-{hash}.{ext}` as
@@ -742,6 +766,47 @@ mod tests {
     }
 
     const PORTAL: &str = "https://portal.example.sk";
+
+    /// T-3359: a wasm App that stores files reaches the store's public origin, that origin
+    /// alone; one without blob storage, any other App, or no configured origin gains nothing.
+    #[test]
+    fn a_storing_wasm_app_reaches_the_stores_origin_alone() {
+        let wasm = |storage: serde_json::Value| -> AppSpec {
+            serde_json::from_value(serde_json::json!({
+                "kind": "wasm",
+                "source": { "path": "." },
+                "build": { "node": "22", "rust": "1.90" },
+                "dataNeeds": [],
+                "storage": storage,
+            }))
+            .expect("a wasm app")
+        };
+        const STORE: &str = "https://files.example.sk";
+        let storing = wasm(serde_json::json!({ "blob": {} }));
+        let policy = content_security_policy(&storing, Some(PORTAL), None);
+        let added = with_store(&policy, &storing, Some(STORE));
+        assert!(
+            added.contains("connect-src 'self' https://files.example.sk;"),
+            "{added}"
+        );
+        assert_eq!(
+            added.matches(STORE).count(),
+            1,
+            "connect-src alone: {added}"
+        );
+        assert!(
+            added.contains("script-src 'self' 'wasm-unsafe-eval'"),
+            "its interface computes like a ui App's"
+        );
+        let sql_only = wasm(serde_json::json!({ "sql": {} }));
+        let policy = content_security_policy(&sql_only, Some(PORTAL), None);
+        assert_eq!(with_store(&policy, &sql_only, Some(STORE)), policy);
+        let ui = spec();
+        let policy = content_security_policy(&ui, Some(PORTAL), None);
+        assert_eq!(with_store(&policy, &ui, Some(STORE)), policy);
+        let policy = content_security_policy(&storing, Some(PORTAL), None);
+        assert_eq!(with_store(&policy, &storing, None), policy);
+    }
 
     #[test]
     fn a_plain_app_is_framed_by_the_portal_alone_and_talks_only_to_the_platform() {
