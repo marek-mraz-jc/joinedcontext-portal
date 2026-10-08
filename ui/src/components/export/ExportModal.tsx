@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
-import { Button, Dialog, DialogClose, Field, RadioGroup, Select } from "../ui";
+import { Button, Dialog, DialogClose, Field, InlineError, RadioGroup, Select } from "../ui";
 
 /** `git` is one bundle per repository of a project in its own repository (MF-45). */
 export type ExportFormat = "yaml" | "json" | "zip" | "git";
@@ -218,9 +218,9 @@ export function ExportModal({
 
         <p className="text-caption text-fg-muted">{t("export.secretsNote")}</p>
         {refused ? (
-          <p role="alert" className="text-caption text-danger">
+          <InlineError>
             {t("export.refused", { reason: refused })}
-          </p>
+          </InlineError>
         ) : null}
       </div>
     </Dialog>

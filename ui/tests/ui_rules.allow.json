@@ -54,10 +54,6 @@
       "group": "ui-forms",
       "reason": "the closed dock is a 56 px round floating button; the shared Button fixes h-6..h-11 and a rounded-md, and a class passed to override them wins or loses by CSS source order. It carries the Portal focus-ring and a shadow token, and says so on the line."
     },
-    "src/components/forms/widgets/ListFailed.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
     "src/pages/apps/QuestionOptions.tsx": {
       "lines": 1,
       "group": "ui-parts",
@@ -65,7 +61,8 @@
     },
     "src/pages/models/SmartDataModelsImport.tsx": {
       "lines": 1,
-      "group": "ui-parts"
+      "group": "ui-parts",
+      "reason": "a model in the import list is a two-line option (its title over its id) with aria-current; the shared Button is one line of fixed height, so this stays a plain button with the Portal focus ring (T-3281)."
     }
   },
   "size_is_on_the_scale": {

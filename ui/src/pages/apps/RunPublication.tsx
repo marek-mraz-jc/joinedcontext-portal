@@ -7,7 +7,7 @@ import { approvalStanding, changedKind } from "../../api/approval";
 import { usePermissions } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
-import { Button, buttonClass, SourceLink } from "../../components/ui";
+import { Button, buttonClass, InlineError, SourceLink } from "../../components/ui";
 
 /**
  * Where an application lives and how it goes live (AP-71): its source in Git and its copy on GitHub
@@ -131,11 +131,11 @@ export function RunPublication({
       ) : null}
 
       {approve.error ? (
-        <p role="alert" className="basis-full text-danger">
+        <InlineError className="basis-full">
           {approve.error instanceof ApiError
             ? (approve.error.problem?.detail ?? approve.error.message)
             : t("app.error.generic")}
-        </p>
+        </InlineError>
       ) : null}
     </section>
   );

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Button, InlineError } from "../../ui";
 
 /**
  * Why a choice is empty: the list could not be asked for (UI-44, T-1502).
@@ -23,14 +24,14 @@ export function ListFailed({
 }): React.JSX.Element {
   const { t } = useTranslation();
   return (
-    <p id={id} role="alert" className="text-caption text-danger">
+    <InlineError id={id}>
       {what}: {t("form.listFailed", { reason })}{" "}
       {onRetry ? (
-        <button type="button" className="underline hover:no-underline" onClick={onRetry}>
+        <Button size="xs" variant="ghost" onClick={onRetry}>
           {t("form.listRetry")}
-        </button>
+        </Button>
       ) : null}
-    </p>
+    </InlineError>
   );
 }
 

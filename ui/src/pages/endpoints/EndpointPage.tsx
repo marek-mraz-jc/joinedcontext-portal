@@ -49,13 +49,14 @@ import {
   Button,
   Checkbox,
   Field,
+  Icon,
+  InlineError,
   Input,
   PageHeader,
+  safeHref,
   Select,
   SourceLink,
   Term,
-  Icon,
-  safeHref,
 } from "../../components/ui";
 import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
@@ -809,9 +810,9 @@ function FilterForm({
             ))}
           </div>
           {noType ? (
-            <p role="alert" className="text-caption text-danger">
+            <InlineError>
               {t("endpoints.filterEditor.noType")}
-            </p>
+            </InlineError>
           ) : null}
         </fieldset>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1183,9 +1184,9 @@ function AreaFromBox({ onSet }: { onSet: (geoQ: string) => void }): JSX.Element 
         </Button>
       </div>
       {shown && fault ? (
-        <p role="alert" className="text-caption text-danger">
+        <InlineError>
           {t(`endpoints.area.fault.${fault}`)}
-        </p>
+        </InlineError>
       ) : null}
       <p className="text-caption text-fg-muted">{t("endpoints.area.hint")}</p>
     </div>
@@ -1333,9 +1334,9 @@ function ConditionBuilder({
         </Button>
       </div>
       {invalid ? (
-        <p role="alert" className="text-caption text-danger">
+        <InlineError>
           {invalid}
-        </p>
+        </InlineError>
       ) : null}
       <p className="text-caption text-fg-muted">{t("endpoints.condition.hint")}</p>
     </div>

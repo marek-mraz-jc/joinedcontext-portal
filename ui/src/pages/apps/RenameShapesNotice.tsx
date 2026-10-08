@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import { isChange } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
-import { Alert, Button } from "../../components/ui";
+import { Alert, Button, InlineError } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 
 /** The shape names of the previous release and what they are read as (AP-124). */
@@ -80,9 +80,9 @@ export function RenameShapesNotice({
         ))}
       </ul>
       {failure ? (
-        <p role="alert" className="mt-2 text-danger">
+        <InlineError className="mt-2">
           {failure}
-        </p>
+        </InlineError>
       ) : null}
     </Alert>
   );

@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Field, FileDropZone, Input } from "../../components/ui";
+import { Button, Field, FileDropZone, InlineError, Input } from "../../components/ui";
 
 /** What a question asks the person to hand over besides choosing (T-2694, API/04 section 5). */
 export interface QuestionInput {
@@ -109,9 +109,9 @@ export function QuestionData({
           }}
         >
           {problem ? (
-            <p role="alert" className="text-caption text-danger">
+            <InlineError>
               {problem}
-            </p>
+            </InlineError>
           ) : null}
         </FileDropZone>
       ) : null}

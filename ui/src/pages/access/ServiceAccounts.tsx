@@ -25,6 +25,7 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   Dialog,
   EmptyState,
   Field,
@@ -636,29 +637,19 @@ function KeyTable({
                       </>
                     )}
                   </div>
-                  {confirming === key.keyId ? (
-                    <div
-                      role="alertdialog"
-                      aria-label={t("access.keys.revokeConfirm", { keyId: key.keyId })}
-                      className="mt-2 flex flex-wrap items-center justify-end gap-2 rounded border border-danger bg-danger-soft p-2 text-caption"
-                    >
-                      <span>{t("access.keys.revokeConfirm", { keyId: key.keyId })}</span>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={busy}
-                        onClick={() => revoke.mutate(key.keyId)}
-                      >
-                        {t("access.keys.revokeNow")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => setConfirming(null)}
-                      >
-                        {t("form.cancel")}
-                      </Button>
-                    </div>
-                  ) : null}
+                  {/* The shared question (T-3281): it was a strip in the row that called itself an
+                      alert dialog without being one, so focus never went to it. */}
+                  <ConfirmDialog
+                    open={confirming === key.keyId}
+                    onOpenChange={(open) => {
+                      if (!open) setConfirming(null);
+                    }}
+                    title={t("access.keys.revokeConfirm", { keyId: key.keyId })}
+                    confirmLabel={t("access.keys.revokeNow")}
+                    tone="danger"
+                    pending={busy}
+                    onConfirm={() => revoke.mutate(key.keyId)}
+                  />
                 </TableCell>
               </TableRow>
             ))}

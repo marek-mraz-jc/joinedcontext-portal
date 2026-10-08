@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { searchEntities } from "../../../api/gateway";
 import type { GatewayEntity } from "../../../api/gateway";
-import { Input } from "../../ui";
+import { InlineError, Input } from "../../ui";
 import { useShownErrors } from "../touched";
 
 /** An NGSI-LD entity id, as a person pastes one. */
@@ -150,9 +150,9 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
           aria-describedby={ariaDescribedByIds(id)}
           aria-invalid={hasErrors ? "true" : undefined}
         />
-        <p role="alert" className="mt-1 text-sm text-danger">
+        <InlineError className="mt-1">
           {t("form.invalid")}
-        </p>
+        </InlineError>
       </div>
     );
   }

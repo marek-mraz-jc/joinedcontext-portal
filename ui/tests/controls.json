@@ -292,7 +292,7 @@
     },
     "src/components/forms/widgets/ListFailed.tsx": {
       "controls": {
-        "button": 1
+        "Button": 1
       },
       "tests": [
         "list_failed_says_why.test.tsx"
@@ -657,7 +657,7 @@
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
-        "Button": 11
+        "Button": 9
       },
       "tests": [
         "service_accounts_view.test.tsx",
@@ -1068,7 +1068,7 @@
     },
     "src/pages/gallery/Gallery.tsx": {
       "controls": {
-        "Button": 18,
+        "Button": 19,
         "Checkbox": 2,
         "FilePicker": 1,
         "RadioGroup": 1,
@@ -1498,7 +1498,6 @@
         "Button": 7
       },
       "tests": [
-        "endpoint_admits_person.test.ts",
         "part_space_inside.test.tsx",
         "space_inside.test.tsx"
       ]

@@ -272,6 +272,19 @@ describe("what nothing in the UI may do", () => {
     expect(everywhere(/[\w)\]}]\s+as\s+never\b/)).toEqual([]);
   });
 
+  it("an_error_line_and_a_dialog_are_the_shared_ones", () => {
+    // T-3281: a red `<p role="alert">` came in six sizes and two reds, one of them the white of
+    // text on a red background, and said "error" in colour alone: it is `InlineError`. A
+    // `role="dialog"` on a page was a panel that called itself modal: it is `Dialog` or
+    // `ConfirmDialog`, which move the focus and trap it.
+    const handMade = pages.flatMap((file) =>
+      [...file.text.matchAll(/<p\b[^<>]*\brole="alert"[^<>]*>|\brole="(?:alert)?dialog"/gs)].map(
+        (tag) => `${file.path}:${file.text.slice(0, tag.index).split("\n").length}`,
+      ),
+    );
+    expect(handMade).toEqual([]);
+  });
+
   it("no_code_is_built_from_a_string", () => {
     expect(everywhere(/\beval\(|new Function\(/)).toEqual([]);
   });

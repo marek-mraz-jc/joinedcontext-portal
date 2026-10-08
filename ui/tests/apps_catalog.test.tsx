@@ -427,6 +427,24 @@ describe("apps catalog", () => {
     expect(body.spec.lifecycle).toBe("retired");
   });
 
+  it("asks in a dialog that holds the focus, and Escape leaves the app as it is (T-3281)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = renderCatalog([built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" }))]);
+
+    await choose(user, "Bikes", en.apps.retireAction);
+    const dialog = await screen.findByRole("dialog", { name: en.apps.retire.title.replace("{name}", "Bikes") });
+    expect(dialog).toHaveAttribute("aria-describedby");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    // The page behind is out of reach while it asks.
+    for (let step = 0; step < 6; step += 1) {
+      await user.tab();
+      expect(dialog.contains(document.activeElement)).toBe(true);
+    }
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(writes(fetchMock)).toHaveLength(0);
+  });
+
   // AP-86, AP-87: the host serves a published App only from a build the lane published or the
   // bundle the Portal image ships; one with neither answers 404, so its card opens its page.
   it("opens the app from the card only when something serves it (AP-86, AP-87, T-3038)", async () => {

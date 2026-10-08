@@ -19,7 +19,7 @@ import { usePermissions } from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { reasonOf } from "../../components/forms/widgets/ListFailed";
 import { useOrganizationModels } from "../../components/pickers/organizationModels";
-import { Alert, Button, ConfirmDialog } from "../../components/ui";
+import { Alert, Button, ConfirmDialog, InlineError } from "../../components/ui";
 import { organizationImportName } from "./OrganizationModels";
 
 /** The parts of a LinkML schema that define things an import can bring instead. */
@@ -166,9 +166,9 @@ export function OrganizationCopyOffer({ project, name, source }: { project: stri
     <Alert tone="info">
       <p>{t("models.share.adoptLead", { version: copy.version, importName })}</p>
       {copySource.isError ? (
-        <p role="alert" className="mt-1">
+        <InlineError className="mt-1">
           {t("models.share.copyFailed", { reason: reasonOf(copySource.error, t("app.error.generic")) })}
-        </p>
+        </InlineError>
       ) : null}
       <Button
         size="sm"
@@ -181,9 +181,9 @@ export function OrganizationCopyOffer({ project, name, source }: { project: stri
       </Button>
       {adopt.data ? <ChangeNotice change={adopt.data} project={project} /> : null}
       {adopt.isError ? (
-        <p role="alert" className="mt-2">
+        <InlineError className="mt-2">
           {t("models.share.failed", { reason: reasonOf(adopt.error, t("app.error.generic")) })}
-        </p>
+        </InlineError>
       ) : null}
     </Alert>
   );
