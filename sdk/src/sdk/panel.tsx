@@ -47,6 +47,8 @@ interface Selection {
   /** Whether a shell holds the panel: outside one, a grid keeps its own row detail. */
   inShell: boolean;
   source?: PanelSource;
+  /** The language the App's shell speaks now, which the panel speaks too. */
+  language?: string;
   selected: SelectedEntity | null;
   select(entity: SelectedEntity): void;
   clear(): void;
@@ -59,7 +61,7 @@ interface Selection {
 const SelectionContext = createContext<Selection | null>(null);
 
 /** Holds what is selected and remembers what opened it, so closing gives the focus back. */
-export function EntitySelectionProvider({ children, source }: { children?: ReactNode; source?: PanelSource }): React.JSX.Element {
+export function EntitySelectionProvider({ children, source, language }: { children?: ReactNode; source?: PanelSource; language?: string }): React.JSX.Element {
   const [selected, setSelected] = useState<SelectedEntity | null>(null);
   const [saved, setSaved] = useState(0);
   const markSaved = useCallback(() => setSaved((count) => count + 1), []);
@@ -77,7 +79,10 @@ export function EntitySelectionProvider({ children, source }: { children?: React
     // After the panel is gone, so the focus lands on what opened it and not on nothing.
     if (back && typeof window !== "undefined") window.setTimeout(() => back.isConnected && back.focus(), 0);
   }, []);
-  const value = useMemo(() => ({ inShell: true, source, selected, select, clear, saved, markSaved }), [source, selected, select, clear, saved, markSaved]);
+  const value = useMemo(
+    () => ({ inShell: true, source, language, selected, select, clear, saved, markSaved }),
+    [source, language, selected, select, clear, saved, markSaved],
+  );
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
 
@@ -196,6 +201,7 @@ interface Backing {
 /** The panel of an App that reads through the SDK's client: the reader's own access document decides Edit. */
 function ClientPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
   const client = useClient();
+  const { language: selectionLanguage } = useEntitySelection();
   const user = useMe();
   const { schema, typeSchema } = useSchema(entity.type);
   const { can } = useAccess(entity.endpoint);
@@ -208,7 +214,8 @@ function ClientPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element 
     portal: portalLinkOf(client.config.portal, endpointsOf(client.config).find((one) => one.name === entity.endpoint)?.space ?? client.config.space, entity.id),
     typeSchema,
     defs: schema,
-    language: sdkLanguage(client.config.language),
+    // The shell's language first: an App that switches languages gets its panel switched too.
+    language: sdkLanguage(selectionLanguage ?? client.config.language),
   };
   return <PanelView entity={entity} backing={backing} />;
 }
