@@ -85,3 +85,17 @@ test("a located type opens on the map with the view's filter", async ({ page }) 
   await page.getByRole("tab", { name: "Entities" }).click();
   await expect(page.locator("tbody tr")).toHaveCount(8);
 });
+
+// T-3257: a number charted from the explorer as a histogram, with its axis in words, ready to save.
+test("charts an attribute of the view as the histogram its numbers suggest", async ({ page }) => {
+  await stub(page);
+  await page.goto(`/projects/helsinki/explore?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
+  await expect(page.locator("tbody tr").first()).toBeVisible();
+  await page.getByRole("button", { name: "Chart", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: `Chart an attribute of ${TYPE}` });
+  await dialog.getByLabel("Attribute").selectOption("availableBikeNumber");
+  await expect(dialog.getByRole("radio", { name: "Histogram" })).toBeChecked();
+  await expect(dialog.getByText("Number of entities in each range of availableBikeNumber.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Save to the dashboard" })).toBeEnabled();
+  expect(await axeViolations(page)).toEqual([]);
+});

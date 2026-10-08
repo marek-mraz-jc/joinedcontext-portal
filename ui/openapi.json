@@ -109,6 +109,423 @@
         }
       }
     },
+    "/api/v1/alerts": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List My Alerts",
+        "description": "The caller's alert subscriptions (API/01 §37).",
+        "operationId": "list_alerts",
+        "responses": {
+          "200": {
+            "description": "The caller's subscriptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertSubscriptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The alerts are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Subscribe To An Alert",
+        "description": "Subscribes the caller to a pipeline's, a space's or a type's failure, stale and zero-output alerts, or changes their subscription of the same target (API/01 §37). E-mail is refused while the Portal has no mail relay.",
+        "operationId": "subscribe",
+        "requestBody": {
+          "description": "The project, the scope (`pipeline`, `space` or `type`), its target, the events and the delivery",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAlertSubscription"
+              },
+              "example": {
+                "delivery": "portal",
+                "events": [
+                  "failure",
+                  "zero"
+                ],
+                "project": "helsinki",
+                "scope": "space",
+                "target": "bikes"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertSubscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown scope, event or delivery, or e-mail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A target the caller may not read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "An unknown key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The alerts are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/notices": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List My Alert Notices",
+        "description": "The caller's alert notices, newest first, at most 200, only of pipelines they still may read, with how many are unread (API/01 §37).",
+        "operationId": "list_notices",
+        "responses": {
+          "200": {
+            "description": "The caller's notices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertNotices"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The alerts are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/notices/{id}/read": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mark An Alert Notice Read",
+        "description": "Marks one of the caller's alert notices read (API/01 §37). Another caller's is 404.",
+        "operationId": "read_notice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The notice's id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Read"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such notice of the caller's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The alerts are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/{id}": {
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Stop An Alert",
+        "description": "Removes one of the caller's subscriptions and its notices (API/01 §37). Another caller's is 404.",
+        "operationId": "unsubscribe",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The subscription's id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such subscription of the caller's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The alerts are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alerts/{id}/mute": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mute An Alert",
+        "description": "Mutes one of the caller's subscriptions for 1h, 1d, 7d or forever, or unmutes it with null (API/01 §37).",
+        "operationId": "mute",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The subscription's id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "How long to mute: `1h`, `1d`, `7d` or `forever`; `null` unmutes",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertMute"
+              },
+              "example": {
+                "for": "1d"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertSubscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A duration that is not 1h, 1d, 7d or forever",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such subscription of the caller's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The alerts are not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/app-templates": {
       "get": {
         "tags": [
@@ -130,6 +547,75 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app-templates/{name}/screenshot/{width}": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Read an App Template's Screenshot",
+        "description": "The template as its live demo shows it, at 1440 or 375 pixels wide (T-3306).",
+        "operationId": "screenshot",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "A template's name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "width",
+            "in": "path",
+            "description": "1440 or 375",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A PNG",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such template or width",
             "content": {
               "application/json": {
                 "schema": {
@@ -13424,6 +13910,167 @@
           "expired"
         ]
       },
+      "AlertDelivery": {
+        "type": "string",
+        "enum": [
+          "portal",
+          "digest"
+        ]
+      },
+      "AlertEvent": {
+        "type": "string",
+        "enum": [
+          "failure",
+          "stale",
+          "zero"
+        ]
+      },
+      "AlertMute": {
+        "type": "object",
+        "description": "How long a subscription stays muted, or `null` to unmute.",
+        "properties": {
+          "for": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlertNotice": {
+        "type": "object",
+        "description": "One notice left for a subscriber.",
+        "required": [
+          "id",
+          "subscription",
+          "project",
+          "pipeline",
+          "event",
+          "change",
+          "detail",
+          "createdAt",
+          "read"
+        ],
+        "properties": {
+          "change": {
+            "type": "string",
+            "description": "`opened`, `recovered` or `digest`."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "RFC 3339."
+          },
+          "detail": {
+            "type": "string"
+          },
+          "event": {
+            "$ref": "#/components/schemas/AlertEvent"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "subscription": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The subscription it came from, which \"Mute\" names."
+          }
+        }
+      },
+      "AlertNotices": {
+        "type": "object",
+        "required": [
+          "items",
+          "unread"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertNotice"
+            }
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AlertScope": {
+        "type": "string",
+        "enum": [
+          "pipeline",
+          "space",
+          "type"
+        ]
+      },
+      "AlertSubscription": {
+        "type": "object",
+        "description": "One subscription as the API shows it.",
+        "required": [
+          "id",
+          "project",
+          "scope",
+          "target",
+          "events",
+          "delivery"
+        ],
+        "properties": {
+          "delivery": {
+            "$ref": "#/components/schemas/AlertDelivery"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertEvent"
+            }
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mutedUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC 3339; none when it is not muted."
+          },
+          "project": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AlertScope"
+          },
+          "target": {
+            "type": "string"
+          }
+        }
+      },
+      "AlertSubscriptions": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertSubscription"
+            }
+          }
+        }
+      },
       "AnswerRequest": {
         "type": "object",
         "description": "An answer to one question the agent asked (AG-45).",
@@ -17285,6 +17932,38 @@
           }
         }
       },
+      "NewAlertSubscription": {
+        "type": "object",
+        "description": "What a person asks to be told about.",
+        "required": [
+          "project",
+          "scope",
+          "target",
+          "events",
+          "delivery"
+        ],
+        "properties": {
+          "delivery": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "project": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "Node": {
         "type": "object",
         "description": "One object in the graph.",
@@ -18251,6 +18930,15 @@
           "failed"
         ],
         "properties": {
+          "created": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "What the written records did (T-3304): an id the pipeline never wrote before, a record\nwhose hash changed, one whose hash did not. `null` when the run was reported without hashes.",
+            "minimum": 0
+          },
           "failed": {
             "type": "integer",
             "format": "int64",
@@ -18274,6 +18962,22 @@
           },
           "sent": {
             "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "unchanged": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "updated": {
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int64",
             "minimum": 0
           }

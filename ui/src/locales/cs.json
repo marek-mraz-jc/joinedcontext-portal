@@ -1616,7 +1616,7 @@
       },
       "preset": {
         "title": "Předvolba",
-        "load": "Načtení (DataSource)",
+        "load": "Načtení (zdroj dat)",
         "kpi": "Analýza (KPI)",
         "hint": "Načtení kopíruje záznamy z externího zdroje do prostoru; Analýza počítá ukazatel z toho, co endpoint už poskytuje."
       },
@@ -1828,7 +1828,8 @@
       "minutes": "{count, plural, one {# minuta} few {# minuty} other {# minut}}",
       "same": "stejně",
       "silentBadge": "Nezapsal nic",
-      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu."
+      "silent": "Poslední běh nezapsal nic, zatímco předchozí zapsal {before}. Zdroj možná přestal odpovídat nebo mapování zahodí každý záznam; otevřete log běhu.",
+      "split": "nové: {created}, změněné: {updated}, beze změny: {unchanged}"
     },
     "workbench": {
       "failed": "Krok se nepodařilo spustit; zkuste to znovu.",
@@ -2108,7 +2109,8 @@
       "sizeBy": "Velikost podle",
       "range": "Poloměr [min, max] px",
       "popup": "Atributy v bublině",
-      "grid": "Nastavení tabulky"
+      "grid": "Nastavení tabulky",
+      "q": "Filtr (NGSI-LD q)"
     },
     "pages": "Stránky",
     "page": "Stránka {number}",
@@ -2120,7 +2122,19 @@
       "latest": "Poslední hodnota {property}: {value} ({count} měření)",
       "chartLabel": "{property} entity {entity} v čase",
       "badGrid": "Tuto tabulku nebylo možné zobrazit: {reason}",
-      "historyFailed": "Tuto historii se nepodařilo načíst: {reason}"
+      "historyFailed": "Tuto historii se nepodařilo načíst: {reason}",
+      "barTitle": "{property} typu {type}: entity podle hodnoty",
+      "histogramTitle": "{property} typu {type}: rozložení",
+      "rest": "ostatní hodnoty",
+      "noValues": "Žádná entita nemá {property}.",
+      "barAxis": "Počet entit s každou hodnotou {property}.",
+      "histogramAxis": "Počet entit v každém rozsahu {property}.",
+      "histogramAxisUnit": "Počet entit v každém rozsahu {property}, v jednotce {unit}.",
+      "counted": "Spočítáno jen prvních {count} entit.",
+      "entities": "Entity",
+      "row": "{label}: {count}",
+      "timeAxis": "Čas v pásmu {zone}.",
+      "timeAxisUnit": "Čas v pásmu {zone}; hodnoty v jednotce {unit}."
     },
     "emptyHint": "Nástěnka je stránka s mapami a čísly, postavená z endpointů, které tento projekt umí čist. Vytvořte jednu nebo požádejte asistenta o nástěnku z toho, co už zveřejňujete.",
     "layerEndpointGone": "Endpoint „{name}“ už v tomto projektu není, proto tato vrstva nemá z čeho vybrat typ ani filtr. Vyberte pro tuto vrstvu jiný endpoint."
@@ -3218,7 +3232,9 @@
       "create": "Vytvořit z této",
       "mayNot": "Vaše role v tomto projektu nesmí navrhnout aplikaci.",
       "createTitle": "Vytvořit ze šablony {title}",
-      "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony."
+      "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony.",
+      "screenshot": "{title}, jak ji ukazuje ukázka",
+      "demo": "Otevřít ukázku"
     }
   },
   "appLifecycle": {
@@ -3674,6 +3690,40 @@
       "truncated": "Jen prvních {max}: pro ostatní zužte filtr.",
       "label": "Mapa typu {type}",
       "open": "Otevřít entitu"
+    },
+    "chart": {
+      "open": "Graf",
+      "title": "Graf atributu typu {type}",
+      "lead": "Vyberte atribut: Portál navrhne graf, jaký si jeho hodnoty žádají. Uložte ho na dashboard; dashboard čte přes stejný endpoint s filtrem tohoto pohledu.",
+      "attribute": "Atribut",
+      "pickAttribute": "Vyberte atribut",
+      "kind": "Graf",
+      "suggested": "Navrženo pro tento atribut: {kind}.",
+      "kinds": {
+        "temporal-chart": {
+          "label": "V čase",
+          "says": "Hodnoty jedné entity jako čára, pro atribut sledovaný v čase."
+        },
+        "bar-chart": {
+          "label": "Sloupce podle hodnoty",
+          "says": "Kolik entit má každou hodnotu, pro text, kategorii nebo ano/ne."
+        },
+        "histogram": {
+          "label": "Histogram",
+          "says": "Jak se číslo rozkládá do deseti stejných rozsahů."
+        }
+      },
+      "entity": "Entita",
+      "dashboard": "Uložit do",
+      "newDashboard": "Nový dashboard",
+      "name": "Název nového dashboardu",
+      "nameHelp": "Malá písmena, číslice a pomlčky, jak je ukazuje adresa.",
+      "newTitle": "Grafy typu {type}",
+      "page": "Grafy",
+      "save": "Uložit na dashboard",
+      "pickFirst": "Nejprve vyberte atribut a graf.",
+      "badName": "Název dashboardu tvoří malá písmena, číslice a pomlčky, nejvýše 63, na začátku a konci písmeno nebo číslice.",
+      "gone": "Ten dashboard už v projektu není; vyberte jiný."
     }
   },
   "agentRun": {
@@ -5464,6 +5514,8 @@
     },
     "widgetType": {
       "temporal-chart": "Graf v čase",
+      "bar-chart": "Sloupce podle hodnoty",
+      "histogram": "Histogram",
       "grid": "Tabulka"
     },
     "columnFormat": {
@@ -6020,7 +6072,8 @@
     },
     "type": {
       "website": "Web",
-      "ckan": "Datový katalog"
+      "ckan": "Datový katalog",
+      "catalogue": "Katalog kontextových prostorů"
     },
     "status": {
       "pending": "Ještě nepřečteno",
@@ -6160,7 +6213,8 @@
       "copied": "Zkopírováno",
       "origins": "Adresa webu musí být mezi povolenými původy asistenta; rámec na jiném webu zůstane prázdný.",
       "noDomain": "Tento Portál nezná svou doménu, proto neumí napsat adresu stránky asistenta."
-    }
+    },
+    "everySpace": "každý prostor projektu"
   },
   "mcp": {
     "title": "MCP servery",
@@ -6419,6 +6473,53 @@
       },
       "close": "Zavřít uvítání"
     }
+  },
+  "alerts": {
+    "open": "Upozornění…",
+    "title": "Upozornění pro {name}",
+    "close": "Zavřít",
+    "lead": {
+      "pipeline": "Vyberte, o čem vás u této pipeline upozornit.",
+      "space": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje do tohoto prostoru.",
+      "type": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje tento typ do prostoru."
+    },
+    "events": "Upozornit, když",
+    "event": {
+      "failure": "selže",
+      "stale": "její data zastarají",
+      "zero": "nic nezapíše"
+    },
+    "delivery": "Jak",
+    "portal": "V Portálu, hned",
+    "portalHint": "Jedno upozornění, když to začne, a jedno, když se to spraví, ve schránce nahoře.",
+    "digest": "Denní přehled",
+    "digestHint": "Jedno upozornění denně po 07:00 UTC o tom, co se stalo od posledního.",
+    "email": "E-mailem",
+    "emailHint": "Zatím ne: tento Portál nemá poštovní server.",
+    "noEvent": "Zaškrtněte aspoň jednu událost.",
+    "subscribe": "Upozorňovat mě",
+    "change": "Uložit",
+    "stop": "Zrušit tato upozornění",
+    "active": "Aktivní.",
+    "mutedUntil": "Ztlumeno do {until}.",
+    "mute": "Ztlumit",
+    "muteChoose": "Vyberte…",
+    "muteFor": {
+      "1h": "na hodinu",
+      "1d": "na den",
+      "7d": "na týden",
+      "forever": "dokud se nezruší"
+    },
+    "unmute": "Zrušit ztlumení",
+    "forSpace": "Upozornění",
+    "forType": "Upozornění pro {type}",
+    "notices": "Upozornění",
+    "notice": {
+      "opened": "{pipeline}: {event}",
+      "recovered": "{pipeline} je v pořádku: už {event} neplatí",
+      "digest": "Dnešní přehled, {pipeline}: {event}"
+    },
+    "muteDay": "Ztlumit upozornění {pipeline} na den"
   },
   "help": {
     "title": "Nápověda",

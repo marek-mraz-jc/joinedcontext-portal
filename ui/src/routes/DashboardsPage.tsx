@@ -18,6 +18,7 @@ import type { DenseLayer } from "../components/dashboards/DeckGlOverlay";
 import { GridWidget } from "../components/dashboards/GridWidget";
 import { TypeLink } from "../pages/models/ModelLinks";
 import { TemporalChart } from "../components/dashboards/TemporalChart";
+import { TypeChart } from "../components/dashboards/TypeChart";
 import {
   DashboardEditor,
   dashboardFromManifest,
@@ -79,9 +80,13 @@ interface WidgetSpec {
   endpointRef?: string;
   entityId?: string;
   property?: string;
-  /** A `grid` widget: the entity type it shows and the grid's own configuration (T-1440). */
+  /**
+   * The entity type a `grid` shows (T-1440), or a `bar-chart` or `histogram` counts (UI-93); the
+   * grid's own configuration; the filter a chart over a type reads with.
+   */
   entityType?: string;
   grid?: Record<string, unknown>;
+  q?: string;
 }
 
 interface DashboardSpec {
@@ -603,6 +608,19 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
                 entityId={widget.entityId}
                 property={widget.property}
                 title={t("dashboards.widget.temporalChart", { property: widget.property })}
+              />
+            ) : (widget.widgetType === "bar-chart" || widget.widgetType === "histogram") && slug && widget.entityType && widget.property ? (
+              <TypeChart
+                key={`${widget.widgetType}-${widget.entityType}-${widget.property}-${index}`}
+                slug={slug}
+                entityType={widget.entityType}
+                property={widget.property}
+                q={widget.q}
+                kind={widget.widgetType}
+                title={t(`dashboards.widget.${widget.widgetType === "bar-chart" ? "barTitle" : "histogramTitle"}`, {
+                  property: widget.property,
+                  type: widget.entityType,
+                })}
               />
             ) : (
               <p

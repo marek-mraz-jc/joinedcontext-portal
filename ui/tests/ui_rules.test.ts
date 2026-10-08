@@ -112,6 +112,27 @@ describe("what a page may not do by hand", () => {
     expect(breaches("hand_made_control", /<(?:button|input|select|textarea|table)\b/)).toEqual([]);
   });
 
+  it("a_number_or_a_date_is_written_in_the_persons_language", () => {
+    // `toLocaleString()` with no locale, or an `Intl` formatter with none, speaks the browser's
+    // language: a Slovak page read 9/27/2026 and 1,234.5 (UI-15, T-3278). Every file, shared ones
+    // too: a shared control is where the most numbers are written.
+    expect(
+      breaches(
+        "locale_from_the_portal",
+        /\.toLocale(?:Date|Time)?String\(\s*\)|new Intl\.(?:NumberFormat|DateTimeFormat|RelativeTimeFormat)\(\s*\)/,
+        all,
+      ),
+    ).toEqual([]);
+  });
+
+  it("an_action_does_not_wait_for_a_hover", () => {
+    // A phone has no hover (T-3279): a control drawn only under `group-hover` is one a finger never
+    // finds. Show it, or show it on focus as well.
+    expect(
+      breaches("action_shown_on_hover_only", /\b(?:opacity-0|invisible|hidden)\b[^"'`]*\bgroup-hover:(?!.*group-focus)/, all),
+    ).toEqual([]);
+  });
+
   it("a_colour_is_a_token", () => {
     expect(
       breaches(

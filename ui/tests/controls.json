@@ -66,6 +66,16 @@
         "form_activity_feed.test.tsx"
       ]
     },
+    "src/components/AlertDialog.tsx": {
+      "controls": {
+        "Button": 2,
+        "Checkbox": 1,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "alert_dialog.test.tsx"
+      ]
+    },
     "src/components/DeleteProjectDialog.tsx": {
       "controls": {
         "Button": 4
@@ -189,6 +199,7 @@
         "Button": 1
       },
       "tests": [
+        "chart_widgets.test.tsx",
         "dashboard_pages.test.tsx",
         "part_failures_are_not_waits.test.tsx"
       ]
@@ -1001,6 +1012,15 @@
         "share_flow.test.tsx"
       ]
     },
+    "src/pages/explore/ChartFromView.tsx": {
+      "controls": {
+        "Button": 2,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "explore_chart.test.tsx"
+      ]
+    },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
         "Button": 6
@@ -1475,7 +1495,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 7
       },
       "tests": [
         "endpoint_admits_person.test.ts",

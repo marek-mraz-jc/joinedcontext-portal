@@ -93,6 +93,13 @@ async fn rig_on(issuer: String, realm: Option<MockServer>) -> Rig {
     .await
     .expect("discovery");
     let mirror = Mirror::new();
+    // AG-116: the project's own catalogue, two of its spaces.
+    mirror.upsert(common::envelope(
+        "KnowledgeSource",
+        "spaces",
+        "helsinki",
+        json!({ "source": "catalogue", "contextSpaces": ["air", "mobility"], "visibility": "public" }),
+    ));
     mirror.upsert(common::envelope("KnowledgeSource", "web", "helsinki", json!({
         "source": "website", "startUrls": ["https://www.hel.fi/"], "visibility": "public", "schedule": "0 3 * * *"
     })));
@@ -211,6 +218,14 @@ async fn the_sources_join_the_manifests_with_what_the_assistant_holds() {
     assert_eq!(
         (catalogue["state"].clone(), catalogue["type"].clone()),
         (json!("not-crawled"), json!("ckan"))
+    );
+    let spaces = items
+        .iter()
+        .find(|i| i["source"] == "spaces")
+        .expect("the catalogue of the spaces");
+    assert_eq!(
+        (spaces["type"].clone(), spaces["contextSpaces"].clone()),
+        (json!("catalogue"), json!(["air", "mobility"]))
     );
 }
 

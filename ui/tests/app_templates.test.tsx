@@ -67,6 +67,12 @@ describe("the App templates (T-3263)", () => {
     const card = screen.getByRole("heading", { name: "KPI dashboard" }).closest("li") as HTMLElement;
     expect(card).toHaveTextContent("Show managers how the organization's indicators stand.");
     expect(within(card).getByText("KeyPerformanceIndicator")).toBeInTheDocument();
+    // T-3306: its picture and its demo, a page of fixtures that holds no data.
+    expect(within(card).getByRole("img", { name: "KPI dashboard as its demo shows it" })).toHaveAttribute(
+      "src",
+      "/api/v1/app-templates/kpi-dashboard/screenshot/1440",
+    );
+    expect(within(card).getByRole("link", { name: new RegExp(en.apps.templates.demo) })).toHaveAttribute("href", "/templates/kpi-dashboard/");
     await userEvent.click(within(card).getByRole("button", { name: en.apps.templates.create }));
     const dialog = await screen.findByRole("dialog", { name: "Create from KPI dashboard" });
     expect(within(dialog).getByLabelText(new RegExp(en.apps.generate.prompt))).toHaveValue(templatePrompt(KPI));
