@@ -190,8 +190,14 @@ async fn ask(
 fn summary(name: &str, spec: &KnowledgeSourceSpec) -> Value {
     json!({
         "source": name,
-        "type": match spec.source { SourceType::Website => "website", SourceType::Ckan => "ckan" },
+        "type": match spec.source {
+            SourceType::Website => "website",
+            SourceType::Ckan => "ckan",
+            SourceType::Catalogue => "catalogue",
+        },
         "startUrls": spec.start_urls,
+        // The spaces a catalogue source reads; empty is every space of the project (AG-116).
+        "contextSpaces": spec.context_spaces,
         "ckanInstanceRef": spec.ckan_instance_ref,
         "schedule": spec.schedule,
         "visibility": spec.visibility,
