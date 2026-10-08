@@ -11,8 +11,16 @@ export interface VehicleInput {
   points: { t: number; lon: number; lat: number; speed?: number; route?: string }[];
 }
 
+/** HSL's stops and lines (T-3356): a line names its stops by `id`. */
+export interface NetworkInput {
+  stops: { id: string; lon: number; lat: number; name?: string; code?: string }[];
+  routes: { name: string; mode?: string; stops: string[] }[];
+}
+
 export interface AnalysisInput {
   vehicles: VehicleInput[];
+  /** Used over the vehicles when it holds a stop and a line. */
+  network?: NetworkInput;
   origin: { lon: number; lat: number };
   /** The minutes each band ends at; default 10, 20 and 30. */
   bands?: number[];
@@ -24,6 +32,9 @@ export interface AnalysisInput {
 export interface StopOut {
   lon: number;
   lat: number;
+  /** The name and sign code from HSL's register; `null` for a stop derived from the vehicles. */
+  name: string | null;
+  code: string | null;
   vehicles: number;
   routes: string[];
   /** When it is reached on foot from the point; `null` beyond the last band. */
@@ -44,6 +55,8 @@ export interface Band {
 
 export interface AnalysisOutput {
   origin: { lon: number; lat: number };
+  /** What the stops and rides came from. */
+  source: "network" | "vehicles";
   vehicles: number;
   readings: number;
   first: number | null;
