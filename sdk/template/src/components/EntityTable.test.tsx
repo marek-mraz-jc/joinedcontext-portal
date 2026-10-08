@@ -45,6 +45,19 @@ describe("defaultColumns", () => {
 });
 
 describe("EntityTable", () => {
+  // T-3418: the hooks run before any early return, so an empty table keeps what the reader chose.
+  it("keeps its sort when a filter empties it and then lets rows back in", () => {
+    const view = render(<EntityTable rows={STATIONS} columns={["name", "bikes"]} />);
+    fireEvent.click(screen.getByRole("button", { name: /^bikes/ }));
+    const bikes = () => screen.getByRole("columnheader", { name: /^bikes/ });
+    expect(bikes()).toHaveAttribute("aria-sort", "ascending");
+    view.rerender(<EntityTable rows={[]} columns={["name", "bikes"]} />);
+    expect(screen.queryByRole("table")).toBeNull();
+    view.rerender(<EntityTable rows={STATIONS} columns={["name", "bikes"]} />);
+    expect(bikes()).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("Kamppi");
+  });
+
   it("renders Problem state when error is provided", () => {
     const error = new ProblemError(403, { title: "Forbidden", detail: "Read denied" });
     render(<EntityTable rows={[]} error={error} />);

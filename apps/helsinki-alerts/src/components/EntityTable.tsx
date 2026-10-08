@@ -53,18 +53,6 @@ export function EntityTable<T extends Row = Row>({
   empty?: ReactNode;
   caption?: string;
 }): React.JSX.Element {
-  if (error) {
-    return <Problem error={error} />;
-  }
-
-  if (loading && rows.length === 0) {
-    return <Loading />;
-  }
-
-  if (rows.length === 0) {
-    return <Empty>{empty}</Empty>;
-  }
-
   const resolvedColumns = useMemo<ColumnDef<T>[]>(() => {
     const raw = columns ?? defaultColumns(rows);
     return raw.map((c) => (typeof c === "string" ? { attr: c, label: c } : c));
@@ -111,6 +99,20 @@ export function EntityTable<T extends Row = Row>({
     const start = (safePage - 1) * pageSize;
     return sorted.slice(start, start + pageSize);
   }, [sorted, safePage, pageSize]);
+
+  // After every hook (T-3418): React keeps no hook state across a render that called none, so an
+  // early return above them forgot the sort and the page whenever a filter emptied the table.
+  if (error) {
+    return <Problem error={error} />;
+  }
+
+  if (loading && rows.length === 0) {
+    return <Loading />;
+  }
+
+  if (rows.length === 0) {
+    return <Empty>{empty}</Empty>;
+  }
 
   return (
     <div className="jc-table-wrap">
