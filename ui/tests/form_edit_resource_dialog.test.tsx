@@ -41,7 +41,8 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-const { EditResourceDialog } = await import("../src/components/EditResourceDialog");
+// The dialog itself, not its lazy shell (T-3316): these cases read it the moment it renders.
+const { EditResourceDialogBody: EditResourceDialog } = await import("../src/components/EditResourceDialogBody");
 
 const PROJECT = "banskabystrica";
 const NAME = "zvolen-ovzdusie";

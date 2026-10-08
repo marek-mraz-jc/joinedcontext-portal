@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Button, Field, PermissionGuard, Textarea } from "../components/ui";
 import type { JSX, ReactNode } from "react";
 import { clsx } from "clsx";
@@ -12,8 +12,6 @@ import { api, ApiError, unwrap } from "../api/client";
 import { ConversationPanel } from "../pages/apps/ConversationPanel";
 import { TERMINAL_STATES, useAgentRun } from "../pages/apps/useAgentRun";
 import type { RunEvent } from "../pages/apps/useAgentRun";
-import { ModelFileDrop } from "../pages/models/ModelFileDrop";
-import { AppGenerator } from "../pages/apps/AppGenerator";
 import { appDisplayName, useEndpointTitles } from "../pages/apps/appTitle";
 import {
   DataBar,
@@ -55,6 +53,10 @@ import {
   settlePrefill,
   trail,
 } from "./state";
+
+// The model parser and the app builder load when the dock shows them, not with every page (T-3316).
+const ModelFileDrop = lazy(() => import("../pages/models/ModelFileDrop").then((m) => ({ default: m.ModelFileDrop })));
+const AppGenerator = lazy(() => import("../pages/apps/AppGenerator").then((m) => ({ default: m.AppGenerator })));
 
 /**
  * The assistant, on the right of every page (UI-45, UI-51, UI-52, UI-53).
@@ -438,14 +440,16 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
   const iconButton = "w-8 px-0 text-fg-muted hover:text-fg aria-pressed:bg-primary-soft aria-pressed:text-primary-soft-fg";
 
   const attach = (
-    <ModelFileDrop
-      icon
-      project={activeProject}
-      onPopulate={(source) => {
-        rememberPrefill(`/projects/${activeProject}/models`, { source });
-        void navigate({ to: "/projects/$project/models", params: { project: activeProject } });
-      }}
-    />
+    <Suspense fallback={null}>
+      <ModelFileDrop
+        icon
+        project={activeProject}
+        onPopulate={(source) => {
+          rememberPrefill(`/projects/${activeProject}/models`, { source });
+          void navigate({ to: "/projects/$project/models", params: { project: activeProject } });
+        }}
+      />
+    </Suspense>
   );
 
   // What the running conversation queries: the newest `endpoints` event, else the run record.
@@ -524,13 +528,15 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
           >
             {t("assistant.backToChat")}
           </Button>
-          <AppGenerator
-            project={activeProject}
-            onStarted={(runId) => {
-              setBuilding(false);
-              rememberRun({ project: activeProject, runId });
-            }}
-          />
+          <Suspense fallback={<p className="text-caption text-fg-muted">{t("app.loading")}</p>}>
+            <AppGenerator
+              project={activeProject}
+              onStarted={(runId) => {
+                setBuilding(false);
+                rememberRun({ project: activeProject, runId });
+              }}
+            />
+          </Suspense>
         </div>
       ) : !run ? (
         <>

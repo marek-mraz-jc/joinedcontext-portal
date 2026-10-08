@@ -103,12 +103,20 @@
     },
     "src/components/EditResourceDialog.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 1
       },
       "tests": [
         "edit_prefill.test.tsx",
-        "form_edit_resource_dialog.test.tsx",
+        "lazy_dialogs.test.tsx",
         "permission_guard.test.tsx"
+      ]
+    },
+    "src/components/EditResourceDialogBody.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "form_edit_resource_dialog.test.tsx"
       ]
     },
     "src/components/ErrorBoundary.tsx": {
@@ -162,19 +170,14 @@
         "part_language_switcher.test.tsx"
       ]
     },
-    "src/components/ResourceFormDialog.tsx": {
+    "src/components/ResourceFormDialogBody.tsx": {
       "controls": {
         "Button": 5,
         "Checkbox": 1
       },
       "tests": [
         "draft_form.test.tsx",
-        "draft_form_defaults.test.tsx",
-        "form_asks_the_assistant.test.tsx",
-        "form_empty_check_marks_the_field.test.tsx",
-        "form_required_reference_check.test.tsx",
-        "form_resource_form_dialog.test.tsx",
-        "resource_form_dialog.test.tsx"
+        "form_empty_check_marks_the_field.test.tsx"
       ]
     },
     "src/components/SaveAsDialog.tsx": {
