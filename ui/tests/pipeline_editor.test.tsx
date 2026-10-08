@@ -844,6 +844,8 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       en.pipelines.runs.open,
       en.pipelines.rejected.open,
+      // The person's own alerts on this pipeline (T-3261).
+      en.alerts.open,
       en.resourceEdit.button,
       en.saveAs.button,
       en.workspaces.open.action,
