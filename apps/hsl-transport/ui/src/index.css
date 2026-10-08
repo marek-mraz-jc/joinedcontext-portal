@@ -13,7 +13,10 @@
     --ink: #e2e8f0;
     --muted: #94a3b8;
     --line: #1e293b;
-    /* The SDK's cards read these; without them a card stays light under the dark page's ink. */
+    /* The SDK's shell, panel and cards read these; without them they stay light under the dark
+       page's ink. */
+    --jc-color-surface: #0f172a;
+    --jc-color-accent: #93c5fd;
     --jc-color-card: #111c33;
     --jc-color-line: #1e293b;
     --jc-color-ink: #e2e8f0;
@@ -148,4 +151,17 @@ body {
    (axe link-in-text-block, T-3045); the element is the library's DOM, so it is dressed here. */
 .maplibregl-ctrl-attrib a {
   text-decoration: underline;
+}
+
+/* The keyboard's way to a bus: the ones in view, by fleet number, each opening in the panel. */
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jc-space-2, 0.5rem);
+  margin-top: var(--jc-space-2, 0.5rem);
+}
+.pick select {
+  font: inherit;
+  max-width: 100%;
 }

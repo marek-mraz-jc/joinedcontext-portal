@@ -7,6 +7,11 @@ second host, no credential. The Endpoint it is bound to is public, so the app ne
 user and asks nobody to sign in (AP-28). Its sibling `air-quality` covers the other half of
 the login front, with a Keycloak session and a write.
 
+The page sits in the SDK's shell (SDK-39). A bus clicked on the map, or chosen from the list of
+those in view, opens in the shell's entity panel (SDK-40), read from this app's own backend
+(`ui/src/api.ts` `panelSource`), never from the endpoint. The app writes nothing, so the panel
+links the bus to the Portal, at the `portal` the reconciler puts into `JC_APP_CONFIG`.
+
 ## How it stays live without a streaming endpoint
 
 An Endpoint has no subscription surface and this app does not add one. One poll loop reads
