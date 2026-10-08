@@ -88,7 +88,8 @@
     "projections": "Projekce modelů",
     "knowledge": "Zdroje znalostí",
     "mcp": "MCP servery",
-    "home": "Domů"
+    "home": "Domů",
+    "inbox": "Doručené"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -6438,5 +6439,25 @@
         "body": "Galerie, nástěnka a kalendář, komentáře se @zmínkami, historie řádků s vrácením a veřejné formuláře."
       }
     }
+  },
+  "inbox": {
+    "title": "Doručené",
+    "lead": "Co na vás čeká: změny, o kterých smíte rozhodnout v každém projektu, a komentáře, které vás zmiňují.",
+    "decisions": "Čeká na vaše rozhodnutí",
+    "decisionsHint": "Schválení změny v červeném pruhu si žádá její název, jako na její vlastní stránce.",
+    "noDecisions": "Nic nečeká na vaše rozhodnutí.",
+    "by": "navrhl {author} v {project}",
+    "openChange": "Otevřít změnu",
+    "showDiff": "Ukázat, co mění",
+    "hideDiff": "Skrýt, co mění",
+    "diffFailed": "Změnu nebylo možné přečíst; otevřete ji a zkuste znovu.",
+    "reasonFirst": "Nejprve uveďte důvod: autor si ho přečte.",
+    "decided": {
+      "approved": "Schváleno: nasazuje se.",
+      "rejected": "Zamítnuto: autor si přečte váš důvod."
+    },
+    "mentions": "Zmínky o vás",
+    "noMentions": "Žádný komentář vás nezmiňuje.",
+    "open": "Otevřít doručené ({count} čeká)"
   }
 }

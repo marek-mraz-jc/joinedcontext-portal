@@ -88,7 +88,8 @@
     "projections": "Model projections",
     "knowledge": "Knowledge sources",
     "mcp": "MCP servers",
-    "home": "Home"
+    "home": "Home",
+    "inbox": "Inbox"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -6438,5 +6439,25 @@
         "body": "Gallery, board and calendar views, comments with @mentions, row history with undo, and public forms."
       }
     }
+  },
+  "inbox": {
+    "title": "Inbox",
+    "lead": "What waits for you: the changes you may decide in every project, and the comments that mention you.",
+    "decisions": "Waiting for your decision",
+    "decisionsHint": "Approving a red-lane change asks for its name, as on its own page.",
+    "noDecisions": "Nothing waits for your decision.",
+    "by": "proposed by {author} in {project}",
+    "openChange": "Open the change",
+    "showDiff": "Show what it changes",
+    "hideDiff": "Hide what it changes",
+    "diffFailed": "The change could not be read; open it to try again.",
+    "reasonFirst": "Say why first: the author reads it.",
+    "decided": {
+      "approved": "Approved: it is being deployed.",
+      "rejected": "Rejected: the author reads your reason."
+    },
+    "mentions": "Mentions of you",
+    "noMentions": "No comment mentions you.",
+    "open": "Open your inbox ({count} waiting)"
   }
 }

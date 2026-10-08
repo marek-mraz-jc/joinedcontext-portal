@@ -168,7 +168,7 @@ export function CommentsPanel({ project, space, urn }: { project: string; space:
  * The signed-in person's notifications in the header: the unread count on the button, the latest
  * in its menu; opening one marks it read and goes to its space.
  */
-export function NotificationsMenu(): JSX.Element {
+export function NotificationsMenu({ project, waiting = 0 }: { project: string; waiting?: number }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -187,7 +187,8 @@ export function NotificationsMenu(): JSX.Element {
       await queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
     },
   });
-  const unread = inbox.data?.unread ?? 0;
+  // What waits beside the mentions: the project's changes this person may decide (T-3273).
+  const unread = (inbox.data?.unread ?? 0) + waiting;
   const items = inbox.data?.items ?? [];
   return (
     <Menu onOpenChange={(open) => (open ? void inbox.refetch() : undefined)}>
@@ -202,6 +203,9 @@ export function NotificationsMenu(): JSX.Element {
         </Button>
       </MenuTrigger>
       <MenuContent align="end" className="w-80 max-w-full">
+        <MenuItem onSelect={() => void navigate({ to: "/projects/$project/inbox", params: { project } })}>
+          <span className="font-semibold">{t("inbox.open", { count: unread })}</span>
+        </MenuItem>
         <MenuLabel>{t("notifications.title")}</MenuLabel>
         {inbox.isError ? <p className="px-2.5 py-1.5 text-body text-danger">{problem(inbox.error)}</p> : null}
         {items.length === 0 && !inbox.isError ? <p className="px-2.5 py-1.5 text-body text-fg-muted">{t("notifications.none")}</p> : null}

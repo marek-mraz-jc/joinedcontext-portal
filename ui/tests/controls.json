@@ -1066,6 +1066,14 @@
         "import_wizard.test.tsx"
       ]
     },
+    "src/pages/inbox/InboxPage.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "inbox_page.test.tsx"
+      ]
+    },
     "src/pages/knowledge/AssistantChat.tsx": {
       "controls": {
         "Button": 2,

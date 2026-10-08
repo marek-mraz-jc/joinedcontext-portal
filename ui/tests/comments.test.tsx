@@ -156,7 +156,7 @@ describe("notifications", () => {
       return request.method === "POST" ? json(null, 204) : json({ items: [item], unread: 1 });
     });
     vi.stubGlobal("fetch", fetchMock);
-    wrap(<NotificationsMenu />);
+    wrap(<NotificationsMenu project="helsinki" />);
     const button = await screen.findByRole("button", { name: "Notifications, 1 unread" });
     await userEvent.click(button);
     const entry = await screen.findByRole("menuitem", { name: /Anna mentioned you in air/ });
@@ -167,7 +167,7 @@ describe("notifications", () => {
 
   it("says when there is nothing new", async () => {
     vi.stubGlobal("fetch", vi.fn(() => json({ items: [], unread: 0 })));
-    wrap(<NotificationsMenu />);
+    wrap(<NotificationsMenu project="helsinki" />);
     await userEvent.click(await screen.findByRole("button", { name: "Notifications" }));
     expect(await screen.findByText("Nothing new.")).toBeInTheDocument();
   });

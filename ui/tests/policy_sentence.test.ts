@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import { policySentence } from "../src/pages/policies/policySentence";
 
-const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, options as never) as string;
+const t = (key: string, options?: Record<string, unknown>): string => String(i18n.t(key, options as never));
 
 beforeEach(async () => {
   await i18n.changeLanguage("en");

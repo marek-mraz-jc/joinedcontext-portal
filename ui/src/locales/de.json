@@ -88,7 +88,8 @@
     "projections": "Modellprojektionen",
     "knowledge": "Wissensquellen",
     "mcp": "MCP-Server",
-    "home": "Start"
+    "home": "Start",
+    "inbox": "Eingang"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -6438,5 +6439,25 @@
         "body": "Galerie-, Board- und Kalenderansicht, Kommentare mit @Erwähnungen, Zeilenverlauf mit Rückgängig und öffentliche Formulare."
       }
     }
+  },
+  "inbox": {
+    "title": "Eingang",
+    "lead": "Was auf Sie wartet: die Änderungen, über die Sie in jedem Projekt entscheiden dürfen, und die Kommentare, die Sie erwähnen.",
+    "decisions": "Wartet auf Ihre Entscheidung",
+    "decisionsHint": "Eine Änderung der roten Spur verlangt zur Genehmigung ihren Namen, wie auf ihrer eigenen Seite.",
+    "noDecisions": "Nichts wartet auf Ihre Entscheidung.",
+    "by": "vorgeschlagen von {author} in {project}",
+    "openChange": "Änderung öffnen",
+    "showDiff": "Zeigen, was sie ändert",
+    "hideDiff": "Ausblenden, was sie ändert",
+    "diffFailed": "Die Änderung ließ sich nicht lesen; öffnen Sie sie, um es erneut zu versuchen.",
+    "reasonFirst": "Nennen Sie zuerst den Grund: der Autor liest ihn.",
+    "decided": {
+      "approved": "Genehmigt: wird bereitgestellt.",
+      "rejected": "Abgelehnt: der Autor liest Ihren Grund."
+    },
+    "mentions": "Erwähnungen von Ihnen",
+    "noMentions": "Kein Kommentar erwähnt Sie.",
+    "open": "Eingang öffnen ({count} warten)"
   }
 }
