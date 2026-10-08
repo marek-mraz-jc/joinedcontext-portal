@@ -42,3 +42,22 @@ test("alerts-heatmap answers where and when with the live alerts", async ({ page
   await expect(page.getByRole("list", { name: "Places alerts keep coming back to" })).toBeVisible();
   expectWasmPolicy(csp, wasm, "alerts-heatmap");
 });
+
+test("event-day-planner plans a day of the live events", async ({ page }) => {
+  const { wasm, csp, started } = await open(page, "event-day-planner", "?lang=en");
+  const plan = page.getByRole("region", { name: "My day" }).getByRole("list", { name: "The plan" });
+  await expect(plan.getByRole("listitem").first()).toBeVisible({ timeout: 120_000 });
+  console.log(`event-day-planner: first answer after ${Date.now() - started} ms`);
+  await expect(page.getByText(/A suggested day/)).toBeVisible();
+  await expect(page.getByRole("list", { name: "Events of the day" }).getByRole("listitem").first()).toBeVisible();
+  expectWasmPolicy(csp, wasm, "event-day-planner");
+});
+
+test("air-weather-explorer says how the weather moves the live air", async ({ page }) => {
+  const { wasm, csp, started } = await open(page, "air-weather-explorer", "?lang=en&days=7");
+  const answer = page.getByRole("region", { name: "The answer" });
+  await expect(answer).toHaveText(/(rises|falls) as .* rises|hardly moves with|Too few common hours|No measurements in the chosen period/, { timeout: 120_000 });
+  console.log(`air-weather-explorer: first answer after ${Date.now() - started} ms: ${await answer.textContent()}`);
+  await expect(page.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
+  expectWasmPolicy(csp, wasm, "air-weather-explorer");
+});

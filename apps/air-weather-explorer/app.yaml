@@ -1,0 +1,53 @@
+# Air quality and weather (T-3330): how the weather moves the air, station by station: a pollutant
+# series against a weather station's over common hours, rolling means, Pearson and Spearman
+# correlation, and the readings far from the rest. Hand written, so no generated-by annotation
+# (AP-35).
+#
+# A frontend only (`kind: ui`, no pod): React on the App SDK, and the statistics in Rust compiled
+# to WebAssembly, run in the reader's browser in a worker (wasm/). Its source is its own repository
+# on the forge, which the build lane builds at `ref` (AP-75, AP-80); this folder of the portal
+# repository is where CI tests the same tree before it is pushed there (T-2599).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: air-weather-explorer
+  namespace: helsinki
+  title:
+    en: "Air quality and weather"
+    fi: "Ilmanlaatu ja sää"
+  description:
+    en: "How the weather moves Helsinki's air quality: pollutants against wind, temperature, humidity and rain, hour by hour, with the correlations computed in the browser."
+    fi: "Miten sää vaikuttaa Helsingin ilmanlaatuun: saasteet tuulta, lämpötilaa, kosteutta ja sadetta vasten tunneittain, korrelaatiot laskettuna selaimessa."
+spec:
+  kind: ui
+  source:
+    git:
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_air-weather-explorer.git
+      ref: main
+  build:
+    node: "22"
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    # The stations HSY's feed writes (helsinki-pipeline-air-quality), with a week of history: the
+    # attributes the air-quality app reads on dev.
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [AirQualityObserved]
+      attrs: [name, location, dateObserved, pm10, pm25, airQualityIndex]
+      operations: [queryEntity, retrieveEntity, retrieveTemporal]
+      temporalQ:
+        window: P7D
+      representations: [ngsi-ld]
+    # The weather stations the FMI and road-weather pipelines write (read on dev 2026-10-08:
+    # temperature, windSpeed and relativeHumidity on every station, precipitation on road ones).
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [WeatherObserved]
+      attrs: [name, location, dateObserved, temperature, windSpeed, relativeHumidity, precipitation]
+      operations: [queryEntity, retrieveEntity, retrieveTemporal]
+      temporalQ:
+        window: P7D
+      representations: [ngsi-ld]
