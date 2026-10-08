@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ProblemError } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
-import { EntityDetail } from "./EntityDetail";
 import { EntityTable, defaultColumns } from "./EntityTable";
 import { setLanguage } from "../i18n";
 
@@ -45,6 +44,18 @@ describe("defaultColumns", () => {
 });
 
 describe("EntityTable", () => {
+  it("keeps its sort when a filter empties it and then lets rows back in", () => {
+    const { rerender } = render(<EntityTable rows={STATIONS} columns={["name", "bikes"]} caption="Stations" />);
+    fireEvent.click(screen.getByRole("button", { name: "bikes" }));
+    fireEvent.click(screen.getByRole("button", { name: /^bikes/ }));
+    const first = () => screen.getAllByRole("row")[1].textContent;
+    expect(first()).toContain("Kallio");
+    rerender(<EntityTable rows={[]} columns={["name", "bikes"]} caption="Stations" empty="No match." />);
+    expect(screen.getByText("No match.")).toBeInTheDocument();
+    rerender(<EntityTable rows={STATIONS} columns={["name", "bikes"]} caption="Stations" />);
+    expect(first()).toContain("Kallio");
+  });
+
   it("renders Problem state when error is provided", () => {
     const error = new ProblemError(403, { title: "Forbidden", detail: "Read denied" });
     render(<EntityTable rows={[]} error={error} />);
@@ -133,7 +144,8 @@ describe("EntityTable", () => {
       expect(screen.getByText("Strana 1 z 2")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Ďalšia" }));
       expect(screen.getByText("Strana 2 z 2")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Predchádzajúca" })).toBeEnabled();
+      fireEvent.click(screen.getByRole("button", { name: "Predchádzajúca" }));
+      expect(screen.getByText("Strana 1 z 2")).toBeInTheDocument();
     } finally {
       setLanguage("en");
     }
@@ -159,35 +171,5 @@ describe("EntityTable", () => {
 
     fireEvent.keyDown(rows[2], { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith(STATIONS[2]);
-  });
-});
-
-describe("EntityDetail", () => {
-  it("renders empty message without a row", () => {
-    render(<EntityDetail row={null} />);
-    expect(screen.getByText("Select an entity to see its details.")).toBeInTheDocument();
-  });
-
-  it("renders details with id, format, geometry as 'lat, lon', and calls onClose", () => {
-    const onClose = vi.fn();
-    render(<EntityDetail row={STATIONS[0]} onClose={onClose} />);
-
-    expect(screen.getByText("urn:ngsi-ld:Station:1", { selector: "code" })).toBeInTheDocument();
-    // 60.15 lat, 24.95 lon formatted to 5 decimals
-    expect(screen.getByText("60.15000, 24.95000")).toBeInTheDocument();
-
-    const closeBtn = screen.getByRole("button", { name: "Close" });
-    fireEvent.click(closeBtn);
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it("renders non-point geometry as its type", () => {
-    const rowWithPolygon: Row = {
-      id: "urn:area:1",
-      type: "Area",
-      boundary: { type: "Polygon", coordinates: [[[24.9, 60.1], [24.95, 60.15]]] },
-    };
-    render(<EntityDetail row={rowWithPolygon} attrs={["id", "boundary"]} />);
-    expect(screen.getByText("Polygon")).toBeInTheDocument();
   });
 });

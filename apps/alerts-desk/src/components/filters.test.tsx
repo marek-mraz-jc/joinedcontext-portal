@@ -108,6 +108,11 @@ describe("Filter UI components with useFilters", () => {
     render(<TestHarness filters={filters} />);
 
     const toInput = screen.getByLabelText("registered to") as HTMLInputElement;
+    // From the 10th on: Kamppi (the 9th) drops out, then the whole range is cleared again.
+    fireEvent.change(screen.getByLabelText("registered from"), { target: { value: "2024-05-10" } });
+    expect(screen.getByText("2 of 3")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("registered from"), { target: { value: "" } });
+    expect(screen.getByText("3 of 3")).toBeInTheDocument();
 
     // Row 2 is 2024-05-10T18:30:00Z; setting to "2024-05-10" includes it via T23:59:59.999Z
     fireEvent.change(toInput, { target: { value: "2024-05-10" } });
