@@ -7,9 +7,7 @@ banskabystrica-skoly T-3381
 banskabystrica-zaznamy T-3382
 bbsk-zaznamy T-3387
 event-day-planner T-3393
-helsinki-alerts T-3394
 news-topics T-3401
-zilina-ukazovatele T-3408
 zilina-vyskum T-3409
 zilina-zaznamy T-3410
 plain-html-events T-3416

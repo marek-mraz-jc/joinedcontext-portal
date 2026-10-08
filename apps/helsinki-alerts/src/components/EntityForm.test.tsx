@@ -132,6 +132,39 @@ describe("EntityForm component", () => {
     });
   });
 
+  // A date, a yes or no, and a place each take what is typed and go out as one PATCH of the three.
+  it("writes a date, a checkbox and a place as typed", async () => {
+    const kinds: Schema = {
+      Station: {
+        properties: {
+          opened: { type: "string", format: "date" },
+          staffed: { type: "boolean" },
+          location: { type: "object", "x-ngsi-ld-kind": "GeoProperty" },
+        },
+      },
+    };
+    const row: Row = { id: "urn:ngsi-ld:Station:002", type: "Station", opened: "2024-05-01", staffed: false, location: { type: "Point", coordinates: [24.95, 60.15] } };
+    const client = stubClient({ schema: kinds, entities: [row] });
+    const onSaved = vi.fn();
+    render(
+      <JcProvider client={client}>
+        <EntityForm type="Station" row={row} onSaved={onSaved} />
+      </JcProvider>,
+    );
+    await waitFor(() => expect(screen.getByLabelText("opened")).toHaveValue("2024-05-01"));
+    fireEvent.change(screen.getByLabelText("opened"), { target: { value: "2024-06-01" } });
+    fireEvent.click(screen.getByLabelText("staffed"));
+    fireEvent.change(screen.getByLabelText("location"), { target: { value: "60.17, 24.94" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(row.id));
+    expect(client.transport.calls.find((c) => c.method === "PATCH")?.body).toEqual({
+      opened: { type: "Property", value: "2024-06-01" },
+      staffed: { type: "Property", value: true },
+      location: { type: "GeoProperty", value: { type: "Point", coordinates: [24.94, 60.17] } },
+    });
+  });
+
   it("required blank blocks the request and shows error", async () => {
     const client = stubClient({ schema });
     const onSaved = vi.fn();
@@ -280,6 +313,8 @@ describe("EntityForm component", () => {
 
       await waitFor(() => expect(screen.getByLabelText("name (fi)")).toHaveValue("Tietyö"));
       expect(screen.getByLabelText("name (sv)")).toHaveValue("Vägarbete");
+      // A language typed back to what it held is no change of it.
+      fireEvent.change(screen.getByLabelText("name (sv)"), { target: { value: "Vägarbete" } });
       fireEvent.change(screen.getByLabelText("name (en)"), { target: { value: "Resurfacing" } });
       await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
