@@ -32,7 +32,7 @@ const WORDS = {
   days: { fi: "{n} päivää", en: "{n} days" },
   clear: { fi: "Tyhjennä valinnat", en: "Clear filters" },
   odd: { fi: "Vain mittarit, joissa on poikkeamia", en: "Only indicators with points that look wrong" },
-  language: { fi: "In English", en: "Suomeksi" },
+  details: { fi: "Kaikki tiedot", en: "All details" },
   list: { fi: "Mittarit", en: "Indicators" },
   up: { fi: "nousee", en: "rising" },
   down: { fi: "laskee", en: "falling" },
@@ -86,11 +86,6 @@ const locale = (lang: Lang) => (lang === "fi" ? "fi-FI" : "en-GB");
 /** A whole number in the language's way: 1 234 in Finnish, 1,234 in English. */
 export function number(lang: Lang, value: number): string {
   return new Intl.NumberFormat(locale(lang), { maximumFractionDigits: 0 }).format(value);
-}
-
-/** A day on Helsinki's calendar: 8.10.2026 in Finnish, 8 Oct 2026 in English. */
-export function day(lang: Lang, ms: number): string {
-  return new Intl.DateTimeFormat(locale(lang), { timeZone: ZONE, day: "numeric", month: lang === "fi" ? "numeric" : "short", year: "numeric" }).format(ms);
 }
 
 /** A measured value: whole above 100, two decimals above 1, three below. */
