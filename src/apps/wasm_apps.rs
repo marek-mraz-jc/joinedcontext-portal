@@ -82,6 +82,21 @@ pub fn component_of(bundle: &[u8]) -> Result<Vec<u8>, String> {
     ))
 }
 
+/// An export file's name as one key segment: the App names its own tables, and a quoted name may
+/// hold `/` or be `..`, which would put the file outside its export, under another App's prefix.
+/// Anything but `[A-Za-z0-9_.-]` is written `%XX`, and a name starting with `.` gets a `%2E`.
+pub fn export_file_name(file: &str) -> String {
+    let mut out = String::with_capacity(file.len());
+    for (i, b) in file.bytes().enumerate() {
+        match b {
+            b'.' if i == 0 => out.push_str("%2E"),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-' => out.push(b as char),
+            other => out.push_str(&format!("%{other:02X}")),
+        }
+    }
+    out
+}
+
 /// The migration files of `folder` among the paths of the built tree: `.sql` files directly in it.
 pub fn migration_paths(tree: &[String], folder: &str) -> Vec<String> {
     let folder = folder.trim_matches('/');
@@ -156,7 +171,7 @@ impl WasmApps {
             self.store
                 .put_object(
                     &self.bucket,
-                    &format!("{export}/db/{file}"),
+                    &format!("{export}/db/{}", export_file_name(&file)),
                     bytes,
                     "export a schema",
                 )
@@ -196,6 +211,19 @@ impl WasmApps {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_export_file_name_never_leaves_its_folder() {
+        use super::export_file_name;
+        assert_eq!(export_file_name("notes.csv"), "notes.csv");
+        assert_eq!(export_file_name("schema.sql"), "schema.sql");
+        assert_eq!(
+            export_file_name("../../apps/0/x.csv"),
+            "%2E.%2F..%2Fapps%2F0%2Fx.csv"
+        );
+        assert_eq!(export_file_name("..csv"), "%2E.csv");
+        assert!(!export_file_name("a/b\\c").contains(['/', '\\']));
+    }
+
     use super::*;
 
     fn bundle(entries: &[(&str, &[u8])]) -> Vec<u8> {
