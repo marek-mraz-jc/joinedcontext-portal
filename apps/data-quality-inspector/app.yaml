@@ -1,0 +1,47 @@
+# Helsinki data quality (T-3336): how complete, fresh and valid the open data of the
+# Helsinki space is, per entity type and attribute, and which entities fail. The inspection
+# runs in the visitor's browser as WebAssembly compiled from the Rust crate in wasm/ (AP-142),
+# so the App is a `ui` bundle and costs no pod: the static host serves its files and nothing
+# else runs for it. Hand written, so no generated-by annotation (AP-35).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: data-quality-inspector
+  namespace: helsinki
+  title:
+    en: "Helsinki data quality"
+    fi: "Helsingin datan laatu"
+  description:
+    en: "How complete, fresh and valid Helsinki open data is, per entity type and attribute, and which entities fail."
+    fi: "Helsingin avoimen datan kattavuus, tuoreus ja virheettömyys tietotyypeittäin ja ominaisuuksittain sekä virheelliset kohteet."
+spec:
+  kind: ui
+  source:
+    git:
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_data-quality-inspector.git
+      ref: main
+  build:
+    node: "22"
+    rust: "1.90"
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types:
+        - AirQualityObserved
+        - Alert
+        - BikeHireDockingStation
+        - CityDistrict
+        - Event
+        - NewsArticle
+        - ParkingArea
+        - ParkingZone
+        - PointOfInterest
+        - PublicAreaPermit
+        - Vehicle
+        - WaterQualityObserved
+        - WeatherObserved
+      operations: [queryEntity, retrieveEntity]
+      representations: [ngsi-ld]
