@@ -220,3 +220,26 @@ describe("the bars of one indicator", () => {
     expect(districtBars(CITY)).toEqual([]);
   });
 });
+
+describe("an entity's odd shapes", () => {
+  const ID = "urn:ngsi-ld:KeyPerformanceIndicator:bbsk.sk:bbsk-kpi:obyvatelstvo-stav-kraj";
+  const read = (attrs: Record<string, unknown>) =>
+    toIndicator(toRichRow({ id: ID, type: "KeyPerformanceIndicator", ...attrs }, "sk"));
+  const NAME = { type: "Property", value: "obyvatelstvo-stav-kraj" };
+
+  it("takes the first of several values, and a relationship's object as text", () => {
+    expect(read({ name: [{ ...NAME, datasetId: "urn:a" }, { type: "Property", value: "x", datasetId: "urn:b" }] })?.name).toBe("obyvatelstvo-stav-kraj");
+    expect(read({ name: { type: "Relationship", object: "obyvatelstvo-stav-kraj" } })?.name).toBe("obyvatelstvo-stav-kraj");
+    expect(read({ name: { type: "Property", value: 7 } })).toBeNull();
+  });
+
+  it("refuses a name whose suffix is no territory it knows", () => {
+    const id = "urn:ngsi-ld:KeyPerformanceIndicator:bbsk.sk:bbsk-kpi:obyvatelstvo-stav-mars";
+    expect(toIndicator(toRichRow({ id, type: "KeyPerformanceIndicator", name: { type: "Property", value: "obyvatelstvo-stav-mars" } }, "sk"))).toBeNull();
+  });
+
+  it("leaves out a window that is no window, and reads a missing formula as none", () => {
+    expect(read({ name: NAME, calculationPeriod: { type: "Property", value: "2025" } })).toMatchObject({ period: undefined, formula: "" });
+    expect(read({ name: NAME, calculationPeriod: { type: "Property", value: { start: 2025, end: "2026" } } })?.period).toBeUndefined();
+  });
+});

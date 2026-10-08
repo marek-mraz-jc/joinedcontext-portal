@@ -97,6 +97,11 @@ describe("seriesOf", () => {
     expect(seriesOf([other({ refArea: { type: "Property", value: "SK010" } })]).size).toBe(0);
     expect(seriesOf([other({ value: { type: "Property", value: "n/a" } })]).size).toBe(0);
     expect(seriesOf([other({ refPeriod: { type: "Property", value: "2023Q1" } })]).size).toBe(0);
+    expect(seriesOf([other({ refArea: undefined })]).size).toBe(0);
+    expect(seriesOf([other({ type: "KeyPerformanceIndicator" })]).size).toBe(0);
+    // Several values of one attribute: the first is the one read.
+    const twice = other({ value: [{ type: "Property", value: 4, datasetId: "urn:a" }, { type: "Property", value: 9, datasetId: "urn:b" }] });
+    expect([...seriesOf([twice]).values()][0]).toEqual([{ period: String(row.refPeriod.value), value: 4 }]);
   });
 
   it("draws a line only through two points or more, a flat one through the middle", () => {

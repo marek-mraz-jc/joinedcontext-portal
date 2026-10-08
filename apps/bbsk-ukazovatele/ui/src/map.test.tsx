@@ -216,8 +216,8 @@ describe("without the district outlines", () => {
     await screen.findAllByRole("figure");
     expect(screen.queryByRole("region", { name: "Mapa okresov" })).toBeNull();
     expect(asked.some((path) => path.includes(REGISTER_SLUG))).toBe(false);
-    // The charts stay, their names plain text rather than a choice with nothing to choose on.
-    expect(document.querySelector("button.bar-label")).toBeNull();
+    // The charts stay; a name opens its indicator and marks nothing, there being no map to mark on.
+    expect([...document.querySelectorAll("button.bar-label")].every((bar) => bar.getAttribute("aria-pressed") === "false")).toBe(true);
     // With no map there is no scale to match: the bars keep the body's colour.
     const bars = [...document.querySelectorAll<HTMLElement>(".bar")];
     expect(bars.length).toBeGreaterThan(0);
