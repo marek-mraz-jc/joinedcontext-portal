@@ -51,8 +51,6 @@ const WORDS = {
     fi: "Ei julkaistua skeemaa; kelvollisuutta ei voitu tarkistaa.",
     en: "No published schema; validity could not be checked.",
   },
-  retry: { fi: "Yritä uudelleen", en: "Retry" },
-  language: { fi: "In English", en: "Suomeksi" },
   inspectFailed: { fi: "Tarkastus epäonnistui: {reason}", en: "Inspection failed: {reason}" },
 
   // Rule wording

@@ -5,6 +5,7 @@ import type { Dataset } from "./datasets";
 export interface Strings {
   locale: string;
   title: string;
+  page: string;
   subtitle: string;
   datasets: string;
   name: Record<Dataset, string>;
@@ -74,6 +75,7 @@ const COLUMNS_EN: Record<string, string> = {
 const sk: Strings = {
   locale: "sk",
   title: "Otvorené dáta o Žiline",
+  page: "Dáta",
   subtitle: "Každý verejný súbor údajov projektu Žilina ako tabuľka, s filtrom v každom stĺpci a celým súborom na stiahnutie.",
   datasets: "Súbory údajov",
   name: {
@@ -103,6 +105,7 @@ const sk: Strings = {
   readOnly: "Údaje zapisujú kanály zo zdrojov; tabuľka ich iba zobrazuje, ďalší beh by každú ručnú zmenu prepísal.",
   noEndpoint: (dataset) => `Aplikácia nemá zverejnený prístup k súboru „${dataset}“.`,
   grid: {
+    openRow: "Otvoriť",
     id: "Identifikátor",
     type: "Typ",
     observedAt: "Merané",
@@ -160,6 +163,7 @@ const sk: Strings = {
 const en: Strings = {
   locale: "en",
   title: "Open data about Žilina",
+  page: "Data",
   subtitle: "Every public dataset of the Žilina project as a table, with a filter in each column and the whole dataset to download.",
   datasets: "Datasets",
   name: {
@@ -189,6 +193,7 @@ const en: Strings = {
   readOnly: "Pipelines write these data from their sources; the table only shows them, as the next run would overwrite any edit.",
   noEndpoint: (dataset) => `This app has no published access to the dataset “${dataset}”.`,
   grid: {
+    openRow: "Open",
     id: "Identifier",
     type: "Type",
     observedAt: "Observed",

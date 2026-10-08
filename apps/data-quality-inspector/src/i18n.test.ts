@@ -40,8 +40,6 @@ const ALL_WORDS: Word[] = [
   "allValid",
   "noEntities",
   "noSchemaDetails",
-  "retry",
-  "language",
   "inspectFailed",
   "rule_datetime",
   "rule_date",

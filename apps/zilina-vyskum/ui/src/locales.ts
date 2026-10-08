@@ -2,6 +2,7 @@
 export interface Strings {
   locale: string;
   title: string;
+  page: string;
   subtitle: string;
   works: (count: number) => string;
   span: (first: number, last: number) => string;
@@ -37,6 +38,7 @@ export interface Strings {
 const sk: Strings = {
   locale: "sk",
   title: "Otvorený výskum Žilinskej univerzity",
+  page: "Výskum",
   subtitle: "Práce z Digitálneho repozitára UNIZA, ktoré majú vlastnú otvorenú licenciu: koľko ich je, odkiaľ sú a kde si ich prečítať.",
   works: (count) => `${count} ${count === 1 ? "práca" : count >= 2 && count <= 4 ? "práce" : "prác"}`,
   span: (first, last) => `z rokov ${first} – ${last}`,
@@ -81,6 +83,7 @@ const sk: Strings = {
 const en: Strings = {
   locale: "en",
   title: "Open research of the University of Žilina",
+  page: "Research",
   subtitle: "The works of the UNIZA digital repository that carry an open licence of their own: how many, where from and where to read them.",
   works: (count) => `${count} ${count === 1 ? "work" : "works"}`,
   span: (first, last) => `from ${first} to ${last}`,

@@ -5,17 +5,28 @@
  * whole dataset as a CSV file.
  *
  * Its own look (T-2779): the datasets are a list on the left with what each holds and whose it is,
- * the grid fills the rest; on a phone the list is a row of buttons above the grid.
+ * the grid fills the rest; on a phone the list is a row of buttons above the grid. It sits in the
+ * SDK's shell (SDK-39), so a row opened from the grid shows in the shell's entity panel (SDK-40),
+ * linked to the Portal: a public App writes nothing (AP-140).
  */
 import { useMemo, useState } from "react";
-import { download, endpointSource, EntityGrid, Header, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, download, endpointSource, EntityGrid, Page, transportFor, useClient } from "@joinedcontext/sdk";
+import type { ShellPage } from "@joinedcontext/sdk";
 import { DATASETS, exportCsv, gridConfig, SPEC } from "./datasets";
 import type { Dataset } from "./datasets";
 import { stringsFor } from "./locales";
 
 type Exported = { status: "idle" } | { status: "running" } | { status: "done"; rows: number; truncated: boolean } | { status: "failed"; reason: string };
 
+/** The datasets in the SDK's shell, which holds the entity panel (SDK-39). */
 export default function App() {
+  const { config } = useClient();
+  const s = stringsFor(config.language);
+  const pages: ShellPage[] = [{ id: "data", label: s.page, render: () => <Datasets /> }];
+  return <AppShell title={s.title} pages={pages} language={s.locale} />;
+}
+
+function Datasets() {
   const { config } = useClient();
   const s = stringsFor(config.language);
   const language = config.language ?? "sk";
@@ -45,14 +56,14 @@ export default function App() {
       download(result.file, `zilina-${dataset}.csv`);
       setExported({ status: "done", rows: result.rows, truncated: result.truncated });
     } catch (cause) {
-      setExported({ status: "failed", reason: cause instanceof SourceError || cause instanceof Error ? cause.message : String(cause) });
+      // A `SourceError` is an `Error`: the endpoint's own words, else what was thrown.
+      setExported({ status: "failed", reason: cause instanceof Error ? cause.message : String(cause) });
     }
   };
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page label={s.page}>
+        <p className="subtitle">{s.subtitle}</p>
         <div className="screen">
           <nav aria-label={s.datasets}>
             <ul>
@@ -91,7 +102,6 @@ export default function App() {
             <p className="source">{s.licence[dataset]}</p>
           </section>
         </div>
-      </Page>
-    </main>
+    </Page>
   );
 }

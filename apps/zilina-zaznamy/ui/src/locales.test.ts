@@ -14,4 +14,14 @@ describe("locales", () => {
     expect(stringsFor("en-GB").locale).toBe("en");
     expect(stringsFor("de").locale).toBe("sk");
   });
+
+  it("says each export and each missing endpoint in both languages", () => {
+    for (const s of [LOCALES.sk, LOCALES.en]) {
+      expect(s.exported(5)).toContain("5");
+      expect(s.exportCut(5000)).toContain("5000");
+      expect(s.exportFailed("no policy")).toContain("no policy");
+      expect(s.noEndpoint("Works")).toContain("Works");
+    }
+    expect(LOCALES.sk.grid.openRow).toBe("Otvoriť");
+  });
 });
