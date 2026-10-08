@@ -2055,7 +2055,8 @@
       "sizeBy": "Velikost podle",
       "range": "Poloměr [min, max] px",
       "popup": "Atributy v bublině",
-      "grid": "Nastavení tabulky"
+      "grid": "Nastavení tabulky",
+      "q": "Filtr (NGSI-LD q)"
     },
     "pages": "Stránky",
     "page": "Stránka {number}",
@@ -2067,7 +2068,19 @@
       "latest": "Poslední hodnota {property}: {value} ({count} měření)",
       "chartLabel": "{property} entity {entity} v čase",
       "badGrid": "Tuto tabulku nebylo možné zobrazit: {reason}",
-      "historyFailed": "Tuto historii se nepodařilo načíst: {reason}"
+      "historyFailed": "Tuto historii se nepodařilo načíst: {reason}",
+      "barTitle": "{property} typu {type}: entity podle hodnoty",
+      "histogramTitle": "{property} typu {type}: rozložení",
+      "rest": "ostatní hodnoty",
+      "noValues": "Žádná entita nemá {property}.",
+      "barAxis": "Počet entit s každou hodnotou {property}.",
+      "histogramAxis": "Počet entit v každém rozsahu {property}.",
+      "histogramAxisUnit": "Počet entit v každém rozsahu {property}, v jednotce {unit}.",
+      "counted": "Spočítáno jen prvních {count} entit.",
+      "entities": "Entity",
+      "row": "{label}: {count}",
+      "timeAxis": "Čas v pásmu {zone}.",
+      "timeAxisUnit": "Čas v pásmu {zone}; hodnoty v jednotce {unit}."
     },
     "emptyHint": "Nástěnka je stránka s mapami a čísly, postavená z endpointů, které tento projekt umí čist. Vytvořte jednu nebo požádejte asistenta o nástěnku z toho, co už zveřejňujete.",
     "layerEndpointGone": "Endpoint „{name}“ už v tomto projektu není, proto tato vrstva nemá z čeho vybrat typ ani filtr. Vyberte pro tuto vrstvu jiný endpoint."
@@ -3621,6 +3634,40 @@
       "truncated": "Jen prvních {max}: pro ostatní zužte filtr.",
       "label": "Mapa typu {type}",
       "open": "Otevřít entitu"
+    },
+    "chart": {
+      "open": "Graf",
+      "title": "Graf atributu typu {type}",
+      "lead": "Vyberte atribut: Portál navrhne graf, jaký si jeho hodnoty žádají. Uložte ho na dashboard; dashboard čte přes stejný endpoint s filtrem tohoto pohledu.",
+      "attribute": "Atribut",
+      "pickAttribute": "Vyberte atribut",
+      "kind": "Graf",
+      "suggested": "Navrženo pro tento atribut: {kind}.",
+      "kinds": {
+        "temporal-chart": {
+          "label": "V čase",
+          "says": "Hodnoty jedné entity jako čára, pro atribut sledovaný v čase."
+        },
+        "bar-chart": {
+          "label": "Sloupce podle hodnoty",
+          "says": "Kolik entit má každou hodnotu, pro text, kategorii nebo ano/ne."
+        },
+        "histogram": {
+          "label": "Histogram",
+          "says": "Jak se číslo rozkládá do deseti stejných rozsahů."
+        }
+      },
+      "entity": "Entita",
+      "dashboard": "Uložit do",
+      "newDashboard": "Nový dashboard",
+      "name": "Název nového dashboardu",
+      "nameHelp": "Malá písmena, číslice a pomlčky, jak je ukazuje adresa.",
+      "newTitle": "Grafy typu {type}",
+      "page": "Grafy",
+      "save": "Uložit na dashboard",
+      "pickFirst": "Nejprve vyberte atribut a graf.",
+      "badName": "Název dashboardu tvoří malá písmena, číslice a pomlčky, nejvýše 63, na začátku a konci písmeno nebo číslice.",
+      "gone": "Ten dashboard už v projektu není; vyberte jiný."
     }
   },
   "agentRun": {
@@ -5371,6 +5418,8 @@
     },
     "widgetType": {
       "temporal-chart": "Graf v čase",
+      "bar-chart": "Sloupce podle hodnoty",
+      "histogram": "Histogram",
       "grid": "Tabulka"
     },
     "columnFormat": {
@@ -5927,7 +5976,8 @@
     },
     "type": {
       "website": "Web",
-      "ckan": "Datový katalog"
+      "ckan": "Datový katalog",
+      "catalogue": "Katalog kontextových prostorů"
     },
     "status": {
       "pending": "Ještě nepřečteno",
@@ -6067,7 +6117,8 @@
       "copied": "Zkopírováno",
       "origins": "Adresa webu musí být mezi povolenými původy asistenta; rámec na jiném webu zůstane prázdný.",
       "noDomain": "Tento Portál nezná svou doménu, proto neumí napsat adresu stránky asistenta."
-    }
+    },
+    "everySpace": "každý prostor projektu"
   },
   "mcp": {
     "title": "MCP servery",

@@ -181,6 +181,7 @@
         "Button": 1
       },
       "tests": [
+        "chart_widgets.test.tsx",
         "dashboard_pages.test.tsx",
         "part_failures_are_not_waits.test.tsx"
       ]
@@ -982,6 +983,15 @@
       "tests": [
         "endpoint_projection_ui.test.tsx",
         "form_schema_projection.test.tsx"
+      ]
+    },
+    "src/pages/explore/ChartFromView.tsx": {
+      "controls": {
+        "Button": 2,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "explore_chart.test.tsx"
       ]
     },
     "src/pages/explore/ExplorePage.tsx": {

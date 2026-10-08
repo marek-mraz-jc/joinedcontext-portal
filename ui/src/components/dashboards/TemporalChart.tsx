@@ -2,7 +2,9 @@ import { useMemo } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { unitTitle } from "@joinedcontext/sdk";
 import { Button, Icon, Skeleton } from "../ui";
+import { readerTimeZone, unitCodeOf } from "./typeCharts";
 
 /** One reading: when it was observed, and what was read. */
 interface Point {
@@ -80,7 +82,8 @@ export function TemporalChart({
     retry: false,
     staleTime: 60_000,
     queryFn: async () => {
-      const url = `/api/endpoint/${slug}/ngsi-ld/v1/temporal/entities/${encodeURIComponent(entityId)}?attrs=${encodeURIComponent(property)}&options=temporalValues`;
+      // The instances whole, not `temporalValues`: each carries its unit, which the axis states.
+      const url = `/api/endpoint/${slug}/ngsi-ld/v1/temporal/entities/${encodeURIComponent(entityId)}?attrs=${encodeURIComponent(property)}`;
       const response = await globalThis.fetch(
         new Request(`${window.location.origin}${url}`, { headers: { Accept: "application/ld+json" } }),
       );
@@ -97,6 +100,8 @@ export function TemporalChart({
   );
   const line = polylineOf(points);
   const last = points.at(-1);
+  const instances = (history.data as Record<string, unknown> | undefined)?.[property];
+  const unit = Array.isArray(instances) ? unitCodeOf(instances.map((instance) => ({ [property]: instance })), property) : undefined;
 
   return (
     <figure className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
@@ -150,6 +155,11 @@ export function TemporalChart({
               className="text-primary-soft-fg"
             />
           </svg>
+          <p className="text-caption text-fg-muted">
+            {unit
+              ? t("dashboards.widget.timeAxisUnit", { zone: readerTimeZone(), unit: unitTitle(unit) || unit })
+              : t("dashboards.widget.timeAxis", { zone: readerTimeZone() })}
+          </p>
           <p className="text-caption text-fg-muted">
             {t("dashboards.widget.latest", {
               property,

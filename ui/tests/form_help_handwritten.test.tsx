@@ -229,7 +229,9 @@ describe("the help beside a hand-built form field", () => {
     await person.click(await screen.findByRole("button", { name: en.organization.people.new }));
     const page = await findFormPage(new RegExp(en.organization.people.newTitle));
     const fields = controls(page);
-    expect(fields.length).toBe(4);
+    // E-mail, first name, last name, language, and the project the invitation leads into (T-3237);
+    // the role radios join them only once a project is chosen.
+    expect(fields.length).toBe(5);
     for (const field of fields) {
       expect(describedText(field).length, field.id).toBeGreaterThan(15);
     }

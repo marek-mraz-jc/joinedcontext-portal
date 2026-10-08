@@ -113,10 +113,16 @@ spec:
         de: Name der Entitätseigenschaft, die in diesem Widget dargestellt werden soll.
     pages[].widgets[].entityType:
       help:
-        en: The entity type the grid lists, as the endpoint's model names it.
-        sk: Typ entity, ktorý mriežka vypíše, presne ako ho pomenúva model endpointu.
-        cs: Typ entity, který mřížka vypíše, přesně jak jej pojmenovává model endpointu.
-        de: Der Entitätstyp, den das Raster auflistet, so benannt wie im Modell des Endpunkts.
+        en: The entity type a table lists or a chart over a type counts, as the endpoint's model names it.
+        sk: Typ entity, ktorý tabuľka vypíše alebo graf nad typom spočíta, presne ako ho pomenúva model endpointu.
+        cs: Typ entity, který tabulka vypíše nebo graf nad typem spočítá, přesně jak jej pojmenovává model endpointu.
+        de: Der Entitätstyp, den eine Tabelle auflistet oder ein Diagramm über einen Typ zählt, so benannt wie im Modell des Endpunkts.
+    pages[].widgets[].q:
+      help:
+        en: The NGSI-LD filter a bar chart or a histogram reads its type with; empty reads every entity the endpoint grants.
+        sk: Filter NGSI-LD, s ktorým stĺpcový graf alebo histogram číta svoj typ; prázdny číta každú entitu, ktorú endpoint sprístupní.
+        cs: Filtr NGSI-LD, se kterým sloupcový graf nebo histogram čte svůj typ; prázdný čte každou entitu, kterou endpoint zpřístupní.
+        de: Der NGSI-LD-Filter, mit dem ein Balkendiagramm oder Histogramm seinen Typ liest; leer liest jede Entität, die der Endpunkt freigibt.
     pages[].widgets[].grid.columns[].attr:
       help:
         en: The attribute this column shows. Leave the columns empty to show every attribute.

@@ -1373,8 +1373,11 @@ const numberPair = (title: string): JsonSchema => ({
   maxItems: 2,
 });
 
-/** The widget types the Portal draws (UI-18): a `grid` reads a type, a chart reads one property. */
-export const WIDGET_TYPES = ["temporal-chart", "grid"] as const;
+/**
+ * The widget types the Portal draws (UI-18, UI-93): a `grid` reads a type, a `temporal-chart` one
+ * entity's property over time, a `bar-chart` and a `histogram` one property over a type.
+ */
+export const WIDGET_TYPES = ["temporal-chart", "bar-chart", "histogram", "grid"] as const;
 
 /**
  * The grid's own configuration as a widget carries it (UI-71, SDK-30, T-1440): the schema the SDK
@@ -1495,6 +1498,8 @@ export function dashboardSchema(
                     title: t("dashboards.field.entityType"),
                     ...(types.length > 0 ? { enum: types } : { pattern: ENTITY_TYPE_PATTERN }),
                   },
+                  // The filter a bar chart or a histogram reads its type with (UI-93).
+                  q: { type: "string", title: t("dashboards.field.q"), maxLength: 1024 },
                   grid: gridWidgetSchema(t),
                 },
               },

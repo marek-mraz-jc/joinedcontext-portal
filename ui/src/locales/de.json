@@ -2055,7 +2055,8 @@
       "sizeBy": "Größe nach",
       "range": "Radius [min, max] px",
       "popup": "Attribute im Popup",
-      "grid": "Konfiguration des Rasters"
+      "grid": "Konfiguration des Rasters",
+      "q": "Filter (NGSI-LD-Abfrage q)"
     },
     "pages": "Seiten",
     "page": "Seite {number}",
@@ -2067,7 +2068,19 @@
       "latest": "Letzter Wert {property}: {value} ({count} Messungen)",
       "chartLabel": "{property} von {entity} im Zeitverlauf",
       "badGrid": "Dieses Raster konnte nicht gezeichnet werden: {reason}",
-      "historyFailed": "Dieser Verlauf konnte nicht gelesen werden: {reason}"
+      "historyFailed": "Dieser Verlauf konnte nicht gelesen werden: {reason}",
+      "barTitle": "{property} von {type}: Entitäten nach Wert",
+      "histogramTitle": "{property} von {type}: Verteilung",
+      "rest": "übrige Werte",
+      "noValues": "Keine Entität hat {property}.",
+      "barAxis": "Anzahl der Entitäten mit jedem Wert von {property}.",
+      "histogramAxis": "Anzahl der Entitäten in jedem Bereich von {property}.",
+      "histogramAxisUnit": "Anzahl der Entitäten in jedem Bereich von {property}, in {unit}.",
+      "counted": "Nur die ersten {count} Entitäten gezählt.",
+      "entities": "Entitäten",
+      "row": "{label}: {count}",
+      "timeAxis": "Zeit in {zone}.",
+      "timeAxisUnit": "Zeit in {zone}; Werte in {unit}."
     },
     "emptyHint": "Ein Dashboard ist eine Seite aus Karten und Zahlen, gebaut aus Endpunkten, die dieses Projekt lesen kann. Erstellen Sie eines, oder bitten Sie die Assistentin um ein Dashboard aus dem, was Sie schon veröffentlichen.",
     "layerEndpointGone": "Der Endpoint „{name}“ gehört nicht mehr zu diesem Projekt, daher hat diese Ebene weder Typ noch Filter zur Auswahl. Wählen Sie für diese Ebene einen anderen Endpoint."
@@ -3621,6 +3634,40 @@
       "truncated": "Nur die ersten {max}: grenzen Sie den Filter ein, um den Rest zu sehen.",
       "label": "Karte von {type}",
       "open": "Entität öffnen"
+    },
+    "chart": {
+      "open": "Diagramm",
+      "title": "Diagramm eines Attributs von {type}",
+      "lead": "Wählen Sie ein Attribut: das Portal schlägt das Diagramm vor, das seine Werte verlangen. Speichern Sie es auf einem Dashboard; das Dashboard liest über denselben Endpunkt mit dem Filter dieser Ansicht.",
+      "attribute": "Attribut",
+      "pickAttribute": "Attribut wählen",
+      "kind": "Diagramm",
+      "suggested": "Für dieses Attribut vorgeschlagen: {kind}.",
+      "kinds": {
+        "temporal-chart": {
+          "label": "Über die Zeit",
+          "says": "Die Werte einer Entität als Linie, für ein über die Zeit beobachtetes Attribut."
+        },
+        "bar-chart": {
+          "label": "Balken nach Wert",
+          "says": "Wie viele Entitäten jeden Wert haben, für einen Text, eine Kategorie oder ja/nein."
+        },
+        "histogram": {
+          "label": "Histogramm",
+          "says": "Wie sich eine Zahl auf zehn gleiche Bereiche verteilt."
+        }
+      },
+      "entity": "Entität",
+      "dashboard": "Speichern in",
+      "newDashboard": "Ein neues Dashboard",
+      "name": "Name des neuen Dashboards",
+      "nameHelp": "Kleinbuchstaben, Ziffern und Bindestriche, wie eine Adresse sie zeigt.",
+      "newTitle": "Diagramme von {type}",
+      "page": "Diagramme",
+      "save": "Auf dem Dashboard speichern",
+      "pickFirst": "Wählen Sie zuerst ein Attribut und ein Diagramm.",
+      "badName": "Ein Dashboard-Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, höchstens 63, mit einem Buchstaben oder einer Ziffer am Anfang und Ende.",
+      "gone": "Dieses Dashboard ist nicht mehr im Projekt; wählen Sie ein anderes."
     }
   },
   "agentRun": {
@@ -5371,6 +5418,8 @@
     },
     "widgetType": {
       "temporal-chart": "Diagramm über die Zeit",
+      "bar-chart": "Balken nach Wert",
+      "histogram": "Histogramm",
       "grid": "Tabelle"
     },
     "columnFormat": {
@@ -5927,7 +5976,8 @@
     },
     "type": {
       "website": "Website",
-      "ckan": "Datenkatalog"
+      "ckan": "Datenkatalog",
+      "catalogue": "Katalog der Kontexträume"
     },
     "status": {
       "pending": "Noch nicht gelesen",
@@ -6067,7 +6117,8 @@
       "copied": "Kopiert",
       "origins": "Die Adresse der Website muss zu den erlaubten Ursprüngen des Assistenten gehören; auf jeder anderen Website bleibt der Rahmen leer.",
       "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben."
-    }
+    },
+    "everySpace": "jeder Raum des Projekts"
   },
   "mcp": {
     "title": "MCP-Server",
