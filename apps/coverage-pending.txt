@@ -2,7 +2,6 @@
 # that brings it to green and removes its line in the same commit. The list only shrinks: the
 # gate refuses a new line, and fails a listed App that already passes. Thresholds never move.
 banskabystrica-data T-3378
-banskabystrica-mapa T-3379
 banskabystrica-ovzdusie T-3380
 banskabystrica-skoly T-3381
 banskabystrica-zaznamy T-3382

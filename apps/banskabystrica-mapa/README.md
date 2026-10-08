@@ -1,9 +1,13 @@
 # Mapa mesta Banská Bystrica / Map of Banská Bystrica
 
 The citizen map of T-2782: the events the city announces, every school of the national school map
-in the city and the air-quality station, on one map with a search and a detail of each place. It
-reads the city's public space `banskabystrica-verejne` through a public endpoint, never writes and
-never asks anybody to sign in.
+in the city and the air-quality station, on one map with a search. It reads the city's public space
+`banskabystrica-verejne` through a public endpoint, never writes and never asks anybody to sign in.
+
+The page sits in the SDK's `AppShell` (SDK-39). A place picked in the list or on the map opens in
+the SDK's entity panel (SDK-40) and is marked on the map: its attributes as the grant reads them,
+and a link to it in the Portal, where a person with the rights changes it. The App is public and
+gains no write grant, so the panel offers no Edit (AP-140).
 
 ## How it reads
 
@@ -15,8 +19,8 @@ never asks anybody to sign in.
 - Events are shown from today on by default; past ones are one checkbox away. An event with no
   date at all is kept, since nothing says it is over.
 - Search folds diacritics and case and matches every word in the name or the address.
-- A value the entity does not carry is said as "neuvedené", never shown as 0. A link opens only
-  when it is http or https, so a `javascript:` URL in the data never runs.
+- The panel shows a value the entity does not carry as empty, never as 0, and shows a URL as
+  text, so a `javascript:` URL in the data never becomes a link.
 
 ## Files
 

@@ -19,20 +19,7 @@ export interface Strings {
   mapLabel: string;
   noBasemap: string;
   notOnMap: string;
-  close: string;
-  detailOf: (name: string) => string;
   unnamed: string;
-  address: string;
-  website: string;
-  category: Record<string, string>;
-  when: string;
-  pupils: string;
-  teachingLanguage: string;
-  pm10: string;
-  pm25: string;
-  measuredAt: string;
-  noValue: string;
-  unit: string;
   attribution: string;
 }
 
@@ -54,26 +41,7 @@ const sk: Strings = {
   mapLabel: "Mapa miest; rovnaké miesta sú v zozname vedľa mapy",
   noBasemap: "Podkladová mapa nie je nastavená, miesta sú zobrazené na prázdnom pozadí.",
   notOnMap: "bez polohy, iba v zozname",
-  close: "Zavrieť",
-  detailOf: (name) => `Detail: ${name}`,
   unnamed: "Bez názvu",
-  address: "Adresa",
-  website: "Webová stránka",
-  category: {
-    musicDanceTheatre: "Hudba, tanec, divadlo",
-    museumsGalleriesLibraries: "Múzeá, galérie, knižnice",
-    sport: "Šport",
-    exhibition: "Výstavy",
-    other: "Iné podujatia",
-  },
-  when: "Kedy",
-  pupils: "Žiaci",
-  teachingLanguage: "Vyučovací jazyk",
-  pm10: "PM10",
-  pm25: "PM2,5",
-  measuredAt: "Merané",
-  noValue: "neuvedené",
-  unit: "µg/m³",
   attribution:
     "Zdroje: Mesto Banská Bystrica (podujatia, CC BY 4.0); MŠVVaM SR, Digitálna mapa škôl; Európska environmentálna agentúra (ovzdušie, stanica SK0263A).",
 };
@@ -96,26 +64,7 @@ const en: Strings = {
   mapLabel: "Map of the places; the same places are in the list beside the map",
   noBasemap: "No base map is configured, so the places are drawn on a plain background.",
   notOnMap: "no position, in the list only",
-  close: "Close",
-  detailOf: (name) => `Details: ${name}`,
   unnamed: "Unnamed",
-  address: "Address",
-  website: "Website",
-  category: {
-    musicDanceTheatre: "Music, dance and theatre",
-    museumsGalleriesLibraries: "Museums, galleries and libraries",
-    sport: "Sport",
-    exhibition: "Exhibitions",
-    other: "Other events",
-  },
-  when: "When",
-  pupils: "Pupils",
-  teachingLanguage: "Teaching language",
-  pm10: "PM10",
-  pm25: "PM2.5",
-  measuredAt: "Measured",
-  noValue: "not given",
-  unit: "µg/m³",
   attribution:
     "Sources: City of Banská Bystrica (events, CC BY 4.0); Slovak Ministry of Education, school map; European Environment Agency (air, station SK0263A).",
 };

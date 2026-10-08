@@ -6,13 +6,15 @@
  *
  * A map is not readable by a screen reader or a keyboard, so the same places are a list beside it;
  * the list is the screen and the map is the picture of it. Each kind loads on its own: one the
- * endpoint refuses is a sentence saying why, and the others stay.
+ * endpoint refuses is a sentence saying why, and the others stay. The page sits in the SDK's
+ * `AppShell` (SDK-39), and a place picked in the list or on the map opens in the SDK's entity panel
+ * (SDK-40): a public App, so the panel reads it and links to it in the Portal (AP-140).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { endpointSource, Header, Page, SourceError, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, Page, SourceError, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { EntitySource } from "@joinedcontext/sdk";
 import { byOrder, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, matches, placeOf, TYPE_OF, upcoming } from "./places";
 import type { Kind, Place } from "./places";
@@ -89,12 +91,17 @@ export function useLayers(): { layers: Record<Kind, Layer> | null } {
 export default function App({ today = new Date().toISOString().slice(0, 10) }: { today?: string }) {
   const { config } = useClient();
   const s = stringsFor(config.language);
+  return <AppShell title={s.title} language={s.locale} pages={[{ id: "map", label: s.title, render: () => <PlacesPage today={today} s={s} /> }]} />;
+}
+
+function PlacesPage({ today, s }: { today: string; s: Strings }) {
   const { layers } = useLayers();
   const [shown, setShown] = useState<Record<Kind, boolean>>({ event: true, school: true, air: true });
   const [search, setSearch] = useState("");
   const [upcomingOnly, setUpcomingOnly] = useState(true);
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  const listRef = useRef<HTMLUListElement | null>(null);
+  // The place picked is the one open in the shell's panel; closing it gives the focus back.
+  const { selected, select } = useEntitySelection();
+  const pickedId = selected?.id ?? null;
 
   const all = useMemo(
     () => KINDS.flatMap((kind) => (layers?.[kind].status === "ready" ? layers[kind].places : [])),
@@ -109,127 +116,117 @@ export default function App({ today = new Date().toISOString().slice(0, 10) }: {
         .sort(byOrder),
     [all, shown, upcomingOnly, today, search],
   );
-  const picked = visible.find((place) => place.id === pickedId) ?? null;
-
-  const close = () => {
-    const id = pickedId;
-    setPickedId(null);
-    // Focus goes back to the place in the list the person came from, never to the top of the page.
-    requestAnimationFrame(() => {
-      const items = listRef.current?.querySelectorAll<HTMLButtonElement>("button[data-id]") ?? [];
-      Array.from(items).find((item) => item.dataset.id === id)?.focus();
-    });
+  const pick = (id: string) => {
+    const place = all.find((one) => one.id === id);
+    if (place) select({ id, type: TYPE_OF[place.kind] });
   };
 
   const loading = layers !== null && KINDS.some((kind) => layers[kind].status === "loading");
 
   return (
-    <main>
-      <Page>
-        <Header level={1} title={s.title} subtitle={s.subtitle} />
+    <Page>
+      <p className="subtitle">{s.subtitle}</p>
 
-        {layers === null && <p role="status">{s.noEndpoint}</p>}
-        {layers !== null && (
-          <>
-            <div className="controls">
-              <div className="search">
-                <label htmlFor="search">{s.search}</label>
-                <input
-                  id="search"
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  aria-describedby="search-help"
-                />
-                <small id="search-help">{s.searchHelp}</small>
-              </div>
-              <fieldset className="layers">
-                <legend>{s.show}</legend>
-                {KINDS.map((kind) => {
-                  const layer = layers[kind];
-                  const count = layer.status === "ready" ? layer.places.length : null;
-                  return (
-                    <label key={kind} className="layer">
-                      <input
-                        type="checkbox"
-                        checked={shown[kind]}
-                        onChange={(event) => setShown({ ...shown, [kind]: event.target.checked })}
-                      />
-                      <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[kind] }}>
-                        {KIND_SHAPE[kind]}
-                      </span>
-                      <span>
-                        {s.kind[kind]}
-                        {count !== null ? ` (${count})` : ""}
-                      </span>
-                    </label>
-                  );
-                })}
-                <label className="layer">
-                  <input type="checkbox" checked={upcomingOnly} onChange={(event) => setUpcomingOnly(event.target.checked)} />
-                  <span>{s.upcomingOnly}</span>
-                </label>
-              </fieldset>
+      {layers === null && <p role="status">{s.noEndpoint}</p>}
+      {layers !== null && (
+        <>
+          <div className="controls">
+            <div className="search">
+              <label htmlFor="search">{s.search}</label>
+              <input
+                id="search"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                aria-describedby="search-help"
+              />
+              <small id="search-help">{s.searchHelp}</small>
             </div>
-
-            {loading && <p role="status">{s.loading}</p>}
-            {KINDS.map((kind) => {
-              const layer = layers[kind];
-              if (layer.status === "failed") {
+            <fieldset className="layers">
+              <legend>{s.show}</legend>
+              {KINDS.map((kind) => {
+                const layer = layers[kind];
+                const count = layer.status === "ready" ? layer.places.length : null;
                 return (
-                  <p key={kind} role="alert" className="failed">
-                    {s.refused(s.kind[kind], layer.reason)}
-                  </p>
+                  <label key={kind} className="layer">
+                    <input
+                      type="checkbox"
+                      checked={shown[kind]}
+                      onChange={(event) => setShown({ ...shown, [kind]: event.target.checked })}
+                    />
+                    <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[kind] }}>
+                      {KIND_SHAPE[kind]}
+                    </span>
+                    <span>
+                      {s.kind[kind]}
+                      {count !== null ? ` (${count})` : ""}
+                    </span>
+                  </label>
                 );
-              }
-              if (layer.status === "ready" && layer.truncated) {
-                return (
-                  <p key={kind} className="note">
-                    {s.truncated(s.kind[kind], MOST)}
-                  </p>
-                );
-              }
-              return null;
-            })}
+              })}
+              <label className="layer">
+                <input type="checkbox" checked={upcomingOnly} onChange={(event) => setUpcomingOnly(event.target.checked)} />
+                <span>{s.upcomingOnly}</span>
+              </label>
+            </fieldset>
+          </div>
 
-            <div className="map-screen">
-              <PlaceMap places={visible} picked={pickedId} onPick={setPickedId} s={s} />
-              <div className="side">
-                {picked ? <PlaceSheet place={picked} onClose={close} s={s} /> : null}
-                <section className="results" aria-labelledby="results-heading">
-                  <h2 id="results-heading">{s.results(visible.length)}</h2>
-                  {!loading && visible.length === 0 ? <p>{s.noResults}</p> : null}
-                  <ul ref={listRef}>
-                    {visible.map((place) => (
-                      <li key={place.id}>
-                        <button
-                          type="button"
-                          data-id={place.id}
-                          aria-pressed={place.id === pickedId}
-                          onClick={() => setPickedId(place.id)}
-                        >
-                          <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[place.kind] }}>
-                            {KIND_SHAPE[place.kind]}
-                          </span>
-                          <span className="name">{place.name ?? s.unnamed}</span>
-                          <span className="sub">
-                            {s.kind[place.kind]}
-                            {place.kind === "event" && place.startDate ? ` · ${day(place.startDate, s)}` : ""}
-                            {place.coordinates === null ? ` · ${s.notOnMap}` : ""}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              </div>
+          {loading && <p role="status">{s.loading}</p>}
+          {KINDS.map((kind) => {
+            const layer = layers[kind];
+            if (layer.status === "failed") {
+              return (
+                <p key={kind} role="alert" className="failed">
+                  {s.refused(s.kind[kind], layer.reason)}
+                </p>
+              );
+            }
+            if (layer.status === "ready" && layer.truncated) {
+              return (
+                <p key={kind} className="note">
+                  {s.truncated(s.kind[kind], MOST)}
+                </p>
+              );
+            }
+            return null;
+          })}
+
+          <div className="map-screen">
+            <PlaceMap places={visible} picked={pickedId} onPick={pick} s={s} />
+            <div className="side">
+              <section className="results" aria-labelledby="results-heading">
+                <h2 id="results-heading">{s.results(visible.length)}</h2>
+                {!loading && visible.length === 0 ? <p>{s.noResults}</p> : null}
+                <ul>
+                  {visible.map((place) => (
+                    <li key={place.id}>
+                      <button
+                        type="button"
+                        data-id={place.id}
+                        aria-pressed={place.id === pickedId}
+                        onClick={() => pick(place.id)}
+                      >
+                        <span aria-hidden="true" className="shape" style={{ color: KIND_COLOUR[place.kind] }}>
+                          {KIND_SHAPE[place.kind]}
+                        </span>
+                        <span className="name">{place.name ?? s.unnamed}</span>{" "}
+                        <span className="sub">
+                          {s.kind[place.kind]}
+                          {place.kind === "event" && place.startDate ? ` · ${day(place.startDate, s)}` : ""}
+                          {place.coordinates === null ? ` · ${s.notOnMap}` : ""}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             </div>
-          </>
-        )}
+          </div>
+        </>
+      )}
 
-        <p className="source">{s.attribution}</p>
-      </Page>
-    </main>
+      <p className="source">{s.attribution}</p>
+    </Page>
   );
 }
 
@@ -253,6 +250,9 @@ function PlaceMap({
   const collection = useMemo(() => featuresOf(places, picked), [places, picked]);
   const latest = useRef(collection);
   latest.current = collection;
+  // The map is built once: its click asks the latest handler, which knows the latest places.
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
 
   useEffect(() => {
     if (!holder.current || map.current) return;
@@ -274,7 +274,7 @@ function PlaceMap({
     });
     drawn.on("click", SOURCE_ID, (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
       const id = event.features?.[0]?.properties?.id;
-      if (typeof id === "string") onPick(id);
+      if (typeof id === "string") pickRef.current(id);
     });
     map.current = drawn;
     return () => {
@@ -299,100 +299,7 @@ function PlaceMap({
   );
 }
 
-/** One place whole: a bottom sheet on a phone, a panel beside the list on a wider screen. */
-function PlaceSheet({ place, onClose, s }: { place: Place; onClose: () => void; s: Strings }) {
-  const heading = useRef<HTMLHeadingElement | null>(null);
-  useEffect(() => {
-    heading.current?.focus();
-  }, [place.id]);
-  const name = place.name ?? s.unnamed;
-  return (
-    <section
-      className="sheet"
-      aria-labelledby="sheet-heading"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <div className="sheet-head">
-        <h2 id="sheet-heading" ref={heading} tabIndex={-1}>
-          {s.detailOf(name)}
-        </h2>
-        <button type="button" onClick={onClose}>
-          {s.close}
-        </button>
-      </div>
-      <p className="sub">
-        <span aria-hidden="true" style={{ color: KIND_COLOUR[place.kind] }}>
-          {KIND_SHAPE[place.kind]}
-        </span>{" "}
-        {s.kind[place.kind]}
-      </p>
-      <dl>
-        {place.kind === "event" && (
-          <>
-            <dt>{s.when}</dt>
-            <dd>{when(place, s)}</dd>
-            <dt>{s.kind.event}</dt>
-            <dd>{place.category ? (s.category[place.category] ?? place.category) : s.noValue}</dd>
-          </>
-        )}
-        {place.kind === "school" && (
-          <>
-            <dt>{s.pupils}</dt>
-            <dd>{place.pupils === null ? s.noValue : new Intl.NumberFormat(s.locale).format(place.pupils)}</dd>
-            <dt>{s.teachingLanguage}</dt>
-            <dd>{place.language ?? s.noValue}</dd>
-          </>
-        )}
-        {place.kind === "air" && (
-          <>
-            <dt>{s.pm10}</dt>
-            <dd>{reading(place.pm10, s)}</dd>
-            <dt>{s.pm25}</dt>
-            <dd>{reading(place.pm25, s)}</dd>
-            <dt>{s.measuredAt}</dt>
-            <dd>{place.observedAt ? moment(place.observedAt, s) : s.noValue}</dd>
-          </>
-        )}
-        <dt>{s.address}</dt>
-        <dd>{place.address ?? s.noValue}</dd>
-      </dl>
-      {place.url ? (
-        <p>
-          <a href={place.url} target="_blank" rel="noopener noreferrer">
-            {s.website}
-          </a>
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
 function day(iso: string, s: Strings): string {
   const at = new Date(`${iso.slice(0, 10)}T12:00:00`);
   return Number.isNaN(at.getTime()) ? iso : new Intl.DateTimeFormat(s.locale, { dateStyle: "medium" }).format(at);
-}
-
-function when(place: Place, s: Strings): string {
-  if (!place.startDate) return s.noValue;
-  const start = `${day(place.startDate, s)}${place.startTime ? ` ${place.startTime.slice(0, 5)}` : ""}`;
-  return place.endDate && place.endDate.slice(0, 10) !== place.startDate.slice(0, 10)
-    ? `${start} – ${day(place.endDate, s)}`
-    : start;
-}
-
-function reading(value: number | null, s: Strings): string {
-  if (value === null) return s.noValue;
-  return `${new Intl.NumberFormat(s.locale, { maximumFractionDigits: 1 }).format(value)} ${s.unit}`;
-}
-
-function moment(iso: string, s: Strings): string {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime())
-    ? iso
-    : new Intl.DateTimeFormat(s.locale, { dateStyle: "medium", timeStyle: "short" }).format(at);
 }
