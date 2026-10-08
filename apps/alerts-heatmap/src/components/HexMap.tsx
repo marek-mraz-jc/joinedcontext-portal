@@ -14,6 +14,7 @@ export function HexMap({
   places,
   label,
   describe,
+  onPlace,
   height = 460,
 }: {
   hexes: Hex[];
@@ -22,6 +23,8 @@ export function HexMap({
   label: string;
   /** The popup's lines for a hexagon or a place. */
   describe: (what: { kind: "hex"; hex: Hex } | { kind: "place"; place: Place }) => string[];
+  /** Called with the place a click lands on, after its popup. */
+  onPlace?: (place: Place) => void;
   height?: number;
 }): React.JSX.Element {
   const client = useClient();
@@ -32,6 +35,8 @@ export function HexMap({
   const fitted = useRef(false);
   const describeRef = useRef(describe);
   describeRef.current = describe;
+  const onPlaceRef = useRef(onPlace);
+  onPlaceRef.current = onPlace;
   const tokens = useMemo(() => currentTokens(), []);
   const most = hexes.reduce((max, hex) => Math.max(max, hex.count), 1);
 
@@ -123,7 +128,12 @@ export function HexMap({
           }
           new Popup({ closeButton: true }).setLngLat(event.lngLat).setDOMContent(body).addTo(instance);
         };
-        instance.on("click", "places", (event) => popup(event, "place"));
+        instance.on("click", "places", (event) => {
+          popup(event, "place");
+          const index = event.features?.[0]?.properties?.index;
+          const place = typeof index === "number" ? lookup.current.places[index] : undefined;
+          if (place) onPlaceRef.current?.(place);
+        });
         instance.on("click", "hexes", (event) => {
           // A place sits on top of its hexagon: its own popup answers that click.
           if (instance?.queryRenderedFeatures(event.point, { layers: ["places"] }).length) return;

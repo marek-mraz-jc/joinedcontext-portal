@@ -29,6 +29,19 @@ describe("the controls record (T-3373)", () => {
     expect(controlId(screen.getByRole("link"))).toBe("link: Open in the Portal");
   });
 
+  it("names a control the same whatever counts its name carries", () => {
+    render(
+      <div>
+        <label>
+          <input type="checkbox" /> Road work (5)
+        </label>
+        <button type="button">Page 1 of 1 234,5</button>
+      </div>,
+    );
+    expect(controlId(screen.getByRole("checkbox"))).toBe("checkbox: Road work (#)");
+    expect(controlId(screen.getByRole("button"))).toBe("button: Page # of #");
+  });
+
   it("leaves what is hidden from a screen reader out of a control's name", () => {
     render(
       <button type="button">
