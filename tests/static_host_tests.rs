@@ -27,6 +27,9 @@ fn app_root(case: &str, files: &[(&str, &[u8])]) -> tempdir::Dir {
     std::fs::create_dir_all(&app).expect("app dir");
     let mut digests = serde_json::Map::new();
     for (name, bytes) in files {
+        if let Some(parent) = app.join(name).parent() {
+            std::fs::create_dir_all(parent).expect("bundle folder");
+        }
         std::fs::write(app.join(name), bytes).expect("bundle file");
         digests.insert((*name).into(), sri_sha384(bytes).into());
     }
@@ -184,6 +187,49 @@ async fn every_app_response_carries_its_own_policy_and_not_the_portals() {
     // SAMEORIGIN or DENY would refuse the Portal's frame (AP-122).
     assert!(headers.get(header::X_FRAME_OPTIONS).is_none());
     assert_eq!(headers["x-content-type-options"], "nosniff");
+}
+
+/// AP-142 (T-3327): a WebAssembly module is served as `application/wasm`, the policy lets the
+/// browser compile it and nothing more, and a file whose name carries its hash is cached for good
+/// while every other file is revalidated.
+#[tokio::test]
+async fn a_webassembly_module_is_served_as_wasm_and_a_hashed_file_is_kept() {
+    let wasm: &[u8] = b"\0asm\x01\0\0\0";
+    let dir = app_root(
+        "wasm",
+        &[
+            ("index.html", INDEX),
+            ("assets/compute_bg-Cx8f2kQ9.wasm", wasm),
+            ("assets/index-B4tq81Zr.js", BUNDLE_JS),
+            ("bundle.js", BUNDLE_JS),
+        ],
+    );
+    let get = |uri: &'static str| get_from(dir.path(), app_spec("published"), uri);
+
+    let (status, headers, body) = get("/apps/air-quality/assets/compute_bg-Cx8f2kQ9.wasm").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, wasm);
+    assert_eq!(headers[header::CONTENT_TYPE], "application/wasm");
+    assert_eq!(
+        headers[header::CACHE_CONTROL],
+        "private, max-age=31536000, immutable"
+    );
+    let csp = headers[header::CONTENT_SECURITY_POLICY].to_str().unwrap();
+    assert!(
+        csp.contains("script-src 'self' 'wasm-unsafe-eval';"),
+        "{csp}"
+    );
+
+    let (_, headers, _) = get("/apps/air-quality/assets/index-B4tq81Zr.js").await;
+    assert_eq!(
+        headers[header::CACHE_CONTROL],
+        "private, max-age=31536000, immutable"
+    );
+    // A name without a hash, and the index, can change under the same path on a republish.
+    let (_, headers, _) = get("/apps/air-quality/bundle.js").await;
+    assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
+    let (_, headers, _) = get("/apps/air-quality/").await;
+    assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
 }
 
 #[tokio::test]
