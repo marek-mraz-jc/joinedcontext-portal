@@ -42,6 +42,8 @@ pub enum Error {
     },
     #[error("the apps database has {0} shards configured; it needs at least one")]
     NoShards(u32),
+    #[error("migration `{file}` holds {what}, which an App's migration may not (AP-144): it would run later as the App inside its shard's session, where it could become another App; use tables, indexes, views and constraints")]
+    Refused { file: String, what: &'static str },
 }
 
 /// The App's id: the first 16 hex digits of the SHA-256 of `{project}/{name}` (AP-149). Stable,
@@ -165,6 +167,15 @@ impl AppsDb {
             }
         }
         files.sort_by(|a, b| a.file.cmp(&b.file));
+        // Every file is judged before any runs, so a refused one never leaves half a schema.
+        for file in &files {
+            if let Some(what) = refused_in(&file.sql) {
+                return Err(Error::Refused {
+                    file: file.file.clone(),
+                    what,
+                });
+            }
+        }
         let recorded: Vec<(String, String)> =
             sqlx::query_as("SELECT file, sha256 FROM jc_apps.migrations WHERE app_id = $1")
                 .bind(id)
@@ -266,6 +277,153 @@ impl AppsDb {
     }
 }
 
+/// The words of a migration as SQL reads them: names and keywords lowercased, quoted names as
+/// names, string constants and comments as nothing; `None` for what it cannot read safely (an
+/// unterminated quote or comment, a dollar-quoted body) so the caller refuses it.
+fn words(sql: &str) -> Result<Vec<String>, &'static str> {
+    let chars: Vec<char> = sql.chars().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        if c == '-' && next == Some('-') {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+        } else if c == '/' && next == Some('*') {
+            // Block comments nest in PostgreSQL.
+            let mut depth = 0;
+            loop {
+                match (chars.get(i), chars.get(i + 1)) {
+                    (Some('/'), Some('*')) => {
+                        depth += 1;
+                        i += 2;
+                    }
+                    (Some('*'), Some('/')) => {
+                        depth -= 1;
+                        i += 2;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    (Some(_), _) => i += 1,
+                    (None, _) => return Err("an unterminated comment"),
+                }
+            }
+        } else if c == '\'' {
+            // A string constant, `''` an escaped quote; an E'' string's backslash escapes too.
+            let escapes = matches!(out.last().map(String::as_str), Some("e"))
+                && i > 0
+                && matches!(chars[i - 1], 'e' | 'E');
+            if escapes {
+                out.pop();
+            }
+            i += 1;
+            loop {
+                match chars.get(i) {
+                    Some('\\') if escapes => i += 2,
+                    Some('\'') if chars.get(i + 1) == Some(&'\'') => i += 2,
+                    Some('\'') => {
+                        i += 1;
+                        break;
+                    }
+                    Some(_) => i += 1,
+                    None => return Err("an unterminated string"),
+                }
+            }
+            out.push("'".to_owned());
+        } else if c == '"' {
+            let mut name = String::new();
+            i += 1;
+            loop {
+                match chars.get(i) {
+                    Some('"') if chars.get(i + 1) == Some(&'"') => {
+                        name.push('"');
+                        i += 2;
+                    }
+                    Some('"') => {
+                        i += 1;
+                        break;
+                    }
+                    Some(&ch) => {
+                        name.push(ch);
+                        i += 1;
+                    }
+                    None => return Err("an unterminated quoted name"),
+                }
+            }
+            out.push(name.to_lowercase());
+        } else if c == '$' {
+            // `$1` is a parameter; `$tag$` or `$$` opens a dollar-quoted body, which this cannot
+            // read into: a function's body, a DO block's, or a string a plain quote can carry.
+            if next.is_some_and(|ch| ch == '$' || ch.is_alphabetic() || ch == '_') {
+                return Err("a dollar-quoted body");
+            }
+            i += 1;
+        } else if c.is_alphanumeric() || c == '_' {
+            let start = i;
+            while i < chars.len()
+                && (chars[i].is_alphanumeric() || chars[i] == '_' || chars[i] == '$')
+            {
+                i += 1;
+            }
+            out.push(chars[start..i].iter().collect::<String>().to_lowercase());
+        } else {
+            if c == ';' || c == '(' || c == ')' {
+                out.push(c.to_string());
+            }
+            i += 1;
+        }
+    }
+    Ok(out)
+}
+
+/// What a migration holds that an App's migration may not (AP-144, T-3358), or `None`. A
+/// function, procedure, DO block, trigger or rule runs its SQL later as the App inside the shard's
+/// session, a member of every App role of the shard, where a role switch the host cannot see
+/// makes it another App; `set_config` in a default, a check or an index does the same; and a
+/// role switch in the migration itself is refused as well.
+pub fn refused_in(sql: &str) -> Option<&'static str> {
+    let words = match words(sql) {
+        Ok(words) => words,
+        Err(what) => return Some(what),
+    };
+    if words.iter().any(|w| w == "set_config") {
+        return Some("`set_config`");
+    }
+    for statement in words.split(|w| w == ";") {
+        let mut lead: Vec<&str> = statement.iter().map(String::as_str).take(6).collect();
+        if lead.len() >= 3 && lead[0] == "create" && lead[1] == "or" && lead[2] == "replace" {
+            lead.drain(1..3);
+        }
+        let refused = match lead.as_slice() {
+            ["do", ..] => Some("a DO block"),
+            ["create", "function", ..] => Some("a function"),
+            ["create", "procedure", ..] => Some("a procedure"),
+            ["create", "trigger", ..] | ["create", "constraint", "trigger", ..] => {
+                Some("a trigger")
+            }
+            ["create", "event", "trigger", ..] => Some("an event trigger"),
+            ["create", "rule", ..] => Some("a rule"),
+            ["create", "aggregate", ..] | ["create", "operator", ..] | ["create", "cast", ..] => {
+                Some("an aggregate, operator or cast")
+            }
+            ["set", "role", ..]
+            | ["set", "session", ..]
+            | ["reset", "role", ..]
+            | ["reset", "session", ..] => Some("a role switch"),
+            ["set", "local", "role", ..] | ["set", "local", "session", ..] => Some("a role switch"),
+            ["call", ..] => Some("a procedure call"),
+            _ => None,
+        };
+        if refused.is_some() {
+            return refused;
+        }
+    }
+    None
+}
+
 /// The database's own words for a failed statement, without the statement.
 fn database_reason(err: &sqlx::Error) -> String {
     match err {
@@ -325,6 +483,53 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-3358, AP-144: what runs later inside the shard's session is refused, however written.
+    #[test]
+    fn a_migration_defining_code_or_switching_role_is_refused() {
+        for (sql, what) in [
+            ("CREATE FUNCTION f() RETURNS int LANGUAGE sql AS 'select 1'", "a function"),
+            ("create or replace function f() returns int language plpgsql as $$ begin execute 'set role app_x'; end $$", "a dollar-quoted body"),
+            ("CREATE   OR\n REPLACE PROCEDURE p() LANGUAGE sql AS 'select 1'", "a procedure"),
+            ("DO 'begin null; end'", "a DO block"),
+            ("create trigger t before insert on notes for each row execute function f()", "a trigger"),
+            ("CREATE CONSTRAINT TRIGGER t AFTER INSERT ON notes FOR EACH ROW EXECUTE FUNCTION f()", "a trigger"),
+            ("create event trigger e on ddl_command_start execute function f()", "an event trigger"),
+            ("CREATE RULE r AS ON INSERT TO notes DO ALSO NOTIFY x", "a rule"),
+            ("set role app_0123456789abcdef", "a role switch"),
+            ("SET LOCAL ROLE x", "a role switch"),
+            ("SET SESSION AUTHORIZATION x", "a role switch"),
+            ("RESET ROLE", "a role switch"),
+            ("CALL p()", "a procedure call"),
+            ("CREATE TABLE t (r text DEFAULT set_config('role', 'app_x', true))", "`set_config`"),
+            ("CREATE TABLE t (x int CHECK (pg_catalog.\"SET_CONFIG\"('role','x',true) IS NOT NULL))", "`set_config`"),
+            ("CREATE TABLE t (x int); /* unterminated", "an unterminated comment"),
+            ("INSERT INTO t VALUES ('open", "an unterminated string"),
+        ] {
+            assert_eq!(refused_in(sql), Some(what), "{sql}");
+        }
+        // A second statement is judged as the first is.
+        assert_eq!(
+            refused_in("CREATE TABLE a (x int);\n-- then\nDO 'x';"),
+            Some("a DO block")
+        );
+    }
+
+    #[test]
+    fn tables_indexes_views_constraints_and_data_pass() {
+        for sql in [
+            "CREATE TABLE notes (id bigserial PRIMARY KEY, body text NOT NULL CHECK (length(body) < 4000), created timestamptz DEFAULT now())",
+            "CREATE INDEX notes_created ON notes (created DESC); CREATE UNIQUE INDEX ON notes (lower(body))",
+            "CREATE VIEW recent AS SELECT * FROM notes WHERE created > now() - interval '1 day'",
+            "ALTER TABLE notes ADD COLUMN tags text[] DEFAULT '{}'",
+            // Words a refused statement starts with, inside a string, a comment or a name, are data.
+            "INSERT INTO notes (body) VALUES ('create function; do; set role x; set_config'), (E'it''s \\' do')",
+            "-- create function f\n/* do /* nested */ set role */ CREATE TABLE \"do\" (\"set\" int)",
+            "COMMENT ON TABLE notes IS 'Trigger warnings live here'",
+        ] {
+            assert_eq!(refused_in(sql), None, "{sql}");
+        }
+    }
 
     #[test]
     fn an_app_id_is_sixteen_hex_digits_stable_and_per_project() {
