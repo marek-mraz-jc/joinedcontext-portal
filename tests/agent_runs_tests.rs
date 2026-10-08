@@ -2024,7 +2024,7 @@ async fn a_request_the_app_kind_would_refuse_is_refused_here() {
 
     for (field, value) in [
         ("appName", json!("Not A Label")),
-        ("appClass", json!("wasm")),
+        ("appClass", json!("not-a-class")),
         ("visibility", json!("everyone")),
         ("prompt", json!("   ")),
     ] {
