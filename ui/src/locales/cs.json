@@ -4563,6 +4563,29 @@
       "didHint": "Napište decentralizovaný identifikátor, například did:web:example.org; seznam k výběru neexistuje.",
       "peopleHidden": "Seznam osob vidí jen správce organizace; napište e-mail, kterým se osoba přihlašuje.",
       "noneYet": "Zatím tu není nic tohoto druhu k výběru ({kind}); napište název tak, jak jej píše poskytovatel identity."
+    },
+    "sentence": {
+      "title": "Slovy",
+      "who": {
+        "role": "Držitelé role {id}",
+        "group": "Členové skupiny {id}",
+        "user": "Osoba {id}",
+        "serviceAccount": "Servisní účet {id}",
+        "did": "Účastník {id}"
+      },
+      "nobody": "Zatím nikdo",
+      "nothing": "zatím nic",
+      "everyType": "každý typ",
+      "may": "{who} smí {what} na {types} v prostoru {space}",
+      "mayNot": "{who} nesmí {what} na {types} v prostoru {space}",
+      "attributes": "jen atributy {attributes}",
+      "q": "kde {q}",
+      "scope": "v rámci rozsahu {scope}",
+      "geo": "v oblasti {geo}",
+      "temporal": "pro čas {temporal}",
+      "between": "od {from} do {to}",
+      "from": "od {from}",
+      "until": "do {to}"
     }
   },
   "subscriptions": {

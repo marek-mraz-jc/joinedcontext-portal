@@ -4563,6 +4563,29 @@
       "didHint": "Type the decentralised identifier, such as did:web:example.org; there is no list of them to pick from.",
       "peopleHidden": "Only an administrator of the organization sees the list of people; type the person's e-mail as they sign in with it.",
       "noneYet": "Nothing of this kind to pick from yet ({kind}); type the name as the identity provider spells it."
+    },
+    "sentence": {
+      "title": "In words",
+      "who": {
+        "role": "Holders of the role {id}",
+        "group": "Members of the group {id}",
+        "user": "The person {id}",
+        "serviceAccount": "The service account {id}",
+        "did": "The participant {id}"
+      },
+      "nobody": "Nobody yet",
+      "nothing": "nothing yet",
+      "everyType": "every type",
+      "may": "{who} may {what} on {types} in the space {space}",
+      "mayNot": "{who} may not {what} on {types} in the space {space}",
+      "attributes": "only the attributes {attributes}",
+      "q": "where {q}",
+      "scope": "within the scope {scope}",
+      "geo": "in the area {geo}",
+      "temporal": "for the time {temporal}",
+      "between": "from {from} until {to}",
+      "from": "from {from}",
+      "until": "until {to}"
     }
   },
   "subscriptions": {

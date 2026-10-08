@@ -4563,6 +4563,29 @@
       "didHint": "Geben Sie den dezentralen Identifikator ein, etwa did:web:example.org; eine Auswahlliste gibt es nicht.",
       "peopleHidden": "Nur eine Administration der Organisation sieht die Liste der Personen; geben Sie die E-Mail ein, mit der sich die Person anmeldet.",
       "noneYet": "Von dieser Art gibt es noch nichts zur Auswahl ({kind}); geben Sie den Namen so ein, wie der Identitätsanbieter ihn schreibt."
+    },
+    "sentence": {
+      "title": "In Worten",
+      "who": {
+        "role": "Inhaber der Rolle {id}",
+        "group": "Mitglieder der Gruppe {id}",
+        "user": "Die Person {id}",
+        "serviceAccount": "Das Dienstkonto {id}",
+        "did": "Der Teilnehmer {id}"
+      },
+      "nobody": "Noch niemand",
+      "nothing": "noch nichts",
+      "everyType": "jeden Typ",
+      "may": "{who} dürfen {what} auf {types} im Raum {space}",
+      "mayNot": "{who} dürfen nicht {what} auf {types} im Raum {space}",
+      "attributes": "nur die Attribute {attributes}",
+      "q": "wo {q}",
+      "scope": "im Bereich {scope}",
+      "geo": "im Gebiet {geo}",
+      "temporal": "für die Zeit {temporal}",
+      "between": "von {from} bis {to}",
+      "from": "ab {from}",
+      "until": "bis {to}"
     }
   },
   "subscriptions": {
