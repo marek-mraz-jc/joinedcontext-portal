@@ -94,6 +94,75 @@ impl Credential {
     }
 }
 
+impl Credential {
+    /// The pair a WASM shard gets (AP-158), derived like an organization's, under its own
+    /// versioned context so no shard's key can equal an organization's.
+    pub fn derive_shard(root_secret: &str, shard: u32) -> Self {
+        let mut mac = HmacSha256::new_from_slice(root_secret.as_bytes())
+            .unwrap_or_else(|_| unreachable!("HMAC takes a key of any length"));
+        mac.update(format!("joinedcontext/apps-store/v1/shard/{shard}").as_bytes());
+        let mut secret_key =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
+        secret_key.truncate(40);
+        Self {
+            access_key: shard_name(shard),
+            secret_key,
+        }
+    }
+}
+
+/// The user and policy name of a shard's key, `jc-apps-shard-<shard>`.
+pub fn shard_name(shard: u32) -> String {
+    format!("jc-apps-shard-{shard}")
+}
+
+/// What one shard's key may do in the Apps bucket (AP-158, ADR-N-044 §2.5): read, write and
+/// delete its own Apps' objects under `apps/<shard>/`, list that prefix and no other, and read
+/// the components every shard loads. Not a word about another shard's prefix: the store itself
+/// refuses it.
+pub fn shard_policy_document(bucket: &str, shard: u32) -> serde_json::Value {
+    serde_json::json!({
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+                "Resource": [format!("arn:aws:s3:::{bucket}/apps/{shard}/*")],
+            },
+            {
+                "Effect": "Allow",
+                "Action": ["s3:ListBucket"],
+                "Resource": [format!("arn:aws:s3:::{bucket}")],
+                "Condition": { "StringLike": { "s3:prefix": [format!("apps/{shard}/*")] } },
+            },
+            {
+                "Effect": "Allow",
+                "Action": ["s3:GetObject"],
+                "Resource": [format!("arn:aws:s3:::{bucket}/components/*")],
+            },
+        ],
+    })
+}
+
+/// The Secret a shard mounts its key from, `apps-host-<shard>-store` (AP-158); the host reads
+/// each value from a file (`JC_WASM_S3_KEY_FILE`, `JC_WASM_S3_SECRET_FILE`), never its environment.
+pub fn shard_secret(namespace: &str, shard: u32, key: &Credential) -> serde_json::Value {
+    serde_json::json!({
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {
+            "name": format!("apps-host-{shard}-store"),
+            "namespace": namespace,
+            "labels": {
+                "app.kubernetes.io/managed-by": "joinedcontext-portal",
+                "joinedcontext.com/wasm-shard": shard.to_string(),
+            },
+        },
+        "type": "Opaque",
+        "stringData": { "access-key": key.access_key, "secret-key": key.secret_key },
+    })
+}
+
 /// The name of the user and of the policy that carries its rights. One name for both: a user
 /// and a canned policy live in different namespaces in the store, and reading `jc-hel-reader`
 /// in either place should name the same thing.
@@ -226,44 +295,66 @@ impl Client {
         let mut issued = Vec::with_capacity(Role::BOTH.len());
         for role in Role::BOTH {
             let credential = self.credential(org, role);
-            let policy = name(org, role);
-
-            self.put(
-                "/rustfs/admin/v3/add-canned-policy",
-                &[("name", policy.clone())],
-                serde_json::to_vec(&policy_document(&self.settings.bucket, org, role))
-                    .unwrap_or_default(),
-                "add-canned-policy",
+            self.ensure_user(
+                &name(org, role),
+                &policy_document(&self.settings.bucket, org, role),
+                &credential,
             )
             .await?;
-
-            self.put(
-                "/rustfs/admin/v3/add-user",
-                &[("accessKey", credential.access_key.clone())],
-                serde_json::to_vec(&serde_json::json!({
-                    "secretKey": credential.secret_key,
-                    "status": "enabled",
-                }))
-                .unwrap_or_default(),
-                "add-user",
-            )
-            .await?;
-
-            self.put(
-                "/rustfs/admin/v3/set-user-or-group-policy",
-                &[
-                    ("policyName", policy),
-                    ("userOrGroup", credential.access_key.clone()),
-                    ("isGroup", "false".to_owned()),
-                ],
-                Vec::new(),
-                "set-user-or-group-policy",
-            )
-            .await?;
-
             issued.push(credential);
         }
         Ok(issued)
+    }
+
+    /// Makes one WASM shard's policy and user exist in the Apps bucket `bucket`, and returns its
+    /// key (AP-158). Idempotent, as [`Client::ensure_organization`] is.
+    pub async fn ensure_shard(&self, bucket: &str, shard: u32) -> Result<Credential, Error> {
+        let credential = Credential::derive_shard(&self.settings.root_secret_key, shard);
+        self.ensure_user(
+            &shard_name(shard),
+            &shard_policy_document(bucket, shard),
+            &credential,
+        )
+        .await?;
+        Ok(credential)
+    }
+
+    /// The canned policy `policy`, the user of `credential`, and the one attached to the other.
+    async fn ensure_user(
+        &self,
+        policy: &str,
+        document: &serde_json::Value,
+        credential: &Credential,
+    ) -> Result<(), Error> {
+        self.put(
+            "/rustfs/admin/v3/add-canned-policy",
+            &[("name", policy.to_owned())],
+            serde_json::to_vec(document).unwrap_or_default(),
+            "add-canned-policy",
+        )
+        .await?;
+        self.put(
+            "/rustfs/admin/v3/add-user",
+            &[("accessKey", credential.access_key.clone())],
+            serde_json::to_vec(&serde_json::json!({
+                "secretKey": credential.secret_key,
+                "status": "enabled",
+            }))
+            .unwrap_or_default(),
+            "add-user",
+        )
+        .await?;
+        self.put(
+            "/rustfs/admin/v3/set-user-or-group-policy",
+            &[
+                ("policyName", policy.to_owned()),
+                ("userOrGroup", credential.access_key.clone()),
+                ("isGroup", "false".to_owned()),
+            ],
+            Vec::new(),
+            "set-user-or-group-policy",
+        )
+        .await
     }
 
     /// One signed admin request. The body is plain JSON: the store decrypts a body only on the
