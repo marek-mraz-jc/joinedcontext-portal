@@ -1,0 +1,9 @@
+# The planner's build output: `pnpm build:wasm` writes it from wasm/.
+src/wasm-pkg/
+wasm/target/
+node_modules/
+dist/
+test-results/
+*.tsbuildinfo
+playwright-report/
+pnpm-lock.yaml
