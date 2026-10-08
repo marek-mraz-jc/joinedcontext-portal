@@ -56,12 +56,32 @@ pub fn stops_reached(
         );
         edges[a].push((b, ride.minutes));
     }
-    // ponytail: every pair of stops for the changes on foot, O(stops²); a grid when stops pass a few thousand.
-    for i in 0..n {
-        for j in 0..n {
-            let d = ((stops[i].x - stops[j].x).powi(2) + (stops[i].y - stops[j].y).powi(2)).sqrt();
-            if i != j && d <= TRANSFER {
-                edges[i].push((j, walk_minutes(d)));
+    // The changes on foot: each stop against the stops of its own and the neighbouring cells of a
+    // TRANSFER-sized grid, so 8000 stops cost a few neighbours each, not every pair.
+    let cell = |stop: &Stop| {
+        (
+            (stop.x / TRANSFER).floor() as i64,
+            (stop.y / TRANSFER).floor() as i64,
+        )
+    };
+    let mut grid: HashMap<(i64, i64), Vec<usize>> = HashMap::new();
+    for (i, stop) in stops.iter().enumerate() {
+        grid.entry(cell(stop)).or_default().push(i);
+    }
+    for (i, stop) in stops.iter().enumerate() {
+        let (cx, cy) = cell(stop);
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for &j in grid
+                    .get(&(cx + dx, cy + dy))
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[])
+                {
+                    let d = ((stop.x - stops[j].x).powi(2) + (stop.y - stops[j].y).powi(2)).sqrt();
+                    if i != j && d <= TRANSFER {
+                        edges[i].push((j, walk_minutes(d)));
+                    }
+                }
             }
         }
     }

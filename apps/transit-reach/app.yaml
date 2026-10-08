@@ -1,7 +1,8 @@
-# How far a visitor gets by transit from any point of Helsinki in 10, 20 and 30 minutes (T-3331).
-# The endpoint carries vehicles, not stops or timetables: the analysis derives stops from where
-# vehicles stood still in the last hours and rides from their moves between them, then walks,
-# waits, rides and changes onto a hexagon grid. It runs in the visitor's browser as WebAssembly
+# How far a visitor gets by transit from any point of Helsinki in 10, 20 and 30 minutes (T-3331,
+# T-3356). The analysis rides HSL's stops and lines (8389 stops, 1121 line variants), the time of a
+# ride from its distance at the mode's usual speed; where the space holds none, it derives stops
+# from where vehicles stood still in the last hours instead. Then it walks, waits, rides and
+# changes onto a hexagon grid. It runs in the visitor's browser as WebAssembly
 # compiled from the Rust crate in wasm/ (AP-142), so the App is a `ui` bundle and costs no pod.
 # Hand written, so no generated-by annotation (AP-35).
 apiVersion: joinedcontext.com/v1alpha1
@@ -34,9 +35,25 @@ spec:
       types: [Vehicle]
       # What the Vehicle entities carry on dev (2026-10-08, 32 live vehicles of the HFP pipeline):
       # where, how fast and on which route. Only their history is read, at most the six hours the
-      # longest window offers; no stop or route entity exists on dev (T-3356 asks for one).
+      # longest window offers; read only when the space holds no stops and lines.
       attrs: [location, speed, route]
       operations: [retrieveTemporal]
       temporalQ:
         window: PT6H
+      representations: [ngsi-ld]
+    # HSL's stops and lines (T-3356): where each stop is, its name and sign code; each line's
+    # number, mode and stops in order.
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [GtfsStop]
+      attrs: [name, stopCode, location]
+      operations: [queryEntity]
+      representations: [ngsi-ld]
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [TransitRoute]
+      attrs: [routeShortName, transportMode, stopSequence]
+      operations: [queryEntity]
       representations: [ngsi-ld]
