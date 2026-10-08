@@ -50,7 +50,9 @@ test("toggling a district in the list adds it to the comparison table and update
 
   // Now 3 districts (Kamppi, Kallio, Töölö) -> 4 header columns
   await expect(page.locator(".jc-table thead th")).toHaveCount(4);
-  expect(page.url()).toContain("d=101%2C102%2C103");
+  // The address names exactly these three; their order follows the selection, not the code.
+  const picked = new URLSearchParams(new URL(page.url()).hash.split("?")[1]).get("d")?.split(",") ?? [];
+  expect(picked.sort()).toEqual(["101", "102", "103"]);
 });
 
 test("changing the measure updates table rows and chart", async ({ page }) => {
