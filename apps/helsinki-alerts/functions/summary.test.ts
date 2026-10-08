@@ -44,6 +44,18 @@ describe("summary", () => {
     expect(res.body).toMatchObject({ total: 5, ownRecords: 1 });
   });
 
+  // An alert with no category is counted, as unknown; a name that is no text is no name.
+  it("counts an alert with no category as unknown, and gives a name that is no text as none", async () => {
+    const odd = { ...ALERTS[1], category: "", subCategory: undefined, name: 42 } as unknown as (typeof ALERTS)[number];
+    const res = await summary(request(["viewer"]), fakeContext({ entities: [odd] }));
+
+    expect(res.body).toMatchObject({
+      byCategory: { unknown: 1 },
+      bySubCategory: { unknown: 1 },
+      oldestOpen: { id: "urn:ngsi-ld:Alert:hel.fi:helsinki:GUID50002", name: null },
+    });
+  });
+
   it("gives an anonymous caller no steward field, and an empty space no oldest alert", async () => {
     const res = await summary(request(null), fakeContext({ entities: [] }));
 

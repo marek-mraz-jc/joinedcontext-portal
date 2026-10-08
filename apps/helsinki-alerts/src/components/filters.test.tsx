@@ -116,6 +116,9 @@ describe("Filter UI components with useFilters", () => {
     expect(screen.getByText("Kamppi")).toBeInTheDocument();
     expect(screen.getByText("Kaivopuisto")).toBeInTheDocument();
     expect(screen.queryByText("Kallio")).not.toBeInTheDocument();
+    // From the 10th leaves the 9th out.
+    fireEvent.change(screen.getByLabelText("registered from"), { target: { value: "2024-05-10" } });
+    expect(screen.getByText("1 of 3")).toBeInTheDocument();
 
     expect(toInput.value).toBe("2024-05-10");
   });

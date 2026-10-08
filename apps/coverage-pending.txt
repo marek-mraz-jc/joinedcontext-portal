@@ -9,7 +9,6 @@ bbsk-zaznamy T-3387
 data-quality-inspector T-3391
 district-compare T-3392
 event-day-planner T-3393
-helsinki-alerts T-3394
 news-topics T-3401
 zilina-ukazovatele T-3408
 zilina-vyskum T-3409
