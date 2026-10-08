@@ -14,7 +14,6 @@ event-day-planner T-3393
 helsinki-alerts T-3394
 helsinki-events T-3397
 news-topics T-3401
-zilina-mapa T-3407
 zilina-ukazovatele T-3408
 zilina-vyskum T-3409
 zilina-zaznamy T-3410
