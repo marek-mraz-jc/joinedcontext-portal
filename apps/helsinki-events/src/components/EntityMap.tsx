@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Map as MapLibreMap, Popup } from "maplibre-gl";
+import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource, IControl, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { ScatterplotLayer } from "@deck.gl/layers";
@@ -96,7 +96,6 @@ export function EntityMap({
   color,
   colorOf,
   cluster = false,
-  popupOf,
   selected = null,
   onSelect,
   basemap,
@@ -112,8 +111,6 @@ export function EntityMap({
   colorOf?: (row: Row) => string;
   /** Close points drawn as one circle sized by their count; a click zooms in on it. Read once, when the map loads. */
   cluster?: boolean;
-  /** The lines of text a popup shows for a clicked point; no popup when it is not given. */
-  popupOf?: (row: Row) => string[];
   selected?: string | null;
   onSelect?: (row: Row) => void;
   basemap?: string;
@@ -133,8 +130,6 @@ export function EntityMap({
 
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
-  const popupOfRef = useRef(popupOf);
-  popupOfRef.current = popupOf;
 
   const path = renderPath(rows.length, mode);
 
@@ -268,25 +263,10 @@ export function EntityMap({
           },
         });
 
-        const handleClick = (e: { features?: Array<{ properties?: { id?: string } }>; lngLat?: { lng: number; lat: number } }) => {
+        const handleClick = (e: { features?: Array<{ properties?: { id?: string } }> }) => {
           const id = e.features?.[0]?.properties?.id;
-          if (typeof id === "string") {
-            const r = rowByIdRef.current.get(id);
-            if (!r) return;
-            onSelectRef.current?.(r);
-            const lines = popupOfRef.current?.(r);
-            if (lines && e.lngLat) {
-              // Text nodes only: an entity's values never reach the page as markup.
-              const body = document.createElement("div");
-              body.className = "jc-map-popup";
-              for (const [index, line] of lines.entries()) {
-                const element = document.createElement(index === 0 ? "strong" : "p");
-                element.textContent = line;
-                body.append(element);
-              }
-              new Popup({ closeButton: true, maxWidth: "260px" }).setLngLat(e.lngLat).setDOMContent(body).addTo(instance!);
-            }
-          }
+          const r = typeof id === "string" ? rowByIdRef.current.get(id) : undefined;
+          if (r) onSelectRef.current?.(r);
         };
 
         instance!.on("click", "jc-points", handleClick);

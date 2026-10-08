@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Row } from "@joinedcontext/sdk";
 import { NETWORK_ROWS } from "./fixtures/network";
-import { stopIdOf, toNetwork } from "./network";
+import { entitiesOf, pointKey, stopIdOf, toNetwork } from "./network";
 
 describe("HSL's network as the module takes it", () => {
   it("keeps placed stops with their name and code, and lines with a number and two stops", () => {
@@ -31,5 +31,15 @@ describe("HSL's network as the module takes it", () => {
 
   it("reads a stop's GTFS id off the end of its entity id", () => {
     expect(stopIdOf("urn:ngsi-ld:GtfsStop:hel.fi:helsinki:1020601")).toBe("1020601");
+  });
+
+  it("reads a numbered name, refuses a point of text, and keys each placed stop's entity by its point", () => {
+    const stops = [
+      { id: "urn:x:1", type: "GtfsStop", name: 42, stopCode: "  ", location: { type: "Point", coordinates: [24.9, 60.1] } } as unknown as Row,
+      { id: "urn:x:2", type: "GtfsStop", location: { type: "Point", coordinates: ["24.9", 60.1] } } as unknown as Row,
+      { id: "urn:x:3", type: "GtfsStop", location: null } as unknown as Row,
+    ];
+    expect(toNetwork(stops, []).stops).toEqual([{ id: "1", lon: 24.9, lat: 60.1, name: "42" }]);
+    expect(entitiesOf(stops)).toEqual(new Map([[pointKey({ lon: 24.9, lat: 60.1 }), "urn:x:1"]]));
   });
 });

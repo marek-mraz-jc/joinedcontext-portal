@@ -63,3 +63,24 @@ test("with HSL's stops and lines it rides the network, names the stops and asks 
   expect(await layoutProblems(page)).toEqual([]);
   expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
 });
+
+// SDK-40, AP-140: a reached HSL stop opens in the entity panel, light and dark: a Portal link, no Edit.
+for (const scheme of ["light", "dark"] as const) {
+  for (const size of WIDTHS) {
+    test(`${scheme} at ${size.width} px: a reached stop opens in the entity panel, read only, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { outside, missing, problems } = await serve(page, [], NETWORK_ROWS);
+      await page.setViewportSize(size);
+      await page.goto(`${BASE}?lang=en`);
+      await page.getByRole("button", { name: "Kaisaniemi (H0012): lines 550, M1: details" }).click();
+      const panel = page.getByRole("dialog");
+      await expect(panel).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Open in the Portal" })).toHaveAttribute("href", /^https:\/\/portal\.test\/projects\/helsinki\//);
+      await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
+      expect(await layoutProblems(page)).toEqual([]);
+      await panel.getByRole("button", { name: "Close" }).click();
+      await expect(panel).toHaveCount(0);
+      expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}

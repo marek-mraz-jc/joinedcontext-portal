@@ -9,6 +9,9 @@ Upcoming events in Helsinki and Espoo from the Linked Events registers. One page
 - the list, soonest first: date, time, place, register, a Cancelled mark, the source link and
   the description.
 
+An event's name in the list, or its marker on the map, opens it in the SDK shell's entity panel,
+with a link to the event in the Portal; the application writes nothing, so the panel offers no Edit.
+
 The Event entities carry no category. The one grouping they do carry is the register that
 publishes them, which the prefix of the local id names (`helsinki-agf…` is the City of Helsinki,
 `espoo_le-…` the City of Espoo, `kulke-…` the culture centres). The map colours and the second
