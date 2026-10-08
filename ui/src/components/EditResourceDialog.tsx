@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { useState } from "react";
 import type { ComponentProps, JSX } from "react";
 import { PermissionGuard } from "./ui/PermissionGuard";
 import { useTranslation } from "react-i18next";
@@ -8,12 +8,13 @@ import type { JsonSchema, UiSchema } from "./forms/types";
 import type { ResourceTarget } from "./DeleteResourceDialog";
 import { Button } from "./ui";
 import { useEditForm } from "./forms/FormRoute";
+import type { EditResourceDialogBody } from "./EditResourceDialogBody";
+import { useLoadedWhenOpen } from "./loadWhenOpen";
 
 // The form engine, its widgets and the YAML editor load when a dialog opens, not with every list
 // page that offers Edit (T-3316).
-const EditResourceDialogBody = lazy(() =>
-  import("./EditResourceDialogBody").then((module) => ({ default: module.EditResourceDialogBody })),
-);
+const body: { current?: typeof EditResourceDialogBody } = {};
+const load = () => import("./EditResourceDialogBody").then((module) => module.EditResourceDialogBody);
 
 /**
  * The kind's own form, for editing a resource whose page already has one (T-2278, UI-61).
@@ -41,11 +42,13 @@ export interface EditableForm {
  * CC-19), then one `PUT` that opens a change for an approver. Nothing of it loads until it opens.
  */
 export function EditResourceDialog(props: ComponentProps<typeof EditResourceDialogBody>): JSX.Element | null {
-  return props.open ? (
-    <Suspense fallback={null}>
-      <EditResourceDialogBody {...props} />
-    </Suspense>
-  ) : null;
+  const ready = useLoadedWhenOpen(props.open, body, load);
+  return props.open && ready ? <Loaded {...props} /> : null;
+}
+
+function Loaded(props: ComponentProps<typeof EditResourceDialogBody>): JSX.Element | null {
+  const Dialog = body.current;
+  return Dialog ? <Dialog {...props} /> : null;
 }
 
 /**

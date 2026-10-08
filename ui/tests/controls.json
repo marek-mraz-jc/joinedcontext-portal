@@ -124,7 +124,8 @@
         "Button": 1
       },
       "tests": [
-        "browser_security.test.tsx"
+        "browser_security.test.tsx",
+        "lazy_dialogs.test.tsx"
       ]
     },
     "src/components/FeedbackButton.tsx": {
