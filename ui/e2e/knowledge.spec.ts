@@ -148,7 +148,9 @@ test.describe("the knowledge sources", () => {
     await expect(dialog.getByText(/answers you as yourself/)).toBeVisible();
     await dialog.getByRole("textbox", { name: "Your question" }).fill("Are the roads icy?");
     await dialog.getByRole("textbox", { name: "Your question" }).press("Enter");
-    await expect(dialog.getByText("The roads are icy at Kamppi [1], -3 °C [2].")).toBeVisible();
+    // The answer's markers are links to its sources since T-3325, not the text "[1]".
+    await expect(dialog.getByText(/The roads are icy at Kamppi/)).toBeVisible();
+    await expect(dialog.getByRole("link", { name: "Source 1" }).first()).toBeVisible();
     await expect(dialog.getByRole("list", { name: "Sources" }).getByRole("link", { name: /hel\.fi\/en\/roads/ })).toBeVisible();
     await expect(dialog.getByRole("textbox", { name: "Your question" })).toBeFocused();
     expect(writes).toEqual([
