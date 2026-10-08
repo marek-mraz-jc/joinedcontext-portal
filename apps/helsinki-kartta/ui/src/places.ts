@@ -34,12 +34,8 @@ export interface Place {
   name: string | null;
   coordinates: [number, number] | null;
   address: string | null;
-  url: string | null;
-  openingHours: string | null;
-  /** A water sensor's latest temperature in °C, when it was measured, and the place it stands at. */
+  /** A water sensor's latest temperature in °C. */
   temperature: number | null;
-  observedAt: string | null;
-  refPlace: string | null;
 }
 
 function first(cell: RichCell | RichCell[] | undefined): RichCell | undefined {
@@ -56,11 +52,6 @@ function text(row: RichRow, attr: string): string | null {
 function number(row: RichRow, attr: string): number | null {
   const value = first(row.cells[attr])?.value;
   return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function relationship(row: RichRow, attr: string): string | null {
-  const object = first(row.cells[attr])?.object;
-  return typeof object === "string" ? object : null;
 }
 
 
@@ -96,23 +87,8 @@ export function placeOf(row: RichRow, kind: Kind, locale: string): Place {
     name: localized(row, "name", locale),
     coordinates: point(row),
     address: text(row, "address"),
-    url: safeUrl(text(row, "url")),
-    openingHours: text(row, "openingHours"),
     temperature: number(row, "temperature"),
-    observedAt: text(row, "dateObserved"),
-    refPlace: relationship(row, "refPointOfInterest"),
   };
-}
-
-/** A link the sheet may open: http or https only, so a `javascript:` URL in the data never runs. */
-export function safeUrl(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
-  } catch {
-    return null;
-  }
 }
 
 /** Text folded for search: lower case, without diacritics, so "uimahalli" finds "Uimahalli". */
