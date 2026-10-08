@@ -45,6 +45,8 @@ export interface PanelSource {
 
 interface Selection {
   source?: PanelSource;
+  /** The shell's language, which the panel speaks too. */
+  language?: string;
   selected: SelectedEntity | null;
   select(entity: SelectedEntity): void;
   clear(): void;
@@ -53,7 +55,7 @@ interface Selection {
 const SelectionContext = createContext<Selection | null>(null);
 
 /** Holds what is selected and remembers what opened it, so closing gives the focus back. */
-export function EntitySelectionProvider({ children, source }: { children?: ReactNode; source?: PanelSource }): React.JSX.Element {
+export function EntitySelectionProvider({ children, source, language }: { children?: ReactNode; source?: PanelSource; language?: string }): React.JSX.Element {
   const [selected, setSelected] = useState<SelectedEntity | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const select = useCallback((entity: SelectedEntity) => {
@@ -69,7 +71,7 @@ export function EntitySelectionProvider({ children, source }: { children?: React
     // After the panel is gone, so the focus lands on what opened it and not on nothing.
     if (back && typeof window !== "undefined") window.setTimeout(() => back.isConnected && back.focus(), 0);
   }, []);
-  const value = useMemo(() => ({ source, selected, select, clear }), [source, selected, select, clear]);
+  const value = useMemo(() => ({ source, language, selected, select, clear }), [source, language, selected, select, clear]);
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }
 
@@ -168,9 +170,13 @@ type Stage = { kind: "view" } | { kind: "edit" } | { kind: "review"; patch: Reco
 
 /** The one panel of the shell, showing the selected entity; nothing while nothing is selected. */
 export function EntityPanel(): React.JSX.Element | null {
-  const { selected, source } = useEntitySelection();
+  const { selected, source, language } = useEntitySelection();
   if (!selected) return null;
-  return source ? <SourcePanel key={selected.id} entity={selected} source={source} /> : <ClientPanel key={selected.id} entity={selected} />;
+  return source ? (
+    <SourcePanel key={selected.id} entity={selected} source={source} language={language} />
+  ) : (
+    <ClientPanel key={selected.id} entity={selected} language={language} />
+  );
 }
 
 /** What the panel works from, whichever way the App reads its entities. */
@@ -186,7 +192,7 @@ interface Backing {
 }
 
 /** The panel of an App that reads through the SDK's client: the reader's own access document decides Edit. */
-function ClientPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element {
+function ClientPanel({ entity, language }: { entity: SelectedEntity; language?: string }): React.JSX.Element {
   const client = useClient();
   const user = useMe();
   const { schema, typeSchema } = useSchema(entity.type);
@@ -199,13 +205,13 @@ function ClientPanel({ entity }: { entity: SelectedEntity }): React.JSX.Element 
     portal: portalLinkOf(client.config.portal, client.config.space, entity.id),
     typeSchema,
     defs: schema,
-    language: sdkLanguage(client.config.language),
+    language: sdkLanguage(language ?? client.config.language),
   };
   return <PanelView entity={entity} backing={backing} />;
 }
 
 /** The panel of an App that reads through its own backend (`PanelSource`). */
-function SourcePanel({ entity, source }: { entity: SelectedEntity; source: PanelSource }): React.JSX.Element {
+function SourcePanel({ entity, source, language }: { entity: SelectedEntity; source: PanelSource; language?: string }): React.JSX.Element {
   const backing: Backing = {
     load: () => source.get(entity),
     save: (patch) => source.update(entity, patch),
@@ -213,7 +219,7 @@ function SourcePanel({ entity, source }: { entity: SelectedEntity; source: Panel
     portal: source.portalLink?.(entity) ?? null,
     typeSchema: source.schema?.[entity.type] ?? null,
     defs: source.schema ?? null,
-    language: sdkLanguage(source.language),
+    language: sdkLanguage(language ?? source.language),
   };
   return <PanelView entity={entity} backing={backing} />;
 }

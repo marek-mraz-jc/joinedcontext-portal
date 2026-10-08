@@ -1,7 +1,7 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import { ProblemError } from "./client";
 import { useOptionalClient } from "./hooks";
-import { EntityPanel, EntitySelectionProvider } from "./panel";
+import { EntityPanel, EntitySelectionProvider, useEntitySelection } from "./panel";
 import type { PanelSource } from "./panel";
 import { reportError } from "./report";
 import { sdkLanguage, sdkWord } from "./words";
@@ -82,7 +82,7 @@ export function AppShell({
   const page = pages.find((candidate) => candidate.id === active) ?? pages[0];
 
   return (
-    <EntitySelectionProvider source={source}>
+    <EntitySelectionProvider source={source} language={words}>
       <div className="jc-shell">
         <header className="jc-header">
           <h1>{title}</h1>
@@ -119,9 +119,11 @@ export function AppShell({
   );
 }
 
+/** The shell's language inside it, else the client's: the states speak what the page speaks. */
 function useWords() {
   const client = useOptionalClient();
-  return sdkLanguage(client?.config.language);
+  const { language } = useEntitySelection();
+  return sdkLanguage(language ?? client?.config.language);
 }
 
 export function Loading({ label }: { label?: string }): React.JSX.Element {

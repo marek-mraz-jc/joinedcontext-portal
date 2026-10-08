@@ -8,7 +8,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import axe from "axe-core";
 import { describe, expect, it, vi } from "vitest";
 import type { AccessDocument, Row } from "../src/sdk";
-import { AppShell, JcProvider, ProblemError, SDK_WORDS, parseValue, portalLinkOf, selectable, useEntitySelection } from "../src/sdk";
+import { AppShell, JcProvider, Loading, ProblemError, SDK_WORDS, parseValue, portalLinkOf, selectable, useEntitySelection } from "../src/sdk";
 import { parseConfig } from "../src/sdk/config";
 import { stubClient } from "../src/sdk/testing";
 import type { Field } from "../src/write";
@@ -92,6 +92,27 @@ async function openFromTable() {
 }
 
 describe("the shell (SDK-39)", () => {
+  it("speaks the shell's language in the panel too, whatever the client's configuration says", async () => {
+    const client = stubClient({ entities: [STATION], schema: SCHEMA, access: READ }, { user: PERSON, portal: PORTAL, language: "en" });
+    render(
+      <JcProvider client={client}>
+        <AppShell title="Mapa" language="sk" pages={[{ id: "stations", label: "Stanice", render: () => <Openers /> }]} />
+      </JcProvider>,
+    );
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    const panel = await screen.findByRole("dialog");
+    expect(within(panel).getByRole("button", { name: "Zavrieť" })).toBeInTheDocument();
+  });
+
+  it("says its states in the shell's language", () => {
+    render(
+      <JcProvider client={stubClient(undefined, { language: "en" })}>
+        <AppShell title="Mapa" language="sk" pages={[{ id: "a", label: "A", render: () => <Loading /> }]} />
+      </JcProvider>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(SDK_WORDS.sk["state.loading"]);
+  });
+
   it("leaves the colour scheme to the App's own stylesheet, so a light-only App keeps light native controls", () => {
     document.documentElement.style.colorScheme = "";
     show(READ);
