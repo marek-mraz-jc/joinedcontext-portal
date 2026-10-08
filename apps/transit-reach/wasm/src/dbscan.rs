@@ -1,5 +1,6 @@
-//! DBSCAN over points in metres: the places where alerts keep coming back. A grid of `eps` cells
-//! finds the neighbours, so a few thousand alerts stay well under a frame's time in the browser.
+//! DBSCAN over points in metres (from alerts-heatmap, T-3333): here the places where vehicles stand
+//! still. A grid of `eps` cells finds the neighbours, so tens of thousands of readings stay within a
+//! frame or two in the browser.
 
 use std::collections::HashMap;
 
