@@ -168,6 +168,32 @@ describe("a kind's forms at their own addresses", () => {
     }
   });
 
+  // T-3423 follow-up: the form page is committed a moment before it registers (a passive effect,
+  // after paint); in that moment nothing hid the list behind it, its heading and the alert in the
+  // accessibility tree (form_route.test.tsx "opens the create form" on a loaded CI runner).
+  it.each([["the create form", `${LIST}/new`], ["an edit form", `${LIST}/open-read/edit`]])(
+    "never shows %s and the list at once",
+    async (_, address) => {
+      const both: string[] = [];
+      const listShown = () =>
+        Array.from(document.querySelectorAll("h1")).some(
+          (h1) => h1.textContent === en.policies.title && h1.closest("[hidden]") === null,
+        );
+      const observer = new MutationObserver(() => {
+        if (document.querySelector('[data-testid="form-page"]') && listShown()) both.push(address);
+      });
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+      try {
+        await open(address);
+        await findFormPage();
+        await waitFor(() => expect(listShown()).toBe(false));
+        expect(both).toEqual([]);
+      } finally {
+        observer.disconnect();
+      }
+    },
+  );
+
   it("says so when the address names something the list does not hold, with a way back", async () => {
     await open(`${LIST}/no-such-policy/edit`);
 
