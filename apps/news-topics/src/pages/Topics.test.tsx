@@ -354,6 +354,7 @@ describe("the topics page", () => {
     for (const topic of ["Aihe 1: school, education, pupils", "Aihe 2: traffic, tram, construction"]) fireEvent.click(screen.getByRole("button", { name: topic }));
     fireEvent.click(screen.getByRole("button", { name: "Aihe 1: school, education, pupils" }));
     fireEvent.click(screen.getByRole("button", { name: "Näytä luvut taulukkona" }));
+    fireEvent.click(screen.getByRole("button", { name: "Piilota taulukko" }));
     for (const link of screen.getAllByRole("link", { name: /^Lue hel\.fi:ssä/ })) fireEvent.click(link);
   });
 
