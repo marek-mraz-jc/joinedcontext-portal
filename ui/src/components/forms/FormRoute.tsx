@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { HTMLAttributes, JSX, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useIsFetching } from "@tanstack/react-query";
@@ -219,8 +219,10 @@ export function FormFrame({
     wasAddressed.current = addressed;
   }, [addressed, open, onOpenChange]);
 
+  // Registered before paint: a passive effect let the page show this form and the list behind it,
+  // heading and all, for a frame, and a screen reader read both (T-3423).
   const register = route?.register;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (register && open) {
       return register();
     }
