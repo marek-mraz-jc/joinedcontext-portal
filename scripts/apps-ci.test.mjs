@@ -72,3 +72,18 @@ test("APPS_SHARD puts every touched App in exactly one shard, an untouched one i
   const untouched = repo(["README.md"]);
   assert.equal(["1/3", "2/3", "3/3"].some((shard) => ours(untouched, "apps/a/", shard)), false);
 });
+
+test("an install without a lockfile takes no release younger than a day (T-3527)", () => {
+  const root = join(dirname(SCRIPT), "..");
+  const script = execFileSync("cat", [SCRIPT]).toString();
+  const exported = script.indexOf('export npm_config_minimum_release_age="${npm_config_minimum_release_age:-1440}"');
+  assert.ok(exported >= 0, "apps-ci.sh sets the release age");
+  assert.ok(exported < script.indexOf("--no-frozen-lockfile"), "before its first unlocked install");
+  // Every workflow job that installs without a lockfile carries the same setting.
+  for (const name of ["ci.yml", "ci-full.yml"]) {
+    const jobs = execFileSync("cat", [join(root, ".github/workflows", name)]).toString().split(/\n  (?=[a-z][\w-]*:\n)/);
+    for (const job of jobs.filter((body) => body.includes("--no-frozen-lockfile"))) {
+      assert.match(job, /\n {4}env:\n(?: {6}.*\n)*? {6}npm_config_minimum_release_age: 1440\n/, `${name}: ${job.split("\n")[0]}`);
+    }
+  }
+});

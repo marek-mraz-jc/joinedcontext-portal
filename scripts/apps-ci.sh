@@ -15,6 +15,12 @@
 # checksum of its path, so a change to the SDK fits the job's timeout however many Apps there are.
 set -eu
 
+# An App without a lockfile resolves its dependencies when it installs. A release younger than a
+# day is not taken: a half-published one (@loaders.gl/core 4.5.4 named a worker-utils 4.5.4 the
+# registry did not have, 2026-10-10) cannot turn the lane red, and a malicious one has a day to be
+# pulled first (T-3527). Locked installs are untouched.
+export npm_config_minimum_release_age="${npm_config_minimum_release_age:-1440}"
+
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 RUN="$ROOT/scripts/app-coverage-run.sh"
 cd "$ROOT"
