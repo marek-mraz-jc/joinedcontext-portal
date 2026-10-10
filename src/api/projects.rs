@@ -29,7 +29,14 @@ pub struct ProjectList {
 pub struct ProjectSummary {
     /// The project slug, the `{project}` segment of every other path.
     pub name: String,
+    /// Whether its `Project` manifest carries [`SAMPLE_LABEL`]: real open data a newcomer may look
+    /// around in (PF-109).
+    pub sample: bool,
 }
+
+/// The label that marks a project as the sample of real open data the first-run checklist offers
+/// (PF-109, T-3234). It grants nothing: who may read the project is their grants' question alone.
+pub const SAMPLE_LABEL: &str = "joinedcontext.com/sample";
 
 /// The projects this caller may read, and no others (PF-59, T-0974).
 ///
@@ -57,7 +64,20 @@ pub async fn list_projects(
         .filter(|name| {
             crate::permissions::for_request(&state, &user.0.identity, name).may_read_project()
         })
-        .map(|name| ProjectSummary { name })
+        .map(|name| {
+            let sample = state
+                .mirror
+                .get(crate::permissions::ORG_NAMESPACE, "Project", &name)
+                .is_some_and(|project| {
+                    project
+                        .metadata
+                        .labels
+                        .get(SAMPLE_LABEL)
+                        .map(String::as_str)
+                        == Some("true")
+                });
+            ProjectSummary { name, sample }
+        })
         .collect();
     Ok(Json(ProjectList {
         api_version: API_VERSION.to_string(),

@@ -6519,6 +6519,13 @@
         "steward": "Wartende Änderungen prüfen"
       },
       "close": "Begrüßung schließen"
+    },
+    "sample": {
+      "badge": "Beispiel",
+      "title": "Ein Beispielprojekt mit echten offenen Daten",
+      "body": "Schauen Sie sich um: Jede Seite zeigt, was das Projekt wirklich enthält. Ändern können Sie nur, was Ihre Rolle erlaubt, und nichts hier berührt Ihre eigenen Projekte.",
+      "lead": "Möchten Sie zuerst alle Funktionen mit Daten gefüllt sehen?",
+      "try": "Mit Beispieldaten ausprobieren"
     }
   },
   "alerts": {

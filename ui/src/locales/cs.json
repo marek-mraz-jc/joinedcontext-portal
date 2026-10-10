@@ -6519,6 +6519,13 @@
         "steward": "Projít čekající změny"
       },
       "close": "Zavřít uvítání"
+    },
+    "sample": {
+      "badge": "Ukázka",
+      "title": "Ukázkový projekt se skutečnými otevřenými daty",
+      "body": "Rozhlédněte se: každá stránka tu ukazuje, co projekt opravdu obsahuje. Měnit můžete jen to, co vám dovoluje vaše role, a nic tu nezasahuje do vašich vlastních projektů.",
+      "lead": "Chcete nejdřív vidět všechny funkce naplněné daty?",
+      "try": "Vyzkoušejte to na ukázkových datech"
     }
   },
   "alerts": {

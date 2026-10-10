@@ -6519,6 +6519,13 @@
         "steward": "Prezrieť čakajúce zmeny"
       },
       "close": "Zavrieť privítanie"
+    },
+    "sample": {
+      "badge": "Ukážka",
+      "title": "Ukážkový projekt so skutočnými otvorenými dátami",
+      "body": "Pozrite sa okolo: každá stránka tu ukazuje, čo projekt naozaj obsahuje. Meniť môžete len to, čo vám dovoľuje vaša rola, a nič tu nezasahuje do vašich vlastných projektov.",
+      "lead": "Chcete najprv vidieť všetky funkcie naplnené dátami?",
+      "try": "Vyskúšajte to na ukážkových dátach"
     }
   },
   "alerts": {

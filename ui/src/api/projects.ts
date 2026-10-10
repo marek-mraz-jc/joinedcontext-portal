@@ -13,6 +13,19 @@ export function useProjects() {
 }
 
 /**
+ * The sample projects among those the person may read (PF-109): real open data to look around in,
+ * marked by the `joinedcontext.com/sample` label on their Project manifest. Same request as
+ * [`useProjects`], so it costs nothing more.
+ */
+export function useSampleProjects() {
+  return useQuery({
+    queryKey: queryKeys.projects(),
+    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    select: (list) => list.items.filter((item) => item.sample).map((item) => item.name),
+  });
+}
+
+/**
  * The organization's domain, in the order the API itself resolves it (`api::assistant::org_domain`):
  * the `Organization` manifest of the repository, then the installation's branding, then the
  * project name. A model minted under a fabricated `<project>.sk` names IRIs nobody owns (T-0794).

@@ -21,6 +21,8 @@ interface World {
   /** Arrived through an invitation's link (PF-108). */
   welcome?: boolean;
   onWelcomeClosed?: () => void;
+  /** What `GET /api/v1/projects` lists for the person (PF-109). */
+  projects?: { name: string; sample: boolean }[];
 }
 
 function show(world: World) {
@@ -38,6 +40,7 @@ function show(world: World) {
         return json({ project: "helsinki", grants });
       }
       if (path === "/api/v1/preferences") return json(world.dismissed ? { firstRunDismissed: true } : {});
+      if (path === "/api/v1/projects") return json({ apiVersion: "v1", kind: "List", items: world.projects ?? [{ name: "helsinki", sample: false }] });
       if (path === "/api/v1/projects/helsinki/spaces") return json(list((world.spaces ?? []).map((s) => named(s))));
       if (path.match(/\/spaces\/[^/]+\/usage$/)) return json({ entities: world.entities ?? 0, observedAt: "2026-10-07T20:00:00Z" });
       if (path === "/api/v1/projects/helsinki/pipelines") return json(list((world.pipelines ?? []).map((phase, at) => named(`p${at}`, phase))));
@@ -137,5 +140,53 @@ describe("the welcome an invitation leads to (PF-108)", () => {
     show({ verbs: ["read"] });
     await screen.findByRole("heading", { name: en.home.title });
     expect(screen.queryByRole("region", { name: "Welcome to helsinki" })).toBeNull();
+  });
+});
+
+describe("the sample project (PF-109, T-3234)", () => {
+  it("offers a newcomer's checklist the sample to look around in first, one click away", async () => {
+    const { container } = show({
+      verbs: ["read"],
+      projects: [
+        { name: "banskabystrica", sample: true },
+        { name: "helsinki", sample: false },
+      ],
+    });
+    const checklist = await screen.findByRole("region", { name: en.home.firstRun.title });
+    const link = await within(checklist).findByRole("link", { name: en.home.sample.try });
+    expect(link).toHaveAttribute("href", "/projects/banskabystrica/home");
+    expect(screen.queryByText(en.home.sample.title)).toBeNull();
+    await expectNoViolations(container);
+  });
+
+  it("marks the sample itself and says what a person may do there, without sending them elsewhere", async () => {
+    const { container } = show({ verbs: ["read"], projects: [{ name: "helsinki", sample: true }] });
+    expect(await screen.findByText(en.home.sample.title)).toBeInTheDocument();
+    expect(screen.getByText(en.home.sample.body)).toBeInTheDocument();
+    expect(screen.getByText(en.home.sample.badge)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: en.home.sample.try })).toBeNull();
+    await expectNoViolations(container);
+  });
+
+  it("offers the sample while the person keeps the guidance, and not after it was put away", async () => {
+    const projects = [
+      { name: "banskabystrica", sample: true },
+      { name: "helsinki", sample: false },
+    ];
+    show({ verbs: ["read"], spaces: ["air"], entities: 3, pipelines: ["Live"], projects });
+    expect(await screen.findByRole("link", { name: en.home.sample.try })).toHaveAttribute("href", "/projects/banskabystrica/home");
+    cleanup();
+    show({ verbs: ["read"], dismissed: true, projects });
+    await screen.findByText(en.home.lead.viewer);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("link", { name: en.home.sample.try })).toBeNull();
+  });
+
+  it("offers no sample the person may not read: none listed, none named", async () => {
+    show({ verbs: ["read"], projects: [{ name: "helsinki", sample: false }] });
+    await screen.findByRole("region", { name: en.home.firstRun.title });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("link", { name: en.home.sample.try })).toBeNull();
+    expect(screen.queryByText(en.home.sample.badge)).toBeNull();
   });
 });

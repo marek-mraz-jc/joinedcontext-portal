@@ -23,7 +23,8 @@ const EMPTY_LIST = {
 const PROJECTS = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "List",
-  items: [{ name: "helsinki" }, { name: "banskabystrica" }],
+  // PF-109: banskabystrica is the sample of real open data.
+  items: [{ name: "helsinki", sample: false }, { name: "banskabystrica", sample: true }],
 };
 
 describe("portal shell", () => {
@@ -165,14 +166,15 @@ describe("portal shell", () => {
     await user.click(screen.getByRole("button", { name: "Projects" }));
 
     const items = await screen.findAllByRole("menuitem");
-    expect(items.map((item) => item.textContent)).toEqual(["helsinki", "banskabystrica"]);
+    // The sample says so in words beside its name (PF-109).
+    expect(items.map((item) => item.textContent)).toEqual(["helsinki", "banskabystrica Sample"]);
 
-    await user.click(screen.getByRole("menuitem", { name: "banskabystrica" }));
+    await user.click(screen.getByRole("menuitem", { name: "banskabystrica Sample" }));
 
     await waitFor(() => {
       expect(window.location.pathname).toBe("/projects/banskabystrica/home");
     });
-    expect(screen.getByRole("button", { name: "Projects" })).toHaveTextContent("banskabystrica");
+    expect(screen.getByRole("button", { name: "Projects" })).toHaveTextContent("banskabystrica Sample");
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(crumbs).getByRole("link", { name: "banskabystrica" })).toBeInTheDocument();
     await waitFor(() => {
