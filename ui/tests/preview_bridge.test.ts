@@ -5,7 +5,7 @@
  * frame's error reports go to the run.
  */
 import { describe, expect, it, vi } from "vitest";
-import { firstAsk, functionPathOf, grantedOperations, handleBridgeMessage, observationRelay, operationOf, previewErrorOf, previewObservationOf, previewVersionOf } from "../src/pages/apps/previewBridge";
+import { firstAsk, functionPathOf, grantedOperations, handleBridgeMessage, observationRelay, operationOf, previewErrorOf, previewObservationOf, previewVersionOf, selectedSourceOf } from "../src/pages/apps/previewBridge";
 import type { PreviewError } from "../src/pages/apps/previewBridge";
 
 const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
@@ -361,5 +361,50 @@ describe("a run of several endpoints (AP-44, SDK-18)", () => {
     );
     expect(outcome).toBe("refused");
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe("pointing at an element (SDK-46)", () => {
+  const pick = (data: unknown, from?: unknown) => {
+    const source = frame();
+    const select = vi.fn();
+    const outcome = handleBridgeMessage(
+      { source: from === undefined ? source : from, data },
+      { slug: SLUG, operations: GRANTED, functions: FUNCTIONS, source, select },
+      vi.fn(),
+      vi.fn() as unknown as typeof fetch,
+    );
+    return { outcome, select };
+  };
+
+  it("passes the position the frame it created names, and nothing else", async () => {
+    const { outcome, select } = pick({ kind: "jc-select", src: "src/pages/Card.tsx:4", text: "Station 7" });
+    expect(await outcome).toBe("relayed");
+    expect(select).toHaveBeenCalledWith("src/pages/Card.tsx:4");
+  });
+
+  it("ignores a jc-select from another frame", async () => {
+    const { outcome, select } = pick({ kind: "jc-select", src: "src/pages/Card.tsx:4" }, frame());
+    expect(await outcome).toBe("ignored");
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("refuses a position that is not an interface file and a line", async () => {
+    for (const src of ["src/pages/Card.tsx", "src/../x.tsx:1", "functions/a.ts:2", "src/a.tsx:0", "src/.hidden.tsx:1", "src/a.tsx:1 Station 7", 4]) {
+      const { outcome, select } = pick({ kind: "jc-select", src });
+      expect(await outcome, String(src)).toBe("refused");
+      expect(select).not.toHaveBeenCalled();
+    }
+    expect(selectedSourceOf({ kind: "jc-select", src: `src/${"a/".repeat(200)}b.tsx:1` })).toBeNull();
+  });
+
+  it("refuses a selection on a page that takes none", async () => {
+    const source = frame();
+    const outcome = await handleBridgeMessage(
+      { source, data: { kind: "jc-select", src: "src/App.tsx:3" } },
+      { slug: SLUG, operations: GRANTED, functions: FUNCTIONS, source },
+      vi.fn(),
+    );
+    expect(outcome).toBe("refused");
   });
 });

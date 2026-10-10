@@ -41,10 +41,13 @@ import {
   noticeSnapshot,
   onAssistantChange,
   onAskRequest,
+  onPickChange,
   formContext,
   onOpenRequest,
   pageContext,
   parseRun,
+  pickElement,
+  pickedElement,
   rememberNavigated,
   rememberPrefill,
   rememberRun,
@@ -185,6 +188,8 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
   const navigate = useNavigate();
   const raw = useSyncExternalStore(onAssistantChange, runSnapshot);
   const run = useMemo(() => parseRun(raw), [raw]);
+  // The element the person pointed at in this run's preview: the next message edits its file only (SDK-46).
+  const picked = useSyncExternalStore(onPickChange, () => pickedElement(run?.runId));
   const activeProject = run?.project ?? project;
   const navigated = useSyncExternalStore(onAssistantChange, noticeSnapshot);
   // The pages the assistant opened, so the person walks back without losing the conversation.
@@ -623,57 +628,80 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
           </form>
         </>
       ) : (
-        <div
-          id="run-chat"
-          className="min-h-48 w-full flex-1 rounded-lg border border-border bg-surface [&>section]:h-full [&>section]:min-h-0"
-        >
-          <ConversationPanel
-            project={run.project}
-            events={events}
-            streaming={streaming}
-            answering={answer.isPending}
-            sending={send.isPending}
-            live={!over}
-            building={Boolean(record.data?.appName)}
-            // The run Build an app's card started is the one the dock follows next (T-2721).
-            onBuildStarted={(runId) => {
-              rememberRun({ project: activeProject, runId });
-            }}
-            onAnswer={(questionId, answers) => {
-              answer.mutate({ questionId, answers });
-            }}
-            // `mutateAsync`, so the panel knows whether the message left: it empties the box on
-            // success and keeps every word of it, with the reason, when the send failed (T-1761).
-            // Each message of a conversation says the page it was sent from: "and this one?" is
-            // about where the person is now (T-2763). An application run takes no page.
-            onSend={(text) =>
-              send.mutateAsync({
-                text,
-                pageContext: record.data?.kind === "conversation" ? pageContext(activeProject) : undefined,
-                // What the person switched on or off travels with each message (AG-92).
-                access: record.data?.kind === "conversation" ? accessFor(capabilities, liveEndpoints) : undefined,
-                ...(pendingEndpoints !== null && !sameEndpoints(pendingEndpoints, runEndpoints)
-                  ? { endpointNames: pendingEndpoints }
-                  : {}),
-              })
-            }
-            onCancel={() => cancel.mutate()}
-            onRetry={retry}
-            onNewConversation={newConversation}
-            attach={attach}
-            above={full && wide ? undefined : liveBar}
-            onUseEndpoint={addEndpoint}
-            // A link in an answer opens its page in place; from full screen, beside it, so the
-            // person sees the page and keeps the conversation (T-2773).
-            onOpenLink={(href) => {
-              if (full) {
-                setLayout("side");
+        <>
+          {picked !== null && run ? (
+            <div data-testid="assistant-picked" className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1 text-caption">
+              <span className="min-w-0 truncate font-mono">{t("assistant.picked", { src: picked })}</span>
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={() => {
+                  pickElement(run.runId, null);
+                }}
+              >
+                {t("assistant.pickedClear")}
+              </Button>
+            </div>
+          ) : null}
+          <div
+            id="run-chat"
+            className="min-h-48 w-full flex-1 rounded-lg border border-border bg-surface [&>section]:h-full [&>section]:min-h-0"
+          >
+            <ConversationPanel
+              project={run.project}
+              events={events}
+              streaming={streaming}
+              answering={answer.isPending}
+              sending={send.isPending}
+              live={!over}
+              building={Boolean(record.data?.appName)}
+              // The run Build an app's card started is the one the dock follows next (T-2721).
+              onBuildStarted={(runId) => {
+                rememberRun({ project: activeProject, runId });
+              }}
+              onAnswer={(questionId, answers) => {
+                answer.mutate({ questionId, answers });
+              }}
+              // `mutateAsync`, so the panel knows whether the message left: it empties the box on
+              // success and keeps every word of it, with the reason, when the send failed (T-1761).
+              // Each message of a conversation says the page it was sent from: "and this one?" is
+              // about where the person is now (T-2763). An application run takes no page.
+              onSend={(text) =>
+                send.mutateAsync({
+                  text,
+                  // One message is scoped to what the person pointed at; the next one is not (SDK-46).
+                  ...(picked !== null ? { scope: picked } : {}),
+                  pageContext: record.data?.kind === "conversation" ? pageContext(activeProject) : undefined,
+                  // What the person switched on or off travels with each message (AG-92).
+                  access: record.data?.kind === "conversation" ? accessFor(capabilities, liveEndpoints) : undefined,
+                  ...(pendingEndpoints !== null && !sameEndpoints(pendingEndpoints, runEndpoints)
+                    ? { endpointNames: pendingEndpoints }
+                    : {}),
+                }).then((sent) => {
+                  if (picked !== null && run) {
+                    pickElement(run.runId, null);
+                  }
+                  return sent;
+                })
               }
-              void navigate({ href });
-            }}
-            usedEndpoints={liveEndpoints}
-          />
-        </div>
+              onCancel={() => cancel.mutate()}
+              onRetry={retry}
+              onNewConversation={newConversation}
+              attach={attach}
+              above={full && wide ? undefined : liveBar}
+              onUseEndpoint={addEndpoint}
+              // A link in an answer opens its page in place; from full screen, beside it, so the
+              // person sees the page and keeps the conversation (T-2773).
+              onOpenLink={(href) => {
+                if (full) {
+                  setLayout("side");
+                }
+                void navigate({ href });
+              }}
+              usedEndpoints={liveEndpoints}
+            />
+          </div>
+        </>
       );
 
   return (

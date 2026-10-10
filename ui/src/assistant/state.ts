@@ -376,3 +376,31 @@ export function onAskRequest(listener: (question: string) => void): () => void {
     window.removeEventListener(ASK_REQUEST, handler);
   };
 }
+
+const PICKED = "jc:assistant-picked";
+let picked: { runId: string; src: string } | null = null;
+
+/**
+ * The element a person pointed at in a run's preview, `{file}:{line}` (SDK-46): the next message
+ * to that run carries it as its scope; `null` takes it back. Module state: a reload forgets it.
+ */
+export function pickElement(runId: string, src: string | null): void {
+  if (src !== null) {
+    picked = { runId, src };
+  } else if (picked?.runId === runId) {
+    picked = null;
+  }
+  window.dispatchEvent(new Event(PICKED));
+}
+
+/** What the person pointed at in `runId`'s preview, or null. */
+export function pickedElement(runId: string | undefined): string | null {
+  return picked !== null && picked.runId === runId ? picked.src : null;
+}
+
+export function onPickChange(listener: () => void): () => void {
+  window.addEventListener(PICKED, listener);
+  return () => {
+    window.removeEventListener(PICKED, listener);
+  };
+}

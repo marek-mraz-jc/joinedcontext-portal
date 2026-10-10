@@ -3956,7 +3956,9 @@
       "notBuilt": "Aplikaci se zatím nepodařilo vytvořit",
       "retry": "Pošlete zprávu a zkusím to znovu",
       "none": "Tento běh skončil dřív, než něco ukázal.",
-      "elapsed": "{seconds} s od spuštění"
+      "elapsed": "{seconds} s od spuštění",
+      "select": "Ukázat na prvek",
+      "selecting": "Klikněte na prvek v náhledu…"
     },
     "chat": {
       "show": "Zobrazit asistenta",
@@ -4307,7 +4309,9 @@
       "data": "Data a schopnosti",
       "showData": "Zobrazit data a schopnosti",
       "hideData": "Skrýt data a schopnosti"
-    }
+    },
+    "picked": "Upravuje se jen {src}",
+    "pickedClear": "Upravovat vše"
   },
   "permissions": {
     "denied": "Vypnuto: vaše role nedovoluje ''{verb}'' na ''{kind}'' v tomto projektu"
