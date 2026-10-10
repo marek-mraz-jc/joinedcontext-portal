@@ -183,6 +183,10 @@ jobs:
       # What takes the User Guide's screenshots from a live run into the docs (T-3270).
       - name: the User Guide shots' publisher
         run: node --test scripts/publish-guide-shots.test.mjs
+      # The help panel's clips within their budget (12 MB in all, 1 MB each) and the guide sections'
+      # bundler (T-3308).
+      - name: the help clips' budget and the guide sections' bundler
+        run: node --test scripts/help-clips.test.mjs scripts/guide-sections.test.mjs && node scripts/help-clips.mjs check ui/public/help
       # The coverage gate's own tests, and its pending list only ever shrinking (T-3373): the base is
       # the branch's fork from main, or the commit before on a push to main.
       - name: the Apps' coverage gate and its shrinking pending list

@@ -7,7 +7,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { guideShot } from "./guide";
+import { guideShot, helpClipStart } from "./guide";
 import { APPROVER, STEWARD, approve, proposedChange, removeCompletely, signIn } from "./portal";
 
 test.setTimeout(300_000);
@@ -29,6 +29,7 @@ test.afterAll(async () => {
 test("a new user fills the Policy form from what it offers and proposes it", async ({ browser }) => {
   steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/policies?lang=en`);
   const page = steward.page;
+  const clip = helpClipStart(page, "policies");
   await page.getByRole("button", { name: "New Policy" }).click();
   const form = page.getByRole("dialog").or(page.getByRole("main")).first();
   await form.getByLabel(/^Name/).fill(NAME);
@@ -57,6 +58,7 @@ test("a new user fills the Policy form from what it offers and proposes it", asy
   await form.getByLabel(/^Valid to/).fill("2020-01-01T00:00");
   // T-3276: what the form grants, in words, as it is filled.
   await expect(form.getByTestId("policy-sentence")).toContainText(`Members of the group ${offered[0]} may read`);
+  await clip.end();
   await guideShot(page, "policy-1-form-in-words");
   await form.getByRole("button", { name: /Propose/ }).click();
   change = await proposedChange(page);

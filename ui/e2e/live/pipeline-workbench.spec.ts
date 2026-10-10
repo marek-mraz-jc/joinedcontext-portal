@@ -15,7 +15,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator } from "@playwright/test";
-import { guideShot } from "./guide";
+import { guideShot, helpClipStart } from "./guide";
 import { APPROVER, STEWARD, approve, proposedChange, removeCompletely, signIn, sweepDrafts } from "./portal";
 import { proposeFrom } from "./kindJourney";
 
@@ -84,6 +84,7 @@ test("a pipeline built in the workbench writes only what the model takes", async
     await form.locator("#root_period").fill("60s");
 
     // 2. One field of the wrong type: the error stands at each record, named by its rule and field.
+    const clip = helpClipStart(page, "pipelines");
     await form.locator("#workbench-bloblang").fill(WRONG);
     const output = step(form, "Mapped output");
     const records = output.getByRole("table", { name: "Mapped records" });
@@ -92,6 +93,7 @@ test("a pipeline built in the workbench writes only what the model takes", async
     await expect(step(form, "Validation").getByText(/records? breaks? helsinki/)).toBeVisible();
     const propose = form.getByRole("button", { name: /^Propose/ }).first();
     await expect(propose).toBeDisabled();
+    await clip.end();
     await guideShot(page, "pipeline-3-errors-at-each-record");
 
     // 3. Fixed: every record the workbench tried is valid.
