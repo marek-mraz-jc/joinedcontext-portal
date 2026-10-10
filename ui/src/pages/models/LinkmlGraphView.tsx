@@ -527,7 +527,7 @@ export function LinkmlGraphView({
                   { x: (at.get(connecting.from)?.x ?? 0) + BOX.width, y: (at.get(connecting.from)?.y ?? 0) + (at.get(connecting.from)?.height ?? 0) / 2 },
                   connecting.to,
                 ])}
-                className="stroke-primary"
+                className="stroke-primary-soft-fg"
                 strokeWidth={1.5}
                 strokeDasharray="4 3"
                 fill="none"
@@ -745,7 +745,7 @@ export function LinkmlGraphView({
                       cx={node.x + BOX.width}
                       cy={node.y + node.height / 2}
                       r={6}
-                      className="cursor-crosshair fill-surface stroke-primary"
+                      className="cursor-crosshair fill-surface stroke-primary-soft-fg"
                       strokeWidth={1.5}
                       onPointerDown={(event) => {
                         // Not a pan of the frame: this press draws a line.
@@ -1068,7 +1068,7 @@ function Minimap({
           width={view.width / zoom}
           height={view.height / zoom}
           fill="none"
-          className="stroke-primary"
+          className="stroke-primary-soft-fg"
           strokeWidth={2 / scale}
         />
       ) : null}
