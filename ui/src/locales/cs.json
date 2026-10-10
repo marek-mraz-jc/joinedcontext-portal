@@ -6687,6 +6687,8 @@
     "menu": "Nápověda k této stránce",
     "steps": "Jak na to",
     "guide": "Více v uživatelské příručce",
+    "clip": "Krátký záznam hlavní akce stránky {page}",
+    "fromGuide": "Z uživatelské příručky (v angličtině):",
     "ask": "Pomoz mi se stránkou {page}: k čemu slouží a co mám udělat nejdřív?",
     "askButton": "Zeptat se asistenta na tuto stránku",
     "home": {

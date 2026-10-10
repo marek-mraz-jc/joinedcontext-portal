@@ -7,7 +7,7 @@
  * approval, excluding the wait for the platform to merge and reconcile.
  */
 import { expect, test, type Page } from "@playwright/test";
-import { guideShot } from "./guide";
+import { guideShot, helpClipStart } from "./guide";
 import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, listedNames, proposeDelete, proposedChange, signIn } from "./portal";
 
@@ -43,6 +43,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
 
   const clock = journeyClock("Share");
   let start = Date.now();
+  const clip = helpClipStart(page, "endpoints");
   await page.getByRole("button", { name: "New endpoint" }).click();
   const dialog = page.getByTestId("form-page");
   await dialog.locator("#root_name").fill(ENDPOINT);
@@ -61,6 +62,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   await dialog.getByRole("button", { name: "Propose change" }).click();
   const change = await proposedChange(page);
   personSeconds += (Date.now() - start) / 1000;
+  await clip.end();
   await guideShot(page, "endpoint-2-proposed");
 
   const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);

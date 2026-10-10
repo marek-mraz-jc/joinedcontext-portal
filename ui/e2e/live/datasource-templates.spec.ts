@@ -6,7 +6,7 @@
  * is proposed: each form is left after its check, and the drafts the checks kept are swept.
  */
 import { expect, test } from "@playwright/test";
-import { guideShot } from "./guide";
+import { guideShot, helpClipStart } from "./guide";
 import { STEWARD, signIn, sweepDrafts } from "./portal";
 
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
@@ -37,6 +37,7 @@ test("each data source template reads its first records from a real source", asy
   try {
     for (const [at, source] of SOURCES.entries()) {
       await page.goto(`/projects/${PROJECT}/datasources?lang=en`, { waitUntil: "load" });
+      const clip = at === 0 ? helpClipStart(page, "datasources") : undefined;
       await page.getByRole("button", { name: "New data source" }).first().click();
       const gallery = page.getByTestId("datasource-templates");
       // The guide walks the first template; the others only prove their sources answer.
@@ -50,6 +51,7 @@ test("each data source template reads its first records from a real source", asy
       await gallery.getByRole("button", { name: "Fill the form and check" }).click();
       const probe = page.getByTestId("datasource-probe");
       await expect(probe, `${source.template} answers`).toContainText(/[1-9][0-9]* records/, { timeout: 120_000 });
+      await clip?.end();
       await shot("datasource-3-first-records");
     }
   } finally {
