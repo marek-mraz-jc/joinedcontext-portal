@@ -1,7 +1,7 @@
 # Záznamy kraja — the region's records, with the one attribute a person may write (AP-09, AP-40,
 # AP-62, EP-14, T-2437). Hand written, so no generated-by annotation.
 #
-# It is `static`: a bundle the Portal serves under /apps/bbsk-zaznamy/ on the platform
+# It is `ui`: a bundle the Portal serves under /apps/bbsk-zaznamy/ on the platform
 # origin, so a write carries the person's own session and CSRF header and the gateway decides it
 # (Architecture/16 §8). The application holds no credential of its own.
 #
@@ -12,6 +12,10 @@ kind: App
 metadata:
   name: bbsk-zaznamy
   namespace: bbsk
+  annotations:
+    # The Portal image ships this bundle (Dockerfile, /srv/apps), so the App names no
+    # repository of its own; the Portal accepts the mark only where the bundle is (AP-87).
+    joinedcontext.com/shipped-with: portal
   title:
     sk: "Záznamy Banskobystrického kraja"
     en: "Records of the Banská Bystrica region"
@@ -39,5 +43,15 @@ spec:
       # The columns the table shows and filters on, and the one attribute it writes. A filter
       # names an attribute, so an attribute missing here is a filter the endpoint refuses.
       attrs: [indicator, refArea, refPeriod, value, unitText, dateObserved, stewardNote]
-      operations: [queryEntity, retrieveEntity, updateAttrs]
+      operations: [queryEntity, retrieveEntity]
+      representations: [ngsi-ld]
+    # The one write, a need of its own: a need's attrs bound every operation it names, so the
+    # write named beside the columns above would let a person type over a published figure the
+    # next pipeline run overwrites (AP-62, T-3596).
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: bbsk-kraj
+      types: [StatisticalObservation]
+      attrs: [stewardNote]
+      operations: [updateAttrs]
       representations: [ngsi-ld]
