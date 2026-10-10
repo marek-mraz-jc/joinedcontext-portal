@@ -68,7 +68,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-app-sdk"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=2b2e1732bc448651836a2f455184bdf5c691893b#2b2e1732bc448651836a2f455184bdf5c691893b"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=a7f62e42cf0e2eb88e1bd69d1f6219a9fb136a17#a7f62e42cf0e2eb88e1bd69d1f6219a9fb136a17"
 dependencies = [
  "serde",
  "serde_json",
