@@ -25,6 +25,8 @@ pub struct PlacedApp {
     /// The slug of the App's own Endpoint, the one gateway path its component may call (AP-147);
     /// `None` until the reconciler has committed that Endpoint.
     pub endpoint: Option<String>,
+    /// `spec.server.jobs[]` as validation took it, which the host schedules (AP-154).
+    pub jobs: Vec<jc_core::kinds::app::AppJob>,
 }
 
 impl PlacedApp {
@@ -45,6 +47,15 @@ impl PlacedApp {
             shard: status.shard?,
             digest: status.build.as_ref()?.component.clone()?,
             endpoint: None,
+            // A manifest past validation reads; one that does not schedules nothing rather than
+            // keep the App off its shard.
+            jobs: spec
+                .get("server")
+                .and_then(|server| {
+                    serde_json::from_value::<jc_core::kinds::app::AppServer>(server.clone()).ok()
+                })
+                .map(|server| server.jobs)
+                .unwrap_or_default(),
         })
     }
 
@@ -107,6 +118,9 @@ pub fn placement(shard: u32, apps: &[PlacedApp]) -> (Value, Vec<PlacedApp>) {
             });
             if let Some(slug) = &app.endpoint {
                 placed["endpoint"] = json!(slug);
+            }
+            if !app.jobs.is_empty() {
+                placed["jobs"] = json!(app.jobs);
             }
             placed
         })
@@ -209,7 +223,25 @@ mod tests {
             shard,
             digest: format!("sha256:{}", "a".repeat(64)),
             endpoint: None,
+            jobs: Vec::new(),
         }
+    }
+
+    /// AP-154 (T-3372): the host schedules what the placement carries, so an App's jobs reach
+    /// it as `{name, schedule, export}`; an App without jobs carries no key.
+    #[test]
+    fn a_placed_app_carries_its_jobs_to_the_host() {
+        let mut envelope = wasm_app("helsinki", "kpi");
+        envelope.spec["server"] = json!({"jobs": [
+            {"name": "hourly", "schedule": "0 * * * *", "export": "compute-kpis"}
+        ]});
+        let placed = PlacedApp::of(&envelope).expect("placed");
+        let (zero, _) = placement(0, &[placed, app("helsinki", "notes", 0)]);
+        assert_eq!(
+            zero["apps"][0]["jobs"],
+            json!([{"name": "hourly", "schedule": "0 * * * *", "export": "compute-kpis"}])
+        );
+        assert!(zero["apps"][1].get("jobs").is_none());
     }
 
     #[test]
