@@ -75,6 +75,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}", "jc_project_get"),
 ("DELETE", "/projects/{project}", "jc_project_delete"),
 ("POST", "/projects/{project}/duplicate", "copies a whole repository of the forge under a new slug (PF-89): a person's decision in the Portal, not a tool a run holds"),
+("GET", "/projects/{project}/registry", "what the organization's registry entry pins the project to, read for the Release section's form; jc_project_get answers the project itself (PF-86)"),
+("PUT", "/projects/{project}/registry", "repointing what a project runs is the organization's red-lane decision a person proposes in the Portal, not a tool a run holds (PF-86, PF-58)"),
 ("GET", "/projects/{project}/app-checks", "the App probe's published verdicts, about the installation's checks and not a manifest (AP-136)"),
 ("GET", "/projects/{project}/activity", "jc_activity_list"),
 ("POST", "/projects/{project}/catalogue/drafts", "drafts the publish form and writes nothing; the proposal is the Endpoint's own, jc_endpoint_propose"),
