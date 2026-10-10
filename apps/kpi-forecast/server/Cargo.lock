@@ -92,6 +92,7 @@ dependencies = [
  "kpi-forecast",
  "serde",
  "serde_json",
+ "wit-bindgen",
 ]
 
 [[package]]
