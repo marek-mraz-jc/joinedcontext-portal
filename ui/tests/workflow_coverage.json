@@ -243,6 +243,16 @@
           "POST /api/v1/projects/{project}/duplicate"
         ]
       },
+      "pin-release": {
+        "live": {
+          "spec": "project-repos.spec.ts",
+          "test": "3. a pinned tag holds what dev serves until the pin moves (PF-86, CC-90)"
+        },
+        "personOnly": "repointing what a project runs, or its parameter values, is the organization's red-lane decision a person proposes in the Portal, not a tool a run holds (PF-86, PF-58)",
+        "routes": [
+          "PUT /api/v1/projects/{project}/registry"
+        ]
+      },
       "retire": {
         "live": {
           "spec": "readiness-project.spec.ts",
