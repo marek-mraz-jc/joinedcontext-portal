@@ -373,3 +373,24 @@ describe("email", () => {
     expect(refused).not.toBeInstanceOf(ServiceRefusedError);
   });
 });
+
+describe("jobs", () => {
+  it("lists the App's jobs on its own host and turns a switched-off service into ServiceRefusedError", async () => {
+    const calls: JcRequest[] = [];
+    const listed = [{ name: "report", schedule: "*/15 * * * *", nextRun: "2026-10-10T21:45:00Z", lastRun: { at: "2026-10-10T21:15:00Z", ok: false, message: "503" } }];
+    const answers = [
+      { status: 200, body: listed },
+      { status: 403, body: { type: "https://joinedcontext.com/errors/service-off", title: "Service Off", status: 403, service: "jobs", layer: "organization" } },
+    ];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return answers[calls.length - 1];
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+    expect(await client.jobs.list()).toEqual(listed);
+    expect(calls[0]).toEqual({ method: "GET", path: "/api/services/jobs" });
+    const off = await client.jobs.list().catch((err: unknown) => err);
+    expect(off).toBeInstanceOf(ServiceRefusedError);
+    expect(off).toMatchObject({ service: "jobs", layer: "organization" });
+  });
+});

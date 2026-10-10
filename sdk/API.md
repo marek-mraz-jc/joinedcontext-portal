@@ -29,6 +29,10 @@ A platform service the organization, the project or the App switched off (`403`,
 jc().email.send(message: { to: string[] | "me"; subject: string; text: string; html?: string }): Promise<{ id: string }>
 ```
 Sends a message to people of the organization, named by person id or `"me"` (the signed-in person), never by address; needs `email` in the App's `spec.services`. The platform adds the unsubscribe link. A subject with a line break is refused.
+```ts
+jc().jobs.list(): Promise<{ name: string; schedule: string; nextRun?: string; lastRun?: { at: string; ok: boolean; message?: string } }[]>
+```
+Lists the App's scheduled jobs (`spec.server.jobs[]`) with the next minute each runs, absent for a schedule that names none within a year, and its last run as the host reported it. Needs `jobs` on at every layer; the organization's default list has it.
 
 ### Hooks
 ```ts

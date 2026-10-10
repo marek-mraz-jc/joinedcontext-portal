@@ -14,6 +14,7 @@ pub mod default_groups;
 pub mod email;
 pub mod fetch;
 pub mod functions;
+pub mod jobs;
 pub mod kube;
 /// An App name is unique in the organization (AP-14a).
 pub mod names;

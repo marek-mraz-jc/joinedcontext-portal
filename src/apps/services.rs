@@ -6,7 +6,7 @@
 //! the lowest a layer sets, the catalog's default when none does. The check runs on every call, so
 //! switching a layer off stops an App that is already published (AP-164).
 
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use jc_core::kinds::org_settings::entry_at;
 use jc_core::kinds::{AppService, AppSpec, DEFAULT_ORGANIZATION_SERVICES};
@@ -14,8 +14,48 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use time::OffsetDateTime;
 
+use super::roles::AppPerson;
+use crate::auth::session::EDGE_TOKEN_HEADER;
+use crate::error::ApiError;
 use crate::permissions::ORG_NAMESPACE;
+use crate::state::AppState;
 use crate::store::{ListOptions, Mirror};
+
+/// What every service route checks before its own work, in this order: the call comes from the
+/// App's own host, the App is published and the caller may open it, a person is signed in (a
+/// service acts in a person's name, so an anonymous visitor of a public App calls none), a write
+/// carries the CSRF header when the edge's cookie token rode along (AP-84), and `service` is on
+/// at every layer (AP-164). Answers the App's project, its spec and the person.
+pub async fn gate(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    name: &str,
+    (service, method): (AppService, &Method),
+) -> Result<(String, AppSpec, AppPerson), Box<Response>> {
+    if let Some(refused) = super::static_host::off_its_origin(state, headers, name, uri) {
+        return Err(Box::new(refused));
+    }
+    let not_found =
+        || Box::new(ApiError::NotFound(format!("app '{name}' not found")).into_response());
+    let (project, spec, _) =
+        super::static_host::published_app(state, name).ok_or_else(not_found)?;
+    let person = super::roles::person(state, headers, &spec, name).await;
+    if !super::roles::may_open(&spec, person.as_ref()) {
+        return Err(not_found());
+    }
+    let person = person.ok_or_else(|| Box::new(ApiError::Unauthorized.into_response()))?;
+    if !method.is_safe()
+        && headers.contains_key(&EDGE_TOKEN_HEADER)
+        && !crate::auth::csrf::is_allowed(method, headers)
+    {
+        return Err(Box::new(ApiError::Forbidden.into_response()));
+    }
+    if let Some(layer) = off_at(&state.mirror, &project, &spec, service) {
+        return Err(Box::new(service_off(service, layer)));
+    }
+    Ok((project, spec, person))
+}
 
 /// The layer that switched a service off (AP-164).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

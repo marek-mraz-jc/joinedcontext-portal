@@ -768,6 +768,7 @@ pub fn router() -> Router<AppState> {
                 super::email::MAX_BODY_BYTES,
             )),
         )
+        .route("/apps/{name}/api/services/jobs", get(super::jobs::list))
         .route("/apps/{name}/{*path}", get(serve))
         // The signed link in every App message: on the Portal's host, outside `/api/v1`, since a
         // mail client's one-click carries no session and no CSRF token; the signature is the

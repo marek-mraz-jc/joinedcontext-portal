@@ -26,7 +26,6 @@ use serde::Deserialize;
 use sha2::Sha256;
 
 use super::services::{self, Quota};
-use crate::auth::session::EDGE_TOKEN_HEADER;
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -121,27 +120,18 @@ pub(super) async fn send(
     Path(name): Path<String>,
     body: Bytes,
 ) -> Response {
-    if let Some(refused) = super::static_host::off_its_origin(&state, &headers, &name, &uri) {
-        return refused;
-    }
-    let not_found = || ApiError::NotFound(format!("app '{name}' not found")).into_response();
-    let Some((project, spec, _)) = super::static_host::published_app(&state, &name) else {
-        return not_found();
-    };
-    let person = super::roles::person(&state, &headers, &spec, &name).await;
-    if !super::roles::may_open(&spec, person.as_ref()) {
-        return not_found();
-    }
-    // Mail goes out in a person's name: an anonymous visitor of a public App sends none.
-    let Some(person) = person else {
-        return ApiError::Unauthorized.into_response();
-    };
-    // The edge's token rides on a cookie a cross-site form would send too (AP-84).
-    if headers.contains_key(&EDGE_TOKEN_HEADER)
-        && !crate::auth::csrf::is_allowed(&Method::POST, &headers)
+    let (project, spec, person) = match services::gate(
+        &state,
+        &headers,
+        &uri,
+        &name,
+        (AppService::Email, &Method::POST),
+    )
+    .await
     {
-        return ApiError::Forbidden.into_response();
-    }
+        Ok(gated) => gated,
+        Err(refused) => return *refused,
+    };
     // A cross-site form can post `text/plain` without a preflight, never `application/json`.
     let json = headers
         .get(header::CONTENT_TYPE)
@@ -157,9 +147,6 @@ pub(super) async fn send(
     };
     if let Some(refused) = refusal(&send) {
         return refused;
-    }
-    if let Some(layer) = services::off_at(&state.mirror, &project, &spec, AppService::Email) {
-        return services::service_off(AppService::Email, layer);
     }
     let (Some(relay), Some(from), Some(db)) = (
         state.config.smtp_url.as_deref(),

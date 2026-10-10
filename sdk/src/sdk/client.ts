@@ -77,6 +77,14 @@ export interface Email {
   html?: string;
 }
 
+/** A scheduled job of the App and its runs (AP-154, AP-162); `nextRun` is absent for a schedule that names no minute within a year. */
+export interface JobStatus {
+  name: string;
+  schedule: string;
+  nextRun?: string;
+  lastRun?: { at: string; ok: boolean; message?: string };
+}
+
 export interface Query {
   /** The endpoint to read, by the name the served configuration lists; only needed for a type more than one endpoint serves. */
   endpoint?: string;
@@ -150,6 +158,8 @@ export interface Client extends DataClient {
   functions: { call<T = unknown>(name: string, body?: unknown): Promise<T> };
   /** The `email` service: the platform holds the relay, the App names people (SDK-41, API/06 §4). */
   email: { send(message: Email): Promise<{ id: string }> };
+  /** The `jobs` service: the App's schedules with their next and last run (SDK-41, API/06 §4). */
+  jobs: { list(): Promise<JobStatus[]> };
 }
 
 export const FUNCTION_NAME = /^[a-z][a-z0-9-]{0,39}$/;
@@ -626,6 +636,17 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     },
   };
 
+  const jobs = {
+    async list(): Promise<JobStatus[]> {
+      const path = config.transport === "bridge" ? "/services/jobs" : "/api/services/jobs";
+      const resp = await transport({ method: "GET", path });
+      if (resp.status < 200 || resp.status >= 300) {
+        throw serviceError(resp.status, resp.body, "jobs");
+      }
+      return resp.body as JobStatus[];
+    },
+  };
+
   return {
     config,
     entities,
@@ -636,6 +657,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     entityId,
     functions,
     email,
+    jobs,
   };
 }
 

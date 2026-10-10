@@ -41,6 +41,10 @@ routes:
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
     note: "the App's own token is the credential and the fixture has no published App (AP-168)"
+  - route: GET /apps/{name}/api/services/jobs
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-162)"
   - route: POST /auth/backchannel-logout
     rule: "signature:keycloak-backchannel"
     expect: [503, 503, 503, 503, 503, 503, 503, 503]
