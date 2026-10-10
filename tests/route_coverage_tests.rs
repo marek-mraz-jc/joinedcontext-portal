@@ -74,8 +74,6 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects", "jc_project_create"),
 ("GET", "/projects/{project}", "jc_project_get"),
 ("DELETE", "/projects/{project}", "jc_project_delete"),
-("GET", "/projects/{project}/registry", "the project's registry entry, its declarations and tags, read by the Portal's repoint page (PF-86, CC-88, T-3432); no tool reads a deployment pin"),
-("PUT", "/projects/{project}/registry", "repointing a project proposes a red-lane Change a person approves in the Portal (PF-86, T-3432); no tool proposes a deployment pin"),
 ("POST", "/projects/{project}/duplicate", "copies a whole repository of the forge under a new slug (PF-89): a person's decision in the Portal, not a tool a run holds"),
 ("GET", "/projects/{project}/registry", "what the organization's registry entry pins the project to, read for the Release section's form; jc_project_get answers the project itself (PF-86)"),
 ("PUT", "/projects/{project}/registry", "repointing what a project runs is the organization's red-lane decision a person proposes in the Portal, not a tool a run holds (PF-86, PF-58)"),
