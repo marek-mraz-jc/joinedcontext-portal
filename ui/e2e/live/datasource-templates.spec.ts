@@ -6,6 +6,7 @@
  * is proposed: each form is left after its check, and the drafts the checks kept are swept.
  */
 import { expect, test } from "@playwright/test";
+import { guideShot } from "./guide";
 import { STEWARD, signIn, sweepDrafts } from "./portal";
 
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
@@ -38,13 +39,18 @@ test("each data source template reads its first records from a real source", asy
       await page.goto(`/projects/${PROJECT}/datasources?lang=en`, { waitUntil: "load" });
       await page.getByRole("button", { name: "New data source" }).first().click();
       const gallery = page.getByTestId("datasource-templates");
+      // The guide walks the first template; the others only prove their sources answer.
+      const shot = (name: string) => (at === 0 ? guideShot(page, name) : Promise.resolve());
+      await shot("datasource-1-templates");
       await gallery.getByRole("button", { name: new RegExp(source.template) }).click();
       await gallery.getByLabel(/^(Address|Download address)/).fill(source.url);
       if (source.layer) await gallery.getByLabel("Layer name").fill(source.layer);
       await gallery.getByLabel(/^Name/).fill(`t3249-${at}-${SUFFIX}`);
+      await shot("datasource-2-address");
       await gallery.getByRole("button", { name: "Fill the form and check" }).click();
       const probe = page.getByTestId("datasource-probe");
       await expect(probe, `${source.template} answers`).toContainText(/[1-9][0-9]* records/, { timeout: 120_000 });
+      await shot("datasource-3-first-records");
     }
   } finally {
     await sweepDrafts(context, page, PROJECT, /^t3249-/);

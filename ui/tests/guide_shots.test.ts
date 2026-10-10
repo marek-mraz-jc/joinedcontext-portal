@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GUIDE_WIDTH, guideShot, guideShotPath, guideShotsOn } from "../e2e/live/guide";
 
 /** A page that records what the helper does to it; `lang` is the document's language. */
-function fakePage(lang = "en") {
+function fakePage(lang = "en", dialogOpen = false) {
   const calls: string[] = [];
   let current = lang;
   let size = { width: 1600, height: 1000 };
@@ -32,7 +32,7 @@ function fakePage(lang = "en") {
       first: () => ({ click: async () => calls.push(`${role} ${name}`) }),
     }),
     waitForFunction: async (_fn: unknown, wanted: string) => calls.push(`wait ${wanted}`),
-    locator: (selector: string) => selector,
+    locator: (selector: string) => Object.assign(new String(selector), { count: async () => (dialogOpen && selector.includes("dialog") ? 1 : 0) }),
     screenshot: async ({ path, mask }: { path: string; mask: unknown[] }) => {
       calls.push(`shot ${path.split("/").slice(-2).join("/")}`);
       masks.push(...mask);
@@ -77,9 +77,16 @@ describe("guide shots (T-3270)", () => {
       "wait en",
       "size 1600",
     ]);
-    expect(masks).toEqual(["input[type=password]", "input[type=password]"]);
+    expect(masks.map(String)).toEqual(["input[type=password]", "input[type=password]"]);
     expect(size()).toEqual({ width: 1600, height: 1000 });
     expect(existsSync(join(root, "en")) && existsSync(join(root, "sk"))).toBe(true);
+  });
+
+  it("refuse a page with a dialog open, whose header the language menu cannot reach", async () => {
+    vi.stubEnv("GUIDE_SHOTS", "1");
+    const { page, calls } = fakePage("en", true);
+    await expect(guideShot(page, "space-1")).rejects.toThrow(/a dialog is open/);
+    expect(calls).toEqual([]);
   });
 
   it("refuse a page that is not in English, where the journeys' words would not match", async () => {

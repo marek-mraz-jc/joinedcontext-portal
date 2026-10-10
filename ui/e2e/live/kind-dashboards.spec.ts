@@ -6,6 +6,7 @@
  * opens the same form; a viewer finds the page's write controls disabled with a reason.
  */
 import { expect } from "@playwright/test";
+import { guideShot } from "./guide";
 import { PROJECT, kindJourney, proposeFrom, rowAction } from "./kindJourney";
 
 kindJourney({
@@ -24,6 +25,7 @@ kindJourney({
       await form.locator("#root_pages__add").click();
     }
     await form.locator('input[type="checkbox"][id^="root_pages_0_layers"]').first().check();
+    await guideShot(page, "dashboard-1-form");
     await proposeFrom(form);
   },
   change: {

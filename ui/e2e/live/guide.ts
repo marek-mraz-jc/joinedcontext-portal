@@ -6,11 +6,10 @@
  * `scripts/publish-guide-shots.sh` quantizes the results into the docs repository's
  * `User-Guide/img/`, where `scripts/check-guide-shots.py` holds the guides to the shots that exist.
  */
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import en from "../../src/locales/en.json";
-import sk from "../../src/locales/sk.json";
 
 /** What a guide may call a shot: lower-case words and digits joined by hyphens. */
 const SHOT_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -34,9 +33,15 @@ export function guideShotsOn(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.GUIDE_SHOTS === "1";
 }
 
+/** The language menu's words in a locale, read as the walker reads the bundles (no JSON import in Playwright's loader). */
+function langWords(lang: GuideLang): { label: string; en: string; sk: string } {
+  const here = dirname(fileURLToPath(import.meta.url));
+  return (JSON.parse(readFileSync(join(here, `../../src/locales/${lang}.json`), "utf8")) as { lang: { label: string; en: string; sk: string } }).lang;
+}
+
 const LABELS: Record<GuideLang, { label: string; name: string }> = {
-  en: { label: en.lang.label, name: en.lang.en },
-  sk: { label: sk.lang.label, name: sk.lang.sk },
+  en: { label: langWords("en").label, name: langWords("en").en },
+  sk: { label: langWords("sk").label, name: langWords("sk").sk },
 };
 
 /** Switches the Portal's language through its own header menu, as a person would. */
@@ -49,11 +54,16 @@ async function switchTo(page: Page, from: GuideLang, to: GuideLang): Promise<voi
 /**
  * Shoots the page as it stands, in English and in Slovak, for the guide step `name`. A password
  * field is masked, so no shot can carry one. The page is left in English at the size it had.
+ * The language is switched through the header's menu, so a shot is taken with no dialog open:
+ * a modal dialog hides the header from the menu's click.
  */
 export async function guideShot(page: Page, name: string, root = "test-results/guide"): Promise<void> {
   if (!guideShotsOn()) return;
   const lang = await page.evaluate(() => document.documentElement.lang);
   if (lang !== "en") throw new Error(`guide shot ${name}: the page is in ${JSON.stringify(lang)}; journeys shoot from English (?lang=en)`);
+  if (await page.locator("[role=dialog][aria-modal=true]").count()) {
+    throw new Error(`guide shot ${name}: a dialog is open; shoot the page before or after it`);
+  }
   const size = page.viewportSize();
   await page.setViewportSize({ width: GUIDE_WIDTH, height: GUIDE_HEIGHT });
   try {

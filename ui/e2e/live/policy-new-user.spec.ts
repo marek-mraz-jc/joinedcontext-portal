@@ -7,6 +7,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
+import { guideShot } from "./guide";
 import { APPROVER, STEWARD, approve, proposedChange, removeCompletely, signIn } from "./portal";
 
 test.setTimeout(300_000);
@@ -56,9 +57,11 @@ test("a new user fills the Policy form from what it offers and proposes it", asy
   await form.getByLabel(/^Valid to/).fill("2020-01-01T00:00");
   // T-3276: what the form grants, in words, as it is filled.
   await expect(form.getByTestId("policy-sentence")).toContainText(`Members of the group ${offered[0]} may read`);
+  await guideShot(page, "policy-1-form-in-words");
   await form.getByRole("button", { name: /Propose/ }).click();
   change = await proposedChange(page);
   expect(change).toMatch(/\S/);
+  await guideShot(page, "policy-2-proposed");
 });
 
 test("a second person approves the change", async ({ browser }) => {
@@ -88,6 +91,7 @@ test("the change's page shows it merged with the policy it made, and the policy 
   await expect(row).toBeVisible({ timeout: 60_000 });
   await expect(row.getByText("Merged")).toBeVisible();
   await expect(row.getByText(APPROVER.user)).toBeVisible();
+  await guideShot(page, "approval-3-history");
   const stored = await page.request.get(`/api/v1/projects/${PROJECT}/policies/${NAME}`);
   expect(stored.status()).toBe(200);
   const spec = ((await stored.json()) as { spec?: { validity?: { to?: string } } }).spec;

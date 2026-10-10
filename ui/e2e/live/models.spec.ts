@@ -15,6 +15,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { guideShot } from "./guide";
 import { APPROVER, STEWARD, VIEWER, csrf, proposedChange, reject, signIn, sweepDrafts } from "./portal";
 
 const PROJECT = "helsinki";
@@ -74,6 +75,7 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
     await page.getByLabel("Target class").selectOption("Sensor");
     await page.getByRole("button", { name: "Add relationship" }).click();
     await expect(page.getByRole("table", { name: "Relationships" })).toContainText(/has many/);
+    await guideShot(page, "model-1-classes-and-relationship");
 
     // One line typed into the source, where a person writes what the form has no control for.
     await page.getByRole("tab", { name: "Source" }).click();
@@ -86,6 +88,7 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
 
     await page.getByRole("button", { name: "Check" }).click();
     await expect(page.getByText(/Saves as version/)).toBeVisible({ timeout: 60_000 });
+    await guideShot(page, "model-2-checked");
 
     const saved = page.waitForRequest(
       (request) => request.method() === "PUT" && /\/datamodels\/[^/]+\/source/.test(request.url()) && !request.url().includes("dryRun"),
@@ -96,6 +99,7 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
       expect(body, `the saved source carries ${part}`).toContain(part);
     }
     const change = await proposedChange(page);
+    await guideShot(page, "model-3-proposed");
     await reject(approver.page, PROJECT, change);
   } finally {
     await sweepDrafts(steward.context, page, PROJECT, MINE, [{ kind: "DataModel", name: MODEL }]);
