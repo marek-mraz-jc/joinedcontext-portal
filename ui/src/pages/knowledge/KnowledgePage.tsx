@@ -158,7 +158,9 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                           ? (row.contextSpaces ?? []).length > 0
                             ? (row.contextSpaces ?? []).join(", ")
                             : t("knowledge.everySpace")
-                          : (row.ckanInstanceRef ?? "")}
+                          : row.type === "guide"
+                            ? t("knowledge.userGuide")
+                            : (row.ckanInstanceRef ?? "")}
                     </span>
                   </TableCell>
                   <TableCell>

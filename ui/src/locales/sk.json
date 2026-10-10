@@ -6100,7 +6100,8 @@
     "type": {
       "website": "Web",
       "ckan": "Dátový katalóg",
-      "catalogue": "Katalóg kontextových priestorov"
+      "catalogue": "Katalóg kontextových priestorov",
+      "guide": "Používateľská príručka"
     },
     "status": {
       "pending": "Ešte neprečítané",
@@ -6243,7 +6244,8 @@
       "origins": "Adresa webu musí byť medzi povolenými pôvodmi asistenta; rámec na inom webe zostane prázdny.",
       "noDomain": "Tento Portál nepozná svoju doménu, preto nevie napísať adresu stránky asistenta."
     },
-    "everySpace": "každý priestor projektu"
+    "everySpace": "každý priestor projektu",
+    "userGuide": "používateľská príručka platformy s odkazmi do tohto projektu"
   },
   "mcp": {
     "title": "MCP servery",

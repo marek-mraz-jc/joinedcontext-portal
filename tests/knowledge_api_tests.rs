@@ -100,6 +100,13 @@ async fn rig_on(issuer: String, realm: Option<MockServer>) -> Rig {
         "helsinki",
         json!({ "source": "catalogue", "contextSpaces": ["air", "mobility"], "visibility": "public" }),
     ));
+    // AG-118: the platform's User Guide.
+    mirror.upsert(common::envelope(
+        "KnowledgeSource",
+        "guide",
+        "helsinki",
+        json!({ "source": "guide", "visibility": "public", "languages": ["en"] }),
+    ));
     mirror.upsert(common::envelope("KnowledgeSource", "web", "helsinki", json!({
         "source": "website", "startUrls": ["https://www.hel.fi/"], "visibility": "public", "schedule": "0 3 * * *"
     })));
@@ -226,6 +233,14 @@ async fn the_sources_join_the_manifests_with_what_the_assistant_holds() {
     assert_eq!(
         (spaces["type"].clone(), spaces["contextSpaces"].clone()),
         (json!("catalogue"), json!(["air", "mobility"]))
+    );
+    let guide = items
+        .iter()
+        .find(|i| i["source"] == "guide")
+        .expect("the User Guide");
+    assert_eq!(
+        (guide["type"].clone(), guide["startUrls"].clone()),
+        (json!("guide"), json!([]))
     );
 }
 

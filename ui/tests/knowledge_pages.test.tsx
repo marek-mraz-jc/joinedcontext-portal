@@ -70,6 +70,15 @@ const SOURCES = {
       visibility: "public",
     },
     {
+      source: "bb-guide",
+      type: "guide",
+      state: "not-crawled",
+      startUrls: [],
+      ckanInstanceRef: null,
+      schedule: null,
+      visibility: "public",
+    },
+    {
       source: "bb-old",
       type: "website",
       state: "crawled",
@@ -207,6 +216,10 @@ describe("the knowledge sources page (T-3057)", () => {
     const catalogue = within(table).getByText("bb-catalogue").closest("tr") as HTMLElement;
     expect(within(catalogue).getByText("Context spaces' catalogue")).toBeInTheDocument();
     expect(within(catalogue).getByText("every space of the project")).toBeInTheDocument();
+    // AG-118: the platform's User Guide.
+    const guide = within(table).getByText("bb-guide").closest("tr") as HTMLElement;
+    expect(within(guide).getByText("User Guide")).toBeInTheDocument();
+    expect(within(guide).getByText("the platform's User Guide, with links into this project")).toBeInTheDocument();
     const old = within(table).getByRole("link", { name: "bb-old" }).closest("tr") as HTMLElement;
     expect(within(old).getByText("Last crawl failed")).toBeInTheDocument();
     expect(within(old).getByText("https://old.banskabystrica.sk/ answered 503")).toBeInTheDocument();
