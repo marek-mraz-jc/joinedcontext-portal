@@ -1,6 +1,8 @@
 /** T-2795 (AP-136): the App probe's verdict per App, from what it saw. */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { summaryOf, verdictOf } from "../scripts/app-probe";
+import { firstViewItems, summaryOf, verdictOf } from "../scripts/app-probe";
 import type { Layout, Observation } from "../scripts/app-probe";
 
 const WORKING: Observation = {
@@ -72,5 +74,28 @@ describe("the App probe's verdict (AP-136)", () => {
       ["helsinki/air-quality", "pass"],
       ["helsinki/alerts", "fail"],
     ]);
+  });
+});
+
+describe("the data items of a first view (T-3580)", () => {
+  const recorded = (name: string): Document =>
+    new DOMParser().parseFromString(readFileSync(join(__dirname, "fixtures", "app-probe", `${name}.html`), "utf8"), "text/html");
+
+  it("finds none on a recorded page that has nothing to show", () => {
+    expect(firstViewItems(recorded("empty"))).toBe(0);
+  });
+
+  it("counts the rows of a recorded page that shows its data", () => {
+    expect(firstViewItems(recorded("filled"))).toBeGreaterThanOrEqual(25);
+  });
+
+  it("counts markers, chart marks, marked items, stats above zero and drawn canvases, never a header row", () => {
+    const page = new DOMParser().parseFromString(
+      `<table><thead><tr><th>Name</th></tr></thead><tbody><tr><td> </td></tr></tbody></table>
+       <div class="maplibregl-marker"></div><svg><g class="recharts-dot"></g></svg><li data-item>a</li>
+       <dl><dd>0</dd><dd>12 345</dd><dd>—</dd></dl><output>1,5</output><canvas></canvas>`,
+      "text/html",
+    );
+    expect(firstViewItems(page)).toBe(6);
   });
 });
