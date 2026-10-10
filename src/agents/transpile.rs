@@ -14,14 +14,16 @@ use std::path::Path;
 use oxc::allocator::{Allocator, FromIn};
 use oxc::ast::ast::{
     ExportAllDeclaration, ExportFromDeclaration, Expression, ImportDeclaration, ImportExpression,
+    JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElementName, JSXOpeningElement,
     Statement, StringLiteral,
 };
+use oxc::ast::builder::AstBuilder;
 use oxc::ast_visit::{walk_mut, VisitMut};
 use oxc::codegen::Codegen;
 use oxc::diagnostics::OxcDiagnostic;
 use oxc::parser::Parser;
 use oxc::semantic::SemanticBuilder;
-use oxc::span::SourceType;
+use oxc::span::{GetSpan, SourceType};
 use oxc::str::Str;
 use oxc::transformer::{TransformOptions, Transformer};
 
@@ -52,6 +54,8 @@ pub const TEST: &[&str] = &[
 ];
 /// The SDK stylesheet: imported by `src/main.tsx`, inlined by the document, removed here.
 const SDK_STYLE: &str = "@joinedcontext/sdk/style.css";
+/// The attribute that names an element's source position in the preview (SDK-46).
+pub const SOURCE_ATTRIBUTE: &str = "data-jc-src";
 
 /// One thing wrong with one file, where it is: what goes back to the model (SDK-14).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -162,6 +166,15 @@ fn module(
         return None;
     }
     let mut program = parsed.program;
+    if folder == Folder::Src && !test && path.ends_with(".tsx") {
+        let mut stamp = Stamp {
+            allocator: &allocator,
+            builder: AstBuilder::new(&allocator),
+            path,
+            lines: line_starts(source),
+        };
+        stamp.visit_program(&mut program);
+    }
     let semantic = SemanticBuilder::new()
         .with_check_syntax_error(true)
         .build(&program);
@@ -201,6 +214,58 @@ fn problem(path: &str, source: &str, offset: u32, message: String) -> Problem {
         line: before.matches('\n').count() + 1,
         column: before[line_start..].chars().count() + 1,
         message,
+    }
+}
+
+/// The offset each line of `source` starts at.
+fn line_starts(source: &str) -> Vec<u32> {
+    std::iter::once(0)
+        .chain(
+            source
+                .match_indices('\n')
+                .filter_map(|(at, _)| u32::try_from(at + 1).ok()),
+        )
+        .collect()
+}
+
+/// Stamps every HTML element of an interface file with `data-jc-src="{file}:{line}"`, so a click
+/// in the preview names the line to edit (SDK-46). A component is not stamped: it would receive
+/// a prop it does not expect. Only the preview runs this; the publication build never does.
+struct Stamp<'a, 'p> {
+    allocator: &'a Allocator,
+    builder: AstBuilder<'a>,
+    path: &'p str,
+    lines: Vec<u32>,
+}
+
+impl<'a> VisitMut<'a> for Stamp<'a, '_> {
+    fn visit_jsx_opening_element(&mut self, element: &mut JSXOpeningElement<'a>) {
+        let html = matches!(&element.name, JSXElementName::Identifier(name)
+            if name.name.starts_with(|c: char| c.is_ascii_lowercase()));
+        let stamped = element.attributes.iter().any(|item| {
+            matches!(item, JSXAttributeItem::Attribute(attr)
+                if matches!(&attr.name, JSXAttributeName::Identifier(name) if name.name == SOURCE_ATTRIBUTE))
+        });
+        if html && !stamped {
+            let line = self
+                .lines
+                .partition_point(|&start| start <= element.span.start);
+            let span = element.name.span();
+            let value = Str::from_in(format!("{}:{line}", self.path).as_str(), self.allocator);
+            let attribute = JSXAttributeItem::new_attribute(
+                span,
+                JSXAttributeName::new_identifier(span, SOURCE_ATTRIBUTE, &self.builder),
+                Some(JSXAttributeValue::new_string_literal(
+                    span,
+                    value,
+                    None,
+                    &self.builder,
+                )),
+                &self.builder,
+            );
+            element.attributes.push(attribute);
+        }
+        walk_mut::walk_jsx_opening_element(self, element);
     }
 }
 
@@ -485,6 +550,48 @@ mod tests {
         assert!(project.problems.is_empty(), "{:?}", project.problems);
         assert_eq!(project.modules.len(), 60);
         assert!(took.as_millis() < 1000, "60 files took {took:?}");
+    }
+
+    #[test]
+    fn html_elements_carry_their_source_line_and_nothing_else_does() {
+        let project = transpile(&files(&[
+            (
+                "src/pages/Card.tsx",
+                "import { Panel } from \"./Panel\";\nexport const Card = ({ n }: { n: number }) => (\n  <article>\n    <h2 className=\"t\">{n}</h2>\n    <Panel />\n  </article>\n);\n",
+            ),
+            (
+                "src/pages/Panel.tsx",
+                "export const Panel = () => <p data-jc-src=\"kept\">x</p>;\n",
+            ),
+            (
+                "src/pages/Card.test.tsx",
+                "import { Card } from \"./Card\";\nexport const t = <div><Card n={1} /></div>;\n",
+            ),
+            (
+                "functions/sum.ts",
+                "export default () => 1;\n",
+            ),
+        ]));
+
+        assert!(project.problems.is_empty(), "{:?}", project.problems);
+        let card = &project.modules["@app/src/pages/Card.tsx"];
+        assert!(
+            card.contains("\"data-jc-src\": \"src/pages/Card.tsx:3\""),
+            "{card}"
+        );
+        assert!(
+            card.contains("\"data-jc-src\": \"src/pages/Card.tsx:4\""),
+            "{card}"
+        );
+        assert_eq!(
+            card.matches("data-jc-src").count(),
+            2,
+            "the component is not stamped: {card}"
+        );
+        let panel = &project.modules["@app/src/pages/Panel.tsx"];
+        assert_eq!(panel.matches("data-jc-src").count(), 1, "{panel}");
+        assert!(panel.contains("\"kept\""), "{panel}");
+        assert!(!project.functions["@app/functions/sum.ts"].contains("data-jc-src"));
     }
 
     #[test]
