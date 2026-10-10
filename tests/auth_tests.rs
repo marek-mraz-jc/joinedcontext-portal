@@ -1416,15 +1416,15 @@ async fn a_logout_token_that_is_not_this_sessions_leaves_it_standing() {
     let issuer = issuer_of(&realm);
     let app = app_with_realm(&realm).await;
 
-    // A forged signature on an otherwise perfect logout token.
+    // A forged signature on an otherwise perfect logout token. The first base64url character holds
+    // the top six bits of the signature's first byte, so changing it always changes the signature;
+    // replacing the first `a` did not when the signature held none, or only in its last
+    // character, whose low bits are padding (T-3568).
     let good = keys::logout_token(&issuer, "demo.steward", true, false);
     let parts: Vec<&str> = good.split('.').collect();
-    let tampered = format!(
-        "{}.{}.{}",
-        parts[0],
-        parts[1],
-        parts[2].replacen('a', "b", 1)
-    );
+    let first = if parts[2].starts_with('A') { "B" } else { "A" };
+    let tampered = format!("{}.{}.{first}{}", parts[0], parts[1], &parts[2][1..]);
+    assert_ne!(tampered, good);
 
     for (why, token) in [
         ("a signature nobody made", tampered),
