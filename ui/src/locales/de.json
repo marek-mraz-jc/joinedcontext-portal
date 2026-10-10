@@ -2295,7 +2295,23 @@
       },
       "expiresIn": "{count, plural, one {läuft in # Tag ab} other {läuft in # Tagen ab}}",
       "expired": "abgelaufen",
-      "ending": "Schlüssel, die innerhalb von {days} Tagen ablaufen oder abgelaufen sind: {count}. Rotieren Sie sie, bevor die Programme, die sie nutzen, scheitern."
+      "ending": "Schlüssel, die innerhalb von {days} Tagen ablaufen oder abgelaufen sind: {count}. Rotieren Sie sie, bevor die Programme, die sie nutzen, scheitern.",
+      "mint": {
+        "title": "Neuer API-Schlüssel ({credential})",
+        "hint": "Wählen Sie, wie lange er gilt. Der Schlüssel wird einmal angezeigt, direkt nach dem Erstellen.",
+        "allows": "Was der Schlüssel erlaubt",
+        "allowsNothing": "Dieses Konto hat noch keine Rolle, sein Schlüssel erlaubt daher nichts. Weisen Sie dem Konto zuerst eine Rolle zu.",
+        "expiry": "Gültig bis",
+        "asCredential": "Bis zum Ende des Zugangs: {date}",
+        "asCredentialNever": "Unbegrenzt, wie der Zugang es vorgibt",
+        "inDays": "{count, plural, one {# Tag ({date})} other {# Tage ({date})}}",
+        "onDate": "Bis zu einem Datum",
+        "dateLabel": "Letzter Gültigkeitstag des Schlüssels",
+        "dateMissing": "Wählen Sie den letzten Gültigkeitstag des Schlüssels.",
+        "datePast": "Dieser Tag ist vorbei. Wählen Sie einen Tag nach heute.",
+        "dateAfter": "Der Zugang gilt bis {date}, und ein Schlüssel kann nicht länger gelten. Wählen Sie diesen oder einen früheren Tag.",
+        "submit": "Schlüssel erstellen"
+      }
     },
     "matrix": {
       "title": "Datenzugriff",

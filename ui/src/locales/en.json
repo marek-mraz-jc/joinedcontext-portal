@@ -2295,7 +2295,23 @@
       },
       "expiresIn": "{count, plural, one {expires in # day} other {expires in # days}}",
       "expired": "expired",
-      "ending": "Keys that expire within {days} days or have expired: {count}. Rotate them before the programs that use them fail."
+      "ending": "Keys that expire within {days} days or have expired: {count}. Rotate them before the programs that use them fail.",
+      "mint": {
+        "title": "New API key ({credential})",
+        "hint": "Choose how long it works. The key is shown once, after it is made.",
+        "allows": "What the key allows",
+        "allowsNothing": "This account holds no role yet, so its key allows nothing. Give the account a role first.",
+        "expiry": "Expires",
+        "asCredential": "When the credential ends: {date}",
+        "asCredentialNever": "No expiry, as the credential says",
+        "inDays": "{count, plural, one {In # day ({date})} other {In # days ({date})}}",
+        "onDate": "On a date",
+        "dateLabel": "Last day the key works",
+        "dateMissing": "Pick the last day the key works.",
+        "datePast": "That day is over. Pick a day after today.",
+        "dateAfter": "The credential ends on {date}, and a key cannot outlive it. Pick that day or an earlier one.",
+        "submit": "Create key"
+      }
     },
     "matrix": {
       "title": "Data access",

@@ -2295,7 +2295,23 @@
       },
       "expiresIn": "{count, plural, one {vyprší o # deň} few {vyprší o # dni} other {vyprší o # dní}}",
       "expired": "vypršal",
-      "ending": "Kľúče, ktoré vypršia do {days} dní alebo už vypršali: {count}. Vymeňte ich skôr, než programy, ktoré ich používajú, zlyhajú."
+      "ending": "Kľúče, ktoré vypršia do {days} dní alebo už vypršali: {count}. Vymeňte ich skôr, než programy, ktoré ich používajú, zlyhajú.",
+      "mint": {
+        "title": "Nový API kľúč ({credential})",
+        "hint": "Vyberte, ako dlho bude platiť. Kľúč sa zobrazí raz, hneď po vytvorení.",
+        "allows": "Čo kľúč dovoľuje",
+        "allowsNothing": "Tento účet zatiaľ nemá žiadnu rolu, jeho kľúč preto nedovoľuje nič. Najprv účtu priraďte rolu.",
+        "expiry": "Platnosť",
+        "asCredential": "Do konca platnosti prístupu: {date}",
+        "asCredentialNever": "Bez obmedzenia, ako určuje prístup",
+        "inDays": "{count, plural, one {# deň ({date})} few {# dni ({date})} other {# dní ({date})}}",
+        "onDate": "Do zvoleného dňa",
+        "dateLabel": "Posledný deň platnosti kľúča",
+        "dateMissing": "Vyberte posledný deň platnosti kľúča.",
+        "datePast": "Tento deň už uplynul. Vyberte deň po dnešku.",
+        "dateAfter": "Prístup platí do {date} a kľúč nemôže platiť dlhšie. Vyberte tento alebo skorší deň.",
+        "submit": "Vytvoriť kľúč"
+      }
     },
     "matrix": {
       "title": "Prístup k údajom",
