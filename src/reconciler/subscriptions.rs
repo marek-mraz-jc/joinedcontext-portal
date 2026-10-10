@@ -16,6 +16,7 @@
 //! Portal's own service-account token, never straight at the broker: the space's policy decides
 //! this write like any other, and the gateway injects the tenant (SP-06, SP-07).
 
+use crate::config::ClientAuth;
 use crate::pipeline_secrets::Resolver;
 use crate::store::Mirror;
 use jc_core::kinds::subscription::SubscriptionSpec;
@@ -48,7 +49,7 @@ pub struct SubscriptionSync {
     /// `https://host/realms/{realm}`: where the service-account token comes from.
     issuer: String,
     client_id: String,
-    client_secret: String,
+    auth: ClientAuth,
     /// The organization's domain, the third segment of every URN this instance writes.
     org_domain: String,
 }
@@ -59,7 +60,7 @@ impl SubscriptionSync {
         base: impl Into<String>,
         issuer: &str,
         client_id: String,
-        client_secret: String,
+        auth: ClientAuth,
         org_domain: impl Into<String>,
     ) -> Self {
         Self {
@@ -70,7 +71,7 @@ impl SubscriptionSync {
             base: base.into().trim_end_matches('/').to_owned(),
             issuer: issuer.trim_end_matches('/').to_owned(),
             client_id,
-            client_secret,
+            auth,
             org_domain: org_domain.into(),
         }
     }
@@ -84,13 +85,7 @@ impl SubscriptionSync {
     }
 
     pub(crate) async fn token(&self) -> Result<String, String> {
-        super::realm::token(
-            &self.http,
-            &self.issuer,
-            &self.client_id,
-            &self.client_secret,
-        )
-        .await
+        super::realm::token(&self.http, &self.issuer, &self.client_id, &self.auth).await
     }
 
     /// Brings every space's subscriptions to what the repository declares.
@@ -415,7 +410,7 @@ mod tests {
             "https://city.example/",
             "https://idm.example/realms/dev",
             "portal-reconciler".to_owned(),
-            "s3cr3t".to_owned(),
+            ClientAuth::Secret("s3cr3t".into()),
             "hel.fi",
         );
         assert_eq!(

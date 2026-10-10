@@ -9,6 +9,7 @@
 //! installation without an edge (ADR-N-019, AP-27, AP-28).
 
 pub mod bearer;
+pub mod client_auth;
 pub mod csrf;
 pub mod internal;
 pub mod oidc;

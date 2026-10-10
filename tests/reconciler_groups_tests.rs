@@ -5,6 +5,7 @@
 //! is overwritten and reported as drift, a group without the managed attribute is never
 //! touched, and a member the realm has no user for is a warning, not a failure.
 
+use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
 
 use joinedcontext_portal::reconciler::groups::{GroupSync, MANAGED_BY, MANAGED_VALUE};
@@ -62,7 +63,7 @@ fn sync(keycloak: &MockServer) -> GroupSync {
     GroupSync::new(
         &format!("{}/realms/bb", keycloak.uri()),
         "portal-reconciler".to_owned(),
-        "s3cret".to_owned(),
+        ClientAuth::Secret("s3cret".into()),
     )
     .expect("a realm issuer")
 }

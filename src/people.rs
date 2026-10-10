@@ -5,6 +5,7 @@
 //! `manage-users` and `query-groups` of `realm-management` and nothing else (PF-63), which is
 //! every right these calls need. Nothing here logs a password, a token or a request body.
 
+use crate::config::ClientAuth;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -128,7 +129,7 @@ pub struct People {
     issuer: String,
     admin: String,
     client_id: String,
-    client_secret: String,
+    auth: ClientAuth,
 }
 
 /// One authenticated conversation with the admin API: the token is fetched once per request the
@@ -140,7 +141,7 @@ pub struct Admin<'a> {
 
 impl People {
     /// `None` when the issuer is not a realm URL: then there is no realm to manage.
-    pub fn new(issuer: &str, client_id: String, client_secret: String) -> Option<Self> {
+    pub fn new(issuer: &str, client_id: String, auth: ClientAuth) -> Option<Self> {
         let issuer = issuer.trim_end_matches('/').to_owned();
         let (root, realm) = issuer.rsplit_once("/realms/")?;
         let admin = format!("{root}/admin/realms/{realm}");
@@ -149,7 +150,7 @@ impl People {
             issuer,
             admin,
             client_id,
-            client_secret,
+            auth,
         })
     }
 
@@ -157,11 +158,15 @@ impl People {
         let response = self
             .http
             .post(format!("{}/protocol/openid-connect/token", self.issuer))
-            .form(&[
-                ("grant_type", "client_credentials"),
-                ("client_id", self.client_id.as_str()),
-                ("client_secret", self.client_secret.as_str()),
-            ])
+            .form(
+                &self
+                    .auth
+                    .form(
+                        self.client_id.as_str(),
+                        &[("grant_type", "client_credentials")],
+                    )
+                    .map_err(PeopleError::Unreachable)?,
+            )
             .send()
             .await
             .map_err(|err| PeopleError::Unreachable(err.without_url().to_string()))?;
@@ -533,10 +538,15 @@ mod tests {
         let people = People::new(
             "https://id.example.org/realms/hel/",
             "portal".into(),
-            "s".into(),
+            ClientAuth::Secret("s".into()),
         )
         .expect("a realm URL");
         assert_eq!(people.admin, "https://id.example.org/admin/realms/hel");
-        assert!(People::new("https://id.example.org/", "p".into(), "s".into()).is_none());
+        assert!(People::new(
+            "https://id.example.org/",
+            "p".into(),
+            ClientAuth::Secret("s".into())
+        )
+        .is_none());
     }
 }

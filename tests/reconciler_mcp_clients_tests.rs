@@ -6,6 +6,7 @@
 //! this platform did not create is never touched; and a managed client whose server is gone is
 //! deleted.
 
+use joinedcontext_portal::config::ClientAuth;
 use joinedcontext_portal::reconciler::app_clients::{audience_mapper, groups_mapper};
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::reconciler::mcp_clients::{
@@ -70,7 +71,7 @@ fn sync(keycloak: &MockServer) -> McpClientSync {
     McpClientSync::new(
         &format!("{}/realms/bb", keycloak.uri()),
         "portal-api".to_owned(),
-        "portal-api-credential".to_owned(),
+        ClientAuth::Secret("portal-api-credential".into()),
     )
     .expect("a realm issuer")
 }

@@ -21,6 +21,7 @@
 //! made it (the platform's own clients of `keycloak-clients.yaml`, say) and is never written or
 //! removed; the account is reported instead.
 
+use crate::config::ClientAuth;
 use std::collections::{BTreeMap, BTreeSet};
 
 use jc_core::kinds::service_account::{keycloak_client_id, KubernetesBinding};
@@ -439,10 +440,10 @@ pub struct WorkloadClientSync {
 impl WorkloadClientSync {
     /// `None` when the issuer is not a realm URL. The login client is the Portal's audience as
     /// well as the identity that writes the clients.
-    pub fn new(issuer: &str, client_id: String, client_secret: String) -> Option<Self> {
+    pub fn new(issuer: &str, client_id: String, auth: ClientAuth) -> Option<Self> {
         Some(Self {
             portal: client_id.clone(),
-            admin: Admin::new(issuer, client_id, client_secret)?,
+            admin: Admin::new(issuer, client_id, auth)?,
             pipelines: None,
             app_jobs: None,
         })

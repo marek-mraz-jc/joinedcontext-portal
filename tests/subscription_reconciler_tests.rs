@@ -5,6 +5,7 @@
 //! of a reference that does not resolve — and that the credential is in the request and nowhere
 //! else.
 
+use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
 
 use joinedcontext_portal::reconciler::subscriptions::{SubscriptionOutcome, SubscriptionSync};
@@ -39,7 +40,7 @@ fn sync(server: &MockServer) -> SubscriptionSync {
         server.uri(),
         &format!("{}/realms/dev", server.uri()),
         "portal-reconciler".to_owned(),
-        "s3cr3t".to_owned(),
+        ClientAuth::Secret("s3cr3t".into()),
         DOMAIN,
     )
 }

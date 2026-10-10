@@ -19,6 +19,7 @@
 //! it in [`ClientSecret`], whose `Debug` never shows the value; it is never logged, stored in a
 //! manifest or written to a ConfigMap.
 
+use crate::config::ClientAuth;
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
@@ -381,12 +382,12 @@ pub struct Admin {
     /// `https://idm.host/admin/realms/{realm}`: where the clients are.
     admin: String,
     client_id: String,
-    client_secret: String,
+    auth: ClientAuth,
 }
 
 impl Admin {
     /// `None` when the issuer is not a realm URL, because then there is nothing to manage.
-    pub fn new(issuer: &str, client_id: String, client_secret: String) -> Option<Self> {
+    pub fn new(issuer: &str, client_id: String, auth: ClientAuth) -> Option<Self> {
         let trimmed = issuer.trim_end_matches('/');
         let (root, realm) = trimmed.rsplit_once("/realms/")?;
         Some(Self {
@@ -394,7 +395,7 @@ impl Admin {
             issuer: trimmed.to_owned(),
             admin: format!("{root}/admin/realms/{realm}"),
             client_id,
-            client_secret,
+            auth,
         })
     }
 
@@ -402,11 +403,10 @@ impl Admin {
         let response = self
             .http
             .post(format!("{}/protocol/openid-connect/token", self.issuer))
-            .form(&[
-                ("grant_type", "client_credentials"),
-                ("client_id", self.client_id.as_str()),
-                ("client_secret", self.client_secret.as_str()),
-            ])
+            .form(&self.auth.form(
+                self.client_id.as_str(),
+                &[("grant_type", "client_credentials")],
+            )?)
             .send()
             .await
             .map_err(|err| err.to_string())?;
@@ -598,14 +598,9 @@ impl AppClientSync {
     }
 
     /// `None` when the issuer is not a realm URL, because then there is nothing to manage.
-    pub fn new(
-        issuer: &str,
-        client_id: String,
-        client_secret: String,
-        host: String,
-    ) -> Option<Self> {
+    pub fn new(issuer: &str, client_id: String, auth: ClientAuth, host: String) -> Option<Self> {
         Some(Self {
-            admin: Admin::new(issuer, client_id, client_secret)?,
+            admin: Admin::new(issuer, client_id, auth)?,
             members: None,
             host,
             foreign: None,
@@ -614,8 +609,8 @@ impl AppClientSync {
 
     /// Looks up the App's groups and users and writes their role mappings as this client, in
     /// the same realm, instead of the client that manages the App clients (T-3022).
-    pub fn with_members(mut self, client_id: String, client_secret: String) -> Self {
-        self.members = Admin::new(&self.admin.issuer, client_id, client_secret);
+    pub fn with_members(mut self, client_id: String, auth: ClientAuth) -> Self {
+        self.members = Admin::new(&self.admin.issuer, client_id, auth);
         self
     }
 

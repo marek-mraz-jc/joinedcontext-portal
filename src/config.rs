@@ -3,6 +3,8 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use url::Url;
 
+pub use crate::auth::client_auth::ClientAuth;
+
 /// Portal server configuration. Secrets are redacted in `Debug` so a config dump
 /// never puts a client secret or a cookie key into the log (CC-40).
 #[derive(Clone)]
@@ -13,8 +15,9 @@ pub struct Config {
     /// `http://localhost:8080`). Every redirect URI, every link the Portal writes into a merge
     /// request and the host a generated application is served on are derived from it.
     pub public_base_url: Url,
-    /// The realm humans sign in against: `JC_OIDC_ISSUER`, `JC_OIDC_CLIENT_ID` and
-    /// `JC_OIDC_CLIENT_SECRET` (a secret), all three together or none, plus the optional
+    /// The realm humans sign in against: `JC_OIDC_ISSUER`, `JC_OIDC_CLIENT_ID` and one proof of
+    /// the client, `JC_OIDC_CLIENT_SECRET` (a secret) or `JC_OIDC_CLIENT_ASSERTION_FILE` (the
+    /// pod's projected ServiceAccount token, PF-47), all together or none, plus the optional
     /// `JC_OIDC_CA_FILE` for a realm behind a private CA.
     ///
     /// `None` disables login: no session can be minted, so every protected route
@@ -173,9 +176,10 @@ pub struct Config {
     pub journey_users: Vec<String>,
     /// The client the reconciler manages the realm's groups with: a `ServiceAccount` client
     /// holding `manage-users` and `query-groups` of `realm-management` and nothing else
-    /// (`JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID` and `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET`, a
-    /// secret, both together or neither; PF-63). `None` leaves the `Group` manifests read and the realm written by nobody.
-    pub keycloak_admin: Option<(String, String)>,
+    /// (`JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID` and one of `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET`, a
+    /// secret, or `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ASSERTION_FILE`, a projected ServiceAccount
+    /// token; together or neither; PF-63, PF-47). `None` leaves the `Group` manifests read and the realm written by nobody.
+    pub keycloak_admin: Option<(String, ClientAuth)>,
     /// The operator's bounds on what an Organization may set (`JC_PORTAL_ORGANIZATION_BOUNDS_FILE`,
     /// the file the deployment renders `portal.organizationBounds` into; PF-97, ADR-N-035). No
     /// file keeps every entry at the catalog's built-in bound.
@@ -1072,7 +1076,8 @@ fn basemap_config(
 pub struct OidcConfig {
     pub issuer: Url,
     pub client_id: String,
-    client_secret: String,
+    /// How the client proves itself at the token endpoint (PF-47).
+    pub auth: ClientAuth,
     /// PEM of an extra root the discovery client trusts, on top of the compiled-in Mozilla
     /// bundle. An instance whose issuer is served by a private CA (a self-signed cluster
     /// issuer, an internal PKI) is unreachable without it: the binary carries `webpki-roots`
@@ -1081,18 +1086,12 @@ pub struct OidcConfig {
     pub extra_ca_pem: Option<Vec<u8>>,
 }
 
-impl OidcConfig {
-    pub fn client_secret(&self) -> &str {
-        &self.client_secret
-    }
-}
-
 impl std::fmt::Debug for OidcConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OidcConfig")
             .field("issuer", &self.issuer.as_str())
             .field("client_id", &self.client_id)
-            .field("client_secret", &"[redacted]")
+            .field("auth", &self.auth)
             .finish()
     }
 }
@@ -1145,10 +1144,14 @@ impl Config {
         let oidc = match (
             lookup("JC_OIDC_ISSUER"),
             lookup("JC_OIDC_CLIENT_ID"),
-            lookup("JC_OIDC_CLIENT_SECRET"),
+            ClientAuth::from_vars(
+                &lookup,
+                "JC_OIDC_CLIENT_SECRET",
+                "JC_OIDC_CLIENT_ASSERTION_FILE",
+            )?,
         ) {
             (None, None, None) => None,
-            (Some(issuer), Some(client_id), Some(client_secret)) => Some(OidcConfig {
+            (Some(issuer), Some(client_id), Some(auth)) => Some(OidcConfig {
                 issuer: issuer
                     .parse()
                     .map_err(|e: url::ParseError| ConfigError::Invalid {
@@ -1156,7 +1159,7 @@ impl Config {
                         reason: e.to_string(),
                     })?,
                 client_id,
-                client_secret,
+                auth,
                 // Unreadable means misconfigured, not "carry on with fewer roots": a start-up
                 // error names the file, a silent fallback would be a confusing 500 at login.
                 extra_ca_pem: match lookup("JC_OIDC_CA_FILE") {
@@ -1170,8 +1173,8 @@ impl Config {
             _ => {
                 return Err(ConfigError::Invalid {
                     var: "JC_OIDC_ISSUER",
-                    reason: "JC_OIDC_ISSUER, JC_OIDC_CLIENT_ID and JC_OIDC_CLIENT_SECRET must be \
-                             set together"
+                    reason: "JC_OIDC_ISSUER, JC_OIDC_CLIENT_ID and JC_OIDC_CLIENT_SECRET or \
+                             JC_OIDC_CLIENT_ASSERTION_FILE must be set together"
                         .to_string(),
                 })
             }
@@ -1448,17 +1451,22 @@ impl Config {
             })
             .unwrap_or_default();
 
-        // Both halves or neither: an id without a secret would send an unauthenticated token
+        // Both halves or neither: an id without a proof would send an unauthenticated token
         // request every tick and log a refusal every time.
         let keycloak_admin = match (
             lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID").filter(|v| !v.trim().is_empty()),
-            lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET").filter(|v| !v.trim().is_empty()),
+            ClientAuth::from_vars(
+                &lookup,
+                "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET",
+                "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ASSERTION_FILE",
+            )?,
         ) {
-            (Some(id), Some(secret)) => Some((id, secret)),
+            (Some(id), Some(auth)) => Some((id, auth)),
             (Some(_), None) => {
                 return Err(ConfigError::Invalid {
                     var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET",
-                    reason: "the group reconciler has a client id and no secret".to_owned(),
+                    reason: "the group reconciler has a client id and no secret or token file"
+                        .to_owned(),
                 })
             }
             _ => None,
@@ -1890,7 +1898,7 @@ mod tests {
         .expect("oidc config");
         let oidc = config.oidc.as_ref().expect("oidc present");
         assert_eq!(oidc.client_id, "portal");
-        assert_eq!(oidc.client_secret(), "s3cr3t");
+        assert!(matches!(&oidc.auth, ClientAuth::Secret(secret) if secret == "s3cr3t"));
         let dumped = format!("{config:?}");
         assert!(
             !dumped.contains("s3cr3t"),

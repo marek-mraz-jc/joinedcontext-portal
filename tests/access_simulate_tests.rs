@@ -4,6 +4,7 @@
 
 mod common;
 
+use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
 
 use serde_json::{json, Value};
@@ -129,7 +130,12 @@ async fn rig() -> Rig {
         json!({ "description": "the sensor feed" }),
     ));
     let mut state = AppState::new(config, Some(oidc)).with_mirror(Arc::new(mirror));
-    state.people = People::new(&issuer, "portal-reconciler".into(), "secret".into()).map(Arc::new);
+    state.people = People::new(
+        &issuer,
+        "portal-reconciler".into(),
+        ClientAuth::Secret("secret".into()),
+    )
+    .map(Arc::new);
     Rig {
         state,
         gateway,

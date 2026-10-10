@@ -17,9 +17,8 @@ use openidconnect::core::{
     CoreResponseType, CoreSubjectIdentifierType,
 };
 use openidconnect::{
-    AdditionalProviderMetadata, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
-    EndpointMaybeSet, EndpointNotSet, EndpointSet, IssuerUrl, Nonce, OAuth2TokenResponse,
-    PkceCodeChallenge, PkceCodeVerifier, ProviderMetadata, RedirectUrl, RefreshToken, Scope,
+    AdditionalProviderMetadata, ClientId, CsrfToken, EndpointMaybeSet, EndpointNotSet, EndpointSet,
+    IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, ProviderMetadata, RedirectUrl, Scope,
     TokenResponse,
 };
 use serde::{Deserialize, Serialize};
@@ -27,7 +26,7 @@ use url::Url;
 
 use crate::auth::csrf;
 use crate::auth::session::{self, secure_cookie, Identity, Session, FLOW_COOKIE};
-use crate::config::OidcConfig;
+use crate::config::{ClientAuth, OidcConfig};
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -83,8 +82,15 @@ pub enum OidcError {
 
 /// The discovered Keycloak realm plus the http client used for every server-to-server call.
 pub struct OidcClient {
+    /// The discovered realm: the authorization URL and the ID token verifier. Token requests do
+    /// not go through it, because its token requests always carry `client_id`, which a
+    /// `federated-jwt` client refuses beside an assertion (PF-47, T-2868).
     client: PortalClient,
     http: reqwest::Client,
+    token_url: Url,
+    client_id: String,
+    redirect_uri: String,
+    auth: ClientAuth,
     end_session_endpoint: Option<Url>,
     /// Where the silent sign-in check of a framed App asks the realm (AP-122, T-3034).
     authorization_endpoint: Url,
@@ -145,19 +151,29 @@ impl OidcClient {
             .as_ref()
             .and_then(|raw| Url::parse(raw).ok());
         let authorization_endpoint = metadata.authorization_endpoint().url().clone();
+        let token_url = metadata
+            .token_endpoint()
+            .map(|endpoint| endpoint.url().clone())
+            .ok_or_else(|| OidcError::Discovery("the realm publishes no token endpoint".into()))?;
 
         let redirect = RedirectUrl::new(redirect_uri.to_string())
             .map_err(|e| OidcError::Url(e.to_string()))?;
+        // No secret: the ID token verifier then accepts the realm's signing keys alone, never an
+        // HMAC keyed with a client secret.
         let client = CoreClient::from_provider_metadata(
             metadata,
             ClientId::new(config.client_id.clone()),
-            Some(ClientSecret::new(config.client_secret().to_string())),
+            None,
         )
         .set_redirect_uri(redirect);
 
         Ok(Self {
             client,
             http,
+            token_url,
+            client_id: config.client_id.clone(),
+            redirect_uri: redirect_uri.to_string(),
+            auth: config.auth.clone(),
             end_session_endpoint,
             authorization_endpoint,
             service: tokio::sync::Mutex::new(None),
@@ -192,6 +208,45 @@ impl OidcClient {
         url
     }
 
+    /// One request to the realm's token endpoint as the Portal's client: `grant` plus the
+    /// client's proof (`ClientAuth::form`, PF-47). The error carries the status and the OAuth
+    /// `error` code, never a token or the realm's free-text description.
+    async fn token_request(
+        &self,
+        grant: &[(&'static str, &str)],
+    ) -> Result<openidconnect::core::CoreTokenResponse, String> {
+        let form = self.auth.form(&self.client_id, grant)?;
+        let response = self
+            .http
+            .post(self.token_url.clone())
+            .header(reqwest::header::ACCEPT, "application/json")
+            .form(&form)
+            .send()
+            .await
+            .map_err(|err| source_chain(&err.without_url()))?;
+        let status = response.status();
+        let body = response
+            .bytes()
+            .await
+            .map_err(|err| source_chain(&err.without_url()))?;
+        if !status.is_success() {
+            #[derive(Deserialize)]
+            struct Refusal {
+                error: String,
+            }
+            let code = serde_json::from_slice::<Refusal>(&body)
+                .map(|refusal| refusal.error)
+                .unwrap_or_default();
+            return Err(format!("the token endpoint answered {status} {code}")
+                .trim_end()
+                .to_owned());
+        }
+        // Not the parser's message: it can quote a value of the body, and the body holds tokens.
+        serde_json::from_slice(&body).map_err(|_| {
+            format!("the token endpoint answered {status} with a body that is not a token response")
+        })
+    }
+
     /// A token of the Portal's own client (client credentials), for a service that answers the
     /// Portal and nobody else, such as `jc-functions` (SDK-23). Kept until 30 s before it expires;
     /// the audience is the realm's mapper on the client, not something the Portal asks for.
@@ -202,13 +257,10 @@ impl OidcClient {
             return Ok(token.clone());
         }
         let response = self
-            .client
-            .exchange_client_credentials()
-            .map_err(|e| ApiError::Internal(format!("token endpoint is not configured: {e}")))?
-            .request_async(&self.http)
+            .token_request(&[("grant_type", "client_credentials")])
             .await
-            .map_err(|e| {
-                tracing::warn!(error = %source_chain(&e), "the realm refused the Portal's client credentials");
+            .map_err(|error| {
+                tracing::warn!(%error, "the realm refused the Portal's client credentials");
                 ApiError::Unavailable("the Portal could not get a token of its own".into())
             })?;
         let token = response.access_token().secret().clone();
@@ -231,13 +283,13 @@ impl OidcClient {
             .as_deref()
             .ok_or(ApiError::Unauthorized)?;
         let token_response = self
-            .client
-            .exchange_refresh_token(&RefreshToken::new(refresh_token.to_string()))
-            .map_err(|e| ApiError::Internal(format!("token endpoint is not configured: {e}")))?
-            .request_async(&self.http)
+            .token_request(&[
+                ("grant_type", "refresh_token"),
+                ("refresh_token", refresh_token),
+            ])
             .await
-            .map_err(|e| {
-                tracing::info!(subject = %session.identity.subject, error = %e, "token refresh refused");
+            .map_err(|error| {
+                tracing::info!(subject = %session.identity.subject, %error, "token refresh refused");
                 ApiError::Unauthorized
             })?;
         let mut identity = session.identity.clone();
@@ -533,14 +585,15 @@ pub async fn callback(
         .ok_or_else(|| ApiError::BadRequest("missing code".into()))?;
 
     let token_response = client
-        .client
-        .exchange_code(AuthorizationCode::new(code))
-        .map_err(|e| ApiError::Internal(format!("token endpoint is not configured: {e}")))?
-        .set_pkce_verifier(PkceCodeVerifier::new(flow.pkce_verifier))
-        .request_async(&client.http)
+        .token_request(&[
+            ("grant_type", "authorization_code"),
+            ("code", code.as_str()),
+            ("redirect_uri", client.redirect_uri.as_str()),
+            ("code_verifier", flow.pkce_verifier.as_str()),
+        ])
         .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, "code exchange failed");
+        .map_err(|error| {
+            tracing::warn!(%error, "code exchange failed");
             ApiError::BadRequest("the authorization code could not be exchanged".into())
         })?;
 
@@ -1131,6 +1184,147 @@ mod tests {
         }
         drop(client);
         server.verify().await;
+    }
+
+    /// The fields of every request the realm's token endpoint received, in order.
+    async fn token_forms(server: &MockServer) -> Vec<Vec<(String, String)>> {
+        server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .into_iter()
+            .filter(|request| request.url.path().ends_with("/token"))
+            .map(|request| {
+                url::form_urlencoded::parse(&request.body)
+                    .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// A Portal client that proves itself with the projected token in `file` (PF-47).
+    fn federated_config_for(
+        server: &MockServer,
+        file: &std::path::Path,
+    ) -> crate::config::OidcConfig {
+        let issuer = format!("{}{REALM}", server.uri().trim_end_matches('/'));
+        let file = file.display().to_string();
+        crate::config::Config::from_vars(|k| match k {
+            "JC_OIDC_ISSUER" => Some(issuer.clone()),
+            "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
+            "JC_OIDC_CLIENT_ASSERTION_FILE" => Some(file.clone()),
+            _ => None,
+        })
+        .expect("config")
+        .oidc
+        .expect("oidc present")
+    }
+
+    #[tokio::test]
+    async fn a_federated_client_sends_the_projected_token_and_neither_its_id_nor_a_secret() {
+        let server = mock_realm().await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/token")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "svc-token",
+                "refresh_token": "fresh-refresh",
+                "token_type": "Bearer",
+                "expires_in": 300
+            })))
+            .mount(&server)
+            .await;
+        let dir = std::env::temp_dir().join(format!("jc-oidc-assertion-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let file = dir.join("token");
+        std::fs::write(&file, "eyJ.projected.one\n").expect("token file");
+        let client = OidcClient::discover(
+            &federated_config_for(&server, &file),
+            "https://portal.test/cb",
+        )
+        .await
+        .expect("discovery");
+
+        assert_eq!(client.service_token().await.expect("token"), "svc-token");
+        // The kubelet rotates the file; the next request reads it again.
+        std::fs::write(&file, "eyJ.projected.two").expect("rotate");
+        client
+            .refresh(&a_session(Some("opaque-refresh")))
+            .await
+            .expect("refresh");
+
+        let forms = token_forms(&server).await;
+        let field = |form: &[(String, String)], key: &str| {
+            form.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
+        };
+        assert_eq!(forms.len(), 2);
+        for (form, (grant, token)) in forms.iter().zip([
+            ("client_credentials", "eyJ.projected.one"),
+            ("refresh_token", "eyJ.projected.two"),
+        ]) {
+            assert_eq!(field(form, "grant_type").as_deref(), Some(grant));
+            assert_eq!(field(form, "client_assertion").as_deref(), Some(token));
+            assert_eq!(
+                field(form, "client_assertion_type").as_deref(),
+                Some("urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+            );
+            assert_eq!(field(form, "client_id"), None, "{form:?}");
+            assert_eq!(field(form, "client_secret"), None, "{form:?}");
+        }
+        assert_eq!(
+            field(&forms[1], "refresh_token").as_deref(),
+            Some("opaque-refresh")
+        );
+        let requests = server.received_requests().await.expect("recorded");
+        assert!(
+            requests
+                .iter()
+                .all(|request| !request.headers.contains_key("authorization")),
+            "no Basic header beside an assertion"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_federated_client_without_its_token_file_asks_the_realm_nothing() {
+        let server = mock_realm().await;
+        let missing =
+            std::env::temp_dir().join(format!("jc-oidc-absent-{}/token", std::process::id()));
+        let client = OidcClient::discover(
+            &federated_config_for(&server, &missing),
+            "https://portal.test/cb",
+        )
+        .await
+        .expect("discovery reads no token");
+
+        assert!(matches!(
+            client.service_token().await,
+            Err(ApiError::Unavailable(_))
+        ));
+        assert!(token_forms(&server).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_secret_client_sends_its_id_and_secret_in_the_body() {
+        let server = mock_realm().await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/token")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "svc-token", "token_type": "Bearer", "expires_in": 300
+            })))
+            .mount(&server)
+            .await;
+        let client = OidcClient::discover(&config_for(&server), "https://portal.test/cb")
+            .await
+            .expect("discovery");
+        client.service_token().await.expect("token");
+        let forms = token_forms(&server).await;
+        assert_eq!(
+            forms,
+            vec![vec![
+                ("grant_type".to_owned(), "client_credentials".to_owned()),
+                ("client_id".to_owned(), "portal".to_owned()),
+                ("client_secret".to_owned(), "s3cr3t-do-not-leak".to_owned()),
+            ]]
+        );
     }
 
     #[tokio::test]
