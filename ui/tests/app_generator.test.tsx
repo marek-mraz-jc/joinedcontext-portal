@@ -306,6 +306,23 @@ describe("the app generator", () => {
     });
   });
 
+  // T-3575: a person who wants server-side state in Rust picks the wasm kind, and the run is one.
+  it("offers the wasm kind and sends it as the run's appClass", async () => {
+    const user = userEvent.setup();
+    const fetchMock = renderGenerator();
+    await openGenerator(user);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
+    await fill(user);
+
+    await user.selectOptions(screen.getByLabelText(en.apps.generate.kind), "wasm");
+    expect(screen.getByRole("option", { name: en.apps.generate.kinds.wasm })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: en.apps.generate.submit }));
+
+    await waitFor(async () => {
+      expect((await runBody(fetchMock)).appClass).toBe("wasm");
+    });
+  });
+
   it("reads a second endpoint the person adds and sends endpointNames, the primary first (AP-44)", async () => {
     const kpiSlug = "q3mzkq2v7w5ayxcbn4ltdj6hof";
     const kpis = {
