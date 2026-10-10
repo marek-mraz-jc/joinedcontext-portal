@@ -61,7 +61,13 @@ RUN mkdir -p /opt/cargo/git && CARGO_HOME=/opt/cargo cargo fetch --locked \
     && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm sdk/examples/*/server apps/*/server; do \
          [ -f "$crate/Cargo.toml" ] || continue; \
          CARGO_HOME=/opt/cargo cargo fetch --locked --manifest-path "$crate/Cargo.toml" || exit 1; \
-       done
+       done \
+    && find /opt/cargo/git/checkouts -name Cargo.lock -delete
+# A git dependency is checked out whole, its own Cargo.lock included, and cargo never reads that
+# lock: the crates a build uses are the ones this repository's locks name, fetched above. Left in
+# the store it describes another project's build (the Antares checkout's rumqttc pins
+# rustls-webpki 0.102.8, GHSA-82j2-j2ch-gfr8), which trivy and the attested SBOM would report as
+# installed here (T-3567).
 
 # The toolchain of the rust-1.90 runner. The tag pins the toolchain, not its Debian: upgrade the
 # base's packages so the image carries the security fixes bookworm has shipped since the tag was
