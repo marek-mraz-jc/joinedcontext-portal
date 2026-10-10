@@ -74,7 +74,8 @@ describe("the drawing as a screen reader and a keyboard find it", () => {
     expect(screen.queryByRole("img")).toBeNull();
     const boxes = within(canvas).getAllByRole("button");
     expect(boxes.map((box) => box.getAttribute("aria-label"))).toEqual(
-      ["Thing", "Traceable", "Device", "Vehicle"].map((name) =>
+      // Read top to bottom, as laid out (T-3589): the parents, the class, what it references.
+      ["Thing", "Traceable", "Vehicle", "Device"].map((name) =>
         en.models.graph.openClass.replace("{name}", name),
       ),
     );
@@ -85,7 +86,9 @@ describe("the drawing as a screen reader and a keyboard find it", () => {
     const { container } = renderPart(<LinkmlGraphView source={MODEL} />);
 
     const boxes = screen.getAllByRole("button");
-    expect(focusables(container)).toEqual(boxes);
+    // The one stop that is not a button: the search box of T-3589.
+    const search = screen.getByRole("combobox", { name: en.models.graph.find });
+    expect(focusables(container)).toEqual([...boxes.slice(0, 5), search, ...boxes.slice(5)]);
     for (const box of boxes) {
       // `className` on an SVG element is an `SVGAnimatedString`, so the attribute is what reads.
       expect(box.getAttribute("class")).toContain("focus-ring");
@@ -178,7 +181,8 @@ describe("what a box shows", () => {
     expect(labels).toHaveLength(2);
     expect(labels.some((label) => label.getAttribute("text-anchor") === "middle")).toBe(true);
     expect(screen.getByText(en.models.graph.legend)).toBeInTheDocument();
-    const dashes = [...container.querySelectorAll("line")].map((line) =>
+    // The lines are paths (T-3589: a line that passes a layer bends there).
+    const dashes = [...container.querySelectorAll("g.text-fg-subtle > path")].map((line) =>
       line.getAttribute("stroke-dasharray"),
     );
     // One solid (`is_a`), one long-dashed (mixin), one dotted (range).
