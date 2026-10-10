@@ -34,6 +34,15 @@ export interface Served {
   problems: string[];
 }
 
+/** The App's server (T-3355) as the page sees it: two kept models of whichever station is asked. */
+const MODELS = {
+  models: [
+    { id: 2, trained_on: "2030-10-21", trained_at: "2030-10-21T06:00:00Z", hours: 160, enough: true, per_degree: 0.42, rain: -1.5, sigma: 2.25, weather_station: "urn:ngsi-ld:WeatherObserved:w1" },
+    { id: 1, trained_on: "2030-10-20", trained_at: "2030-10-20T06:00:00Z", hours: 150, enough: true, per_degree: 0.4, rain: -1.2, sigma: 2.5, weather_station: "urn:ngsi-ld:WeatherObserved:w1" },
+  ],
+  stale: false,
+};
+
 /** Serves the built bundle at the root of the App's own host, with the SDK stub answering the endpoint. */
 export async function serve(page: Page, entities = ENTITIES, temporal = TEMPORAL): Promise<Served> {
   await page.clock.setFixedTime(new Date(NOW * 1000));
@@ -68,6 +77,13 @@ export async function serve(page: Page, entities = ENTITIES, temporal = TEMPORAL
         contentType: "application/json",
         body: JSON.stringify(answer.body ?? null),
       });
+    }
+    if (url.pathname === "/apps/bike-weather-demand/api/models" && url.searchParams.get("station")?.startsWith("urn:")) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MODELS) });
+    }
+    const snapshot = /^\/apps\/bike-weather-demand\/api\/models\/(\d+)\/snapshot$/.exec(url.pathname);
+    if (snapshot) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ url: `http://portal.test/store/training/${snapshot[1]}.json` }) });
     }
     const file = normalize(url.pathname.slice(1) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) {

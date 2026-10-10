@@ -18,6 +18,11 @@ import {
   TEMPORAL,
   WEATHER_1,
 } from "./fixtures/bikes";
+import { ServerContext } from "./server";
+import type { Server } from "./server";
+
+/** The App's server with no model kept yet (T-3355); ModelHistory.test.tsx tests the card itself. */
+const NO_MODELS: Server = { models: async () => ({ models: [], stale: false }), snapshotUrl: async () => "" };
 
 /** What MapLibre would call on a click of a drawn station, kept by the double below. */
 const map = vi.hoisted(() => ({ click: null as ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null }));
@@ -77,9 +82,11 @@ function show(
 ) {
   render(
     <JcProvider client={client}>
-      <EstimaterContext.Provider value={estimater}>
-        <App />
-      </EstimaterContext.Provider>
+      <ServerContext.Provider value={NO_MODELS}>
+        <EstimaterContext.Provider value={estimater}>
+          <App />
+        </EstimaterContext.Provider>
+      </ServerContext.Provider>
     </JcProvider>,
   );
   return client;
