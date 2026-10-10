@@ -16,6 +16,8 @@ export interface Strings {
   sortBy: (column: string) => string;
   highest: string;
   lowest: string;
+  /** Under staff and budget several schools publish identically (one organization's). */
+  shared: (schools: number) => string;
   tenthNote: string;
   tenthUnavailable: string;
   noValue: string;
@@ -49,6 +51,7 @@ const sk: Strings = {
   sortBy: (column) => `Zoradiť podľa: ${column}`,
   highest: "najvyššia desatina v meste",
   lowest: "najnižšia desatina v meste",
+  shared: (schools) => `spoločné pre ${schools} škôl jednej organizácie`,
   tenthNote: "Označenie porovnáva školu s ostatnými školami v meste, nie s normou.",
   tenthUnavailable: "Na porovnanie s desatinou mesta treba aspoň desať škôl s údajmi.",
   noValue: "neuvedené",
@@ -82,6 +85,7 @@ const en: Strings = {
   sortBy: (column) => `Sort by: ${column}`,
   highest: "highest tenth in the city",
   lowest: "lowest tenth in the city",
+  shared: (schools) => `shared by ${schools} schools of one organization`,
   tenthNote: "The mark compares a school with the other schools of the city, not with a norm.",
   tenthUnavailable: "Comparing with the city's tenth needs at least ten schools with figures.",
   noValue: "not given",
