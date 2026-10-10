@@ -382,6 +382,8 @@ function EndpointRowActions({
     },
   ];
 
+  // A row's dialogs mount while open only: a page of 500 endpoints otherwise renders 2 000 closed
+  // dialogs with their hooks (T-3538).
   return (
     <>
       <RowActions
@@ -401,33 +403,41 @@ function EndpointRowActions({
           ) : undefined
         }
       />
-      <ExportButton
-        project={project}
-        target={{ plural: "endpoints", name }}
-        label={t("export.action")}
-        trigger={false}
-        open={openAction === "export"}
-        onOpenChange={(next) => setOpenAction(next ? "export" : null)}
-      />
-      <SaveAsResourceAction
-        target={target}
-        trigger={false}
-        open={openAction === "saveAs"}
-        onOpenChange={(next) => setOpenAction(next ? "saveAs" : null)}
-      />
-      <WorkOnCopyAction
-        project={project}
-        scope={{ kind: "resources", items: [{ kind: "Endpoint", name }] }}
-        trigger={false}
-        open={openAction === "copy"}
-        onOpenChange={(next) => setOpenAction(next ? "copy" : null)}
-      />
-      <DeleteResourceAction
-        target={target}
-        trigger={false}
-        open={openAction === "delete"}
-        onOpenChange={(next) => setOpenAction(next ? "delete" : null)}
-      />
+      {openAction === "export" ? (
+        <ExportButton
+          project={project}
+          target={{ plural: "endpoints", name }}
+          label={t("export.action")}
+          trigger={false}
+          open
+          onOpenChange={(next) => setOpenAction(next ? "export" : null)}
+        />
+      ) : null}
+      {openAction === "saveAs" ? (
+        <SaveAsResourceAction
+          target={target}
+          trigger={false}
+          open
+          onOpenChange={(next) => setOpenAction(next ? "saveAs" : null)}
+        />
+      ) : null}
+      {openAction === "copy" ? (
+        <WorkOnCopyAction
+          project={project}
+          scope={{ kind: "resources", items: [{ kind: "Endpoint", name }] }}
+          trigger={false}
+          open
+          onOpenChange={(next) => setOpenAction(next ? "copy" : null)}
+        />
+      ) : null}
+      {openAction === "delete" ? (
+        <DeleteResourceAction
+          target={target}
+          trigger={false}
+          open
+          onOpenChange={(next) => setOpenAction(next ? "delete" : null)}
+        />
+      ) : null}
       {endpoint.status?.sourceUrl ? (
         <SourceLink href={endpoint.status.sourceUrl} label={t("spaces.field.source")} />
       ) : null}

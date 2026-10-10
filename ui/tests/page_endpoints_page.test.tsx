@@ -154,16 +154,19 @@ describe("the endpoints page", () => {
   });
 
   it("survives_0_1_and_500_rows", async () => {
+    const sent = new Map<number, string[]>();
     for (const count of [0, 1, 500]) {
       const items = Array.from({ length: count }, (_, index) => endpoint(`endpoint-${index}`));
-      const { unmount } = await renderRoute({ path: PATH, answer: answering(items) });
-      const table = (await screen.findAllByRole("table"))[0];
-      await waitFor(() =>
-        expect(within(table).getAllByRole("row").length).toBe(count === 0 ? 2 : count + 1),
-      );
+      const { calls, container, unmount } = await renderRoute({ path: PATH, answer: answering(items) });
+      // The row count is the check. A role query over 500 rows computes the accessible role of
+      // every cell on every poll, seconds of CPU that a loaded host turns into a timeout (T-3538).
+      await waitFor(() => expect(container.querySelector("table")?.rows.length).toBe(count === 0 ? 2 : count + 1));
+      sent.set(count, [...new Set(calls())].sort());
       unmount();
       vi.restoreAllMocks();
     }
+    // Counted, not timed (T-3538): a row asks the server nothing, so 500 rows send what one does.
+    expect(sent.get(500)).toEqual(sent.get(1));
   });
 
   it("a_source_address_out_of_a_manifest_is_a_link_only_when_it_could_navigate", async () => {

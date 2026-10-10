@@ -16,6 +16,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ResourceFormDialog } from "../src/components/ResourceFormDialog";
+// The dialog imports its body when it first opens (T-3316). Loaded here, with the file, the
+// transform of the form engine is paid before any test starts, and each wait below waits for the
+// dialog alone rather than for a cold import racing the wait's ceiling on a loaded host (T-3538).
+import "../src/components/ResourceFormDialogBody";
 import { formContext, onAskRequest, standingIn } from "../src/assistant/state";
 import type { JsonSchema } from "../src/components/forms/types";
 
