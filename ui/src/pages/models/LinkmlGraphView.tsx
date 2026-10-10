@@ -2,6 +2,8 @@ import { Fragment, useMemo, useRef, useState } from "react";
 import type { JSX, PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { layered } from "./diagramLayout";
+import type { LayoutEdge, Point } from "./diagramLayout";
 import { graphData, parseModel, withImports } from "./linkml";
 import type { GraphEdge, GraphNode, GraphRow } from "./linkml";
 
@@ -51,38 +53,34 @@ function lines(node: GraphNode): number {
 }
 
 /**
- * Where each box sits: a band per `is_a` depth, parents above children, and within a band a
- * grid about as wide as it is tall, in the model's own order. Every slot is drawn (T-2881), so a
- * row of the grid is as tall as its tallest box.
- *
- * No layout library. A class graph is a forest of short chains joined by a few relationships:
- * a square grid keeps most relationship lines between neighbours instead of across a row of
- * boxes, and a dependency would be one more thing to pin, audit and ship for a dozen rectangles.
+ * The edge the layout keeps short: a parent above the class that specialises or mixes it in,
+ * a class above what its slots reference, an enum below the classes that pick from it.
  */
-export function place(nodes: GraphNode[]): Placed[] {
-  const bands = new Map<number, GraphNode[]>();
-  for (const node of nodes) {
-    bands.set(node.depth, [...(bands.get(node.depth) ?? []), node]);
-  }
-  const height = (node: GraphNode) => BOX.header + lines(node) * BOX.row + BOX.padding;
-  const placed: Placed[] = [];
-  let top = 0;
-  for (const [, band] of [...bands.entries()].sort(([a], [b]) => a - b)) {
-    const columns = band.length <= 3 ? band.length : Math.ceil(Math.sqrt(band.length));
-    for (let first = 0; first < band.length; first += columns) {
-      const row = band.slice(first, first + columns);
-      row.forEach((node, index) => {
-        placed.push({ ...node, x: index * (BOX.width + BOX.gapX), y: top, height: height(node) });
-      });
-      top += Math.max(...row.map(height)) + BOX.gapY;
-    }
-  }
-  return placed;
+export function layoutEdge(edge: GraphEdge): LayoutEdge {
+  const parent = edge.kind === "is_a" || edge.kind === "mixin";
+  return { from: edge.from, to: edge.to, upper: parent ? edge.to : edge.from, lower: parent ? edge.from : edge.to };
 }
 
-interface Point {
-  x: number;
-  y: number;
+/**
+ * Where each box sits (T-3589): laid out by its lines, not in a grid. Each connected group of
+ * classes is a layered drawing of its own, a class one layer from what it is joined to, and the
+ * groups stand side by side. `bends` holds, per edge, where its line turns as it passes a layer.
+ */
+export function place(nodes: GraphNode[], edges: GraphEdge[]): { placed: Placed[]; bends: Point[][] } {
+  const height = (node: GraphNode) => BOX.header + lines(node) * BOX.row + BOX.padding;
+  const layout = layered(
+    nodes.map((node) => ({ id: node.name, width: BOX.width, height: height(node) })),
+    edges.map(layoutEdge),
+    { gapX: BOX.gapX, gapY: BOX.gapY, groupGap: BOX.gapX * 2, maxWidth: 6 * (BOX.width + BOX.gapX) },
+  );
+  // In reading order, top to bottom and left to right: the order Tab walks the boxes in.
+  const placed = nodes
+    .map((node) => {
+      const box = layout.boxes.get(node.name);
+      return { ...node, x: box?.x ?? 0, y: box?.y ?? 0, height: height(node) };
+    })
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  return { placed, bends: layout.bends };
 }
 
 /** Where the line from a box's centre towards `towards` leaves the box. */
@@ -98,11 +96,28 @@ function border(box: Placed, towards: Point): Point {
   return { x: centre.x + dx * scale, y: centre.y + dy * scale };
 }
 
-/** The line between two boxes, centre to centre, cut where it leaves each box. */
-function line(from: Placed, to: Placed): { x1: number; y1: number; x2: number; y2: number } {
-  const a = border(from, { x: to.x + BOX.width / 2, y: to.y + to.height / 2 });
-  const b = border(to, { x: from.x + BOX.width / 2, y: from.y + from.height / 2 });
-  return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+/**
+ * The line between two boxes through its bends, cut where it leaves each box: the first and
+ * last points are on the borders, aimed at the next bend (or the other box's centre).
+ */
+function route(from: Placed, to: Placed, bends: Point[] = []): Point[] {
+  const centre = (box: Placed) => ({ x: box.x + BOX.width / 2, y: box.y + box.height / 2 });
+  const start = border(from, bends[0] ?? centre(to));
+  const end = border(to, bends[bends.length - 1] ?? centre(from));
+  return [start, ...bends, end];
+}
+
+/** An SVG path through `points`. */
+function pathOf(points: Point[]): string {
+  return points.map((p, index) => `${index === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+}
+
+/** The middle of a route, for its label: the middle of its middle piece. */
+function middleOf(points: Point[]): Point {
+  const at = Math.max(0, Math.floor((points.length - 1) / 2));
+  const a = points[at];
+  const b = points[Math.min(points.length - 1, at + 1)];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 /** A label a little way along the line from `start` towards `end`, and to its side. */
@@ -162,7 +177,7 @@ export function LinkmlGraphView({
       ),
     [source, imports],
   );
-  const placed = useMemo(() => place(nodes), [nodes]);
+  const { placed, bends } = useMemo(() => place(nodes, edges), [nodes, edges]);
   const at = useMemo(() => new Map(placed.map((node) => [node.name, node])), [placed]);
 
   if (!placed.some((node) => node.kind === "class")) {
@@ -252,7 +267,7 @@ export function LinkmlGraphView({
               </marker>
             </defs>
 
-            {edges.map((edge) => {
+            {edges.map((edge, index) => {
               const from = at.get(edge.from);
               const to = at.get(edge.to);
               if (!from || !to) {
@@ -265,6 +280,7 @@ export function LinkmlGraphView({
                     edge={edge}
                     from={from}
                     to={to}
+                    bends={bends[index]}
                     label={t("models.graph.openRelationship", {
                       name: edge.label ?? "",
                       inverse: edge.inverse ?? "",
@@ -275,14 +291,15 @@ export function LinkmlGraphView({
                   />
                 );
               }
-              const { x1, y1, x2, y2 } = line(from, to);
+              const points = route(from, to, bends[index]);
+              const first = points[0];
+              const last = points[points.length - 1];
+              const label = middleOf(points);
               return (
                 <g key={`${edge.kind}-${edge.from}-${edge.to}-${edge.label ?? ""}`} className="text-fg-subtle">
-                  <line
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
+                  <path
+                    d={pathOf(points)}
+                    fill="none"
                     stroke="currentColor"
                     strokeWidth={1}
                     strokeDasharray={stroke(edge)}
@@ -290,8 +307,8 @@ export function LinkmlGraphView({
                   />
                   {edge.label ? (
                     <text
-                      x={(x1 + x2) / 2}
-                      y={(y1 + y2) / 2 - 2}
+                      x={label.x}
+                      y={label.y - 2}
                       textAnchor="middle"
                       fontSize={BOX.edge}
                       className="fill-current"
@@ -303,8 +320,8 @@ export function LinkmlGraphView({
                       target, and at the source `*`, since no inverse limits it. */}
                   {edge.toMultiplicity ? (
                     <>
-                      <Multiplicity at={near({ x: x1, y: y1 }, { x: x2, y: y2 })} value={edge.fromMultiplicity} />
-                      <Multiplicity at={near({ x: x2, y: y2 }, { x: x1, y: y1 })} value={edge.toMultiplicity} />
+                      <Multiplicity at={near(first, points[1])} value={edge.fromMultiplicity} />
+                      <Multiplicity at={near(last, points[points.length - 2])} value={edge.toMultiplicity} />
                     </>
                   ) : null}
                 </g>
@@ -536,27 +553,30 @@ function RelationshipLine({
   edge,
   from,
   to,
+  bends,
   label,
   onOpen,
 }: {
   edge: GraphEdge;
   from: Placed;
   to: Placed;
+  bends?: Point[];
   label: string;
   onOpen: () => void;
 }): JSX.Element {
   const self = from.name === to.name;
   const top = { x: from.x + BOX.width, y: from.y + from.height * 0.3 };
   const bottom = { x: from.x + BOX.width, y: from.y + from.height * 0.7 };
-  const { x1, y1, x2, y2 } = self ? { x1: top.x, y1: top.y, x2: bottom.x, y2: bottom.y } : line(from, to);
+  const points = self ? [top, bottom] : route(from, to, bends);
+  const start = points[0];
+  const end = points[points.length - 1];
   const path = self
-    ? `M ${x1} ${y1} C ${x1 + BOX.loop} ${y1 - 20} ${x2 + BOX.loop} ${y2 + 20} ${x2} ${y2}`
-    : `M ${x1} ${y1} L ${x2} ${y2}`;
-  const start = { x: x1, y: y1 };
-  const end = { x: x2, y: y2 };
-  const atFrom = self ? { x: x1 + 10, y: y1 - 4 } : near(start, end);
-  const atTo = self ? { x: x2 + 10, y: y2 + 12 } : near(end, start);
-  const middle = self ? { x: x1 + BOX.loop * 0.75, y: (y1 + y2) / 2 + 3 } : { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 4 };
+    ? `M ${top.x} ${top.y} C ${top.x + BOX.loop} ${top.y - 20} ${bottom.x + BOX.loop} ${bottom.y + 20} ${bottom.x} ${bottom.y}`
+    : pathOf(points);
+  const atFrom = self ? { x: top.x + 10, y: top.y - 4 } : near(start, points[1]);
+  const atTo = self ? { x: bottom.x + 10, y: bottom.y + 12 } : near(end, points[points.length - 2]);
+  const centre = middleOf(points);
+  const middle = self ? { x: top.x + BOX.loop * 0.75, y: (top.y + bottom.y) / 2 + 3 } : { x: centre.x, y: centre.y - 4 };
   return (
     <g
       role="button"

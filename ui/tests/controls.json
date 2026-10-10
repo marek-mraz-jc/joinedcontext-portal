@@ -1184,6 +1184,7 @@
         "Button": 3
       },
       "tests": [
+        "diagram_layout.test.ts",
         "linkml_editor.test.tsx",
         "linkml_er_diagram.test.tsx",
         "linkml_imports_enums.test.tsx",
