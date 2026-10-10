@@ -85,6 +85,19 @@ export interface FileInfo {
   modifiedAt: string;
 }
 
+/** One turn of a conversation with the platform's model (AP-169). */
+export interface AiMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/** A completion: the answer, the JSON value when a schema was asked for, and the tokens it took. */
+export interface Completion {
+  text: string;
+  json?: unknown;
+  tokens: { in: number; out: number };
+}
+
 /** A scheduled job of the App and its runs (AP-154, AP-162); `nextRun` is absent for a schedule that names no minute within a year. */
 export interface JobStatus {
   name: string;
@@ -178,6 +191,11 @@ export interface Client extends DataClient {
     remove(path: string): Promise<void>;
     url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }>;
   };
+  /**
+   * The `ai` service: a completion from the model the platform chooses, within the App's
+   * `aiTokensPerDay` (SDK-41, API/06 §4). With `schema`, the answer is one JSON value of it.
+   */
+  ai: { complete(request: { messages: AiMessage[]; maxTokens?: number; schema?: object }): Promise<Completion> };
   /** The `jobs` service: the App's schedules with their next and last run (SDK-41, API/06 §4). */
   jobs: { list(): Promise<JobStatus[]> };
 }
@@ -697,6 +715,15 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     },
   };
 
+  const ai = {
+    async complete(request: { messages: AiMessage[]; maxTokens?: number; schema?: object }): Promise<Completion> {
+      const path = config.transport === "bridge" ? "/services/ai/complete" : "/api/services/ai/complete";
+      const resp = await transport({ method: "POST", path, body: request });
+      if (resp.status !== 200) throw serviceError(resp.status, resp.body, "ai");
+      return resp.body as Completion;
+    },
+  };
+
   const jobs = {
     async list(): Promise<JobStatus[]> {
       const path = config.transport === "bridge" ? "/services/jobs" : "/api/services/jobs";
@@ -720,6 +747,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     email,
     files,
     jobs,
+    ai,
   };
 }
 

@@ -772,6 +772,12 @@ pub fn router() -> Router<AppState> {
             )),
         )
         .route("/apps/{name}/api/services/jobs", get(super::jobs::list))
+        .route(
+            "/apps/{name}/api/services/ai/complete",
+            axum::routing::post(super::ai::complete).layer(axum::extract::DefaultBodyLimit::max(
+                super::ai::MAX_BODY_BYTES,
+            )),
+        )
         .route("/apps/{name}/api/services/files", get(super::files::list))
         .route(
             "/apps/{name}/api/services/files/{*path}",

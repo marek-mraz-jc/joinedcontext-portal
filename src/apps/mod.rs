@@ -1,5 +1,7 @@
 //! Serving the apps a project builds on the platform (AP-12, AP-14, AP-17).
 
+/// An App's mail to people of the organization (AP-168).
+pub mod ai;
 /// The database of the server WASM Apps: a schema, roles and migrations per App (AP-149).
 pub mod apps_db;
 /// A build pod per App and its own build cache (AP-130, AP-131).
@@ -10,7 +12,6 @@ pub mod built;
 pub mod converge;
 /// The default group of every App role, committed with the role (AP-118).
 pub mod default_groups;
-/// An App's mail to people of the organization (AP-168).
 pub mod email;
 pub mod fetch;
 pub mod files;

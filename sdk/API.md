@@ -42,6 +42,10 @@ jc().files.url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: 
 type FileInfo = { path: string; size: number; contentType: string; modifiedAt: string }
 ```
 Keeps the App's objects under its own prefix; a key is relative, has no `.` or `..` segment and is at most 512 bytes. One object is at most 25 MiB (`413`), all of them at most the App's `filesMiB` (`429`, no `resetAt`: delete to make room). `url` hands out a URL for one key and one method that expires within five minutes. Needs `files` on at every layer; the organization's default list has it. In the browser on the App's own host; the preview's bridge does not carry bytes.
+```ts
+jc().ai.complete(request: { messages: { role: "system" | "user" | "assistant"; content: string }[]; maxTokens?: number; schema?: object }): Promise<{ text: string; json?: unknown; tokens: { in: number; out: number } }>
+```
+Asks the model the platform chooses; the App names no model and holds no key. At most 50 messages and 100 KB, `maxTokens` 1 to 4096 (1024 when absent) and never more than the App's `aiTokensPerDay` has left. With `schema`, `json` is the answer as one value of that JSON Schema, or the call fails with `502` (`…/no-json`): ask again. A spent day is `429` with `resetAt`; an organization without a working model key is `503` (`…/no-model-key`). Needs `ai` on at every layer, which the organization's default list does not have.
 
 ### Hooks
 ```ts

@@ -19,6 +19,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/templates/{name}/", "an App template's demo on its fixtures, served as files, no data (AP-141)"),
 ("GET", "/templates/assets/{file}", "the App templates' demo bundle, served as files (AP-141)"),
 ("POST", "/apps/{name}/api/functions/{fn}", "a published application's own function, called by its page with the person's edge token (AP-84, SDK-23); what it does is the application's, not an operation of the platform"),
+("POST", "/apps/{name}/api/services/ai/complete", "a published App's page asks the platform's model with the person's edge token, within the App's aiTokensPerDay (AP-169, API/06 §3); an agent has its own model calls through its run"),
 ("GET", "/apps/{name}/api/services/jobs", "a published App's page lists its own scheduled jobs with the person's edge token (AP-162, API/06 §3); an agent reads the App's status.jobs with jc_resource_get"),
 ("GET", "/apps/{name}/api/services/files", "a published App's page keeps its own objects under its prefix with the person's edge token (AP-170, API/06 §3); an agent changes an App by a run, never its files"),
 ("GET", "/apps/{name}/api/services/files/{*path}", "a published App's page keeps its own objects under its prefix with the person's edge token (AP-170, API/06 §3); an agent changes an App by a run, never its files"),

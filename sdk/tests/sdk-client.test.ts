@@ -434,3 +434,24 @@ describe("files", () => {
     expect((calls[5].raw as { contentType: string }).contentType).toBe("text/plain;charset=utf-8");
   });
 });
+
+describe("ai", () => {
+  it("asks the platform's model on the App's own host and names the day's budget it ran out of", async () => {
+    const calls: JcRequest[] = [];
+    const answers = [
+      { status: 200, body: { text: "{\"severity\":3}", json: { severity: 3 }, tokens: { in: 70, out: 30 } } },
+      { status: 429, body: { type: "https://joinedcontext.com/errors/quota", title: "Quota Used", status: 429, service: "ai", quota: "aiTokensPerDay", resetAt: "2026-10-11T00:00:00Z" } },
+    ];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return answers[calls.length - 1];
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+    const request = { messages: [{ role: "user" as const, content: "How bad?" }], schema: { type: "object" } };
+    expect((await client.ai.complete(request)).json).toEqual({ severity: 3 });
+    expect(calls[0]).toEqual({ method: "POST", path: "/api/services/ai/complete", body: request });
+    const spent = await client.ai.complete(request).catch((err: unknown) => err);
+    expect(spent).toBeInstanceOf(ServiceRefusedError);
+    expect(spent).toMatchObject({ service: "ai", quota: "aiTokensPerDay", resetAt: "2026-10-11T00:00:00Z" });
+  });
+});

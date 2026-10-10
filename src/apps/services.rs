@@ -70,6 +70,7 @@ pub enum Layer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Quota {
     EmailsPerDay,
+    AiTokensPerDay,
     FilesMiB,
 }
 
@@ -77,6 +78,7 @@ impl Quota {
     fn member(self) -> &'static str {
         match self {
             Self::EmailsPerDay => "emailsPerDay",
+            Self::AiTokensPerDay => "aiTokensPerDay",
             Self::FilesMiB => "filesMiB",
         }
     }
@@ -85,6 +87,7 @@ impl Quota {
         let limits = spec.limits.as_ref()?;
         match self {
             Self::EmailsPerDay => limits.emails_per_day,
+            Self::AiTokensPerDay => limits.ai_tokens_per_day,
             Self::FilesMiB => limits.files_mib,
         }
     }
@@ -197,6 +200,27 @@ pub async fn take(
     Ok(row.is_some())
 }
 
+/// Today's use of one counter, `0` before its first.
+pub async fn used_today(
+    db: impl sqlx::PgExecutor<'_>,
+    (project, app): (&str, &str),
+    service: &str,
+    subject: &str,
+) -> Result<u32, sqlx::Error> {
+    let used: Option<i64> = sqlx::query_scalar(
+        "SELECT used FROM app_service_usage \
+         WHERE project = $1 AND app = $2 AND service = $3 AND subject = $4 \
+           AND day = (now() AT TIME ZONE 'utc')::date",
+    )
+    .bind(project)
+    .bind(app)
+    .bind(service)
+    .bind(subject)
+    .fetch_optional(db)
+    .await?;
+    Ok(used.map_or(0, |used| u32::try_from(used).unwrap_or(u32::MAX)))
+}
+
 /// The next midnight UTC, when every daily quota starts again.
 pub fn reset_at(now: OffsetDateTime) -> OffsetDateTime {
     now.date()
@@ -206,7 +230,14 @@ pub fn reset_at(now: OffsetDateTime) -> OffsetDateTime {
         .assume_utc()
 }
 
-fn problem(status: StatusCode, slug: &str, title: &str, detail: String, extra: Value) -> Response {
+/// An `application/problem+json` of `…/errors/{slug}` with `extra` members beside the four.
+pub(super) fn problem(
+    status: StatusCode,
+    slug: &str,
+    title: &str,
+    detail: String,
+    extra: Value,
+) -> Response {
     let mut body = json!({
         "type": format!("https://joinedcontext.com/errors/{slug}"),
         "title": title,

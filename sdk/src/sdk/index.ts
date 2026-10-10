@@ -14,7 +14,7 @@ export type { Field, FieldSchema, Schema, TypeSchema } from "../write";
 
 // Client
 export { jc, ProblemError, ServiceRefusedError } from "./client";
-export type { Client, DataClient, Email, EndpointOption, FileInfo, JobStatus, Query, TemporalPoint, TemporalQuery, TemporalRow } from "./client";
+export type { AiMessage, Client, Completion, DataClient, Email, EndpointOption, FileInfo, JobStatus, Query, TemporalPoint, TemporalQuery, TemporalRow } from "./client";
 
 // Config (read by startApp from the document the Portal serves; app code never builds a client or a
 // transport, SDK-02 and SDK-06)
