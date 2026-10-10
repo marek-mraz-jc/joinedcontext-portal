@@ -6,7 +6,9 @@
 #
 #   build-component <app-dir> <work-dir> <bundle-dir>
 #
-# JC_CRATE_STORE is the crate store's registry folder (default the runner's /opt/cargo/registry).
+# JC_CRATE_STORE is the crate store's registry folder (default the runner's /opt/cargo/registry),
+# JC_CRATE_GIT its git checkouts (default /opt/cargo/git), where `jc-app-sdk` is, pinned by the
+# App's Cargo.lock to one platform commit.
 set -eu
 
 fail() { echo "build failed: $*" >&2; exit 1; }
@@ -14,6 +16,7 @@ APP=${1:?usage: build-component <app-dir> <work-dir> <bundle-dir>}
 WORK=${2:?usage: build-component <app-dir> <work-dir> <bundle-dir>}
 OUT=${3:?usage: build-component <app-dir> <work-dir> <bundle-dir>}
 STORE=${JC_CRATE_STORE:-/opt/cargo/registry}
+GIT_STORE=${JC_CRATE_GIT:-/opt/cargo/git}
 CRATE=$APP/server
 
 [ -f "$CRATE/Cargo.toml" ] || fail "server/ holds no Cargo.toml"
@@ -26,6 +29,7 @@ export CARGO_HOME="$WORK/component-cargo" CARGO_TARGET_DIR="$WORK/component-targ
 rm -rf "${CARGO_HOME:?}" "${CARGO_TARGET_DIR:?}"
 mkdir -p "$CARGO_HOME/registry"
 ln -s "$STORE/index" "$STORE/cache" "$CARGO_HOME/registry/"
+[ -d "$GIT_STORE" ] && ln -s "$GIT_STORE" "$CARGO_HOME/git"
 cd "$CRATE"
 echo "== server tests"
 cargo test --offline --locked || fail "cargo test failed in server/ (a crate outside the runner's store fails here too)"
