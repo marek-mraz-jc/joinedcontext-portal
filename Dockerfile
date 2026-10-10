@@ -200,6 +200,8 @@ COPY sdk/template-wasm ./sdk/template-wasm
 COPY sdk/samples ./sdk/samples
 # A code run's prompt carries the SDK's API and export list (`include_str!` in src/agents/code.rs).
 COPY sdk/API.md ./sdk/API.md
+# And the services catalog the pack and jc_app_services read (src/ops/runs.rs, T-3585).
+COPY sdk/services.json ./sdk/services.json
 COPY sdk/src/sdk/index.ts ./sdk/src/sdk/index.ts
 # `-p joinedcontext-portal`: this image ships one binary and the reference apps have images of
 # their own, so building the whole workspace here would compile them for nothing.

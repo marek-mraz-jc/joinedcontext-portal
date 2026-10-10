@@ -240,8 +240,33 @@ fn flow_input_schema() -> Value {
     })
 }
 
+/// The SDK's services catalog (T-3585, ADR-N-045): what an agent building an App may call, the
+/// `app.yaml` lines each service needs and its quotas. Generated in the SDK's tests from API.md.
+pub const SERVICES_CATALOG: &str = include_str!("../../sdk/services.json");
+
 pub fn operations() -> Vec<Operation> {
     vec![
+        Operation {
+            name: "jc_app_services",
+            title: "App Services Catalog",
+            description: "The platform services an App may use: each one's TypeScript and Rust calls with their signatures, the app.yaml lines it needs and its quotas",
+            input: || json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+            output: || json!({ "type": "object", "required": ["services", "kit"] }),
+            annotations: Annotations {
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            // The SDK's own reference, public in the package: no project's data.
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            // The input schema allows no member, so there is nothing more to check.
+            validate: |_| Ok(()),
+            run: |_caller, _state, _project, _val| {
+                Box::pin(async move { Ok(serde_json::from_str(SERVICES_CATALOG)?) })
+            },
+        },
         Operation {
             name: "jc_run_create",
             title: "Start Unattended Work",

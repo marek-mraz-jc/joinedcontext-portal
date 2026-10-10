@@ -35,6 +35,18 @@ pub const REFUSAL: &str = "not a path the application may write: src/**/*.tsx, s
 /// The server crate's manifest, which only the `wasm` template carries (T-3575).
 pub const SERVER_MANIFEST: &str = "server/Cargo.toml";
 
+/// The platform services the App may call, from the SDK's catalog without its kit (the kit is
+/// API.md): each service's calls, its `app.yaml` lines and its quotas (T-3585, ADR-N-045).
+pub fn services_section() -> String {
+    let catalog: serde_json::Value =
+        serde_json::from_str(crate::ops::runs::SERVICES_CATALOG).unwrap_or_default();
+    format!(
+        "\n## THE PLATFORM SERVICES\n\nidentity and data are every App's; any other service \
+         needs its name in spec.services and is refused until an organization, project and App all list it.\n```json\n{}\n```\n",
+        serde_json::to_string(&catalog["services"]).unwrap_or_default()
+    )
+}
+
 /// What a `wasm` run's model reads beside the SDK: the server half and its rules (AP-147).
 pub const SERVER_SECTION: &str = include_str!("server_section.md");
 
