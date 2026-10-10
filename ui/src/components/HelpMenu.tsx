@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { JSX } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -104,6 +104,8 @@ export function HelpMenu({ onFeedback }: { onFeedback?: () => void } = {}): JSX.
                 ))}
               </ol>
             </section>
+            <HelpClip pageKey={page.key} />
+            <GuideSection pageKey={page.key} />
             {guide ? (
               <p className="text-body">
                 <ExternalLink href={guide}>{t("pageHelp.guide")}</ExternalLink>
@@ -138,5 +140,83 @@ export function HelpMenu({ onFeedback }: { onFeedback?: () => void } = {}): JSX.
         </ol>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * The page's main action as its live journey recorded it (T-3308, `ui/public/help/{key}.webm`),
+ * muted with controls; the steps above are its text alternative. A page without a published clip
+ * shows nothing in its place, and a person who asked for less motion starts it themselves.
+ */
+function HelpClip({ pageKey }: { pageKey: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const [missing, setMissing] = useState(false);
+  if (missing) return null;
+  const still = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return (
+    <video
+      src={`/help/${pageKey}.webm`}
+      aria-label={t("pageHelp.clip", { page: t(`pageHelp.${pageKey}.title`) })}
+      aria-describedby="page-help-steps"
+      className="aspect-video w-full rounded border border-border bg-surface-subtle"
+      muted
+      loop
+      controls
+      playsInline
+      autoPlay={!still}
+      preload="metadata"
+      onError={() => setMissing(true)}
+    />
+  );
+}
+
+/** One User Guide section as `scripts/guide-sections.mjs` bundles it from the pinned docs commit. */
+interface GuideSectionText {
+  heading: string;
+  blocks: ([kind: "h" | "p" | "pre", text: string] | [kind: "ul" | "ol", items: string[]])[];
+}
+
+/**
+ * The page's User Guide section, bundled at build time (T-3308): loaded with the panel's first
+ * opening as its own chunk, rendered as text, in English, folded under its heading.
+ */
+function GuideSection({ pageKey }: { pageKey: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const [section, setSection] = useState<GuideSectionText | null>(null);
+  useEffect(() => {
+    let current = true;
+    void import("../generated/guideSections.json").then((bundle) => {
+      const sections = bundle.default.sections as unknown as Record<string, GuideSectionText | undefined>;
+      if (current) setSection(sections[pageKey] ?? null);
+    });
+    return () => {
+      current = false;
+    };
+  }, [pageKey]);
+  if (!section) return null;
+  return (
+    <details className="text-body text-fg" data-testid="page-help-guide">
+      <summary className="focus-ring cursor-pointer rounded-sm font-semibold">
+        {t("pageHelp.fromGuide")} <span lang="en">{section.heading}</span>
+      </summary>
+      <div lang="en" className="mt-2 flex flex-col gap-2">
+        {section.blocks.map((block, at) => {
+          const [kind, body] = block;
+          if (kind === "ul" || kind === "ol") {
+            const List = kind;
+            return (
+              <List key={at} className={`${kind === "ol" ? "list-decimal" : "list-disc"} pl-5`}>
+                {(body as string[]).map((item, n) => (
+                  <li key={n}>{item}</li>
+                ))}
+              </List>
+            );
+          }
+          if (kind === "h") return <h4 key={at} className="font-semibold">{body}</h4>;
+          if (kind === "pre") return <pre key={at} className="overflow-x-auto rounded bg-surface-subtle p-2 font-mono text-caption">{body}</pre>;
+          return <p key={at}>{body}</p>;
+        })}
+      </div>
+    </details>
   );
 }

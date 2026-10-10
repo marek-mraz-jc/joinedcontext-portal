@@ -6,7 +6,7 @@
  * opens the same form; a viewer finds the page's write controls disabled with a reason.
  */
 import { expect } from "@playwright/test";
-import { guideShot } from "./guide";
+import { guideShot, helpClipStart } from "./guide";
 import { PROJECT, kindJourney, proposeFrom, rowAction } from "./kindJourney";
 
 kindJourney({
@@ -15,6 +15,7 @@ kindJourney({
   plural: "dashboards",
   page: `/projects/${PROJECT}/dashboards`,
   create: async (page, name) => {
+    const clip = helpClipStart(page, "dashboards");
     await page.getByRole("main").getByRole("button", { name: "New dashboard" }).first().click();
     const form = page.getByTestId("form-page");
     await expect(form).toBeVisible({ timeout: 30_000 });
@@ -25,6 +26,7 @@ kindJourney({
       await form.locator("#root_pages__add").click();
     }
     await form.locator('input[type="checkbox"][id^="root_pages_0_layers"]').first().check();
+    await clip.end();
     await guideShot(page, "dashboard-1-form");
     await proposeFrom(form);
   },

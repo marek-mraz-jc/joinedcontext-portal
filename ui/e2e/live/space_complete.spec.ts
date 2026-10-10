@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { guideShot } from "./guide";
+import { guideShot, helpClipStart } from "./guide";
 import { APPROVER, STEWARD, approve, proposedChange, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -21,6 +21,7 @@ test("complete a space from sample file and propose change", async ({ browser })
   const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/spaces/complete?lang=en`);
   const page = steward.page;
 
+  const clip = helpClipStart(page, "spaces");
   await page.locator("#complete-space").fill(`bikes-${Date.now().toString().slice(-4)}`);
   await page.getByLabel("Files", { exact: true }).setInputFiles(samplePath);
   await guideShot(page, "space-1-name-and-file");
@@ -31,6 +32,7 @@ test("complete a space from sample file and propose change", async ({ browser })
 
   await expect(page.locator("[data-testid='complete-draft-DataModel']")).toBeVisible({ timeout: 45_000 });
   await expect(page.locator("[data-testid='complete-draft-ContextSpace']")).toBeVisible({ timeout: 45_000 });
+  await clip.end();
   await guideShot(page, "space-2-drafts");
 
   const proposeBtn = page.locator("#complete-propose");
@@ -46,7 +48,9 @@ test("complete a space from sample file and propose change", async ({ browser })
   const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
   await expect(approver.page.getByRole("row").filter({ hasText: changeId })).toBeVisible({ timeout: 30_000 });
   await guideShot(approver.page, "approval-1-waiting");
+  const approval = helpClipStart(approver.page, "approvals");
   await approve(approver.page, PROJECT, changeId);
+  await approval.end();
   await guideShot(approver.page, "approval-2-approved");
 
   await approver.context.close();

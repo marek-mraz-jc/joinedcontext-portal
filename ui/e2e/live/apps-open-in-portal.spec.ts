@@ -11,7 +11,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { FrameLocator, Locator } from "@playwright/test";
-import { guideShot } from "./guide";
+import { guideShot, helpClipStart } from "./guide";
 import { STEWARD, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -43,6 +43,7 @@ for (const app of APPS) {
     const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps/${app.name}/open?lang=en`);
     try {
       const page = steward.page;
+      const clip = app === APPS[0] ? helpClipStart(page, "apps") : undefined;
       // The Portal stays around the App: its header with the menu that folds the project
       // navigation away, and the slim bar with the App's name (T-2908).
       await expect(page.getByRole("banner").getByRole("button", { name: "Menu" })).toBeVisible({ timeout: 60_000 });
@@ -57,6 +58,7 @@ for (const app of APPS) {
         `allow-scripts allow-forms allow-popups allow-downloads${ownOrigin ? " allow-same-origin" : ""}`,
       );
       await expect(app.data(page.frameLocator("iframe[sandbox]"))).toBeVisible({ timeout: 120_000 });
+      await clip?.end();
       if (app === APPS[0]) await guideShot(page, "app-2-open-in-portal");
       expect(new URL(page.url()).pathname, "the Portal kept its window").toBe(
         `/projects/${PROJECT}/apps/${app.name}/open`,

@@ -9,7 +9,7 @@
  * Nothing is proposed: the draft is a read, and the flow is closed before "Propose publication".
  */
 import { expect, test } from "@playwright/test";
-import { guideShot } from "./guide";
+import { guideShot, helpClipStart } from "./guide";
 import { EDITOR, STEWARD, signIn } from "./portal";
 
 test.setTimeout(180_000);
@@ -47,6 +47,8 @@ for (const who of [STEWARD, EDITOR]) {
       // 2. Publish an endpoint as a dataset, from this page.
       const publish = page.getByRole("button", { name: "Publish a dataset" });
       if ((await publish.getAttribute("aria-disabled")) !== "true") {
+        // The clip starts here: step 1 typed a token-shaped string no clip may show.
+        const clip = who === STEWARD ? helpClipStart(page, "ckan") : undefined;
         await publish.click();
         const dialog = page.getByRole("dialog", { name: "Publish a dataset" });
         await expect(dialog).toBeVisible();
@@ -56,6 +58,7 @@ for (const who of [STEWARD, EDITOR]) {
         await dialog.getByRole("button", { name: "Draft the description" }).click();
         await expect(dialog.getByText(/^Drafted from endpoint/)).toBeVisible({ timeout: 30_000 });
         await expect(dialog.getByRole("button", { name: "Preview the entry" })).toBeVisible();
+        await clip?.end();
         await dialog.getByRole("button", { name: "Close" }).first().click();
       }
 
