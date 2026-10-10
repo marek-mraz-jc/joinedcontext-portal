@@ -218,6 +218,17 @@
     "filterPhase": "Phase",
     "filterAll": "All",
     "noneMatch": "No change matches these filters.",
+    "ci": {
+      "label": "CI on the latest commit",
+      "success": "Passed",
+      "pending": "Running",
+      "failure": "Failed",
+      "error": "Could not run"
+    },
+    "outside": {
+      "title": "{count, plural, one {# merge request in the forge is not a Change} other {# merge requests in the forge are not Changes}}",
+      "item": "#{number} by {author}"
+    },
     "workspace": "From a copy",
     "fromWorkspace": "From the copy {name} by {author}, brought back on {date}: worked on apart from the live project, checked again before it was proposed.",
     "emptyHint": "Every change to this project waits here for a person to read it and decide. Nothing waits right now; propose a change and it appears in this list.",

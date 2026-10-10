@@ -218,6 +218,17 @@
     "filterPhase": "Fáze",
     "filterAll": "Všechny",
     "noneMatch": "Těmto filtrům neodpovídá žádná změna.",
+    "ci": {
+      "label": "CI na posledním commitu",
+      "success": "Prošla",
+      "pending": "Běží",
+      "failure": "Selhala",
+      "error": "Nešla spustit"
+    },
+    "outside": {
+      "title": "{count, plural, one {# žádost o sloučení ve forge není změnou} few {# žádosti o sloučení ve forge nejsou změnami} other {# žádostí o sloučení ve forge není změnami}}",
+      "item": "#{number} od {author}"
+    },
     "workspace": "Z kopie",
     "fromWorkspace": "Z kopie {name}, kterou připravil(a) {author}, vráceno {date}: upraveno mimo živý projekt a před návrhem znovu zkontrolováno.",
     "emptyHint": "Každá změna tohoto projektu tu čeká, dokud ji člověk nepřečte a nerozhodne. Teď nic nečeká; podejte změnu a objeví se v tomto seznamu.",

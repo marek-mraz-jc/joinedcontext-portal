@@ -3800,6 +3800,11 @@ export interface components {
              * @description The `page` that continues a history listing, while the forge has older ones.
              */
             next?: number | null;
+            /**
+             * @description The open merge requests of the project repository that are not Changes, a fork's or a
+             *     non-writer's, and why; listed to an organization administrator alone (T-3433).
+             */
+            outside?: components["schemas"]["OutsideMergeRequest"][];
         };
         /** @description Metadata identifying the change. */
         ChangeMeta: {
@@ -3819,6 +3824,11 @@ export interface components {
         ChangeProposal: {
             apiVersion: string;
             author: components["schemas"]["ChangeAuthor"];
+            /**
+             * @description The repository's CI on the head commit (CC-90): `success`, `pending`, `failure` or
+             *     `error`; on the detail of one change, and absent while no check has reported.
+             */
+            ci?: string | null;
             createdAt: string;
             decision?: null | components["schemas"]["ChangeDecision"];
             /** @description How many files the merge request changes, the headline manifest included. */
@@ -4901,6 +4911,17 @@ export interface components {
             items: components["schemas"]["OrganizationModel"][];
             kind: string;
             smartDataModels: components["schemas"]["CatalogueEntry"][];
+        };
+        /** @description An open merge request in the forge that the Portal does not offer for approval (T-3433). */
+        OutsideMergeRequest: {
+            /** @description The forge account that opened it. */
+            author: string;
+            /** Format: int64 */
+            number: number;
+            /** @description Why it is not a Change, in words. */
+            reason: string;
+            /** @description Its page in the forge, where it is closed or its author is answered. */
+            url: string;
         };
         /** @description The page the question was asked from, as the browser sends it: the route only. */
         PageContextRequest: {

@@ -348,6 +348,13 @@ pub struct PullRequest {
     pub created_at: String,
     pub author_name: String,
     pub author_email: Option<String>,
+    /// The forge account that opened the pull request: who pushed, not what a commit claims.
+    #[serde(default)]
+    pub author_login: String,
+    /// Whether the forge named the head's repository and it is the base's own: not a fork. A
+    /// forge that names neither says nothing, which counts as a fork (T-3433).
+    #[serde(default)]
+    pub same_repository: bool,
     pub mergeable: Option<bool>,
     pub merged: bool,
     /// The repository the pull request is in, as the client that read it names it (CC-87).
@@ -568,6 +575,8 @@ struct BranchRefDto {
     git_ref: String,
     #[serde(default)]
     sha: String,
+    #[serde(default)]
+    repo_id: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -593,7 +602,19 @@ impl From<GiteaPullResponse> for PullRequest {
             })
             .unwrap_or_default()
             .to_string();
+        let author_login = raw
+            .user
+            .as_ref()
+            .and_then(|u| u.login.clone())
+            .unwrap_or_default();
         let author_email = raw.user.and_then(|u| u.email);
+        let same_repository = matches!(
+            (
+                raw.head.as_ref().and_then(|h| h.repo_id),
+                raw.base.as_ref().and_then(|b| b.repo_id),
+            ),
+            (Some(head), Some(base)) if head == base
+        );
         let (head_branch, head_sha) = raw.head.map(|h| (h.git_ref, h.sha)).unwrap_or_default();
         let base_branch = raw.base.map(|b| b.git_ref).unwrap_or_default();
 
@@ -609,6 +630,8 @@ impl From<GiteaPullResponse> for PullRequest {
             created_at: raw.created_at.unwrap_or_default(),
             author_name,
             author_email,
+            author_login,
+            same_repository,
             mergeable: raw.mergeable,
             merged: raw.merged,
             repository: String::new(),
@@ -1762,6 +1785,26 @@ impl GiteaClient {
             .await
             .map_err(|e| GitError::Transport(format!("failed to parse branch response: {e}")))?;
         Ok(branch_dto.commit.id)
+    }
+
+    /// `GET /commits/{sha}/status` — the combined CI state of one commit (`success`, `pending`,
+    /// `failure`, `error`), or `None` while no check has reported on it (CC-90).
+    pub async fn commit_state(&self, sha: &str) -> Result<Option<String>, GitError> {
+        #[derive(Deserialize)]
+        struct CombinedStatus {
+            #[serde(default)]
+            state: String,
+            #[serde(default)]
+            total_count: u64,
+        }
+        let url = self.repo_url(&format!("commits/{sha}/status"))?;
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        let combined: CombinedStatus = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse commit status: {e}")))?;
+        Ok((combined.total_count > 0 && !combined.state.is_empty()).then_some(combined.state))
     }
 
     /// `POST /branches` — creates a new branch from an existing one.

@@ -15766,6 +15766,13 @@
             "format": "int32",
             "description": "The `page` that continues a history listing, while the forge has older ones.",
             "minimum": 0
+          },
+          "outside": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutsideMergeRequest"
+            },
+            "description": "The open merge requests of the project repository that are not Changes, a fork's or a\nnon-writer's, and why; listed to an organization administrator alone (T-3433)."
           }
         }
       },
@@ -15815,6 +15822,13 @@
           },
           "author": {
             "$ref": "#/components/schemas/ChangeAuthor"
+          },
+          "ci": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The repository's CI on the head commit (CC-90): `success`, `pending`, `failure` or\n`error`; on the detail of one change, and absent while no check has reported."
           },
           "createdAt": {
             "type": "string"
@@ -18811,6 +18825,35 @@
             "items": {
               "$ref": "#/components/schemas/CatalogueEntry"
             }
+          }
+        }
+      },
+      "OutsideMergeRequest": {
+        "type": "object",
+        "description": "An open merge request in the forge that the Portal does not offer for approval (T-3433).",
+        "required": [
+          "number",
+          "url",
+          "author",
+          "reason"
+        ],
+        "properties": {
+          "author": {
+            "type": "string",
+            "description": "The forge account that opened it."
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why it is not a Change, in words."
+          },
+          "url": {
+            "type": "string",
+            "description": "Its page in the forge, where it is closed or its author is answered."
           }
         }
       },
