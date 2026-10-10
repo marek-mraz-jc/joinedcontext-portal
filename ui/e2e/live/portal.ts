@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
+import { clipRecording, recordingSince } from "./guide";
 
 /**
  * The project sections the installation hides (`hiddenSections` of `/api/v1/branding`, T-2874):
@@ -94,8 +95,9 @@ export async function signIn(browser: Browser, who: { user: string; password: st
         "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD)",
     );
   }
-  const context = await browser.newContext();
+  const context = await browser.newContext(clipRecording());
   const page = await context.newPage();
+  recordingSince(page);
   await goSignedIn(page, who, path);
   return { context, page };
 }

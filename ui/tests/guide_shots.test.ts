@@ -3,13 +3,14 @@
  * the guide's rule, shoots English then Slovak through the Portal's own language menu at 1280 px,
  * masks password fields, and leaves the page in English at the size it had.
  */
-// covers: e2e/live/guide.ts.
-import { existsSync, mkdtempSync } from "node:fs";
+// covers: e2e/live/guide.ts, scripts/help-clips.mjs (T-3308: the help clips' marks).
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GUIDE_WIDTH, guideShot, guideShotPath, guideShotsOn } from "../e2e/live/guide";
+import { GUIDE_WIDTH, clipRecording, guideShot, guideShotPath, guideShotsOn, helpClipStart, recordingSince } from "../e2e/live/guide";
+import { HELPED } from "../src/pageHelp";
 
 /** A page that records what the helper does to it; `lang` is the document's language. */
 function fakePage(lang = "en", dialogOpen = false) {
@@ -93,5 +94,52 @@ describe("guide shots (T-3270)", () => {
     vi.stubEnv("GUIDE_SHOTS", "1");
     const { page } = fakePage("sk");
     await expect(guideShot(page, "space-1")).rejects.toThrow(/journeys shoot from English/);
+  });
+});
+
+describe("help clip marks (T-3308)", () => {
+  const recording = (path = "test-results/help/raw/abc.webm") => ({ video: () => ({ path: async () => path }) }) as unknown as Page;
+
+  it("record a journey's context only when HELP_CLIPS is 1, and never beside guide shots", () => {
+    expect(clipRecording({})).toEqual({});
+    expect(clipRecording({ HELP_CLIPS: "1" })).toEqual({ recordVideo: { dir: "test-results/help/raw", size: { width: GUIDE_WIDTH, height: 720 } } });
+    expect(() => clipRecording({ HELP_CLIPS: "1", GUIDE_SHOTS: "1" })).toThrow(/language switches/);
+  });
+
+  it("do nothing unless HELP_CLIPS is 1", async () => {
+    const root = mkdtempSync(join(tmpdir(), "clips-"));
+    await helpClipStart({} as Page, "spaces", root).end();
+    expect(readdirSync(root)).toEqual([]);
+  });
+
+  it("refuse a page that is not recording and a key that is not a key", () => {
+    vi.stubEnv("HELP_CLIPS", "1");
+    expect(() => helpClipStart({ video: () => null } as unknown as Page, "spaces")).toThrow(/not recording/);
+    expect(() => helpClipStart(recording(), "../x")).toThrow(/not lower-case/);
+  });
+
+  it("write the action's window in the recording, and the recording's absolute path", async () => {
+    vi.stubEnv("HELP_CLIPS", "1");
+    const root = mkdtempSync(join(tmpdir(), "clips-"));
+    const page = recording();
+    recordingSince(page, Date.now() - 3000);
+    const clip = helpClipStart(page, "spaces", root);
+    await clip.end();
+    const mark = JSON.parse(readFileSync(join(root, "spaces.json"), "utf8")) as { video: string; start: number; end: number };
+    expect(mark.video).toMatch(/^\/.*test-results\/help\/raw\/abc\.webm$/);
+    expect(mark.start).toBeGreaterThanOrEqual(3000);
+    expect(mark.end).toBeGreaterThanOrEqual(mark.start);
+  });
+
+  it("are taken by exactly one journey for each page the publisher requires, and only for pages with help", () => {
+    const script = readFileSync(join(__dirname, "../../scripts/help-clips.mjs"), "utf8");
+    const required = [...(script.match(/JOURNEY_CLIPS = \[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([a-z-]+)"/g)].map((m) => m[1]);
+    expect(required.length).toBeGreaterThan(0);
+    const live = join(__dirname, "../e2e/live");
+    const marked = readdirSync(live)
+      .filter((name) => name.endsWith(".spec.ts"))
+      .flatMap((name) => [...readFileSync(join(live, name), "utf8").matchAll(/helpClipStart\([^,]+, "([a-z-]+)"\)/g)].map((m) => m[1]));
+    expect([...marked].sort()).toEqual([...required].sort());
+    for (const key of required) expect(HELPED).toContain(key);
   });
 });

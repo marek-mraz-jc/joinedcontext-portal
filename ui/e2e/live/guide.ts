@@ -6,10 +6,10 @@
  * `scripts/publish-guide-shots.sh` quantizes the results into the docs repository's
  * `User-Guide/img/`, where `scripts/check-guide-shots.py` holds the guides to the shots that exist.
  */
-import { mkdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Page } from "@playwright/test";
+import type { BrowserContextOptions, Page } from "@playwright/test";
 
 /** What a guide may call a shot: lower-case words and digits joined by hyphens. */
 const SHOT_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -77,4 +77,48 @@ export async function guideShot(page: Page, name: string, root = "test-results/g
   } finally {
     if (size) await page.setViewportSize(size);
   }
+}
+
+/** Whether this run records the help panel's clips (T-3308). */
+export function helpClipsOn(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.HELP_CLIPS === "1";
+}
+
+/**
+ * What a journey's context needs to record its pages for the help clips: a 1280 × 720 video when
+ * HELP_CLIPS=1, nothing otherwise. Guide shots switch the page to Slovak and back, which a clip
+ * would show, so a run takes one or the other.
+ */
+export function clipRecording(env: NodeJS.ProcessEnv = process.env): BrowserContextOptions {
+  if (!helpClipsOn(env)) return {};
+  if (guideShotsOn(env)) throw new Error("HELP_CLIPS=1 and GUIDE_SHOTS=1 in one run: the clips would show the shots' language switches");
+  return { recordVideo: { dir: "test-results/help/raw", size: { width: GUIDE_WIDTH, height: 720 } } };
+}
+
+const RECORDING_SINCE = new WeakMap<Page, number>();
+
+/** Marks when `page` began recording; `signIn` calls it as the page opens. */
+export function recordingSince(page: Page, at = Date.now()): void {
+  RECORDING_SINCE.set(page, at);
+}
+
+/**
+ * Marks the start of the main action of the help page `key` (a `pageHelp` key); `end()` writes
+ * `{root}/{key}.json` with the recording and the action's window, which `scripts/help-clips.mjs
+ * publish` cuts into `ui/public/help/{key}.webm`. Off unless HELP_CLIPS=1.
+ */
+export function helpClipStart(page: Page, key: string, root = "test-results/help"): { end: () => Promise<void> } {
+  if (!helpClipsOn()) return { end: async () => {} };
+  if (!SHOT_NAME.test(key)) throw new Error(`help clip key ${JSON.stringify(key)} is not lower-case-words-with-hyphens`);
+  const since = RECORDING_SINCE.get(page);
+  const video = page.video();
+  if (!video || since === undefined) throw new Error(`help clip ${key}: the page is not recording; open it with signIn`);
+  const start = Date.now() - since;
+  return {
+    end: async () => {
+      const end = Date.now() - since;
+      mkdirSync(root, { recursive: true });
+      writeFileSync(join(root, `${key}.json`), `${JSON.stringify({ video: resolve(await video.path()), start, end })}\n`);
+    },
+  };
 }

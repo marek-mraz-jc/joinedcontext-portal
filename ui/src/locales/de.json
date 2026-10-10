@@ -6687,6 +6687,8 @@
     "menu": "Hilfe zu dieser Seite",
     "steps": "So geht es",
     "guide": "Mehr im Benutzerhandbuch",
+    "clip": "Kurze Aufnahme der Hauptaktion der Seite {page}",
+    "fromGuide": "Aus dem Benutzerhandbuch (auf Englisch):",
     "ask": "Hilf mir mit der Seite {page}: wofür ist sie da und was sollte ich zuerst tun?",
     "askButton": "Den Assistenten zu dieser Seite fragen",
     "home": {
