@@ -2778,7 +2778,26 @@
       "unfoldBox": "Unfold {name}: {names}",
       "noRoute": "No line joins {from} and {to}.",
       "routeStatus": "{count, plural, one {# line} other {# lines}}: {route}",
-      "focusStatus": "{name} and {count, plural, =0 {nothing joined to it} one {# box joined to it} other {# boxes joined to it}}; the rest is faded."
+      "focusStatus": "{name} and {count, plural, =0 {nothing joined to it} one {# box joined to it} other {# boxes joined to it}}; the rest is faded.",
+      "edit": {
+        "addClass": "Add class",
+        "undo": "Undo",
+        "hint": "Drag from the round handle on a class's right edge to another class to relate them, or press its +. Press a relationship's line to change or remove it. Edits stay in this draft until Save proposes them.",
+        "addRelationshipTitle": "New relationship from {name}",
+        "addClassTitle": "New class",
+        "className": "Class name",
+        "addField": "Add a field to {name}",
+        "fieldButton": "+ field",
+        "addFieldTitle": "New field on {name}",
+        "fieldName": "Field name",
+        "fieldRange": "Type",
+        "add": "Add",
+        "apply": "Apply",
+        "relationshipTitle": "Relationship {name} / {inverse}",
+        "breakingTitle": "This edit breaks the data model",
+        "breakingBody": "Entities stored under the published model may use what it removes or renames. The draft takes the edit only when you confirm; Save then proposes it under a new major version.",
+        "breakingConfirm": "Apply the breaking edit"
+      }
     },
     "field": {
       "name": "Name",

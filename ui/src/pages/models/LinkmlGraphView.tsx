@@ -2,6 +2,7 @@ import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JSX, KeyboardEvent, PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { useDiagramEditing } from "./DiagramEditing";
 import { download, mermaidErDiagram, svgFile } from "./diagramExport";
 import { layered } from "./diagramLayout";
 import { foldImports, neighbourhood, nextBox, shortestPath } from "./diagramReading";
@@ -210,9 +211,9 @@ function typeText(row: GraphRow): string {
  * The model as a picture (DM-13, T-1111): every class a box with its own slots, and a line for
  * every way one class names another.
  *
- * Read-only, and deliberately so: a graph that also edited would be a third writer of the same
- * document beside the tree and the YAML, and the two that exist already share one string.
- * Clicking a class hands it to the caller, which opens it in the structure view.
+ * Clicking a class hands it to the caller, which opens it in the structure view. With
+ * `onChange` the drawing also edits (T-3589): it writes the same one string the tree and the YAML
+ * write, through the same operations (`DiagramEditing.tsx`); without it, it only reads.
  */
 export function LinkmlGraphView({
   source,
@@ -220,6 +221,7 @@ export function LinkmlGraphView({
   onOpenClass,
   onOpenRelationship,
   onAddRelationship,
+  onChange,
 }: {
   source: string;
   /** The sources of the models this one imports, by import name: their classes are drawn too. */
@@ -227,8 +229,13 @@ export function LinkmlGraphView({
   onOpenClass?: (name: string) => void;
   /** A relationship's line was pressed: the class it starts from, whose table lists it. */
   onOpenRelationship?: (from: string) => void;
-  /** The one edit the drawing offers: the Add relationship form, on a class of this model. */
+  /** Read-only drawing: the caller's Add relationship form, on a class of this model. */
   onAddRelationship?: (from: string) => void;
+  /**
+   * Editing on the drawing: where an edited source goes. Absent for a person who may not change
+   * the model, who sees no edit handle at all.
+   */
+  onChange?: (source: string) => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const [zoom, setZoom] = useState(ZOOM.natural);
@@ -246,6 +253,9 @@ export function LinkmlGraphView({
   const [pathTo, setPathTo] = useState<string>();
   const [query, setQuery] = useState("");
   const [view, setView] = useState({ left: 0, top: 0, width: 0, height: 0 });
+  const editing = useDiagramEditing(source, onChange);
+  // A relationship being dragged out of a class: where it started and where the pointer is.
+  const [connecting, setConnecting] = useState<{ from: string; to?: Point }>();
   const { name, nodes, edges } = useMemo(() => {
     const model = parseModel(source);
     const parsed = Object.fromEntries(Object.entries(imports).map(([key, text]) => [key, parseModel(text)]));
@@ -340,6 +350,14 @@ export function LinkmlGraphView({
       top: Math.max(0, point.y * zoom - frameAt.clientHeight / 2),
     });
   };
+  // The pointer in drawing units, where the browser can say (jsdom cannot; the drag still works).
+  const toDrawing = (event: PointerEvent<SVGSVGElement>): Point | undefined => {
+    const matrix = drawing.current?.getScreenCTM?.();
+    if (!matrix) return undefined;
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    return { x: point.x, y: point.y };
+  };
+  const addFrom = editing ? (from: string) => editing.addRelationship(from) : onAddRelationship;
   const stroke = (edge: GraphEdge) =>
     edge.kind === "mixin" ? "6 4" : edge.kind === "range" ? "2 3" : edge.kind === "enum" ? "1 4" : undefined;
   const pairs = drawn.edges.filter((edge) => edge.kind === "relationship");
@@ -389,7 +407,18 @@ export function LinkmlGraphView({
         <Button size="sm" variant="secondary" onClick={exportMermaid}>
           {t("models.graph.exportMermaid")}
         </Button>
+        {editing ? (
+          <>
+            <Button size="sm" onClick={editing.addClass}>
+              {t("models.graph.edit.addClass")}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={editing.undo} disabled={!editing.canUndo}>
+              {t("models.graph.edit.undo")}
+            </Button>
+          </>
+        ) : null}
       </div>
+      {editing ? <p className="text-caption text-fg-muted">{t("models.graph.edit.hint")}</p> : null}
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-caption text-fg-muted">
           {t("models.graph.find")}
@@ -485,8 +514,25 @@ export function LinkmlGraphView({
             width={(width + 8) * zoom}
             height={(height + 8) * zoom}
             className="min-h-48"
+            onPointerMove={(event) => {
+              if (connecting) setConnecting({ from: connecting.from, to: toDrawing(event) });
+            }}
+            onPointerUp={() => setConnecting(undefined)}
           >
             <Markers id={markerId} />
+            {connecting?.to && at.get(connecting.from) ? (
+              <path
+                data-testid="diagram-connecting"
+                d={pathOf([
+                  { x: (at.get(connecting.from)?.x ?? 0) + BOX.width, y: (at.get(connecting.from)?.y ?? 0) + (at.get(connecting.from)?.height ?? 0) / 2 },
+                  connecting.to,
+                ])}
+                className="stroke-primary"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                fill="none"
+              />
+            ) : null}
 
             {drawn.edges.map((edge, index) => {
               const from = at.get(edge.from);
@@ -511,7 +557,11 @@ export function LinkmlGraphView({
                       source: edge.from,
                       target: edge.to,
                     })}
-                    onOpen={() => onOpenRelationship?.(edge.from)}
+                    onOpen={() =>
+                      editing && local.has(edge.from) && local.has(edge.to)
+                        ? editing.editRelationship(edge)
+                        : onOpenRelationship?.(edge.from)
+                    }
                   />
                 );
               }
@@ -617,18 +667,18 @@ export function LinkmlGraphView({
               );
               // The drawing's one edit, on a class of this model: its inverse is written here too.
               const add =
-                onAddRelationship && node.kind === "class" && local.has(node.name) ? (
+                addFrom && node.kind === "class" && local.has(node.name) ? (
                   <g
                     key={`add-${node.name}`}
                     role="button"
                     tabIndex={0}
                     aria-label={t("models.graph.addRelationship", { name: node.name })}
                     className="focus-ring cursor-pointer"
-                    onClick={() => onAddRelationship(node.name)}
+                    onClick={() => addFrom(node.name)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        onAddRelationship(node.name);
+                        addFrom(node.name);
                       }
                     }}
                   >
@@ -651,6 +701,59 @@ export function LinkmlGraphView({
                       +
                     </text>
                   </g>
+                ) : null;
+              // Edit handles, on a class of this model only: an imported one is another model's.
+              const handles =
+                editing && node.kind === "class" && local.has(node.name) ? (
+                  <>
+                    <g
+                      role="button"
+                      tabIndex={0}
+                      aria-label={t("models.graph.edit.addField", { name: node.name })}
+                      className="focus-ring cursor-pointer"
+                      onClick={() => editing.addField(node.name)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          editing.addField(node.name);
+                        }
+                      }}
+                    >
+                      <rect
+                        x={node.x + BOX.width - 70}
+                        y={node.y + node.height - 20}
+                        width={44}
+                        height={16}
+                        rx={3}
+                        className="fill-surface stroke-border"
+                        strokeWidth={1}
+                      />
+                      <text
+                        x={node.x + BOX.width - 48}
+                        y={node.y + node.height - 9}
+                        fontSize={BOX.edge}
+                        textAnchor="middle"
+                        className="fill-current"
+                      >
+                        {t("models.graph.edit.fieldButton")}
+                      </text>
+                    </g>
+                    {/* The drag handle: pointer only; the "+" is the same form for a keyboard. */}
+                    <circle
+                      data-testid={`diagram-connect-${node.name}`}
+                      aria-hidden="true"
+                      cx={node.x + BOX.width}
+                      cy={node.y + node.height / 2}
+                      r={6}
+                      className="cursor-crosshair fill-surface stroke-primary"
+                      strokeWidth={1.5}
+                      onPointerDown={(event) => {
+                        // Not a pan of the frame: this press draws a line.
+                        event.stopPropagation();
+                        setConnecting({ from: node.name });
+                      }}
+                    />
+                  </>
                 ) : null;
               // An enum opens nothing, so it is not a button: a stop in the tab order that does
               // nothing when pressed is worse than none. It says what it is to a screen reader.
@@ -685,6 +788,13 @@ export function LinkmlGraphView({
                     // taking its outline away left a keyboard with nothing to follow (UI-15).
                     className="focus-ring cursor-pointer"
                     onClick={open}
+                    onPointerUp={() => {
+                      // A drag that ends on a class of this model opens the form on that pair.
+                      if (editing && connecting && node.kind === "class" && local.has(node.name)) {
+                        editing.addRelationship(connecting.from, node.name);
+                        setConnecting(undefined);
+                      }
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
@@ -696,11 +806,13 @@ export function LinkmlGraphView({
                     {box}
                   </g>
                   {add}
+                  {handles}
                 </Fragment>
               );
             })}
           </svg>
         </div>
+        {editing?.dialogs}
         {pairs.length > 0 ? (
           <Table caption={t("models.graph.table")}>
             <TableHead>

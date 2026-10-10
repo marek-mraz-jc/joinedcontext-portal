@@ -23,6 +23,7 @@ import {
   Tabs,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { usePermissions } from "../../api/permissions";
 import { takePrefill } from "../../assistant/state";
 import { getDraft, putDraft } from "../../api/drafts";
 import { Link } from "@tanstack/react-router";
@@ -95,6 +96,9 @@ export function ModelsPage({
   const { t } = useTranslation();
   // A new model's IRIs are minted under the organization's own domain (DM-13), never a guess.
   const orgDomain = useOrgDomain(project);
+  // Who may not propose a model sees the drawing without edit handles (T-3589); the API refuses
+  // the proposal regardless.
+  const mayPropose = usePermissions(project).can("DataModel", "propose");
   // What the assistant's dock left for this page: a draft from a dropped file opens straight in
   // the editor, and a model it changed (`?edit=<name>`, AG-77) opens with its operations, which
   // are applied to the source once it is loaded (DM-13).
@@ -657,7 +661,13 @@ export function ModelsPage({
                 ) : null}
               </section>
             ) : null}
-            <LinkmlEditor source={source} onChange={setSource} locales={locales} onImport={() => setTab("import")} />
+            <LinkmlEditor
+              source={source}
+              onChange={setSource}
+              locales={locales}
+              onImport={() => setTab("import")}
+              readOnlyDrawing={!mayPropose}
+            />
           </div>
         ) : null}
       </div>

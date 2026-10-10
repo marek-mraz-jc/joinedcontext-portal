@@ -2778,7 +2778,26 @@
       "unfoldBox": "Rozbaliť {name}: {names}",
       "noRoute": "{from} a {to} nespája žiadna čiara.",
       "routeStatus": "{count, plural, one {# čiara} few {# čiary} other {# čiar}}: {route}",
-      "focusStatus": "{name} a {count, plural, =0 {nič s ňou spojené} one {# spojený rámček} few {# spojené rámčeky} other {# spojených rámčekov}}; zvyšok je potlačený."
+      "focusStatus": "{name} a {count, plural, =0 {nič s ňou spojené} one {# spojený rámček} few {# spojené rámčeky} other {# spojených rámčekov}}; zvyšok je potlačený.",
+      "edit": {
+        "addClass": "Pridať triedu",
+        "undo": "Späť",
+        "hint": "Ťahajte z okrúhleho úchytu na pravom okraji triedy k inej triede a spojíte ich, alebo stlačte jej +. Stlačením čiary vzťahu ho zmeníte alebo odstránite. Úpravy zostávajú v tomto koncepte, kým ich Uložiť nenavrhne.",
+        "addRelationshipTitle": "Nový vzťah z {name}",
+        "addClassTitle": "Nová trieda",
+        "className": "Názov triedy",
+        "addField": "Pridať pole do {name}",
+        "fieldButton": "+ pole",
+        "addFieldTitle": "Nové pole v {name}",
+        "fieldName": "Názov poľa",
+        "fieldRange": "Typ",
+        "add": "Pridať",
+        "apply": "Použiť",
+        "relationshipTitle": "Vzťah {name} / {inverse}",
+        "breakingTitle": "Táto úprava rozbije dátový model",
+        "breakingBody": "Entity uložené podľa publikovaného modelu môžu používať to, čo úprava odstraňuje alebo premenúva. Koncept úpravu prevezme, len keď ju potvrdíte; Uložiť ju potom navrhne pod novou hlavnou verziou.",
+        "breakingConfirm": "Použiť rozbíjajúcu úpravu"
+      }
     },
     "field": {
       "name": "Názov",

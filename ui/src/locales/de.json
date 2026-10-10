@@ -2778,7 +2778,26 @@
       "unfoldBox": "{name} aufklappen: {names}",
       "noRoute": "Keine Linie verbindet {from} und {to}.",
       "routeStatus": "{count, plural, one {# Linie} other {# Linien}}: {route}",
-      "focusStatus": "{name} und {count, plural, =0 {nichts damit Verbundenes} one {# verbundener Kasten} other {# verbundene Kästen}}; der Rest ist abgeblendet."
+      "focusStatus": "{name} und {count, plural, =0 {nichts damit Verbundenes} one {# verbundener Kasten} other {# verbundene Kästen}}; der Rest ist abgeblendet.",
+      "edit": {
+        "addClass": "Klasse hinzufügen",
+        "undo": "Rückgängig",
+        "hint": "Ziehen Sie vom runden Griff am rechten Rand einer Klasse zu einer anderen Klasse, um sie zu verbinden, oder drücken Sie ihr +. Ein Druck auf die Linie einer Beziehung ändert oder entfernt sie. Änderungen bleiben in diesem Entwurf, bis Speichern sie vorschlägt.",
+        "addRelationshipTitle": "Neue Beziehung von {name}",
+        "addClassTitle": "Neue Klasse",
+        "className": "Klassenname",
+        "addField": "Feld zu {name} hinzufügen",
+        "fieldButton": "+ Feld",
+        "addFieldTitle": "Neues Feld in {name}",
+        "fieldName": "Feldname",
+        "fieldRange": "Typ",
+        "add": "Hinzufügen",
+        "apply": "Anwenden",
+        "relationshipTitle": "Beziehung {name} / {inverse}",
+        "breakingTitle": "Diese Änderung bricht das Datenmodell",
+        "breakingBody": "Nach dem veröffentlichten Modell gespeicherte Entitäten können nutzen, was die Änderung entfernt oder umbenennt. Der Entwurf übernimmt sie erst, wenn Sie bestätigen; Speichern schlägt sie dann unter einer neuen Hauptversion vor.",
+        "breakingConfirm": "Brechende Änderung anwenden"
+      }
     },
     "field": {
       "name": "Name",

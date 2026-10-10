@@ -1179,11 +1179,20 @@
         "mcp_servers.test.tsx"
       ]
     },
-    "src/pages/models/LinkmlGraphView.tsx": {
+    "src/pages/models/DiagramEditing.tsx": {
       "controls": {
-        "Button": 7
+        "Button": 5
       },
       "tests": [
+        "diagram_editing.test.tsx"
+      ]
+    },
+    "src/pages/models/LinkmlGraphView.tsx": {
+      "controls": {
+        "Button": 9
+      },
+      "tests": [
+        "diagram_editing.test.tsx",
         "diagram_layout.test.ts",
         "diagram_notation.test.tsx",
         "diagram_reading.test.tsx",
@@ -1272,6 +1281,7 @@
         "Checkbox": 1
       },
       "tests": [
+        "diagram_editing.test.tsx",
         "models_page_save.test.tsx"
       ]
     },
