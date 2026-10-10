@@ -15,6 +15,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator } from "@playwright/test";
+import { guideShot } from "./guide";
 import { APPROVER, STEWARD, approve, proposedChange, removeCompletely, signIn, sweepDrafts } from "./portal";
 import { proposeFrom } from "./kindJourney";
 
@@ -67,6 +68,7 @@ test("a pipeline built in the workbench writes only what the model takes", async
     // 1. The source, and its sample: the feed's page as the runner reads it.
     await form.locator("#workbench-source-pick").selectOption(`datasource:${SOURCE}`);
     await expect(step(form, "Sample").getByRole("table", { name: "Sample records" })).toBeVisible({ timeout: 60_000 });
+    await guideShot(page, "pipeline-1-source-and-sample");
 
     await form.locator("#root_name").fill(PIPELINE);
     // The target is step 3, before the mapping (T-3296): it names the space and its model, and
@@ -76,6 +78,7 @@ test("a pipeline built in the workbench writes only what the model takes", async
       step(form, "Target").getByText("The records land in the space helsinki, checked against the model helsinki."),
     ).toBeVisible();
     await expect(step(form, "Mapping").getByRole("region", { name: /^What .+ takes$/ }).first()).toBeVisible({ timeout: 30_000 });
+    await guideShot(page, "pipeline-2-target-and-mapping");
     // A run a minute after the approval, not the seeded pipeline's daily one.
     await form.getByText("More options").click();
     await form.locator("#root_period").fill("60s");
@@ -89,6 +92,7 @@ test("a pipeline built in the workbench writes only what the model takes", async
     await expect(step(form, "Validation").getByText(/records? breaks? helsinki/)).toBeVisible();
     const propose = form.getByRole("button", { name: /^Propose/ }).first();
     await expect(propose).toBeDisabled();
+    await guideShot(page, "pipeline-3-errors-at-each-record");
 
     // 3. Fixed: every record the workbench tried is valid.
     await form.locator("#workbench-bloblang").fill(FIXED);
@@ -96,6 +100,7 @@ test("a pipeline built in the workbench writes only what the model takes", async
     await expect(valid).toBeVisible({ timeout: 90_000 });
     info.annotations.push({ type: "workbench", description: (await valid.textContent()) ?? "" });
     await expect(records.getByText("sh:datatype")).toHaveCount(0);
+    await guideShot(page, "pipeline-4-all-valid");
 
     // 4. Proposed, and approved by someone else.
     await proposeFrom(form);

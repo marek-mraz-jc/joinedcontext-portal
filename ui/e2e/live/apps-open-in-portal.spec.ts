@@ -11,6 +11,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { FrameLocator, Locator } from "@playwright/test";
+import { guideShot } from "./guide";
 import { STEWARD, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -56,6 +57,7 @@ for (const app of APPS) {
         `allow-scripts allow-forms allow-popups allow-downloads${ownOrigin ? " allow-same-origin" : ""}`,
       );
       await expect(app.data(page.frameLocator("iframe[sandbox]"))).toBeVisible({ timeout: 120_000 });
+      if (app === APPS[0]) await guideShot(page, "app-2-open-in-portal");
       expect(new URL(page.url()).pathname, "the Portal kept its window").toBe(
         `/projects/${PROJECT}/apps/${app.name}/open`,
       );

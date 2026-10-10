@@ -5,6 +5,7 @@
  * read "No sample of … could be read: 401" and the preview's cards were empty.
  */
 import { expect, test } from "@playwright/test";
+import { guideShot } from "./guide";
 import { STEWARD, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -40,5 +41,6 @@ test("a build on helsinki-news reads its samples and the preview shows rows", as
   await expect
     .poll(async () => (await rows.count()) + (await counted.count()), { timeout: 90_000, intervals: [3_000] })
     .toBeGreaterThan(0);
+  await guideShot(page, "app-1-generated-preview");
   await steward.context.close();
 });

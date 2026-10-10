@@ -9,6 +9,7 @@
  * Nothing is proposed: the draft is a read, and the flow is closed before "Propose publication".
  */
 import { expect, test } from "@playwright/test";
+import { guideShot } from "./guide";
 import { EDITOR, STEWARD, signIn } from "./portal";
 
 test.setTimeout(180_000);
@@ -21,6 +22,8 @@ for (const who of [STEWARD, EDITOR]) {
     const { context, page } = await signIn(browser, who, PAGE);
     try {
       await expect(page.getByRole("heading", { level: 1, name: "Open-data catalogue" })).toBeVisible({ timeout: 60_000 });
+      // Before anything is typed: step 1 types a token-shaped string no shot may show.
+      if (who === STEWARD) await guideShot(page, "ckan-1-open-data-page");
 
       // 1. Register a catalogue: the token itself never goes into a field.
       const propose = page.getByRole("button", { name: "Propose catalogue" });

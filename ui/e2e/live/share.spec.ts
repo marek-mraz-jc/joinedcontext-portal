@@ -7,6 +7,7 @@
  * approval, excluding the wait for the platform to merge and reconcile.
  */
 import { expect, test, type Page } from "@playwright/test";
+import { guideShot } from "./guide";
 import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, listedNames, proposeDelete, proposedChange, signIn } from "./portal";
 
@@ -53,9 +54,14 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   await dialog.getByRole("checkbox", { name: "geojson" }).check();
   await dialog.locator("#projection-typed").fill(HIDDEN);
   await dialog.getByRole("button", { name: "Hide", exact: true }).click();
+  // A guide shot is not the person's time.
+  const shooting = Date.now();
+  await guideShot(page, "endpoint-1-form");
+  start += Date.now() - shooting;
   await dialog.getByRole("button", { name: "Propose change" }).click();
   const change = await proposedChange(page);
   personSeconds += (Date.now() - start) / 1000;
+  await guideShot(page, "endpoint-2-proposed");
 
   const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
   start = Date.now();
@@ -72,6 +78,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
     await expect(row.getByText("Live")).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 180_000, intervals: [10_000] });
   clock.live();
+  await guideShot(page, "endpoint-3-live");
   const href = await row.getByRole("link", { name: "ngsi-ld" }).getAttribute("href");
   expect(href).toContain("/api/endpoint/");
   const link = href ?? "";

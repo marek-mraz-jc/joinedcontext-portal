@@ -8,6 +8,7 @@
  * from the API in the steward's own session and finds each on the page, rather than naming them.
  */
 import { expect, test } from "@playwright/test";
+import { guideShot } from "./guide";
 import { STEWARD, VIEWER, signIn } from "./portal";
 
 test.setTimeout(180_000);
@@ -47,6 +48,7 @@ test("ckan/status: a steward reads each catalogue and each published endpoint th
       );
     }
     await expect(page.getByRole("alert")).toHaveCount(0);
+    await guideShot(page, "ckan-2-published-endpoints");
   } finally {
     await context.close();
   }
