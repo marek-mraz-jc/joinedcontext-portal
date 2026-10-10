@@ -1,0 +1,16 @@
+{
+  "gateway": [
+    {"path": "/schema/index.json", "file": "host-test/index.json"},
+    {"path": "/schema/v1/json-schema", "file": "host-test/json-schema.json"},
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "Alert", "offset": "0", "options": "keyValues"}, "file": "host-test/alerts.json"},
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "Event", "offset": "0", "options": "keyValues"}, "file": "host-test/events.json"}
+  ],
+  "steps": [
+    {"call": "GET /api/runs", "status": 200, "length": {"/runs": 1, "/runs/0/types": 2}, "expect": {"/stale": false, "/runs/0/types/0/type": "Alert", "/runs/0/types/0/entities": 2, "/runs/0/types/0/findings": 1, "/runs/0/types/1/type": "Event", "/runs/0/entities": 3, "/runs/0/findings": 1, "/runs/0/types/1/findings": 0}, "save": {"run": "/runs/0/id"}},
+    {"call": "GET /api/runs", "status": 200, "length": {"/runs": 1}},
+    {"call": "POST /api/runs", "status": 429},
+    {"call": "GET /api/runs/{run}/report", "status": 200, "download": "/url", "downloaded": "urn:ngsi-ld:Alert:a1"},
+    {"call": "GET /api/runs/999999/report", "status": 404},
+    {"call": "GET /api/runs/{run}/report", "as": "second", "status": 404}
+  ]
+}

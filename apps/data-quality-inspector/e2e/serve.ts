@@ -44,6 +44,22 @@ const ACCESS = {
   prohibitions: [],
 };
 
+/** The App's server (T-3354) as the page sees it: the runs it keeps, in memory, a run now added. */
+function appServer() {
+  const runs = [{ id: 1, ran_at: "2030-10-20T09:00:00Z", types: [], entities: 40, findings: 3, completeness: 0.9, valid: 0.75 }];
+  return (method: string, path: string): { status: number; body: unknown } => {
+    if (path === "/runs" && method === "GET") return { status: 200, body: { runs: [...runs].reverse(), stale: false } };
+    if (path === "/runs" && method === "POST") {
+      const id = runs.length + 1;
+      runs.push({ id, ran_at: "2030-10-21T09:00:00Z", types: [], entities: 41, findings: 2, completeness: 0.92, valid: 0.8 });
+      return { status: 201, body: { id } };
+    }
+    const report = /^\/runs\/(\d+)\/report$/.exec(path);
+    if (report && runs.some((r) => r.id === Number(report[1]))) return { status: 200, body: { url: `http://portal.test/store/runs/${report[1]}/report.json` } };
+    return { status: 404, body: { title: "Not Found", detail: "no such run" } };
+  };
+}
+
 /** Serves the built bundle at the root of the App's own host, with the SDK stub answering the endpoint. */
 export async function serve(page: Page, entities = ENTITIES, schema = SCHEMA_WITH_VEHICLE): Promise<Served> {
   const transport = stubTransport({
@@ -52,6 +68,7 @@ export async function serve(page: Page, entities = ENTITIES, schema = SCHEMA_WIT
     access: ACCESS,
   });
   const served: Served = { outside: [], missing: [], problems: [] };
+  const api = appServer();
   page.on("pageerror", (error) => served.problems.push(error.message));
   // The page reads ages against the fixtures' moment, so they are the ones the unit tests assert.
   await page.clock.setFixedTime(new Date(NOW * 1000));
@@ -73,6 +90,10 @@ export async function serve(page: Page, entities = ENTITIES, schema = SCHEMA_WIT
         contentType: "application/json",
         body: JSON.stringify(answer.body ?? null),
       });
+    }
+    if (url.pathname.startsWith("/apps/data-quality-inspector/api/")) {
+      const answer = api(route.request().method(), url.pathname.slice("/apps/data-quality-inspector/api".length));
+      return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body) });
     }
     const file = normalize(url.pathname.slice(1) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) {
