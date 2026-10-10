@@ -32,6 +32,7 @@ pub const KINDS: &[&str] = &[
     "pipeline.restarted",
     "endpoint.traffic",
     "access.denied",
+    "access.simulated",
     "mcp.tool",
     "agent.answer",
     "federation.forward",

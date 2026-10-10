@@ -4386,7 +4386,8 @@
         "traffic": "Prevádzka endpointu"
       },
       "access": {
-        "denied": "Prístup odmietnutý"
+        "denied": "Prístup odmietnutý",
+        "simulated": "Pravidlo vyskúšané na osobe"
       },
       "mcp": {
         "tool": "Volanie nástroja asistenta"

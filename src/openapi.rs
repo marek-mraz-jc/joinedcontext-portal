@@ -127,6 +127,7 @@ use crate::tools::model_tools::{
         crate::api::agent_runs::preview,
         crate::api::assistant::start_conversation,
         crate::api::assistant::get_access,
+        crate::api::access_simulate::simulate_access,
         crate::api::people::list_people,
         crate::api::setup::get_setup,
         crate::api::people::create_person,
@@ -244,6 +245,10 @@ use crate::tools::model_tools::{
         crate::mcp::handle_mcp,
     ),
     components(schemas(
+        crate::api::access_simulate::SimulateRequest,
+        crate::api::access_simulate::Who,
+        crate::api::access_simulate::Simulated,
+        crate::api::access_simulate::Resolved,
         crate::api::knowledge::InclusionRequest,
         crate::api::knowledge::ChatRequest,
         crate::api::knowledge::ChatTurn,

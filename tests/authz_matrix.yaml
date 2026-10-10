@@ -162,6 +162,11 @@ routes:
   - route: GET /organization/setup
     rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /projects/{project}/endpoints/{name}/access/simulate
+    rule: "org-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+    body: {"subject": {"kind": "public"}, "action": "retrieveEntity"}
+    note: "it reveals what another person may do (EP-103); an administrator meets the fixture's 404 (no such Endpoint) or 503 (no gateway)"
   - route: GET /organization/people
     rule: "people-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
