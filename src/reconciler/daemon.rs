@@ -2071,9 +2071,9 @@ fn is_encrypted_secrets_file(path: &str) -> bool {
 ///
 /// Two judgements are made here and nowhere else, because the loader is right to refuse both
 /// and the Portal is right to survive them. A `status:` block somebody committed is dropped,
-/// all but `status.build`, the one member the build lane writes back (AP-13a): status is
-/// computed by the server and never read from Git, so a manifest carrying one is sanitised
-/// rather than refused. A document of a kind the Portal does not serve is left out:
+/// all but what a publish writes back: `status.build` (AP-13a) and a wasm App's `status.shard`
+/// (AP-149). The rest of status is computed by the server and never read from Git, so a
+/// manifest carrying one is sanitised rather than refused. A document of a kind the Portal does not serve is left out:
 /// one unknown kind in the repository must not cost every other resource its place in the
 /// mirror. Everything past this point is the loader's judgement, including which two files
 /// claim one identity and which path a kind belongs at.
@@ -2087,14 +2087,20 @@ fn stageable(content: &str) -> Result<Option<String>, serde_yaml_ng::Error> {
         let Some(mapping) = value.as_mapping_mut() else {
             continue;
         };
-        // Dropping `status.build` too left every published App without a build to serve (T-2633).
-        let build = mapping
-            .remove("status")
-            .and_then(|mut status| status.as_mapping_mut()?.remove("build"));
-        if let Some(build) = build {
+        // Dropping `status.build` too left every published App without a build to serve
+        // (T-2633), and dropping `status.shard` left every wasm App on no shard (T-3603).
+        if let Some(mut committed) = mapping.remove("status") {
             let mut status = serde_yaml_ng::Mapping::new();
-            status.insert("build".into(), build);
-            mapping.insert("status".into(), status.into());
+            if let Some(committed) = committed.as_mapping_mut() {
+                for member in ["build", "shard"] {
+                    if let Some(value) = committed.remove(member) {
+                        status.insert(member.into(), value);
+                    }
+                }
+            }
+            if !status.is_empty() {
+                mapping.insert("status".into(), status.into());
+            }
         }
         // A document without a `kind` is not a manifest (a LinkML source beside its DataModel,
         // a note): nothing for an operator to act on. A kind the catalogue lacks is (OPS-27).
@@ -2596,16 +2602,23 @@ output_error{stream="kpi"} 6
         (staged, said)
     }
 
-    /// T-2633, AP-13a: the build lane's `status.build` reaches the loader; the rest of status
-    /// does not.
+    /// T-2633, AP-13a, T-3603, AP-149: what a publish writes back, `status.build` and a wasm
+    /// App's `status.shard`, reaches the loader; the rest of status does not.
     #[test]
-    fn staging_keeps_status_build_and_drops_the_rest_of_status() {
-        let app = "apiVersion: joinedcontext.com/v1alpha1\nkind: App\nmetadata:\n  name: a\nspec: {}\nstatus:\n  phase: Pending\n  build:\n    commit: abc\n";
+    fn staging_keeps_status_build_and_shard_and_drops_the_rest_of_status() {
+        let app = "apiVersion: joinedcontext.com/v1alpha1\nkind: App\nmetadata:\n  name: a\nspec: {}\nstatus:\n  phase: Pending\n  build:\n    commit: abc\n  shard: 0\n";
         let staged = stageable(app).expect("YAML").expect("an App");
         let value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&staged).expect("YAML");
         assert_eq!(value["status"]["build"]["commit"].as_str(), Some("abc"));
+        assert_eq!(value["status"]["shard"].as_u64(), Some(0));
         assert!(value["status"].get("phase").is_none());
-        let bare = stageable(&app.replace("  build:\n    commit: abc\n", "")).expect("YAML");
+        let shard_only = stageable(&app.replace("  build:\n    commit: abc\n", "")).expect("YAML");
+        let value: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str(&shard_only.expect("an App")).expect("YAML");
+        assert_eq!(value["status"]["shard"].as_u64(), Some(0));
+        assert!(value["status"].get("build").is_none());
+        let bare =
+            stageable(&app.replace("  build:\n    commit: abc\n  shard: 0\n", "")).expect("YAML");
         assert!(!bare.expect("an App").contains("status"));
     }
 
