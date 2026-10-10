@@ -10,6 +10,7 @@ import { applyTokens } from "./tokens";
 import type { DesignTokens } from "./tokens";
 import { transportFor } from "./transport";
 import { startObserver } from "./observe";
+import { startSelect } from "./select";
 
 let errorListenersRegistered = false;
 
@@ -93,6 +94,7 @@ export function startApp(
   // A preview reads itself page by page when the host page asks, so the run can check what it shows (SDK-27).
   if (config.transport === "bridge") {
     startObserver({ doc });
+    startSelect({ doc });
   } else {
     announceReady();
   }
