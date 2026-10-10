@@ -232,6 +232,15 @@ routes:
     expect: [403, 403, 403, 403, 403, allow, 404, 403]
     body: {"name": "helsinki-copy"}
     note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /projects/{project}/registry
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "the fixture's organization is of layout 1, which has no registry entry: `allow` answers 409 (tests/project_registry_tests.rs runs layout 2)"
+  - route: PUT /projects/{project}/registry
+    rule: "project-read, then org-verb:propose:Project"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    body: {"ref": "v0.2.0"}
+    note: "the fixture's organization is of layout 1, which has no registry entry: `allow` answers 409; who may propose a repoint is tests/project_registry_tests.rs's"
   - route: GET /projects/{project}/activity
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
