@@ -292,7 +292,14 @@ impl Path {
                 "change_resource",
                 "jc_manifest_dry_run",
             ],
-            Path::BuildApp | Path::BuildDashboard | Path::CreateDataModel => {
+            // An App may need a type no space holds: its model and space are drafted first (T-3608).
+            Path::BuildApp => &[
+                "space_complete",
+                "change_resource",
+                "jc_manifest_dry_run",
+                "jc_draft_put",
+            ],
+            Path::BuildDashboard | Path::CreateDataModel => {
                 &["change_resource", "jc_manifest_dry_run", "jc_draft_put"]
             }
             Path::DefineKpi => &[
@@ -368,6 +375,15 @@ pub fn last_of<'a>(
 
 #[cfg(test)]
 mod tests {
+
+    /// T-3608: building an App may start with drafting its data, and only that path and the
+    /// upload path draft a space from a model.
+    #[test]
+    fn building_an_app_may_draft_the_space_it_needs() {
+        assert!(Path::BuildApp.allows("space_complete"));
+        assert!(!Path::BuildDashboard.allows("space_complete"));
+    }
+
     use super::*;
 
     /// T-2696: the pack gives each path's steps, and each names the tool it ends with, which

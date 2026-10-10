@@ -29,8 +29,52 @@ pub const MAX_BYTES: usize = 800_000;
 
 /// What a refused block is told (SDK-11).
 pub const REFUSAL: &str = "not a path the application may write: src/**/*.tsx, src/**/*.ts, \
-     src/**/*.css, src/design-tokens.json or functions/**/*.ts, never src/main.tsx or \
-     src/jc-types.ts";
+     src/**/*.css, src/design-tokens.json, functions/**/*.ts and, in a wasm App, \
+     server/src/**/*.rs and migrations/*.sql; never src/main.tsx or src/jc-types.ts";
+
+/// The server crate's manifest, which only the `wasm` template carries (T-3575).
+pub const SERVER_MANIFEST: &str = "server/Cargo.toml";
+
+/// The platform services beyond identity and data that the App can call from TypeScript, from
+/// the SDK's catalog (T-3585, ADR-N-045): each one's calls, its `app.yaml` lines and quotas.
+/// Empty while no such service has a call, so the pack carries nothing it cannot use.
+pub fn services_section(catalog: &str) -> String {
+    let catalog: serde_json::Value = serde_json::from_str(catalog).unwrap_or_default();
+    let names = |value: &serde_json::Value, key: &str| {
+        value[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|item| item.get("name").or(Some(item)).and_then(|v| v.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let lines: Vec<String> = catalog["services"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|service| service["always"] != true && !names(service, "typescript").is_empty())
+        .map(|service| {
+            format!(
+                "- {}: calls {}; app.yaml {}; quotas {}\n",
+                service["service"].as_str().unwrap_or_default(),
+                names(service, "typescript"),
+                names(service, "appYaml"),
+                names(service, "quotas"),
+            )
+        })
+        .collect();
+    if lines.is_empty() {
+        return String::new();
+    }
+    format!(
+        "\n## THE PLATFORM SERVICES\n\nBeyond identity and data, each needs its app.yaml lines:\n{}",
+        lines.concat()
+    )
+}
+
+/// What a `wasm` run's model reads beside the SDK: the server half and its rules (AP-147).
+pub const SERVER_SECTION: &str = include_str!("server_section.md");
 
 /// The SDK as the model reads it: its API with every signature, and the names it exports.
 pub const SDK_API: &str = include_str!("../../sdk/API.md");
@@ -52,6 +96,8 @@ pub fn writable(path: &str) -> bool {
     under("src/", &[".tsx", ".ts", ".css"])
         || path == "src/design-tokens.json"
         || under("functions/", &[".ts"])
+        || under("server/src/", &[".rs"])
+        || (under("migrations/", &[".sql"]) && path.matches('/').count() == 1)
 }
 
 /// Everything that keeps `files` from being a preview, one line each with its file and line:
@@ -68,6 +114,17 @@ pub fn problems(files: &BTreeMap<String, String>) -> Vec<String> {
             "the application has {} writable files; at most {MAX_FILES}",
             written.len()
         ));
+    }
+    // Server code builds only in a `wasm` App, whose template carries the crate (T-3575).
+    if !files.contains_key(SERVER_MANIFEST) {
+        if let Some(path) = files
+            .keys()
+            .find(|path| path.starts_with("server/") || path.starts_with("migrations/"))
+        {
+            problems.push(format!(
+                "{path}: server code and migrations belong to a wasm App, and this one is not"
+            ));
+        }
     }
     let bytes: usize = written.iter().map(|content| content.len()).sum();
     if bytes > MAX_BYTES {
@@ -389,9 +446,76 @@ mod tests {
             "src//App.tsx",
             "./src/App.tsx",
             "tests/App.tsx",
+            "server/Cargo.toml",
+            "server/Cargo.lock",
+            "server/build.rs",
+            "server/src/../Cargo.toml",
+            "migrations/nested/0002.sql",
+            ".gitea/workflows/build.yml",
+            // A data model reaches the platform only through a Change a person proposes (T-3608).
+            "bookings.linkml.yaml",
+            "src/bookings.linkml.yaml",
+            "projects/helsinki/spaces/bookings/datamodels/bookings.linkml.yaml",
         ] {
             assert!(!writable(path), "{path}");
         }
+    }
+
+    /// T-3585: the pack names a service beyond identity and data once the SDK has a call for it,
+    /// with its app.yaml lines and quotas, and nothing while none has.
+    #[test]
+    fn the_pack_lists_a_platform_service_once_it_has_a_call() {
+        assert_eq!(services_section(crate::ops::runs::SERVICES_CATALOG), "");
+        let catalog = serde_json::json!({ "services": [
+            { "service": "identity", "always": true, "typescript": [{ "name": "useMe" }] },
+            { "service": "email", "always": false, "typescript": [{ "name": "email.send" }],
+              "appYaml": ["services: [email]"], "quotas": ["emailsPerDay"] },
+            { "service": "ai", "always": false, "typescript": [], "appYaml": ["services: [ai]"] },
+        ]});
+        let section = services_section(&catalog.to_string());
+        assert!(section.contains(
+            "- email: calls email.send; app.yaml services: [email]; quotas emailsPerDay"
+        ));
+        assert!(
+            !section.contains("- identity") && !section.contains("- ai"),
+            "{section}"
+        );
+    }
+
+    /// T-3575: a `wasm` run writes its server's Rust and migrations, never the crate's manifest or
+    /// lock; it starts from a template that builds, and server code in an App without the crate
+    /// is named as a problem.
+    #[test]
+    fn a_wasm_run_writes_its_server_code_and_migrations_and_nothing_else_of_the_crate() {
+        for path in [
+            "server/src/lib.rs",
+            "server/src/rows/mod.rs",
+            "migrations/0002_bookings.sql",
+        ] {
+            assert!(writable(path), "{path}");
+        }
+        let wasm = preview::wasm_template_files();
+        for path in [
+            SERVER_MANIFEST,
+            "server/Cargo.lock",
+            "server/src/lib.rs",
+            "src/server.ts",
+        ] {
+            assert!(wasm.contains_key(path), "{path}");
+        }
+        assert!(wasm.keys().all(|path| !path.contains("/target/")));
+        assert_eq!(
+            wasm.get(super::super::repository::WORKFLOW)
+                .map(String::as_str),
+            Some(super::super::repository::WASM_WORKFLOW_TEXT)
+        );
+        assert_eq!(problems(&wasm), Vec::<String>::new());
+
+        let mut ui = preview::template_files();
+        ui.insert("server/src/lib.rs".into(), "pub fn handle() {}".into());
+        assert!(problems(&ui)
+            .iter()
+            .any(|problem| problem.starts_with("server/src/lib.rs: server code")));
     }
 
     #[test]

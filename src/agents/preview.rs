@@ -30,6 +30,13 @@ struct Runtime;
 #[exclude = "pnpm-lock.yaml"]
 pub struct Template;
 
+/// What a `wasm` run adds over [`Template`] (T-3575): the server crate on `jc-app-sdk`, its lock,
+/// its migration, the interface's client of it and the workflow that builds the component.
+#[derive(RustEmbed)]
+#[folder = "sdk/template-wasm"]
+#[exclude = "server/target/*"]
+pub struct TemplateWasm;
+
 /// The entry the Portal owns (SDK-11): whatever the run holds, the preview starts here.
 pub const MAIN: &str = "src/main.tsx";
 const ENTRY: &str = "import \"@app/src/main.tsx\";";
@@ -72,6 +79,19 @@ pub fn template_files() -> BTreeMap<String, String> {
             ))
         })
         .collect()
+}
+
+/// The files a `wasm` run starts from: the template's, with [`TemplateWasm`]'s over them.
+pub fn wasm_template_files() -> BTreeMap<String, String> {
+    let mut files = template_files();
+    files.extend(TemplateWasm::iter().filter_map(|path| {
+        let file = TemplateWasm::get(&path)?;
+        Some((
+            path.into_owned(),
+            String::from_utf8_lossy(&file.data).into_owned(),
+        ))
+    }));
+    files
 }
 
 #[derive(Debug)]

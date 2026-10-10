@@ -229,3 +229,41 @@ test("the rename of old App shapes is offered only while one is left, and a view
     await steward.context.close();
   }
 });
+
+// AP-171: an App's earlier builds are listed with the one it serves; restoring that one again is
+// refused, and so is any restore by a viewer. Opening the merge request of an earlier build is the
+// route's own test (app_build_tests), so dev's sample repositories keep no restore branch.
+test("a steward reads an App's earlier builds, the build it serves is not restored again, and a viewer may not restore", async ({
+  browser,
+}) => {
+  const app = "helsinki-bikes";
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+  let served = "";
+  try {
+    const { page, context } = steward;
+    const answer = await page.request.get(`/api/v1/projects/${PROJECT}/apps/${app}/builds`);
+    expect(answer.status(), "the steward reads the builds").toBe(200);
+    const listed = (await answer.json()) as { builds: { commit: string; current: boolean }[]; dataNote: string };
+    expect(listed.dataNote, "Restore says what it does not roll back").not.toBe("");
+    const current = listed.builds.find((build) => build.current);
+    expect(current, `${app}'s build at status.build.commit is listed as the current one`).toBeDefined();
+    served = current?.commit ?? "";
+    const again = await page.request.post(`/api/v1/projects/${PROJECT}/apps/${app}/restore`, {
+      headers: { "x-csrf-token": await csrf(context) },
+      data: { commit: served },
+    });
+    expect(again.status(), "the build the App serves is not restored again").toBe(409);
+  } finally {
+    await steward.context.close();
+  }
+  const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/apps?lang=en`);
+  try {
+    const refused = await viewer.page.request.post(`/api/v1/projects/${PROJECT}/apps/${app}/restore`, {
+      headers: { "x-csrf-token": await csrf(viewer.context) },
+      data: { commit: served },
+    });
+    expect(refused.status(), "a viewer may not restore an App").toBe(403);
+  } finally {
+    await viewer.context.close();
+  }
+});

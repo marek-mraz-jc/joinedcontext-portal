@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import * as lane from "./lane.mjs";
-import { appOf, artifactScope, browserChecks, bundleFunctions, cratesOf, functionEntries, isHttpComponent, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
+import { appOf, artifactScope, browserChecks, bundleFunctions, cratesOf, functionEntries, isHttpComponent, lockManifest, serverRefusals, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -832,4 +832,32 @@ test("a component is told apart from a core module, by its own export section", 
   // A section that claims more bytes than the file has, and no file at all.
   assert.equal(isHttpComponent(component([11, 0x7f, ...name])), false);
   assert.equal(isHttpComponent(new Uint8Array(0)), false);
+});
+
+// AP-147: server code that names a socket, the environment, the file system or a process is
+// refused with its line; a comment that names one is not code, and the SDK's own calls pass.
+test("the server source may name no socket, environment, file system or process", () => {
+  const refused = serverRefusals({
+    "server/src/lib.rs": [
+      "use jc_app_sdk::{gateway, sql};",
+      "// std::env is not for components",
+      "let key = std::env::var(\"KEY\");",
+      "let s = TcpStream::connect(\"10.0.0.1:5432\");",
+      "let f = std::fs::read_to_string(\"/etc/passwd\");",
+      "const T: &str = env!(\"TOKEN\");",
+      "std::process::exit(1);",
+    ].join("\n"),
+    "server/src/ok.rs": "let rows = sql::query(\"select 1\", &[]);\nlet envelope = 1; // an envelope is not env!",
+  });
+  assert.deepEqual(refused.map((line) => line.split(": names ")[0]), [
+    "server/src/lib.rs:3",
+    "server/src/lib.rs:4",
+    "server/src/lib.rs:5",
+    "server/src/lib.rs:6",
+    "server/src/lib.rs:7",
+  ]);
+  assert.match(refused[0], /the environment, which a component never has \(AP-147\)/);
+  assert.match(refused[1], /a socket/);
+  assert.match(refused[2], /the file system/);
+  assert.deepEqual(serverRefusals({}), []);
 });

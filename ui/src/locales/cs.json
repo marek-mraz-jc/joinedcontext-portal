@@ -3013,7 +3013,8 @@
       "kind": "Druh",
       "kinds": {
         "ui": "UI (obrazovky v Reactu, obsluhuje je Portál)",
-        "ui-rust": "UI a server v Rustu (obrazovky v Reactu a backend v axum)"
+        "ui-rust": "UI a server v Rustu (obrazovky v Reactu a backend v axum)",
+        "wasm": "UI a server v Rustu na sdíleném hostiteli (obrazovky v Reactu, komponenta WebAssembly a vlastní tabulka)"
       },
       "endpoint": "Endpoint",
       "pickEndpoint": "Vyberte endpoint",

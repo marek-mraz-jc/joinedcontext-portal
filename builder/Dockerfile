@@ -56,9 +56,10 @@ FROM rust:1.90-slim-bookworm AS crates
 WORKDIR /src
 COPY . .
 # The SDK's React + Rust/WebAssembly example and the Apps with a WebAssembly part keep their own
-# lock (AP-142), as do the server components of `wasm` Apps (AP-151): their crates too.
+# lock (AP-142), as do the server components of `wasm` Apps (AP-151) and the wasm template a
+# generated App's server starts from (T-3575): their crates too.
 RUN mkdir -p /opt/cargo/git && CARGO_HOME=/opt/cargo cargo fetch --locked \
-    && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm sdk/examples/*/server apps/*/server; do \
+    && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm sdk/examples/*/server sdk/template-wasm/server apps/*/server; do \
          [ -f "$crate/Cargo.toml" ] || continue; \
          CARGO_HOME=/opt/cargo cargo fetch --locked --manifest-path "$crate/Cargo.toml" || exit 1; \
        done \
