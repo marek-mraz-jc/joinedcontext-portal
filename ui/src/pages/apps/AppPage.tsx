@@ -9,6 +9,7 @@ import { AgentRunPage } from "./AgentRunPage";
 import { AppBuildPanel } from "./AppBuildPanel";
 import { AppCheckChip, useAppChecks } from "./AppCheckChip";
 import { AppGenerator } from "./AppGenerator";
+import { AppJobRuns } from "./AppJobRuns";
 import { OpenAppButton } from "./AppOpenPage";
 import { appDisplayName } from "./appTitle";
 import { RolesAndMembers } from "./RolesAndMembers";
@@ -91,6 +92,8 @@ export function AppPage({ project, name }: { project: string; name: string }): J
           <OpenAppButton project={project} name={name} />
         </div>
         <AppBuildPanel project={project} name={name} />
+      <AppJobRuns project={project} name={name} />
+        <AppJobRuns project={project} name={name} />
         <RolesAndMembers project={project} name={name} />
         <AgentRunPage project={project} runId={newest.id} onClose={back} />
       </div>
@@ -107,6 +110,7 @@ export function AppPage({ project, name }: { project: string; name: string }): J
         </span>
       </div>
       <AppBuildPanel project={project} name={name} />
+      <AppJobRuns project={project} name={name} />
       <RolesAndMembers project={project} name={name} />
       <AppGenerator project={project} initialName={name} />
     </div>

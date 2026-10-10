@@ -91,6 +91,7 @@ fn seeded_mirror() -> Arc<Mirror> {
             build: None,
             shard: None,
             domain_verification: None,
+            jobs: Vec::new(),
         }),
     });
     // Another project's source, to prove the list is scoped and not merely filtered by kind.

@@ -31,6 +31,13 @@ spec:
   storage:
     sql: { migrations: migrations, quotaMiB: 100 }
     blob: { quotaMiB: 256 }
+  # Every period's forecasts of the day, recorded at 03:20 UTC whether or not anybody opens the
+  # page, as the App's own job principal through its own Endpoint (AP-154, AP-159, T-3372).
+  server:
+    jobs:
+      - name: daily-forecasts
+        schedule: "20 3 * * *"
+        export: record-forecasts
   # The indicator endpoint of Helsinki is public: an anonymous reader gets what the public role
   # is granted and nothing more.
   visibility: public

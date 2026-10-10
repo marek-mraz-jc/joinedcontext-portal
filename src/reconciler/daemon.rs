@@ -860,6 +860,7 @@ impl Syncer {
                 build,
                 shard,
                 domain_verification: None,
+                jobs: Vec::new(),
             });
 
             fresh_mirror.upsert(envelope);
@@ -1482,6 +1483,25 @@ impl Syncer {
                 .await
             {
                 tracing::warn!(%problem, "a WASM shard is not as it should be");
+            }
+            // Each App's last job runs, from its shard (AP-154): computed, never from Git.
+            let (runs, problems) = shards.runs().await;
+            for problem in problems {
+                tracing::warn!(%problem, "a WASM shard's job runs were not read");
+            }
+            for app in placed.iter().filter(|app| !app.jobs.is_empty()) {
+                let id = crate::apps::apps_db::app_id(&app.project, &app.name);
+                let Some(mut envelope) = self.mirror.find(|env| {
+                    env.kind == "App"
+                        && env.metadata.name == app.name
+                        && env.metadata.namespace.as_deref() == Some(app.project.as_str())
+                }) else {
+                    continue;
+                };
+                if let Some(status) = envelope.status.as_mut() {
+                    status.jobs = runs.get(&id).cloned().unwrap_or_default();
+                    self.mirror.upsert(envelope);
+                }
             }
         }
 
@@ -3213,6 +3233,7 @@ output_error{stream="kpi"} 6
                 build: None,
                 shard: None,
                 domain_verification: None,
+                jobs: Vec::new(),
             }),
         };
         let mirror = Mirror::new();

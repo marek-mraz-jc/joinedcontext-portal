@@ -9,6 +9,8 @@
 //! | `POST /api/forecasts` `{days}` | the day's forecasts recorded, once a day per period |
 //! | `GET /api/forecasts?kpi=&days=` | the forecasts kept for an indicator, newest first |
 //! | `POST /api/reports` `{month}` | a month's forecasts (this month's by default) against the readings as CSV; a URL it downloads from |
+//!
+//! The job `record-forecasts` records every period's forecasts once a day at 03:20 UTC (app.yaml).
 
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
@@ -185,6 +187,10 @@ pub fn series_of(entities: &[Json]) -> Vec<Series> {
 
 /// The readings of every indicator from `from` on (to `to` when given), from the App's own Endpoint.
 fn history(from: i64, to: Option<i64>) -> Result<Vec<Series>, Response> {
+    history_of(from, to).map_err(Response::from)
+}
+
+fn history_of(from: i64, to: Option<i64>) -> Result<Vec<Series>, gateway::Error> {
     let window = match to {
         Some(to) => format!(
             "timerel=between&timeAt={}&endTimeAt={}",
@@ -196,7 +202,7 @@ fn history(from: i64, to: Option<i64>) -> Result<Vec<Series>, Response> {
     let path = format!(
         "/ngsi-ld/v1/temporal/entities?type=KeyPerformanceIndicator&attrs=currentValue&{window}&lastN={LAST_N}&options=temporalValues"
     );
-    let entities: Vec<Json> = gateway::get_json(&path).map_err(Response::from)?;
+    let entities: Vec<Json> = gateway::get_json(&path)?;
     Ok(series_of(&entities))
 }
 
@@ -236,6 +242,66 @@ pub fn forecasts_of(series: &[Series]) -> Vec<Json> {
         .collect()
 }
 
+/// Why recording stopped: the App's schema or its Endpoint said no.
+enum Failure {
+    Sql(sql::Error),
+    Gateway(gateway::Error),
+}
+
+impl Failure {
+    fn response(self) -> Response {
+        match self {
+            Self::Sql(err) => Response::from_sql(err),
+            Self::Gateway(err) => Response::from(err),
+        }
+    }
+
+    /// The sentence a job run ends with (AP-155): what failed, never a body or a credential.
+    fn sentence(&self, days: i64) -> String {
+        let why = match self {
+            Self::Sql(
+                sql::Error::Refused(why)
+                | sql::Error::Invalid(why)
+                | sql::Error::Quota(why)
+                | sql::Error::Unavailable(why),
+            ) => {
+                format!("the App's database said: {why}")
+            }
+            Self::Sql(sql::Error::Timeout) => "the App's database took too long".to_owned(),
+            Self::Gateway(err) => format!("the indicators' history could not be read: {err}"),
+        };
+        format!("the {days}-day forecasts were not recorded: {why}")
+    }
+}
+
+/// Records today's forecasts for one period, once a day: how many rows, and whether today's were
+/// there already.
+fn record_period(days: i64) -> Result<(u64, bool), Failure> {
+    let done = sql::query(
+        "select 1 as one from forecasts where made_on = current_date and days = $1 limit 1",
+        &[Value::from(days)],
+    )
+    .map_err(Failure::Sql)?;
+    if !done.values.is_empty() {
+        return Ok((0, true));
+    }
+    let series = history_of(now() - days * DAY, None).map_err(Failure::Gateway)?;
+    let rows = forecasts_of(&series);
+    if rows.is_empty() {
+        return Ok((0, false));
+    }
+    let n = sql::execute(
+        "insert into forecasts (kpi, made_on, days, step, latest_t, latest_v, direction, points) \
+         select r.kpi, current_date, $1, r.step, r.latest_t, r.latest_v, r.direction, r.points \
+         from jsonb_to_recordset($2) as r(kpi text, step double precision, latest_t double precision, latest_v double precision, direction text, points jsonb) \
+         where r.kpi like 'urn:ngsi-ld:KeyPerformanceIndicator:%' and length(r.kpi) <= 256 \
+         on conflict (kpi, made_on, days) do nothing",
+        &[Value::from(days), Value::Json(Json::from(rows).to_string())],
+    )
+    .map_err(Failure::Sql)?;
+    Ok((n, false))
+}
+
 fn record(request: &Request, _: &Params) -> Response {
     let wanted: Record = match request.json() {
         Ok(wanted) => wanted,
@@ -246,34 +312,33 @@ fn record(request: &Request, _: &Params) -> Response {
         Err(why) => return bad(&why),
     };
     // Once a day per period: a later visit that day reads nothing and records nothing.
-    match sql::query(
-        "select 1 as one from forecasts where made_on = current_date and days = $1 limit 1",
-        &[Value::from(days)],
-    ) {
-        Ok(rows) if !rows.values.is_empty() => {
-            return Response::json(200, &json!({"recorded": 0, "already": true}))
-        }
-        Ok(_) => {}
-        Err(err) => return Response::from_sql(err),
+    match record_period(days) {
+        Ok((_, true)) => Response::json(200, &json!({"recorded": 0, "already": true})),
+        Ok((0, false)) => Response::json(200, &json!({"recorded": 0, "already": false})),
+        Ok((n, false)) => Response::json(201, &json!({"recorded": n, "already": false})),
+        Err(failure) => failure.response(),
     }
-    let series = match history(now() - days * DAY, None) {
-        Ok(series) => series,
-        Err(answer) => return answer,
-    };
-    let rows = forecasts_of(&series);
-    if rows.is_empty() {
-        return Response::json(200, &json!({"recorded": 0, "already": false}));
-    }
-    match sql::execute(
-        "insert into forecasts (kpi, made_on, days, step, latest_t, latest_v, direction, points) \
-         select r.kpi, current_date, $1, r.step, r.latest_t, r.latest_v, r.direction, r.points \
-         from jsonb_to_recordset($2) as r(kpi text, step double precision, latest_t double precision, latest_v double precision, direction text, points jsonb) \
-         where r.kpi like 'urn:ngsi-ld:KeyPerformanceIndicator:%' and length(r.kpi) <= 256 \
-         on conflict (kpi, made_on, days) do nothing",
-        &[Value::from(days), Value::Json(Json::from(rows).to_string())],
-    ) {
-        Ok(n) => Response::json(201, &json!({"recorded": n, "already": false})),
-        Err(err) => Response::from_sql(err),
+}
+
+/// The periods the page offers, which the daily job records (AP-154).
+pub const PERIODS: [i64; 3] = [7, 30, 90];
+
+/// The daily job `record-forecasts` (app.yaml `spec.server.jobs`, T-3372): every period's forecasts
+/// of the day, whether or not anybody opens the page. A period already recorded today is left as
+/// it is; the run fails naming every period that could not be recorded.
+pub fn record_forecasts() -> Result<(), String> {
+    let failed: Vec<String> = PERIODS
+        .iter()
+        .filter_map(|&days| {
+            record_period(days)
+                .err()
+                .map(|failure| failure.sentence(days))
+        })
+        .collect();
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(failed.join("; "))
     }
 }
 
@@ -457,9 +522,49 @@ pub fn handle(request: Request) -> Response {
 
 jc_app_sdk::app!(handle);
 
+// The job's export, a root-level `record-forecasts: func() -> result<_, string>` beside the
+// request handler, as `wit/server.wit` declares it (AP-159).
+#[cfg(target_arch = "wasm32")]
+mod job {
+    wit_bindgen::generate!({ path: "wit", world: "helsinki:kpi-forecast/server", generate_all });
+
+    struct Jobs;
+
+    impl Guest for Jobs {
+        fn record_forecasts() -> Result<(), String> {
+            super::record_forecasts()
+        }
+    }
+
+    export!(Jobs);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// AP-155 (T-3372): a failed job run ends with a sentence naming the period and what said no,
+    /// never a statement's text or a body.
+    #[test]
+    fn a_job_failure_says_which_period_and_why() {
+        let quota = Failure::Sql(sql::Error::Quota("the App's 100 MiB are used".into()));
+        assert_eq!(
+            quota.sentence(30),
+            "the 30-day forecasts were not recorded: the App's database said: the App's 100 MiB are used"
+        );
+        assert_eq!(
+            Failure::Sql(sql::Error::Timeout).sentence(7),
+            "the 7-day forecasts were not recorded: the App's database took too long"
+        );
+        assert_eq!(
+            PERIODS,
+            [7, 30, 90],
+            "the job records every period the page offers"
+        );
+        for days in PERIODS {
+            assert_eq!(period(days), Ok(days));
+        }
+    }
 
     const KPI: &str = "urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use";
 

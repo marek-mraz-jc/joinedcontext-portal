@@ -3283,6 +3283,25 @@
       "createHint": "Choose the endpoint whose data the app shows; the rest is the template's.",
       "screenshot": "{title} as its demo shows it",
       "demo": "Open the demo"
+    },
+    "jobs": {
+      "title": "Scheduled jobs",
+      "caption": "Scheduled jobs of {name} and their last runs",
+      "job": "Job",
+      "schedule": "Schedule (UTC)",
+      "lastRun": "Last run",
+      "outcome": "Outcome",
+      "duration": "Duration",
+      "notRun": "Not run yet",
+      "outcomes": {
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "timedOut": "Stopped at its time limit",
+        "skipped": "Skipped, the run before was still going"
+      },
+      "inARow": "{count, plural, one {# failed run in a row} other {# failed runs in a row}}",
+      "ms": "{count} ms",
+      "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started."
     }
   },
   "appLifecycle": {
