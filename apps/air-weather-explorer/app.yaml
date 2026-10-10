@@ -3,10 +3,14 @@
 # correlation, and the readings far from the rest. Hand written, so no generated-by annotation
 # (AP-35).
 #
-# A frontend only (`kind: ui`, no pod): React on the App SDK, and the statistics in Rust compiled
-# to WebAssembly, run in the reader's browser in a worker (wasm/). Its source is its own repository
-# on the forge, which the build lane builds at `ref` (AP-75, AP-80); this folder of the portal
-# repository is where CI tests the same tree before it is pushed there (T-2599).
+# A server WASM App (`kind: wasm`, ADR-N-044, T-3348): React on the App SDK with its Rust compiled
+# to WebAssembly and run in the reader's browser while they click (wasm/), and a server component
+# on the shared host (server/) that keeps each station's readings as hourly means, read from the
+# App's own Endpoint only for the hours not yet kept, and keeps saved comparisons and CSV exports.
+# Its own schema (migrations/) and its own files under its prefix are the App's alone. Its source
+# is its own repository on the forge, which the build lane builds at `ref` (AP-75, AP-80, AP-151);
+# this folder of the portal repository is where CI tests the same tree before it is pushed there
+# (T-2599).
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
 metadata:
@@ -19,7 +23,7 @@ metadata:
     en: "How the weather moves Helsinki's air quality: pollutants against wind, temperature, humidity and rain, hour by hour, with the correlations computed in the browser."
     fi: "Miten sää vaikuttaa Helsingin ilmanlaatuun: saasteet tuulta, lämpötilaa, kosteutta ja sadetta vasten tunneittain, korrelaatiot laskettuna selaimessa."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_air-weather-explorer.git
@@ -27,6 +31,9 @@ spec:
   build:
     node: "22"
     rust: "1.90"
+  storage:
+    sql: { migrations: migrations, quotaMiB: 100 }
+    blob: { quotaMiB: 256 }
   visibility: public
   lifecycle: published
   dataNeeds:

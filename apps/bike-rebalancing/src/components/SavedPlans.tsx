@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { Card, Empty, Loading } from "@joinedcontext/sdk";
 import { localeOf, number, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
+import { go } from "../go";
 import { ServerProblem } from "../plans";
 import type { NewPlan, PlanSummary, PlansApi, SavedPlan } from "../plans";
 import { t } from "../texts";
@@ -91,7 +92,7 @@ export function SavedPlans({ lang, api, current, onOpen }: Props) {
       `sheet-${id}`,
       async () => {
         const url = await api.sheetUrl(id);
-        window.location.assign(url);
+        go(url);
         return t(lang, "sheetReady");
       },
       "sheetFailed",

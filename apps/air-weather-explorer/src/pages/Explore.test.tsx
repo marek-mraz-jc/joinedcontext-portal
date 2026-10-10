@@ -1,11 +1,18 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
-import { AIR_STATIONS, HISTORY, NOW, WEATHER_STATIONS } from "../fixtures/stations";
+import { AIR_STATIONS, NOW, WEATHER_STATIONS } from "../fixtures/stations";
 import App from "../App";
+import { ServerProblem } from "../server";
+import { server } from "../testing/server";
 import { choiceOf, PERIODS, sentence } from "./Explore";
 
+// The App's server, in memory (T-3348).
+vi.mock("../server", async (original) => {
+  const { server } = await import("../testing/server");
+  return { ...(await original<typeof import("../server")>()), airApi: () => server };
+});
 vi.mock("maplibre-gl", () => import("../testing/maplibre"));
 
 /** Each chart the page drew: its canvas, the option it was last given, and its click handler. */
@@ -44,7 +51,7 @@ const READ = {
 };
 
 function show(language = "en", fixture: Parameters<typeof stubClient>[0] = {}) {
-  const client = stubClient({ entities: [...AIR_STATIONS, ...WEATHER_STATIONS], temporal: HISTORY, access: READ, ...fixture }, { appName: "air-weather-explorer", language });
+  const client = stubClient({ entities: [...AIR_STATIONS, ...WEATHER_STATIONS], access: READ, ...fixture }, { appName: "air-weather-explorer", language });
   render(
     <JcProvider client={client}>
       <App />
@@ -54,6 +61,7 @@ function show(language = "en", fixture: Parameters<typeof stubClient>[0] = {}) {
 }
 
 beforeEach(() => {
+  server.reset();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(NOW));
   window.history.replaceState(null, "", "/");
@@ -72,7 +80,9 @@ describe("Explore", () => {
     await waitFor(() => expect(answer).toHaveTextContent("Kallio 2: PM2.5 (µg/m³) falls as wind speed (m/s) rises, strongly."));
     expect(answer).toHaveTextContent(/Spearman −\d,\d\d, Pearson −\d,\d\d, over 72 common hours/);
     expect(screen.getByRole("combobox", { name: "Weather station" })).toHaveDisplayValue(/Helsinki Kaisaniemi \(1,\d km\)/);
-    expect(client.transport.calls.some((call) => call.path.includes("/ngsi-ld/v1/temporal/entities"))).toBe(true);
+    // The history comes from the App's server, which keeps it; the page reads only the stations.
+    expect(server.series).toHaveBeenCalledWith(AIR_STATIONS[0].id, WEATHER_STATIONS[0].id, 3);
+    expect(client.transport.calls.some((call) => call.path.includes("/temporal/"))).toBe(false);
     expect(client.transport.calls.every((call) => call.method === "GET" && call.path.includes("/api/endpoint/"))).toBe(true);
   });
 
@@ -108,7 +118,8 @@ describe("Explore", () => {
       { id: WEATHER_STATIONS[0].id, type: "WeatherObserved", windSpeed: { type: "Property", values: [[3, at(3)], [4, at(2)]] }, temperature: { type: "Property", values: [[5, at(50)]] } },
     ];
     window.history.replaceState(null, "", "/?air=pm10&w=temperature");
-    show("en", { temporal: short });
+    server.history = short;
+    show();
     expect(await screen.findByText("Too few common hours to say anything. Pick a longer period or another station.", { selector: ".app-answer *" })).toBeInTheDocument();
     const table = screen.getByRole("table", { name: "Every pair" });
     expect(within(table).getAllByRole("cell").some((cell) => cell.textContent === "–")).toBe(true);
@@ -145,23 +156,53 @@ describe("Explore", () => {
     expect(new URLSearchParams(window.location.search).get("lang")).toBeNull();
   });
 
+  // T-3348: a saved comparison opened from its link.
+  it("opens a saved comparison's choices from its link and drops the code from the address", async () => {
+    const saved = await server.save({ name: "Kallio and the wind", station: AIR_STATIONS[0].id, weather: WEATHER_STATIONS[0].id, days: 7, smoothing: 6, air: "pm10", variable: "temperature" });
+    window.history.replaceState(null, "", `/?compare=${saved.code}`);
+    show();
+    expect(await screen.findByText("Saved comparison opened: Kallio and the wind.")).toBeInTheDocument();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("compare")).toBeNull();
+    expect([params.get("station"), params.get("weather"), params.get("days"), params.get("window"), params.get("air"), params.get("w")]).toEqual(["kallio", "fmi-100971", "7", "6", "pm10", "temperature"]);
+    await waitFor(() => expect(server.series).toHaveBeenCalledWith(AIR_STATIONS[0].id, WEATHER_STATIONS[0].id, 7));
+  });
+
+  it("says so when a comparison link names nothing, and never asks for a code it could not have made", async () => {
+    window.history.replaceState(null, "", "/?compare=zzzzzzzzzzzz");
+    show();
+    expect(await screen.findByRole("alert")).toHaveTextContent("No comparison is saved under this link.");
+    cleanup();
+    window.history.replaceState(null, "", "/?compare=..%2Fx");
+    server.reset();
+    show();
+    expect(await screen.findByText("No comparison is saved under this link.")).toBeInTheDocument();
+    expect(server.open).not.toHaveBeenCalled();
+  });
+
   it("says so when there is no station", async () => {
-    show("en", { entities: [], temporal: [] });
+    show("en", { entities: [] });
     expect(await screen.findByText("No air quality station was found.")).toBeInTheDocument();
   });
 
   it("says in words when the history cannot be read, and offers to try again", async () => {
-    const client = show("en", { refuse: (request) => (request.path.includes("/temporal/") ? { status: 503, body: { title: "Unavailable" } } : null) });
+    server.series = vi.fn(async () => {
+      throw new ServerProblem(503, "the gateway could not answer right now; try again shortly");
+    });
+    show();
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The measurements could not be read (HTTP 503). Try again later.");
-    const before = client.transport.calls.length;
+    expect(server.series).toHaveBeenCalledTimes(1);
     fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(client.transport.calls.length).toBeGreaterThan(before));
+    await waitFor(() => expect(server.series).toHaveBeenCalledTimes(2));
     expect(await screen.findByRole("alert")).toHaveTextContent("HTTP 503");
   });
 
   it("says the connection is down when nothing answered at all", async () => {
-    show("en", { refuse: (request) => (request.path.includes("/temporal/") ? { status: 0, body: null } : null) });
+    server.series = vi.fn(async () => {
+      throw new ServerProblem(0, "");
+    });
+    show();
     expect(await screen.findByRole("alert")).toHaveTextContent("The measurements could not be read. Check the connection and try again.");
   });
 

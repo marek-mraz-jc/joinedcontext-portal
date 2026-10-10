@@ -8,9 +8,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App, { chooseLanguage } from "./App";
-import { AIR_STATIONS, HISTORY, NOW, WEATHER_STATIONS } from "./fixtures/stations";
+import { AIR_STATIONS, NOW, WEATHER_STATIONS } from "./fixtures/stations";
+import { server } from "./testing/server";
 import { Map as FakeMap, Popup } from "./testing/maplibre";
 
+// The App's server, in memory (T-3348).
+vi.mock("./server", async (original) => {
+  const { server } = await import("./testing/server");
+  return { ...(await original<typeof import("./server")>()), airApi: () => server };
+});
 vi.mock("maplibre-gl", () => import("./testing/maplibre"));
 vi.mock("echarts/core", () => ({ use: vi.fn(), init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() })) }));
 
@@ -25,7 +31,7 @@ const PORTAL = "https://portal.dev.joinedcontext.com/projects/helsinki";
 
 function show(language = "en") {
   const client = stubClient(
-    { entities: [...AIR_STATIONS, ...WEATHER_STATIONS], temporal: HISTORY, access: READ },
+    { entities: [...AIR_STATIONS, ...WEATHER_STATIONS], access: READ },
     { appName: "air-weather-explorer", language, portal: PORTAL, space: "helsinki" },
   );
   render(
@@ -37,6 +43,7 @@ function show(language = "en") {
 }
 
 beforeEach(() => {
+  server.reset();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(NOW));
   window.history.replaceState(null, "", "/");

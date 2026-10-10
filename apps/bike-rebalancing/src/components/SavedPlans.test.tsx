@@ -4,6 +4,9 @@ import { ServerProblem } from "../plans";
 import type { NewPlan, PlanSummary, PlansApi, SavedPlan } from "../plans";
 import { problemText, SavedPlans } from "./SavedPlans";
 
+const went: string[] = [];
+vi.mock("../go", () => ({ go: (url: string) => went.push(url) }));
+
 const STOP = { id: "urn:ngsi-ld:BikeHireDockingStation:001", name: "Kamppi", at: [24.93, 60.17] as [number, number], action: "pick" as const, bikes: 5, load: 5, legKm: 0 };
 
 /** A server in memory, as the component sees the real one. */
@@ -72,7 +75,15 @@ describe("SavedPlans", () => {
     expect(api.drive).toHaveBeenCalledWith(1, [STOP.id]);
     expect(await screen.findByText(/driven 1 times/)).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByText(/^Van 2 ·/).closest("li") as HTMLElement).getByRole("button", { name: /^Delete:/ }));
+    fireEvent.click(within(screen.getByText(/^Van 2 ·/).closest("li") as HTMLElement).getByRole("button", { name: /^Route sheet \(CSV\):/ }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("The route sheet is downloading."));
+    expect(went).toEqual(["https://store.example/apps/s1/x/sheets/1.csv?X-Amz-Signature=x"]);
+
+    const del = () => within(screen.getByText(/^Van 2 ·/).closest("li") as HTMLElement).getByRole("button", { name: /^Delete:/ });
+    fireEvent.click(del());
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("button", { name: "Delete for good" })).toBeNull();
+    fireEvent.click(del());
     expect(api.remove).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Delete for good" }));
     await waitFor(() => expect(screen.getByText("No plan is saved for Van 2.")).toBeInTheDocument());

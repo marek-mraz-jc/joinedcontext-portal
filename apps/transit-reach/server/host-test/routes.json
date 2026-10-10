@@ -1,0 +1,16 @@
+[
+ {
+  "id": "urn:ngsi-ld:TransitRoute:HSL:M1",
+  "type": "TransitRoute",
+  "routeShortName": "M1",
+  "transportMode": "subway",
+  "stopSequence": "1,2,3"
+ },
+ {
+  "id": "urn:ngsi-ld:TransitRoute:HSL:55",
+  "type": "TransitRoute",
+  "routeShortName": "55",
+  "transportMode": "bus",
+  "stopSequence": "3,2"
+ }
+]

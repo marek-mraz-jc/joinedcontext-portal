@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "web")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 const HOUR: i64 = 3_600_000;
@@ -268,7 +269,7 @@ pub fn run(input: &Input) -> Output {
 
 /// The page's entry: [`Input`] as JSON in, [`Output`] as JSON out, or `{"error": "…"}` naming what
 /// could not be read.
-#[wasm_bindgen]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub fn analyse(input: &str) -> String {
     match serde_json::from_str::<Input>(input) {
         Ok(input) => serde_json::to_string(&run(&input))

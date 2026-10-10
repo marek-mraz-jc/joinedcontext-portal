@@ -12,6 +12,8 @@ import { inProcess } from "./test-analyser";
 import { Map as FakeMap } from "./testing/maplibre";
 
 vi.mock("maplibre-gl", () => import("./testing/maplibre"));
+const went = vi.hoisted(() => [] as string[]);
+vi.mock("./go", () => ({ go: (url: string) => went.push(url) }));
 
 const READ = { permissions: [{ resource: { type: "Vehicle" }, actions: ["retrieveTemporal"], attributes: "*" as const }], prohibitions: [] };
 
@@ -151,6 +153,32 @@ describe("transit-reach", () => {
     ]);
     expect(screen.queryByRole("combobox", { name: "Ajoneuvojen historia" })).toBeNull();
     expect(c.transport.calls.some((call) => call.path.includes("/temporal/entities"))).toBe(false);
+  });
+
+  // T-3349: from an HSL stop, the areas the App's server keeps, through its own API.
+  it("keeps the start stop's areas on the server and downloads them, a stop of HSL's network only", async () => {
+    const fetch = vi.fn(async (url: string, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({ version: "v1", stop: decodeURIComponent(url.split("stop=")[1] ?? ""), bands: [{ minutes: 10, areaKm2: 0.5, stops: 1 }], cached: false, stale: false, url: "https://store.example/t.geojson" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    try {
+      show(client(HISTORY, NETWORK_ROWS));
+      const user = userEvent.setup();
+      const keep = await screen.findByRole("button", { name: "Lataa alueet lähtöpysäkiltä (GeoJSON)" });
+      expect(keep).toBeDisabled();
+      const reached = await screen.findByRole("list", { name: "Pysäkit 30 minuutissa" });
+      await user.click(within(reached).getAllByRole("button", { name: /: lähde tästä$/ })[1]);
+      expect(await screen.findByText(/^Lähtöpysäkki: Kaisaniemi \(H0012\)/)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Lataa alueet lähtöpysäkiltä (GeoJSON)" }));
+      expect(await screen.findByText("GeoJSON-tiedosto ladataan.")).toBeInTheDocument();
+      expect(fetch.mock.calls[0][0]).toMatch(/^\/apps\/transit-reach\/api\/reach\?stop=urn%3Angsi-ld%3AGtfsStop%3A/);
+      expect(went.at(-1)).toBe("https://store.example/t.geojson");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("says HSL's stops could not be read, and answers from the vehicles instead", async () => {

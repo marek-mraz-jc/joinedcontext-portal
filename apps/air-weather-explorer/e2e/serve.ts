@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { stubTransport } from "@joinedcontext/sdk/testing";
 import { AIR_STATIONS, HISTORY, NOW, WEATHER_STATIONS } from "../src/fixtures/stations";
+import { hourlyOf } from "../src/testing/hourly";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 export const BASE = "http://portal.test/";
@@ -56,6 +57,14 @@ export async function serve(page: Page): Promise<Served> {
     if (url.origin !== "http://portal.test") {
       served.outside.push(url.href);
       return route.abort();
+    }
+    // The App's server (T-3348): the stations' hourly means, as it keeps them.
+    if (url.pathname === "/apps/air-weather-explorer/api/series") {
+      const days = Number(url.searchParams.get("days") ?? "3");
+      const from = Math.floor((NOW - days * 86_400_000) / 3_600_000) * 3_600_000;
+      const air = hourlyOf(HISTORY, url.searchParams.get("air") ?? "", from);
+      const weather = hourlyOf(HISTORY, url.searchParams.get("weather") ?? "", from);
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ air, weather }) });
     }
     if (url.pathname.startsWith(`/api/endpoint/${SLUG}/`)) {
       const body = route.request().postData();

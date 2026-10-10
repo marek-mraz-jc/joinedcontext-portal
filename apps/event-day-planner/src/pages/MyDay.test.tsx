@@ -4,6 +4,8 @@ import { JcProvider } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import { EVENTS } from "../fixtures/events";
+import { ServerProblem } from "../share";
+import type { ShareApi } from "../share";
 import { hourOf, MyDay } from "./MyDay";
 
 vi.mock("maplibre-gl", () => ({
@@ -36,6 +38,16 @@ vi.mock("@joinedcontext/sdk", async (original) => ({
   download: (blob: Blob, name: string) => downloads.push({ blob, name }),
 }));
 
+/** The App's server with nothing shared: most of these tests are about the planner on the page. */
+function shares(): ShareApi {
+  return {
+    share: vi.fn(async (day: string, ids: string[]) => ({ code: "abc123def456", day, lang: "en", picks: ids, items: [], conflicts: [], walkKm: 0, walkMinutes: 0 })),
+    get: vi.fn(async (code: string) => ({ code, day: "2030-10-20", lang: "en", picks: ["helsinki-agf2", "helsinki-agf3"], items: [], conflicts: [], walkKm: 0, walkMinutes: 0 })),
+    icsUrl: vi.fn(async () => "https://store.example/x.ics"),
+  };
+}
+let api = shares();
+
 const READ = {
   permissions: [{ resource: { type: "Event" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const }],
   prohibitions: [],
@@ -45,7 +57,7 @@ function show(language = "en", entities = EVENTS) {
   const client = stubClient({ entities, access: READ }, { appName: "event-day-planner", language });
   render(
     <JcProvider client={client}>
-      <MyDay />
+      <MyDay shares={api} />
     </JcProvider>,
   );
   return client;
@@ -56,6 +68,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2030-10-20T05:00:00Z"));
   window.history.replaceState(null, "", "/");
   downloads.length = 0;
+  api = shares();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -82,6 +95,46 @@ describe("MyDay", () => {
     expect(screen.getByText("Organ concert and Poetry reading take place at the same time.")).toBeInTheDocument();
     expect(screen.getByText(/min late/)).toBeInTheDocument();
     expect(new URLSearchParams(window.location.search).get("pick")).toBe("helsinki-agf2,helsinki-agf3");
+  });
+
+  // T-3347: the picked day shared through the App's server, and a shared link opened again.
+  it("shares the picked day with the events' full ids", async () => {
+    show();
+    const list = await screen.findByRole("list", { name: "Events of the day" });
+    fireEvent.click(within(list).getByRole("checkbox", { name: /Organ concert/ }));
+    fireEvent.click(within(list).getByRole("checkbox", { name: /Poetry reading/ }));
+    await waitFor(() => expect(screen.getByText("2 chosen events in their best order.")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Share this day" }));
+    await waitFor(() => expect(api.share).toHaveBeenCalledWith("2030-10-20", ["urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-agf2", "urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-agf3"], "en"));
+    expect(((await screen.findByLabelText("Link to the shared day")) as HTMLInputElement).value).toContain("?share=abc123def456");
+  });
+
+  it("opens a shared link as its day and picks, and drops the code from the address", async () => {
+    window.history.replaceState(null, "", "/?share=abc123def456");
+    show();
+    await waitFor(() => expect(screen.getByText("Shared day opened: 2 events, planned from the data of now.")).toBeInTheDocument());
+    expect(api.get).toHaveBeenCalledWith("abc123def456");
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("pick")).toBe("helsinki-agf2,helsinki-agf3");
+    expect(params.get("share")).toBeNull();
+    await waitFor(() => expect(screen.getByText("2 chosen events in their best order.")).toBeInTheDocument());
+  });
+
+  it("says so when a shared link names no day", async () => {
+    api.get = vi.fn(async () => {
+      throw new ServerProblem(404, "no day is shared under this link");
+    });
+    window.history.replaceState(null, "", "/?share=zzzzzzzzzzzz");
+    show();
+    expect(await screen.findByText(/No day is shared under this link/)).toBeInTheDocument();
+  });
+
+  it("never asks the server for a code it could not have made", async () => {
+    window.history.replaceState(null, "", "/?share=..%2F..%2Fx");
+    show();
+    expect(await screen.findByText(/No day is shared under this link/)).toBeInTheDocument();
+    expect(api.get).not.toHaveBeenCalled();
+    expect(new URLSearchParams(window.location.search).get("share")).toBeNull();
   });
 
   it("downloads the day as a calendar file", async () => {
@@ -127,7 +180,7 @@ describe("MyDay", () => {
     );
     render(
       <JcProvider client={client}>
-        <MyDay />
+        <MyDay shares={api} />
       </JcProvider>,
     );
     const alert = await screen.findByRole("alert");
@@ -247,7 +300,7 @@ describe("MyDay at the edges", () => {
     );
     render(
       <JcProvider client={client}>
-        <MyDay />
+        <MyDay shares={api} />
       </JcProvider>,
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("The events could not be read. Check the connection and try again.");

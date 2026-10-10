@@ -1,0 +1,105 @@
+{
+  "gateway": [
+    {
+      "path": "/ngsi-ld/v1/entities",
+      "query": {
+        "type": "GtfsStop",
+        "offset": "0"
+      },
+      "file": "host-test/stops.json"
+    },
+    {
+      "path": "/ngsi-ld/v1/entities",
+      "query": {
+        "type": "TransitRoute",
+        "offset": "0"
+      },
+      "file": "host-test/routes.json"
+    }
+  ],
+  "steps": [
+    {
+      "call": "GET /api/network",
+      "status": 404
+    },
+    {
+      "call": "GET /api/reach?stop=urn:ngsi-ld:GtfsStop:HSL:1",
+      "status": 409
+    },
+    {
+      "call": "GET /api/reach?stop=urn:ngsi-ld:Vehicle:1",
+      "status": 400
+    },
+    {
+      "call": "GET /api/reach?stop=urn:ngsi-ld:GtfsStop:a%2F..%2Fb",
+      "status": 400
+    },
+    {
+      "call": "POST /api/network",
+      "status": 200,
+      "expect": {
+        "/stops": 3,
+        "/routes": 2,
+        "/changed": true
+      }
+    },
+    {
+      "call": "POST /api/network",
+      "status": 200,
+      "expect": {
+        "/changed": false
+      }
+    },
+    {
+      "call": "GET /api/network",
+      "status": 200,
+      "expect": {
+        "/stops": 3,
+        "/routes": 2,
+        "/stale": false
+      }
+    },
+    {
+      "call": "GET /api/reach?stop=urn:ngsi-ld:GtfsStop:HSL:1",
+      "status": 200,
+      "expect": {
+        "/cached": false,
+        "/name": "Rautatientori",
+        "/code": "H2001",
+        "/bands/0/minutes": 10.0,
+        "/bands/2/minutes": 30.0
+      },
+      "length": {
+        "/bands": 3
+      },
+      "download": "/url",
+      "downloaded": "\"type\":\"FeatureCollection\""
+    },
+    {
+      "call": "GET /api/reach?stop=urn:ngsi-ld:GtfsStop:HSL:1",
+      "status": 200,
+      "expect": {
+        "/cached": true
+      },
+      "length": {
+        "/bands": 3
+      },
+      "download": "/url",
+      "downloaded": "\"type\":\"Polygon\""
+    },
+    {
+      "call": "GET /api/reach?stop=urn:ngsi-ld:GtfsStop:HSL:99",
+      "status": 404
+    },
+    {
+      "call": "GET /api/network",
+      "as": "second",
+      "status": 404
+    },
+    {
+      "call": "GET /api/reach?stop=urn:ngsi-ld:GtfsStop:HSL:1",
+      "as": "second",
+      "status": 409
+    }
+  ]
+}

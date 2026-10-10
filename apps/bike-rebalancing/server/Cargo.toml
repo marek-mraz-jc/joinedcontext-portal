@@ -14,8 +14,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 bike-rebalancing = { path = "../wasm", default-features = false }
-# The guest SDK at the platform commit that carries `gateway` (AP-147).
-jc-app-sdk = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "263c41169d7f02dcbfa86024234686b4bb534500" }
+# The guest SDK at the platform commit whose `gateway` reaches the App's own Endpoint alone
+# (AP-147, AP-157).
+jc-app-sdk = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9d6378b2b21b45917b6fb1653ff6fbb8701d021f" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

@@ -3,6 +3,7 @@ import { Card, currentTokens, download, Empty, Loading, Page, ProblemError, Spli
 import type { Row } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
 import { MapView } from "../components/MapView";
+import { problemText, ShareDay } from "../components/ShareDay";
 import type { MapPoint } from "../components/MapView";
 import {
   ATTRS,
@@ -23,6 +24,8 @@ import { localeOf, number, useLang, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
 import { computeDay } from "../planner";
 import type { Day, Fit } from "../planner";
+import { apiBase, isCode, shareApi } from "../share";
+import type { ShareApi } from "../share";
 import { t } from "../texts";
 import { listOf, useParam } from "../url";
 
@@ -65,8 +68,9 @@ function hourChart(counts: number[], lang: Lang): Record<string, unknown> | null
  * kept in the address. An event in the plan, on the map or in the list opens in the shell's entity
  * panel (SDK-40), linked to the Portal: a public App writes nothing.
  */
-export function MyDay() {
+export function MyDay({ shares }: { shares?: ShareApi } = {}) {
   const lang = useLang();
+  const api = useMemo(() => shares ?? shareApi(apiBase()), [shares]);
   const [now] = useState(() => Date.now());
   const today = dayOf(new Date(now));
   const [dayText, setDay] = useParam("day", today);
@@ -78,6 +82,39 @@ export function MyDay() {
   const hour = hourOf(hourText);
   const picks = useMemo(() => listOf(pickText), [pickText]);
   const { select } = useEntitySelection();
+
+  // A shared link, `?share=<code>`: its day and picks put into the address, then the code dropped,
+  // so a reload keeps the day and the visitor's own changes stay theirs (T-3347).
+  const [shareCode, setShareCode] = useParam("share");
+  const [shareNote, setShareNote] = useState<{ text: string; error: boolean } | null>(null);
+  useEffect(() => {
+    if (!shareCode) return;
+    if (!isCode(shareCode)) {
+      setShareNote({ text: t(lang, "shareGone"), error: true });
+      setShareCode("");
+      return;
+    }
+    let current = true;
+    setShareNote({ text: t(lang, "openingShare"), error: false });
+    api
+      .get(shareCode)
+      .then((shared) => {
+        if (!current) return;
+        setDay(shared.day);
+        setPick(shared.picks.join(","));
+        setShareNote({ text: t(lang, "openedShare", { n: number(shared.picks.length) }), error: false });
+      })
+      .catch((error: unknown) => {
+        if (current) setShareNote({ text: problemText(lang, error, "openShareFailed"), error: true });
+      })
+      .finally(() => {
+        if (current) setShareCode("");
+      });
+    return () => {
+      current = false;
+    };
+    // The code is dropped once read, so a change of language never opens the share again.
+  }, [shareCode, api, lang, setDay, setPick, setShareCode]);
 
   // From the start of the day shown: an event that ended before it is never read.
   const query = useMemo(() => ({ attrs: ATTRS, q: upcomingQuery(Math.min(bounds[0], now)) }), [bounds, now]);
@@ -129,6 +166,7 @@ export function MyDay() {
     [points, kept],
   );
   const waiting = loading && rows.length === 0;
+  const shareIds = useMemo(() => picks.flatMap((id) => byLocal.get(id)?.id ?? []), [picks, byLocal]);
 
   const toggle = (id: string) => setPick((picks.includes(id) ? picks.filter((x) => x !== id) : [...picks, id]).join(","));
   const reset = () => {
@@ -153,6 +191,11 @@ export function MyDay() {
 
   return (
     <Page label={t(lang, "page")}>
+      {shareNote && (
+        <p role={shareNote.error ? "alert" : "status"} className={shareNote.error ? "app-error" : "app-lead"}>
+          {shareNote.text}
+        </p>
+      )}
       {error && (
         <div className="jc-problem" role="alert">
           <strong>{unreadable(error, lang)}</strong>
@@ -239,6 +282,7 @@ export function MyDay() {
               >
                 {t(lang, "ics")}
               </button>
+              <ShareDay lang={lang} api={api} day={day} ids={shareIds} />
             </>
           )}
         </Card>

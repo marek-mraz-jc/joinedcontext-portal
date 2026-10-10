@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, Loading, Page, useEntitySelection } from "@joinedcontext/sdk";
 import { useAnalysis } from "../analysis";
 import type { AnalysisOutput, StopOut } from "../analysis";
+import { KeptReach } from "../components/KeptReach";
 import { ReachMap } from "../components/ReachMap";
 import { useHistory } from "../history";
 import { pointKey, STOP, useNetwork } from "../network";
 import { decimal, moment, number, t } from "../i18n";
 import type { Lang } from "../i18n";
+import { apiBase, reachApi } from "../server";
+import type { ReachApi } from "../server";
 import { reachColours } from "../theme";
 import { CENTRE, HOURS, readView, toVehicles, writeView } from "../vehicles";
 import type { Hours, ViewState } from "../vehicles";
@@ -59,7 +62,8 @@ export function stopLabel(lang: Lang, stop: StopOut, index: number): string {
  * address. An HSL stop reached opens in the SDK's entity panel, which links to it in the Portal: a
  * public App writes nothing (SDK-40, AP-140).
  */
-export function Reach({ lang }: { lang: Lang }) {
+export function Reach({ lang, server }: { lang: Lang; server?: ReachApi }) {
+  const api = useMemo(() => server ?? reachApi(apiBase()), [server]);
   const [view, setView] = useState<ViewState>(() => readView(window.location.search));
   useEffect(() => {
     try {
@@ -105,6 +109,10 @@ export function Reach({ lang }: { lang: Lang }) {
             pickedStop >= 0 && !reached.slice(0, LISTED).some((r) => r.index === pickedStop) ? [{ stop: output.stops[pickedStop], index: pickedStop }] : [],
           )
       : (output?.stops ?? []).map((stop, index) => ({ stop, index }));
+
+  // The HSL stop the view starts from, when it starts from one: its areas can be kept on the server.
+  const startEntity = onNetwork ? entities.get(pointKey(view.at)) : undefined;
+  const keptStop = startEntity && output && pickedStop >= 0 ? { id: startEntity, label: stopLabel(lang, output.stops[pickedStop], pickedStop) } : null;
 
   return (
     <Page label={t(lang, "page")}>
@@ -156,6 +164,8 @@ export function Reach({ lang }: { lang: Lang }) {
                 })}
         </p>
       )}
+
+      {onNetwork && <KeptReach lang={lang} api={api} stop={keptStop} />}
 
       <form className="app-filters" aria-label={t(lang, "controls")} onSubmit={(event) => event.preventDefault()}>
         {output?.source !== "network" && (

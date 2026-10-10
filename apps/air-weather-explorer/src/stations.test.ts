@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Row } from "@joinedcontext/sdk";
-import { kmBetween, localOf, nearest, readingsOf, stationsOf } from "./stations";
+import { kmBetween, localOf, nearest, stationsOf } from "./stations";
 
 const station = (local: string, name: string, at: [number, number] | null) =>
   ({ id: `urn:ngsi-ld:WeatherObserved:hel.fi:helsinki:${local}`, type: "WeatherObserved", name, ...(at ? { location: { type: "Point", coordinates: at } } : {}) }) as Row;
@@ -27,26 +27,5 @@ describe("stations", () => {
   it("measures the great circle, across the antimeridian too", () => {
     expect(kmBetween([24.9446, 60.1752], [24.9727, 60.3294])).toBeCloseTo(17.2, 1);
     expect(kmBetween([180, 0], [-180, 0])).toBeCloseTo(0, 6);
-  });
-
-  it("reads only numeric readings with a time, humidity in per cent", () => {
-    const history = [
-      {
-        id: "a",
-        type: "WeatherObserved",
-        series: {
-          windSpeed: [
-            { value: 3, observedAt: "2030-10-20T06:00:00Z" },
-            { value: "calm", observedAt: "2030-10-20T07:00:00Z" },
-            { value: 4, observedAt: "soon" },
-          ],
-          relativeHumidity: [{ value: 0.8, observedAt: "2030-10-20T06:00:00Z" }],
-          temperature: [],
-        },
-      },
-    ];
-    const readings = readingsOf(history, "a", ["windSpeed", "relativeHumidity", "temperature", "precipitation"]);
-    expect(readings).toEqual({ windSpeed: [[Date.UTC(2030, 9, 20, 6), 3]], relativeHumidity: [[Date.UTC(2030, 9, 20, 6), 80]] });
-    expect(readingsOf(history, "missing", ["windSpeed"])).toEqual({});
   });
 });

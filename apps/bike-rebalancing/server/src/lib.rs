@@ -21,9 +21,6 @@ use jc_app_sdk::sql::{self, Value};
 use serde::Deserialize;
 use serde_json::Value as Json;
 
-/// The App's endpoint on the gateway (grants/…/endpoints/app-bike-rebalancing.yaml): fixed here,
-/// so no caller can point a saved plan at another endpoint's data.
-const ENDPOINT: &str = "hveoejb7k3cedpvc7otakoozbe";
 const STATION: &str = "BikeHireDockingStation";
 const ATTRS: &str =
     "name,location,availableBikeNumber,freeSlotNumber,totalSlotNumber,status,dateModified";
@@ -184,15 +181,16 @@ pub fn station(entity: &Json) -> Option<Station> {
     })
 }
 
-/// Every station the caller may read, page by page.
-fn stations() -> Result<Vec<Station>, gateway::Error> {
+/// Every station the caller may read from the App's own Endpoint, page by page.
+fn stations() -> Result<Vec<Station>, Response> {
     let mut all = Vec::new();
     while all.len() < MOST {
         let path = format!(
-            "/api/endpoint/{ENDPOINT}/ngsi-ld/v1/entities?type={STATION}&options=keyValues&attrs={ATTRS}&limit={PAGE}&offset={}",
+            "/ngsi-ld/v1/entities?type={STATION}&options=keyValues&attrs={}&limit={PAGE}&offset={}",
+            gateway::encode(ATTRS),
             all.len()
         );
-        let page: Vec<Json> = gateway::get_json(&path)?;
+        let page: Vec<Json> = gateway::get_json(&path).map_err(Response::from)?;
         let n = page.len();
         all.extend(page.iter().filter_map(station));
         if n < PAGE {
@@ -296,7 +294,7 @@ fn create(request: &Request, _: &Params) -> Response {
     };
     let stations = match stations() {
         Ok(stations) => stations,
-        Err(err) => return err.into(),
+        Err(answer) => return answer,
     };
     if stations.is_empty() {
         return Response::problem(

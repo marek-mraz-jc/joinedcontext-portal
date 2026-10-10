@@ -13,6 +13,7 @@ pub mod stops;
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "web")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use network::{build, Label, Network};
@@ -274,7 +275,7 @@ pub fn run(input: &Input) -> Result<Output, String> {
 }
 
 /// The module's one entry: the input as JSON, the output as JSON, or `{"error": …}`.
-#[wasm_bindgen]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub fn analyse(input: &str) -> String {
     let answer = serde_json::from_str::<Input>(input)
         .map_err(|e| format!("the vehicles could not be read: {e}"))

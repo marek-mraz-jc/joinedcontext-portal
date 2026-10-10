@@ -25,7 +25,7 @@ The day, the search, the hour and the picks are kept in the address (`?day=`, `?
 ## How the day is planned
 
 The planner is Rust, in `wasm/`, compiled to WebAssembly and run in the reader's browser in a Web
-Worker, so no server holds it (a `kind: ui` App, no pod):
+Worker, so the page never stalls:
 
 - an event of up to three hours is sat through from its start; a longer one (an exhibition, a
   fair) is a place to drop by for an hour while it is open;
@@ -37,11 +37,32 @@ Worker, so no server holds it (a `kind: ui` App, no pod):
   it starts, at most four;
 - the calendar file is RFC 5545: UTC times, escaped text, lines folded at 75 octets.
 
+## Sharing a day
+
+**Share this day** sends the day and the picked events' ids to the App's server, a WebAssembly
+component on the platform's shared host (`server/`, `kind: wasm`, ADR-N-044). The server reads those
+events again from the gateway, as the visitor (an anonymous visitor reads what the public role may),
+plans the day with the same Rust (`../wasm`, without the browser's bindings) and keeps it in the
+App's own schema (`migrations/`) under a code of 12 letters and digits; the calendar file goes
+under the App's own prefix, `shares/{code}.ics`. The visitor gets the link, `?share={code}`, to copy,
+and the calendar file of what was shared, downloaded through a URL valid for two minutes.
+
+Opening a link puts the shared day and picks into the address and drops the code, so the page then
+plans that day from the data of the moment and the visitor's own changes stay theirs. A shared day is
+cleared a week after its date, a few at each new share.
+
+| Route | What it does |
+|---|---|
+| `POST /api/itineraries` `{day, ids, lang}` | the day planned from the gateway and kept; its code |
+| `GET /api/itineraries/{code}` | the shared day, its picks and its plan |
+| `GET /api/itineraries/{code}/ics` | a URL the calendar file downloads from |
+
 ## Data
 
 One data need on the Context Space `helsinki`: `Event` with `name`, `description`, `startDate`,
 `endDate`, `eventStatus`, `address`, `location` and `source`, the Linked Events registers the
-events pipeline writes. Only events that have not ended are read. The app writes nothing.
+events pipeline writes. Only events that have not ended are read. The app writes nothing to the
+Context Space: a shared day is kept in its own schema.
 
 ## Run the tests
 
@@ -54,4 +75,10 @@ pnpm wasm          # cargo test of wasm/, then the module into wasm/pkg (the lan
 pnpm test          # vitest, with the real WebAssembly module
 pnpm build         # the bundle the build lane publishes
 pnpm e2e           # the built bundle in Chromium at four widths, light and dark (needs `pnpm build`)
+(cd server && cargo test && cargo build --release --target wasm32-wasip2)   # the server component
 ```
+
+`server/host-test.json` is the server component's scenario on the real host: the portal
+repository's `tests/wasm-apps` (`tests/scenarios.rs`, ci-full) builds the component, runs
+`migrations/` twice as the reconciler does, and plays the scenario against Postgres, RustFS and a
+mock of the App's own Endpoint, with a second App that must see nothing.
