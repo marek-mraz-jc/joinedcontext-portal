@@ -33,6 +33,9 @@
 //                                      built, on the image's Chromium, with the report and its
 //                                      screenshots in <report-dir>; an App with no e2e/ is not
 //                                      checked and says so (T-2827)
+//   node lane.mjs server-check <app-dir>
+//                                      refuses a server/ crate whose source names a socket, the
+//                                      environment, the file system or a process (AP-147)
 //   node lane.mjs test-project <project.json.gz> <work-dir>
 //                                      a run's sandbox (SDK-38): writes the version's files, links
 //                                      the template, runs vitest as the lane does and prints one
@@ -350,6 +353,42 @@ export const HTTP_HANDLER = "wasi:http/incoming-handler@";
  * `wasi:http/incoming-handler`: the preamble is the component layer's, and the top-level sections
  * are walked by their sizes, so a name inside a nested module or a custom section does not count.
  */
+/**
+ * What a `wasm` App's server source may not name (AP-147): the host gives a component no socket,
+ * environment, file system or process, so code that reaches for one is refused before it builds,
+ * with the line, instead of failing at run time. Line comments are not code.
+ */
+const SERVER_REFUSED = [
+  [/\bstd::net\b|\b(TcpStream|TcpListener|UdpSocket)\b|\bwasi::sockets\b/, "a socket"],
+  [/\bstd::env\b|\b(option_)?env!\s*\(|\bwasi::cli::environment\b/, "the environment"],
+  [/\bstd::fs\b|\bwasi::filesystem\b|\binclude_(str|bytes)!\s*\(/, "the file system"],
+  [/\bstd::process\b/, "a process"],
+];
+
+/** `{path: source}` of server/src → one `path:line: names X (AP-147)` per refused line. */
+export function serverRefusals(files) {
+  const refusals = [];
+  for (const [path, source] of Object.entries(files)) {
+    source.split("\n").forEach((line, i) => {
+      const code = line.replace(/\/\/.*$/, "");
+      for (const [pattern, what] of SERVER_REFUSED) {
+        if (pattern.test(code)) refusals.push(`${path}:${i + 1}: names ${what}, which a component never has (AP-147)`);
+      }
+    });
+  }
+  return refusals;
+}
+
+function rustSources(dir, prefix = "server/src") {
+  const files = {};
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) Object.assign(files, rustSources(path, `${prefix}/${entry.name}`));
+    else if (entry.name.endsWith(".rs")) files[`${prefix}/${entry.name}`] = readFileSync(path, "utf8");
+  }
+  return files;
+}
+
 export function isHttpComponent(bytes) {
   const preamble = [0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00];
   if (bytes.length < preamble.length || preamble.some((b, i) => bytes[i] !== b)) return false;
@@ -713,6 +752,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       // WebAssembly crates and server component are in its bundle (AP-142, AP-151).
       for (const lock of process.argv.slice(5)) sbom.components.push(...cratesOf(readFileSync(lock, "utf8")));
       writeFileSync(outDir, JSON.stringify(sbom, null, 2) + "\n");
+    } else if (command === "server-check" && appDir) {
+      const src = join(resolve(appDir), "server", "src");
+      const refusals = existsSync(src) ? serverRefusals(rustSources(src)) : [];
+      if (refusals.length > 0) throw new Error(refusals.join("\n"));
+      console.log("server/src names no socket, environment, file system or process (AP-147)");
     } else if (command === "component-check" && appDir) {
       if (!isHttpComponent(readFileSync(appDir))) {
         throw new Error(`${appDir} is not a component exporting ${HTTP_HANDLER}… (AP-143)`);
@@ -788,7 +832,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | component-check <file.wasm> | upload <build-dir> | browser-checks <app-dir> <bundle-dir> <report-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | server-check <app-dir> | component-check <file.wasm> | upload <build-dir> | browser-checks <app-dir> <bundle-dir> <report-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

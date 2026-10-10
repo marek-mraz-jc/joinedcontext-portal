@@ -274,6 +274,8 @@ struct Driver {
     /// The profile's access block, checked with `identity` before each tool call (AG-70).
     access: Access,
     kind: String,
+    /// A `wasm` App (T-3575): the run starts from the template with its server half.
+    wasm: bool,
     unattended: bool,
     continues: Option<String>,
     steps_per_run: u32,
@@ -385,6 +387,7 @@ pub fn spawn(
         identity: identity.clone(),
         access: profile.access.clone(),
         kind: run.kind.clone(),
+        wasm: jc_core::kinds::AppClass::parse(&run.app_class) == Ok(jc_core::kinds::AppClass::Wasm),
         unattended: run.unattended,
         continues: run.continues.clone(),
         steps_per_run: profile.steps_per_run,
@@ -444,6 +447,7 @@ impl Driver {
             },
             access: Access::default(),
             kind: "conversation".into(),
+            wasm: false,
             unattended: false,
             continues: None,
             steps_per_run: 30,

@@ -862,3 +862,82 @@ async fn a_run_is_offered_its_profile_and_not_its_starter_whole_reach() {
         "an operation the profile does not name is not offered: {offered:?}"
     );
 }
+
+/// T-3585, ADR-N-045: an agent reads the SDK's services catalog over MCP, read-only, and the
+/// operation takes no input.
+#[tokio::test]
+async fn the_services_catalog_is_one_read_only_operation() {
+    let state = AppState::new(Config::for_tests(), None).with_mirror(Arc::new(Mirror::new()));
+    state
+        .mirror
+        .upsert(joinedcontext_portal::resource::ResourceEnvelope {
+            api_version: joinedcontext_portal::resource::API_VERSION.into(),
+            kind: "Project".into(),
+            metadata: joinedcontext_portal::resource::ObjectMeta::new(
+                "ovzdusie",
+                joinedcontext_portal::permissions::ORG_NAMESPACE,
+            ),
+            spec: json!({ "organizationRef": { "name": "bb" } }),
+            status: None,
+        });
+    // A reader of the project, nothing more: the catalog is the SDK's, not the project's data.
+    state.mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: "Role".to_string(),
+        metadata: ObjectMeta::new("reader", "org"),
+        spec: json!({ "rules": [{ "kinds": ["App"], "verbs": ["read"] }] }),
+        status: None,
+    });
+    state.mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: "RoleBinding".to_string(),
+        metadata: ObjectMeta::new("agent-reader", "org"),
+        spec: json!({
+            "subjects": [{ "user": "agent" }],
+            "role": "reader",
+            "scope": { "project": "ovzdusie" }
+        }),
+        status: None,
+    });
+    let caller = ops::Caller {
+        identity: joinedcontext_portal::auth::session::Identity {
+            client: None,
+            subject: "sub-agent".into(),
+            username: "agent".into(),
+            email: None,
+            name: None,
+            roles: vec![],
+            groups: vec![],
+        },
+        via: ops::Via::Mcp,
+        access: None,
+    };
+    let op = ops::find("jc_app_services").expect("registered");
+    assert!(op.annotations.read_only_hint && op.annotations.idempotent_hint);
+    let catalog = ops::call(op, &caller, &state, "ovzdusie", json!({}))
+        .await
+        .expect("the catalog");
+    let services: Vec<&str> = catalog["services"]
+        .as_array()
+        .expect("services")
+        .iter()
+        .filter_map(|s| s["service"].as_str())
+        .collect();
+    assert_eq!(
+        services,
+        ["identity", "data", "files", "email", "jobs", "ai"]
+    );
+    assert!(catalog["kit"].as_array().is_some_and(|kit| !kit.is_empty()));
+    let refused = ops::call(
+        op,
+        &caller,
+        &state,
+        "ovzdusie",
+        json!({ "service": "email" }),
+    )
+    .await;
+    assert!(
+        format!("{refused:?}").contains("'service' was unexpected"),
+        "{refused:?}"
+    );
+}

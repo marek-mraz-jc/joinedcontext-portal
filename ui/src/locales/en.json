@@ -3013,7 +3013,8 @@
       "kind": "Kind",
       "kinds": {
         "ui": "UI (React screens, served by the Portal)",
-        "ui-rust": "UI and Rust server (React screens and an axum backend)"
+        "ui-rust": "UI and Rust server (React screens and an axum backend)",
+        "wasm": "UI and Rust server on the shared host (React screens, a WebAssembly component and a table of its own)"
       },
       "endpoint": "Endpoint",
       "pickEndpoint": "Choose an endpoint",

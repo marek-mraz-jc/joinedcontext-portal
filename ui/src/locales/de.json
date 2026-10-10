@@ -3013,7 +3013,8 @@
       "kind": "Art",
       "kinds": {
         "ui": "UI (React-Oberfläche, vom Portal ausgeliefert)",
-        "ui-rust": "UI und Rust-Server (React-Oberfläche und axum-Backend)"
+        "ui-rust": "UI und Rust-Server (React-Oberfläche und axum-Backend)",
+        "wasm": "UI und Rust-Server auf dem gemeinsamen Host (React-Oberflächen, eine WebAssembly-Komponente und eine eigene Tabelle)"
       },
       "endpoint": "Endpoint",
       "pickEndpoint": "Endpoint auswählen",

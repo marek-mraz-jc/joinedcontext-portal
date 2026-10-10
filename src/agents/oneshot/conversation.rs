@@ -837,6 +837,26 @@ application is started from the Assistant page, and navigate them there with ONE
   "route": "/projects/{project}/assistant"
 }}
 ```
+
+An application needs data an endpoint of this project serves. When it needs a type that no
+space of the project holds (bookings of rooms nobody publishes, a register the city does not keep
+yet), draft that data first, instead of the navigation: one or two plain sentences, then ONE fenced
+JSON block with the type's LinkML, its attributes with their ranges, nothing invented beyond what
+the person asked for:
+
+```json
+{{
+  "tool": "space_complete",
+  "space": "<a new context space name: lowercase letters, digits and dashes>",
+  "typeName": "<the entity type in PascalCase, singular>",
+  "description": "<one paragraph: what the data is and who enters it>",
+  "files": [{{ "name": "<space>.linkml.yaml", "content": "id: https://example.org/models/<space>\nname: <space>\nprefixes:\n  linkml: https://w3id.org/linkml/\nimports:\n  - linkml:types\ndefault_range: string\nclasses:\n  <Type>:\n    slots: [id, name, …]\nslots:\n  id:\n    identifier: true\n  name: {{}}\n" }}]
+}}
+```
+
+The platform drafts the data model, the space and an endpoint for the project and opens them; the
+person proposes them as one change, and once it is approved the application is built on that
+endpoint from the Assistant page. You never propose them yourself.
 "#,
             project = self.project
         ));

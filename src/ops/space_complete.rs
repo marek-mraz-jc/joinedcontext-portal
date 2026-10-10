@@ -880,6 +880,41 @@ pub async fn run(
         inferred_pipeline = true;
     }
 
+    // 4b. A type an App needs and no feed fills, described by its LinkML alone (T-3608, AP-22):
+    // the space gets an Endpoint the app builder reads the type's schema through, for the
+    // project only. No grant is drafted: nothing loads it, and the App's own Endpoint and Policy
+    // come with the App from its dataNeeds (AP-05).
+    let mut app_endpoint = false;
+    if pipeline_manifest.is_none()
+        && endpoint_manifest.is_none()
+        && datasource_manifest.is_none()
+        && linkml_source.is_some()
+        && !state
+            .mirror
+            .list(project, "Endpoint", &crate::store::ListOptions::default())
+            .items
+            .iter()
+            .any(|ep| ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name))
+    {
+        endpoint_manifest = Some(json!({
+            "apiVersion": API_VERSION,
+            "kind": "Endpoint",
+            "metadata": {
+                "name": format!("{space_name}-all"),
+                "namespace": project,
+                "title": { "en": format!("{} context, everything", words_capitalized(&space_name)) }
+            },
+            "spec": {
+                "contextSpaceRef": space_name,
+                "slug": crate::agents::share::slug(),
+                "audience": "project",
+                "enabledRepresentations": ["ngsi-ld"],
+                "projection": { "classes": [class_name.clone()] }
+            }
+        }));
+        app_endpoint = true;
+    }
+
     // 5. A map of the records over that endpoint, when they carry a position (AG-79): a Layer
     // and a Dashboard with one full-map page, proposed with the rest. None while the
     // installation hides dashboards (T-2874).
@@ -1043,7 +1078,9 @@ pub async fn run(
                 drafts.push(checked_draft(caller, state, project, policy, true).await?);
             }
         }
-        drafts.push(checked_draft(caller, state, project, m, inferred_endpoint).await?);
+        drafts.push(
+            checked_draft(caller, state, project, m, inferred_endpoint || app_endpoint).await?,
+        );
     }
 
     // Save Pipeline draft
