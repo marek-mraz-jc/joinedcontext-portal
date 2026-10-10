@@ -7,6 +7,7 @@
 //! account: a reader that went straight to the broker would report what no Policy would let a
 //! person see.
 
+use crate::config::ClientAuth;
 use crate::reconciler::realm;
 use jcctl::entities::{action, seed_entities, Action, SeedEntity};
 use serde_json::{json, Value};
@@ -113,17 +114,12 @@ pub struct Watch {
     /// `https://host/realms/{realm}`.
     issuer: String,
     client_id: String,
-    client_secret: String,
+    auth: ClientAuth,
 }
 
 impl Watch {
     /// A watch on one platform host, authenticating as the Portal's own client.
-    pub fn new(
-        base: impl Into<String>,
-        issuer: &str,
-        client_id: String,
-        client_secret: String,
-    ) -> Self {
+    pub fn new(base: impl Into<String>, issuer: &str, client_id: String, auth: ClientAuth) -> Self {
         Self {
             http: reqwest::Client::builder()
                 .timeout(TIMEOUT)
@@ -132,18 +128,12 @@ impl Watch {
             base: base.into().trim_end_matches('/').to_owned(),
             issuer: issuer.trim_end_matches('/').to_owned(),
             client_id,
-            client_secret,
+            auth,
         }
     }
 
     async fn token(&self) -> Result<String, String> {
-        realm::token(
-            &self.http,
-            &self.issuer,
-            &self.client_id,
-            &self.client_secret,
-        )
-        .await
+        realm::token(&self.http, &self.issuer, &self.client_id, &self.auth).await
     }
 
     /// A token for a run that reads many pages: the data-quality run (DM-74).

@@ -23,10 +23,10 @@ use serde_json::Value;
 use url::Url;
 
 /// Where the kubelet mounts the pod's ServiceAccount.
-const SERVICE_ACCOUNT_DIR: &str = "/var/run/secrets/kubernetes.io/serviceaccount";
+pub(crate) const SERVICE_ACCOUNT_DIR: &str = "/var/run/secrets/kubernetes.io/serviceaccount";
 
 /// The in-cluster API server, whose certificate the mounted authority signs.
-const IN_CLUSTER_API: &str = "https://kubernetes.default.svc";
+pub(crate) const IN_CLUSTER_API: &str = "https://kubernetes.default.svc";
 
 /// The field manager every object the app reconciler owns is applied under (CC-18).
 ///
@@ -352,6 +352,44 @@ impl KubeClient {
                 .and_then(|value| value.get("message")?.as_str().map(str::to_owned))
                 .unwrap_or(body),
         })
+    }
+
+    /// A short token of the ServiceAccount `account` in `namespace`, for `audience` alone
+    /// (TokenRequest). The Portal proves its second Keycloak client with one (PF-47, T-2868):
+    /// its pod runs as one account, Keycloak finds a federated client by the token's subject,
+    /// and the reconciler's client must be a subject of its own. The Role grants `create` on
+    /// `serviceaccounts/token` of that one name. The token is returned and never kept.
+    pub async fn service_account_token(
+        &self,
+        namespace: &str,
+        account: &str,
+        audience: &str,
+        seconds: u32,
+    ) -> Result<String, KubeError> {
+        let path = format!("{}/token", path_of("serviceaccounts", namespace, account)?);
+        let request = serde_json::json!({
+            "apiVersion": "authentication.k8s.io/v1",
+            "kind": "TokenRequest",
+            "spec": { "audiences": [audience], "expirationSeconds": seconds },
+        });
+        let response = self
+            .http
+            .post(self.url(&path)?)
+            .headers(self.headers("application/json")?)
+            .body(request.to_string())
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        let minted = self.checked(response, path.clone()).await?;
+        minted["status"]["token"]
+            .as_str()
+            .filter(|token| !token.is_empty())
+            .map(str::to_owned)
+            .ok_or(KubeError::Api {
+                status: 200,
+                path,
+                message: "the TokenRequest answer carried no token".to_owned(),
+            })
     }
 
     /// Removes one object; removing what is not there succeeds, so a retirement is re-runnable.

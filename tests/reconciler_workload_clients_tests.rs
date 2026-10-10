@@ -11,6 +11,7 @@
 //! Endpoint, and a Kubernetes ServiceAccount in the identities namespace (AP-159, T-3539).
 
 use jc_core::kinds::service_account::KubernetesBinding;
+use joinedcontext_portal::config::ClientAuth;
 use joinedcontext_portal::reconciler::app_clients::{audience_mapper, groups_mapper};
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::reconciler::workload_clients::{desired, WorkloadClientSync};
@@ -109,7 +110,7 @@ fn sync(keycloak: &MockServer) -> WorkloadClientSync {
     WorkloadClientSync::new(
         &format!("{}/realms/bb", keycloak.uri()),
         "portal-api".to_owned(),
-        "portal-api-credential".to_owned(),
+        ClientAuth::Secret("portal-api-credential".into()),
     )
     .expect("a realm issuer")
 }

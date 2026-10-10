@@ -605,7 +605,7 @@ impl AppState {
                     match crate::reconciler::app_clients::AppClientSync::new(
                         oidc.issuer.as_str(),
                         oidc.client_id.clone(),
-                        oidc.client_secret().to_owned(),
+                        oidc.auth.clone(),
                         host,
                     ) {
                         Some(mut clients) => {
@@ -629,7 +629,7 @@ impl AppState {
                 match crate::reconciler::workload_clients::WorkloadClientSync::new(
                     oidc.issuer.as_str(),
                     oidc.client_id.clone(),
-                    oidc.client_secret().to_owned(),
+                    oidc.auth.clone(),
                 ) {
                     Some(clients) => {
                         let clients = match state.config.pipeline_namespace.clone() {
@@ -650,7 +650,7 @@ impl AppState {
                 if let Some(scopes) = crate::reconciler::hub_scopes::HubScopeSync::new(
                     oidc.issuer.as_str(),
                     oidc.client_id.clone(),
-                    oidc.client_secret().to_owned(),
+                    oidc.auth.clone(),
                 ) {
                     syncer = syncer.with_hub_scopes(Arc::new(scopes));
                 }
@@ -658,7 +658,7 @@ impl AppState {
                 if let Some(clients) = crate::reconciler::mcp_clients::McpClientSync::new(
                     oidc.issuer.as_str(),
                     oidc.client_id.clone(),
-                    oidc.client_secret().to_owned(),
+                    oidc.auth.clone(),
                 ) {
                     syncer = syncer.with_mcp_clients(Arc::new(clients));
                 }
