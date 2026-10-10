@@ -452,6 +452,10 @@ mod tests {
             "server/src/../Cargo.toml",
             "migrations/nested/0002.sql",
             ".gitea/workflows/build.yml",
+            // A data model reaches the platform only through a Change a person proposes (T-3608).
+            "bookings.linkml.yaml",
+            "src/bookings.linkml.yaml",
+            "projects/helsinki/spaces/bookings/datamodels/bookings.linkml.yaml",
         ] {
             assert!(!writable(path), "{path}");
         }
