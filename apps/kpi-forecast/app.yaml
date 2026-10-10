@@ -1,8 +1,12 @@
-# Every Helsinki KPI with its trend, a short forecast and the points that look wrong (T-3332). The
-# analysis runs in the visitor's browser as WebAssembly compiled from the Rust crate in wasm/
-# (AP-142): a least-squares trend, robust Holt-Winters (additive) with a 95 % interval, and the
-# readings three robust deviations off the model, per indicator. So the App is a `ui` bundle and costs no pod: the static host serves
-# its files and nothing else runs for it. Hand written, so no generated-by annotation (AP-35).
+# Every Helsinki KPI with its trend, a short forecast and the points that look wrong (T-3332,
+# T-3350). The analysis runs in the visitor's browser as WebAssembly compiled from the Rust crate
+# in wasm/ (AP-142): a least-squares trend, robust Holt-Winters (additive) with a 95 % interval,
+# and the readings three robust deviations off the model, per indicator. A server WASM App (`kind:
+# wasm`, ADR-N-044): its component on the shared host (server/) records every indicator's forecast
+# once a day with the day it was made, from the history it reads itself, so a later visit sets it
+# against what came, and writes monthly reports of the forecasts against the readings as CSV; all
+# in the App's own schema (migrations/) and prefix. Hand written, so no generated-by annotation
+# (AP-35).
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
 metadata:
@@ -15,7 +19,7 @@ metadata:
     en: "Every Helsinki indicator with its trend over the last days, a short forecast with its interval, and the readings that look wrong."
     fi: "Jokainen Helsingin mittari: trendi viime päiviltä, lyhyt ennuste vaihteluväleineen ja poikkeavat lukemat."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_kpi-forecast.git
@@ -24,6 +28,9 @@ spec:
   build:
     node: "22"
     rust: "1.90"
+  storage:
+    sql: { migrations: migrations, quotaMiB: 100 }
+    blob: { quotaMiB: 256 }
   # The indicator endpoint of Helsinki is public: an anonymous reader gets what the public role
   # is granted and nothing more.
   visibility: public

@@ -5,12 +5,16 @@ import { useAnalysis } from "../analysis";
 import type { AnalysisOutput, SeriesResult } from "../analysis";
 import { detailOption } from "../charts";
 import { ChartCard } from "../components/ChartCard";
+import { Earlier } from "../components/Earlier";
+import { Report } from "../components/Report";
 import { Empty, Loading } from "@joinedcontext/sdk";
 import { useHistory } from "../history";
 import { duration, moment, number, percent, t, value } from "../i18n";
 import type { Lang } from "../i18n";
 import { ATTRS, EMPTY, KPI, WINDOWS, numberOf, readView, shortId, toSeries, writeView } from "../kpis";
 import type { ViewState, Window } from "../kpis";
+import { apiBase, kpiApi } from "../server";
+import type { KpiApi } from "../server";
 
 const QUERY = { attrs: ATTRS };
 
@@ -47,7 +51,9 @@ function nameOf(row: Row): string {
  * full: its history, the model's forecast with its band, and its odd points. The view is in the
  * address.
  */
-export function Forecast({ lang }: { lang: Lang }) {
+export function Forecast({ lang, server }: { lang: Lang; server?: KpiApi }) {
+  const api = useMemo(() => server ?? kpiApi(apiBase()), [server]);
+  const [now] = useState(() => Date.now());
   const { rows, loading, error, reload } = useEntities(KPI, QUERY);
   const { select } = useEntitySelection();
   const [view, setView] = useState<ViewState>(() => readView(window.location.search));
@@ -60,6 +66,11 @@ export function Forecast({ lang }: { lang: Lang }) {
   }, [view]);
 
   const history = useHistory(view.days, rows.length > 0);
+  // The day's first visit has the server record the day's forecasts, which later visits set
+  // against what came (T-3350). Bookkeeping no reader acts on: a refusal changes nothing here.
+  useEffect(() => {
+    api.record(view.days).catch(() => undefined);
+  }, [api, view.days]);
   const sorted = useMemo(() => [...rows].sort((a, b) => nameOf(a).localeCompare(nameOf(b), lang)), [rows, lang]);
   const series = useMemo(() => toSeries(sorted, history.history), [sorted, history.history]);
   const input = useMemo(() => (sorted.length === 0 || history.loading ? null : { series }), [sorted.length, history.loading, series]);
@@ -236,9 +247,11 @@ export function Forecast({ lang }: { lang: Lang }) {
                     )}
                   </>
                 )}
+                <Earlier lang={lang} api={api} kpi={chosen.id} history={result?.history ?? []} now={now} />
               </Card>
             </div>
           )}
+          <Report lang={lang} api={api} now={now} />
         </div>
       )}
     </Page>

@@ -7,6 +7,7 @@ pub mod forecast;
 pub mod stats;
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "web")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use forecast::{best_fit, regularise, season_length, Ahead, Weights};
@@ -286,7 +287,7 @@ pub fn run(input: &Input) -> Output {
 }
 
 /// The module's one entry: the input as JSON, the output as JSON, or `{"error": …}`.
-#[wasm_bindgen]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub fn analyse(input: &str) -> String {
     match serde_json::from_str::<Input>(input) {
         Ok(parsed) => serde_json::to_string(&run(&parsed))
