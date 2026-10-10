@@ -9,8 +9,8 @@
  * on the type alone. `PublicFormPage` is that link, `/f/{slug}`: it reads nothing but the
  * Endpoint's published schema and posts anonymously through the Endpoint.
  */
-import { useMemo, useState } from "react";
-import type { FormEvent, JSX } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, JSX, RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { originTransport } from "@joinedcontext/sdk";
@@ -19,11 +19,24 @@ import type { Change, ResourceProposal } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { endpointUrl } from "../../components/endpoints/links";
-import { Alert, Button, Checkbox, Field, Input, Select } from "../../components/ui";
+import { Alert, Button, Checkbox, Field, Input, Select, Textarea } from "../../components/ui";
 import { DNS1123 } from "../../schemas/kinds";
-import { fetchJson } from "../endpoints/SchemaProjectionPanel";
 import type { LinkmlSlot } from "../models/linkml";
-import { askable, createdId, entityOf, fieldsOf, fieldsOfSchema, prefilled, problemsOf, trapName, visibleFields } from "./formView";
+import {
+  askable,
+  createdId,
+  embedSnippets,
+  entityOf,
+  fieldsOf,
+  fieldsOfSchema,
+  FORM_HEIGHT_MESSAGE,
+  MAX_EMBED_ORIGINS,
+  parseEmbedOrigins,
+  prefilled,
+  problemsOf,
+  trapName,
+  visibleFields,
+} from "./formView";
 import type { Answers, Condition, FieldOption, FieldSetting, FormField, FormSettings, Problem } from "./formView";
 import { publicName } from "./PublicView";
 
@@ -144,6 +157,7 @@ function EntityFormBody({
   locale,
   send,
   trap,
+  test = false,
 }: {
   idPrefix: string;
   type: string;
@@ -155,6 +169,8 @@ function EntityFormBody({
   send: (entity: Record<string, unknown>) => Promise<{ status: number; body: unknown; id?: string }>;
   /** A public form's trap field: hidden from people, sent as an attribute no Policy grants. */
   trap?: string;
+  /** A test run (EP-102): `send` writes nothing, and its answer says what a real one would do. */
+  test?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const { answers, set, reset } = useAnswers(initial);
@@ -202,16 +218,16 @@ function EntityFormBody({
       ) : null}
       {sent.status === "refused" ? (
         <Alert role="alert" tone="danger">
-          {t("spaces.form.refused", { reason: sent.reason })}
+          {t(test ? "spaces.form.testRefused" : "spaces.form.refused", { reason: sent.reason })}
         </Alert>
       ) : null}
       {sent.status === "created" ? (
         <p role="status" className="text-body text-fg [overflow-wrap:anywhere]">
-          {t("spaces.form.created", { id: sent.id })}
+          {test ? t("spaces.form.testPassed") : t("spaces.form.created", { id: sent.id })}
         </p>
       ) : null}
       <Button type="submit" className="w-fit" disabled={sent.status === "sending"} disabledReason={t("app.loading")}>
-        {t("spaces.form.submit")}
+        {t(test ? "spaces.form.testSubmit" : "spaces.form.submit")}
       </Button>
     </form>
   );
@@ -399,6 +415,7 @@ export function formPublishRequest(
   asked: string[],
   relationships: string[] = [],
   perDay = DEFAULT_PER_DAY,
+  embedOrigins: string[] = [],
 ): Record<string, unknown> {
   return {
     contextSpace: space,
@@ -413,6 +430,8 @@ export function formPublishRequest(
     writeRelationships: asked.filter((attr) => relationships.includes(attr)),
     // The gateway mints each entry's id and stops at this count a day (EP-97).
     createsPerDay: perDay,
+    // The sites that may frame the form's page; none, and only the Portal frames it (EP-101).
+    ...(embedOrigins.length > 0 ? { embedOrigins } : {}),
   };
 }
 
@@ -449,6 +468,14 @@ export function FormSharePanel({
   const nameOk = new RegExp(DNS1123).test(name) && name.length <= 63;
   const [perDay, setPerDay] = useState(String(DEFAULT_PER_DAY));
   const perDayOk = /^\d+$/.test(perDay) && Number(perDay) >= 1 && Number(perDay) <= MAX_PER_DAY;
+  const [sites, setSites] = useState("");
+  const embed = parseEmbedOrigins(sites);
+  const sitesError =
+    embed.bad.length > 0
+      ? t("spaces.form.embedBad", { sites: embed.bad.join(", ") })
+      : embed.origins.length > MAX_EMBED_ORIGINS
+        ? t("spaces.form.embedTooMany", { count: MAX_EMBED_ORIGINS })
+        : undefined;
 
   const publish = async () => {
     setFailed(null);
@@ -456,7 +483,7 @@ export function FormSharePanel({
       const rendering = (await unwrap(
         await api.POST("/api/v1/projects/{project}/assistant/propose-endpoint", {
           params: { path: { project } },
-          body: formPublishRequest(space, name, type, attributes, asked, relationships, Number(perDay)) as Record<string, never>,
+          body: formPublishRequest(space, name, type, attributes, asked, relationships, Number(perDay), embed.origins) as Record<string, never>,
         }),
       )) as unknown as Rendering;
       setSlug(rendering.slug ?? null);
@@ -477,6 +504,16 @@ export function FormSharePanel({
         <Field id="form-share-per-day" label={t("spaces.form.perDay")} help={t("spaces.form.perDayHint")} errors={perDayOk ? undefined : [t("spaces.form.perDayHint")]}>
           <Input id="form-share-per-day" inputMode="numeric" value={perDay} onChange={(event) => setPerDay(event.target.value)} />
         </Field>
+        <Field id="form-share-embed" label={t("spaces.form.embedSites")} help={t("spaces.form.embedSitesHint")} errors={sitesError ? [sitesError] : undefined}>
+          <Textarea
+            id="form-share-embed"
+            rows={3}
+            spellCheck={false}
+            placeholder="https://www.example.org"
+            value={sites}
+            onChange={(event) => setSites(event.target.value)}
+          />
+        </Field>
         {failed || proposal.error ? (
           <Alert role="alert" tone="danger">
             {failed ?? proposal.error}
@@ -484,8 +521,18 @@ export function FormSharePanel({
         ) : null}
         <Button
           className="w-fit"
-          disabled={!nameOk || !perDayOk || asked.length === 0 || proposal.mutation.isPending}
-          disabledReason={!nameOk ? t("spaces.share.nameHint") : !perDayOk ? t("spaces.form.perDayHint") : asked.length === 0 ? t("spaces.form.noAsked") : t("app.loading")}
+          disabled={!nameOk || !perDayOk || sitesError !== undefined || asked.length === 0 || proposal.mutation.isPending}
+          disabledReason={
+            !nameOk
+              ? t("spaces.share.nameHint")
+              : !perDayOk
+                ? t("spaces.form.perDayHint")
+                : sitesError
+                  ? sitesError
+                  : asked.length === 0
+                    ? t("spaces.form.noAsked")
+                    : t("app.loading")
+          }
           onClick={() => void publish()}
         >
           {t("spaces.form.publish")}
@@ -494,15 +541,111 @@ export function FormSharePanel({
           <div className="flex flex-col gap-1">
             <ChangeNotice change={change} project={project} />
             {slug ? (
-              <p className="text-body text-fg [overflow-wrap:anywhere]" data-testid="form-share-link">
-                {t("spaces.share.link", { url: `${window.location.origin}/f/${slug}` })}
-              </p>
+              <>
+                <p className="text-body text-fg [overflow-wrap:anywhere]" data-testid="form-share-link">
+                  {t("spaces.share.link", { url: `${window.location.origin}/f/${slug}` })}
+                </p>
+                <FormEmbed slug={slug} type={type} framed={embed.origins.length > 0} />
+              </>
             ) : null}
           </div>
         ) : null}
       </div>
     </details>
   );
+}
+
+/** One snippet to copy, with its own button and a status that says it was copied. */
+function Snippet({ id, label, code }: { id: string; label: string; code: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState<boolean | null>(null);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-body font-medium text-fg">
+        {label}
+      </label>
+      <Textarea id={id} readOnly rows={2} spellCheck={false} value={code} className="font-mono text-caption" onFocus={(event) => event.currentTarget.select()} />
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={() => void copy()}>
+          {t("spaces.form.copy")}
+        </Button>
+        <span role="status" className="text-caption text-fg-muted">
+          {copied === true ? t("spaces.form.copied") : copied === false ? t("spaces.form.copyFailed") : ""}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * How a published form goes on another site, and how it looks to a visitor (API/01 §33): the two
+ * snippets, and the page in a test run inside a frame. The frame sends no session: the page omits
+ * credentials on every request (EP-102), so the preview is what a visitor sees.
+ */
+export function FormEmbed({ slug, type, framed }: { slug: string; type: string; framed: boolean }): JSX.Element {
+  const { t } = useTranslation();
+  const snippets = embedSnippets(window.location.origin, slug, type);
+  return (
+    <div className="flex flex-col gap-3" data-testid="form-embed">
+      <h3 className="text-body font-semibold text-fg">{t("spaces.form.embedTitle")}</h3>
+      <p className="text-body text-fg-muted">{framed ? t("spaces.form.embedLead") : t("spaces.form.embedNone")}</p>
+      <Snippet id="form-embed-iframe" label={t("spaces.form.embedIframe")} code={snippets.iframe} />
+      <Snippet id="form-embed-script" label={t("spaces.form.embedScript")} code={snippets.script} />
+      <h3 className="text-body font-semibold text-fg">{t("spaces.form.previewTitle")}</h3>
+      <p className="text-body text-fg-muted">{t("spaces.form.previewLead")}</p>
+      <iframe
+        title={t("spaces.form.previewFrame", { type })}
+        src={`/f/${encodeURIComponent(slug)}?test=1`}
+        sandbox="allow-scripts allow-forms allow-same-origin"
+        className="h-160 w-full rounded-lg border border-border bg-bg"
+        data-testid="form-preview"
+      />
+    </div>
+  );
+}
+
+/** An anonymous read of the gateway: no cookie or other credential goes with it (EP-102). */
+async function anonymousJson(url: string): Promise<unknown> {
+  const response = await globalThis.fetch(new Request(url, { headers: { Accept: "application/json" }, credentials: "omit" }));
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+/** The answer a send reads: status, body, and the id the gateway minted. */
+async function answerOf(response: Response): Promise<{ status: number; body: unknown; id?: string }> {
+  const text = await response.text();
+  let body: unknown = undefined;
+  try {
+    body = text ? JSON.parse(text) : undefined;
+  } catch {
+    body = { title: text };
+  }
+  return { status: response.status, body, id: createdId(response.headers.get("Location")) };
+}
+
+/** Tells the page that frames this one how tall it is, the only message it sends (API/01 §33). */
+function useHeightToParent(): RefObject<HTMLDivElement | null> {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || window.parent === window || typeof ResizeObserver === "undefined") return;
+    const post = () =>
+      // The height is no secret, and the framing site's origin is not known to the page.
+      window.parent.postMessage({ type: FORM_HEIGHT_MESSAGE, height: Math.ceil(document.documentElement.scrollHeight) }, "*");
+    const observer = new ResizeObserver(post);
+    observer.observe(element);
+    post();
+    return () => observer.disconnect();
+  }, []);
+  return ref;
 }
 
 interface SchemaIndex {
@@ -518,14 +661,16 @@ export function PublicFormPage({
   search?: URLSearchParams;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const frameRef = useHeightToParent();
+  const test = search.get("test") === "1";
   const base = endpointUrl(slug, "/schema");
   const schema = useQuery({
     queryKey: ["public-form", slug],
     retry: false,
     queryFn: async () => {
-      const index = (await fetchJson(`${base}/index.json`)) as SchemaIndex;
+      const index = (await anonymousJson(`${base}/index.json`)) as SchemaIndex;
       const version = index.models?.[0]?.version ?? 1;
-      return (await fetchJson(`${base}/v${version}/json-schema`)) as {
+      return (await anonymousJson(`${base}/v${version}/json-schema`)) as {
         definitions?: Record<string, unknown>;
         $defs?: Record<string, unknown>;
       };
@@ -539,7 +684,7 @@ export function PublicFormPage({
 
   if (schema.isPending || schema.isError || !type || fields.length === 0) {
     return (
-      <div className="flex flex-col gap-3" data-testid="public-form">
+      <div ref={frameRef} className="flex flex-col gap-3" data-testid="public-form">
         <h1 className="text-title font-semibold text-fg">{type ?? slug}</h1>
         <p className="text-body text-fg-muted" role="status">
           {schema.isPending ? t("app.loading") : t("spaces.form.notPublished")}
@@ -548,10 +693,10 @@ export function PublicFormPage({
     );
   }
   return (
-    <div className="flex flex-col gap-3" data-testid="public-form">
+    <div ref={frameRef} className="flex flex-col gap-3" data-testid="public-form">
       <h1 className="text-title font-semibold text-fg">{type}</h1>
       <p className="text-body text-fg-muted">{t("spaces.form.publicLead")}</p>
-      <Alert tone="info">{t("spaces.form.publicData")}</Alert>
+      {test ? <Alert tone="warning">{t("spaces.form.testMode")}</Alert> : <Alert tone="info">{t("spaces.form.publicData")}</Alert>}
       <EntityFormBody
         idPrefix="public-form"
         type={type}
@@ -559,24 +704,35 @@ export function PublicFormPage({
         initial={initial}
         locale={i18n.language}
         trap={trapName(fields)}
+        test={test}
         send={async (entity) => {
-          // Anonymous: no Portal session goes with it; the gateway decides and rate-limits it.
-          const response = await globalThis.fetch(
-            new Request(endpointUrl(slug, "/ngsi-ld/v1/entities"), {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Accept: "application/json" },
-              body: JSON.stringify(entity),
-              credentials: "omit",
-            }),
-          );
-          const text = await response.text();
-          let body: unknown = undefined;
-          try {
-            body = text ? JSON.parse(text) : undefined;
-          } catch {
-            body = { title: text };
+          if (test) {
+            // A test writes nothing: the fields were checked against the published schema above,
+            // and the gateway's PDP, the one that decides writes, says whether it would take one.
+            const response = await globalThis.fetch(
+              new Request(endpointUrl(slug, "/access/check"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({ action: { name: "createEntity" }, resource: { type } }),
+                credentials: "omit",
+              }),
+            );
+            const answer = await answerOf(response);
+            const decision = (answer.body as { decision?: unknown } | undefined)?.decision;
+            if (answer.status === 200 && decision !== true) return { status: 403, body: { title: t("spaces.form.testNotAllowed") } };
+            return answer;
           }
-          return { status: response.status, body, id: createdId(response.headers.get("Location")) };
+          // Anonymous: no Portal session goes with it; the gateway decides and rate-limits it.
+          return answerOf(
+            await globalThis.fetch(
+              new Request(endpointUrl(slug, "/ngsi-ld/v1/entities"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify(entity),
+                credentials: "omit",
+              }),
+            ),
+          );
         }}
       />
     </div>

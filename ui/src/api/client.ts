@@ -73,11 +73,18 @@ export function readCsrfToken(): string | undefined {
   return undefined;
 }
 
+/** A public form's page, `/f/{slug}`: it sends no credentials on any request (EP-102). */
+export function isPublicFormPath(path: string): boolean {
+  return /^\/f\/[^/]+\/?$/.test(path);
+}
+
 // openapi-fetch builds a `Request`, which needs an absolute URL outside the browser's
 // document context (jsdom included). The paths in `schema.d.ts` already carry `/api/v1`.
 export const api = createClient<paths>({
   baseUrl: window.location.origin,
-  credentials: "same-origin",
+  // The page is anonymous by construction, for a visitor, a site that frames it and the share
+  // panel's preview alike, so not even the Portal's own reads carry the session there.
+  credentials: isPublicFormPath(window.location.pathname) ? "omit" : "same-origin",
   // Resolve the global at call time. openapi-fetch would otherwise capture whatever
   // `globalThis.fetch` was when this module first loaded, which no test can substitute.
   fetch: (request) => globalThis.fetch(request),

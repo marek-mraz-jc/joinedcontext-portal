@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, queryKeys, unwrap } from "../api/client";
+import { api, isPublicFormPath, queryKeys, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { clearBrowserState } from "./browserState";
 
@@ -52,11 +52,14 @@ export function useIdentity(): Identity | null {
 
 export function AuthProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const queryClient = useQueryClient();
+  // A public form's page asks nobody who is signed in: it is anonymous for everyone (EP-102).
+  const anonymousPage = isPublicFormPath(window.location.pathname);
   const session = useQuery({
     queryKey: queryKeys.session(),
     queryFn: fetchIdentity,
     retry: false,
     staleTime: 60_000,
+    enabled: !anonymousPage,
   });
 
   const signIn = useCallback((redirectTo?: string) => {
@@ -90,8 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     // Anything other than a live session is anonymous: a transport error must not open a door.
     const identity = session.data ?? null;
     const roles = identity?.roles ?? [];
-    const status: AuthStatus = session.isPending
-      ? "loading"
+    const status: AuthStatus = anonymousPage
+      ? "anonymous"
+      : session.isPending
+        ? "loading"
       : identity
         ? "authenticated"
         : "anonymous";
@@ -103,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       signIn,
       signOut,
     };
-  }, [session.data, session.isPending, signIn, signOut]);
+  }, [anonymousPage, session.data, session.isPending, signIn, signOut]);
 
   return <AuthContext value={value}>{children}</AuthContext>;
 }

@@ -65,16 +65,16 @@ path = "src/main.rs"
 
 [dependencies]
 # The manifest contract, by tag or by full commit, never by path into another agent's clone
-# (T-0249). Pinned to platform e71abb1 (platform main with T-3226's KnowledgeSource source: guide, AG-118) until jc-core-v0.7.76 is tagged
+# (T-0249). Pinned to platform fdeafd3 (platform main with T-3266's Endpoint spec.creates.embedOrigins, EP-101) until jc-core-v0.7.76 is tagged
 # there (T-3167); the three crates share one reference, so cargo pulls one copy.
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
-jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "e71abb1f021aeafb25d8f30b7af7f420e7c7c328", version = "0.1.0" }
+jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "fdeafd3377aec64c03285f522676fd654bd47620", version = "0.1.0" }
 # Blueprint expansion (CC-25) and the loader the reconciler validates a repository with
 # (T-0191), from the same engine the CLI runs, so both sides agree on what a manifest is. Same
 # tag as jc-core on purpose: cargo keys a git source by its reference, so two tags of one
 # repository would pull two copies of `jc-core` and its types would stop matching.
-jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "e71abb1f021aeafb25d8f30b7af7f420e7c7c328", version = "0.1.0", default-features = false }
+jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "fdeafd3377aec64c03285f522676fd654bd47620", version = "0.1.0", default-features = false }
 # The operations check an input against the schema they publish (T-1659); already in the tree.
 jsonschema = { version = "0.54", default-features = false }
 # Only to render jc-core's schemas into the OpenAPI document; the Portal's own types use utoipa.
@@ -147,7 +147,7 @@ tokio = { version = "1", features = ["test-util"] }
 # The gateway's own policy decision and endpoint roles, so the app-variant matrix asserts what the
 # gateway decides on the grants the Portal renders, not a copy of its rules (T-2705). Same tag as
 # jc-core, for the reason given above.
-context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "e71abb1f021aeafb25d8f30b7af7f420e7c7c328", version = "0.1.0" }
+context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "fdeafd3377aec64c03285f522676fd654bd47620", version = "0.1.0" }
 
 # ponytail: line tables only, no full debuginfo — several agents compile on one machine
 [profile.dev]

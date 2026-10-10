@@ -304,3 +304,46 @@ export function createdId(location: string | null): string | undefined {
   const id = location.slice(at + "/entities/".length).split(/[?#]/)[0];
   return id ? decodeURIComponent(id) : undefined;
 }
+
+/** The most sites a form may name to frame it (EP-101, jc-core `MAX_EMBED_ORIGINS`). */
+export const MAX_EMBED_ORIGINS = 20;
+
+/**
+ * Whether `origin` is an https origin exactly as a browser names it: lower-case DNS host with a
+ * dot, an optional non-default port, nothing after it. The Endpoint's own rule (EP-101), so the
+ * panel names a bad line before the server does.
+ */
+export function isEmbedOrigin(origin: string): boolean {
+  const match = /^https:\/\/([a-z0-9.-]+)(?::([1-9][0-9]{0,4}))?$/.exec(origin);
+  if (!match) return false;
+  const [, host, port] = match;
+  if (host.length > 253 || !host.includes(".")) return false;
+  const labels = host.split(".");
+  if (!labels.every((label) => label.length >= 1 && label.length <= 63 && !label.startsWith("-") && !label.endsWith("-"))) return false;
+  return port === undefined || (Number(port) <= 65535 && port !== "443");
+}
+
+/** The sites typed one per line: the origins, and the lines that are not one, duplicates included. */
+export function parseEmbedOrigins(text: string): { origins: string[]; bad: string[] } {
+  const origins: string[] = [];
+  const bad: string[] = [];
+  for (const line of text.split(/\s+/).filter(Boolean)) {
+    const origin = line.replace(/\/$/, "");
+    if (isEmbedOrigin(origin) && !origins.includes(origin)) origins.push(origin);
+    else bad.push(line);
+  }
+  return { origins, bad };
+}
+
+/** The message a form's page sends its parent when its height changes (API/01 §33). */
+export const FORM_HEIGHT_MESSAGE = "jc-form-height";
+
+/** The two snippets that embed a form on another site (API/01 §33). */
+export function embedSnippets(portal: string, slug: string, title: string): { iframe: string; script: string } {
+  const page = `${portal}/f/${encodeURIComponent(slug)}`;
+  const quoted = title.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return {
+    iframe: `<iframe src="${page}" title="${quoted}" style="width:100%;min-height:640px;border:0" loading="lazy"></iframe>`,
+    script: `<script src="${portal}/f/embed.js" data-jc-form="${encodeURIComponent(slug)}" data-jc-title="${quoted}" async></script>`,
+  };
+}

@@ -200,3 +200,88 @@ async fn every_answer_carries_the_headers_that_do_not_depend_on_the_route() {
     assert!(permissions.contains("camera=()"), "{permissions}");
     assert!(permissions.contains("microphone=()"), "{permissions}");
 }
+
+/// EP-101 (T-3266): a public form's page may be framed by exactly the sites its Endpoint names,
+/// and nothing else relaxes. A form that names none, an unknown slug, a list that breaks the
+/// Endpoint's rule and every other page keep `frame-ancestors 'self'` and `SAMEORIGIN`.
+#[tokio::test]
+async fn a_form_page_is_framed_by_exactly_the_sites_its_endpoint_names() {
+    use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+    use serde_json::json;
+
+    let state = AppState::new(Config::for_tests(), None);
+    let endpoint = |name: &str, slug: &str, creates: serde_json::Value| ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: "Endpoint".into(),
+        metadata: ObjectMeta {
+            name: name.into(),
+            namespace: Some("helsinki".into()),
+            ..Default::default()
+        },
+        spec: json!({ "slug": slug, "creates": creates }),
+        status: None,
+    };
+    state.mirror.upsert(endpoint(
+        "feedback-form",
+        "ep-framed",
+        json!({ "mintIds": true, "embedOrigins": ["https://www.hel.fi", "https://news.hel.fi:8443"] }),
+    ));
+    state.mirror.upsert(endpoint(
+        "plain-form",
+        "ep-plain",
+        json!({ "mintIds": true }),
+    ));
+    // Not a valid list: a directive smuggled after a `;` must never reach the header.
+    state.mirror.upsert(endpoint(
+        "broken-form",
+        "ep-broken",
+        json!({ "mintIds": true, "embedOrigins": ["https://a.example; script-src *"] }),
+    ));
+    let app = server::app(state);
+    let headers = |uri: &'static str| {
+        let app = app.clone();
+        async move {
+            app.oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response")
+            .headers()
+            .clone()
+        }
+    };
+
+    let framed = headers("/f/ep-framed").await;
+    let policy = framed[header::CONTENT_SECURITY_POLICY]
+        .to_str()
+        .expect("ASCII");
+    assert_eq!(
+        directive(policy, "frame-ancestors"),
+        Some("'self' https://www.hel.fi https://news.hel.fi:8443")
+    );
+    assert_eq!(directive(policy, "default-src"), Some("'self'"), "{policy}");
+    assert!(framed.get("x-frame-options").is_none());
+
+    for uri in [
+        "/f/ep-plain",
+        "/f/ep-broken",
+        "/f/ep-unknown",
+        "/f/ep-framed/more",
+        "/projects/helsinki/home",
+        "/",
+    ] {
+        let kept = headers(uri).await;
+        let policy = kept[header::CONTENT_SECURITY_POLICY]
+            .to_str()
+            .expect("ASCII");
+        assert_eq!(
+            directive(policy, "frame-ancestors"),
+            Some("'self'"),
+            "{uri}"
+        );
+        assert_eq!(kept["x-frame-options"], "SAMEORIGIN", "{uri}");
+    }
+}

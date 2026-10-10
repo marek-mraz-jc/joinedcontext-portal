@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  isPublicFormPath,
   ApiError,
   createSessionMiddleware,
   csrfMiddleware,
@@ -376,5 +377,12 @@ describe("a list the caller may not read (T-3147)", () => {
     await expect(unwrap(refused("plural 'roles' not found in project 'helsinki'", 403))).rejects.toThrow(
       "plural 'roles' not found in project 'helsinki'",
     );
+  });
+});
+
+describe("isPublicFormPath (EP-102)", () => {
+  it("is a public form's page alone, never another page under it", () => {
+    for (const path of ["/f/zt4qm7ge2xdv6ksb3ncf5arw2y", "/f/abc/"]) expect(isPublicFormPath(path), path).toBe(true);
+    for (const path of ["/", "/f/", "/f/abc/more", "/projects/city/f/abc", "/fx/abc", "/v/abc"]) expect(isPublicFormPath(path), path).toBe(false);
   });
 });

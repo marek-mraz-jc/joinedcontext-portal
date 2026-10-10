@@ -205,14 +205,14 @@ function SignedInCatalogue({
   );
 }
 
-function PublicFrame({ children }: { children: React.ReactNode }): React.JSX.Element {
+function PublicFrame({ children, anonymous = false }: { children: React.ReactNode; anonymous?: boolean }): React.JSX.Element {
   const { t } = useTranslation();
   const { status, signIn } = useAuth();
   return (
     <div className="flex min-h-screen flex-col bg-bg font-sans text-fg">
       <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-surface px-4">
         <BrandMark short />
-        {status === "anonymous" ? (
+        {status === "anonymous" && !anonymous ? (
           <Button size="sm" variant="secondary" onClick={() => signIn(window.location.pathname + window.location.search)}>
             {t("auth.signIn")}
           </Button>
@@ -313,7 +313,8 @@ const publicFormRoute = createRoute({
   path: "/f/$slug",
   component: function PublicFormRoute() {
     const { slug } = publicFormRoute.useParams();
-    return <PublicFrame>{<PublicFormPage slug={slug} />}</PublicFrame>;
+    // Anonymous for everyone (EP-102): signing in would change nothing the form does.
+    return <PublicFrame anonymous>{<PublicFormPage slug={slug} />}</PublicFrame>;
   },
 });
 
