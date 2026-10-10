@@ -341,6 +341,19 @@ impl Driver {
                         .and_then(Value::as_str)
                         .unwrap_or_default()
                         .to_owned();
+                    // The element the person pointed at in the preview, when they did (SDK-46).
+                    let scope = event
+                        .payload
+                        .get("scope")
+                        .and_then(Value::as_str)
+                        .and_then(code::scope);
+                    let text = match scope {
+                        Some((file, line)) => format!(
+                            "{text}\n\nThe person pointed at {file}:{line} in the preview. Change \
+                             {file} only: every other file is refused in this turn."
+                        ),
+                        None => text,
+                    };
                     instruction = text.clone();
                     self.thought("Working on your message…").await?;
                     // A version on screen is edited in place, tool by tool (SDK-20); before one
@@ -348,12 +361,13 @@ impl Driver {
                     edited = shown.is_some();
                     if edited {
                         match self
-                            .edit_turn(
+                            .scoped_edit_turn(
                                 &mut files,
                                 &mut committed,
                                 &mut conversation,
                                 &text,
                                 shown.as_ref(),
+                                scope.map(|(file, _)| file),
                             )
                             .await
                         {

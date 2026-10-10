@@ -261,6 +261,10 @@ pub struct MessageRequest {
     /// On a conversation: the capabilities from this message on (AG-92, T-2718).
     #[serde(default)]
     pub access: Option<crate::agents::capabilities::Capabilities>,
+    /// On an application run: the `src` of the preview's `jc-select`, `{file}:{line}`; the
+    /// editing agent changes that file only for this message (SDK-46).
+    #[serde(default)]
+    pub scope: Option<String>,
 }
 
 /// A runtime error the preview frame posted as `jc-error`, relayed by the page that frames it.
@@ -1212,7 +1216,7 @@ async fn record_answer(
     ),
     request_body(
         content = MessageRequest,
-        example = json!({ "text": "Show only stations with fewer than three bikes" })
+        example = json!({ "text": "Make this title red", "scope": "src/pages/Stations.tsx:14" })
     ),
     responses(
         (status = 204, description = "The instruction is on the run's log and in its inbox"),
@@ -1250,6 +1254,19 @@ pub async fn post_message(
         ));
     }
     let page = crate::api::assistant::page_context(request.page_context.as_ref(), &project)?;
+    if let Some(scope) = &request.scope {
+        if run.kind == "conversation" {
+            return Err(ApiError::BadRequest(
+                "scope is a file of an application run only".into(),
+            ));
+        }
+        if crate::agents::code::scope(scope).is_none() {
+            return Err(ApiError::BadRequest(
+                "scope is {file}:{line}, an interface file under src/ ending in .tsx (SDK-46)"
+                    .into(),
+            ));
+        }
+    }
     if let Some(access) = &request.access {
         if run.kind != "conversation" {
             return Err(ApiError::BadRequest(
@@ -1308,6 +1325,7 @@ pub async fn post_message(
             "sentBy": user.0.identity.username,
             "page": page,
             "access": request.access,
+            "scope": request.scope,
         }),
     )
     .await?;
