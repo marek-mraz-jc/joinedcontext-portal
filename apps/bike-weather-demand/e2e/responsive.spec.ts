@@ -66,6 +66,27 @@ test("switching language toggles between Finnish and English", async ({ page }) 
   expect(page.url()).toContain("lang=en");
 });
 
+// T-3355: the station's models the App's server keeps, after a reload too, and a day's training
+// data downloaded from the store.
+test("the station's kept models, after a reload too, and a day's training data", async ({ page }) => {
+  const { outside, missing, problems } = await serve(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}?lang=en`);
+  const models = page.getByRole("table", { name: "The station's model over time: kept by the server" });
+  await expect(models.getByRole("row")).toHaveCount(3);
+  await page.reload();
+  await expect(models.getByRole("row").nth(1)).toContainText("+0.42");
+  await page.context().route("http://portal.test/store/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
+  const popup = page.waitForEvent("popup");
+  await models.getByRole("button", { name: "Download the training data of 21 Oct 2030" }).click();
+  const tab = await popup;
+  await tab.waitForLoadState();
+  expect(tab.url()).toBe("http://portal.test/store/training/2.json");
+  await tab.close();
+  expect(await layoutProblems(page)).toEqual([]);
+  expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+});
+
 test("empty stations shows message instead of broken UI", async ({ page }) => {
   await serve(page, []);
   await page.goto(`${BASE}?lang=en`);

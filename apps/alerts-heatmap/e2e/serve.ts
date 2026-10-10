@@ -28,6 +28,38 @@ export interface Served {
   problems: string[];
 }
 
+/** The App's server (T-3351) as the page sees it: the weeks it keeps and the reports saved, in memory. */
+const WEEKS = {
+  weeks: [
+    { week: "2030-10-21", alerts: 3, places: [], computed_at: "2030-10-21T10:00:00Z" },
+    { week: "2030-10-14", alerts: 5, places: [{ name: "Mannerheimintie, Helsinki", lon: 24.9384, lat: 60.1699, count: 3 }], computed_at: "2030-10-21T10:00:00Z" },
+  ],
+  stale: false,
+};
+
+function appServer() {
+  const reports: Array<Record<string, unknown>> = [];
+  const pictures = new Set<string>();
+  return (method: string, path: string, body: unknown): { status: number; body: unknown } => {
+    if (method === "GET" && path === "/weeks") return { status: 200, body: WEEKS };
+    if (method === "GET" && path === "/reports") return { status: 200, body: [...reports].reverse() };
+    if (method === "POST" && path === "/reports") {
+      const report = { ...(body as object), id: reports.length + 1, has_snapshot: false, created_at: "2030-10-21T09:00:00Z" };
+      reports.push(report);
+      return { status: 201, body: report };
+    }
+    const snapshot = /^\/reports\/(\d+)\/snapshot$/.exec(path);
+    const report = snapshot ? reports.find((r) => r.id === Number(snapshot[1])) : undefined;
+    if (!snapshot || !report) return { status: 404, body: { title: "Not Found", detail: "no such report" } };
+    if (method === "POST") {
+      report.has_snapshot = true;
+      pictures.add(String(report.id));
+      return { status: 200, body: { url: `http://portal.test/store/reports/${report.id}/map.png`, method: "PUT" } };
+    }
+    return { status: 200, body: { url: `http://portal.test/store/reports/${report.id}/map.png` } };
+  };
+}
+
 /** Serves the built bundle at the root of the App's own host, with the SDK's stub answering its endpoint. */
 export async function serve(page: Page, entities = ALERTS): Promise<Served> {
   const transport = stubTransport({
@@ -35,6 +67,7 @@ export async function serve(page: Page, entities = ALERTS): Promise<Served> {
     access: { permissions: [{ resource: { type: "Alert" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] },
   });
   const served: Served = { outside: [], missing: [], problems: [] };
+  const api = appServer();
   page.on("pageerror", (error) => served.problems.push(error.message));
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -46,6 +79,15 @@ export async function serve(page: Page, entities = ALERTS): Promise<Served> {
       const body = route.request().postData();
       const answer = await transport({ method: route.request().method() as "GET", path: url.pathname + url.search, body: body ? JSON.parse(body) : undefined });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
+    }
+    if (url.pathname.startsWith("/apps/alerts-heatmap/api/")) {
+      const body = route.request().postData();
+      const answer = api(route.request().method(), url.pathname.slice("/apps/alerts-heatmap/api".length), body ? JSON.parse(body) : undefined);
+      return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body) });
+    }
+    // The store's presigned URLs: a picture goes there from the browser, never through the server.
+    if (url.pathname.startsWith("/store/")) {
+      return route.fulfill({ status: 200, contentType: route.request().method() === "PUT" ? "text/plain" : "image/png", body: "" });
     }
     const file = normalize(url.pathname.slice(1) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) {

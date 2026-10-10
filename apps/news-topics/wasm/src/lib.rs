@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+#[cfg(feature = "browser")]
 use wasm_bindgen::prelude::*;
 
 pub const ENGLISH_STOP_WORDS: &[&str] = &[
@@ -1135,7 +1136,7 @@ pub fn run_analyse(input_str: &str) -> Result<String, String> {
     serde_json::to_string(&output).map_err(|e| e.to_string())
 }
 
-#[wasm_bindgen]
+#[cfg_attr(feature = "browser", wasm_bindgen)]
 pub fn analyse(input: &str) -> String {
     match run_analyse(input) {
         Ok(json) => json,

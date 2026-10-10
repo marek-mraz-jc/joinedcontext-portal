@@ -1,8 +1,9 @@
 # Helsinki data quality (T-3336): how complete, fresh and valid the open data of the
 # Helsinki space is, per entity type and attribute, and which entities fail. The inspection
-# runs in the visitor's browser as WebAssembly compiled from the Rust crate in wasm/ (AP-142),
-# so the App is a `ui` bundle and costs no pod: the static host serves its files and nothing
-# else runs for it. Hand written, so no generated-by annotation (AP-35).
+# runs in the visitor's browser as WebAssembly compiled from the Rust crate in wasm/ (AP-142).
+# The server component in server/ runs on the shared WASM host (T-3354, AP-148): it keeps every
+# quality run's scores in the App's own schema, for the trend, and each run's full per-entity
+# report under its own storage prefix. Hand written, so no generated-by annotation (AP-35).
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
 metadata:
@@ -15,7 +16,7 @@ metadata:
     en: "How complete, fresh and valid Helsinki open data is, per entity type and attribute, and which entities fail."
     fi: "Helsingin avoimen datan kattavuus, tuoreus ja virheettömyys tietotyypeittäin ja ominaisuuksittain sekä virheelliset kohteet."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_data-quality-inspector.git
@@ -23,6 +24,13 @@ spec:
   build:
     node: "22"
     rust: "1.90"
+  # Its own schema, migrated from migrations/ at publish, and its own prefix for the reports.
+  storage:
+    sql:
+      migrations: migrations
+      quotaMiB: 50
+    blob:
+      quotaMiB: 1024
   visibility: public
   lifecycle: published
   dataNeeds:

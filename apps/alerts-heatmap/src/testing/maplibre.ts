@@ -54,6 +54,18 @@ export class Map {
     this.fitted.push(bounds);
   }
 
+  /** The canvas a snapshot is taken of; `snapshotFails` makes it throw, as a tainted canvas does. */
+  static snapshotFails = false;
+
+  getCanvas(): { toBlob(done: (png: Blob | null) => void, type: string): void } {
+    return {
+      toBlob(done, type) {
+        if (Map.snapshotFails) throw new Error("tainted");
+        done(new Blob(["png"], { type }));
+      },
+    };
+  }
+
   setPaintProperty(layer: string, property: string, value: unknown): void {
     this.paint[`${layer}.${property}`] = value;
   }

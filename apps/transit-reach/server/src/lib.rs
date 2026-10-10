@@ -163,17 +163,6 @@ pub fn geojson(output: &Output) -> Json {
     json!({"type": "FeatureCollection", "features": features})
 }
 
-/// The gateway's answer read as `T`, or what the caller gets: their own 401 or 403 passes
-/// through, anything else is the gateway's fault.
-fn read<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, Response> {
-    let answer = gateway::get(path).map_err(|why| Response::problem(502, "Bad Gateway", &why))?;
-    answer.json().map_err(|why| match answer.status {
-        401 => Response::problem(401, "Unauthorized", &why),
-        403 => Response::problem(403, "Forbidden", &why),
-        _ => Response::problem(502, "Bad Gateway", &why),
-    })
-}
-
 fn all(kind: &str, attrs: &str) -> Result<Vec<Json>, Response> {
     let mut rows = Vec::new();
     for page in 0..MAX_PAGES {
@@ -182,7 +171,7 @@ fn all(kind: &str, attrs: &str) -> Result<Vec<Json>, Response> {
             gateway::encode(attrs),
             page * PAGE
         );
-        let batch: Vec<Json> = read(&path)?;
+        let batch: Vec<Json> = gateway::get_json(&path).map_err(Response::from)?;
         let n = batch.len();
         rows.extend(batch);
         if n < PAGE {

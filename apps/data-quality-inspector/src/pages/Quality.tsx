@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Row } from "@joinedcontext/sdk";
 import { Card, Empty, Loading, Page, Problem, ProblemError, currentTokens, useClient, useEntitySelection, useSchema } from "@joinedcontext/sdk";
+import { Trend } from "../components/Trend";
+import { useServer } from "../server";
 import { ChartCard } from "../components/ChartCard";
 import type { Lang } from "../i18n";
 import { number, t } from "../i18n";
@@ -66,6 +68,7 @@ export function completenessBarOption(types: TypeQuality[], _lang: Lang): Record
  */
 export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
   const client = useClient();
+  const server = useServer(client.config.appName);
   const { select } = useEntitySelection();
   const { schema, error: schemaError } = useSchema();
 
@@ -435,6 +438,7 @@ export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
           )}
         </>
       )}
+      <Trend lang={lang} server={server} />
     </Page>
   );
 }

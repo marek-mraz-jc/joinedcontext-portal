@@ -85,10 +85,10 @@ pnpm e2e           # the built bundle in Chromium at four widths, light and dark
 (cd server && cargo test && cargo build --release --target wasm32-wasip2)   # the server component
 ```
 
-`server/host-test.json` is the server component's scenario on the real host: the platform's
-`crates/wasm-host/tests/apps_tests.rs` builds the component, runs `migrations/` twice as the
-reconciler does, and plays the scenario against Postgres, RustFS and a mock of the App's own
-Endpoint (`JC_WASM_TEST_APPS=<this repository's apps>`), with a second App that must see nothing.
+`server/host-test.json` is the server component's scenario on the real host: the portal
+repository's `tests/wasm-apps` (`tests/scenarios.rs`, ci-full) builds the component, runs
+`migrations/` twice as the reconciler does, and plays the scenario against Postgres, RustFS and a
+mock of the App's own Endpoint, with a second App that must see nothing.
 The page's tests and `e2e/serve.ts` answer the server's routes from the fixture
 (`src/testing/`).
 

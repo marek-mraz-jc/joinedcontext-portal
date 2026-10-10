@@ -68,6 +68,27 @@ test("changing the measure updates table rows and chart", async ({ page }) => {
   await expect(page.locator("figcaption")).toHaveText("Selected districts: City-bike stations");
 });
 
+// T-3353: the selected districts' days as the App's server kept them, after a reload too, and the
+// boundaries with their licence downloaded from the store.
+test("the selected districts' kept days, after a reload too, and the boundaries as a file", async ({ page }) => {
+  const { outside, missing, problems } = await serve(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}?lang=en`);
+  const history = page.getByRole("table", { name: "History of the selected districts: Events" });
+  await expect(history.getByRole("row")).toHaveCount(3);
+  await page.reload();
+  await expect(history.getByRole("row").nth(1)).toContainText("21 Oct 2030");
+  await page.context().route("http://portal.test/store/**", (route) => route.fulfill({ status: 200, contentType: "text/plain", body: "CC BY 4.0" }));
+  const popup = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Download the licence of the boundaries" }).click();
+  const tab = await popup;
+  await tab.waitForLoadState();
+  expect(tab.url()).toBe("http://portal.test/store/boundaries/LICENCE.txt");
+  await tab.close();
+  expect(await layoutProblems(page)).toEqual([]);
+  expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+});
+
 test("empty districts shows message instead of broken UI", async ({ page }) => {
   await serve(page, []);
   await page.goto(`${BASE}?lang=en`);

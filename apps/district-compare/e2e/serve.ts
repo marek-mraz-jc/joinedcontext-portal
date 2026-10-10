@@ -34,6 +34,14 @@ export interface Served {
   problems: string[];
 }
 
+/** The App's server (T-3353) as the page sees it: two kept days of every district asked for. */
+function history(codes: string[]) {
+  const days = ["2030-10-21", "2030-10-20"].flatMap((day, n) =>
+    codes.map((code, i) => ({ day, code, name: `District ${code}`, area_km2: 2, events: 3 - n + i, bikes: 1, bike_slots: 10, alerts: n, pm25: null, aqi: null })),
+  );
+  return { days, stale: false };
+}
+
 /** Serves the built bundle at the root of the App's own host, with the SDK stub answering the endpoint. */
 export async function serve(page: Page, entities = ENTITIES): Promise<Served> {
   const transport = stubTransport({
@@ -69,6 +77,14 @@ export async function serve(page: Page, entities = ENTITIES): Promise<Served> {
         contentType: "application/json",
         body: JSON.stringify(answer.body ?? null),
       });
+    }
+    if (url.pathname === "/apps/district-compare/api/metrics") {
+      const codes = (url.searchParams.get("codes") ?? "").split(",").filter(Boolean);
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(history(codes)) });
+    }
+    if (url.pathname === "/apps/district-compare/api/boundaries") {
+      const files = { geojson: "http://portal.test/store/boundaries/districts.geojson", licence: "http://portal.test/store/boundaries/LICENCE.txt" };
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(files) });
     }
     const file = normalize(url.pathname.slice(1) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) {

@@ -181,17 +181,6 @@ pub fn station(entity: &Json) -> Option<Station> {
     })
 }
 
-/// The gateway's answer read as `T`, or what the caller gets: their own 401 or 403 passes
-/// through, anything else is the gateway's fault.
-fn read<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, Response> {
-    let answer = gateway::get(path).map_err(|why| Response::problem(502, "Bad Gateway", &why))?;
-    answer.json().map_err(|why| match answer.status {
-        401 => Response::problem(401, "Unauthorized", &why),
-        403 => Response::problem(403, "Forbidden", &why),
-        _ => Response::problem(502, "Bad Gateway", &why),
-    })
-}
-
 /// Every station the caller may read from the App's own Endpoint, page by page.
 fn stations() -> Result<Vec<Station>, Response> {
     let mut all = Vec::new();
@@ -201,7 +190,7 @@ fn stations() -> Result<Vec<Station>, Response> {
             gateway::encode(ATTRS),
             all.len()
         );
-        let page: Vec<Json> = read(&path)?;
+        let page: Vec<Json> = gateway::get_json(&path).map_err(Response::from)?;
         let n = page.len();
         all.extend(page.iter().filter_map(station));
         if n < PAGE {

@@ -244,17 +244,6 @@ fn during(entity: &Json, (start, end): (i64, i64)) -> bool {
     first < end && (last > start || (last == first && first >= start))
 }
 
-/// The gateway's answer read as `T`, or what the caller gets: their own 401 or 403 passes
-/// through, anything else is the gateway's fault.
-fn read<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, Response> {
-    let answer = gateway::get(path).map_err(|why| Response::problem(502, "Bad Gateway", &why))?;
-    answer.json().map_err(|why| match answer.status {
-        401 => Response::problem(401, "Unauthorized", &why),
-        403 => Response::problem(403, "Forbidden", &why),
-        _ => Response::problem(502, "Bad Gateway", &why),
-    })
-}
-
 /// A share's code: 12 letters and digits of a random UUID Postgres makes.
 fn new_code() -> Result<String, Response> {
     let rows = sql::query(
@@ -337,7 +326,7 @@ fn share(request: &Request, _: &Params) -> Response {
         gateway::encode(ATTRS),
         gateway::encode(&ids.join(","))
     );
-    let entities: Vec<Json> = match read(&path) {
+    let entities: Vec<Json> = match gateway::get_json(&path).map_err(Response::from) {
         Ok(entities) => entities,
         Err(answer) => return answer,
     };

@@ -1,0 +1,56 @@
+{
+  "gateway": [
+    {
+      "path": "/ngsi-ld/v1/entities",
+      "query": {
+        "type": "NewsArticle",
+        "offset": "0",
+        "options": "keyValues"
+      },
+      "file": "host-test/articles.json"
+    }
+  ],
+  "steps": [
+    {
+      "call": "GET /api/weeks",
+      "status": 200,
+      "expect": {
+        "/stale": false,
+        "/weeks/0/week": "2026-W42",
+        "/weeks/0/articles": 1,
+        "/weeks/1/week": "2026-W41",
+        "/weeks/1/articles": 3
+      },
+      "length": {
+        "/weeks": 2,
+        "/weeks/0/topics": 1
+      }
+    },
+    {
+      "call": "GET /api/weeks",
+      "status": 200,
+      "length": {
+        "/weeks": 2
+      }
+    },
+    {
+      "call": "GET /api/weeks/2026-W41/corpus",
+      "status": 200,
+      "download": "/url",
+      "downloaded": "Kirjasto avaa uuden lukusalin"
+    },
+    {
+      "call": "GET /api/weeks/2026-W40/corpus",
+      "status": 404
+    },
+    {
+      "call": "GET /api/weeks/2026-41/corpus",
+      "status": 404
+    },
+    {
+      "call": "GET /api/weeks/2026-W41/corpus",
+      "as": "second",
+      "status": 404
+    }
+  ]
+}

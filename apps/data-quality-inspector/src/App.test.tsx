@@ -5,6 +5,8 @@ import { JcProvider, ProblemError } from "@joinedcontext/sdk";
 import type { Schema } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
+import { Problem as ServerProblem, ServerContext } from "./server";
+import type { Run, Server } from "./server";
 import { completenessBarOption } from "./pages/Quality";
 import { InspectorContext, parseAnswer, type Inspector } from "./inspect";
 import { ENTITIES, NOW, SCHEMA_WITH_VEHICLE } from "./fixtures/quality";
@@ -45,18 +47,43 @@ const ACCESS = {
 // validator checks. One cast, here, where the fixture meets the stub.
 const STUB_SCHEMA = SCHEMA_WITH_VEHICLE as unknown as Schema;
 
+/** The App's server in memory (T-3354): the runs it keeps, a run now, and each run's report. */
+function fakeServer(start: Run[] = [], fail: { runs?: string; runNow?: string; report?: string } = {}, stale = false): Server & { kept: Run[] } {
+  const kept = [...start];
+  return {
+    kept,
+    runs: async () => {
+      if (fail.runs) throw new ServerProblem(502, fail.runs);
+      return { runs: [...kept].reverse(), stale };
+    },
+    runNow: async () => {
+      if (fail.runNow) throw new ServerProblem(429, fail.runNow);
+      const id = kept.length + 1;
+      kept.push({ id, ran_at: "2030-10-21T09:00:00Z", types: [], entities: 9, findings: 1, completeness: 0.9, valid: 0.5 });
+      return id;
+    },
+    reportUrl: async (id) => {
+      if (fail.report) throw new ServerProblem(404, fail.report);
+      return `https://store.test/runs/${id}/report.json`;
+    },
+  };
+}
+
 function show(
   client = stubClient(
     { entities: ENTITIES, schema: STUB_SCHEMA, access: ACCESS },
     { appName: "data-quality-inspector", portal: "https://portal.hel.fi/projects/helsinki" },
   ),
   inspector: Inspector = runInspector,
+  server: Server = fakeServer(),
 ) {
   render(
     <JcProvider client={client}>
-      <InspectorContext.Provider value={inspector}>
-        <App />
-      </InspectorContext.Provider>
+      <ServerContext.Provider value={server}>
+        <InspectorContext.Provider value={inspector}>
+          <App />
+        </InspectorContext.Provider>
+      </ServerContext.Provider>
     </JcProvider>,
   );
   return client;
@@ -369,5 +396,55 @@ describe("data-quality-inspector", () => {
     expect(option.tooltip.formatter([{ name: "Event", value: 50 }])).toBe("Event: 50%");
     expect(option.tooltip.formatter({ name: "Event", value: 50 })).toBe("Event: 50%");
     expect(completenessBarOption([], "en")).toBeNull();
+  });
+
+  // T-3354: every run the server keeps, a run now and each run's full report.
+  it("lists the kept runs, makes a run now and opens a run's full report", async () => {
+    window.history.replaceState(null, "", "/?lang=en");
+    const server = fakeServer([{ id: 1, ran_at: "2030-10-20T09:00:00Z", types: [], entities: 1234, findings: 7, completeness: 0.875, valid: null }], {}, true);
+    show(undefined, runInspector, server);
+    const user = userEvent.setup();
+    const trend = await screen.findByRole("table", { name: "Quality over time: the runs the server keeps" });
+    expect(within(trend).getAllByRole("row").map((row) => row.textContent)).toEqual([
+      "Run atEntitiesCompleteValidFindingsFull report",
+      "20 Oct 2030, 12:001,23487.5 %–7Full report",
+    ]);
+    expect(screen.getByText("The data could not be read just now: these are the runs as kept.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Inspect now" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("The run is done.");
+    await waitFor(() => expect(within(trend).getAllByRole("row")).toHaveLength(3));
+    expect(within(trend).getAllByRole("row")[1]).toHaveTextContent("21 Oct 2030, 12:00990 %50 %1");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    await user.click(screen.getByRole("button", { name: "Download the full report of the run at 20 Oct 2030, 12:00" }));
+    await user.click(screen.getByRole("button", { name: "Download the full report of the run at 21 Oct 2030, 12:00" }));
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(2));
+    expect(open).toHaveBeenCalledWith("https://store.test/runs/1/report.json", "_blank", "noopener");
+    open.mockRestore();
+  });
+
+  it("says in Finnish why a run or a report failed, and when nothing is kept", async () => {
+    window.history.replaceState(null, "", "/?lang=fi");
+    const server = fakeServer([{ id: 3, ran_at: "2030-10-20T09:00:00Z", types: [], entities: 1, findings: 0, completeness: 1, valid: 1 }], {
+      runNow: "a run finished less than ten minutes ago; its scores are the newest",
+      report: "no such run",
+    });
+    show(undefined, runInspector, server);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Tarkista nyt" }));
+    expect(await screen.findByText("Ajoa ei voitu tehdä: a run finished less than ten minutes ago; its scores are the newest")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Lataa ajon 20.10.2030 klo 12.00 täysi raportti" }));
+    expect(await screen.findByText("Raporttia ei voitu ladata: no such run")).toBeInTheDocument();
+  });
+
+  it("says when the server keeps no run yet", async () => {
+    window.history.replaceState(null, "", "/?lang=en");
+    show();
+    expect(await screen.findByText("The server has not kept any run yet.")).toBeInTheDocument();
+  });
+
+  it("says why the runs could not be read", async () => {
+    window.history.replaceState(null, "", "/?lang=en");
+    show(undefined, runInspector, fakeServer([], { runs: "Alert: the gateway could not answer right now; try again shortly (502)" }));
+    expect(await screen.findByText("The runs could not be read: Alert: the gateway could not answer right now; try again shortly (502)")).toBeInTheDocument();
   });
 });

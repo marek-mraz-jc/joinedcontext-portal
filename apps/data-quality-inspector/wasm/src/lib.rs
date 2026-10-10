@@ -4,15 +4,17 @@
 pub mod quality;
 pub mod validate;
 
+#[cfg(feature = "browser")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 pub use quality::{
-    inspect_type, run, AttributeOutput, FreshnessOutput, Input, Output, TypeInput, TypeOutput,
+    inspect_type, inspect_type_with, run, AttributeOutput, FreshnessOutput, Input, Output,
+    TypeInput, TypeOutput, FINDINGS_SHOWN,
 };
 pub use validate::Finding;
 
 /// WASM entry point: reads JSON input and answers JSON output or an error object.
-#[wasm_bindgen]
+#[cfg_attr(feature = "browser", wasm_bindgen)]
 pub fn inspect(input: &str) -> String {
     match serde_json::from_str::<Input>(input) {
         Ok(parsed) => serde_json::to_string(&run(&parsed))

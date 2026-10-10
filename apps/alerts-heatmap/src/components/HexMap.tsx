@@ -15,6 +15,7 @@ export function HexMap({
   label,
   describe,
   onPlace,
+  snapshot,
   height = 460,
 }: {
   hexes: Hex[];
@@ -25,6 +26,8 @@ export function HexMap({
   describe: (what: { kind: "hex"; hex: Hex } | { kind: "place"; place: Place }) => string[];
   /** Called with the place a click lands on, after its popup. */
   onPlace?: (place: Place) => void;
+  /** Filled with a function that takes a PNG of the map as drawn, `null` when it cannot (T-3351). */
+  snapshot?: { current: (() => Promise<Blob | null>) | null };
   height?: number;
 }): React.JSX.Element {
   const client = useClient();
@@ -139,16 +142,28 @@ export function HexMap({
           if (instance?.queryRenderedFeatures(event.point, { layers: ["places"] }).length) return;
           popup(event, "hex");
         });
+        if (snapshot) {
+          // The drawing buffer is kept (preserveDrawingBuffer), so the canvas holds the last frame.
+          snapshot.current = () =>
+            new Promise((resolve) => {
+              try {
+                instance?.getCanvas().toBlob((png) => resolve(png), "image/png");
+              } catch {
+                resolve(null);
+              }
+            });
+        }
         setReady(true);
       });
     });
     return () => {
       gone = true;
+      if (snapshot) snapshot.current = null;
       instance?.remove();
       map.current = null;
     };
     // The map is built once; its data and colours reach it through the effect below.
-  }, [basemap, tokens]);
+  }, [basemap, tokens, snapshot]);
 
   useEffect(() => {
     const instance = map.current;

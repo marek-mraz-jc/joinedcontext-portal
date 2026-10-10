@@ -86,10 +86,10 @@ pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi 
 (cd server && cargo test && cargo build --release --target wasm32-wasip2)   # the server component
 ```
 
-`server/host-test.json` is the server component's scenario on the real host: the platform's
-`crates/wasm-host/tests/apps_tests.rs` builds the component, runs `migrations/` twice as the
-reconciler does, and plays the scenario against Postgres, RustFS and a mock of the App's own
-Endpoint (`JC_WASM_TEST_APPS=<this repository's apps>`), with a second App that must see nothing.
+`server/host-test.json` is the server component's scenario on the real host: the portal
+repository's `tests/wasm-apps` (`tests/scenarios.rs`, ci-full) builds the component, runs
+`migrations/` twice as the reconciler does, and plays the scenario against Postgres, RustFS and a
+mock of the App's own Endpoint, with a second App that must see nothing.
 
 The coverage gate (T-3373): `sh ../../scripts/app-coverage-run.sh transit-reach --rust` holds the
 page at 95 % of lines and 90 % of branches, every control used by a test, and `wasm/` at 95 %

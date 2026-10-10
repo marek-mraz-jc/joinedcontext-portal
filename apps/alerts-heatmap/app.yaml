@@ -1,8 +1,10 @@
-# Where and when Helsinki's alerts happen (T-3333): every traffic alert the city's feed carries,
-# binned into hexagons on a map, the places alerts keep coming back to, and the hours of the week
-# they start in. The analysis runs in the visitor's browser as WebAssembly compiled from the Rust
-# crate in wasm/ (AP-142), so the App is a `ui` bundle and costs no pod: the static host serves its
-# files and nothing else runs for it. Hand written, so no generated-by annotation (AP-35).
+# Where and when Helsinki's alerts happen (T-3333, T-3351): every traffic alert the city's feed
+# carries, binned into hexagons on a map, the places alerts keep coming back to, and the hours of
+# the week they start in. The interactive analysis runs in the visitor's browser as WebAssembly
+# compiled from the Rust crate in wasm/ (AP-142). The server component in server/ runs on the
+# shared WASM host (AP-148): it keeps each week's repeat places after the feed has dropped the
+# week, and the hotspot reports readers save, with their map snapshots, in the App's own schema
+# and storage prefix. No pod of its own. Hand written, so no generated-by annotation (AP-35).
 #
 # Unlike helsinki-alerts and alerts-desk, which show the live list, this App looks at the whole
 # history the endpoint holds, from the oldest alert to the newest.
@@ -18,15 +20,24 @@ metadata:
     en: "Helsinki-region traffic alerts on a hexagon map and over the hours of the week: the hot spots, the places that keep coming back, and when road works and announcements start."
     fi: "Pääkaupunkiseudun liikennetiedotteet kuusikulmiokartalla ja viikon tunneittain: kuumat kohdat, toistuvat paikat ja milloin tietyöt ja tiedotteet alkavat."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_alerts-heatmap.git
       ref: main
-  # The interface is built with Node; the crate in wasm/ with Rust, to wasm32 (AP-142).
+  # The interface is built with Node; the crate in wasm/ with Rust to wasm32 (AP-142), and the
+  # server in server/ to wasm32-wasip2 (AP-151).
   build:
     node: "22"
     rust: "1.90"
+  # Its own schema, migrated from migrations/ at publish, and its own prefix for map snapshots.
+  # Reports are capped at 200 by the server, so the quotas hold a public page's saves.
+  storage:
+    sql:
+      migrations: migrations
+      quotaMiB: 50
+    blob:
+      quotaMiB: 512
   # The alerts endpoint of Helsinki is public (GW22): an anonymous reader gets what the public role
   # is granted and nothing more.
   visibility: public

@@ -9,6 +9,8 @@ import { ComparerContext } from "./compare";
 import type { Comparer } from "./compare";
 import type { CompareInput, CompareOutput, Measure } from "./districts";
 import { ENTITIES } from "./fixtures/districts";
+import { Problem as ServerProblem, ServerContext } from "./server";
+import type { DayMetric, Server } from "./server";
 
 /** What MapLibre would call on a click of a drawn district, kept by the double below. */
 const map = vi.hoisted(() => ({ click: null as ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null }));
@@ -245,15 +247,40 @@ function simulateCompare(input: CompareInput): CompareOutput {
 
 const defaultComparer: Comparer = async (input) => simulateCompare(input);
 
+/** What the App's server keeps of Kamppi (101) and Kallio (102), two days of them. */
+function kept(day: string, code: string, name: string, events: number, pm25: number | null): DayMetric {
+  return { day, code, name, area_km2: 2, events, bikes: 1, bike_slots: 10, alerts: 0, pm25, aqi: null };
+}
+const KEPT = [kept("2030-10-21", "101", "Kamppi", 3, 6.5), kept("2030-10-21", "102", "Kallio", 2, null), kept("2030-10-20", "101", "Kamppi", 1, 7)];
+
+function fakeServer(fail: { history?: string; files?: string } = {}, stale = false): Server & { asked: string[][] } {
+  const asked: string[][] = [];
+  return {
+    asked,
+    history: async (codes) => {
+      asked.push(codes);
+      if (fail.history) throw new ServerProblem(502, fail.history);
+      return { days: KEPT.filter((m) => codes.includes(m.code)), stale };
+    },
+    files: async () => {
+      if (fail.files) throw new ServerProblem(404, fail.files);
+      return { geojson: "https://store.test/boundaries/districts.geojson", licence: "https://store.test/boundaries/LICENCE.txt" };
+    },
+  };
+}
+
 function show(
   client = stubClient({ entities: ENTITIES, access: ACCESS }, { appName: "district-compare", portal: "https://portal.hel.fi/projects/helsinki" }),
   comparer: Comparer = defaultComparer,
+  server: Server = fakeServer(),
 ) {
   render(
     <JcProvider client={client}>
-      <ComparerContext.Provider value={comparer}>
-        <App />
-      </ComparerContext.Provider>
+      <ServerContext.Provider value={server}>
+        <ComparerContext.Provider value={comparer}>
+          <App />
+        </ComparerContext.Provider>
+      </ServerContext.Provider>
     </JcProvider>,
   );
   return client;
@@ -554,5 +581,54 @@ describe("district-compare", () => {
     const events = barChartOption([kamppi], "events", "en") as { tooltip: { formatter: (params: unknown) => string } };
     expect(events.tooltip.formatter({ name: "Kamppi", value: 3 })).toBe("Kamppi: 3");
     expect(barChartOption([], "events", "en")).toBeNull();
+  });
+
+  // T-3353: the selected districts day by day as the server kept them, one measure at a time,
+  // and the boundaries with their licence as files.
+  it("shows the selected districts' kept days for the measure, and opens the boundaries and their licence", async () => {
+    const server = fakeServer({}, true);
+    show(undefined, defaultComparer, server);
+    const user = userEvent.setup();
+    const history = await screen.findByRole("table", { name: "History of the selected districts: Events" });
+    expect(within(history).getAllByRole("row").map((row) => row.textContent)).toEqual(["DayKamppiKallio", "21 Oct 203032", "20 Oct 20301–"]);
+    expect(server.asked.at(-1)).toEqual(["101", "102"]);
+    expect(screen.getByText("The feeds could not be read just now: these are the days as last kept.")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Measure"), "pm25");
+    const pm = await screen.findByRole("table", { name: "History of the selected districts: Fine particles (PM2.5)" });
+    expect(within(pm).getAllByRole("row")[1]).toHaveTextContent("21 Oct 20306.5–");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    await user.click(screen.getByRole("button", { name: "Download the district boundaries as GeoJSON" }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://store.test/boundaries/districts.geojson", "_blank", "noopener"));
+    await user.click(screen.getByRole("button", { name: "Download the licence of the boundaries" }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://store.test/boundaries/LICENCE.txt", "_blank", "noopener"));
+    open.mockRestore();
+  });
+
+  it("asks for a selection when none is made, and says when the server keeps nothing or fails", async () => {
+    window.history.replaceState(null, "", "/?lang=en#compare?d=103");
+    show(undefined, defaultComparer, fakeServer({ files: "the server has not kept the boundaries yet" }));
+    const user = userEvent.setup();
+    expect(await screen.findByText("The server has not kept any day of these districts yet.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Download the district boundaries as GeoJSON" }));
+    expect(await screen.findByText("The file could not be downloaded: the server has not kept the boundaries yet")).toBeInTheDocument();
+    await user.click(within(screen.getByRole("list", { name: "Districts ranked" })).getByRole("checkbox", { name: "Töölö" }));
+    expect(await screen.findByText("Select districts to see their history.")).toBeInTheDocument();
+  });
+
+  it("says why the history could not be read", async () => {
+    show(undefined, defaultComparer, fakeServer({ history: "CityDistrict: the gateway could not answer right now; try again shortly (502)" }));
+    expect(await screen.findByText("The history could not be read: CityDistrict: the gateway could not answer right now; try again shortly (502)")).toBeInTheDocument();
+  });
+
+  it("opens the boundaries and their licence in Finnish too", async () => {
+    window.history.replaceState(null, "", "/?lang=fi");
+    show();
+    const user = userEvent.setup();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    await user.click(await screen.findByRole("button", { name: "Lataa kaupunginosien rajat GeoJSON-tiedostona" }));
+    await user.click(screen.getByRole("button", { name: "Lataa rajojen lisenssi" }));
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(2));
+    expect(open.mock.calls.map((call) => call[0])).toEqual(["https://store.test/boundaries/districts.geojson", "https://store.test/boundaries/LICENCE.txt"]);
+    open.mockRestore();
   });
 });

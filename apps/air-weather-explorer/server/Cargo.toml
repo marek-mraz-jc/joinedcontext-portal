@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 air-weather-explorer = { path = "../wasm", default-features = false }
 # The guest SDK at the platform commit whose `gateway` reaches the App's own Endpoint alone
 # (AP-147, AP-157).
-jc-app-sdk = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "42fcc8a4227cc6ee81cf46a909d2510a5546bf01" }
+jc-app-sdk = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9d6378b2b21b45917b6fb1653ff6fbb8701d021f" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

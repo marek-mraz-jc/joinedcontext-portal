@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(feature = "browser")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 /// One alert as the page hands it over: the geometry as the endpoint answers it, and the time in
@@ -269,7 +270,7 @@ pub fn run(input: &Input) -> Output {
 
 /// The browser's door: the input as JSON, the output as JSON, or `{"error": …}` for input that is
 /// not the shape above, so the page says what went wrong instead of the worker dying.
-#[wasm_bindgen]
+#[cfg_attr(feature = "browser", wasm_bindgen)]
 pub fn analyse(input: &str) -> String {
     match serde_json::from_str::<Input>(input) {
         Ok(parsed) => serde_json::to_string(&run(&parsed))

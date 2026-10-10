@@ -22,6 +22,9 @@ pub struct PlacedApp {
     pub shard: u32,
     /// `sha256:<hex>`, the component the publish recorded in `status.build.component`.
     pub digest: String,
+    /// The slug of the App's own Endpoint, the one gateway path its component may call (AP-147);
+    /// `None` until the reconciler has committed that Endpoint.
+    pub endpoint: Option<String>,
 }
 
 impl PlacedApp {
@@ -41,7 +44,39 @@ impl PlacedApp {
             name: envelope.metadata.name.clone(),
             shard: status.shard?,
             digest: status.build.as_ref()?.component.clone()?,
+            endpoint: None,
         })
+    }
+
+    /// Every published `wasm` App of `envelopes` with its shard and component recorded, each with
+    /// the slug of its own Endpoint: `app-{name}` in its project, written by the App reconciler
+    /// (a hand-written Endpoint of that name is not the App's, as `committed_slug` holds).
+    pub fn all(envelopes: &[crate::resource::ResourceEnvelope]) -> Vec<Self> {
+        let generated = |env: &crate::resource::ResourceEnvelope| {
+            env.metadata
+                .annotations
+                .get(jc_core::annotations::GENERATED_BY)
+                .map(String::as_str)
+                == Some(crate::apps::reconciler::GENERATOR)
+        };
+        envelopes
+            .iter()
+            .filter_map(Self::of)
+            .map(|mut app| {
+                let name = format!("app-{}", app.name);
+                app.endpoint = envelopes
+                    .iter()
+                    .find(|env| {
+                        env.kind == "Endpoint"
+                            && env.metadata.name == name
+                            && env.metadata.namespace.as_deref() == Some(app.project.as_str())
+                            && generated(env)
+                    })
+                    .and_then(|env| env.spec.get("slug").and_then(Value::as_str))
+                    .map(str::to_owned);
+                app
+            })
+            .collect()
     }
 }
 
@@ -64,12 +99,16 @@ pub fn placement(shard: u32, apps: &[PlacedApp]) -> (Value, Vec<PlacedApp>) {
     let placed: Vec<Value> = chosen
         .values()
         .map(|app| {
-            json!({
+            let mut placed = json!({
                 "name": app.name,
                 "id": app_id(&app.project, &app.name),
                 "tenant": app.project,
                 "digest": app.digest,
-            })
+            });
+            if let Some(slug) = &app.endpoint {
+                placed["endpoint"] = json!(slug);
+            }
+            placed
         })
         .collect();
     (
@@ -169,6 +208,7 @@ mod tests {
             name: name.to_owned(),
             shard,
             digest: format!("sha256:{}", "a".repeat(64)),
+            endpoint: None,
         }
     }
 
@@ -202,6 +242,65 @@ mod tests {
         assert_eq!(zero["apps"].as_array().unwrap().len(), 1);
         assert_eq!(zero["apps"][0]["tenant"], "helsinki");
         assert_eq!(clashing, [app("praha", "notes", 0)]);
+    }
+
+    fn envelope(value: Value) -> crate::resource::ResourceEnvelope {
+        serde_json::from_value(value).expect("envelope")
+    }
+
+    fn wasm_app(project: &str, name: &str) -> crate::resource::ResourceEnvelope {
+        envelope(json!({
+            "apiVersion": "joinedcontext.com/v1alpha1", "kind": "App",
+            "metadata": {"name": name, "namespace": project},
+            "spec": {"kind": "wasm", "lifecycle": "published"},
+            "status": {"shard": 0, "build": {
+                "digest": format!("sha256:{}", "b".repeat(64)), "commit": "c0ffee",
+                "sdkVersion": "1.0.0", "builtAt": "2026-10-10T00:00:00Z",
+                "component": format!("sha256:{}", "a".repeat(64))}}
+        }))
+    }
+
+    fn endpoint(
+        project: &str,
+        name: &str,
+        slug: &str,
+        generated: bool,
+    ) -> crate::resource::ResourceEnvelope {
+        let annotations = if generated {
+            json!({ jc_core::annotations::GENERATED_BY: crate::apps::reconciler::GENERATOR })
+        } else {
+            json!({})
+        };
+        envelope(json!({
+            "apiVersion": "joinedcontext.com/v1alpha1", "kind": "Endpoint",
+            "metadata": {"name": name, "namespace": project, "annotations": annotations},
+            "spec": {"slug": slug}
+        }))
+    }
+
+    #[test]
+    fn a_placed_app_names_its_own_endpoint_and_no_other() {
+        let apps = PlacedApp::all(&[
+            wasm_app("helsinki", "notes"),
+            endpoint("helsinki", "app-notes", "ab12", true),
+            // Another project's Endpoint of the same name, and a hand-written one, are not its.
+            endpoint("praha", "app-notes", "zz99", true),
+            wasm_app("helsinki", "air"),
+            endpoint("helsinki", "app-air", "cd34", false),
+        ]);
+        let slug = |name: &str| {
+            apps.iter()
+                .find(|a| a.name == name)
+                .and_then(|a| a.endpoint.clone())
+        };
+        assert_eq!(slug("notes").as_deref(), Some("ab12"));
+        assert_eq!(slug("air"), None);
+        let (zero, _) = placement(0, &apps);
+        assert_eq!(zero["apps"][1]["endpoint"], "ab12");
+        assert!(
+            zero["apps"][0].get("endpoint").is_none(),
+            "no slug, no key: the host refuses its calls"
+        );
     }
 
     #[test]

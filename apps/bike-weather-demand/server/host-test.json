@@ -1,0 +1,17 @@
+{
+  "gateway": [
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "BikeHireDockingStation", "options": "keyValues"}, "file": "host-test/station.json"},
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "WeatherObserved", "options": "keyValues"}, "file": "host-test/weather-stations.json"},
+    {"path": "/ngsi-ld/v1/temporal/entities", "query": {"type": "BikeHireDockingStation", "id": "urn:ngsi-ld:BikeHireDockingStation:s1", "timerel": "after"}, "file": "host-test/station-history.json"},
+    {"path": "/ngsi-ld/v1/temporal/entities", "query": {"type": "WeatherObserved", "id": "urn:ngsi-ld:WeatherObserved:w1", "timerel": "after"}, "file": "host-test/weather-history.json"}
+  ],
+  "steps": [
+    {"call": "GET /api/models", "status": 400},
+    {"call": "GET /api/models?station=urn:ngsi-ld:BikeHireDockingStation:missing", "status": 404},
+    {"call": "GET /api/models?station=urn:ngsi-ld:BikeHireDockingStation:s1", "status": 200, "length": {"/models": 1}, "expect": {"/stale": false, "/models/0/weather_station": "urn:ngsi-ld:WeatherObserved:w1", "/models/0/hours": 48}, "save": {"model": "/models/0/id"}},
+    {"call": "GET /api/models?station=urn:ngsi-ld:BikeHireDockingStation:s1", "status": 200, "length": {"/models": 1}},
+    {"call": "GET /api/models/{model}/snapshot", "status": 200, "download": "/url", "downloaded": "urn:ngsi-ld:WeatherObserved:w1"},
+    {"call": "GET /api/models/999999/snapshot", "status": 404},
+    {"call": "GET /api/models/{model}/snapshot", "as": "second", "status": 404}
+  ]
+}

@@ -218,17 +218,6 @@ pub fn readings(entity: &Json, kind: Kind) -> BTreeMap<String, Vec<Point>> {
     out
 }
 
-/// The gateway's answer read as `T`, or what the caller gets: their own 401 or 403 passes
-/// through, anything else is the gateway's fault.
-fn read<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, Response> {
-    let answer = gateway::get(path).map_err(|why| Response::problem(502, "Bad Gateway", &why))?;
-    answer.json().map_err(|why| match answer.status {
-        401 => Response::problem(401, "Unauthorized", &why),
-        403 => Response::problem(403, "Forbidden", &why),
-        _ => Response::problem(502, "Bad Gateway", &why),
-    })
-}
-
 fn now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -267,7 +256,7 @@ fn refresh(id: &str, kind: Kind, now: i64) -> Result<bool, Response> {
         gateway::encode(&kind.attrs().join(",")),
         gateway::encode(&iso(since)),
     );
-    let entities: Vec<Json> = read(&path)?;
+    let entities: Vec<Json> = gateway::get_json(&path).map_err(Response::from)?;
     let Some(entity) = entities
         .iter()
         .find(|e| e.get("id").and_then(Json::as_str) == Some(id))

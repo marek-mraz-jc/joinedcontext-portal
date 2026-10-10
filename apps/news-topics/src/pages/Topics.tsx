@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Empty, Loading, Page, Problem, Split, currentTokens, format, useEntities, useEntitySelection } from "@joinedcontext/sdk";
+import { Card, Empty, Loading, Page, Problem, Split, currentTokens, format, useClient, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
+import { KeptWeeks } from "../components/KeptWeeks";
 import { formatDate, formatPercent, getLanguage, t } from "../i18n";
 import type { Lang } from "../i18n";
 import { useTopics } from "../topics";
 import type { Topic, WeekShare } from "../topics";
+import { useServer } from "../server";
 
 const ENTITY_TYPE = "NewsArticle";
 
@@ -152,6 +154,7 @@ export function Topics(): React.JSX.Element {
   const { select } = useEntitySelection();
 
   const { rows, loading: entitiesLoading, error: entitiesError, reload } = useEntities(ENTITY_TYPE);
+  const server = useServer(useClient().config.appName);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -397,6 +400,7 @@ export function Topics(): React.JSX.Element {
       ) : (
         <Empty>{t("empty", lang)}</Empty>
       )}
+      <KeptWeeks lang={lang} server={server} />
     </Page>
   );
 }

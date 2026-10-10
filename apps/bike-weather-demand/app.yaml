@@ -1,6 +1,8 @@
 # Helsinki bike and weather demand (T-3337): availability by hour of the week,
 # weather sensitivity, and 6-hour forecast with uncertainty for city-bike stations.
-# Runs in the browser via WebAssembly compiled from wasm/ (AP-142).
+# Runs in the browser via WebAssembly compiled from wasm/ (AP-142); the server component in server/
+# runs on the shared WASM host (T-3355, AP-148) and keeps each station's daily model in the App's
+# own schema and the data it trained on under its own storage prefix.
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
 metadata:
@@ -13,7 +15,7 @@ metadata:
     en: "Will there be a bike at my station? Availability by hour of the week, weather effects, and an estimate for the next 6 hours with its uncertainty."
     fi: "Onko asemallani pyörää? Saatavuus viikon tunneittain, sään vaikutus ja arvio seuraaville 6 tunnille epävarmuuksineen."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_bike-weather-demand.git
@@ -21,6 +23,13 @@ spec:
   build:
     node: "22"
     rust: "1.90"
+  # Its own schema, migrated from migrations/ at publish, and its own prefix for the training data.
+  storage:
+    sql:
+      migrations: migrations
+      quotaMiB: 100
+    blob:
+      quotaMiB: 1024
   visibility: public
   lifecycle: published
   dataNeeds:

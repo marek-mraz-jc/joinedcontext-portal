@@ -30,6 +30,8 @@ fn app(project: &str, name: &str, shard: u32) -> PlacedApp {
         name: name.to_owned(),
         shard,
         digest: format!("sha256:{}", "b".repeat(64)),
+        // The App's own Endpoint, the one gateway path its component may call (AP-147, AP-157).
+        endpoint: Some(format!("ep{}", name.replace('-', ""))),
     }
 }
 
@@ -101,6 +103,7 @@ async fn every_shard_gets_its_placement_and_its_key_and_a_retired_app_leaves_on_
     let zero = placement_of(&maps[0].1);
     assert_eq!(zero["shard"], "0");
     assert_eq!(zero["apps"][0]["name"], "notes");
+    assert_eq!(zero["apps"][0]["endpoint"], "epnotes");
     assert_eq!(zero["apps"][0]["tenant"], "helsinki");
     assert_eq!(
         zero["apps"].as_array().map(Vec::len),
