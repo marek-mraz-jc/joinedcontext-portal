@@ -530,10 +530,12 @@ export function outputsOf(build) {
 /**
  * A write the Portal answers 409 met a main that moved past the Portal's copy of the App, as when
  * the forge bootstrap pins a new commit while the build runs (T-2674): the App is read again and
- * the build proposed on it, at most this often, this far apart.
+ * the build proposed on it, at most this often, this far apart. The Portal re-reads main every
+ * 60 s (JC_PORTAL_SYNC_INTERVAL), so the 150 s between the first try and the last cover two of
+ * its re-reads (T-3597).
  */
-const ATTEMPTS = 5;
-const APART_MS = 10_000;
+const ATTEMPTS = 11;
+const APART_MS = 15_000;
 
 export async function propose(api, token, repository, build, fetchImpl = fetch, wait = (ms) => new Promise((done) => setTimeout(done, ms))) {
   const { project, app } = appOf(repository);
@@ -557,6 +559,10 @@ export async function propose(api, token, repository, build, fetchImpl = fetch, 
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (checked.status === 409 && attempt < ATTEMPTS) {
+      await wait(APART_MS);
+      continue;
+    }
     if (!checked.ok) throw await refused("status.build was refused for", checked);
     const verdict = (await checked.json())?.verdict;
     if (verdict?.ok !== true) {

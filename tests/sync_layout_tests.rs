@@ -379,3 +379,54 @@ async fn a_complete_run_retires_an_unpublished_app_host() {
         "the Certificate and the Ingress of an App no project publishes"
     );
 }
+
+/// AP-149, T-3603: a wasm App whose manifest in its project's repository records the publish
+/// (`status.build` with its component, and `status.shard`) keeps both in the mirror, so the host
+/// places it on that shard.
+#[tokio::test]
+async fn a_published_wasm_app_keeps_its_build_and_shard() {
+    let digest = format!("sha256:{}", "2".repeat(64));
+    let component = format!("sha256:{}", "1".repeat(64));
+    let app = format!(
+        "apiVersion: joinedcontext.com/v1alpha1\nkind: App\nmetadata:\n  name: kpi-forecast\n  \
+         namespace: ovzdusie\nspec:\n  kind: wasm\n  source:\n    git:\n      url: \
+         https://forge.example.org/git/org/ovzdusie_kpi-forecast.git\n      ref: main\n  \
+         build:\n    node: \"22\"\n    rust: \"1.90\"\n  server:\n    jobs:\n      - name: \
+         daily-forecasts\n        schedule: \"20 3 * * *\"\n        export: record-forecasts\n  \
+         visibility: public\n  lifecycle: published\n  dataNeeds: []\nstatus:\n  phase: Pending\n  \
+         build:\n    digest: {digest}\n    commit: \"{commit}\"\n    sdkVersion: 0.4.1\n    builtAt: \"2026-10-10T20:04:45Z\"\n    component: {component}\n  \
+         shard: 0\n",
+        commit = "6".repeat(40),
+    );
+    let server = MockServer::start().await;
+    organization(&server).await;
+    repository(
+        &server,
+        "ovzdusie",
+        "main",
+        &[
+            (".jc/layout", "2\n"),
+            ("project.yaml", PROJECT),
+            ("spaces/ovzdusie/space.yaml", SPACE),
+            ("apps/kpi-forecast/app.yaml", &app),
+        ],
+    )
+    .await;
+    let (syncer, mirror) = syncer(&server);
+    syncer
+        .sync_once()
+        .await
+        .expect("the organization assembles");
+
+    let app = mirror
+        .get("ovzdusie", "App", "kpi-forecast")
+        .expect("the App is in the mirror");
+    let status = app.status.as_ref().expect("a status");
+    let build = status.build.as_ref().expect("the build the lane recorded");
+    assert_eq!(build.component.as_deref(), Some(component.as_str()));
+    assert_eq!(status.shard, Some(0), "the shard the publish recorded");
+    let placed = joinedcontext_portal::reconciler::wasm_shards::PlacedApp::of(&app)
+        .expect("a published wasm App with its component is placed");
+    assert_eq!(placed.shard, 0);
+    assert_eq!(placed.digest, component);
+}
