@@ -10,7 +10,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { findFormPage } from "./formPage";
 import { App } from "../src/App";
-import { ServiceAccounts, keyExpiry } from "../src/pages/access/ServiceAccounts";
+import { ServiceAccounts, expiryChoices, keyExpiry, requestedExpiry } from "../src/pages/access/ServiceAccounts";
 import { expectNoAxeViolations, json, list, problem, renderPart } from "./page_contract";
 
 const IDENTITY = {
@@ -139,6 +139,14 @@ function renderAccess(
   return fetchMock;
 }
 
+/** "New API key", then the expiry dialog's "Create key" (T-3255): how a key is minted now. */
+async function mint(choice?: RegExp): Promise<void> {
+  await userEvent.click(await screen.findByRole("button", { name: /New API key \(legacy-push\)/ }));
+  const asked = await screen.findByRole("dialog", { name: en.access.keys.mint.title.replace("{credential}", "legacy-push") });
+  if (choice) await userEvent.click(within(asked).getByRole("radio", { name: choice }));
+  await userEvent.click(within(asked).getByRole("button", { name: en.access.keys.mint.submit }));
+}
+
 describe("service accounts view", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -190,11 +198,9 @@ describe("service accounts view", () => {
   it("shows a minted key once, in a dialog that warns it will not be shown again (PF-36)", async () => {
     renderAccess();
 
-    await userEvent.click(
-      await screen.findByRole("button", { name: /New API key \(legacy-push\)/ }),
-    );
+    await mint();
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("dialog", { name: en.access.keys.newTitle });
     expect(within(dialog).getByText(en.access.keys.onceWarning)).toBeInTheDocument();
     const field = within(dialog).getByLabelText(en.access.keys.token) as HTMLInputElement;
     expect(field.value).toBe(MINTED.token);
@@ -211,9 +217,7 @@ describe("service accounts view", () => {
   it("mints against the account in the path and never sends the token back", async () => {
     const fetchMock = renderAccess();
 
-    await userEvent.click(
-      await screen.findByRole("button", { name: /New API key \(legacy-push\)/ }),
-    );
+    await mint();
 
     const write = await waitFor(() => {
       const request = fetchMock.mock.calls
@@ -227,6 +231,47 @@ describe("service accounts view", () => {
     );
     expect(write.headers.get("x-csrf-token")).toBe("csrf-token-value");
     expect(JSON.parse(await write.clone().text())).toEqual({ credential: "legacy-push" });
+  });
+
+  it("says what a new key allows and asks how long it works before minting (T-3255)", async () => {
+    const fetchMock = renderAccess();
+    const posts = () => fetchMock.mock.calls.map((call) => call[0] as Request).filter((r) => r.method === "POST");
+
+    await userEvent.click(await screen.findByRole("button", { name: /New API key \(legacy-push\)/ }));
+    const asked = await screen.findByRole("dialog", { name: "New API key (legacy-push)" });
+    expect(within(asked).getByText("space-writer in parking")).toBeInTheDocument();
+    expect(within(asked).getByRole("radio", { name: en.access.keys.mint.asCredentialNever })).toBeChecked();
+    expect(within(asked).getAllByRole("radio")).toHaveLength(5);
+    expect(posts()).toHaveLength(0);
+
+    // A date it cannot take is said where the date is typed, and nothing is minted.
+    await userEvent.click(within(asked).getByRole("radio", { name: en.access.keys.mint.onDate }));
+    await userEvent.click(within(asked).getByRole("button", { name: en.access.keys.mint.submit }));
+    expect(within(asked).getByLabelText(en.access.keys.mint.dateLabel)).toHaveAccessibleDescription(en.access.keys.mint.dateMissing);
+    expect(posts()).toHaveLength(0);
+
+    await userEvent.click(within(asked).getByRole("radio", { name: /In 30 days/ }));
+    const before = Date.now();
+    await userEvent.click(within(asked).getByRole("button", { name: en.access.keys.mint.submit }));
+    const write = await waitFor(() => {
+      expect(posts()).toHaveLength(1);
+      return posts()[0];
+    });
+    const body = JSON.parse(await write.clone().text()) as { credential: string; expiresAt: string };
+    expect(body.credential).toBe("legacy-push");
+    const days = (new Date(body.expiresAt).getTime() - before) / 86_400_000;
+    expect(days).toBeGreaterThan(29.99);
+    expect(days).toBeLessThan(30.01);
+    expect(await screen.findByRole("dialog", { name: en.access.keys.newTitle })).toBeInTheDocument();
+  });
+
+  it("closes the question without minting when the person cancels", async () => {
+    const fetchMock = renderAccess();
+    await userEvent.click(await screen.findByRole("button", { name: /New API key \(legacy-push\)/ }));
+    const asked = await screen.findByRole("dialog", { name: "New API key (legacy-push)" });
+    await userEvent.click(within(asked).getAllByRole("button", { name: en.access.keys.claim.cancel })[0]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(fetchMock.mock.calls.some((call) => (call[0] as Request).method === "POST")).toBe(false);
   });
 
   it("asks before revoking a key and only then calls DELETE", async () => {
@@ -500,5 +545,34 @@ describe("a key's expiry (T-3255)", () => {
     expect(keyExpiry({ expiresAt: "2026-10-07T12:00:00Z" }, now)).toEqual({ state: "expired" });
     expect(keyExpiry({ expiresAt: null }, now)).toEqual({ state: "never" });
     expect(keyExpiry({ expiresAt: "2026-10-08T00:00:00Z", revokedAt: "2026-10-01T00:00:00Z" }, now)).toEqual({ state: "revoked" });
+  });
+});
+
+describe("a new key's expiry (T-3255)", () => {
+  const now = new Date("2026-10-10T12:00:00Z");
+
+  it("offers every length without a credential expiry, and only those that fit within one", () => {
+    expect(expiryChoices(undefined, now)).toEqual(["credential", "7", "30", "90", "date"]);
+    expect(expiryChoices("2026-11-30T00:00:00Z", now)).toEqual(["credential", "7", "30", "date"]);
+    expect(expiryChoices("2026-10-12T00:00:00Z", now)).toEqual(["credential", "date"]);
+  });
+
+  it("sends nothing for the credential's own, a length from now, or the end of a chosen day", () => {
+    expect(requestedExpiry("credential", "", "2027-03-01T00:00:00Z", now)).toEqual({ ok: true });
+    expect(requestedExpiry("7", "", undefined, now)).toEqual({ ok: true, expiresAt: "2026-10-17T12:00:00.000Z" });
+    const chosen = requestedExpiry("date", "2026-12-24", undefined, now);
+    expect(chosen.ok && new Date(chosen.expiresAt ?? "").getTime()).toBe(new Date("2026-12-24T23:59:59").getTime());
+  });
+
+  it("refuses a missing, past or too late day, and ends the credential's own last day with it", () => {
+    expect(requestedExpiry("date", "", undefined, now)).toEqual({ ok: false, error: "dateMissing" });
+    expect(requestedExpiry("date", "not-a-date", undefined, now)).toEqual({ ok: false, error: "dateMissing" });
+    expect(requestedExpiry("date", "2026-10-09", undefined, now)).toEqual({ ok: false, error: "datePast" });
+    const ceiling = "2027-03-01T12:00:00Z";
+    const ceilingDay = new Date(ceiling);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const day = `${ceilingDay.getFullYear()}-${pad(ceilingDay.getMonth() + 1)}-${pad(ceilingDay.getDate())}`;
+    expect(requestedExpiry("date", day, ceiling, now)).toEqual({ ok: true, expiresAt: "2027-03-01T12:00:00.000Z" });
+    expect(requestedExpiry("date", "2027-03-05", ceiling, now)).toEqual({ ok: false, error: "dateAfter" });
   });
 });

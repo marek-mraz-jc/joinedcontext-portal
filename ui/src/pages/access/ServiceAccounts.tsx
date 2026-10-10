@@ -31,6 +31,7 @@ import {
   Field,
   Icon,
   Input,
+  RadioGroup,
   Skeleton,
   Table,
   TableBody,
@@ -402,7 +403,6 @@ function KeyClaimDialog({
   );
 }
 
-/** The keys of one account: what exists, when it stops working, and the three actions on it. */
 /** How soon a key stops working before somebody has to rotate it (T-3255). */
 export const EXPIRY_WARNING_DAYS = 14;
 
@@ -424,16 +424,190 @@ export function keyExpiry(
   return days <= EXPIRY_WARNING_DAYS ? { state: "soon", days } : { state: "fine" };
 }
 
+/** How long a new key works: as its credential says, a few days from now, or until a date. */
+export type ExpiryChoice = "credential" | "7" | "30" | "90" | "date";
+
+const DAY_MS = 86_400_000;
+
+/**
+ * The choices a person has for a new key's expiry (T-3255). A credential that declares an expiry
+ * caps every choice: the server refuses a key that would outlive it, so a choice that would is not
+ * offered.
+ */
+export function expiryChoices(ceiling: string | undefined, now: Date): ExpiryChoice[] {
+  const cap = ceiling ? new Date(ceiling).getTime() : Number.NaN;
+  const days = (["7", "30", "90"] as const).filter(
+    (n) => Number.isNaN(cap) || now.getTime() + Number(n) * DAY_MS <= cap,
+  );
+  return ["credential", ...days, "date"];
+}
+
+/**
+ * The `expiresAt` to send for a choice, or why there is none to send. A date means the end of
+ * that day where the person is; the credential's own day ends at the credential's expiry.
+ */
+export function requestedExpiry(
+  choice: ExpiryChoice,
+  date: string,
+  ceiling: string | undefined,
+  now: Date,
+): { ok: true; expiresAt?: string } | { ok: false; error: "dateMissing" | "datePast" | "dateAfter" } {
+  if (choice === "credential") return { ok: true };
+  if (choice !== "date") {
+    return { ok: true, expiresAt: new Date(now.getTime() + Number(choice) * DAY_MS).toISOString() };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "dateMissing" };
+  const end = new Date(`${date}T23:59:59`);
+  if (Number.isNaN(end.getTime())) return { ok: false, error: "dateMissing" };
+  if (end.getTime() <= now.getTime()) return { ok: false, error: "datePast" };
+  const cap = ceiling ? new Date(ceiling) : null;
+  if (cap && !Number.isNaN(cap.getTime()) && end.getTime() > cap.getTime()) {
+    return localDay(cap) === date ? { ok: true, expiresAt: cap.toISOString() } : { ok: false, error: "dateAfter" };
+  }
+  return { ok: true, expiresAt: end.toISOString() };
+}
+
+/** `yyyy-mm-dd` of a moment, where the person is: what a date input holds. */
+function localDay(at: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+}
+
+/**
+ * Before a key is minted (T-3255): what it will allow, which is what its account holds, and how
+ * long it works. The token itself is shown afterwards, once, by `TokenDialog`.
+ */
+function MintDialog({
+  credential,
+  allows,
+  pending,
+  onCancel,
+  onCreate,
+}: {
+  credential: Credential | null;
+  allows: string[];
+  pending: boolean;
+  onCancel: () => void;
+  onCreate: (expiresAt: string | undefined) => void;
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  const [choice, setChoice] = useState<ExpiryChoice>("credential");
+  const [date, setDate] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const now = new Date();
+  const ceiling = credential?.expiresAt;
+  const choices = expiryChoices(ceiling, now);
+  const label = (option: ExpiryChoice): string => {
+    if (option === "credential") {
+      return ceiling
+        ? t("access.keys.mint.asCredential", { date: formatDate(ceiling, locale) })
+        : t("access.keys.mint.asCredentialNever");
+    }
+    if (option === "date") return t("access.keys.mint.onDate");
+    return t("access.keys.mint.inDays", {
+      count: Number(option),
+      date: formatDate(new Date(now.getTime() + Number(option) * DAY_MS).toISOString(), locale),
+    });
+  };
+  const close = () => {
+    setChoice("credential");
+    setDate("");
+    setProblem(null);
+    onCancel();
+  };
+
+  return (
+    <Dialog
+      open={credential !== null}
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+      title={t("access.keys.mint.title", { credential: credential?.name ?? "" })}
+      description={t("access.keys.mint.hint")}
+      closeLabel={t("access.keys.claim.cancel")}
+    >
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const asked = requestedExpiry(choice, date, ceiling, new Date());
+          if (!asked.ok) {
+            setProblem(
+              t(`access.keys.mint.${asked.error}`, { date: formatDate(ceiling, locale) }),
+            );
+            return;
+          }
+          setProblem(null);
+          onCreate(asked.expiresAt);
+        }}
+      >
+        <section aria-labelledby="mint-allows">
+          <h3 id="mint-allows" className="text-body font-medium text-fg">
+            {t("access.keys.mint.allows")}
+          </h3>
+          {allows.length === 0 ? (
+            <p className="text-body text-fg-muted">{t("access.keys.mint.allowsNothing")}</p>
+          ) : (
+            <ul className="mt-1 list-disc pl-5 text-body text-fg">
+              {allows.map((grant) => (
+                <li key={grant}>{grant}</li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <RadioGroup
+          name="mint-expiry"
+          legend={t("access.keys.mint.expiry")}
+          value={choice}
+          options={choices.map((option) => ({ value: option, label: label(option) }))}
+          onChange={(value) => {
+            setChoice(value);
+            setProblem(null);
+          }}
+        />
+        {choice === "date" ? (
+          <Field id="mint-date" label={t("access.keys.mint.dateLabel")} errors={problem ? [problem] : undefined}>
+            <Input
+              id="mint-date"
+              type="date"
+              value={date}
+              min={localDay(new Date(now.getTime() + DAY_MS))}
+              max={ceiling ? localDay(new Date(ceiling)) : undefined}
+              onChange={(event) => {
+                setDate(event.target.value);
+                setProblem(null);
+              }}
+            />
+          </Field>
+        ) : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" onClick={close}>
+            {t("access.keys.claim.cancel")}
+          </Button>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {t("access.keys.mint.submit")}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** The keys of one account: what exists, when it stops working, and the three actions on it. */
 function KeyTable({
   project,
   account,
   credentials,
+  allows,
   onMinted,
   onError,
 }: {
   project: string;
   account: string;
   credentials: Credential[];
+  /** What the account's grants allow, one line each: what any key of it allows. */
+  allows: string[];
   onMinted: (minted: MintedKey) => void;
   onError: (message: string | null) => void;
 }): JSX.Element {
@@ -441,6 +615,7 @@ function KeyTable({
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [asking, setAsking] = useState<Credential | null>(null);
 
   const keysKey = [...queryKeys.resource(project, "serviceaccounts", account), "keys"];
   const keys = useQuery({
@@ -464,16 +639,17 @@ function KeyTable({
   };
 
   const create = useMutation({
-    mutationFn: async (credential: string) => {
+    mutationFn: async ({ credential, expiresAt }: { credential: string; expiresAt?: string }) => {
       onError(null);
       return unwrap(
         await api.POST("/api/v1/projects/{project}/serviceaccounts/{name}/keys", {
           params: { path: { project, name: account } },
-          body: { credential },
+          body: expiresAt ? { credential, expiresAt } : { credential },
         }),
       );
     },
     onSuccess: (minted) => {
+      setAsking(null);
       onMinted(minted);
       refresh();
     },
@@ -532,13 +708,20 @@ function KeyTable({
               key={credential.name}
               disabled={busy}
               variant="primary"
-              onClick={() => create.mutate(credential.name ?? "")}
+              onClick={() => setAsking(credential)}
             >
               {t("access.keys.create", { credential: credential.name })}
             </Button>
           ))
         )}
       </div>
+      <MintDialog
+        credential={asking}
+        allows={allows}
+        pending={create.isPending}
+        onCancel={() => setAsking(null)}
+        onCreate={(expiresAt) => create.mutate({ credential: asking?.name ?? "", expiresAt })}
+      />
 
       {/* A key list that could not be read is not "this account has no keys" (T-1763): one of
           the two means somebody has to rotate a credential and the other does not. */}
@@ -894,6 +1077,9 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                       project={project}
                       account={account.metadata.name}
                       credentials={apiKeyCredentials(spec)}
+                      allows={(spec.roles ?? [])
+                        .filter((role) => Boolean(role.role))
+                        .map((role) => grantLabel(t, role.role ?? "", role.scope))}
                       onMinted={setMinted}
                       onError={setError}
                     />
