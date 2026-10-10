@@ -31,5 +31,6 @@ spec:
     - pm25
     - airQualityIndex
   operations:
+  - queryTemporal
   - retrieveTemporal
   temporalQ: timerel=after;timeAt=P-7D

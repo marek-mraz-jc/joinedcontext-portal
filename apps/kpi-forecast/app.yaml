@@ -51,7 +51,7 @@ spec:
       # the name, the formula and the source. The history is the temporal read of currentValue,
       # at most the 90 days the longest period offers.
       attrs: [name, currentValue, calculationFormula, source]
-      operations: [queryEntity, retrieveEntity, retrieveTemporal]
+      operations: [queryEntity, retrieveEntity, queryTemporal, retrieveTemporal]
       temporalQ:
         window: P90D
       representations: [ngsi-ld]

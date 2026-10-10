@@ -44,7 +44,7 @@ spec:
         name: helsinki
       types: [AirQualityObserved]
       attrs: [name, location, dateObserved, pm10, pm25, airQualityIndex]
-      operations: [queryEntity, retrieveEntity, retrieveTemporal]
+      operations: [queryEntity, retrieveEntity, queryTemporal, retrieveTemporal]
       temporalQ:
         window: P7D
       representations: [ngsi-ld]
@@ -55,7 +55,7 @@ spec:
         name: helsinki
       types: [WeatherObserved]
       attrs: [name, location, dateObserved, temperature, windSpeed, relativeHumidity, precipitation]
-      operations: [queryEntity, retrieveEntity, retrieveTemporal]
+      operations: [queryEntity, retrieveEntity, queryTemporal, retrieveTemporal]
       temporalQ:
         window: P7D
       representations: [ngsi-ld]
