@@ -195,7 +195,7 @@ const problemText = (error: unknown, generic: string): string =>
  * readable; the data note says what Restore does not roll back.
  */
 function AppBuildHistory({ project, name }: { project: string; name: string }): JSX.Element | null {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const builds = useQuery({
     queryKey: [...buildKey(project, name), "history"],
     queryFn: async (): Promise<AppBuilds> =>
@@ -227,7 +227,7 @@ function AppBuildHistory({ project, name }: { project: string; name: string }): 
             <span>
               {t("apps.build.history.entry", {
                 commit: build.commit.slice(0, 7),
-                at: build.completedAt ? new Date(build.completedAt).toLocaleString() : "",
+                at: build.completedAt ? new Date(build.completedAt).toLocaleString(i18n.language, { dateStyle: "medium", timeStyle: "short" }) : "",
               })}
             </span>
             <Button
