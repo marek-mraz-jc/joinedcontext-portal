@@ -657,10 +657,16 @@ test("9a. a service account's API key is minted, rotated and revoked", async () 
     expect(shaped, "the key is a jc_<id>_<secret>").toBe(true);
     await dialog.getByRole("button", { name: "Close" }).click();
   };
+  // T-3255: before the key, what it allows and how long it works.
   await page.getByRole("button", { name: `New API key (${ACCOUNT}-key)` }).click();
+  const asked = page.getByRole("dialog", { name: `New API key (${ACCOUNT}-key)` });
+  await expect(asked.getByText(`viewer in ${PROJECT}`)).toBeVisible();
+  await asked.getByRole("radio", { name: /^In 7 days/ }).check();
+  await asked.getByRole("button", { name: "Create key" }).click();
   await minted();
   const keys = page.getByRole("table", { name: `API keys of ${ACCOUNT}` });
   await expect(keys.getByRole("row")).toHaveCount(2, { timeout: 30_000 });
+  await expect(keys.getByText(/^expires in 7 days$/)).toBeVisible();
   await keys.getByRole("button", { name: "Rotate" }).first().click();
   await minted();
   await expect(keys.getByRole("row")).toHaveCount(3, { timeout: 30_000 });

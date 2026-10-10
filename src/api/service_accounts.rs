@@ -390,7 +390,9 @@ fn mint_request(body: &[u8]) -> Result<MintRequest, ApiError> {
 }
 
 /// The expiry a key of `credential` gets, once the manifest has been shown to declare it: an
-/// explicit expiry, else the credential's own, else none. An expiry in the past is refused.
+/// explicit expiry, else the credential's own, else none. An expiry in the past is refused, and
+/// so is one after the credential's own: the manifest's expiry was reviewed, a key asked for in
+/// the Portal may end sooner, never later (T-3255).
 fn plan_mint(
     spec: &serde_json::Value,
     credential: &str,
@@ -404,16 +406,29 @@ fn plan_mint(
             "'{credential}' is not an api-key credential of this ServiceAccount"
         ))
     })?;
-    match requested.or(declared.expires_at) {
+    let ceiling = declared
+        .expires_at
+        .map(|raw| parse_expiry(&raw).map(|at| (raw, at)))
+        .transpose()?;
+    let at = match requested {
         Some(raw) => {
             let at = parse_expiry(&raw)?;
-            if at <= now {
-                return Err(ApiError::BadRequest(format!(
-                    "expiresAt '{raw}' is in the past"
-                )));
+            if let Some((declared, ceiling)) = &ceiling {
+                if at > *ceiling {
+                    return Err(ApiError::BadRequest(format!(
+                        "expiresAt '{raw}' is after the credential's own expiry {declared}; pick an earlier date or change the credential"
+                    )));
+                }
             }
-            Ok(Some(at))
+            Some((raw, at))
         }
+        None => ceiling,
+    };
+    match at {
+        Some((raw, at)) if at <= now => Err(ApiError::BadRequest(format!(
+            "expiresAt '{raw}' is in the past"
+        ))),
+        Some((_, at)) => Ok(Some(at)),
         None => Ok(None),
     }
 }
@@ -834,6 +849,67 @@ mod tests {
                 { "kind": "api-key", "name": "legacy-push", "expiresAt": "2027-03-01T00:00:00Z" }
             ]
         })
+    }
+
+    fn at(raw: &str) -> OffsetDateTime {
+        parse_expiry(raw).expect("an RFC 3339 time")
+    }
+
+    /// T-3255: a person picks a key's expiry, within what the reviewed manifest declares.
+    #[test]
+    fn a_key_expires_when_asked_but_never_after_its_credential() {
+        let now = at("2026-10-10T12:00:00Z");
+        let declared = at("2027-03-01T00:00:00Z");
+        let sooner = "2026-11-09T12:00:00Z".to_owned();
+        assert_eq!(
+            plan_mint(&spec(), "legacy-push", None, now).unwrap(),
+            Some(declared)
+        );
+        assert_eq!(
+            plan_mint(&spec(), "legacy-push", Some(sooner.clone()), now).unwrap(),
+            Some(at(&sooner))
+        );
+        assert_eq!(
+            plan_mint(
+                &spec(),
+                "legacy-push",
+                Some("2027-03-01T00:00:00Z".into()),
+                now
+            )
+            .unwrap(),
+            Some(declared),
+            "the declared expiry itself may be asked for"
+        );
+        let later = plan_mint(
+            &spec(),
+            "legacy-push",
+            Some("2027-03-01T00:00:01Z".into()),
+            now,
+        );
+        assert!(
+            matches!(&later, Err(ApiError::BadRequest(why)) if why.contains("2027-03-01")),
+            "a key may not outlive the expiry its credential was reviewed with: {later:?}"
+        );
+        let past = plan_mint(
+            &spec(),
+            "legacy-push",
+            Some("2026-10-10T11:59:59Z".into()),
+            now,
+        );
+        assert!(matches!(past, Err(ApiError::BadRequest(_))), "{past:?}");
+    }
+
+    #[test]
+    fn a_credential_without_an_expiry_takes_any_future_one_or_none() {
+        let spec = serde_json::json!({
+            "credentials": [{ "kind": "api-key", "name": "open" }]
+        });
+        let now = at("2026-10-10T12:00:00Z");
+        assert_eq!(plan_mint(&spec, "open", None, now).unwrap(), None);
+        assert_eq!(
+            plan_mint(&spec, "open", Some("2030-01-01T00:00:00Z".into()), now).unwrap(),
+            Some(at("2030-01-01T00:00:00Z"))
+        );
     }
 
     #[test]

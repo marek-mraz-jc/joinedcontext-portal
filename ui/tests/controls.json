@@ -680,7 +680,8 @@
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
-        "Button": 9
+        "Button": 11,
+        "RadioGroup": 1
       },
       "tests": [
         "service_accounts_view.test.tsx",
