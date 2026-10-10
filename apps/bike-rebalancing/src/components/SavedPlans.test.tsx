@@ -90,6 +90,24 @@ describe("SavedPlans", () => {
     expect(api.saved).toHaveLength(0);
   });
 
+  it("downloads a plan's route sheet and keeps the plan when the delete is cancelled", async () => {
+    const api = memory();
+    await api.save({ ...CURRENT, operator: "Van 2" });
+    window.history.replaceState(null, "", "/?op=Van%202");
+    render(<SavedPlans lang="en" api={api} current={CURRENT} onOpen={vi.fn()} />);
+    const row = (await screen.findByText(/^Van 2 ·/)).closest("li") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: /^Route sheet \(CSV\):/ }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("The route sheet is downloading."));
+    expect(api.sheetUrl).toHaveBeenCalledWith(1);
+
+    fireEvent.click(within(row).getByRole("button", { name: /^Delete:/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("button", { name: "Delete for good" })).not.toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /^Delete:/ })).toBeInTheDocument();
+    expect(api.remove).not.toHaveBeenCalled();
+    expect(api.saved).toHaveLength(1);
+  });
+
   it("says in the operator's language why the server refused", async () => {
     const api = memory();
     api.save = vi.fn(async () => {
