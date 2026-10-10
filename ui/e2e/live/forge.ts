@@ -13,6 +13,28 @@ export const FORGE_ORG = process.env.JC_FORGE_ORG ?? "joinedcontext";
 /** The organization repository of layout 2 (PF-86): it kept the old repository's name. */
 export const ORG_REPO = process.env.JC_FORGE_ORG_REPO ?? "configuration";
 
+/**
+ * The forge's public URL, the Portal's `JC_GITEA_PUBLIC_URL` (`https://{domain}/git`). It is not on
+ * the Portal's host: on dev `portal.dev…/git/…` is a Portal route that redirects to its login. By
+ * default the Portal URL's host without its `portal.` label, so `https://portal.dev.joinedcontext.com`
+ * gives `https://dev.joinedcontext.com/git`.
+ */
+export const FORGE_URL = (process.env.JC_FORGE_URL ?? defaultForgeUrl(process.env.PORTAL_URL ?? "https://portal.dev.joinedcontext.com")).replace(/\/+$/, "");
+
+export function defaultForgeUrl(portalUrl: string): string {
+  const portal = new URL(portalUrl);
+  portal.hostname = portal.hostname.replace(/^portal\./, "");
+  return new URL("/git", portal.origin).toString();
+}
+
+/** An absolute forge URL for a path below the forge root, e.g. `/api/v1/user`. */
+export function forge(path: string): string {
+  return `${FORGE_URL}${path}`;
+}
+
+/** A page URL on the forge itself, and not a Portal URL that merely contains `/git/`. */
+const ON_FORGE = new RegExp(`^${FORGE_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/`);
+
 /** A person signed in to the forge with their own identity, and the forge token they made there. */
 export interface ForgePerson {
   context: BrowserContext;
@@ -34,20 +56,20 @@ export async function forgeSignIn(browser: Browser, who: { user: string; passwor
   }
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto("/git/user/oauth2/keycloak", { waitUntil: "load" });
+  await page.goto(forge("/user/oauth2/keycloak"), { waitUntil: "load" });
   if (await page.locator("#username").count()) {
     await page.fill("#username", who.user);
     await page.fill("#password", who.password);
-    await Promise.all([page.waitForURL(/\/git\//, { waitUntil: "load" }), page.click("#kc-login")]);
+    await Promise.all([page.waitForURL(ON_FORGE, { waitUntil: "load" }), page.click("#kc-login")]);
   }
-  await expect(page, `${who.user} is back in the forge after the Keycloak login`).toHaveURL(/\/git\//, { timeout: 60_000 });
+  await expect(page, `${who.user} is back in the forge after the Keycloak login`).toHaveURL(ON_FORGE, { timeout: 60_000 });
 
-  await page.goto("/git/user/settings/applications", { waitUntil: "load" });
+  await page.goto(forge("/user/settings/applications"), { waitUntil: "load" });
   const csrfToken = await page.locator('meta[name="_csrf"]').getAttribute("content");
   if (!csrfToken) {
     throw new Error(`the forge's token page holds no _csrf for ${who.user}: the session did not complete`);
   }
-  const made = await page.request.post("/git/user/settings/applications", {
+  const made = await page.request.post(forge("/user/settings/applications"), {
     form: { _csrf: csrfToken, name: tokenName, scope: "write:repository" },
   });
   const html = await made.text();
@@ -56,7 +78,7 @@ export async function forgeSignIn(browser: Browser, who: { user: string; passwor
     const said = /flash-(?:error|warning)[^>]*>\s*<p>([^<]+)</.exec(html)?.[1]?.trim();
     throw new Error(`the forge made no token for ${who.user}: ${said ?? `HTTP ${made.status()}`}`);
   }
-  const user = await page.request.get("/git/api/v1/user", { headers: { authorization: `token ${token}` } });
+  const user = await page.request.get(forge("/api/v1/user"), { headers: { authorization: `token ${token}` } });
   expect(user.ok(), `the forge reads ${who.user}'s own account with the new token`).toBe(true);
   const login = ((await user.json()) as { login: string }).login;
   return { context, page, login, token, tokenName };
@@ -66,13 +88,13 @@ export async function forgeSignIn(browser: Browser, who: { user: string; passwor
 export async function forgeSignOut(person: ForgePerson | null): Promise<void> {
   if (!person) return;
   try {
-    await person.page.goto("/git/user/settings/applications", { waitUntil: "load" });
+    await person.page.goto(forge("/user/settings/applications"), { waitUntil: "load" });
     const html = await person.page.content();
     const csrfToken = await person.page.locator('meta[name="_csrf"]').getAttribute("content");
     const escaped = person.tokenName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const id = new RegExp(`${escaped}[\\s\\S]*?data-id="(\\d+)"`).exec(html)?.[1];
     if (id && csrfToken) {
-      await person.page.request.post("/git/user/settings/applications/delete", { form: { _csrf: csrfToken, id } });
+      await person.page.request.post(forge("/user/settings/applications/delete"), { form: { _csrf: csrfToken, id } });
     }
   } finally {
     await person.context.close();
@@ -80,8 +102,8 @@ export async function forgeSignOut(person: ForgePerson | null): Promise<void> {
 }
 
 /** The forge's own answer to a person reading a repository over git's HTTP protocol: 200 or 404. */
-export async function gitReadStatus(baseURL: string, person: ForgePerson, repo: string): Promise<number> {
-  const answer = await fetch(new URL(`/git/${FORGE_ORG}/${repo}.git/info/refs?service=git-upload-pack`, baseURL), {
+export async function gitReadStatus(person: ForgePerson, repo: string): Promise<number> {
+  const answer = await fetch(forge(`/${FORGE_ORG}/${repo}.git/info/refs?service=git-upload-pack`), {
     headers: { authorization: `Basic ${Buffer.from(`${person.login}:${person.token}`).toString("base64")}` },
   });
   return answer.status;
@@ -115,16 +137,15 @@ export async function git(person: ForgePerson, cwd: string, args: string[]): Pro
 }
 
 /** A clone of one project repository in a directory of its own, removed by `done`. */
-export async function cloneRepository(baseURL: string, person: ForgePerson, repo: string): Promise<{ dir: string; done: () => Promise<void> }> {
+export async function cloneRepository(person: ForgePerson, repo: string): Promise<{ dir: string; done: () => Promise<void> }> {
   const dir = await mkdtemp(join(tmpdir(), `t2647-${repo}-`));
-  const url = new URL(`/git/${FORGE_ORG}/${repo}.git`, baseURL).toString();
-  await git(person, dir, ["clone", "--quiet", url, "."]);
+  await git(person, dir, ["clone", "--quiet", forge(`/${FORGE_ORG}/${repo}.git`), "."]);
   return { dir, done: () => rm(dir, { recursive: true, force: true }) };
 }
 
 /** One forge API call in the person's name. */
 export async function forgeApi(person: ForgePerson, method: "GET" | "POST" | "DELETE", path: string, data?: unknown) {
-  return person.page.request.fetch(`/git/api/v1${path}`, {
+  return person.page.request.fetch(forge(`/api/v1${path}`), {
     method,
     headers: { authorization: `token ${person.token}`, "content-type": "application/json" },
     data: data === undefined ? undefined : JSON.stringify(data),

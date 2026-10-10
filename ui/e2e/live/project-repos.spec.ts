@@ -130,14 +130,13 @@ async function endpointSlugs(page: Page, project: string): Promise<Record<string
  * approves the Change the Portal lists for it (T-3433): the way a writer's own git work lands.
  */
 async function landWithGit(
-  baseURL: string,
   session: Session,
   person: ForgePerson,
   branch: string,
   message: string,
   edit: (dir: string) => Promise<void>,
 ): Promise<{ change: string; number: number }> {
-  const clone = await cloneRepository(baseURL, person, MOBILITY);
+  const clone = await cloneRepository(person, MOBILITY);
   try {
     await git(person, clone.dir, ["checkout", "--quiet", "-b", branch]);
     await edit(clone.dir);
@@ -182,7 +181,7 @@ async function deleteProject(session: Session, project: string): Promise<void> {
   await approveTyped(session.page, project, change);
 }
 
-test.afterAll(async ({ browser, baseURL }) => {
+test.afterAll(async ({ browser }) => {
   const session = await stewardSession(browser);
   const failures: string[] = [];
   const attempt = async (what: string, step: () => Promise<unknown>) => {
@@ -204,7 +203,7 @@ test.afterAll(async ({ browser, baseURL }) => {
   if (forgeSteward && endpointFile) {
     const person = forgeSteward;
     await attempt("put the Endpoint and project.yaml back", () =>
-      landWithGit(baseURL ?? "", session, person, `t2647-restore-${SUFFIX}`, `T-2647: put ${MOBILITY} back as it was`, async (dir) => {
+      landWithGit(session, person, `t2647-restore-${SUFFIX}`, `T-2647: put ${MOBILITY} back as it was`, async (dir) => {
         await editYaml(join(dir, endpointFile), (document) => {
           if (originalDescription === undefined) delete document.metadata.description;
           else document.metadata.description = originalDescription;
@@ -223,7 +222,7 @@ test.afterAll(async ({ browser, baseURL }) => {
   expect(failures, "the journey left dev as it found it").toEqual([]);
 });
 
-test("1. a person's forge token reads exactly the repositories the Portal lets them read (PF-87)", async ({ browser, baseURL }, info) => {
+test("1. a person's forge token reads exactly the repositories the Portal lets them read (PF-87)", async ({ browser }, info) => {
   const viewer = await forgeSignIn(browser, VIEWER, `t2647-viewer-${SUFFIX}`);
   const portal = await signIn(browser, VIEWER, `/projects?lang=en`);
   try {
@@ -232,7 +231,7 @@ test("1. a person's forge token reads exactly the repositories the Portal lets t
     let boundaryMet = false;
     for (const project of new Set(candidates)) {
       const readsInPortal = (await portal.page.request.get(`/api/v1/projects/${project}`)).ok();
-      const status = await gitReadStatus(baseURL ?? "", viewer, project);
+      const status = await gitReadStatus(viewer, project);
       measured(info, `${VIEWER.user} on ${project}: Portal ${readsInPortal ? "reads" : "404"}, forge ${status}`, "");
       expect(status, `the forge answers ${project} as the Portal does`).toBe(readsInPortal ? 200 : 404);
       boundaryMet ||= !readsInPortal;
@@ -241,14 +240,14 @@ test("1. a person's forge token reads exactly the repositories the Portal lets t
       await portal.page.request.get("/api/v1/projects/org/permissions/me"),
       "the viewer's organization permissions",
     );
-    const orgStatus = await gitReadStatus(baseURL ?? "", viewer, ORG_REPO);
+    const orgStatus = await gitReadStatus(viewer, ORG_REPO);
     measured(info, `${VIEWER.user} on the organization repository`, `${(atOrganization.grants ?? []).length} organization grants, forge ${orgStatus}`);
     expect(orgStatus, "the organization repository answers as the organization binding says").toBe(
       (atOrganization.grants ?? []).length > 0 ? 200 : 404,
     );
     measured(info, "the 404 half of PF-87", boundaryMet ? "measured on a project the viewer cannot read" : "not reachable on this installation: the viewer reads every project");
 
-    const clone = await cloneRepository(baseURL ?? "", viewer, MOBILITY);
+    const clone = await cloneRepository(viewer, MOBILITY);
     try {
       const head = (await git(viewer, clone.dir, ["rev-parse", "HEAD"])).trim();
       await readFile(join(clone.dir, "project.yaml"), "utf8");
@@ -262,14 +261,14 @@ test("1. a person's forge token reads exactly the repositories the Portal lets t
   }
 });
 
-test("2. a branch the steward pushes with git lands as a Change, and the gateway serves its parameter (PF-87, CC-88)", async ({ browser, baseURL }, info) => {
+test("2. a branch the steward pushes with git lands as a Change, and the gateway serves its parameter (PF-87, CC-88)", async ({ browser }, info) => {
   const session = await stewardSession(browser);
   forgeSteward = await forgeSignIn(browser, STEWARD, `t2647-steward-${SUFFIX}`);
   originalRegistry = await registry(session.page, MOBILITY);
   measured(info, `registry entry of ${MOBILITY} before`, originalRegistry);
 
   // The Endpoint whose description will carry the parameter: the first one the repository holds.
-  const probe = await cloneRepository(baseURL ?? "", forgeSteward, MOBILITY);
+  const probe = await cloneRepository(forgeSteward, MOBILITY);
   try {
     const files = (await git(forgeSteward, probe.dir, ["ls-files", "*.yaml"])).split("\n").filter(Boolean);
     for (const file of files) {
@@ -287,7 +286,7 @@ test("2. a branch the steward pushes with git lands as a Change, and the gateway
   expect(endpointFile, `${MOBILITY} holds an Endpoint`).not.toBe("");
   measured(info, "Endpoint used", `${endpointFile} (${endpointSlug})`);
 
-  const landed = await landWithGit(baseURL ?? "", session, forgeSteward, `t2647-${SUFFIX}`, `T-2647: ${PARAMETER} as a parameter`, async (dir) => {
+  const landed = await landWithGit(session, forgeSteward, `t2647-${SUFFIX}`, `T-2647: ${PARAMETER} as a parameter`, async (dir) => {
     await editYaml(join(dir, "project.yaml"), (document) => {
       document.spec.parameters = {
         ...(document.spec.parameters ?? {}),
@@ -306,7 +305,7 @@ test("2. a branch the steward pushes with git lands as a Change, and the gateway
   measured(info, "registry value served by the gateway after", `${Math.round((Date.now() - started) / 1000)} s`);
 });
 
-test("3. a pinned tag holds what dev serves until the pin moves (PF-86, CC-90)", async ({ browser, baseURL }, info) => {
+test("3. a pinned tag holds what dev serves until the pin moves (PF-86, CC-90)", async ({ browser }, info) => {
   const session = await stewardSession(browser);
   const person = forgeSteward;
   if (!person) throw new Error("step 2 made no forge session");
@@ -318,7 +317,7 @@ test("3. a pinned tag holds what dev serves until the pin moves (PF-86, CC-90)",
   await repoint(session, MOBILITY, { ref: TAG });
   expect((await registry(session.page, MOBILITY)).ref).toBe(TAG);
 
-  await landWithGit(baseURL ?? "", session, person, `t2647-after-pin-${SUFFIX}`, "T-2647: a change after the pin", async (dir) => {
+  await landWithGit(session, person, `t2647-after-pin-${SUFFIX}`, "T-2647: a change after the pin", async (dir) => {
     await editYaml(join(dir, endpointFile), (document) => {
       document.metadata.description = { en: `{param:${PARAMETER}}${AFTER_PIN}` };
     });

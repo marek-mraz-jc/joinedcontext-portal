@@ -8,7 +8,8 @@ import { defineConfig, devices } from "@playwright/test";
 // person's is Secret `keycloak-user-demo-<name>` (key `password`), so `demo.editor` is
 // `keycloak-user-demo-editor` (T-2231). The journeys of a workload's own token (T-1595, T-1596)
 // read PROPOSER_CLIENT_SECRET, the `client-secret` of Secret
-// `keycloak-client-helsinki-pipeline-proposer` (T-2245).
+// `keycloak-client-helsinki-pipeline-proposer` (T-2245). The forge journeys (T-2647) reach the forge
+// at JC_FORGE_URL, by default the Portal URL's host without `portal.` plus `/git` (e2e/live/forge.ts).
 export default defineConfig({
   testDir: "./e2e/live",
   fullyParallel: false,
