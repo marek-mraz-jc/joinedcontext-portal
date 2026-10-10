@@ -3137,6 +3137,15 @@
         "served": "Läuft",
         "noRepository": "Kein eigenes Repository: Diese Anwendung ist älter als das Repository pro Anwendung, daher wird sie weder gebaut noch ausgeliefert.",
         "commit": "Gebaut aus Commit {commit}"
+      },
+      "history": {
+        "title": "Frühere Builds",
+        "entry": "Gebaut {commit} am {at}",
+        "restore": "Wiederherstellen",
+        "restoreOne": "Den Build von {commit} wiederherstellen",
+        "dataNote": "Die Wiederherstellung bringt nur den Quellcode der Anwendung zurück; ihr Schema, ihre Dateien und Daten bleiben, wie sie sind.",
+        "opened": "Ein Merge Request, der diesen Build wiederherstellt, ist offen; sein Merge baut diesen Quellcode.",
+        "request": "Merge Request öffnen"
       }
     },
     "rebuildAction": "Neu bauen",

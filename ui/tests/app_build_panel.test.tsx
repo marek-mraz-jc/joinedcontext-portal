@@ -15,6 +15,8 @@ import { expectNoViolations } from "./checks";
 
 const BUILD = "/api/v1/projects/helsinki/apps/bikes/build";
 const REBUILD = "/api/v1/projects/helsinki/apps/bikes/rebuild";
+const BUILDS = "/api/v1/projects/helsinki/apps/bikes/builds";
+const RESTORE = "/api/v1/projects/helsinki/apps/bikes/restore";
 const FORGE = "https://forge.example/user/login?redirect_to=";
 
 function built(overrides: Record<string, unknown> = {}) {
@@ -32,7 +34,9 @@ function built(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderPanel(answer: { status: number; body: unknown }, rebuild = { status: 202, body: {} as unknown }) {
+type Reply = { status: number; body: unknown };
+
+function renderPanel(answer: Reply, rebuild: Reply = { status: 202, body: {} }, routes: Record<string, Reply> = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const request = typeof input === "string" || input instanceof URL ? null : input;
     const url = new URL(request ? request.url : String(input), window.location.origin);
@@ -43,6 +47,8 @@ function renderPanel(answer: { status: number; body: unknown }, rebuild = { stat
       });
     if (url.pathname === BUILD) return reply(answer);
     if (url.pathname === REBUILD && request?.method === "POST") return reply(rebuild);
+    const routed = routes[`${request?.method ?? "GET"} ${url.pathname}`];
+    if (routed) return reply(routed);
     return reply({ status: 404, body: { title: "Not Found", status: 404 } });
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -132,6 +138,74 @@ describe("the build of an application on the forge", () => {
     const detail = "the forge did not start the build of 'bikes': Actions are disabled for this repository";
     renderPanel({ status: 200, body: built() }, { status: 503, body: { title: "Service Unavailable", status: 503, detail } });
     await user.click(within(await panel()).getByRole("button", { name: en.apps.build.rebuild }));
+    expect(await screen.findByText(detail)).toBeInTheDocument();
+  });
+
+  // AP-171: the earlier builds are listed with Restore; the current one is not offered. Restore
+  // opens the merge request for exactly that commit and links it; the data note is always there.
+  it("lists earlier builds and restores one as a merge request", async () => {
+    const user = userEvent.setup();
+    const old = "9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b";
+    const pullRequestUrl = "https://forge.example/joinedcontext/helsinki_bikes/pulls/3";
+    const { fetchMock } = renderPanel({ status: 200, body: built() }, undefined, {
+      [`GET ${BUILDS}`]: {
+        status: 200,
+        body: {
+          builds: [
+            { commit: built().run.commit, number: 8, current: true },
+            { commit: old, number: 7, completedAt: "2026-10-05T08:12:40Z", current: false },
+          ],
+          restore: { allowed: true },
+          dataNote: "",
+        },
+      },
+      [`POST ${RESTORE}`]: { status: 201, body: { branch: "restore/9a2b3c4-1", pullRequestUrl } },
+    });
+    const section = await panel();
+    expect(await within(section).findByText(en.apps.build.history.dataNote)).toBeInTheDocument();
+    const restore = (commit: string) => en.apps.build.history.restoreOne.replace("{commit}", commit);
+    expect(within(section).queryByRole("button", { name: restore("3f1c0e2") })).toBeNull();
+    await user.click(within(section).getByRole("button", { name: restore("9a2b3c4") }));
+
+    const link = await within(section).findByRole("link", { name: new RegExp(en.apps.build.history.request) });
+    expect(link.getAttribute("href")).toBe(pullRequestUrl);
+    const posted = fetchMock.mock.calls
+      .map(([input]) => input as Request)
+      .filter((request) => typeof request !== "string" && request.method === "POST");
+    expect(posted.map((request) => new URL(request.url).pathname)).toEqual([RESTORE]);
+    expect(await posted[0].json()).toEqual({ commit: old });
+    await expectNoViolations(section);
+  });
+
+  // AP-171, UI-44: a reader reaches Restore, is told why it is refused, and nothing is sent; a
+  // refusal of the forge is shown in its own words.
+  it("refuses Restore to a reader with the reason and shows the forge's refusal", async () => {
+    const user = userEvent.setup();
+    const reason = "Restore needs propose on App in project helsinki";
+    const history = (allowed: boolean) => ({
+      status: 200,
+      body: {
+        builds: [{ commit: "9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b", current: false }],
+        restore: allowed ? { allowed } : { allowed, reason },
+        dataNote: "",
+      },
+    });
+    const name = en.apps.build.history.restoreOne.replace("{commit}", "9a2b3c4");
+    const { fetchMock, view } = renderPanel({ status: 200, body: built() }, undefined, { [`GET ${BUILDS}`]: history(false) });
+    const refused = await within(await panel()).findByRole("button", { name });
+    expect(refused).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    await user.click(refused);
+    expect(fetchMock.mock.calls.some(([input]) => (input as Request).method === "POST")).toBe(false);
+    view.unmount();
+    vi.unstubAllGlobals();
+
+    const detail = "the default branch already holds the files of 9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b";
+    renderPanel({ status: 200, body: built() }, undefined, {
+      [`GET ${BUILDS}`]: history(true),
+      [`POST ${RESTORE}`]: { status: 409, body: { title: "Conflict", status: 409, detail } },
+    });
+    await user.click(await within(await panel()).findByRole("button", { name }));
     expect(await screen.findByText(detail)).toBeInTheDocument();
   });
 

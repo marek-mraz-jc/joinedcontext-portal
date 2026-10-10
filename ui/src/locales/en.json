@@ -3137,6 +3137,15 @@
         "served": "Running",
         "noRepository": "No repository of its own: this application predates the per-application repository, so nothing builds or serves it.",
         "commit": "Built from commit {commit}"
+      },
+      "history": {
+        "title": "Earlier builds",
+        "entry": "Built {commit} on {at}",
+        "restore": "Restore",
+        "restoreOne": "Restore the build of {commit}",
+        "dataNote": "Restore brings back the application's source only; its schema, files and data stay as they are.",
+        "opened": "A merge request that restores this build is open; merging it builds that source.",
+        "request": "Open the merge request"
       }
     },
     "rebuildAction": "Rebuild",

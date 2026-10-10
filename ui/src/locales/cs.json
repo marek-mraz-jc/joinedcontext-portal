@@ -3137,6 +3137,15 @@
         "served": "Běží",
         "noRepository": "Nemá vlastní repozitář: aplikace vznikla před repozitářem pro každou aplikaci, proto ji nic nesestavuje ani neposkytuje.",
         "commit": "Sestaveno z commitu {commit}"
+      },
+      "history": {
+        "title": "Starší sestavení",
+        "entry": "Sestaveno {commit} {at}",
+        "restore": "Obnovit",
+        "restoreOne": "Obnovit sestavení {commit}",
+        "dataNote": "Obnovení vrátí pouze zdrojový kód aplikace; její schéma, soubory a data zůstávají, jak jsou.",
+        "opened": "Žádost o sloučení, která obnovuje toto sestavení, je otevřená; její sloučení sestaví tento zdrojový kód.",
+        "request": "Otevřít žádost o sloučení"
       }
     },
     "rebuildAction": "Znovu sestavit",

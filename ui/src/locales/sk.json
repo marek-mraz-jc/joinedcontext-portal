@@ -3137,6 +3137,15 @@
         "served": "Beží",
         "noRepository": "Nemá vlastný repozitár: aplikácia vznikla pred repozitárom pre každú aplikáciu, preto ju nič nezostavuje ani nepodáva.",
         "commit": "Zostavené z commitu {commit}"
+      },
+      "history": {
+        "title": "Staršie zostavenia",
+        "entry": "Zostavené {commit} {at}",
+        "restore": "Obnoviť",
+        "restoreOne": "Obnoviť zostavenie {commit}",
+        "dataNote": "Obnovenie vráti iba zdrojový kód aplikácie; jej schéma, súbory a dáta zostávajú, ako sú.",
+        "opened": "Žiadosť o zlúčenie, ktorá obnovuje toto zostavenie, je otvorená; jej zlúčenie zostaví tento zdrojový kód.",
+        "request": "Otvoriť žiadosť o zlúčenie"
       }
     },
     "rebuildAction": "Znovu zostaviť",

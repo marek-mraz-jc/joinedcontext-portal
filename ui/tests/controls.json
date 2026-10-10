@@ -716,7 +716,7 @@
     },
     "src/pages/apps/AppBuildPanel.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "app_build_panel.test.tsx"
