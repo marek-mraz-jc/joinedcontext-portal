@@ -60,6 +60,10 @@ export async function serve(page: Page): Promise<Served> {
       const answer = await transport({ method: route.request().method() as "GET", path, body: body ? JSON.parse(body) : undefined });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
     }
+    // The App's own server (T-3346): an operator with no plan saved yet; any other call is missing.
+    if (url.pathname === `/apps/${CONFIG.appName}/api/plans` && route.request().method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    }
     const file = normalize(url.pathname.slice(1) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) {
       served.missing.push(url.pathname);
