@@ -20,8 +20,47 @@ export interface Observation {
   /** The same on the App's own host, opened from "Open in new window". */
   windowDataMs: number | null;
   consoleErrors: string[];
+  /** Responses of 400 and above its own window received, as `status url` (T-3580). */
+  failedRequests: string[];
+  /** Its own window laid out at each of `WIDTHS`; empty when it has no own address. */
+  layout: Layout[];
+  /** Data items its own window's first view shows at 1440 px (`firstViewItems`), null unmeasured. */
+  items: number | null;
   /** What a visitor who did not sign in got: rows, a sign-in or refusal, or neither. */
   anonymous: "data" | "refused" | "blank";
+}
+
+/** One width of an App's own window: how many h1 it shows and whether the page scrolls sideways. */
+export interface Layout {
+  width: number;
+  h1: number;
+  sideways: boolean;
+}
+
+/** Phone, tablet, laptop and wide screen: the widths every App is laid out at (T-3580). */
+export const WIDTHS = [375, 768, 1440, 2560] as const;
+
+/**
+ * How many data items a page's first view shows: table rows with content, map markers, chart
+ * marks, elements an App marks `data-item`, stats above zero, and each drawn canvas (a WebGL map
+ * or a canvas chart) as one. No interaction, no layout: what the page rendered from the data it
+ * read. Self-contained, so the probe can hand it to `page.evaluate` as it is.
+ * ponytail: a canvas counts whatever it draws, so a basemap with no features passes here; the
+ * probe's row check (`firstRow`) is what proves data arrived. Read the canvas's features when a
+ * blank-but-drawn map slips through.
+ */
+export function firstViewItems(root: Document = document): number {
+  const rows = [...root.querySelectorAll("tbody tr, [role=row]")].filter(
+    (row) => row.querySelector("th, [role=columnheader]") === null && (row.textContent ?? "").trim() !== "",
+  ).length;
+  const marks = root.querySelectorAll(
+    ".leaflet-marker-icon, .leaflet-interactive, .maplibregl-marker, .recharts-bar-rectangle, .recharts-dot, .recharts-sector, [data-item]",
+  ).length;
+  const stats = [...root.querySelectorAll("[data-stat], dd, output")].filter(
+    (stat) => Number.parseFloat((stat.textContent ?? "").replace(/\s/g, "").replace(",", ".")) > 0,
+  ).length;
+  const canvases = [...root.querySelectorAll("canvas")].filter((canvas) => canvas.width > 0 && canvas.height > 0).length;
+  return rows + marks + stats + canvases;
 }
 
 export interface ProbeResult {
@@ -62,6 +101,18 @@ export function verdictOf(seen: Observation): ProbeResult {
       seen.consoleErrors.map((error) => oneLine(error, 300)).join("\n"),
     );
   }
+  if (seen.failedRequests.length > 0) {
+    const count = seen.failedRequests.length;
+    return fail(
+      `${count} failed request${count === 1 ? "" : "s"}: ${oneLine(seen.failedRequests[0])}`,
+      seen.failedRequests.map((request) => oneLine(request, 300)).join("\n"),
+    );
+  }
+  const headings = seen.layout.find((at) => at.h1 !== 1);
+  if (headings) return fail(`${headings.h1} h1 at ${headings.width} px, one expected`);
+  const sideways = seen.layout.find((at) => at.sideways);
+  if (sideways) return fail(`scrolls sideways at ${sideways.width} px`);
+  if (seen.items === 0) return fail("its first view shows no data item");
   const isPublic = seen.visibility === "public";
   if (isPublic && seen.anonymous !== "data") return fail("a visitor who did not sign in read nothing");
   if (!isPublic && seen.anonymous === "data") return fail("a visitor who did not sign in read its data");
@@ -74,7 +125,7 @@ export function summaryOf(observations: Observation[], run: string): ProbeSummar
     check: "apps",
     repo: "joinedcontext-portal",
     run,
-    requirements: ["AP-136"],
+    requirements: ["AP-136", "AP-34", "SDK-39"],
     results: observations.map(verdictOf),
   };
 }

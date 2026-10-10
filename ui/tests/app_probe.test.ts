@@ -1,7 +1,7 @@
 /** T-2795 (AP-136): the App probe's verdict per App, from what it saw. */
 import { describe, expect, it } from "vitest";
 import { summaryOf, verdictOf } from "../scripts/app-probe";
-import type { Observation } from "../scripts/app-probe";
+import type { Layout, Observation } from "../scripts/app-probe";
 
 const WORKING: Observation = {
   project: "helsinki",
@@ -11,8 +11,14 @@ const WORKING: Observation = {
   dataMs: 2400,
   windowDataMs: 1800,
   consoleErrors: [],
+  failedRequests: [],
+  layout: [375, 768, 1440, 2560].map((width) => ({ width, h1: 1, sideways: false })),
+  items: 12,
   anonymous: "refused",
 };
+
+const at = (width: number, change: Partial<Layout>): Layout[] =>
+  WORKING.layout.map((layout) => (layout.width === width ? { ...layout, ...change } : layout));
 
 const seen = (change: Partial<Observation>): Observation => ({ ...WORKING, ...change });
 
@@ -29,6 +35,11 @@ describe("the App probe's verdict (AP-136)", () => {
     [{ dataMs: null }, "no row read inside the Portal in 60 s"],
     [{ windowDataMs: null }, "no row read in its own window in 60 s"],
     [{ consoleErrors: ["TypeError: x is undefined\n  at main.js:1"] }, "1 console error: TypeError: x is undefined at main.js:1"],
+    [{ failedRequests: ["404 https://x.apps.dev.example/favicon.svg"] }, "1 failed request: 404 https://x.apps.dev.example/favicon.svg"],
+    [{ layout: at(768, { h1: 0 }) }, "0 h1 at 768 px, one expected"],
+    [{ layout: at(375, { h1: 2 }) }, "2 h1 at 375 px, one expected"],
+    [{ layout: at(2560, { sideways: true }) }, "scrolls sideways at 2560 px"],
+    [{ items: 0 }, "its first view shows no data item"],
     [{ visibility: "public", anonymous: "refused" }, "a visitor who did not sign in read nothing"],
     [{ anonymous: "data" }, "a visitor who did not sign in read its data"],
     [{ anonymous: "blank" }, "a visitor who did not sign in was not sent to sign in"],
@@ -44,6 +55,10 @@ describe("the App probe's verdict (AP-136)", () => {
     const result = verdictOf(seen({ consoleErrors: ["x".repeat(500), "second"] }));
     expect(result.title.length).toBeLessThan(140);
     expect(result.detail?.split("\n")).toHaveLength(2);
+  });
+
+  it("does not hold an unmeasured first view or a missing own window against an App", () => {
+    expect(verdictOf(seen({ items: null, layout: [] })).verdict).toBe("pass");
   });
 
   it("a public App read by a stranger passes", () => {
