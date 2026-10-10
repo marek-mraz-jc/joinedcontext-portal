@@ -7465,6 +7465,117 @@
         }
       }
     },
+    "/api/v1/projects/{project}/endpoints/{name}/access/simulate": {
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Try A Policy On A Person",
+        "description": "What the gateway would decide for a person, a group or role member, a ServiceAccount or the public on one Endpoint, and the Policy that decided it (API/01 §39, EP-103). Organization administrators only; recorded as an `access.simulated` activity event. Changes no data.",
+        "operationId": "simulate_access",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Endpoint name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Who, which action and optionally which type.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateRequest"
+              },
+              "example": {
+                "action": "retrieveEntity",
+                "subject": {
+                  "id": "8c0e5a1e-2b7d-4c55-9a43-6f0d2e1b9a10",
+                  "kind": "person"
+                },
+                "type": "AirQualityObserved"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The gateway's decision and the Policy that decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Simulated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown member or kind, or an action that is not a CIM 009 operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint, person or ServiceAccount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No gateway, no realm admin client, or one of them did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/export": {
       "get": {
         "tags": [
@@ -20504,6 +20615,40 @@
         },
         "additionalProperties": false
       },
+      "Resolved": {
+        "type": "object",
+        "description": "The subject as the gateway decided it.",
+        "required": [
+          "groups",
+          "roles"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "serviceAccount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ResourceEnvelope": {
         "type": "object",
         "required": [
@@ -21048,6 +21193,63 @@
           "ours",
           "theirs"
         ]
+      },
+      "SimulateRequest": {
+        "type": "object",
+        "required": [
+          "subject",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "A CIM 009 operation name, such as `retrieveEntity`."
+          },
+          "subject": {
+            "$ref": "#/components/schemas/Who"
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The entity type the question is about; absent asks about any type."
+          }
+        },
+        "additionalProperties": false
+      },
+      "Simulated": {
+        "type": "object",
+        "required": [
+          "decision",
+          "reason",
+          "subject"
+        ],
+        "properties": {
+          "assigner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision": {
+            "type": "boolean"
+          },
+          "policy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The manifest name of the Policy that decided, when one did."
+          },
+          "reason": {
+            "type": "string",
+            "description": "`policy_grant_matched`, `prohibited`, `no_grant` or `not_admitted`."
+          },
+          "subject": {
+            "$ref": "#/components/schemas/Resolved"
+          }
+        }
       },
       "SortKey": {
         "type": "object",
@@ -21842,6 +22044,102 @@
             "description": "The views of the space this caller sees, oldest first."
           }
         }
+      },
+      "Who": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "A person, by their Keycloak user id.",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "person"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A member of the realm group `name`.",
+            "required": [
+              "name",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "group"
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A holder of the realm role `name`.",
+            "required": [
+              "name",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "role"
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The project's ServiceAccount `name`.",
+            "required": [
+              "name",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "serviceAccount"
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The anonymous caller.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "public"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Who is tried: one person, a member of a group or of a realm role with no person of their own,\none of the project's ServiceAccounts, or the public."
       },
       "WorkflowRun": {
         "type": "object",

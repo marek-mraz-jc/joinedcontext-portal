@@ -1861,6 +1861,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/endpoints/{name}/access/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Try A Policy On A Person
+         * @description What the gateway would decide for a person, a group or role member, a ServiceAccount or the public on one Endpoint, and the Policy that decided it (API/01 §39, EP-103). Organization administrators only; recorded as an `access.simulated` activity event. Changes no data.
+         */
+        post: operations["simulate_access"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/export": {
         parameters: {
             query?: never;
@@ -5479,6 +5499,13 @@ export interface components {
             /** @description The file's path in the repository, as the comparison lists it. */
             path: string;
         };
+        /** @description The subject as the gateway decided it. */
+        Resolved: {
+            groups: string[];
+            roles: string[];
+            serviceAccount?: string | null;
+            user?: string | null;
+        };
         ResourceEnvelope: {
             apiVersion: string;
             kind: string;
@@ -5679,6 +5706,22 @@ export interface components {
          * @enum {string}
          */
         Side: "ours" | "theirs";
+        SimulateRequest: {
+            /** @description A CIM 009 operation name, such as `retrieveEntity`. */
+            action: string;
+            subject: components["schemas"]["Who"];
+            /** @description The entity type the question is about; absent asks about any type. */
+            type?: string | null;
+        };
+        Simulated: {
+            assigner?: string | null;
+            decision: boolean;
+            /** @description The manifest name of the Policy that decided, when one did. */
+            policy?: string | null;
+            /** @description `policy_grant_matched`, `prohibited`, `no_grant` or `not_admitted`. */
+            reason: string;
+            subject: components["schemas"]["Resolved"];
+        };
         SortKey: {
             attr: string;
             desc?: boolean;
@@ -5954,6 +5997,30 @@ export interface components {
         ViewList: {
             /** @description The views of the space this caller sees, oldest first. */
             items: components["schemas"]["DataView"][];
+        };
+        /**
+         * @description Who is tried: one person, a member of a group or of a realm role with no person of their own,
+         *     one of the project's ServiceAccounts, or the public.
+         */
+        Who: {
+            id: string;
+            /** @enum {string} */
+            kind: "person";
+        } | {
+            /** @enum {string} */
+            kind: "group";
+            name: string;
+        } | {
+            /** @enum {string} */
+            kind: "role";
+            name: string;
+        } | {
+            /** @enum {string} */
+            kind: "serviceAccount";
+            name: string;
+        } | {
+            /** @enum {string} */
+            kind: "public";
         };
         /** @description A workflow run of an application's repository, as the App page links it (AP-86, AP-103). */
         WorkflowRun: {
@@ -11701,6 +11768,91 @@ export interface operations {
                 };
             };
             /** @description No git forge configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    simulate_access: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Endpoint name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** @description Who, which action and optionally which type. */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "action": "retrieveEntity",
+                 *       "subject": {
+                 *         "id": "8c0e5a1e-2b7d-4c55-9a43-6f0d2e1b9a10",
+                 *         "kind": "person"
+                 *       },
+                 *       "type": "AirQualityObserved"
+                 *     }
+                 */
+                "application/json": components["schemas"]["SimulateRequest"];
+            };
+        };
+        responses: {
+            /** @description The gateway's decision and the Policy that decided */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Simulated"];
+                };
+            };
+            /** @description An unknown member or kind, or an action that is not a CIM 009 operation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an organization administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint, person or ServiceAccount */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No gateway, no realm admin client, or one of them did not answer */
             503: {
                 headers: {
                     [name: string]: unknown;
