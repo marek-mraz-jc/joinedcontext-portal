@@ -108,6 +108,8 @@ fn family(name: &str) -> Option<Family> {
         Some(Family::BufferDepth)
     } else if name.ends_with("output_latency_ns") {
         Some(Family::LatencyNs)
+    } else if name.ends_with("output_latency_ns_bucket") {
+        Some(Family::LatencyBucket)
     } else {
         None
     }
@@ -119,6 +121,39 @@ enum Family {
     Errors,
     BufferDepth,
     LatencyNs,
+    /// The same timing as a histogram (`use_histogram_timing`, T-3625): cumulative counts per
+    /// `le` bound, in seconds, because Bento converts its nanoseconds for the buckets.
+    LatencyBucket,
+}
+
+/// The 0.99 quantile of cumulative `(le, count)` buckets, in milliseconds, interpolated inside
+/// the bucket that crosses the rank as Prometheus' `histogram_quantile` does. None without a
+/// finite bound or without a single observation.
+fn histogram_p99_ms(mut buckets: Vec<(f64, f64)>) -> Option<f64> {
+    buckets.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let total = buckets.last()?.1;
+    if total.is_nan() || total <= 0.0 || !buckets.iter().any(|(le, _)| le.is_finite()) {
+        return None;
+    }
+    let rank = 0.99 * total;
+    let (mut lower, mut below) = (0.0, 0.0);
+    for (le, count) in buckets {
+        if count >= rank {
+            if !le.is_finite() {
+                // Past the last finite bound nothing says how far: that bound is the answer.
+                return Some(lower * 1000.0);
+            }
+            let inside = count - below;
+            let seconds = if inside > 0.0 {
+                lower + (le - lower) * (rank - below) / inside
+            } else {
+                le
+            };
+            return Some(seconds * 1000.0);
+        }
+        (lower, below) = (le, count);
+    }
+    None
 }
 
 /// What one component of a stream counted, as its own label reports it (T-1125).
@@ -145,6 +180,8 @@ pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMe
         ..PipelineMetrics::default()
     };
 
+    // Summed over labels per bound: the stream's one distribution.
+    let mut buckets: Vec<(f64, f64)> = Vec::new();
     for sample in body.lines().filter_map(parse_line) {
         if label(sample.labels, "stream") != Some(stream) {
             continue;
@@ -190,7 +227,24 @@ pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMe
                         Some(metrics.latency_p99_ms.map_or(ms, |seen| seen.max(ms)));
                 }
             }
+            Family::LatencyBucket => {
+                let bound = match label(sample.labels, "le") {
+                    Some("+Inf") => Some(f64::INFINITY),
+                    Some(le) => le.parse::<f64>().ok().filter(|le| le.is_finite()),
+                    None => None,
+                };
+                if let Some(bound) = bound {
+                    match buckets.iter_mut().find(|(le, _)| *le == bound) {
+                        Some((_, count)) => *count += sample.value,
+                        None => buckets.push((bound, sample.value)),
+                    }
+                }
+            }
         }
+    }
+    // The summary first, so the Portal reads the runner before and after it switches.
+    if metrics.latency_p99_ms.is_none() {
+        metrics.latency_p99_ms = histogram_p99_ms(buckets);
     }
 
     metrics
@@ -873,6 +927,97 @@ uptime_seconds 900
             metrics.latency_p99_ms,
             Some(9.0),
             "the slowest output, not their sum"
+        );
+    }
+
+    /// Bento with `use_histogram_timing` (T-3625): the same family as cumulative buckets, whose
+    /// `le` bounds are seconds.
+    const HISTOGRAM: &str = concat!(
+        "output_latency_ns_bucket{label=\"a\",stream=\"aq\",le=\"0.01\"} 50\n",
+        "output_latency_ns_bucket{label=\"a\",stream=\"aq\",le=\"0.1\"} 90\n",
+        "output_latency_ns_bucket{label=\"a\",stream=\"aq\",le=\"1\"} 100\n",
+        "output_latency_ns_bucket{label=\"a\",stream=\"aq\",le=\"+Inf\"} 100\n",
+        "output_latency_ns_sum{label=\"a\",stream=\"aq\"} 3.5\n",
+        "output_latency_ns_count{label=\"a\",stream=\"aq\"} 100\n",
+    );
+
+    #[test]
+    fn a_histogram_only_scrape_gives_the_interpolated_p99() {
+        // 99 of 100 falls in (0.1, 1]: 90 below, 10 inside, 9/10 of the way: 0.91 s.
+        let metrics = scrape(HISTOGRAM, "aq", String::new());
+        let p99 = metrics.latency_p99_ms.expect("a latency from the buckets");
+        assert!((p99 - 910.0).abs() < 1e-6, "{p99}");
+    }
+
+    #[test]
+    fn two_labels_buckets_are_summed_into_one_distribution() {
+        let body = format!(
+            "{HISTOGRAM}{}",
+            concat!(
+                "output_latency_ns_bucket{label=\"b\",stream=\"aq\",le=\"0.01\"} 100\n",
+                "output_latency_ns_bucket{label=\"b\",stream=\"aq\",le=\"0.1\"} 100\n",
+                "output_latency_ns_bucket{label=\"b\",stream=\"aq\",le=\"1\"} 100\n",
+                "output_latency_ns_bucket{label=\"b\",stream=\"aq\",le=\"+Inf\"} 100\n",
+                "output_latency_ns_bucket{label=\"x\",stream=\"other\",le=\"1\"} 9\n",
+            )
+        );
+        // 200 in all, rank 198: 190 by 0.1 s, 200 by 1 s, 8/10 of the way: 0.82 s.
+        let p99 = scrape(&body, "aq", String::new())
+            .latency_p99_ms
+            .expect("a latency");
+        assert!((p99 - 820.0).abs() < 1e-6, "{p99}");
+    }
+
+    #[test]
+    fn a_rank_in_the_first_bucket_interpolates_from_zero() {
+        let body = concat!(
+            "output_latency_ns_bucket{stream=\"aq\",le=\"0.02\"} 10\n",
+            "output_latency_ns_bucket{stream=\"aq\",le=\"+Inf\"} 10\n",
+        );
+        let p99 = scrape(body, "aq", String::new())
+            .latency_p99_ms
+            .expect("a latency");
+        assert!((p99 - 19.8).abs() < 1e-9, "{p99}");
+    }
+
+    #[test]
+    fn a_rank_past_the_last_finite_bound_answers_that_bound() {
+        let body = concat!(
+            "output_latency_ns_bucket{stream=\"aq\",le=\"0.5\"} 50\n",
+            "output_latency_ns_bucket{stream=\"aq\",le=\"+Inf\"} 100\n",
+        );
+        assert_eq!(
+            scrape(body, "aq", String::new()).latency_p99_ms,
+            Some(500.0)
+        );
+    }
+
+    #[test]
+    fn inf_only_or_empty_buckets_give_no_latency() {
+        for body in [
+            "output_latency_ns_bucket{stream=\"aq\",le=\"+Inf\"} 7\n",
+            concat!(
+                "output_latency_ns_bucket{stream=\"aq\",le=\"0.1\"} 0\n",
+                "output_latency_ns_bucket{stream=\"aq\",le=\"+Inf\"} 0\n",
+            ),
+            "output_latency_ns_bucket{stream=\"aq\",le=\"not-a-bound\"} 3\n",
+        ] {
+            assert_eq!(
+                scrape(body, "aq", String::new()).latency_p99_ms,
+                None,
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_summary_wins_when_both_are_scraped() {
+        let body = format!(
+            "{HISTOGRAM}output_latency_ns{{label=\"a\",stream=\"aq\",quantile=\"0.99\"}} 42500000\n"
+        );
+        assert_eq!(
+            scrape(&body, "aq", String::new()).latency_p99_ms,
+            Some(42.5)
         );
     }
 
