@@ -80,6 +80,7 @@ fn mirror_with_pipeline() -> Arc<Mirror> {
             build: None,
             shard: None,
             domain_verification: None,
+            jobs: Vec::new(),
         }),
     });
     mirror

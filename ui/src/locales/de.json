@@ -3283,6 +3283,25 @@
       "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage.",
       "screenshot": "{title}, wie die Vorschau sie zeigt",
       "demo": "Vorschau öffnen"
+    },
+    "jobs": {
+      "title": "Geplante Aufgaben",
+      "caption": "Geplante Aufgaben von {name} und ihre letzten Läufe",
+      "job": "Aufgabe",
+      "schedule": "Zeitplan (UTC)",
+      "lastRun": "Letzter Lauf",
+      "outcome": "Ergebnis",
+      "duration": "Dauer",
+      "notRun": "Noch nicht gelaufen",
+      "outcomes": {
+        "succeeded": "Erfolgreich",
+        "failed": "Fehlgeschlagen",
+        "timedOut": "Am Zeitlimit gestoppt",
+        "skipped": "Übersprungen, der vorige Lauf lief noch"
+      },
+      "inARow": "{count, plural, one {# fehlgeschlagener Lauf in Folge} other {# fehlgeschlagene Läufe in Folge}}",
+      "ms": "{count} ms",
+      "note": "Eine Aufgabe läuft mit der eigenen Identität der App und schreibt nur über deren Endpoint. Die Liste zeigt Läufe seit dem letzten Start des Hosts."
     }
   },
   "appLifecycle": {

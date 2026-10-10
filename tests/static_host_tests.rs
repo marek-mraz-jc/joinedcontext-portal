@@ -93,6 +93,7 @@ fn mirror_with_build(spec: serde_json::Value, commit: &str) -> Arc<Mirror> {
         }),
         shard: None,
         domain_verification: None,
+        jobs: Vec::new(),
     });
     mirror.upsert(envelope);
     mirror
@@ -1148,6 +1149,7 @@ fn mirror_live_without_build(spec: serde_json::Value) -> Arc<Mirror> {
         build: None,
         shard: None,
         domain_verification: None,
+        jobs: Vec::new(),
     });
     mirror.upsert(envelope);
     mirror

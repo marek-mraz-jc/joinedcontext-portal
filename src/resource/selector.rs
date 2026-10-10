@@ -342,6 +342,7 @@ mod tests {
                 build: None,
                 shard: None,
                 domain_verification: None,
+                jobs: Vec::new(),
             }),
         };
 
