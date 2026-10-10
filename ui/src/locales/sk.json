@@ -2755,7 +2755,19 @@
       "tableRelationship": "Vzťah",
       "tableField": "Pole",
       "tableInverse": "Inverzné pole",
-      "tableMultiplicity": "Násobnosť"
+      "tableMultiplicity": "Násobnosť",
+      "exportSvg": "Stiahnuť SVG",
+      "exportMermaid": "Stiahnuť Mermaid",
+      "notation": {
+        "title": "Značenie",
+        "isA": "is_a: špecializuje triedu, na ktorú ukazuje trojuholník",
+        "mixin": "mixin: primiešava triedu, na ktorú ukazuje trojuholník",
+        "one": "presne jedna",
+        "zeroOrOne": "najviac jedna",
+        "oneOrMore": "aspoň jedna",
+        "many": "ľubovoľne veľa",
+        "enum": "vyberá z enumu, na ktorý ukazuje šípka"
+      }
     },
     "field": {
       "name": "Názov",

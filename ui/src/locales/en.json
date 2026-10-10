@@ -2755,7 +2755,19 @@
       "tableRelationship": "Relationship",
       "tableField": "Field",
       "tableInverse": "Inverse",
-      "tableMultiplicity": "Multiplicity"
+      "tableMultiplicity": "Multiplicity",
+      "exportSvg": "Download SVG",
+      "exportMermaid": "Download Mermaid",
+      "notation": {
+        "title": "Notation",
+        "isA": "is_a: specialises the class the triangle points at",
+        "mixin": "mixin: mixes in the class the triangle points at",
+        "one": "exactly one",
+        "zeroOrOne": "at most one",
+        "oneOrMore": "at least one",
+        "many": "any number",
+        "enum": "picks from the enum the arrow points at"
+      }
     },
     "field": {
       "name": "Name",

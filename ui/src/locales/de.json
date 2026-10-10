@@ -2755,7 +2755,19 @@
       "tableRelationship": "Beziehung",
       "tableField": "Feld",
       "tableInverse": "Inverses Feld",
-      "tableMultiplicity": "Multiplizität"
+      "tableMultiplicity": "Multiplizität",
+      "exportSvg": "SVG herunterladen",
+      "exportMermaid": "Mermaid herunterladen",
+      "notation": {
+        "title": "Notation",
+        "isA": "is_a: spezialisiert die Klasse, auf die das Dreieck zeigt",
+        "mixin": "Mixin: mischt die Klasse ein, auf die das Dreieck zeigt",
+        "one": "genau eine",
+        "zeroOrOne": "höchstens eine",
+        "oneOrMore": "mindestens eine",
+        "many": "beliebig viele",
+        "enum": "wählt aus dem Enum, auf das der Pfeil zeigt"
+      }
     },
     "field": {
       "name": "Name",

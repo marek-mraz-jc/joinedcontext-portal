@@ -1,11 +1,12 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useId, useMemo, useRef, useState } from "react";
 import type { JSX, PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { download, mermaidErDiagram, svgFile } from "./diagramExport";
 import { layered } from "./diagramLayout";
 import type { LayoutEdge, Point } from "./diagramLayout";
 import { graphData, parseModel, withImports } from "./linkml";
-import type { GraphEdge, GraphNode, GraphRow } from "./linkml";
+import type { GraphEdge, GraphNode, GraphRow, Multiplicity } from "./linkml";
 
 /**
  * One box's size, the gaps around it and the three text sizes, all in the SVG's own units.
@@ -40,6 +41,63 @@ const CHARS = 17;
 const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2 };
 /** One object for "no imports", so the drawing is not recomputed on every render. */
 const NO_IMPORTS: Record<string, string> = {};
+
+/**
+ * The ends a line can have (T-3589), one standard notation: UML's hollow triangle at the parent
+ * of `is_a` and of a mixin, ER crow's foot at both ends of a reference and a relationship (the
+ * notation of LinkML's `gen-erdiagram`), an open arrow at the enum a field picks from.
+ */
+const CROW: Record<Multiplicity, string> = { "1": "one", "0..1": "zeroOrOne", "1..*": "oneOrMore", "*": "many" };
+type End = "triangle" | "arrow" | (typeof CROW)[Multiplicity];
+
+/** The `<marker>` of every end, drawn tip right at (20, 6); `auto-start-reverse` turns it round at a line's start. */
+function Markers({ id }: { id: (end: End) => string }): JSX.Element {
+  const marker = (end: End, children: JSX.Element, refX = 20) => (
+    <marker
+      id={id(end)}
+      viewBox="0 0 20 12"
+      refX={refX}
+      refY="6"
+      markerWidth="20"
+      markerHeight="12"
+      markerUnits="userSpaceOnUse"
+      orient="auto-start-reverse"
+    >
+      {children}
+    </marker>
+  );
+  const ring = (cx: number) => <circle cx={cx} cy={6} r={3.5} className="fill-surface" stroke="currentColor" />;
+  return (
+    <defs>
+      {marker("arrow", <path d="M 11 1 L 20 6 L 11 11 z" fill="currentColor" />)}
+      {marker("triangle", <path d="M 6 0 L 20 6 L 6 12 z" className="fill-surface" stroke="currentColor" />)}
+      {marker("one", <path d="M 12 0 V 12 M 16 0 V 12" fill="none" stroke="currentColor" />)}
+      {marker(
+        "zeroOrOne",
+        <g fill="none" stroke="currentColor">
+          {ring(8)}
+          <path d="M 16 0 V 12" />
+        </g>,
+      )}
+      {marker("oneOrMore", <path d="M 8 0 V 12 M 12 6 L 20 0 M 12 6 L 20 12 M 12 6 L 20 6" fill="none" stroke="currentColor" />)}
+      {marker(
+        "many",
+        <g fill="none" stroke="currentColor">
+          {ring(6)}
+          <path d="M 12 6 L 20 0 M 12 6 L 20 12 M 12 6 L 20 6" />
+        </g>,
+      )}
+    </defs>
+  );
+}
+
+/** The ends of a line of `edge`'s kind: the start's marker and the end's, as `url(#…)`. */
+function ends(edge: GraphEdge, id: (end: End) => string): { start?: string; end?: string } {
+  const url = (end: End) => `url(#${id(end)})`;
+  if (edge.kind === "is_a" || edge.kind === "mixin") return { end: url("triangle") };
+  if (edge.kind === "enum") return { end: url("arrow") };
+  return { start: url(CROW[edge.fromMultiplicity ?? "*"]), end: url(CROW[edge.toMultiplicity ?? "*"]) };
+}
 
 interface Placed extends GraphNode {
   x: number;
@@ -166,17 +224,16 @@ export function LinkmlGraphView({
   const { t } = useTranslation();
   const [zoom, setZoom] = useState(ZOOM.natural);
   const frame = useRef<HTMLDivElement>(null);
+  const drawing = useRef<SVGSVGElement>(null);
+  // Ids of this drawing's markers: two drawings on one page must not share them.
+  const prefix = useId();
+  const markerId = (end: End) => `${prefix}-${end}`;
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
-  const { nodes, edges } = useMemo(
-    () =>
-      graphData(
-        withImports(
-          parseModel(source),
-          Object.fromEntries(Object.entries(imports).map(([name, text]) => [name, parseModel(text)])),
-        ),
-      ),
-    [source, imports],
-  );
+  const { name, nodes, edges } = useMemo(() => {
+    const model = parseModel(source);
+    const parsed = Object.fromEntries(Object.entries(imports).map(([key, text]) => [key, parseModel(text)]));
+    return { name: model.name || "model", ...graphData(withImports(model, parsed)) };
+  }, [source, imports]);
   const { placed, bends } = useMemo(() => place(nodes, edges), [nodes, edges]);
   const at = useMemo(() => new Map(placed.map((node) => [node.name, node])), [placed]);
 
@@ -190,6 +247,10 @@ export function LinkmlGraphView({
 
   const width = Math.max(...placed.map((node) => node.x + BOX.width)) + BOX.loop;
   const height = Math.max(...placed.map((node) => node.y + node.height)) + BOX.padding;
+  const exportSvg = () => {
+    if (drawing.current) download(svgFile(drawing.current), `${name}.svg`, "image/svg+xml");
+  };
+  const exportMermaid = () => download(mermaidErDiagram(nodes, edges), `${name}.mmd`, "text/plain");
   const stroke = (edge: GraphEdge) =>
     edge.kind === "mixin" ? "6 4" : edge.kind === "range" ? "2 3" : edge.kind === "enum" ? "1 4" : undefined;
   const pairs = edges.filter((edge) => edge.kind === "relationship");
@@ -219,6 +280,7 @@ export function LinkmlGraphView({
     <div className="flex flex-col gap-2">
       <p className="text-caption text-fg-muted">{t("models.graph.legend")}</p>
       {pairs.length > 0 ? <p className="text-caption text-fg-muted">{t("models.graph.legendRelationship")}</p> : null}
+      <Legend id={markerId} />
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom / ZOOM.step)} disabled={zoom <= ZOOM.min}>
           {t("models.graph.zoomOut")}
@@ -232,6 +294,12 @@ export function LinkmlGraphView({
         <span className="text-caption text-fg-muted" aria-live="polite">
           {t("models.graph.zoomLevel", { percent: Math.round(zoom * 100) })}
         </span>
+        <Button size="sm" variant="secondary" onClick={exportSvg}>
+          {t("models.graph.exportSvg")}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={exportMermaid}>
+          {t("models.graph.exportMermaid")}
+        </Button>
       </div>
       <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]">
         <div
@@ -246,6 +314,7 @@ export function LinkmlGraphView({
               which are focusable buttons — were reachable by Tab and invisible to the screen
               reader that had just been told this was one picture. */}
           <svg
+            ref={drawing}
             role="group"
             aria-label={t("models.graph.title")}
             viewBox={`-4 -4 ${width + 8} ${height + 8}`}
@@ -253,19 +322,7 @@ export function LinkmlGraphView({
             height={(height + 8) * zoom}
             className="min-h-48"
           >
-            <defs>
-              <marker
-                id="linkml-arrow"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="5"
-                markerHeight="5"
-                orient="auto-start-reverse"
-              >
-                <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor" />
-              </marker>
-            </defs>
+            <Markers id={markerId} />
 
             {edges.map((edge, index) => {
               const from = at.get(edge.from);
@@ -281,6 +338,7 @@ export function LinkmlGraphView({
                     from={from}
                     to={to}
                     bends={bends[index]}
+                    markers={ends(edge, markerId)}
                     label={t("models.graph.openRelationship", {
                       name: edge.label ?? "",
                       inverse: edge.inverse ?? "",
@@ -303,7 +361,8 @@ export function LinkmlGraphView({
                     stroke="currentColor"
                     strokeWidth={1}
                     strokeDasharray={stroke(edge)}
-                    markerEnd="url(#linkml-arrow)"
+                    markerStart={ends(edge, markerId).start}
+                    markerEnd={ends(edge, markerId).end}
                   />
                   {edge.label ? (
                     <text
@@ -554,6 +613,7 @@ function RelationshipLine({
   from,
   to,
   bends,
+  markers,
   label,
   onOpen,
 }: {
@@ -561,6 +621,7 @@ function RelationshipLine({
   from: Placed;
   to: Placed;
   bends?: Point[];
+  markers: { start?: string; end?: string };
   label: string;
   onOpen: () => void;
 }): JSX.Element {
@@ -593,7 +654,7 @@ function RelationshipLine({
     >
       {/* A wide transparent stroke under the line, so it can be hit with a pointer. */}
       <path d={path} fill="none" stroke="transparent" strokeWidth={12} />
-      <path d={path} fill="none" stroke="currentColor" strokeWidth={1.5} />
+      <path d={path} fill="none" stroke="currentColor" strokeWidth={1.5} markerStart={markers.start} markerEnd={markers.end} />
       <text x={middle.x} y={middle.y} textAnchor="middle" fontSize={BOX.edge} className="fill-current">
         {`${edge.label ?? ""} / ${edge.inverse ?? ""}`}
       </text>
@@ -604,5 +665,41 @@ function RelationshipLine({
         {edge.toMultiplicity}
       </text>
     </g>
+  );
+}
+
+/**
+ * What each end of a line means, drawn with the drawing's own markers (T-3589): read before the
+ * drawing, so the notation never has to be guessed.
+ */
+function Legend({ id }: { id: (end: End) => string }): JSX.Element {
+  const { t } = useTranslation();
+  const caption = useId();
+  const sample = (end: End, dash?: string) => (
+    <svg aria-hidden="true" width={64} height={14} viewBox="0 0 64 14" className="shrink-0 text-fg">
+      <line x1={2} y1={7} x2={42} y2={7} stroke="currentColor" strokeDasharray={dash} markerEnd={`url(#${id(end)})`} />
+    </svg>
+  );
+  const entries: [JSX.Element, string][] = [
+    [sample("triangle"), t("models.graph.notation.isA")],
+    [sample("triangle", "6 4"), t("models.graph.notation.mixin")],
+    [sample("one"), t("models.graph.notation.one")],
+    [sample("zeroOrOne"), t("models.graph.notation.zeroOrOne")],
+    [sample("oneOrMore"), t("models.graph.notation.oneOrMore")],
+    [sample("many"), t("models.graph.notation.many")],
+    [sample("arrow", "1 4"), t("models.graph.notation.enum")],
+  ];
+  return (
+    <figure aria-labelledby={caption} className="flex flex-col gap-1">
+      <figcaption id={caption} className="text-caption font-semibold text-fg">{t("models.graph.notation.title")}</figcaption>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        {entries.map(([drawing, text]) => (
+          <li key={text} className="flex items-center gap-2 text-caption text-fg-muted">
+            {drawing}
+            <span>{text}</span>
+          </li>
+        ))}
+      </ul>
+    </figure>
   );
 }
