@@ -4584,6 +4584,24 @@ export interface components {
             /** @description Base URL of the catalogue. */
             url: string;
         };
+        /** @description One job's last run, in `status.jobs[]` (AP-154, AP-155): never a body or a credential. */
+        JobRun: {
+            /** Format: int64 */
+            durationMs: number;
+            /**
+             * Format: int32
+             * @description Runs that failed or timed out in a row; three raise a notice to the owners (AP-155).
+             */
+            failuresInARow: number;
+            /** @description When the run was due, RFC 3339 UTC. */
+            lastRun: string;
+            /** @description Why a run did not succeed, in words a person acts on. */
+            message?: string | null;
+            /** @description The job's `name` in `spec.server.jobs[]`. */
+            name: string;
+            /** @description `succeeded`, `failed`, `timedOut` or `skipped`. */
+            outcome: string;
+        };
         /** @description The copy of one entity about to be deleted. */
         KeepRequest: {
             /** @description The NGSI-LD entity as the person read it, normalized. */
@@ -5758,6 +5776,11 @@ export interface components {
             build?: Record<string, never>;
             conditions?: components["schemas"]["Condition"][];
             domainVerification?: null | components["schemas"]["DomainVerification"];
+            /**
+             * @description The last run of each scheduled job of a `wasm` App, as its shard reports it (AP-154):
+             *     computed by the reconciler, never read from Git.
+             */
+            jobs?: components["schemas"]["JobRun"][];
             observedRevision?: string | null;
             phase?: components["schemas"]["Phase"];
             /**

@@ -6,12 +6,14 @@
 //! not, and the Secret `apps-host-<shard>-store` with the shard's derived key.
 
 use std::collections::BTreeMap;
+use std::sync::Mutex;
 
 use serde_json::{json, Value};
 
 use crate::apps::apps_db::app_id;
 use crate::apps::kube::KubeClient;
 use crate::artifact_store;
+use crate::resource::JobRun;
 
 /// One published `wasm` App as the placement names it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -148,12 +150,46 @@ pub fn config_map(namespace: &str, shard: u32, placement: &Value) -> Value {
     })
 }
 
+/// The job runs of one shard's `/jobs` answer, by App id (AP-154): `{"jobs": [{app, job, lastRun,
+/// outcome, message, durationMs, failuresInARow}]}`. A row that does not read is left out.
+pub fn runs_by_app(answer: &Value) -> BTreeMap<String, Vec<JobRun>> {
+    let mut runs: BTreeMap<String, Vec<JobRun>> = BTreeMap::new();
+    for row in answer["jobs"].as_array().into_iter().flatten() {
+        let (Some(app), Some(name), Some(last_run), Some(outcome)) = (
+            row["app"].as_str(),
+            row["job"].as_str(),
+            row["lastRun"].as_str(),
+            row["outcome"].as_str(),
+        ) else {
+            continue;
+        };
+        runs.entry(app.to_owned()).or_default().push(JobRun {
+            name: name.to_owned(),
+            last_run: last_run.to_owned(),
+            outcome: outcome.to_owned(),
+            message: row["message"].as_str().map(str::to_owned),
+            duration_ms: row["durationMs"].as_u64().unwrap_or(0),
+            failures_in_a_row: row["failuresInARow"]
+                .as_u64()
+                .and_then(|n| u32::try_from(n).ok())
+                .unwrap_or(0),
+        });
+    }
+    for list in runs.values_mut() {
+        list.sort_by(|a, b| a.name.cmp(&b.name));
+    }
+    runs
+}
+
 /// Writes every shard's placement and key.
 pub struct WasmShards {
     kube: KubeClient,
     namespace: String,
     shards: u32,
     bucket: String,
+    http: reqwest::Client,
+    /// Each shard's last `/jobs` answer, kept for a converge in which it does not answer.
+    last_runs: Mutex<BTreeMap<u32, BTreeMap<String, Vec<JobRun>>>>,
 }
 
 impl WasmShards {
@@ -163,7 +199,53 @@ impl WasmShards {
             namespace,
             shards,
             bucket,
+            http: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(std::time::Duration::from_secs(5))
+                .build()
+                .unwrap_or_default(),
+            last_runs: Mutex::new(BTreeMap::new()),
         }
+    }
+
+    /// Every placed App's job runs by App id, read from each shard's `GET /jobs` (AP-154). A shard
+    /// that does not answer keeps its last answer; what went wrong comes back, a sentence each.
+    pub async fn runs(&self) -> (BTreeMap<String, Vec<JobRun>>, Vec<String>) {
+        let mut problems = Vec::new();
+        for shard in 0..self.shards {
+            let url = format!(
+                "http://jc-wasm-host-{shard}.{}.svc.cluster.local:8080/jobs",
+                self.namespace
+            );
+            let answer = match self.http.get(&url).send().await {
+                Ok(answer) if answer.status().is_success() => answer.json::<Value>().await.ok(),
+                Ok(answer) => {
+                    problems.push(format!(
+                        "shard {shard}: /jobs answered HTTP {}",
+                        answer.status().as_u16()
+                    ));
+                    None
+                }
+                Err(err) => {
+                    problems.push(format!(
+                        "shard {shard}: /jobs did not answer: {}",
+                        err.without_url()
+                    ));
+                    None
+                }
+            };
+            if let Some(answer) = answer {
+                if let Ok(mut last) = self.last_runs.lock() {
+                    last.insert(shard, runs_by_app(&answer));
+                }
+            }
+        }
+        let all = self
+            .last_runs
+            .lock()
+            .map(|last| last.values().flat_map(|runs| runs.clone()).collect())
+            .unwrap_or_default();
+        (all, problems)
     }
 
     /// One converge: each shard's placement of `apps`, and, where `store` is configured, its
@@ -229,6 +311,27 @@ mod tests {
 
     /// AP-154 (T-3372): the host schedules what the placement carries, so an App's jobs reach
     /// it as `{name, schedule, export}`; an App without jobs carries no key.
+    /// AP-154: a shard's `/jobs` rows become `status.jobs[]` per App, sorted by job; a row
+    /// missing a member is left out rather than guessed.
+    #[test]
+    fn a_shards_job_records_read_as_status_jobs_by_app() {
+        let runs = runs_by_app(&json!({"jobs": [
+            {"app": "a1", "job": "nightly", "lastRun": "2026-10-10T02:00:00Z", "outcome": "failed",
+             "message": "403 from the Endpoint", "durationMs": 120, "failuresInARow": 3},
+            {"app": "a1", "job": "hourly", "lastRun": "2026-10-10T14:00:00Z", "outcome": "succeeded",
+             "message": null, "durationMs": 40, "failuresInARow": 0},
+            {"app": "a2", "job": "x", "outcome": "succeeded"}
+        ]}));
+        assert_eq!(runs.len(), 1, "the row without lastRun is left out");
+        let a1 = &runs["a1"];
+        assert_eq!(a1[0].name, "hourly");
+        assert_eq!(a1[0].message, None);
+        assert_eq!(a1[1].outcome, "failed");
+        assert_eq!(a1[1].message.as_deref(), Some("403 from the Endpoint"));
+        assert_eq!(a1[1].failures_in_a_row, 3);
+        assert!(runs_by_app(&json!({})).is_empty());
+    }
+
     #[test]
     fn a_placed_app_carries_its_jobs_to_the_host() {
         let mut envelope = wasm_app("helsinki", "kpi");

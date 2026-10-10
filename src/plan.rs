@@ -446,6 +446,7 @@ mod tests {
             build: None,
             shard: None,
             domain_verification: None,
+            jobs: Vec::new(),
         });
         let mut des = sample_envelope("public-air", json!({ "audience": "public" }));
         des.status = Some(Status {
@@ -456,6 +457,7 @@ mod tests {
             build: None,
             shard: None,
             domain_verification: None,
+            jobs: Vec::new(),
         });
 
         let plan = diff(Some(&curr), Some(&des));

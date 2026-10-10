@@ -17978,6 +17978,50 @@
           }
         }
       },
+      "JobRun": {
+        "type": "object",
+        "description": "One job's last run, in `status.jobs[]` (AP-154, AP-155): never a body or a credential.",
+        "required": [
+          "name",
+          "lastRun",
+          "outcome",
+          "durationMs",
+          "failuresInARow"
+        ],
+        "properties": {
+          "durationMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "failuresInARow": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Runs that failed or timed out in a row; three raise a notice to the owners (AP-155).",
+            "minimum": 0
+          },
+          "lastRun": {
+            "type": "string",
+            "description": "When the run was due, RFC 3339 UTC."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why a run did not succeed, in words a person acts on."
+          },
+          "name": {
+            "type": "string",
+            "description": "The job's `name` in `spec.server.jobs[]`."
+          },
+          "outcome": {
+            "type": "string",
+            "description": "`succeeded`, `failed`, `timedOut` or `skipped`."
+          }
+        },
+        "additionalProperties": false
+      },
       "KeepRequest": {
         "type": "object",
         "description": "The copy of one entity about to be deleted.",
@@ -21298,6 +21342,13 @@
                 "description": "Whether an Organization owns the domain it declares (PF-41): computed by the reconciler,\nnever read from Git, and only ever on an Organization."
               }
             ]
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobRun"
+            },
+            "description": "The last run of each scheduled job of a `wasm` App, as its shard reports it (AP-154):\ncomputed by the reconciler, never read from Git."
           },
           "observedRevision": {
             "type": [

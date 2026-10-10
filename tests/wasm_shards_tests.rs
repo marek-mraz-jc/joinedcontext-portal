@@ -32,6 +32,7 @@ fn app(project: &str, name: &str, shard: u32) -> PlacedApp {
         digest: format!("sha256:{}", "b".repeat(64)),
         // The App's own Endpoint, the one gateway path its component may call (AP-147, AP-157).
         endpoint: Some(format!("ep{}", name.replace('-', ""))),
+        jobs: Vec::new(),
     }
 }
 

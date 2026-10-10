@@ -30,6 +30,7 @@ fn group(name: &str, members: &[&str]) -> ResourceEnvelope {
             build: None,
             shard: None,
             domain_verification: None,
+            jobs: Vec::new(),
         }),
     }
 }

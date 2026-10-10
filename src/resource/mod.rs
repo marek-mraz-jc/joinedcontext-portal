@@ -112,6 +112,28 @@ pub struct Status {
     /// never read from Git, and only ever on an Organization.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub domain_verification: Option<crate::domain_verification::DomainVerification>,
+    /// The last run of each scheduled job of a `wasm` App, as its shard reports it (AP-154):
+    /// computed by the reconciler, never read from Git.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jobs: Vec<JobRun>,
+}
+
+/// One job's last run, in `status.jobs[]` (AP-154, AP-155): never a body or a credential.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct JobRun {
+    /// The job's `name` in `spec.server.jobs[]`.
+    pub name: String,
+    /// When the run was due, RFC 3339 UTC.
+    pub last_run: String,
+    /// `succeeded`, `failed`, `timedOut` or `skipped`.
+    pub outcome: String,
+    /// Why a run did not succeed, in words a person acts on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    pub duration_ms: u64,
+    /// Runs that failed or timed out in a row; three raise a notice to the owners (AP-155).
+    pub failures_in_a_row: u32,
 }
 
 /// The phase of a manifest whose status says nothing about one: the Portal has not reconciled
