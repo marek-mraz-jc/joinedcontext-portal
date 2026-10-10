@@ -83,6 +83,36 @@ pub fn build(app: &str) -> Vec<u8> {
     std::fs::read(target.join(format!("wasm32-wasip2/release/{name}.wasm"))).expect("the component")
 }
 
+/// The slug of the App's own Endpoint, as its committed grants carry it
+/// (`grants/projects/*/spaces/*/endpoints/app-<name>.yaml`): what the reconciler places it with,
+/// and the one Endpoint the host lets it call (AP-147, AP-157).
+pub fn slug(app: &str) -> String {
+    let projects = app_dir(app).join("grants/projects");
+    let file = format!("app-{app}.yaml");
+    let found = std::fs::read_dir(&projects)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .flat_map(|project| {
+            std::fs::read_dir(project.path().join("spaces"))
+                .into_iter()
+                .flatten()
+                .flatten()
+        })
+        .map(|space| space.path().join("endpoints").join(&file))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| panic!("{app}: no grants/projects/*/spaces/*/endpoints/{file}"));
+    std::fs::read_to_string(&found)
+        .expect("the Endpoint")
+        .lines()
+        .find_map(|l| {
+            l.trim()
+                .strip_prefix("slug:")
+                .map(|s| s.trim().trim_matches('"').to_owned())
+        })
+        .unwrap_or_else(|| panic!("{}: no slug", found.display()))
+}
+
 /// The App's migrations, in the order of their names (AP-149).
 pub fn migrations(app: &str) -> Vec<(String, String)> {
     let dir = app_dir(app).join("migrations");
@@ -110,6 +140,8 @@ pub fn migrations(app: &str) -> Vec<(String, String)> {
 /// The App, twice, on one shard, with its own schema and files, and the gateway it reads.
 pub struct Harness {
     pub host: Arc<Host>,
+    /// The App's own Endpoint slug: a mock gateway answers below `/api/endpoint/<slug>/`.
+    pub slug: String,
     pub first: Placed,
     pub second: Placed,
     pub gateway: MockServer,
@@ -202,15 +234,18 @@ impl Harness {
             Some(&gateway.uri()),
         )
         .expect("host");
+        let slug = slug(app);
         let placed = |id: &str| Placed {
             name: app.to_owned(),
             id: id.to_owned(),
             tenant: "helsinki".into(),
             digest: digest.clone(),
+            endpoint: Some(slug.clone()),
             jobs: Vec::new(),
         };
         Self {
             host,
+            slug: slug.clone(),
             first: placed(&ids[0]),
             second: placed(&ids[1]),
             gateway,

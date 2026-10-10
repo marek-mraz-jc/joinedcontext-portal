@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Card, Empty, Grid, Loading, Page, ProblemError, displayName, format, useEntities, useEntitySelection } from "@joinedcontext/sdk";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Card, Empty, Grid, Loading, Page, ProblemError, displayName, format, useClient, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { useAnalysis } from "../analysis";
 import type { AnalysisOutput, Place } from "../analysis";
@@ -8,8 +8,11 @@ import type { ViewState } from "../alerts";
 import { cellOf, weekOption } from "../charts";
 import { ChartCard } from "../components/ChartCard";
 import { HexMap } from "../components/HexMap";
+import { Reports } from "../components/Reports";
+import { Weeks } from "../components/Weeks";
 import { day, hourOfWeek, number, subCategory, t } from "../i18n";
 import type { Lang } from "../i18n";
+import { useServer } from "../server";
 
 const QUERY = { attrs: ATTRS };
 
@@ -42,6 +45,8 @@ export function summaryOf(lang: Lang, out: AnalysisOutput): string {
  */
 export function Heatmap({ lang }: { lang: Lang }) {
   const { rows, loading, error, reload } = useEntities(ALERT, QUERY);
+  const server = useServer(useClient().config.appName);
+  const snapshot = useRef<(() => Promise<Blob | null>) | null>(null);
   const [view, setView] = useState<ViewState>(() => readView(window.location.search));
   useEffect(() => {
     try {
@@ -131,6 +136,7 @@ export function Heatmap({ lang }: { lang: Lang }) {
           places={output?.places ?? []}
           label={t(lang, "map")}
           onPlace={openPlace}
+          snapshot={snapshot}
           describe={(what) =>
             what.kind === "hex"
               ? [t(lang, "hexLine", { count: number(lang, what.hex.count) })]
@@ -173,6 +179,17 @@ export function Heatmap({ lang }: { lang: Lang }) {
             </ol>
           )}
         </Card>
+      </Grid>
+      <Grid columns={2}>
+        <Reports
+          lang={lang}
+          server={server}
+          output={output}
+          nameOf={(place) => placeName(place, byId)}
+          snapshot={snapshot}
+          onOpen={(saved) => setView(readView(`?${saved}`))}
+        />
+        <Weeks lang={lang} server={server} />
       </Grid>
     </Page>
   );

@@ -8,6 +8,11 @@ import { EstimaterContext } from "../estimate";
 import type { Estimater } from "../estimate";
 import type { EstimateOutput } from "../bikes";
 import { ENTITIES, NOW, STATION_1, STATION_2, STATION_3, TEMPORAL, WEATHER_1 } from "../fixtures/bikes";
+import { ServerContext } from "../server";
+import type { Server } from "../server";
+
+/** The App's server with no model kept yet (T-3355); ModelHistory.test.tsx tests the card itself. */
+const NO_MODELS: Server = { models: async () => ({ models: [], stale: false }), snapshotUrl: async () => "" };
 
 vi.mock("maplibre-gl", () => ({
   Map: class {
@@ -52,9 +57,11 @@ function client(entities = ENTITIES, temporal: (type: string) => Promise<Tempora
 function show(estimater: Estimater, made = client()) {
   render(
     <JcProvider client={made}>
-      <EstimaterContext.Provider value={estimater}>
-        <App />
-      </EstimaterContext.Provider>
+      <ServerContext.Provider value={NO_MODELS}>
+        <EstimaterContext.Provider value={estimater}>
+          <App />
+        </EstimaterContext.Provider>
+      </ServerContext.Provider>
     </JcProvider>,
   );
   return made;

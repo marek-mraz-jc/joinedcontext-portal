@@ -176,8 +176,16 @@ pub struct Output {
     pub types: Vec<TypeOutput>,
 }
 
-/// Runs data quality inspection on one entity type.
+/// Findings the browser's answer lists per type; `findings_total` counts them all.
+pub const FINDINGS_SHOWN: usize = 200;
+
+/// Runs data quality inspection on one entity type, listing the first [`FINDINGS_SHOWN`] findings.
 pub fn inspect_type(now: f64, type_input: &TypeInput) -> TypeOutput {
+    inspect_type_with(now, type_input, FINDINGS_SHOWN)
+}
+
+/// [`inspect_type`] listing the first `keep` findings: the server keeps them all (T-3354).
+pub fn inspect_type_with(now: f64, type_input: &TypeInput, keep: usize) -> TypeOutput {
     let total_entities = type_input.rows.len();
 
     let has_schema = type_input
@@ -407,7 +415,7 @@ pub fn inspect_type(now: f64, type_input: &TypeInput) -> TypeOutput {
     });
 
     let findings_total = all_findings.len();
-    let findings: Vec<Finding> = all_findings.into_iter().take(200).collect();
+    let findings: Vec<Finding> = all_findings.into_iter().take(keep).collect();
 
     TypeOutput {
         entity_type: type_input.entity_type.clone(),
@@ -648,6 +656,10 @@ mod tests {
         let out = inspect_type(1_700_000_000.0, &input);
         assert_eq!(out.findings.len(), 200);
         assert_eq!(out.findings_total, 250);
+        // The server's full report lists every one (T-3354).
+        let all = inspect_type_with(1_700_000_000.0, &input, usize::MAX);
+        assert_eq!(all.findings.len(), 250);
+        assert_eq!(all.findings_total, 250);
     }
 
     #[test]

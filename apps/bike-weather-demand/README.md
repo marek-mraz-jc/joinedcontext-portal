@@ -26,6 +26,17 @@ nothing. Retry on a history that could not be read reads it again.
 - Projects availability over the next 6 hours with an 80 % prediction interval (±1.28 σ), assuming the weather stays as last observed: the data holds no forecast.
 - Reads one station's history only, through the SDK's temporal `id` parameter: a week of every station's minute-by-minute availability would be millions of points.
 
+## Server component
+
+A `wasm` App (AP-148, T-3355): beside the browser's module, `server/` (`wasm32-wasip2`, on `jc-app-sdk`) runs on the shared WASM host and reuses `wasm/` without wasm-bindgen. The broker keeps only a station's last seven days, so once a day per station, on the first request for it, the server reads the station's week and the nearest weather station's (within 10 km, as the page picks it) through the App's own Endpoint with the reader's token, trains the same model and keeps its weather coefficients, spread and hour-of-week profile in its table `station_models` (`migrations/`). The data it trained on goes to `training/<day>/<hash>.json` under the App's storage prefix. The page shows the selected station's models day by day and downloads a day's training data through a presigned URL.
+
+| Route | What it does |
+|---|---|
+| `GET /apps/bike-weather-demand/api/models?station=<urn>` | the station's kept models, newest first |
+| `GET /apps/bike-weather-demand/api/models/{id}/snapshot` | a URL to download the data a model was trained on |
+
+`server/` is tested natively (`cargo test`), built with `cargo build --release --target wasm32-wasip2`, and played on the host against Postgres and RustFS from `server/host-test.json` by the platform's `crates/wasm-host/tests/apps_tests.rs`.
+
 ## Development
 
 ```bash

@@ -1472,12 +1472,11 @@ impl Syncer {
         // 6a2. Each WASM shard's placement of the published `wasm` Apps placed on it, and its
         //      store key (AP-157, AP-158): after 6, so an App retired this run has left it.
         if let Some(shards) = self.wasm_shards.as_ref() {
-            let placed: Vec<super::wasm_shards::PlacedApp> = self
-                .mirror
-                .matching(|env| env.kind == "App")
-                .iter()
-                .filter_map(super::wasm_shards::PlacedApp::of)
-                .collect();
+            let placed = super::wasm_shards::PlacedApp::all(
+                &self
+                    .mirror
+                    .matching(|env| env.kind == "App" || env.kind == "Endpoint"),
+            );
             for problem in shards
                 .converge(&placed, self.artifact_store.as_deref())
                 .await

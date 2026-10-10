@@ -11,6 +11,7 @@ use crate::model::{
 };
 use crate::series::{align_weather, hourly_means, hourly_weather, parse_rfc3339};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "browser")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Debug, Deserialize)]
@@ -225,7 +226,7 @@ pub fn run_estimate(input: &Input) -> Output {
 }
 
 /// WASM entry point: reads JSON input and serialises JSON output or an error object. Never panics.
-#[wasm_bindgen]
+#[cfg_attr(feature = "browser", wasm_bindgen)]
 pub fn estimate(input: &str) -> String {
     match serde_json::from_str::<Input>(input) {
         Ok(parsed) => {

@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(feature = "browser")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Debug, Deserialize)]
@@ -393,7 +394,7 @@ pub fn run(input: &Input) -> Output {
 }
 
 /// WASM entry point: reads JSON input and serialises JSON output or an error object.
-#[wasm_bindgen]
+#[cfg_attr(feature = "browser", wasm_bindgen)]
 pub fn compare(input: &str) -> String {
     match serde_json::from_str::<Input>(input) {
         Ok(parsed) => serde_json::to_string(&run(&parsed))

@@ -3,6 +3,8 @@ import { Card, Empty, Loading, Page, Problem, useClient, useEntities, useEntityS
 import type { Row, TemporalPoint } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
 import { StationMap } from "../components/StationMap";
+import { ModelHistory } from "../components/ModelHistory";
+import { useServer } from "../server";
 import type { WeatherHistoryPoint } from "../bikes";
 import {
   defaultStationId,
@@ -134,6 +136,7 @@ function lineChartOption(
  */
 export function Station({ lang }: { lang: Lang }): React.JSX.Element {
   const client = useClient();
+  const server = useServer(client.config.appName);
   const stationsRes = useEntities("BikeHireDockingStation", BIKES_QUERY);
   const weatherRes = useEntities("WeatherObserved", WEATHER_QUERY);
 
@@ -503,6 +506,8 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
               <Empty>{t(lang, "noHistory")}</Empty>
             )}
           </Card>
+
+          {selectedId && <ModelHistory lang={lang} server={server} station={selectedId} />}
         </>
       )}
     </Page>

@@ -1304,7 +1304,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=263c41169d7f02dcbfa86024234686b4bb534500#263c41169d7f02dcbfa86024234686b4bb534500"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d6378b2b21b45917b6fb1653ff6fbb8701d021f#9d6378b2b21b45917b6fb1653ff6fbb8701d021f"
 dependencies = [
  "chrono",
  "regex",
@@ -3108,7 +3108,7 @@ dependencies = [
 [[package]]
 name = "wasm-host"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=263c41169d7f02dcbfa86024234686b4bb534500#263c41169d7f02dcbfa86024234686b4bb534500"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d6378b2b21b45917b6fb1653ff6fbb8701d021f#9d6378b2b21b45917b6fb1653ff6fbb8701d021f"
 dependencies = [
  "anyhow",
  "bytes",

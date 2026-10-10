@@ -27,6 +27,15 @@ export interface Served {
   problems: string[];
 }
 
+/** The App's server (T-3352) as the page sees it: two kept weeks and their corpus files. */
+const KEPT = {
+  weeks: [
+    { week: "2026-W42", articles: 3, computed_at: "2026-10-18T05:00:00Z", topics: [{ topic: 0, share: 1, articles: 3, keywords: [{ term: "raitiotie", weight: 0.9 }, { term: "liikenne", weight: 0.6 }] }] },
+    { week: "2026-W41", articles: 2, computed_at: "2026-10-18T05:00:00Z", topics: [{ topic: 0, share: 0.5, articles: 1, keywords: [{ term: "kirjasto", weight: 0.8 }] }, { topic: 1, share: 0.5, articles: 1, keywords: [{ term: "uimahalli", weight: 0.7 }] }] },
+  ],
+  stale: false,
+};
+
 /** Serves the built bundle at the root of the App's own host, with the SDK's stub answering its endpoint. */
 export async function serve(page: Page): Promise<Served> {
   const transport = stubTransport({
@@ -52,6 +61,17 @@ export async function serve(page: Page): Promise<Served> {
       const path = url.pathname + url.search;
       const answer = await transport({ method: route.request().method() as "GET", path, body: body ? JSON.parse(body) : undefined });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
+    }
+    if (url.pathname === "/apps/news-topics/api/weeks") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(KEPT) });
+    }
+    const corpus = /^\/apps\/news-topics\/api\/weeks\/(\d{4}-W\d{2})\/corpus$/.exec(url.pathname);
+    if (corpus) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ url: `http://portal.test/store/corpus/${corpus[1]}.json` }) });
+    }
+    // The store's presigned URL: the week's articles come from there, never through the server.
+    if (url.pathname.startsWith("/store/corpus/")) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
     }
     const file = normalize(url.pathname.slice(1) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) {

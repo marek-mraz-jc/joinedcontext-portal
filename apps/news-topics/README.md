@@ -15,7 +15,14 @@ Text analysis and clustering run client-side in WebAssembly (`news-topics-wasm` 
 - keyword extraction from topic centroid weights;
 - ISO week bucketing and weekly topic share calculation.
 
-It is a `ui` application on the joinedcontext App SDK: React and Rust/WASM, read-only, one data need on Context Space `helsinki` (`NewsArticle`: `name`, `description`, `url`, `datePublished`, `source`). The Portal serves it under `/apps/news-topics/` and fills `#jc-config` with the endpoint configuration.
+It is a `wasm` application on the joinedcontext App SDK (AP-148): React and Rust/WASM in the browser, read-only, one data need on Context Space `helsinki` (`NewsArticle`: `name`, `description`, `url`, `datePublished`, `source`). The Portal serves it under `/apps/news-topics/` and fills `#jc-config` with the endpoint configuration.
+
+Its server component (`server/`, `wasm32-wasip2` on `jc-app-sdk`, T-3352) runs on the shared WASM host and keeps what the browser cannot: the feed holds only its recent articles, so the server reads them through the App's own Endpoint with the reader's token, fits the same topic model (`wasm/` without wasm-bindgen, five topics) to each ISO week, and keeps every week's topics and keywords in its tables `topic_runs` and `week_topics` (`migrations/`), recomputed when older than six hours. The week's articles go to the App's storage prefix as `corpus/<week>.json`; the page downloads them through a presigned URL.
+
+| Route | What it does |
+|---|---|
+| `GET /apps/news-topics/api/weeks` | the topics of every kept week, the newest first |
+| `GET /apps/news-topics/api/weeks/{week}/corpus` | a URL to download the week's articles from (`2026-W41`) |
 
 ## Prerequisites
 
@@ -46,6 +53,8 @@ pnpm e2e           # Playwright at every width against the built bundle
 ```
 
 Keep that edit out of the commit: the Portal writes the element when it serves the application.
+
+`server/` is tested natively with `cargo test`, built with `cargo build --release --target wasm32-wasip2`, and played on the host against Postgres and RustFS from `server/host-test.json` by the platform's `crates/wasm-host/tests/apps_tests.rs`.
 
 ## Where it is built
 

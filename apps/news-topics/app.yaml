@@ -1,7 +1,9 @@
 # Helsinki news topics: the topics of the city's news, their weekly share and the articles
 # behind each topic, clustered in WASM (T-3334). Hand written, so no generated-by annotation (AP-35).
 #
-# A frontend on the App SDK: React with a client-side Rust/WASM clustering engine, read-only.
+# A frontend on the App SDK: React with a client-side Rust/WASM clustering engine, read-only, and a
+# server component on the shared WASM host (T-3352, AP-148) that keeps every ISO week's topics in
+# the App's own schema and the week's articles as a file under its own storage prefix.
 # Its source is its own repository on the forge, which the build lane builds at `ref` (AP-75, AP-80);
 # this folder of the portal repository is where CI tests the same tree before it is pushed there (T-2599).
 apiVersion: joinedcontext.com/v1alpha1
@@ -16,7 +18,7 @@ metadata:
     en: "What the City of Helsinki's news talks about: the topics, how their share changes week by week, and the articles behind each topic."
     fi: "Mistä Helsingin kaupungin uutisissa puhutaan: aiheet, niiden osuuksien viikoittainen kehitys ja kunkin aiheen artikkelit."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_news-topics.git
@@ -25,6 +27,13 @@ spec:
   build:
     node: "22"
     rust: "1.90"
+  # Its own schema, migrated from migrations/ at publish, and its own prefix for the corpus files.
+  storage:
+    sql:
+      migrations: migrations
+      quotaMiB: 50
+    blob:
+      quotaMiB: 512
   # The news endpoint of Helsinki is public (GW22): an anonymous reader gets what the public
   # role is granted and nothing more.
   visibility: public

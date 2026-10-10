@@ -52,3 +52,26 @@ for (const scheme of ["light", "dark"] as const) {
     });
   }
 }
+
+// T-3352: the weeks the App's server keeps, still there after a reload, and a week's articles
+// downloaded from the store.
+test("the weeks the server keeps, after a reload too, and a week's articles as a file", async ({ page }) => {
+  const { outside, missing, problems } = await serve(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}?lang=en#topics`);
+  const kept = page.getByRole("table", { name: "Topics week by week" });
+  await expect(kept.getByRole("row")).toHaveCount(3);
+  await expect(kept.getByRole("row").nth(1)).toContainText("raitiotie, liikenne (100%)");
+  await page.reload();
+  await expect(kept.getByRole("row").nth(2)).toContainText("kirjasto (50%); uimahalli (50%)");
+  // The download opens in its own tab, which the page's routes do not reach: the context's do.
+  await page.context().route("http://portal.test/store/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+  const popup = page.waitForEvent("popup");
+  await kept.getByRole("button", { name: "Download the articles of week 2026-W41" }).click();
+  const tab = await popup;
+  await tab.waitForLoadState();
+  expect(tab.url()).toBe("http://portal.test/store/corpus/2026-W41.json");
+  await tab.close();
+  expect(await layoutProblems(page)).toEqual([]);
+  expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+});

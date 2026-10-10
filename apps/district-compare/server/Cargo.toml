@@ -1,0 +1,25 @@
+# The server component of district-compare (T-3353, ADR-N-044): wasm32-wasip2, exporting wasi:http,
+# its database and files through jc:app. It reuses the browser's comparison (../wasm, without
+# wasm-bindgen) for the daily metrics it keeps. Its own workspace and lock, as the App's
+# repository builds it.
+[package]
+name = "district-compare-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "EUPL-1.2"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+district-compare = { path = "../wasm", default-features = false }
+jc-app-sdk = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9d6378b2b21b45917b6fb1653ff6fbb8701d021f" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+
+[workspace]

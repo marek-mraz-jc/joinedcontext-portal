@@ -1,0 +1,20 @@
+{
+  "gateway": [
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "Alert", "offset": "0", "options": "keyValues"}, "file": "host-test/alerts.json"}
+  ],
+  "steps": [
+    {"call": "GET /api/weeks", "status": 200, "expect": {"/stale": false, "/weeks/0/week": "2026-10-12", "/weeks/1/week": "2026-10-05", "/weeks/1/alerts": 3, "/weeks/1/places/0/count": 3, "/weeks/1/places/0/name": "Hämeentie 3"}, "length": {"/weeks": 2, "/weeks/0/places": 0}},
+    {"call": "GET /api/weeks", "status": 200, "length": {"/weeks": 2}},
+    {"call": "POST /api/reports", "body": {"title": " ", "view": "", "kept": 0}, "status": 400},
+    {"call": "POST /api/reports", "body": {"title": "Road works, Mondays at 7", "view": "?kind=ROAD_WORK&day=0&hour=7&lang=en", "kept": 3, "places": [{"name": "Hämeentie 3", "lon": 24.95, "lat": 60.17, "count": 3}]}, "status": 201, "save": {"report": "/id"}, "expect": {"/view": "kind=ROAD_WORK&day=0&hour=7&lang=en", "/has_snapshot": false}},
+    {"call": "GET /api/reports/{report}", "status": 200, "expect": {"/title": "Road works, Mondays at 7", "/kept": 3, "/places/0/name": "Hämeentie 3"}},
+    {"call": "GET /api/reports/{report}/snapshot", "status": 404},
+    {"call": "POST /api/reports/{report}/snapshot", "status": 200, "upload": "/url", "expect": {"/method": "PUT"}},
+    {"call": "POST /api/reports/{report}/snapshot", "status": 409},
+    {"call": "GET /api/reports/{report}/snapshot", "status": 200, "download": "/url"},
+    {"call": "GET /api/reports", "status": 200, "length": {"": 1}, "expect": {"/0/has_snapshot": true}},
+    {"call": "GET /api/reports", "as": "second", "status": 200, "length": {"": 0}},
+    {"call": "GET /api/reports/{report}", "as": "second", "status": 404},
+    {"call": "GET /api/reports/{report}/snapshot", "as": "second", "status": 404}
+  ]
+}

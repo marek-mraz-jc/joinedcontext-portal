@@ -39,6 +39,28 @@ test("a click on an hour of the week keeps only that hour, and the address says 
   expect(new URL(page.url()).searchParams.get("day")).toBeNull();
 });
 
+// T-3351: the view saved on the App's server with a picture of the map, and shown again.
+test("saves the view as a report with its map picture, and shows it again from the list", async ({ page }) => {
+  const { outside, missing, problems } = await serve(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}?lang=en&kind=ROAD_WORK`);
+  await expect(page.locator(".app-summary")).toHaveText(/ alerts /);
+  await expect(page.getByRole("table", { name: "Repeat places week by week" }).getByRole("row")).toHaveCount(3);
+  await page.getByLabel("Report name").fill("Road works");
+  const picture = page.waitForRequest((request) => request.method() === "PUT" && request.url().startsWith("http://portal.test/store/"));
+  await page.getByRole("button", { name: "Save this view" }).click();
+  await expect(page.getByRole("status")).toHaveText("Report saved: Road works.");
+  expect((await picture).headers()["content-type"]).toBe("image/png");
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBeNull();
+  await page.reload();
+  await page.getByRole("button", { name: "Show the report Road works" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("ROAD_WORK");
+  await expect(page.getByRole("button", { name: "Open the map picture of Road works" })).toBeVisible();
+  expect(await layoutProblems(page)).toEqual([]);
+  expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+});
+
 test("no alerts says so instead of an empty map", async ({ page }) => {
   await serve(page, []);
   await page.goto(`${BASE}?lang=en`);

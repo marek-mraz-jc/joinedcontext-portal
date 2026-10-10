@@ -1,0 +1,19 @@
+{
+  "gateway": [
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "CityDistrict", "offset": "0"}, "file": "host-test/districts.json"},
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "Event", "offset": "0"}, "file": "host-test/events.json"},
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "BikeHireDockingStation", "offset": "0"}, "file": "host-test/bikes.json"},
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "Alert", "offset": "0"}, "file": "host-test/alerts.json"},
+    {"path": "/ngsi-ld/v1/entities", "query": {"type": "AirQualityObserved", "offset": "0"}, "file": "host-test/air.json"}
+  ],
+  "steps": [
+    {"call": "GET /api/metrics", "status": 400},
+    {"call": "GET /api/metrics?codes=101;drop", "status": 400},
+    {"call": "GET /api/boundaries", "status": 404},
+    {"call": "GET /api/metrics?codes=101,102", "status": 200, "length": {"/days": 2}, "expect": {"/stale": false, "/days/0/code": "101", "/days/0/name": "Vironniemi", "/days/0/events": 2, "/days/0/bikes": 1, "/days/0/bike_slots": 20, "/days/0/pm25": 4.5, "/days/0/aqi": 2.0, "/days/1/code": "102", "/days/1/events": 1, "/days/1/alerts": 1}},
+    {"call": "GET /api/metrics?codes=102", "status": 200, "length": {"/days": 1}},
+    {"call": "GET /api/boundaries", "status": 200, "download": "/geojson", "downloaded": "Ullanlinna"},
+    {"call": "GET /api/boundaries", "status": 200, "download": "/licence", "downloaded": "CC BY 4.0"},
+    {"call": "GET /api/boundaries", "as": "second", "status": 404}
+  ]
+}
