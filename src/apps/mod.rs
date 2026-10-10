@@ -12,6 +12,8 @@ pub mod converge;
 pub mod default_groups;
 pub mod fetch;
 pub mod functions;
+/// The names of the Organization's own domain an App also answers on (AP-172).
+pub mod hostnames;
 pub mod kube;
 /// An App name is unique in the organization (AP-14a).
 pub mod names;
