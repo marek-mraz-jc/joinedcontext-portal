@@ -2584,9 +2584,7 @@ async fn a_wasm_run_writes_the_server_half_and_commits_the_crate_with_its_workfl
         .as_str()
         .unwrap_or_default();
     assert!(user.contains("## THE SERVER HALF (a wasm App)"));
-    // T-3585: the pack names the platform services from the SDK's catalog, not its kit.
-    assert!(user.contains("## THE PLATFORM SERVICES"));
-    assert!(user.contains("\"service\":\"email\""));
+    // T-3585: never the catalog's kit; services appear once the SDK has calls for them.
     assert!(!user.contains("\"kit\""));
     assert!(user.contains("### server/src/lib.rs"));
     assert!(!user.contains("[[package]]"), "the lock reached the model");

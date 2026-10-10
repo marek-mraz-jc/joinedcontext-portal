@@ -14,10 +14,6 @@
         {
           "name": "useAccess",
           "signature": "function useAccess(endpoint?: string): { access: AccessDocument | null; error: ProblemError | null; can: (operation: string, type: string, attr?: string) => Decision }"
-        },
-        {
-          "name": "can",
-          "signature": "function can(access: AccessDocument | null, operation: string, type: string, attr?: string, roles?: readonly string[]): Decision"
         }
       ],
       "rust": [],
@@ -201,6 +197,7 @@
     "attributesOf",
     "attrsBody",
     "boundsOf",
+    "can",
     "cellText",
     "checkGeometry",
     "columnKind",

@@ -692,7 +692,7 @@ impl Driver {
                 named.join(", ")
             ));
         }
-        pack.push_str(&code::services_section());
+        pack.push_str(&code::services_section(crate::ops::runs::SERVICES_CATALOG));
         if files.contains_key(code::SERVER_MANIFEST) {
             pack.push_str(code::SERVER_SECTION);
         }

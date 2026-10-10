@@ -8,8 +8,6 @@ Tests verify behaviors using `@joinedcontext/sdk/testing`.
 `design-tokens.json` re-themes all component styling, chart palettes, and map layers.
 Allowed imports: relative, `react`, `react-dom/client`, `react/jsx-runtime`, `echarts`, `recharts`, `maplibre-gl`, `@deck.gl/core`, `@deck.gl/layers`, `@deck.gl/aggregation-layers`, `@deck.gl/mapbox`, `@joinedcontext/sdk`, `@joinedcontext/sdk/server`, `vitest`, `@testing-library/react`, `@joinedcontext/sdk/testing`.
 
-Platform services (ADR-N-045): identity (`useMe`, `useAccess`, `can`) and data (`jc`, the hooks) are every App's. `files`, `email`, `jobs` and `ai` need their name in `spec.services` of `app.yaml`; `services.json` beside this file lists each service's calls, its `app.yaml` lines and its quotas.
-
 ---
 
 ## Entry Point: `@joinedcontext/sdk`
@@ -53,10 +51,6 @@ Loads merged JSON Schema definitions for all models exposed by the endpoint.
 function useAccess(endpoint?: string): { access: AccessDocument | null; error: ProblemError | null; can: (operation: string, type: string, attr?: string) => Decision }
 ```
 Loads user permissions (of the named endpoint, the primary by default) and provides synchronous evaluation of permissions and prohibitions. The endpoint decides; a refusal to a person who holds roles in the application names them: "Your role viewer does not permit updateAttrs on Alert." (SDK-36).
-```ts
-function can(access: AccessDocument | null, operation: string, type: string, attr?: string, roles?: readonly string[]): Decision
-```
-The same decision outside a component, from an access document already read.
 ```ts
 function useMe(): JcUser | null
 ```

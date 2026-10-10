@@ -35,15 +35,41 @@ pub const REFUSAL: &str = "not a path the application may write: src/**/*.tsx, s
 /// The server crate's manifest, which only the `wasm` template carries (T-3575).
 pub const SERVER_MANIFEST: &str = "server/Cargo.toml";
 
-/// The platform services the App may call, from the SDK's catalog without its kit (the kit is
-/// API.md): each service's calls, its `app.yaml` lines and its quotas (T-3585, ADR-N-045).
-pub fn services_section() -> String {
-    let catalog: serde_json::Value =
-        serde_json::from_str(crate::ops::runs::SERVICES_CATALOG).unwrap_or_default();
+/// The platform services beyond identity and data that the App can call from TypeScript, from
+/// the SDK's catalog (T-3585, ADR-N-045): each one's calls, its `app.yaml` lines and quotas.
+/// Empty while no such service has a call, so the pack carries nothing it cannot use.
+pub fn services_section(catalog: &str) -> String {
+    let catalog: serde_json::Value = serde_json::from_str(catalog).unwrap_or_default();
+    let names = |value: &serde_json::Value, key: &str| {
+        value[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|item| item.get("name").or(Some(item)).and_then(|v| v.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let lines: Vec<String> = catalog["services"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|service| service["always"] != true && !names(service, "typescript").is_empty())
+        .map(|service| {
+            format!(
+                "- {}: calls {}; app.yaml {}; quotas {}\n",
+                service["service"].as_str().unwrap_or_default(),
+                names(service, "typescript"),
+                names(service, "appYaml"),
+                names(service, "quotas"),
+            )
+        })
+        .collect();
+    if lines.is_empty() {
+        return String::new();
+    }
     format!(
-        "\n## THE PLATFORM SERVICES\n\nidentity and data are every App's; any other service \
-         needs its name in spec.services and is refused until an organization, project and App all list it.\n```json\n{}\n```\n",
-        serde_json::to_string(&catalog["services"]).unwrap_or_default()
+        "\n## THE PLATFORM SERVICES\n\nBeyond identity and data, each needs its app.yaml lines:\n{}",
+        lines.concat()
     )
 }
 
@@ -429,6 +455,27 @@ mod tests {
         ] {
             assert!(!writable(path), "{path}");
         }
+    }
+
+    /// T-3585: the pack names a service beyond identity and data once the SDK has a call for it,
+    /// with its app.yaml lines and quotas, and nothing while none has.
+    #[test]
+    fn the_pack_lists_a_platform_service_once_it_has_a_call() {
+        assert_eq!(services_section(crate::ops::runs::SERVICES_CATALOG), "");
+        let catalog = serde_json::json!({ "services": [
+            { "service": "identity", "always": true, "typescript": [{ "name": "useMe" }] },
+            { "service": "email", "always": false, "typescript": [{ "name": "email.send" }],
+              "appYaml": ["services: [email]"], "quotas": ["emailsPerDay"] },
+            { "service": "ai", "always": false, "typescript": [], "appYaml": ["services: [ai]"] },
+        ]});
+        let section = services_section(&catalog.to_string());
+        assert!(section.contains(
+            "- email: calls email.send; app.yaml services: [email]; quotas emailsPerDay"
+        ));
+        assert!(
+            !section.contains("- identity") && !section.contains("- ai"),
+            "{section}"
+        );
     }
 
     /// T-3575: a `wasm` run writes its server's Rust and migrations, never the crate's manifest or

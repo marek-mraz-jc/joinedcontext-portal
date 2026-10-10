@@ -19,7 +19,7 @@ const SERVICES = [
     service: "identity",
     always: true,
     what: "who is signed in and what they may do, from the App's Keycloak client (AP-111)",
-    typescript: ["useMe", "useAccess", "can"],
+    typescript: ["useMe", "useAccess"],
     rust: [],
     appYaml: [],
     quotas: [],

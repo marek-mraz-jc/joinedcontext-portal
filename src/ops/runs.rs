@@ -249,7 +249,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_app_services",
             title: "App Services Catalog",
-            description: "The platform services an App may use: each one's TypeScript and Rust calls with their signatures, the app.yaml lines it needs and its quotas",
+            description: "The SDK's services: calls, app.yaml lines, quotas",
             input: || json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             output: || json!({ "type": "object", "required": ["services", "kit"] }),
             annotations: Annotations {
