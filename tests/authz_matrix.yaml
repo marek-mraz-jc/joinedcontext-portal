@@ -456,6 +456,13 @@ routes:
   - route: POST /projects/{project}/apps/{name}/rebuild
     rule: "project-verb:propose:App"
     expect: [403, 403, 403, allow, 403, allow, 404, 403]
+  - route: GET /projects/{project}/apps/{name}/builds
+    rule: "project-verb:read:App"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/apps/{name}/restore
+    rule: "project-verb:propose:App, the right of Rebuild (AP-171)"
+    body: { commit: "9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b" }
+    expect: [403, 403, 403, allow, 403, allow, 404, 403]
   - route: GET /projects/{project}/assistant/access
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
