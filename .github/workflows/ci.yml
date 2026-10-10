@@ -180,6 +180,9 @@ jobs:
       - if: steps.has.outputs.ui == 'yes'
         name: the SDK's dependencies, which the apps link
         run: cd sdk && pnpm install --frozen-lockfile
+      # What takes the User Guide's screenshots from a live run into the docs (T-3270).
+      - name: the User Guide shots' publisher
+        run: node --test scripts/publish-guide-shots.test.mjs
       # The coverage gate's own tests, and its pending list only ever shrinking (T-3373): the base is
       # the branch's fork from main, or the commit before on a push to main.
       - name: the Apps' coverage gate and its shrinking pending list
