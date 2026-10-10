@@ -67,6 +67,7 @@ fn apps() -> Vec<EdgeApp> {
         },
         secret: ClientSecret::from(CLIENT_SECRET.to_owned()),
         slugs: vec!["k4y7pq2mzt6vhx3nbwrs5cjd8f".into()],
+        hostnames: Vec::new(),
     }]
 }
 

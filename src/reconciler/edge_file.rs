@@ -179,11 +179,23 @@ pub struct EdgeApp {
     pub secret: ClientSecret,
     /// The endpoints the App reads, the only ones its host routes (AP-133).
     pub slugs: Vec<String>,
+    /// The names of the Organization's verified domain the App also answers on, each routed
+    /// exactly as its host (AP-172).
+    pub hostnames: Vec<String>,
 }
 
 /// The host an App is served on, under the apex (AP-133).
 pub fn app_host(name: &str, apex: &str) -> String {
     format!("{name}.apps.{apex}")
+}
+
+/// The id part of one of an App's hostnames: short, stable while the name is listed, and the
+/// same whatever the order of the list (AP-172).
+pub fn hostname_key(hostname: &str) -> String {
+    Sha256::digest(hostname.as_bytes())[..4]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// Why the base could not be composed. Never carries a client secret.
@@ -349,8 +361,19 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         let endpoint = format!("app-{name}-endpoint");
         let moved = format!("app-{name}-moved");
         let host = app_host(name, &apex);
-        if let Some(id) = [&own, &endpoint, &moved]
-            .into_iter()
+        // The App's host, then each hostname of its Organization's domain with the same two
+        // routes and a login that returns to it (AP-133, AP-172).
+        let hosts: Vec<(String, String, String)> =
+            std::iter::once((host.clone(), own.clone(), endpoint.clone()))
+                .chain(app.hostnames.iter().map(|hostname| {
+                    let at = format!("app-{name}-at-{}", hostname_key(hostname));
+                    (hostname.clone(), at.clone(), format!("{at}-endpoint"))
+                }))
+                .collect();
+        if let Some(id) = hosts
+            .iter()
+            .flat_map(|(_, route, endpoint)| [route, endpoint])
+            .chain([&moved])
             .find(|id| taken.contains(id))
         {
             skipped.push((
@@ -358,62 +381,6 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
                 format!("the base already has an entry {id}"),
             ));
             continue;
-        }
-
-        let mut plugins = surface_plugins.clone();
-        let policy = match &app.upstream {
-            Upstream::Pod { csp, .. } => Some(csp.as_str()),
-            Upstream::Static => None,
-        };
-        framed_by_portal(&mut plugins, &apex, policy);
-        plugins["openid-connect"] = login(
-            &template,
-            &host,
-            app,
-            if app.public { "pass" } else { "auth" },
-        );
-        if app.upstream == Upstream::Static {
-            // The static host keeps a bundle under `/apps/{name}/`; the browser only ever sees
-            // the App's host. A bundle built for the old path asks for `/apps/{name}/…` itself,
-            // which lands on the same file.
-            // ponytail: the optional prefix goes once every App is rebuilt for its host.
-            rewrite_uri(
-                &mut plugins,
-                format!("^/(?:apps/{name}/)?(.*)$"),
-                format!("/apps/{name}/$1"),
-            );
-        }
-        push(
-            &mut document,
-            "plugin_configs",
-            json!({ "id": own, "desc": format!("App {name} behind its own login"), "plugins": plugins }),
-        );
-
-        // The endpoint route answers the App's own requests: a request without a session is
-        // a 401 for a non-public App, not a redirect a fetch cannot follow. The session's token
-        // reaches the gateway as the bearer it verifies, and the prefix is stripped.
-        let mut plugins = endpoint_plugins.clone();
-        let mut oidc = login(
-            &template,
-            &host,
-            app,
-            if app.public { "pass" } else { "deny" },
-        );
-        oidc["access_token_in_authorization_header"] = json!(true);
-        plugins["openid-connect"] = oidc;
-        // An SDK built before the App had a host sends its calls under `/apps/{name}`; the
-        // prefix is stripped, and the slug is still one of the App's own.
-        rewrite_uri(
-            &mut plugins,
-            format!("^(?:/apps/{name})?(/api/endpoint/.*)$"),
-            "$1".to_owned(),
-        );
-        if !app.slugs.is_empty() {
-            push(
-                &mut document,
-                "plugin_configs",
-                json!({ "id": endpoint, "desc": format!("App {name}'s endpoint behind its own login"), "plugins": plugins }),
-            );
         }
 
         let upstream_id = match &app.upstream {
@@ -437,50 +404,109 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
             }
             Upstream::Static => static_upstream.clone(),
         };
-        push(
-            &mut document,
-            "routes",
-            json!({
-                "id": own,
-                "name": own,
-                "desc": format!("App {name}"),
-                "uri": "/*",
-                "host": host,
-                "priority": APP_PRIORITY,
-                "upstream_id": upstream_id,
-                "plugin_config_id": own,
-            }),
-        );
-        // The App's own endpoints and no other slug: a page of one App cannot reach another
-        // App's data through its host (AP-133). An App that reads none gets no route, so every
-        // `/api/endpoint/` path on its host is the App's own 404. The delivery path the base
-        // refuses on `/api/endpoint/` is refused here too and never reaches the gateway (R46).
-        if !app.slugs.is_empty() {
-            let uris: Vec<String> = app
-                .slugs
-                .iter()
-                .flat_map(|slug| {
-                    [
-                        format!("/api/endpoint/{slug}/*"),
-                        format!("/apps/{name}/api/endpoint/{slug}/*"),
-                    ]
-                })
-                .collect();
+        for (host, own, endpoint) in &hosts {
+            let mut plugins = surface_plugins.clone();
+            let policy = match &app.upstream {
+                Upstream::Pod { csp, .. } => Some(csp.as_str()),
+                Upstream::Static => None,
+            };
+            framed_by_portal(&mut plugins, &apex, policy);
+            plugins["openid-connect"] = login(
+                &template,
+                host,
+                app,
+                if app.public { "pass" } else { "auth" },
+            );
+            if app.upstream == Upstream::Static {
+                // The static host keeps a bundle under `/apps/{name}/`; the browser only ever
+                // sees the App's host. A bundle built for the old path asks for `/apps/{name}/…`
+                // itself, which lands on the same file.
+                // ponytail: the optional prefix goes once every App is rebuilt for its host.
+                rewrite_uri(
+                    &mut plugins,
+                    format!("^/(?:apps/{name}/)?(.*)$"),
+                    format!("/apps/{name}/$1"),
+                );
+            }
+            push(
+                &mut document,
+                "plugin_configs",
+                json!({ "id": own, "desc": format!("App {name} behind its own login"), "plugins": plugins }),
+            );
+
+            // The endpoint route answers the App's own requests: a request without a session
+            // is a 401 for a non-public App, not a redirect a fetch cannot follow. The session's
+            // token reaches the gateway as the bearer it verifies, and the prefix is stripped.
+            let mut plugins = endpoint_plugins.clone();
+            let mut oidc = login(
+                &template,
+                host,
+                app,
+                if app.public { "pass" } else { "deny" },
+            );
+            oidc["access_token_in_authorization_header"] = json!(true);
+            plugins["openid-connect"] = oidc;
+            // An SDK built before the App had a host sends its calls under `/apps/{name}`; the
+            // prefix is stripped, and the slug is still one of the App's own.
+            rewrite_uri(
+                &mut plugins,
+                format!("^(?:/apps/{name})?(/api/endpoint/.*)$"),
+                "$1".to_owned(),
+            );
+            if !app.slugs.is_empty() {
+                push(
+                    &mut document,
+                    "plugin_configs",
+                    json!({ "id": endpoint, "desc": format!("App {name}'s endpoint behind its own login"), "plugins": plugins }),
+                );
+            }
+
             push(
                 &mut document,
                 "routes",
                 json!({
-                    "id": endpoint,
-                    "name": endpoint,
-                    "desc": format!("App {name}'s endpoint"),
-                    "uris": uris,
+                    "id": own,
+                    "name": own,
+                    "desc": format!("App {name}"),
+                    "uri": "/*",
                     "host": host,
-                    "priority": ENDPOINT_PRIORITY,
-                    "vars": [["uri", "!", "~~", format!("^(?:/apps/{name})?/api/endpoint/[^/]+/egress/")]],
-                    "upstream_id": endpoint_upstream,
-                    "plugin_config_id": endpoint,
+                    "priority": APP_PRIORITY,
+                    "upstream_id": upstream_id,
+                    "plugin_config_id": own,
                 }),
             );
+            // The App's own endpoints and no other slug: a page of one App cannot reach another
+            // App's data through its host (AP-133). An App that reads none gets no route, so
+            // every `/api/endpoint/` path on its host is the App's own 404. The delivery path
+            // the base refuses on `/api/endpoint/` is refused here too and never reaches the
+            // gateway (R46).
+            if !app.slugs.is_empty() {
+                let uris: Vec<String> = app
+                    .slugs
+                    .iter()
+                    .flat_map(|slug| {
+                        [
+                            format!("/api/endpoint/{slug}/*"),
+                            format!("/apps/{name}/api/endpoint/{slug}/*"),
+                        ]
+                    })
+                    .collect();
+                push(
+                    &mut document,
+                    "routes",
+                    json!({
+                        "id": endpoint,
+                        "name": endpoint,
+                        "desc": format!("App {name}'s endpoint"),
+                        "uris": uris,
+                        "host": host,
+                        "priority": ENDPOINT_PRIORITY,
+                        "vars": [["uri", "!", "~~", format!("^(?:/apps/{name})?/api/endpoint/[^/]+/egress/")]],
+                        "upstream_id": endpoint_upstream,
+                        "plugin_config_id": endpoint,
+                    }),
+                );
+            }
         }
         // The old address: a `308` to the host that reaches no upstream and runs no login, so
         // a bookmark still arrives and the apex never sets an App's cookie (ADR-N-037 §3).
@@ -561,12 +587,15 @@ pub fn edge_apps(
             .into_iter()
             .map(|endpoint| endpoint.slug)
             .collect();
+        let hostnames =
+            crate::apps::hostnames::routed(mirror, &project, &name, &envelope.spec, &settings.apex);
         apps.push(EdgeApp {
             name,
             public,
             upstream,
             secret: secret.clone(),
             slugs,
+            hostnames,
         });
     }
     (apps, skipped)
@@ -794,6 +823,7 @@ routes:
             upstream,
             secret: ClientSecret::from(format!("secret-of-{name}")),
             slugs: vec![format!("slug-of-{name}")],
+            hostnames: Vec::new(),
         }
     }
 
@@ -911,6 +941,53 @@ routes:
         assert_eq!(surface["plugins"]["openid-connect"]["client_id"], "edge");
         let own = &by_id(&file, "plugin_configs", "app-air-quality").expect("plugins")["plugins"];
         assert!(own.get("proxy-rewrite").is_none(), "{own}");
+    }
+
+    /// AP-172: each hostname of the Organization's domain gets the App's two routes on it alone,
+    /// with the App's login returning there and the App's own cookie, host-only.
+    #[test]
+    fn a_hostname_gets_the_apps_routes_and_login_on_it_alone() {
+        let mut bikes = app("bikes", false, Upstream::Static);
+        bikes.hostnames = vec!["bikes.hel.fi".into()];
+        let composed = compose(BASE, &[bikes], &EdgeLimits::default()).expect("composes");
+        let file = parsed(&composed.file);
+        let at = format!("app-bikes-at-{}", hostname_key("bikes.hel.fi"));
+
+        let own = by_id(&file, "routes", "app-bikes").expect("the App's host route");
+        let named = by_id(&file, "routes", &at).expect("the hostname's route");
+        assert_eq!(named["host"], "bikes.hel.fi");
+        assert_eq!(own["host"], "bikes.apps.city.example");
+        for field in ["uri", "priority", "upstream_id"] {
+            assert_eq!(named[field], own[field], "{field}");
+        }
+        let endpoint = by_id(&file, "routes", &format!("{at}-endpoint")).expect("its endpoint");
+        assert_eq!(endpoint["host"], "bikes.hel.fi");
+        assert_eq!(
+            endpoint["uris"],
+            by_id(&file, "routes", "app-bikes-endpoint").expect("the host's")["uris"]
+        );
+
+        let oidc = |id: &str| {
+            by_id(&file, "plugin_configs", id).expect(id)["plugins"]["openid-connect"].clone()
+        };
+        let (named, own) = (oidc(&at), oidc("app-bikes"));
+        assert_eq!(named["redirect_uri"], "https://bikes.hel.fi/callback");
+        assert_eq!(named["post_logout_redirect_uri"], "https://bikes.hel.fi/");
+        for field in ["client_id", "unauth_action"] {
+            assert_eq!(named[field], own[field], "{field}");
+        }
+        assert_eq!(
+            named["session"]["cookie_name"],
+            own["session"]["cookie_name"]
+        );
+        assert!(named["session"].get("cookie_domain").is_none());
+        assert_eq!(
+            oidc(&format!("{at}-endpoint"))["redirect_uri"],
+            "https://bikes.hel.fi/callback"
+        );
+        // The key is the name's, whatever its place in the list.
+        assert_eq!(hostname_key("bikes.hel.fi"), hostname_key("bikes.hel.fi"));
+        assert_ne!(hostname_key("bikes.hel.fi"), hostname_key("events.hel.fi"));
     }
 
     #[test]
