@@ -223,7 +223,7 @@ export function RelationshipEditor({ source, model, klass, run, prefill }: Relat
   );
 }
 
-interface AddRelationshipFormProps {
+export interface AddRelationshipFormProps {
   source: string;
   model: LinkmlModel;
   klass: string;
@@ -231,7 +231,7 @@ interface AddRelationshipFormProps {
   run: (operation: Operation) => string | null;
 }
 
-function AddRelationshipForm({ source, model, klass, initialTarget, run }: AddRelationshipFormProps): JSX.Element {
+export function AddRelationshipForm({ source, model, klass, initialTarget, run }: AddRelationshipFormProps): JSX.Element {
   const { t } = useTranslation();
   const [cardinality, setCardinality] = useState<Cardinality>("one-to-many");
   const [target, setTarget] = useState(initialTarget ?? "");

@@ -897,15 +897,18 @@ export interface GraphRow {
   implied?: boolean;
 }
 
-/** One box of the graph: a class with its own slots, or an enum with its values. */
+/**
+ * One box of the graph: a class with its own slots, an enum with its values, or (drawn only,
+ * never from `graphData`) an import folded into one box that lists its classes and enums.
+ */
 export interface GraphNode {
   name: string;
-  kind: "class" | "enum";
-  /** A class's own slots (listed and inline), without the inherited ones; an enum's values. */
+  kind: "class" | "enum" | "import";
+  /** A class's own slots (listed and inline), without the inherited ones; an enum's values; a folded import's names. */
   slots: string[];
   /** A class's rows: its key first, then every own slot with its type (T-2881). */
   rows?: GraphRow[];
-  /** How far down the `is_a` chain it sits, which is the row it is drawn on; enums go last. */
+  /** How far down the `is_a` chain it sits; enums one below the deepest class. The drawing lays boxes out by their lines (`diagramLayout.ts`). */
   depth: number;
   /** The import it came from, when it is not the model's own. */
   from?: string;
@@ -947,9 +950,8 @@ export function multiplicity(end: RelationshipEnd): Multiplicity {
  * primitive draws no line: it is inside the box. Enums are boxes of their own, with their values,
  * on a row below the classes.
  *
- * The depth is the length of the `is_a` chain, computed here rather than by a layout library:
- * a class graph is a forest of short chains, and rows by depth put every parent above its
- * children without a dependency that would have to be pinned, audited and shipped.
+ * The depth is the length of the `is_a` chain. Where a box is drawn is `diagramLayout.ts`'s
+ * business (T-3589): it lays the boxes out by these lines.
  */
 export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const byName = new Map(model.classes.map((klass) => [klass.name, klass]));
