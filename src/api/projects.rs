@@ -174,6 +174,10 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/duplicate",
             axum::routing::post(duplicate_project),
         )
+        .route(
+            "/projects/{project}/registry",
+            get(get_registry_entry).put(repoint_project),
+        )
 }
 
 // ---------------------------------------------------------------------------
@@ -838,6 +842,344 @@ async fn check_parameters(
     jc_core::project::resolve_parameters(&own.spec, &entry.spec)
         .map(|_| ())
         .map_err(|e| ApiError::BadRequest(format!("{e} (CC-88)")))
+}
+
+// ---------------------------------------------------------------------------
+// A project's registry entry: what this deployment runs (PF-86, CC-88)
+// ---------------------------------------------------------------------------
+
+/// One tag of a project repository: a release a registry entry may pin (CC-88).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RegistryTag {
+    pub name: String,
+    pub commit: String,
+}
+
+/// What the registry entry `projects/{slug}.yaml` says this deployment runs, with what the form
+/// that changes it needs (PF-86, CC-88).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryEntry {
+    /// `{name}` of a repository of the local forge, or `{url, secretRef}` of an external one.
+    #[schema(value_type = Object)]
+    pub repository: Value,
+    /// The tag, branch or commit this deployment runs.
+    #[serde(rename = "ref")]
+    pub git_ref: String,
+    /// This deployment's values.
+    #[schema(value_type = Object)]
+    pub parameters: Value,
+    /// The parameters `project.yaml` declares at `ref`; empty for an external repository.
+    #[schema(value_type = Object)]
+    pub declarations: Value,
+    /// The project repository's tags; empty for an external repository.
+    pub tags: Vec<RegistryTag>,
+}
+
+/// Another ref to run, or another set of values (PF-86, CC-88).
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Repoint {
+    /// A tag, a branch or a commit of the project repository.
+    #[serde(default, rename = "ref")]
+    pub git_ref: Option<String>,
+    /// The whole set of values; an empty object returns every parameter to its default.
+    #[serde(default)]
+    #[schema(value_type = Option<std::collections::HashMap<String, serde_json::Value>>)]
+    pub parameters: Option<serde_json::Map<String, Value>>,
+}
+
+/// The registry entry of `project` as `main` of the organization repository holds it: its path,
+/// its blob, the manifest as written and its spec. A caller who may not read the project meets a
+/// project that is not there (R20).
+struct Registered {
+    path: String,
+    sha: String,
+    manifest: Value,
+    spec: jc_core::kinds::ProjectSpec,
+}
+
+async fn registered(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+) -> Result<(std::sync::Arc<crate::git::GiteaClient>, String, Registered), ApiError> {
+    let missing = || ApiError::NotFound(format!("project '{project}' not found"));
+    if !crate::permissions::for_request(state, identity, project).may_read_project() {
+        return Err(missing());
+    }
+    if state.mirror.layout() != 2 {
+        return Err(ApiError::Conflict(
+            "a project of layout 1 has no registry entry: its files are in the organization \
+             repository, and it runs what main holds (PF-86)"
+                .into(),
+        ));
+    }
+    let gitea = state
+        .gitea
+        .clone()
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let base = gitea.default_branch().await?;
+    let path = format!("projects/{project}.yaml");
+    let file = gitea.get_file(&path, &base).await?.ok_or_else(missing)?;
+    let manifest: Value = serde_yaml_ng::from_str(&file.content).map_err(|e| {
+        ApiError::Internal(format!("the registry entry {path} does not parse: {e}"))
+    })?;
+    let spec: jc_core::kinds::ProjectSpec = serde_json::from_value(
+        manifest.get("spec").cloned().unwrap_or(Value::Null),
+    )
+    .map_err(|e| ApiError::Internal(format!("the registry entry {path} does not load: {e}")))?;
+    if !spec.is_registry_entry() {
+        return Err(ApiError::Internal(format!(
+            "{path} names no repository, so it is no registry entry (PF-86)"
+        )));
+    }
+    Ok((
+        gitea,
+        base,
+        Registered {
+            path,
+            sha: file.sha,
+            manifest,
+            spec,
+        },
+    ))
+}
+
+/// The project's own `project.yaml` at `git_ref` of its local repository, `None` when the
+/// repository holds no such ref or no such file there.
+async fn project_file_at(
+    project_repository: &crate::git::GiteaClient,
+    project: &str,
+    git_ref: &str,
+) -> Result<Option<jc_core::kinds::ProjectSpec>, ApiError> {
+    let Some(file) = project_repository
+        .get_file(&format!("projects/{project}/project.yaml"), git_ref)
+        .await?
+    else {
+        return Ok(None);
+    };
+    let own = jc_core::kinds::Project::from_yaml(&file.content).map_err(|e| {
+        ApiError::BadRequest(format!(
+            "the project.yaml of '{project}' at '{git_ref}' does not load: {e}"
+        ))
+    })?;
+    Ok(Some(own.spec))
+}
+
+fn json_of<T: Serialize>(value: &T) -> Result<Value, ApiError> {
+    serde_json::to_value(value).map_err(|e| ApiError::Internal(e.to_string()))
+}
+
+/// `GET /api/v1/projects/{project}/registry`: what the registry entry says this deployment
+/// runs, the declarations at that ref and the releases a pin may name (PF-86, CC-88).
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/registry",
+    summary = "Read A Project's Registry Entry",
+    description = "The repository, pinned ref and parameter values of the project's registry entry, the parameters project.yaml declares at that ref, and the repository's tags.",
+    tag = "resources",
+    params(("project" = String, Path, description = "Project slug")),
+    responses(
+        (status = 200, description = "The registry entry", body = RegistryEntry),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "No such project, or none this caller may read", body = ProblemDetails),
+        (status = 409, description = "The organization is of layout 1", body = ProblemDetails),
+        (status = 503, description = "No git forge configured", body = ProblemDetails)
+    )
+)]
+pub async fn get_registry_entry(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    axum::extract::Path(project): axum::extract::Path<String>,
+) -> Result<Json<RegistryEntry>, ApiError> {
+    let (gitea, _, entry) = registered(&state, &user.0.identity, &project).await?;
+    let git_ref = entry.spec.git_ref.clone().unwrap_or_default();
+    let repository = json_of(&entry.spec.repository)?;
+    let local_name = entry
+        .spec
+        .repository
+        .as_ref()
+        .and_then(|repository| repository.name.as_deref());
+    let (declarations, tags) = match local_name {
+        Some(repo) => {
+            let local = gitea.for_project(repo, &project);
+            let declared = project_file_at(&local, &project, &git_ref)
+                .await?
+                .map(|own| own.parameters)
+                .unwrap_or_default();
+            let tags = local
+                .list_tags()
+                .await?
+                .into_iter()
+                .map(|(name, commit)| RegistryTag { name, commit })
+                .collect();
+            (declared, tags)
+        }
+        None => (BTreeMap::new(), Vec::new()),
+    };
+    Ok(Json(RegistryEntry {
+        repository,
+        git_ref,
+        parameters: json_of(&entry.spec.parameters)?,
+        declarations: json_of(&declarations)?,
+        tags,
+    }))
+}
+
+/// `PUT /api/v1/projects/{project}/registry`: proposes the registry entry pinned to another ref
+/// or carrying other values, as one red-lane Change on the organization repository (PF-86,
+/// CC-88). The ref is read in the project repository before anything is proposed.
+#[utoipa::path(
+    put,
+    path = "/api/v1/projects/{project}/registry",
+    summary = "Repoint A Project",
+    description = "Proposes the project's registry entry pinned to another tag, branch or commit, or with other parameter values, as one red-lane change on the organization repository.",
+    tag = "resources",
+    params(("project" = String, Path, description = "Project slug")),
+    request_body(
+        content = Repoint,
+        example = json!({ "ref": "v0.2.0", "parameters": { "audience": "public" } })
+    ),
+    responses(
+        (status = 202, description = "The change that repoints the project", body = Change),
+        (status = 400, description = "No ref and no parameters, a ref the repository does not hold, or a value that does not fit the declarations", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller may not propose a change to this project", body = ProblemDetails),
+        (status = 404, description = "No such project, or none this caller may read", body = ProblemDetails),
+        (status = 409, description = "Layout 1, a repoint already open, or nothing would change", body = ProblemDetails),
+        (status = 503, description = "No git forge configured", body = ProblemDetails)
+    )
+)]
+pub async fn repoint_project(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    axum::extract::Path(project): axum::extract::Path<String>,
+    Json(request): Json<Repoint>,
+) -> Result<(StatusCode, Json<Change>), ApiError> {
+    let identity = &user.0.identity;
+    if request.git_ref.is_none() && request.parameters.is_none() {
+        return Err(ApiError::BadRequest(
+            "name the ref to run, the parameter values, or both (PF-86)".into(),
+        ));
+    }
+    let (gitea, base, entry) = registered(&state, identity, &project).await?;
+    // The registry entry is the organization's manifest of the project: the same rule as editing
+    // its title from the organization (PF-86, PF-52).
+    crate::permissions::for_request(&state, identity, crate::permissions::ORG_NAMESPACE).check(
+        "Project",
+        jc_core::kinds::Verb::Propose,
+        Some(&entry.manifest),
+    )?;
+
+    let mut manifest = entry.manifest.clone();
+    let spec = manifest
+        .get_mut("spec")
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| ApiError::Internal(format!("{} has no spec", entry.path)))?;
+    if let Some(git_ref) = &request.git_ref {
+        spec.insert("ref".into(), Value::String(git_ref.trim().to_owned()));
+    }
+    match &request.parameters {
+        Some(values) if values.is_empty() => {
+            spec.remove("parameters");
+        }
+        Some(values) => {
+            spec.insert("parameters".into(), Value::Object(values.clone()));
+        }
+        None => {}
+    }
+    if manifest == entry.manifest {
+        return Err(ApiError::Conflict(format!(
+            "project '{project}' already runs that: nothing to propose (PF-86)"
+        )));
+    }
+    let proposed: jc_core::kinds::ProjectSpec = serde_json::from_value(manifest["spec"].clone())
+        .map_err(|e| ApiError::BadRequest(format!("{e} (CC-88)")))?;
+    proposed
+        .validate()
+        .map_err(|e| ApiError::BadRequest(format!("{e} (PF-86, CC-88)")))?;
+
+    // A local repository is read at the ref the entry will pin: the ref must be there, and the
+    // values must fit that release's declarations. An external one is the checkouts' to fetch
+    // (CC-86, CC-89).
+    if let Some(repo) = proposed.repository.as_ref().and_then(|r| r.name.as_deref()) {
+        let git_ref = proposed.git_ref.as_deref().unwrap_or_default();
+        let local = gitea.for_project(repo, &project);
+        let own = project_file_at(&local, &project, git_ref)
+            .await?
+            .ok_or_else(|| {
+                ApiError::BadRequest(format!(
+                    "'{git_ref}' is no tag, branch or commit of the repository '{repo}' that \
+                     holds a project.yaml (PF-86)"
+                ))
+            })?;
+        jc_core::project::resolve_parameters(&own, &proposed)
+            .map_err(|e| ApiError::BadRequest(format!("{e} (CC-88)")))?;
+    }
+
+    let branch = format!("portal/update-project-{project}-registry");
+    if let Some(pending) =
+        crate::api::mutate::open_change_on(&state, &gitea, &branch, &project).await?
+    {
+        return Err(ApiError::Conflict(format!(
+            "a repoint of project '{project}' is already proposed: {}; approve or reject it first",
+            pending.name
+        )));
+    }
+    let content = serde_yaml_ng::to_string(&manifest)
+        .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
+    let branch = crate::api::mutate::create_or_reuse_branch(&gitea, &branch, &base).await?;
+    let (author_name, author_email) = crate::api::mutate::author_credentials(identity, &project);
+    gitea
+        .put_file(&crate::git::FileWrite {
+            path: &entry.path,
+            branch: &branch,
+            message: &format!("update {}", entry.path),
+            content: &content,
+            sha: Some(&entry.sha),
+            author: crate::git::Author {
+                name: &author_name,
+                email: &author_email,
+            },
+        })
+        .await?;
+
+    let was = |spec: &jc_core::kinds::ProjectSpec| spec.git_ref.clone().unwrap_or_default();
+    let mut lines = Vec::new();
+    if was(&entry.spec) != was(&proposed) {
+        lines.push(format!(
+            "- runs `{}` instead of `{}`",
+            was(&proposed),
+            was(&entry.spec)
+        ));
+    }
+    if entry.spec.parameters != proposed.parameters {
+        lines.push(format!("- parameters: {}", json_of(&proposed.parameters)?));
+    }
+    let body = format!(
+        "Repoints project `{project}`: the registry entry `{}` decides what this deployment runs \
+         (PF-86, CC-88).\n\n{}\n\nOnce merged, the checkouts fetch the ref and the next render \
+         runs it (CC-86).",
+        entry.path,
+        lines.join("\n")
+    );
+    let pull = gitea
+        .create_pull_request(&branch, &base, &format!("repoint project {project}"), &body)
+        .await?;
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(Change::new(
+            crate::api::changes::change_meta(&state, &gitea, pull.number, &project),
+            crate::change::ChangeStatus::new(
+                crate::change::Lane::Red,
+                crate::change::ChangePhase::PendingApproval,
+                crate::change::PlanSummary::new(0, 1, 0),
+            )
+            .in_repository(&pull.repository)
+            .with_merge_request(pull.url),
+        )),
+    ))
 }
 
 /// How a project repository is remounted from the slug it left onto the one it lands under

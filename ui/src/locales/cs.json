@@ -5440,6 +5440,22 @@
     "button": "Duplikovat",
     "needsRepository": "Duplikovat lze jen projekt ve vlastním repozitáři."
   },
+  "projectRelease": {
+    "title": "Vydání",
+    "lead": "Co toto nasazení spouští z repozitáře projektu a hodnoty jeho parametrů. Změnu schvaluje administrátor organizace.",
+    "runs": "Běží",
+    "parameters": "Hodnoty parametrů",
+    "none": "Všechny parametry mají výchozí hodnotu.",
+    "button": "Připnout vydání",
+    "needsPropose": "Vydání může připnout jen ten, kdo smí měnit tento projekt na úrovni organizace, například administrátor organizace.",
+    "external": "Tento projekt se spravuje mimo forge, proto pro něj Portál nezobrazuje vydání.",
+    "dialogTitle": "Připnout vydání projektu {name}",
+    "dialogLead": "Navrhne záznam v registru s tímto vydáním a těmito hodnotami. Jakmile ho administrátor organizace schválí, další vykreslení ho spustí.",
+    "ref": "Vydání",
+    "refHint": "Tag repozitáře projektu; jako první je uveden stav, který běží nyní.",
+    "current": "{ref} (běží nyní)",
+    "propose": "Navrhnout"
+  },
   "projectImport": {
     "title": "Importovat projekt",
     "lead": "Vytvoří repozitáře projektu z git exportu a poté navrhne jeho záznam v registru.",

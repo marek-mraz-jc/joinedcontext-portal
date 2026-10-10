@@ -763,8 +763,17 @@ async fn load_manifest_data(
                 None
             };
 
+            // A project's registry entry, `projects/{slug}.yaml` of the organization repository
+            // of layout 2, is the Project manifest a repoint or a new project changes (PF-86).
+            let registry = format!("projects/{}.yaml", branch_info.resource_name);
             let path = match path {
                 Some(p) => Some(p),
+                None if branch_info.kind_lower == "project"
+                    && !gitea.is_project_repository()
+                    && matches!(gitea.get_file(&registry, pr.head_ref()).await, Ok(Some(_))) =>
+                {
+                    Some(registry)
+                }
                 None => {
                     find_manifest_in_tree(gitea, pr.head_ref(), project, &branch_info.resource_name)
                         .await?

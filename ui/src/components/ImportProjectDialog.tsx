@@ -51,6 +51,70 @@ export function parameterValues(
   return values;
 }
 
+/**
+ * One field per declared parameter (CC-88): a select for an enum or a boolean, a text field
+ * otherwise, each with its description, its default and, for a secret, that it takes a name.
+ * An empty field keeps the default; `parameterValues` turns what was typed into values.
+ */
+export function ParameterFields({
+  idPrefix,
+  declarations,
+  typed,
+  onChange,
+}: {
+  idPrefix: string;
+  declarations: [string, Declaration][];
+  typed: Record<string, string>;
+  onChange: (typed: Record<string, string>) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <>
+      {declarations.map(([parameter, declaration]) => {
+        const id = `${idPrefix}-${parameter}`;
+        const help = [
+          declaration.description,
+          declaration.type === "secret" ? t("projectImport.secretHint") : undefined,
+          declaration.default === undefined
+            ? undefined
+            : t("projectImport.default", { value: String(declaration.default) }),
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const choices =
+          declaration.type === "boolean"
+            ? ["true", "false"]
+            : (declaration.enum ?? []).map((value) => String(value));
+        return (
+          <Field key={parameter} id={id} label={parameter} help={help || undefined}>
+            {choices.length > 0 ? (
+              <Select
+                id={id}
+                value={typed[parameter] ?? ""}
+                onChange={(event) => onChange({ ...typed, [parameter]: event.target.value })}
+              >
+                <option value="">{t("projectImport.useDefault")}</option>
+                {choices.map((choice) => (
+                  <option key={choice} value={choice}>
+                    {choice}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Input
+                id={id}
+                inputMode={declaration.type === "integer" || declaration.type === "number" ? "decimal" : undefined}
+                value={typed[parameter] ?? ""}
+                onChange={(event) => onChange({ ...typed, [parameter]: event.target.value })}
+              />
+            )}
+          </Field>
+        );
+      })}
+    </>
+  );
+}
+
 async function post(
   project: string,
   file: File,
@@ -268,51 +332,12 @@ export function ImportProjectDialog({
               {declarations.length === 0 ? (
                 <p className="text-body text-fg-muted">{t("projectImport.noParameters")}</p>
               ) : (
-                declarations.map(([parameter, declaration]) => {
-                  const id = `${ids}-param-${parameter}`;
-                  const help = [
-                    declaration.description,
-                    declaration.type === "secret" ? t("projectImport.secretHint") : undefined,
-                    declaration.default === undefined
-                      ? undefined
-                      : t("projectImport.default", { value: String(declaration.default) }),
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
-                  const choices =
-                    declaration.type === "boolean"
-                      ? ["true", "false"]
-                      : (declaration.enum ?? []).map((value) => String(value));
-                  return (
-                    <Field key={parameter} id={id} label={parameter} help={help || undefined}>
-                      {choices.length > 0 ? (
-                        <Select
-                          id={id}
-                          value={typed[parameter] ?? ""}
-                          onChange={(event) => setTyped({ ...typed, [parameter]: event.target.value })}
-                        >
-                          <option value="">{t("projectImport.useDefault")}</option>
-                          {choices.map((choice) => (
-                            <option key={choice} value={choice}>
-                              {choice}
-                            </option>
-                          ))}
-                        </Select>
-                      ) : (
-                        <Input
-                          id={id}
-                          inputMode={
-                            declaration.type === "integer" || declaration.type === "number"
-                              ? "decimal"
-                              : undefined
-                          }
-                          value={typed[parameter] ?? ""}
-                          onChange={(event) => setTyped({ ...typed, [parameter]: event.target.value })}
-                        />
-                      )}
-                    </Field>
-                  );
-                })
+                <ParameterFields
+                  idPrefix={`${ids}-param`}
+                  declarations={declarations}
+                  typed={typed}
+                  onChange={setTyped}
+                />
               )}
             </section>
           ) : null}

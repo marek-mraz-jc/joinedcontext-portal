@@ -62,6 +62,9 @@ function renderAt(where: string, spec: Record<string, unknown>, importAnswer?: (
         spec,
       });
     }
+    if (method === "GET" && url.pathname === "/api/v1/projects/banskabystrica/registry") {
+      return json({ repository: { name: "banskabystrica" }, ref: "main", parameters: {}, declarations: {}, tags: [] });
+    }
     if (method === "POST") {
       // The typed client sends a Request; a multipart one is read back as its form (UI-07).
       const multipart = request?.headers.get("content-type")?.startsWith("multipart/form-data") ?? false;

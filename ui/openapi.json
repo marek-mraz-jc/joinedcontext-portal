@@ -9536,6 +9536,186 @@
         }
       }
     },
+    "/api/v1/projects/{project}/registry": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read A Project's Registry Entry",
+        "description": "The repository, pinned ref and parameter values of the project's registry entry, the parameters project.yaml declares at that ref, and the repository's tags.",
+        "operationId": "get_registry_entry",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The registry entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryEntry"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project, or none this caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The organization is of layout 1",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No git forge configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Repoint A Project",
+        "description": "Proposes the project's registry entry pinned to another tag, branch or commit, or with other parameter values, as one red-lane change on the organization repository.",
+        "operationId": "repoint_project",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Repoint"
+              },
+              "example": {
+                "parameters": {
+                  "audience": "public"
+                },
+                "ref": "v0.2.0"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The change that repoints the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No ref and no parameters, a ref the repository does not hold, or a value that does not fit the declarations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose a change to this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project, or none this caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Layout 1, a repoint already open, or nothing would change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No git forge configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/revisions": {
       "get": {
         "tags": [
@@ -20102,6 +20282,58 @@
           }
         }
       },
+      "RegistryEntry": {
+        "type": "object",
+        "description": "What the registry entry `projects/{slug}.yaml` says this deployment runs, with what the form\nthat changes it needs (PF-86, CC-88).",
+        "required": [
+          "repository",
+          "ref",
+          "parameters",
+          "declarations",
+          "tags"
+        ],
+        "properties": {
+          "declarations": {
+            "type": "object",
+            "description": "The parameters `project.yaml` declares at `ref`; empty for an external repository."
+          },
+          "parameters": {
+            "type": "object",
+            "description": "This deployment's values."
+          },
+          "ref": {
+            "type": "string",
+            "description": "The tag, branch or commit this deployment runs."
+          },
+          "repository": {
+            "type": "object",
+            "description": "`{name}` of a repository of the local forge, or `{url, secretRef}` of an external one."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryTag"
+            },
+            "description": "The project repository's tags; empty for an external repository."
+          }
+        }
+      },
+      "RegistryTag": {
+        "type": "object",
+        "description": "One tag of a project repository: a release a registry entry may pin (CC-88).",
+        "required": [
+          "name",
+          "commit"
+        ],
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "Rejected": {
         "type": "object",
         "description": "One record the runner did not write.",
@@ -20216,6 +20448,31 @@
           "payload": {},
           "runId": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Repoint": {
+        "type": "object",
+        "description": "Another ref to run, or another set of values (PF-86, CC-88).",
+        "properties": {
+          "parameters": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The whole set of values; an empty object returns every parameter to its default.",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A tag, a branch or a commit of the project repository."
           }
         },
         "additionalProperties": false
