@@ -46,6 +46,11 @@ export async function serve(page: Page, entities = KPIS, temporal = HISTORY): Pr
       served.outside.push(url.href);
       return route.abort();
     }
+    // The App's server (T-3350): today's forecasts already recorded, none kept for an indicator yet.
+    if (url.pathname === "/apps/kpi-forecast/api/forecasts") {
+      const body = route.request().method() === "POST" ? { recorded: 0, already: true } : [];
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    }
     if (url.pathname.startsWith(`/api/endpoint/${SLUG}/`)) {
       const body = route.request().postData();
       const answer = await transport({ method: route.request().method() as "GET", path: url.pathname + url.search, body: body ? JSON.parse(body) : undefined });

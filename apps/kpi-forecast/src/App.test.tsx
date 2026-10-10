@@ -7,7 +7,13 @@ import App from "./App";
 import { AnalyserContext } from "./analysis";
 import { HISTORY, KPIS } from "./fixtures/kpis";
 import { inProcess } from "./test-analyser";
+import { server } from "./test-server";
 
+// The App's server, in memory (T-3350).
+vi.mock("./server", async (original) => {
+  const { server } = await import("./test-server");
+  return { ...(await original<typeof import("./server")>()), kpiApi: () => server };
+});
 // jsdom has no canvas: the chart's option is tested on its own.
 vi.mock("echarts", () => ({ init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() })) }));
 
@@ -36,7 +42,10 @@ const FI_SUMMARY =
   "4 mittaria, viimeiset 30 päivää: 1 nousee, 1 laskee, 1 pysyy ennallaan. Poikkeavia pisteitä: 1. 1 mittarilla on liian vähän historiaa ennusteeseen.";
 
 describe("kpi-forecast", () => {
-  beforeEach(() => window.history.replaceState(null, "", "/?lang=fi"));
+  beforeEach(() => {
+    server.reset();
+    window.history.replaceState(null, "", "/?lang=fi");
+  });
   afterEach(() => window.history.replaceState(null, "", "/"));
 
   // AP-04: read through the app's own endpoint only, never written to; the first screen answers
@@ -63,6 +72,15 @@ describe("kpi-forecast", () => {
     const temporal = c.transport.calls.find((call) => call.path.includes("/temporal/entities"));
     expect(temporal?.path).toContain("attrs=currentValue");
     expect(temporal?.path).toContain("timerel=after");
+  });
+
+  // T-3350: the day's forecasts recorded on the server, and the chosen one's earlier ones shown.
+  it("has the server record the day's forecasts for the period, and lists the chosen indicator's earlier ones", async () => {
+    show();
+    expect(await screen.findByText(FI_SUMMARY)).toBeInTheDocument();
+    expect(server.record).toHaveBeenCalledWith(30);
+    expect(await screen.findByText(/^Tämän mittarin aiempia ennusteita ei ole vielä erääntynyt\./)).toBeInTheDocument();
+    expect(server.list).toHaveBeenCalledWith(`${PREFIX}bikes-available-sum`);
   });
 
   it("shows the indicator a person picks, and the address carries it", async () => {

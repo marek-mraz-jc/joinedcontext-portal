@@ -135,3 +135,18 @@ body {
   margin: 0;
   padding-left: 1.5rem;
 }
+/* The server's part (T-3350): earlier forecasts against what came, and the monthly report. */
+.app-earlier,
+.app-report {
+  margin-top: var(--jc-space-4, 1rem);
+}
+.app-report-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jc-space-2, 0.5rem);
+}
+.app-error {
+  color: var(--jc-color-danger, #b91c1c);
+  font-weight: 600;
+}

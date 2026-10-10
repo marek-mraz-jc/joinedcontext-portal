@@ -1,0 +1,122 @@
+{
+  "gateway": [
+    {
+      "path": "/ngsi-ld/v1/temporal/entities",
+      "query": {
+        "type": "KeyPerformanceIndicator",
+        "attrs": "currentValue"
+      },
+      "file": "host-test/history.json"
+    }
+  ],
+  "steps": [
+    {
+      "call": "POST /api/forecasts",
+      "body": {
+        "days": 14
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/forecasts",
+      "body": {
+        "days": 30,
+        "kpi": "urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use"
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/forecasts",
+      "body": {
+        "days": 30
+      },
+      "status": 201,
+      "expect": {
+        "/recorded": 1,
+        "/already": false
+      }
+    },
+    {
+      "call": "POST /api/forecasts",
+      "body": {
+        "days": 30
+      },
+      "status": 200,
+      "expect": {
+        "/recorded": 0,
+        "/already": true
+      }
+    },
+    {
+      "call": "GET /api/forecasts?kpi=urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use",
+      "status": 200,
+      "expect": {
+        "/0/days": 30,
+        "/0/direction": "up",
+        "/0/step": 86400000.0,
+        "/0/latestV": 130.0
+      },
+      "length": {
+        "": 1
+      }
+    },
+    {
+      "call": "GET /api/forecasts?kpi=urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use&days=7",
+      "status": 200,
+      "length": {
+        "": 0
+      }
+    },
+    {
+      "call": "GET /api/forecasts?kpi=urn:ngsi-ld:KeyPerformanceIndicator:helsinki:flat-few",
+      "status": 200,
+      "length": {
+        "": 0
+      }
+    },
+    {
+      "call": "GET /api/forecasts?kpi=urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use&days=14",
+      "status": 400
+    },
+    {
+      "call": "GET /api/forecasts?kpi=urn:ngsi-ld:Vehicle:1",
+      "status": 400
+    },
+    {
+      "call": "POST /api/reports",
+      "body": {
+        "month": "2026-13"
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/reports",
+      "body": {
+        "month": "2020-01"
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/reports",
+      "body": {
+        "month": "2099-01"
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/reports",
+      "body": {},
+      "status": 201,
+      "download": "/url",
+      "downloaded": "kpi,made_on,period_days,for_utc,expected,low_95,high_95,measured,within_95\n"
+    },
+    {
+      "call": "GET /api/forecasts?kpi=urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use",
+      "as": "second",
+      "status": 200,
+      "length": {
+        "": 0
+      }
+    }
+  ]
+}

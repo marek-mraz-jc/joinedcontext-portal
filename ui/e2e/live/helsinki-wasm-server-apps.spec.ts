@@ -166,3 +166,29 @@ test("transit-reach keeps the areas from a start stop on the server, the same fo
   expect(again.status()).toBe(200);
   expect(((await again.json()) as { cached: boolean }).cached).toBe(true);
 });
+
+test("kpi-forecast has today's forecasts recorded on its server, and a month's report downloads", async ({ browser, page }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+  try {
+    await expectPublishedAsWasm(steward.page, "kpi-forecast");
+  } finally {
+    await steward.context.close();
+  }
+  const app = `${APPS_URL}/apps/kpi-forecast/`;
+  const recorded = page.waitForResponse((response) => response.url().endsWith("/apps/kpi-forecast/api/forecasts") && response.request().method() === "POST", { timeout: 120_000 });
+  await page.goto(`${app}?lang=en&days=30`, { waitUntil: "domcontentloaded" });
+  expect([200, 201]).toContain((await recorded).status());
+  await expect(page.locator(".app-summary")).toHaveText(/^\d+ indicators over the last 30 days/, { timeout: 120_000 });
+  await expect(page.getByRole("region", { name: "Earlier forecasts against what came" })).toBeVisible();
+
+  // Recorded once a day: a second ask the same day records nothing.
+  const again = await page.request.post(`${app}api/forecasts`, { data: { days: 30 } });
+  expect(again.status()).toBe(200);
+  expect(((await again.json()) as { already: boolean }).already).toBe(true);
+
+  const report = page.waitForResponse((response) => response.url().endsWith("/apps/kpi-forecast/api/reports"));
+  await page.getByRole("button", { name: "Download forecasts against readings (CSV)" }).click();
+  const csv = await page.request.get(((await (await report).json()) as { url: string }).url);
+  expect(csv.status()).toBe(200);
+  expect(await csv.text()).toContain("kpi,made_on,period_days,for_utc,expected,low_95,high_95,measured,within_95");
+});
