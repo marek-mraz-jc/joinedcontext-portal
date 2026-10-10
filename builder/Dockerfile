@@ -46,7 +46,7 @@ WORKDIR /src
 COPY . .
 # The SDK's React + Rust/WebAssembly example and the Apps with a WebAssembly part keep their own
 # lock (AP-142), as do the server components of `wasm` Apps (AP-151): their crates too.
-RUN CARGO_HOME=/opt/cargo cargo fetch --locked \
+RUN mkdir -p /opt/cargo/git && CARGO_HOME=/opt/cargo cargo fetch --locked \
     && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm sdk/examples/*/server apps/*/server; do \
          [ -f "$crate/Cargo.toml" ] || continue; \
          CARGO_HOME=/opt/cargo cargo fetch --locked --manifest-path "$crate/Cargo.toml" || exit 1; \
@@ -101,6 +101,8 @@ COPY --from=node:24-slim /usr/local/bin/node /usr/local/bin/node
 COPY --from=template /opt/template/ /opt/template/
 COPY --from=crates /opt/cargo/registry/index /opt/cargo/registry/index
 COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
+# The git sources the locks name: the guest SDK `jc-app-sdk` of the `wasm` Apps' server/ (T-3346).
+COPY --from=crates /opt/cargo/git /opt/cargo/git
 # Read-only to the lane's uid: a job copies it and never writes it.
 COPY --from=seed /opt/cargo/target-seed /opt/cargo/target-seed
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
