@@ -194,6 +194,7 @@ fn summary(name: &str, spec: &KnowledgeSourceSpec) -> Value {
             SourceType::Website => "website",
             SourceType::Ckan => "ckan",
             SourceType::Catalogue => "catalogue",
+            SourceType::Guide => "guide",
         },
         "startUrls": spec.start_urls,
         // The spaces a catalogue source reads; empty is every space of the project (AG-116).

@@ -11,7 +11,7 @@ export interface SourceJob {
 
 export interface KnowledgeSourceRow {
   source: string;
-  type: "website" | "ckan" | "catalogue";
+  type: "website" | "ckan" | "catalogue" | "guide";
   state: "crawled" | "not-crawled";
   startUrls: string[];
   ckanInstanceRef: string | null;

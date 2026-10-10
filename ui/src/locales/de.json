@@ -6100,7 +6100,8 @@
     "type": {
       "website": "Website",
       "ckan": "Datenkatalog",
-      "catalogue": "Katalog der Kontexträume"
+      "catalogue": "Katalog der Kontexträume",
+      "guide": "Benutzerhandbuch"
     },
     "status": {
       "pending": "Noch nicht gelesen",
@@ -6243,7 +6244,8 @@
       "origins": "Die Adresse der Website muss zu den erlaubten Ursprüngen des Assistenten gehören; auf jeder anderen Website bleibt der Rahmen leer.",
       "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben."
     },
-    "everySpace": "jeder Raum des Projekts"
+    "everySpace": "jeder Raum des Projekts",
+    "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt"
   },
   "mcp": {
     "title": "MCP-Server",

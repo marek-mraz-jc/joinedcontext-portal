@@ -6100,7 +6100,8 @@
     "type": {
       "website": "Website",
       "ckan": "Data catalogue",
-      "catalogue": "Context spaces' catalogue"
+      "catalogue": "Context spaces' catalogue",
+      "guide": "User Guide"
     },
     "status": {
       "pending": "Not read yet",
@@ -6243,7 +6244,8 @@
       "origins": "The site's address must be one of the assistant's allowed origins; any other site's frame stays empty.",
       "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page."
     },
-    "everySpace": "every space of the project"
+    "everySpace": "every space of the project",
+    "userGuide": "the platform's User Guide, with links into this project"
   },
   "mcp": {
     "title": "MCP servers",
