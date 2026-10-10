@@ -5,6 +5,10 @@ import type { Row } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "../App";
 import type { AnalysisOutput as TopicsOutput, TopicsHookResult as UseTopicsResult } from "../topics";
+import { ServerContext } from "../server";
+import type { Server } from "../server";
+
+const NO_WEEKS: Server = { weeks: async () => ({ weeks: [], stale: false }), corpusUrl: async () => "" };
 
 type Click = (params: { name?: string }) => void;
 const charts: Array<{ element: HTMLElement; setOption: ReturnType<typeof vi.fn>; click?: Click }> = [];
@@ -117,7 +121,9 @@ function renderTopics(entities: Row[] = ARTICLES, refuse?: () => { status: numbe
   const client = stubClient({ entities, access: READ, refuse }, { appName: "news-topics", portal: "https://portal.test/projects/helsinki" });
   render(
     <JcProvider client={client}>
-      <App />
+      <ServerContext.Provider value={NO_WEEKS}>
+        <App />
+      </ServerContext.Provider>
     </JcProvider>,
   );
   return client;
