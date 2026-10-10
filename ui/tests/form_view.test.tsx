@@ -319,7 +319,15 @@ describe("a public form", () => {
   });
 
   it("gives the two embed snippets and a test preview once published", async () => {
-    renderPage(<FormEmbed slug="f7m2qz4tv6xh3n5jb2ryd3wcfa" type="ParkingSpot" framed />, { path: "/projects/city/spaces/parking", answer: async () => undefined });
+    const reads: Request[] = [];
+    renderPage(<FormEmbed slug="f7m2qz4tv6xh3n5jb2ryd3wcfa" type="ParkingSpot" framed />, {
+      path: "/projects/city/spaces/parking",
+      answer: async (url, request) => {
+        if (!url.pathname.startsWith("/api/endpoint/f7m2qz4tv6xh3n5jb2ryd3wcfa/")) return undefined;
+        reads.push(request);
+        return parkingSchema(url);
+      },
+    });
     const embed = await screen.findByTestId("form-embed");
     const iframe = within(embed).getByRole("textbox", { name: en.spaces.form.embedIframe }) as HTMLTextAreaElement;
     expect(iframe.value).toContain(`src="${window.location.origin}/f/f7m2qz4tv6xh3n5jb2ryd3wcfa"`);
@@ -333,13 +341,20 @@ describe("a public form", () => {
     await userEvent.click(within(embed).getAllByRole("button", { name: en.spaces.form.copy })[1]);
     expect(writeText).toHaveBeenCalledWith(script.value);
     expect(await within(embed).findByText(en.spaces.form.copied)).toBeInTheDocument();
-    // The preview is the published page in a test run, inside a sandbox of its own.
-    const preview = within(embed).getByTitle("Preview of the ParkingSpot form");
-    expect(preview.getAttribute("src")).toBe("/f/f7m2qz4tv6xh3n5jb2ryd3wcfa?test=1");
-    expect(preview.getAttribute("sandbox")).toBe("allow-scripts allow-forms");
-    expect(preview.getAttribute("referrerpolicy")).toBe("no-referrer");
-    // axe cannot enter a frame in jsdom; the framed page is the public form, checked above.
-    await expectNoViolations(embed, ['[data-testid="form-preview"]']);
+    // The preview is the published page itself in a test run, not a frame of it (AP-19), and it
+    // reads as a visitor: no credentials go with any request (EP-102).
+    expect(embed.querySelector("iframe")).toBeNull();
+    const preview = within(embed).getByRole("region", { name: "Preview of the ParkingSpot form" });
+    expect(await within(preview).findByRole("heading", { level: 4, name: "ParkingSpot" })).toBeInTheDocument();
+    expect(within(preview).getByText(en.spaces.form.testMode)).toBeInTheDocument();
+    expect(within(preview).getByRole("button", { name: en.spaces.form.testSubmit })).toBeInTheDocument();
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.every((r) => r.credentials === "omit")).toBe(true);
+    expect(within(embed).getByRole("link", { name: new RegExp(en.spaces.form.previewOpen) })).toHaveAttribute(
+      "href",
+      "/f/f7m2qz4tv6xh3n5jb2ryd3wcfa?test=1",
+    );
+    await expectNoViolations(embed);
   });
 
   it("says no site may embed it when it names none", async () => {

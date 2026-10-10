@@ -19,7 +19,7 @@ import type { Change, ResourceProposal } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { endpointUrl } from "../../components/endpoints/links";
-import { Alert, Button, Checkbox, Field, Input, Select, Textarea } from "../../components/ui";
+import { Alert, Button, Checkbox, ExternalLink, Field, Input, Select, Textarea } from "../../components/ui";
 import { DNS1123 } from "../../schemas/kinds";
 import type { LinkmlSlot } from "../models/linkml";
 import {
@@ -593,6 +593,7 @@ function Snippet({ id, label, code }: { id: string; label: string; code: string 
 export function FormEmbed({ slug, type, framed }: { slug: string; type: string; framed: boolean }): JSX.Element {
   const { t } = useTranslation();
   const snippets = embedSnippets(window.location.origin, slug, type);
+  const testRun = useMemo(() => new URLSearchParams("test=1"), []);
   return (
     <div className="flex flex-col gap-3" data-testid="form-embed">
       <h3 className="text-body font-semibold text-fg">{t("spaces.form.embedTitle")}</h3>
@@ -601,16 +602,16 @@ export function FormEmbed({ slug, type, framed }: { slug: string; type: string; 
       <Snippet id="form-embed-script" label={t("spaces.form.embedScript")} code={snippets.script} />
       <h3 className="text-body font-semibold text-fg">{t("spaces.form.previewTitle")}</h3>
       <p className="text-body text-fg-muted">{t("spaces.form.previewLead")}</p>
-      <iframe
-        title={t("spaces.form.previewFrame", { type })}
-        src={`/f/${encodeURIComponent(slug)}?test=1`}
-        // Never allow-same-origin: the page is on the Portal's own origin, and the pair with
-        // allow-scripts would let it read the CSRF cookie and write as the signed-in person (AP-19).
-        sandbox="allow-scripts allow-forms"
-        referrerPolicy="no-referrer"
-        className="h-160 w-full rounded-lg border border-border bg-bg"
-        data-testid="form-preview"
-      />
+      {/* The page itself, not a frame of it: a frame without allow-same-origin has an opaque
+          origin that loads none of the Portal's scripts, and with it the frame is no sandbox
+          (AP-19). The page sends no credentials on any request (EP-102), so this is what a
+          visitor sees; the link opens the real page on its own. */}
+      <section aria-label={t("spaces.form.previewFrame", { type })} className="rounded-lg border border-border bg-bg p-4" data-testid="form-preview">
+        <PublicFormPage slug={slug} search={testRun} headingLevel={4} />
+      </section>
+      <ExternalLink href={`/f/${encodeURIComponent(slug)}?test=1`} className="w-fit">
+        {t("spaces.form.previewOpen")}
+      </ExternalLink>
     </div>
   );
 }
@@ -659,10 +660,14 @@ interface SchemaIndex {
 export function PublicFormPage({
   slug,
   search = new URLSearchParams(window.location.search),
+  headingLevel = 1,
 }: {
   slug: string;
   search?: URLSearchParams;
+  /** 1 on its own page; the share panel's preview shows it under its own headings. */
+  headingLevel?: 1 | 4;
 }): JSX.Element {
+  const Heading = headingLevel === 1 ? "h1" : "h4";
   const { t, i18n } = useTranslation();
   const frameRef = useHeightToParent();
   const test = search.get("test") === "1";
@@ -688,7 +693,7 @@ export function PublicFormPage({
   if (schema.isPending || schema.isError || !type || fields.length === 0) {
     return (
       <div ref={frameRef} className="flex flex-col gap-3" data-testid="public-form">
-        <h1 className="text-title font-semibold text-fg">{type ?? slug}</h1>
+        <Heading className="text-title font-semibold text-fg">{type ?? slug}</Heading>
         <p className="text-body text-fg-muted" role="status">
           {schema.isPending ? t("app.loading") : t("spaces.form.notPublished")}
         </p>
@@ -697,7 +702,7 @@ export function PublicFormPage({
   }
   return (
     <div ref={frameRef} className="flex flex-col gap-3" data-testid="public-form">
-      <h1 className="text-title font-semibold text-fg">{type}</h1>
+      <Heading className="text-title font-semibold text-fg">{type}</Heading>
       <p className="text-body text-fg-muted">{t("spaces.form.publicLead")}</p>
       {test ? <Alert tone="warning">{t("spaces.form.testMode")}</Alert> : <Alert tone="info">{t("spaces.form.publicData")}</Alert>}
       <EntityFormBody
