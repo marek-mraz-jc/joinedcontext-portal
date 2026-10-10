@@ -109,6 +109,11 @@ jobs:
     # tests, its bundle and its page in Chromium under the static host's policy.
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # A change to the SDK or builder/ touches every App; one App's build and Chromium run is ~2 min
+    # and a server component's release build up to ~8, so six shards keep each under the limit.
+    strategy:
+      fail-fast: false
+      matrix: { shard: [1, 2, 3, 4, 5, 6] }
     env:
       WASM_BINDGEN_VERSION: "0.2.129"
       WASM_BINDGEN_SHA256: "82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e"
@@ -133,6 +138,7 @@ jobs:
       # the coverage gate, bundled, and in Chromium; only those this change touched (T-3373), the
       # full sweep is ci-full's.
       - name: the touched WebAssembly Apps build, pass their tests and the gate, and answer in Chromium
+        env: { APPS_SHARD: "${{ matrix.shard }}/6" }
         run: sh scripts/apps-ci.sh wasm
   # A change to the SDK runs every App (T-3373); three shards keep that inside the job's timeout
   # (APPS_SHARD in scripts/apps-ci.sh: every App in exactly one shard).

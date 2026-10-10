@@ -5,6 +5,7 @@ import type { Cell, Row } from "../ngsi";
 import { fieldOf } from "../write";
 import type { Field, FieldSchema, Schema, TypeSchema } from "../write";
 import { endpointsOf, ProblemError } from "./client";
+import { unitSymbol } from "./units";
 import { useAccess, useClient, useMe, useSchema } from "./hooks";
 import { sdkLanguage, sdkWord, type SdkLanguage, type SdkWord } from "./words";
 
@@ -161,13 +162,21 @@ export function parseValue(field: Field, text: string, language: SdkLanguage): {
 function draftOf(value: Cell, field: Field): string {
   if (value === null || value === undefined) return "";
   if (field.input === "checkbox") return value === true ? "true" : "false";
+  // The stored number, every digit: a grouped `2,024` would parse back as 2.024 (T-3600).
+  if (typeof value === "number") return String(value);
   return format(value);
 }
 
-function shown(value: Cell, language: SdkLanguage): string {
+function shown(value: Cell, language: SdkLanguage, unit?: string): string {
   if (value === null || value === undefined || value === "") return sdkWord(language, "panel.empty");
   if (value === true) return sdkWord(language, "panel.yes");
   if (value === false) return sdkWord(language, "panel.no");
+  // As the grid writes it (T-3600): every digit, no grouping, so a year stays `2024`; then the
+  // model's unit, `15.176 µg/m³`.
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const symbol = unitSymbol(unit);
+    return symbol ? `${value} ${symbol}` : String(value);
+  }
   return format(value);
 }
 
@@ -397,7 +406,7 @@ function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backi
             {names.map((name) => (
               <div key={name}>
                 <dt title={properties?.[name]?.description}>{labelOf(name, properties?.[name])}</dt>
-                <dd>{shown(row[name], language)}</dd>
+                <dd>{shown(row[name], language, fields[name]?.unit)}</dd>
               </div>
             ))}
           </dl>
@@ -432,7 +441,7 @@ function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backi
                 <div key={name} className="jc-panel-field">
                   <span className="jc-panel-label">{label}</span>
                   <span>
-                    {shown(row[name], language)} <small>({word("panel.inPortal")})</small>
+                    {shown(row[name], language, fields[name]?.unit)} <small>({word("panel.inPortal")})</small>
                   </span>
                 </div>
               );
@@ -486,7 +495,7 @@ function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backi
           <ul>
             {Object.entries(stage.patch).map(([name, value]) => (
               <li key={name}>
-                {word("panel.change", { attr: labelOf(name, properties?.[name]), from: shown(row[name], language), to: shown(value, language) })}
+                {word("panel.change", { attr: labelOf(name, properties?.[name]), from: shown(row[name], language, fields[name]?.unit), to: shown(value, language, fields[name]?.unit) })}
               </li>
             ))}
           </ul>

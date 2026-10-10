@@ -473,6 +473,39 @@ describe("the panel of an App with its own backend (a ui-rust App)", () => {
     expect(within(panel).getByText("Available bike number: 4 → 5")).toBeInTheDocument();
   });
 
+  it("writes a number as the grid does: every digit, no grouping, the model's unit (T-3600)", async () => {
+    const school = { id: STATION.id, type: STATION.type, name: "Kaivopuisto", budgetYear: 2024, pm10: 15.176, area: 809438509 };
+    const schema = {
+      BikeHireDockingStation: {
+        properties: {
+          name: { type: "string", "x-ngsi-ld-kind": "Property" },
+          budgetYear: { type: ["integer", "null"], minimum: 2000, "x-ngsi-ld-kind": "Property" },
+          pm10: { type: ["number", "null"], "x-ngsi-ld-kind": "Property", "x-unit": { exactMappings: ["ucefact:GQ"] } },
+          area: { type: ["number", "null"], "x-ngsi-ld-kind": "Property", "x-unit": { exactMappings: ["ucefact:MTK"] } },
+        },
+      },
+    };
+    const update = vi.fn(async () => undefined);
+    const source = { get: async () => school, update, mayEdit: () => true, schema, language: "en" };
+    render(<AppShell title="Schools" source={source} pages={[{ id: "a", label: "A", render: () => <Openers /> }]} />);
+    const panel = await openFromTable();
+    expect(await within(panel).findByText("2024")).toBeInTheDocument();
+    expect(within(panel).getByText("15.176 µg/m³")).toBeInTheDocument();
+    expect(within(panel).getByText("809438509 m²")).toBeInTheDocument();
+
+    // The edit form starts from the stored number, so a year saved untouched stays 2024, not 2.024.
+    fireEvent.click(within(panel).getByRole("button", { name: "Edit" }));
+    expect(within(panel).getByLabelText("Budget year")).toHaveValue("2024");
+    expect(within(panel).getByLabelText("Pm10")).toHaveValue("15.176");
+    fireEvent.change(within(panel).getByLabelText("Budget year"), { target: { value: "2025" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Review the change" }));
+    expect(within(panel).getByText("Budget year: 2024 → 2025")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole("button", { name: "Save the change" }));
+    });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: STATION.id }), { budgetYear: 2025 });
+  });
+
   it("links to the Portal the source names when the reader may not edit", async () => {
     const source = {
       get: async () => STATION,
