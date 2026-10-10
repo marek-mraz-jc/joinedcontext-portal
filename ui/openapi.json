@@ -4812,6 +4812,78 @@
         }
       }
     },
+    "/api/v1/projects/{project}/apps/{name}/builds": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "The Builds Of An Application",
+        "description": "The successful builds of an application built on the forge, one per commit, newest first, and whether Restore is offered (AP-171).",
+        "operationId": "builds",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The builds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuilds"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such App the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/apps/{name}/export": {
       "get": {
         "tags": [
@@ -5033,6 +5105,111 @@
           },
           "503": {
             "description": "No forge, or the forge refused the dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/apps/{name}/restore": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Restore An Earlier Build Of An Application",
+        "description": "Opens a merge request on the application's repository that brings its default branch back to the commit of an earlier successful build; the build lane builds it once merged (AP-171).",
+        "operationId": "restore",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRequest"
+              },
+              "example": {
+                "commit": "9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The merge request is open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Restored"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose App here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such App the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not built on the forge, not a listed build, the current build, nothing to restore, or a file that is not text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge, or the forge refused",
             "content": {
               "application/json": {
                 "schema": {
@@ -14630,6 +14807,30 @@
           }
         }
       },
+      "AppBuilds": {
+        "type": "object",
+        "description": "The successful builds, newest first, and whether Restore is offered (AP-171).",
+        "required": [
+          "builds",
+          "restore",
+          "dataNote"
+        ],
+        "properties": {
+          "builds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuildEntry"
+            }
+          },
+          "dataNote": {
+            "type": "string",
+            "description": "What Restore does not roll back."
+          },
+          "restore": {
+            "$ref": "#/components/schemas/Rebuild"
+          }
+        }
+      },
       "AppCheck": {
         "type": "object",
         "description": "The last probe of one App (AP-136).",
@@ -15138,6 +15339,37 @@
               }
             ],
             "default": "strict"
+          }
+        }
+      },
+      "BuildEntry": {
+        "type": "object",
+        "description": "One successful build of an App, as Restore offers it (AP-171).",
+        "required": [
+          "commit",
+          "current"
+        ],
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current": {
+            "type": "boolean",
+            "description": "The build `status.build.commit` names."
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -20817,6 +21049,35 @@
           }
         ],
         "description": "What a proposal of one resource sends: the manifest, and beside it the draft the form holds\n(AG-61) and the files the manifest names but cannot contain (DM-39). Both are taken out of the\nbody before it is read as an envelope; the type is what the OpenAPI document says, so the\ngenerated client sends them without a cast (T-1488)."
+      },
+      "RestoreRequest": {
+        "type": "object",
+        "required": [
+          "commit"
+        ],
+        "properties": {
+          "commit": {
+            "type": "string",
+            "description": "The commit of one of the listed builds."
+          }
+        },
+        "additionalProperties": false
+      },
+      "Restored": {
+        "type": "object",
+        "description": "The merge request Restore opened.",
+        "required": [
+          "branch",
+          "pullRequestUrl"
+        ],
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "pullRequestUrl": {
+            "type": "string"
+          }
+        }
       },
       "RetryAnswer": {
         "type": "object",
