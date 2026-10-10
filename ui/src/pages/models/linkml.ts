@@ -897,11 +897,14 @@ export interface GraphRow {
   implied?: boolean;
 }
 
-/** One box of the graph: a class with its own slots, or an enum with its values. */
+/**
+ * One box of the graph: a class with its own slots, an enum with its values, or (drawn only,
+ * never from `graphData`) an import folded into one box that lists its classes and enums.
+ */
 export interface GraphNode {
   name: string;
-  kind: "class" | "enum";
-  /** A class's own slots (listed and inline), without the inherited ones; an enum's values. */
+  kind: "class" | "enum" | "import";
+  /** A class's own slots (listed and inline), without the inherited ones; an enum's values; a folded import's names. */
   slots: string[];
   /** A class's rows: its key first, then every own slot with its type (T-2881). */
   rows?: GraphRow[];

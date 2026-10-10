@@ -2767,7 +2767,18 @@
         "oneOrMore": "aspoň jedna",
         "many": "ľubovoľne veľa",
         "enum": "vyberá z enumu, na ktorý ukazuje šípka"
-      }
+      },
+      "find": "Nájsť triedu",
+      "hops": "Ukázať okolie",
+      "hopsOption": "{count, plural, one {# čiara ďaleko} few {# čiary ďaleko} other {# čiar ďaleko}}",
+      "pathTo": "Cesta k",
+      "noPath": "Bez cesty",
+      "showAll": "Ukázať všetko",
+      "foldImport": "Zbaliť {name} do jedného rámčeka",
+      "unfoldBox": "Rozbaliť {name}: {names}",
+      "noRoute": "{from} a {to} nespája žiadna čiara.",
+      "routeStatus": "{count, plural, one {# čiara} few {# čiary} other {# čiar}}: {route}",
+      "focusStatus": "{name} a {count, plural, =0 {nič s ňou spojené} one {# spojený rámček} few {# spojené rámčeky} other {# spojených rámčekov}}; zvyšok je potlačený."
     },
     "field": {
       "name": "Názov",

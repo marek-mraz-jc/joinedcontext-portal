@@ -2767,7 +2767,18 @@
         "oneOrMore": "at least one",
         "many": "any number",
         "enum": "picks from the enum the arrow points at"
-      }
+      },
+      "find": "Find a class",
+      "hops": "Show around it",
+      "hopsOption": "{count, plural, one {# line out} other {# lines out}}",
+      "pathTo": "Path to",
+      "noPath": "No path",
+      "showAll": "Show everything",
+      "foldImport": "Fold {name} into one box",
+      "unfoldBox": "Unfold {name}: {names}",
+      "noRoute": "No line joins {from} and {to}.",
+      "routeStatus": "{count, plural, one {# line} other {# lines}}: {route}",
+      "focusStatus": "{name} and {count, plural, =0 {nothing joined to it} one {# box joined to it} other {# boxes joined to it}}; the rest is faded."
     },
     "field": {
       "name": "Name",

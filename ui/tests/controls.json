@@ -1181,11 +1181,12 @@
     },
     "src/pages/models/LinkmlGraphView.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 7
       },
       "tests": [
         "diagram_layout.test.ts",
         "diagram_notation.test.tsx",
+        "diagram_reading.test.tsx",
         "linkml_editor.test.tsx",
         "linkml_er_diagram.test.tsx",
         "linkml_imports_enums.test.tsx",

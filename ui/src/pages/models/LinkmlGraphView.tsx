@@ -1,9 +1,11 @@
-import { Fragment, useId, useMemo, useRef, useState } from "react";
-import type { JSX, PointerEvent } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import type { JSX, KeyboardEvent, PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { download, mermaidErDiagram, svgFile } from "./diagramExport";
 import { layered } from "./diagramLayout";
+import { foldImports, neighbourhood, nextBox, shortestPath } from "./diagramReading";
+import type { Direction } from "./diagramReading";
 import type { LayoutEdge, Point } from "./diagramLayout";
 import { graphData, parseModel, withImports } from "./linkml";
 import type { GraphEdge, GraphNode, GraphRow, Multiplicity } from "./linkml";
@@ -41,6 +43,13 @@ const CHARS = 17;
 const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2 };
 /** One object for "no imports", so the drawing is not recomputed on every render. */
 const NO_IMPORTS: Record<string, string> = {};
+/** How far focus reaches: the class and up to this many lines out. */
+const HOPS = [1, 2, 3] as const;
+/** The minimap's width in page pixels. */
+const MINIMAP = 160;
+const ARROWS: readonly string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+/** The opacity of what lies outside a focus or a path: still there to place it, not in the way. */
+const FADED = 0.2;
 
 /**
  * The ends a line can have (T-3589), one standard notation: UML's hollow triangle at the parent
@@ -229,13 +238,30 @@ export function LinkmlGraphView({
   const prefix = useId();
   const markerId = (end: End) => `${prefix}-${end}`;
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const boxes = useRef(new Map<string, SVGGElement>());
+  const searchList = useId();
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  const [focus, setFocus] = useState<string>();
+  const [hops, setHops] = useState<number>(1);
+  const [pathTo, setPathTo] = useState<string>();
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState({ left: 0, top: 0, width: 0, height: 0 });
   const { name, nodes, edges } = useMemo(() => {
     const model = parseModel(source);
     const parsed = Object.fromEntries(Object.entries(imports).map(([key, text]) => [key, parseModel(text)]));
     return { name: model.name || "model", ...graphData(withImports(model, parsed)) };
   }, [source, imports]);
-  const { placed, bends } = useMemo(() => place(nodes, edges), [nodes, edges]);
+  // What is drawn: the model with the imports a reader folded each as one box.
+  const drawn = useMemo(() => foldImports(nodes, edges, folded), [nodes, edges, folded]);
+  const { placed, bends } = useMemo(() => place(drawn.nodes, drawn.edges), [drawn]);
   const at = useMemo(() => new Map(placed.map((node) => [node.name, node])), [placed]);
+  const importNames = useMemo(() => [...new Set(nodes.flatMap((node) => (node.from ? [node.from] : [])))], [nodes]);
+  // The frame's visible part, in drawing units, for the minimap.
+  const measure = () => {
+    const frameAt = frame.current;
+    if (frameAt) setView({ left: frameAt.scrollLeft, top: frameAt.scrollTop, width: frameAt.clientWidth, height: frameAt.clientHeight });
+  };
+  useEffect(measure, [zoom, placed]);
 
   if (!placed.some((node) => node.kind === "class")) {
     return (
@@ -251,9 +277,72 @@ export function LinkmlGraphView({
     if (drawing.current) download(svgFile(drawing.current), `${name}.svg`, "image/svg+xml");
   };
   const exportMermaid = () => download(mermaidErDiagram(nodes, edges), `${name}.mmd`, "text/plain");
+  // Focus: the class and its neighbourhood stay, the rest fades; a path lights only its own way.
+  const names = placed.map((node) => node.name);
+  const focused = focus !== undefined && at.has(focus) ? focus : undefined;
+  const way = focused && pathTo && at.has(pathTo) ? shortestPath(names, drawn.edges, focused, pathTo) : undefined;
+  const found = way && way.nodes.length > 0 ? way : undefined;
+  const around = focused ? neighbourhood(names, drawn.edges, focused, hops) : undefined;
+  const lit = found ? new Set(found.nodes) : around;
+  const litLines = found ? new Set(found.edges) : undefined;
+  const faded = (node: string) => lit !== undefined && !lit.has(node);
+  const fadedLine = (edge: GraphEdge, index: number) =>
+    litLines ? !litLines.has(index) : faded(edge.from) || faded(edge.to);
+  const status = !focused
+    ? ""
+    : way && !found
+      ? t("models.graph.noRoute", { from: focused, to: pathTo ?? "" })
+      : found
+        ? t("models.graph.routeStatus", { route: found.nodes.join(" → "), count: found.edges.length })
+        : t("models.graph.focusStatus", { name: focused, count: (around?.size ?? 1) - 1 });
+  // A box in the middle of the frame.
+  const reveal = (target: string) => {
+    const box = at.get(target);
+    const frameAt = frame.current;
+    if (!box || !frameAt) return;
+    frameAt.scrollTo?.({
+      left: Math.max(0, (box.x + BOX.width / 2 + 4) * zoom - frameAt.clientWidth / 2),
+      top: Math.max(0, (box.y + box.height / 2 + 4) * zoom - frameAt.clientHeight / 2),
+    });
+  };
+  const find = (text: string) => {
+    const wanted = text.trim().toLowerCase();
+    if (!wanted) return;
+    const match = names.find((n) => n.toLowerCase() === wanted) ?? names.find((n) => n.toLowerCase().includes(wanted));
+    if (match) {
+      setFocus(match);
+      setPathTo(undefined);
+      reveal(match);
+    }
+  };
+  // Arrow keys walk the boxes that take focus, to the nearest one that way.
+  const walk = (from: string, event: KeyboardEvent<SVGGElement>) => {
+    if (!ARROWS.includes(event.key)) return;
+    event.preventDefault();
+    const stops = placed.filter((node) => node.kind !== "enum").map((node) => ({ ...node, width: BOX.width }));
+    const next = nextBox(stops, from, event.key as Direction);
+    if (next) boxes.current.get(next.name)?.focus();
+  };
+  const keep = (node: string) => (element: SVGGElement | null) => {
+    if (element) boxes.current.set(node, element);
+    else boxes.current.delete(node);
+  };
+  const toggleFold = (from: string) =>
+    setFolded((current) => {
+      const next = new Set(current);
+      if (!next.delete(from)) next.add(from);
+      return next;
+    });
+  const jump = (point: { x: number; y: number }) => {
+    const frameAt = frame.current;
+    frameAt?.scrollTo?.({
+      left: Math.max(0, point.x * zoom - frameAt.clientWidth / 2),
+      top: Math.max(0, point.y * zoom - frameAt.clientHeight / 2),
+    });
+  };
   const stroke = (edge: GraphEdge) =>
     edge.kind === "mixin" ? "6 4" : edge.kind === "range" ? "2 3" : edge.kind === "enum" ? "1 4" : undefined;
-  const pairs = edges.filter((edge) => edge.kind === "relationship");
+  const pairs = drawn.edges.filter((edge) => edge.kind === "relationship");
   const local = new Set(placed.filter((node) => node.kind === "class" && !node.from).map((node) => node.name));
 
   const zoomTo = (next: number) => setZoom(Math.min(ZOOM.max, Math.max(ZOOM.min, next)));
@@ -301,6 +390,80 @@ export function LinkmlGraphView({
           {t("models.graph.exportMermaid")}
         </Button>
       </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-caption text-fg-muted">
+          {t("models.graph.find")}
+          <Input
+            type="search"
+            list={searchList}
+            value={query}
+            className="w-56"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              // A name picked from the list is a choice, not a keystroke: focus it at once.
+              if (names.includes(event.target.value)) find(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                find(query);
+              }
+            }}
+          />
+          <datalist id={searchList}>
+            {names.map((option) => (
+              <option key={option} value={option} />
+            ))}
+          </datalist>
+        </label>
+        {focused ? (
+          <>
+            <label className="flex flex-col gap-1 text-caption text-fg-muted">
+              {t("models.graph.hops")}
+              <Select value={String(hops)} onChange={(event) => setHops(Number(event.target.value))} className="w-36">
+                {HOPS.map((count) => (
+                  <option key={count} value={count}>
+                    {t("models.graph.hopsOption", { count })}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="flex flex-col gap-1 text-caption text-fg-muted">
+              {t("models.graph.pathTo")}
+              <Select value={pathTo ?? ""} onChange={(event) => setPathTo(event.target.value || undefined)} className="w-56">
+                <option value="">{t("models.graph.noPath")}</option>
+                {names
+                  .filter((option) => option !== focused)
+                  .map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+              </Select>
+            </label>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setFocus(undefined);
+                setPathTo(undefined);
+                setQuery("");
+              }}
+            >
+              {t("models.graph.showAll")}
+            </Button>
+          </>
+        ) : null}
+        {importNames.map((from) => (
+          <Button key={from} size="sm" variant="secondary" aria-pressed={folded.has(from)} onClick={() => toggleFold(from)}>
+            {t("models.graph.foldImport", { name: from })}
+          </Button>
+        ))}
+        <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
+      </div>
+      <p role="status" aria-live="polite" className="min-h-5 text-caption text-fg-muted">
+        {status}
+      </p>
       <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]">
         <div
           ref={frame}
@@ -309,6 +472,7 @@ export function LinkmlGraphView({
           onPointerMove={pan}
           onPointerUp={() => (drag.current = null)}
           onPointerLeave={() => (drag.current = null)}
+          onScroll={measure}
         >
           {/* `group`, not `img`: an image's contents are presentational, so the class boxes —
               which are focusable buttons — were reachable by Tab and invisible to the screen
@@ -324,7 +488,7 @@ export function LinkmlGraphView({
           >
             <Markers id={markerId} />
 
-            {edges.map((edge, index) => {
+            {drawn.edges.map((edge, index) => {
               const from = at.get(edge.from);
               const to = at.get(edge.to);
               if (!from || !to) {
@@ -339,6 +503,8 @@ export function LinkmlGraphView({
                     to={to}
                     bends={bends[index]}
                     markers={ends(edge, markerId)}
+                    faded={fadedLine(edge, index)}
+                    strong={litLines?.has(index) === true}
                     label={t("models.graph.openRelationship", {
                       name: edge.label ?? "",
                       inverse: edge.inverse ?? "",
@@ -354,12 +520,16 @@ export function LinkmlGraphView({
               const last = points[points.length - 1];
               const label = middleOf(points);
               return (
-                <g key={`${edge.kind}-${edge.from}-${edge.to}-${edge.label ?? ""}`} className="text-fg-subtle">
+                <g
+                  key={`${edge.kind}-${edge.from}-${edge.to}-${edge.label ?? ""}`}
+                  className="text-fg-subtle"
+                  opacity={fadedLine(edge, index) ? FADED : undefined}
+                >
                   <path
                     d={pathOf(points)}
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth={1}
+                    strokeWidth={litLines?.has(index) ? 2.5 : 1}
                     strokeDasharray={stroke(edge)}
                     markerStart={ends(edge, markerId).start}
                     markerEnd={ends(edge, markerId).end}
@@ -398,7 +568,7 @@ export function LinkmlGraphView({
                     rx={node.kind === "enum" ? 2 : 6}
                     className={node.kind === "enum" ? "fill-surface stroke-border" : "fill-surface-subtle stroke-border"}
                     strokeWidth={1}
-                    strokeDasharray={node.from || node.kind === "enum" ? "4 3" : undefined}
+                    strokeDasharray={node.from || node.kind !== "class" ? "4 3" : undefined}
                   />
                   <text
                     x={node.x + BOX.padding}
@@ -408,7 +578,7 @@ export function LinkmlGraphView({
                   >
                     {node.kind === "enum" ? `«enum» ${node.name}` : node.name}
                   </text>
-                  {node.from ? (
+                  {node.from && node.kind !== "import" ? (
                     <text
                       x={node.x + BOX.width - BOX.padding}
                       y={node.y + 17}
@@ -484,29 +654,43 @@ export function LinkmlGraphView({
                 ) : null;
               // An enum opens nothing, so it is not a button: a stop in the tab order that does
               // nothing when pressed is worse than none. It says what it is to a screen reader.
-              return node.kind === "enum" ? (
-                <g
-                  key={`enum-${node.name}`}
-                  role="img"
-                  aria-label={t("models.graph.enumBox", { name: node.name, values: node.slots.join(", ") })}
-                >
-                  {box}
-                </g>
-              ) : (
+              const dim = faded(node.name) ? FADED : undefined;
+              if (node.kind === "enum") {
+                return (
+                  <g
+                    key={`enum-${node.name}`}
+                    role="img"
+                    opacity={dim}
+                    aria-label={t("models.graph.enumBox", { name: node.name, values: node.slots.join(", ") })}
+                  >
+                    {box}
+                  </g>
+                );
+              }
+              // A folded import is one box; pressing it unfolds it.
+              const open = node.kind === "import" ? () => toggleFold(node.from ?? "") : () => onOpenClass?.(node.name);
+              return (
                 <Fragment key={node.name}>
                   <g
+                    ref={keep(node.name)}
                     role="button"
                     tabIndex={0}
-                    aria-label={t("models.graph.openClass", { name: node.name })}
+                    opacity={dim}
+                    aria-label={
+                      node.kind === "import"
+                        ? t("models.graph.unfoldBox", { name: node.from ?? "", names: node.slots.join(", ") })
+                        : t("models.graph.openClass", { name: node.name })
+                    }
                     // `focus-ring`, never a bare `outline-none`: the box is in the tab order, so
                     // taking its outline away left a keyboard with nothing to follow (UI-15).
                     className="focus-ring cursor-pointer"
-                    onClick={() => onOpenClass?.(node.name)}
+                    onClick={open}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        onOpenClass?.(node.name);
+                        open();
                       }
+                      walk(node.name, event);
                     }}
                   >
                     {box}
@@ -614,6 +798,8 @@ function RelationshipLine({
   to,
   bends,
   markers,
+  faded,
+  strong,
   label,
   onOpen,
 }: {
@@ -622,6 +808,10 @@ function RelationshipLine({
   to: Placed;
   bends?: Point[];
   markers: { start?: string; end?: string };
+  /** Outside the focus or the path: drawn faint. */
+  faded: boolean;
+  /** On the path: drawn bold. */
+  strong: boolean;
   label: string;
   onOpen: () => void;
 }): JSX.Element {
@@ -644,6 +834,7 @@ function RelationshipLine({
       tabIndex={0}
       aria-label={label}
       className="focus-ring cursor-pointer text-fg"
+      opacity={faded ? FADED : undefined}
       onClick={onOpen}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -654,7 +845,14 @@ function RelationshipLine({
     >
       {/* A wide transparent stroke under the line, so it can be hit with a pointer. */}
       <path d={path} fill="none" stroke="transparent" strokeWidth={12} />
-      <path d={path} fill="none" stroke="currentColor" strokeWidth={1.5} markerStart={markers.start} markerEnd={markers.end} />
+      <path
+        d={path}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={strong ? 3 : 1.5}
+        markerStart={markers.start}
+        markerEnd={markers.end}
+      />
       <text x={middle.x} y={middle.y} textAnchor="middle" fontSize={BOX.edge} className="fill-current">
         {`${edge.label ?? ""} / ${edge.inverse ?? ""}`}
       </text>
@@ -701,5 +899,67 @@ function Legend({ id }: { id: (end: End) => string }): JSX.Element {
         ))}
       </ul>
     </figure>
+  );
+}
+
+/**
+ * The whole drawing small (T-3589): every box, faded as in the drawing, and the part the frame
+ * shows. Pressing a point scrolls the frame there; the keyboard has the arrow keys and the
+ * search, so the minimap is a pointer's shortcut and hidden from assistive technology.
+ */
+function Minimap({
+  placed,
+  width,
+  height,
+  view,
+  zoom,
+  faded,
+  onJump,
+}: {
+  placed: Placed[];
+  width: number;
+  height: number;
+  view: { left: number; top: number; width: number; height: number };
+  zoom: number;
+  faded: (name: string) => boolean;
+  onJump: (point: Point) => void;
+}): JSX.Element {
+  const scale = MINIMAP / width;
+  return (
+    <svg
+      aria-hidden="true"
+      data-testid="diagram-minimap"
+      width={MINIMAP}
+      height={Math.max(24, height * scale)}
+      viewBox={`-4 -4 ${width} ${height}`}
+      className="ml-auto cursor-pointer rounded border border-border bg-surface text-fg-subtle"
+      onClick={(event) => {
+        const area = event.currentTarget.getBoundingClientRect();
+        onJump({ x: (event.clientX - area.left) / scale - 4, y: (event.clientY - area.top) / scale - 4 });
+      }}
+    >
+      {placed.map((node) => (
+        <rect
+          key={node.name}
+          x={node.x}
+          y={node.y}
+          width={BOX.width}
+          height={node.height}
+          fill="currentColor"
+          opacity={faded(node.name) ? FADED : 0.6}
+        />
+      ))}
+      {view.width > 0 ? (
+        <rect
+          x={view.left / zoom - 4}
+          y={view.top / zoom - 4}
+          width={view.width / zoom}
+          height={view.height / zoom}
+          fill="none"
+          className="stroke-primary"
+          strokeWidth={2 / scale}
+        />
+      ) : null}
+    </svg>
   );
 }
