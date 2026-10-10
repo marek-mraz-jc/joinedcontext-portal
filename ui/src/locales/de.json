@@ -882,13 +882,14 @@
       "copied": "Kopiert.",
       "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren und kopieren Sie den Text.",
       "previewTitle": "So sieht es ein Besucher",
-      "previewLead": "Ein Testlauf der veröffentlichten Seite: Senden prüft den Eintrag und schreibt nichts. Sie erscheint, sobald die Änderung zusammengeführt und angewendet ist.",
+      "previewLead": "Ein Testlauf der veröffentlichten Seite, wie ein Besucher sie sieht: Senden prüft den Eintrag und schreibt nichts. Sie erscheint, sobald die Änderung zusammengeführt und angewendet ist.",
       "previewFrame": "Vorschau des Formulars {type}",
       "testMode": "Testlauf: Senden prüft den Eintrag, fragt, ob er angenommen würde, und speichert nichts.",
       "testSubmit": "Test senden",
       "testPassed": "Der Eintrag ist gültig und würde angenommen. Nichts wurde gespeichert.",
       "testRefused": "Er würde nicht angenommen: {reason}",
-      "testNotAllowed": "dieses Formular nimmt von Besuchern keine Einträge dieses Typs an"
+      "testNotAllowed": "dieses Formular nimmt von Besuchern keine Einträge dieses Typs an",
+      "previewOpen": "Als Besucher öffnen"
     },
     "import": {
       "open": "Zeilen importieren",

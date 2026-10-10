@@ -882,13 +882,14 @@
       "copied": "Zkopírováno.",
       "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte jej.",
       "previewTitle": "Jak ho vidí návštěvník",
-      "previewLead": "Zkušební běh zveřejněné stránky: odeslání zkontroluje záznam a nic nezapíše. Zobrazí se, až je změna sloučena a nasazena.",
+      "previewLead": "Zkušební běh zveřejněné stránky, jak ji vidí návštěvník: odeslání zkontroluje záznam a nic nezapíše. Zobrazí se, až je změna sloučena a nasazena.",
       "previewFrame": "Náhled formuláře {type}",
       "testMode": "Zkušební běh: odeslání zkontroluje záznam, ověří, zda by byl přijat, a nic neuloží.",
       "testSubmit": "Odeslat zkoušku",
       "testPassed": "Záznam je platný a byl by přijat. Nic se neuložilo.",
       "testRefused": "Nebyl by přijat: {reason}",
-      "testNotAllowed": "tento formulář nepřijímá od návštěvníků záznamy tohoto typu"
+      "testNotAllowed": "tento formulář nepřijímá od návštěvníků záznamy tohoto typu",
+      "previewOpen": "Otevřít jako návštěvník"
     },
     "import": {
       "open": "Importovat řádky",

@@ -882,13 +882,14 @@
       "copied": "Copied.",
       "copyFailed": "The browser did not allow copying; select the text and copy it.",
       "previewTitle": "As a visitor sees it",
-      "previewLead": "A test run of the published page: sending checks the entry and writes nothing. It shows once the change is merged and applied.",
+      "previewLead": "A test run of the published page, as a visitor sees it: sending checks the entry and writes nothing. It shows once the change is merged and applied.",
       "previewFrame": "Preview of the {type} form",
       "testMode": "Test run: sending checks the entry and asks whether it would be accepted, and saves nothing.",
       "testSubmit": "Send a test",
       "testPassed": "The entry is valid and would be accepted. Nothing was saved.",
       "testRefused": "It would not be accepted: {reason}",
-      "testNotAllowed": "this form does not take entries of this type from visitors"
+      "testNotAllowed": "this form does not take entries of this type from visitors",
+      "previewOpen": "Open as a visitor"
     },
     "import": {
       "open": "Import rows",
