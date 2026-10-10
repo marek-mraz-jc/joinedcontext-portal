@@ -293,7 +293,7 @@ describe("the pipeline workbench", () => {
     expect(screen.getByText("2 records with 2 fields")).toBeInTheDocument();
 
     const output = step(en.pipelines.workbench.output.title);
-    const records = await within(output).findByRole("table", { name: en.pipelines.workbench.output.caption }, { timeout: 3000 });
+    const records = await within(output).findByRole("table", { name: en.pipelines.workbench.output.caption });
     const rows = within(records).getAllByRole("row");
     expect(rows).toHaveLength(3);
     // The second record breaks the model: its row names the rule and the field.
@@ -327,8 +327,6 @@ describe("the pipeline workbench", () => {
     expect(
       await within(step(en.pipelines.workbench.validation.title)).findByText(
         "1 record is valid against air 1.0.0.",
-        {},
-        { timeout: 3000 },
       ),
     ).toBeInTheDocument();
     await waitFor(() => expect(verdicts.at(-1)).toEqual({ ok: true, bloblang: MAPPING }));
@@ -386,7 +384,7 @@ describe("the pipeline workbench", () => {
     );
     show({ targetEndpoint: URN, source: { dataSourceRef: "shmu-csv" }, compute: { kind: "bloblang", bloblang: MAPPING } }, verdicts);
     expect(
-      await within(step(en.pipelines.workbench.validation.title)).findByText(/names no data model/, {}, { timeout: 3000 }),
+      await within(step(en.pipelines.workbench.validation.title)).findByText(/names no data model/),
     ).toBeInTheDocument();
     await waitFor(() => expect(verdicts.at(-1)).toEqual({ ok: true, bloblang: MAPPING }));
   });
