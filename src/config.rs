@@ -77,6 +77,12 @@ pub struct Config {
     /// T-1508). `pipeline_identity` needs it, since a stream would otherwise present an account
     /// nothing created.
     pub pipeline_namespace: Option<String>,
+    /// The identities namespace the Apps' job principals live in
+    /// (`JC_PORTAL_APP_IDENTITY_NAMESPACE`): set, the reconciler keeps one Kubernetes
+    /// ServiceAccount there per `wasm` App with jobs and gives its principal `appjob-{app}` a
+    /// federated client whose one audience is the App's Endpoint (AP-159, T-3539). Unset, no job
+    /// gets a token.
+    pub app_identity_namespace: Option<String>,
     /// The platform host the context spaces are served on, which is where a declared
     /// `Subscription` is written (`JC_PORTAL_GATEWAY_URL`,
     /// `/cs/{space}/ngsi-ld/v1/subscriptions`, T-0931). `None`
@@ -269,6 +275,7 @@ impl std::fmt::Debug for Config {
             .field("pipeline_runner_url", &self.pipeline_runner_url)
             .field("pipeline_identity", &self.pipeline_identity)
             .field("pipeline_namespace", &self.pipeline_namespace)
+            .field("app_identity_namespace", &self.app_identity_namespace)
             .field("gateway_url", &self.gateway_url)
             .field("gateway_client_id", &self.gateway_client_id)
             .field("agent_proxy_client_id", &self.agent_proxy_client_id)
@@ -1292,6 +1299,17 @@ impl Config {
                 });
             }
         }
+        let app_identity_namespace = lookup("JC_PORTAL_APP_IDENTITY_NAMESPACE")
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty());
+        if let Some(namespace) = &app_identity_namespace {
+            if jc_core::names::validate_dns1123_label(namespace).is_err() {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_APP_IDENTITY_NAMESPACE",
+                    reason: format!("`{namespace}` is not a DNS-1123 label"),
+                });
+            }
+        }
         if pipeline_identity && pipeline_namespace.is_none() {
             return Err(ConfigError::Invalid {
                 var: "JC_PORTAL_PIPELINE_IDENTITY",
@@ -1465,6 +1483,7 @@ impl Config {
             pipeline_runner_url,
             pipeline_identity,
             pipeline_namespace,
+            app_identity_namespace,
             gateway_url,
             gateway_client_id: lookup("JC_PORTAL_GATEWAY_CLIENT_ID")
                 .filter(|v| !v.trim().is_empty()),
@@ -1524,6 +1543,7 @@ impl Config {
             pipeline_runner_url: None,
             pipeline_identity: false,
             pipeline_namespace: None,
+            app_identity_namespace: None,
             gateway_url: None,
             gateway_client_id: None,
             agent_proxy_client_id: None,
@@ -1773,6 +1793,34 @@ mod tests {
             config.pipeline_namespace.as_deref(),
             Some("jc-pipeline-identities")
         );
+    }
+
+    /// AP-159 (T-3539): the Apps' identities namespace is read when set, absent when blank, and a
+    /// value that is not a DNS-1123 label stops the Portal at start-up.
+    #[test]
+    fn the_app_identity_namespace_is_a_dns_label_or_absent() {
+        let with = |value: Option<&str>| {
+            Config::from_vars(|k| match k {
+                "JC_PORTAL_APP_IDENTITY_NAMESPACE" => value.map(str::to_owned),
+                _ => None,
+            })
+        };
+        assert_eq!(with(None).expect("unset").app_identity_namespace, None);
+        assert_eq!(
+            with(Some("  ")).expect("blank").app_identity_namespace,
+            None
+        );
+        assert_eq!(
+            with(Some("jc-app-identities"))
+                .expect("set")
+                .app_identity_namespace
+                .as_deref(),
+            Some("jc-app-identities")
+        );
+        let err = with(Some("Not_A_Label"))
+            .expect_err("bad namespace")
+            .to_string();
+        assert!(err.contains("JC_PORTAL_APP_IDENTITY_NAMESPACE"), "{err}");
     }
 
     #[test]

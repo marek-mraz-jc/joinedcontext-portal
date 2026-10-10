@@ -7,7 +7,8 @@
 //! account without a workload gets nothing; a console change is written back; a client of that id
 //! this platform did not create is never touched; a managed client whose account lost its
 //! workload is deleted; and one Kubernetes subject opens one account at most, the first to hold
-//! it.
+//! it. A `wasm` App with jobs gets its job principal's client, its one audience the App's own
+//! Endpoint, and a Kubernetes ServiceAccount in the identities namespace (AP-159, T-3539).
 
 use jc_core::kinds::service_account::KubernetesBinding;
 use joinedcontext_portal::reconciler::app_clients::{audience_mapper, groups_mapper};
@@ -669,4 +670,226 @@ async fn the_pipelines_kubernetes_accounts_follow_the_pipelines() {
         .map(|r| r.url.path().to_owned())
         .collect();
     assert_eq!(deleted, vec![format!("{base}/pl-zilina-gone")]);
+}
+
+const IDENTITIES: &str = "jc-app-identities";
+
+/// A published `wasm` App of `zilina` placed on shard 0, with `jobs` as its `spec.server.jobs`.
+fn wasm_app(name: &str, jobs: Value) -> ResourceEnvelope {
+    serde_json::from_value(json!({
+        "apiVersion": API_VERSION, "kind": "App",
+        "metadata": { "name": name, "namespace": "zilina" },
+        "spec": { "kind": "wasm", "lifecycle": "published", "server": { "jobs": jobs } },
+        "status": { "shard": 0, "build": {
+            "digest": format!("sha256:{}", "b".repeat(64)), "commit": "c0ffee",
+            "sdkVersion": "1.0.0", "builtAt": "2026-10-10T00:00:00Z",
+            "component": format!("sha256:{}", "a".repeat(64)) } },
+    }))
+    .expect("an App")
+}
+
+fn hourly() -> Value {
+    json!([{ "name": "hourly", "schedule": "0 * * * *", "export": "compute-kpis" }])
+}
+
+/// The Endpoint the App reconciler writes for App `app`.
+fn app_endpoint(app: &str, slug: &str) -> ResourceEnvelope {
+    let mut endpoint = endpoint("zilina", &format!("app-{app}"), "zilina-uniza", slug);
+    endpoint.metadata.annotations.insert(
+        jc_core::annotations::GENERATED_BY.to_owned(),
+        joinedcontext_portal::apps::reconciler::GENERATOR.to_owned(),
+    );
+    endpoint
+}
+
+/// AP-159 (T-3539): with the identities namespace set, an App with jobs gets the federated client
+/// `{project}-appjob-{app}` for `appjob-{project}-{app}` there, whose one audience is the App's
+/// own Endpoint, though another Endpoint serves the same space; an App without jobs gets none,
+/// and without the namespace no App does.
+#[tokio::test]
+async fn an_apps_job_principal_gets_a_client_for_its_own_endpoint_only() {
+    let mirror = mirror_with(vec![
+        wasm_app("kpi", hourly()),
+        app_endpoint("kpi", SLUG),
+        wasm_app("notes", json!([])),
+        app_endpoint("notes", "notesslug"),
+        endpoint("zilina", "zilina-uniza", "zilina-uniza", "spaceslug"),
+    ]);
+    let keycloak = realm(json!([])).await;
+    assert!(sync(&keycloak).converge(&mirror).await.is_empty());
+    assert!(wrote(&keycloak).await.is_empty());
+
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", "zilina-appjob-kpi"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .up_to_n_times(1)
+        .mount(&keycloak)
+        .await;
+    client_lookup(
+        &keycloak,
+        "zilina-appjob-kpi",
+        json!([managed_client(
+            "uuid-aj",
+            "zilina",
+            "appjob-kpi",
+            IDENTITIES,
+            "appjob-zilina-kpi"
+        )]),
+    )
+    .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/clients")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&keycloak)
+        .await;
+    mappers(&keycloak, "uuid-aj", json!([])).await;
+
+    let outcomes = sync(&keycloak)
+        .with_app_jobs(IDENTITIES.to_owned())
+        .converge(&mirror)
+        .await;
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].app, "zilina/appjob-kpi");
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let created = bodies(&keycloak, "POST", &format!("{REALM}/clients")).await;
+    let [created] = created.as_slice() else {
+        panic!("one client: {created:?}");
+    };
+    assert_eq!(created["clientId"], "zilina-appjob-kpi");
+    assert_eq!(created["clientAuthenticatorType"], "federated-jwt");
+    assert_eq!(
+        created["attributes"]["jwt.credential.sub"],
+        format!("system:serviceaccount:{IDENTITIES}:appjob-zilina-kpi")
+    );
+    let mapped = bodies(
+        &keycloak,
+        "POST",
+        &format!("{REALM}/clients/uuid-aj/protocol-mappers/models"),
+    )
+    .await;
+    let [mapper] = mapped.as_slice() else {
+        panic!("one audience: {mapped:?}");
+    };
+    assert_eq!(mapper["config"]["included.custom.audience"], SLUG);
+}
+
+/// AP-159 (T-3539): an App that drops its jobs, or is gone, loses its job principal's client.
+#[tokio::test]
+async fn an_app_that_loses_its_jobs_loses_its_principals_client() {
+    let held = json!([managed_client(
+        "uuid-aj",
+        "zilina",
+        "appjob-kpi",
+        IDENTITIES,
+        "appjob-zilina-kpi"
+    )]);
+    for mirror in [
+        mirror_with(vec![wasm_app("kpi", json!([])), app_endpoint("kpi", SLUG)]),
+        mirror_with(vec![]),
+    ] {
+        let keycloak = realm(held.clone()).await;
+        let outcomes = sync(&keycloak)
+            .with_app_jobs(IDENTITIES.to_owned())
+            .converge(&mirror)
+            .await;
+        assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+        assert_eq!(outcomes[0].app, "zilina/appjob-kpi");
+        assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+        assert_eq!(
+            wrote(&keycloak).await,
+            vec![format!("DELETE {REALM}/clients/uuid-aj")]
+        );
+    }
+}
+
+/// One run of the Apps' ServiceAccount convergence against a cluster that lists `held` with the
+/// label: what it applied and what it deleted.
+async fn app_job_accounts_run(mirror: &Mirror, held: &[&str]) -> (Vec<Value>, Vec<String>) {
+    use joinedcontext_portal::apps::kube::KubeClient;
+    use joinedcontext_portal::reconciler::workload_clients::converge_app_job_service_accounts;
+
+    let api = MockServer::start().await;
+    let base = format!("/api/v1/namespaces/{IDENTITIES}/serviceaccounts");
+    Mock::given(method("PATCH"))
+        .and(path_regex(format!("^{base}/[^/]+$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&api)
+        .await;
+    let items: Vec<Value> = held
+        .iter()
+        .map(|name| json!({ "metadata": { "name": name } }))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(base.clone()))
+        .and(query_param(
+            "labelSelector",
+            "joinedcontext.com/app-job-identity=true",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": items })))
+        .mount(&api)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path_regex(format!("^{base}/[^/]+$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&api)
+        .await;
+
+    let kube = KubeClient::with_token(&api.uri(), "token").expect("a client");
+    let failed = converge_app_job_service_accounts(&kube, mirror, IDENTITIES).await;
+    assert!(failed.is_empty(), "{failed:?}");
+    let requests = api.received_requests().await.unwrap_or_default();
+    let applied = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "PATCH")
+        .map(|r| serde_json::from_slice(&r.body).expect("json"))
+        .collect();
+    let deleted = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "DELETE")
+        .map(|r| {
+            r.url
+                .path()
+                .trim_start_matches(&format!("{base}/"))
+                .to_owned()
+        })
+        .collect();
+    (applied, deleted)
+}
+
+/// AP-159 (T-3539): an App with jobs has its Kubernetes ServiceAccount in the identities
+/// namespace, labelled and never automounted; it goes when the App drops its jobs; an App without
+/// jobs gets none; and a ServiceAccount there without the `appjob-` prefix is never deleted,
+/// labelled or not.
+#[tokio::test]
+async fn the_apps_job_accounts_follow_the_apps_jobs() {
+    let with_jobs = mirror_with(vec![
+        wasm_app("kpi", hourly()),
+        app_endpoint("kpi", SLUG),
+        wasm_app("notes", json!([])),
+        app_endpoint("notes", "notesslug"),
+    ]);
+    let (applied, deleted) =
+        app_job_accounts_run(&with_jobs, &["appjob-zilina-kpi", "token-service"]).await;
+    let [account] = applied.as_slice() else {
+        panic!("one applied: {applied:?}");
+    };
+    assert_eq!(account["metadata"]["name"], "appjob-zilina-kpi");
+    assert_eq!(account["metadata"]["namespace"], IDENTITIES);
+    assert_eq!(
+        account["metadata"]["labels"]["joinedcontext.com/app-job-identity"],
+        "true"
+    );
+    assert_eq!(
+        account["metadata"]["annotations"]["joinedcontext.serviceaccount"],
+        "zilina/appjob-kpi"
+    );
+    assert_eq!(account["automountServiceAccountToken"], false);
+    assert!(deleted.is_empty(), "{deleted:?}");
+
+    let without_jobs = mirror_with(vec![wasm_app("kpi", json!([])), app_endpoint("kpi", SLUG)]);
+    let (applied, deleted) =
+        app_job_accounts_run(&without_jobs, &["appjob-zilina-kpi", "token-service"]).await;
+    assert!(applied.is_empty(), "{applied:?}");
+    assert_eq!(deleted, vec!["appjob-zilina-kpi".to_owned()]);
 }

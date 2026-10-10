@@ -132,6 +132,8 @@ pub struct Syncer {
     workload_clients: Option<Arc<super::workload_clients::WorkloadClientSync>>,
     /// The pipelines' own Kubernetes ServiceAccounts and the namespace they live in (PL-19).
     pipeline_service_accounts: Option<(Arc<crate::apps::kube::KubeClient>, String)>,
+    /// The Apps' job ServiceAccounts and the identities namespace they live in (AP-159).
+    app_job_service_accounts: Option<(Arc<crate::apps::kube::KubeClient>, String)>,
     /// The MCP hub client's `endpoint:{slug}` scopes (T-2490, EP-88).
     hub_scopes: Option<Arc<super::hub_scopes::HubScopeSync>>,
     /// The sign-in client of every named MCP server (EP-96, T-3156).
@@ -225,6 +227,7 @@ impl Syncer {
             app_client_secrets: Arc::default(),
             workload_clients: None,
             pipeline_service_accounts: None,
+            app_job_service_accounts: None,
             hub_scopes: None,
             mcp_clients: None,
             edge_file: None,
@@ -372,6 +375,17 @@ impl Syncer {
         namespace: impl Into<String>,
     ) -> Self {
         self.pipeline_service_accounts = Some((kube, namespace.into()));
+        self
+    }
+
+    /// Makes each run keep one Kubernetes ServiceAccount per App with jobs in the identities
+    /// `namespace`, the subject its job principal's client trusts (AP-159, T-3539).
+    pub fn with_app_job_service_accounts(
+        mut self,
+        kube: Arc<crate::apps::kube::KubeClient>,
+        namespace: impl Into<String>,
+    ) -> Self {
+        self.app_job_service_accounts = Some((kube, namespace.into()));
         self
     }
 
@@ -1145,7 +1159,8 @@ impl Syncer {
 
         // 5d'. The federated client of every ServiceAccount bound to a workload (PF-47). Nothing
         //      is read back: no secret opens such a client. A Pipeline's own account is bound
-        //      to a Kubernetes ServiceAccount the step before it keeps (PL-19).
+        //      to a Kubernetes ServiceAccount the step before it keeps (PL-19), and so is an
+        //      App's job principal (AP-159).
         if let Some((kube, namespace)) = self.pipeline_service_accounts.as_ref() {
             for failure in super::workload_clients::converge_pipeline_service_accounts(
                 kube,
@@ -1155,6 +1170,17 @@ impl Syncer {
             .await
             {
                 tracing::warn!(%namespace, %failure, "pipeline ServiceAccount did not converge");
+            }
+        }
+        if let Some((kube, namespace)) = self.app_job_service_accounts.as_ref() {
+            for failure in super::workload_clients::converge_app_job_service_accounts(
+                kube,
+                &fresh_mirror,
+                namespace,
+            )
+            .await
+            {
+                tracing::warn!(%namespace, %failure, "App job ServiceAccount did not converge");
             }
         }
         if let Some(clients) = self.workload_clients.as_ref() {
