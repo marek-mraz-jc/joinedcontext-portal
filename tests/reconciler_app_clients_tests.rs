@@ -180,7 +180,7 @@ async fn wrote(keycloak: &MockServer) -> Vec<String> {
 
 fn managed_client(uuid: &str, project: &str, name: &str) -> Value {
     // The fixtures' Apps carry no title, so the client is named after the App.
-    let mut client = desired(project, name, name, HOST);
+    let mut client = desired(project, name, name, HOST, &[]);
     client["id"] = json!(uuid);
     client
 }
