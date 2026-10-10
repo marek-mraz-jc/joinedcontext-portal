@@ -119,7 +119,7 @@ export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
     const currentMap = new Map<string, TypeData>();
 
     let completed = 0;
-    const promises = types.map(async (tName) => {
+    const load = async (tName: string) => {
       try {
         const rows = await client.entities.all(tName);
         if (cancelled) return;
@@ -137,7 +137,14 @@ export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
           setLoadedCount(completed);
         }
       }
-    });
+    };
+    // Two types at a time: every type at once is a burst of paged reads that ran into the
+    // gateway's rate limit on dev (429 on three of thirteen types, T-3578).
+    const queue = [...types];
+    const reader = async () => {
+      for (let next = queue.shift(); next !== undefined && !cancelled; next = queue.shift()) await load(next);
+    };
+    const promises = [reader(), reader()];
 
     void Promise.all(promises).then(() => {
       if (!cancelled) {
