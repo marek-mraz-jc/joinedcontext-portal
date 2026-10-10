@@ -53,7 +53,11 @@ impl Driver {
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
         self.status(AgentRunStatus::Starting).await?;
-        let mut files = preview::template_files();
+        let mut files = if self.wasm {
+            preview::wasm_template_files()
+        } else {
+            preview::template_files()
+        };
         // A look of its own, inside the branding and unlike the project's other Apps (AP-123).
         let others: Vec<String> = self
             .state
@@ -680,6 +684,11 @@ impl Driver {
             .filter(|(path, _)| path.as_str() != code::TYPES)
             .chain(types)
         {
+            // The lock is the template's and never the model's: its name is enough.
+            if path.ends_with("Cargo.lock") {
+                named.push(path.as_str());
+                continue;
+            }
             let fence = path.rsplit('.').next().unwrap_or("text");
             match code::shown(path, content, &template) {
                 code::Shown::Whole => {
@@ -696,6 +705,10 @@ impl Driver {
                 "Unchanged template tests and styles, not shown and left as they are: {}\n",
                 named.join(", ")
             ));
+        }
+        pack.push_str(&code::services_section(crate::ops::runs::SERVICES_CATALOG));
+        if files.contains_key(code::SERVER_MANIFEST) {
+            pack.push_str(code::SERVER_SECTION);
         }
         // The example of the request's kind, for writing and completing; a repair stays on its problems.
         if matches!(fix, None | Some(Fix::Complete)) {

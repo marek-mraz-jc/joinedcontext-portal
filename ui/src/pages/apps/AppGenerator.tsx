@@ -34,10 +34,11 @@ export const BLUEPRINT = "app-from-prompt";
 
 /**
  * `spec.kind` of the App the blueprint writes (AP-124). `ui` is the kit pass, a dashboard inside a
- * minute from one model call (AP-56); `ui-rust` is what the workspace builds (AP-25). `ui-node` is
- * not offered until the shape is built (AP-125).
+ * minute from one model call (AP-56); `ui-rust` is what the workspace builds (AP-25); `wasm` is the
+ * kit pass with a Rust server component on the shared host and a table of its own (T-3575).
+ * `ui-node` is not offered until the shape is built (AP-125).
  */
-export const APP_KINDS = ["ui", "ui-rust"] as const;
+export const APP_KINDS = ["ui", "ui-rust", "wasm"] as const;
 export type AppKind = (typeof APP_KINDS)[number];
 
 /** The two apps that ship with the platform, for a deployment with no builder to point at. */

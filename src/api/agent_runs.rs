@@ -74,6 +74,8 @@ const PROMPT_DIGEST_ANNOTATION: &str = "joinedcontext.com/prompt-digest";
 /// `Architecture/16` writes into its worked examples.
 const RUST_TOOLCHAIN: &str = "1.90";
 const NODE_TOOLCHAIN: &str = "22";
+/// The SQL quota of a generated `wasm` App's own schema, as the reference server Apps keep (AP-148).
+const WASM_SQL_QUOTA_MIB: u32 = 100;
 
 /// The `: keep-alive` comment interval of the event stream, short enough for an edge's read
 /// timeout to never see an idle stream.
@@ -95,7 +97,7 @@ pub struct CreateRunRequest {
     /// Which `AgentProfile` runs. Defaults to the builder profile the platform ships.
     #[serde(default = "default_profile")]
     pub profile: String,
-    /// `ui` or `ui-rust`, as the `App` kind spells them (AP-124); `static` and `fullstack` are
+    /// `ui`, `ui-rust` or `wasm`, as the `App` kind spells them (AP-124, T-3575); `static` and `fullstack` are
     /// read as them for one release, and `ui-node` is refused until it is built.
     pub app_class: String,
     /// Who may reach the published application. `public` is refused (AP-42).
@@ -661,9 +663,13 @@ pub async fn create_run(
     )
     .await?;
 
-    // A `ui` application is driven by the Portal itself, in this process (code on the SDK), and
-    // the ticket stays with the driver (AP-56, AG-54). The workspace Job is what `ui-rust` gets.
-    if app_class == jc_core::kinds::AppClass::Ui {
+    // A `ui` application, and a `wasm` one with its server half (T-3575), is driven by the Portal
+    // itself, in this process (code on the SDK), and the ticket stays with the driver (AP-56,
+    // AG-54). The workspace Job is what `ui-rust` gets.
+    if matches!(
+        app_class,
+        jc_core::kinds::AppClass::Ui | jc_core::kinds::AppClass::Wasm
+    ) {
         oneshot::spawn(
             state.clone(),
             &run,
@@ -2418,6 +2424,13 @@ fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value 
             .map(Vec::as_slice)
             .unwrap_or_default(),
     );
+    // The server half keeps its table in the App's own schema, which the template's migration
+    // creates (AP-148, T-3575).
+    if jc_core::kinds::AppClass::parse(&run.app_class) == Ok(jc_core::kinds::AppClass::Wasm) {
+        manifest["spec"]["storage"] = serde_json::json!({
+            "sql": { "migrations": "migrations", "quotaMiB": WASM_SQL_QUOTA_MIB },
+        });
+    }
     if !roles.is_empty() {
         manifest["spec"]["roles"] = roles
             .into_iter()
@@ -2976,6 +2989,10 @@ mod tests {
     }
 
     fn published(data_needs: serde_json::Value) -> serde_json::Value {
+        published_as("static", data_needs)
+    }
+
+    fn published_as(class: &str, data_needs: serde_json::Value) -> serde_json::Value {
         let mut run: super::AgentRun = serde_json::from_value(serde_json::json!({
             "id": "e3b0c442", "project": "helsinki", "appName": "alerts-desk",
             "endpointName": "helsinki-alerts", "endpointSlug": "si6epqkx",
@@ -2989,6 +3006,7 @@ mod tests {
         }))
         .unwrap_or_else(|e| panic!("run fixture: {e}"));
         run.data_needs = data_needs;
+        run.app_class = class.to_owned();
         app_manifest(
             &run,
             serde_json::json!({ "git": { "url": "https://git.example/hel/alerts-desk.git", "ref": "0123456789abcdef0123456789abcdef01234567" } }),
@@ -3002,6 +3020,27 @@ mod tests {
             "operations": ["queryEntity", "updateAttrs"],
             "roles": roles,
         })
+    }
+
+    /// T-3575, AP-148, AP-151: a generated `wasm` App publishes with both toolchains and its own
+    /// schema from the template's migrations, and jc-core accepts it; a `ui` App gets neither.
+    #[test]
+    fn a_wasm_run_publishes_an_app_with_its_schema_and_both_toolchains() {
+        let manifest = published_as("wasm", serde_json::json!([need(&[])]));
+        assert_eq!(manifest["spec"]["kind"], "wasm");
+        assert_eq!(
+            manifest["spec"]["build"],
+            serde_json::json!({ "rust": crate::api::agent_runs::RUST_TOOLCHAIN, "node": crate::api::agent_runs::NODE_TOOLCHAIN })
+        );
+        assert_eq!(
+            manifest["spec"]["storage"],
+            serde_json::json!({ "sql": { "migrations": "migrations", "quotaMiB": 100 } })
+        );
+        let checked = jc_core::registry::validate_yaml("App", &manifest.to_string())
+            .unwrap_or_else(|| panic!("App has a jc-core type"));
+        assert!(checked.is_ok(), "{checked:?}");
+        let ui = published_as("ui", serde_json::json!([need(&[])]));
+        assert!(ui["spec"].get("storage").is_none(), "{ui}");
     }
 
     #[test]

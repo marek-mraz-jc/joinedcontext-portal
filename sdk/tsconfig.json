@@ -36,6 +36,8 @@
     "src",
     "tests",
     "template/src",
+    "template-wasm/src",
+    "examples/services",
     "template/functions"
   ]
 }

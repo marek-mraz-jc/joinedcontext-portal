@@ -22,6 +22,9 @@ const BUILD_FOLDER: &str = ".gitea/";
 
 /// The workflow every application repository carries, as the SDK template holds it.
 pub const WORKFLOW_TEXT: &str = include_str!("../../sdk/template/.gitea/workflows/build.yml");
+/// The workflow of a `wasm` App, on the runner with the Rust toolchain (T-3575, AP-151).
+pub const WASM_WORKFLOW_TEXT: &str =
+    include_str!("../../sdk/template-wasm/.gitea/workflows/build.yml");
 
 /// Why a run commit cannot land, when it would touch the application's build (AP-100); `None`
 /// when it may. The first commit of a run carries the template's workflow and nothing else under
@@ -47,7 +50,7 @@ pub fn build_refusal(
             return refused(path);
         }
         return match files.get(WORKFLOW) {
-            Some(text) if text != WORKFLOW_TEXT => refused(WORKFLOW),
+            Some(text) if text != WORKFLOW_TEXT && text != WASM_WORKFLOW_TEXT => refused(WORKFLOW),
             _ => None,
         };
     }
@@ -79,11 +82,13 @@ pub fn name_refusal(project: &str, app: &str) -> Option<String> {
 }
 
 /// Whether runs of this class and kind commit to the application's own repository: a `ui`
-/// application (`static` before AP-124), which the Portal writes itself. A workspace run reaches the forge only through
+/// application (`static` before AP-124) or a `wasm` one (T-3575), which the Portal writes itself. A workspace run reaches the forge only through
 /// the proxy's `/v1/forge` route, whose rules name the configuration repository's folder.
 pub fn owns_repository(app_class: &str, kind: &str) -> bool {
-    jc_core::kinds::AppClass::parse(app_class) == Ok(jc_core::kinds::AppClass::Ui)
-        && kind == "application"
+    matches!(
+        jc_core::kinds::AppClass::parse(app_class),
+        Ok(jc_core::kinds::AppClass::Ui | jc_core::kinds::AppClass::Wasm)
+    ) && kind == "application"
 }
 
 impl AgentRun {
