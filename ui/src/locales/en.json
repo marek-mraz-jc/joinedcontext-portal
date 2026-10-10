@@ -4768,6 +4768,15 @@
         "prohibited": "A prohibition refuses this action, ahead of every grant.",
         "no_grant": "No Policy grants this action.",
         "not_admitted": "The Endpoint does not admit this caller at all."
+      },
+      "hints": {
+        "endpoint": "The Endpoint whose Policies are tried.",
+        "kind": "A person, a member of a group or role, a ServiceAccount, or anyone.",
+        "search": "Part of a name or an email address.",
+        "person": "The person the gateway decides for.",
+        "account": "One of this project's ServiceAccounts.",
+        "name": "The name as the realm spells it.",
+        "action": "The NGSI-LD operation the call would make."
       }
     }
   },

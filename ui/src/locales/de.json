@@ -4768,6 +4768,15 @@
         "prohibited": "Ein Verbot lehnt diese Aktion vor jeder Erlaubnis ab.",
         "no_grant": "Keine Policy erlaubt diese Aktion.",
         "not_admitted": "Der Endpoint lässt diesen Aufrufer überhaupt nicht zu."
+      },
+      "hints": {
+        "endpoint": "Der Endpoint, dessen Policies geprüft werden.",
+        "kind": "Eine Person, ein Mitglied einer Gruppe oder Rolle, ein ServiceAccount oder jeder.",
+        "search": "Ein Teil des Namens oder der E-Mail-Adresse.",
+        "person": "Die Person, für die das Gateway entscheidet.",
+        "account": "Einer der ServiceAccounts dieses Projekts.",
+        "name": "Der Name, wie der Realm ihn schreibt.",
+        "action": "Die NGSI-LD-Operation, die der Aufruf ausführen würde."
       }
     }
   },

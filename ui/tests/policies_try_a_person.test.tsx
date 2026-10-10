@@ -10,6 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
+import { TryAPerson } from "../src/pages/policies/TryAPerson";
 
 const LIST = (items: unknown[]) => ({
   apiVersion: "joinedcontext.com/v1alpha1",
@@ -220,5 +221,25 @@ describe("Try a person (T-3311)", () => {
     expect(sent.some((s) => s.path === "/api/v1/organization/people")).toBe(
       false,
     );
+  });
+
+  it("renders nothing on its own for a non-administrator, whatever page holds it", async () => {
+    const sent = stub(false, { status: 200, body: {} });
+    const { container } = render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <I18nextProvider i18n={i18n}>
+          <TryAPerson project="helsinki" />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() =>
+      expect(sent.some((s) => s.path.endsWith("/permissions/me"))).toBe(true),
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(sent.some((s) => s.path.endsWith("/endpoints"))).toBe(false);
   });
 });

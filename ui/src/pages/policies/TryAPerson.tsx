@@ -166,6 +166,7 @@ function Panel({ project }: { project: string }): JSX.Element {
         <Field
           id={`${id}-endpoint`}
           label={t("policies.try.endpoint")}
+          help={t("policies.try.hints.endpoint")}
           required
         >
           <Select
@@ -184,7 +185,12 @@ function Panel({ project }: { project: string }): JSX.Element {
             ))}
           </Select>
         </Field>
-        <Field id={`${id}-kind`} label={t("policies.try.kind")} required>
+        <Field
+          id={`${id}-kind`}
+          label={t("policies.try.kind")}
+          help={t("policies.try.hints.kind")}
+          required
+        >
           <Select
             id={`${id}-kind`}
             value={kind}
@@ -199,7 +205,11 @@ function Panel({ project }: { project: string }): JSX.Element {
         </Field>
         {kind === "person" ? (
           <>
-            <Field id={`${id}-search`} label={t("policies.try.search")}>
+            <Field
+              id={`${id}-search`}
+              label={t("policies.try.search")}
+              help={t("policies.try.hints.search")}
+            >
               <Input
                 id={`${id}-search`}
                 type="search"
@@ -211,6 +221,7 @@ function Panel({ project }: { project: string }): JSX.Element {
             <Field
               id={`${id}-person`}
               label={t("policies.try.person")}
+              help={t("policies.try.hints.person")}
               required
             >
               <Select
@@ -234,6 +245,7 @@ function Panel({ project }: { project: string }): JSX.Element {
           <Field
             id={`${id}-account`}
             label={t("policies.try.kinds.serviceAccount")}
+            help={t("policies.try.hints.account")}
             required
           >
             <Select
@@ -256,6 +268,7 @@ function Panel({ project }: { project: string }): JSX.Element {
           <Field
             id={`${id}-name`}
             label={t(`policies.try.kinds.${kind}`)}
+            help={t("policies.try.hints.name")}
             required
           >
             <Input
@@ -267,7 +280,12 @@ function Panel({ project }: { project: string }): JSX.Element {
             />
           </Field>
         ) : null}
-        <Field id={`${id}-action`} label={t("policies.try.action")} required>
+        <Field
+          id={`${id}-action`}
+          label={t("policies.try.action")}
+          help={t("policies.try.hints.action")}
+          required
+        >
           <Select
             id={`${id}-action`}
             value={action}
@@ -296,7 +314,7 @@ function Panel({ project }: { project: string }): JSX.Element {
         <div className="sm:col-span-2">
           <Button
             type="submit"
-            variant="primary"
+            variant="secondary"
             disabled={missing}
             loading={ask.isPending}
           >
