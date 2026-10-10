@@ -256,6 +256,8 @@ describe("alerts-heatmap", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Raportti tallennettu: Ilman kuvaa. Karttakuvaa ei voitu ottaa.");
     expect(server.pictures.size).toBe(0);
     expect(screen.queryByRole("button", { name: "Avaa raportin Ilman kuvaa karttakuva" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Näytä raportti Ilman kuvaa" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Näytetään raportti Ilman kuvaa.");
   });
 
   it("says why a report was not saved, and why its picture did not open", async () => {
@@ -278,6 +280,28 @@ describe("alerts-heatmap", () => {
     await user.type(screen.getByLabelText("Raportin nimi"), "Uusi");
     await user.click(screen.getByRole("button", { name: "Tallenna näkymä" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Raportti tallennettu: Uusi. Karttakuvaa ei voitu ottaa.");
+    await user.click(screen.getByRole("button", { name: "Näytä raportti Vanha" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Näytetään raportti Vanha.");
+    await user.click(screen.getByRole("button", { name: "Näytä raportti Uusi" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Näytetään raportti Uusi.");
+  });
+
+  it("saves a report in English", async () => {
+    window.history.replaceState(null, "", "/?lang=en");
+    const server = fakeServer();
+    show(undefined, server);
+    const user = userEvent.setup();
+    await screen.findByText(/ alerts from /);
+    await user.type(screen.getByLabelText("Report name"), "Mondays");
+    await user.click(screen.getByRole("button", { name: "Save this view" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Report saved: Mondays.");
+    expect(server.saved[0]?.view).toBe("lang=en");
+    await user.click(screen.getByRole("button", { name: "Show the report Mondays" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Showing the report Mondays.");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    await user.click(screen.getByRole("button", { name: "Open the map picture of Mondays" }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://store.test/apps/0/x/reports/1/map.png", "_blank", "noopener"));
+    open.mockRestore();
   });
 
   it("lists the weeks the server keeps, the newest first, and says when they are as last kept", async () => {
