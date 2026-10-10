@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, currentTokens, Empty, Loading, Page, ProblemError, Split, useClient, useEntities, useEntitySelection } from "@joinedcontext/sdk";
-import type { TemporalRow } from "@joinedcontext/sdk";
+import { Card, currentTokens, Empty, Loading, Page, ProblemError, Split, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import { computeAnalysis, strength, strongest } from "../analysis";
 import type { Analysis, Pair } from "../analysis";
 import { ChartCard } from "../components/ChartCard";
+import { Keep, problemText } from "../components/Keep";
 import { MapView } from "../components/MapView";
 import type { MapPoint } from "../components/MapView";
 import { localeOf, number, useLang, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
-import { AIR, nearest, PLACE_ATTRS, POLLUTANTS, readingsOf, stationsOf, VARIABLES, WEATHER } from "../stations";
+import { airApi, apiBase, isCode, ServerProblem } from "../server";
+import type { AirApi, Series } from "../server";
+import { AIR, localOf, nearest, PLACE_ATTRS, POLLUTANTS, stationsOf, VARIABLES, WEATHER } from "../stations";
 import type { Pollutant, Variable } from "../stations";
 import { t } from "../texts";
 import { useParam } from "../url";
 
-const HOUR = 3_600_000;
 /** The periods a reader may compare over, in days; the data need's history window is 7 days. */
 export const PERIODS = [1, 3, 7] as const;
 /** The rolling windows a reader may smooth with, in hours. */
@@ -119,7 +120,7 @@ function timeChart(analysis: Analysis, air: string, weather: string, lang: Lang)
 }
 
 function unreadable(error: Error, lang: Lang): string {
-  return error instanceof ProblemError && error.status > 0 ? t(lang, "unreadable", { status: error.status }) : t(lang, "offline");
+  return (error instanceof ProblemError || error instanceof ServerProblem) && error.status > 0 ? t(lang, "unreadable", { status: error.status }) : t(lang, "offline");
 }
 
 /**
@@ -129,9 +130,9 @@ function unreadable(error: Error, lang: Lang): string {
  * pair's hours on one chart with its outliers. The statistics run in the WebAssembly module in a
  * worker, again on every change of station, period or smoothing; every choice is in the address.
  */
-export function Explore() {
+export function Explore({ server }: { server?: AirApi } = {}) {
   const lang = useLang();
-  const client = useClient();
+  const api = useMemo(() => server ?? airApi(apiBase()), [server]);
   const airRows = useEntities(AIR, useMemo(() => ({ attrs: PLACE_ATTRS }), []));
   const weatherRows = useEntities(WEATHER, useMemo(() => ({ attrs: PLACE_ATTRS }), []));
   const airStations = useMemo(() => stationsOf(airRows.rows), [airRows.rows]);
@@ -148,22 +149,58 @@ export function Explore() {
   const station = airStations.find((s) => s.local === stationText) ?? airStations[0];
   const near = nearest(station, weatherStations);
   const weather = weatherStations.find((s) => s.local === weatherText) ?? near?.station;
+  const stationId = station?.id;
+  const weatherId = weather?.id;
 
-  const [now] = useState(() => Date.now());
-  const [history, setHistory] = useState<{ air: TemporalRow[]; weather: TemporalRow[] } | null>(null);
+  // A saved comparison, `?compare=<code>`: its choices put into the address, then the code
+  // dropped, so a reload keeps them and the reader's own changes stay theirs (T-3348).
+  const [compareCode, setCompare] = useParam("compare");
+  const [compareNote, setCompareNote] = useState<{ text: string; error: boolean } | null>(null);
+  useEffect(() => {
+    if (!compareCode) return;
+    if (!isCode(compareCode)) {
+      setCompareNote({ text: t(lang, "compareGone"), error: true });
+      setCompare("");
+      return;
+    }
+    let current = true;
+    setCompareNote({ text: t(lang, "opening"), error: false });
+    api
+      .open(compareCode)
+      .then((saved) => {
+        if (!current) return;
+        setStation(localOf(saved.station));
+        setWeather(localOf(saved.weather));
+        setDays(String(saved.days));
+        setWindow(String(saved.smoothing));
+        setAir(saved.air ?? "");
+        setVariable(saved.variable ?? "");
+        setCompareNote({ text: saved.name ? t(lang, "opened", { name: saved.name }) : t(lang, "openedUnnamed"), error: false });
+      })
+      .catch((error: unknown) => {
+        if (current) setCompareNote({ text: problemText(lang, error, "openFailed"), error: true });
+      })
+      .finally(() => {
+        if (current) setCompare("");
+      });
+    return () => {
+      current = false;
+    };
+  }, [compareCode, api, lang, setCompare, setStation, setWeather, setDays, setWindow, setAir, setVariable]);
+
+  // The two stations' hourly means, from the App's server, which keeps them (T-3348).
+  const [history, setHistory] = useState<Series | null>(null);
   const [historyError, setHistoryError] = useState<Error | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    if (!stationId || !weatherId) return;
     let current = true;
-    const timeAt = new Date(now - days * 24 * HOUR).toISOString().replace(/\.\d{3}Z$/, "Z");
     setHistory(null);
-    Promise.all([
-      client.temporal.list(AIR, { attrs: [...POLLUTANTS], timerel: "after", timeAt }),
-      client.temporal.list(WEATHER, { attrs: [...VARIABLES], timerel: "after", timeAt }),
-    ])
-      .then(([air, weatherHistory]) => {
+    api
+      .series(stationId, weatherId, days)
+      .then((series) => {
         if (!current) return;
-        setHistory({ air, weather: weatherHistory });
+        setHistory(series);
         setHistoryError(null);
       })
       .catch((error: unknown) => {
@@ -172,21 +209,17 @@ export function Explore() {
     return () => {
       current = false;
     };
-  }, [client, days, now, attempt]);
+  }, [api, stationId, weatherId, days, attempt]);
 
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => {
-    if (!history || !station || !weather) {
+    if (!history) {
       setAnalysis(null);
       return;
     }
     let current = true;
-    computeAnalysis({
-      air: readingsOf(history.air, station.id, POLLUTANTS),
-      weather: readingsOf(history.weather, weather.id, VARIABLES),
-      settings: { window: smoothing },
-    })
+    computeAnalysis({ air: history.air, weather: history.weather, settings: { window: smoothing } })
       .then((result) => {
         if (!current) return;
         setAnalysis(result);
@@ -198,7 +231,7 @@ export function Explore() {
     return () => {
       current = false;
     };
-  }, [history, station, weather, smoothing]);
+  }, [history, smoothing]);
 
   const best = analysis ? strongest(analysis.pairs) : null;
   const air = isPollutant(airText) && analysis?.air.some((s) => s.name === airText) ? airText : (best?.air ?? analysis?.air[0]?.name ?? "");
@@ -252,7 +285,8 @@ export function Explore() {
   };
 
   const error = airRows.error ?? weatherRows.error ?? historyError;
-  const reading = (airRows.loading && airRows.rows.length === 0) || (weatherRows.loading && weatherRows.rows.length === 0) || (!history && !error);
+  const reading =
+    (airRows.loading && airRows.rows.length === 0) || (weatherRows.loading && weatherRows.rows.length === 0) || (Boolean(stationId && weatherId) && !history && !error);
   const retry = () => {
     airRows.reload();
     weatherRows.reload();
@@ -263,6 +297,11 @@ export function Explore() {
 
   return (
     <Page label={t(lang, "page")}>
+      {compareNote && (
+        <p role={compareNote.error ? "alert" : "status"} className={compareNote.error ? "app-error" : "app-lead"}>
+          {compareNote.text}
+        </p>
+      )}
       {error && (
         <div className="jc-problem" role="alert">
           <strong>{unreadable(error, lang)}</strong>
@@ -370,6 +409,15 @@ export function Explore() {
           </button>
         )}
       </div>
+      <Keep
+        lang={lang}
+        api={api}
+        comparison={
+          stationId && weatherId
+            ? { station: stationId, weather: weatherId, days, smoothing, air: isPollutant(air) ? air : null, variable: isVariable(variable) ? variable : null }
+            : null
+        }
+      />
       <ChartCard
         title={t(lang, "series", { air: air ? t(lang, air as Pollutant) : "–", weather: variable ? t(lang, variable as Variable) : "–" })}
         option={error ? null : series}

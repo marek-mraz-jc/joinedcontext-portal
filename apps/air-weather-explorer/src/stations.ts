@@ -1,5 +1,5 @@
 import { format, pointOf } from "@joinedcontext/sdk";
-import type { Row, TemporalRow } from "@joinedcontext/sdk";
+import type { Row } from "@joinedcontext/sdk";
 
 /** The two entity types the app's data needs name (AP-04). */
 export const AIR = "AirQualityObserved";
@@ -53,22 +53,4 @@ export function nearest(to: Station | undefined, weather: Station[]): { station:
     if (best.km === null || km < best.km) best = { station, km };
   }
   return best;
-}
-
-/** One station's history as the analysis reads it: each attribute's numeric readings as `[ms, value]`. */
-export function readingsOf(history: TemporalRow[], id: string, attrs: readonly string[]): Record<string, Array<[number, number]>> {
-  const row = history.find((entry) => entry.id === id);
-  const out: Record<string, Array<[number, number]>> = {};
-  for (const attr of attrs) {
-    const points: Array<[number, number]> = [];
-    for (const point of row?.series[attr] ?? []) {
-      const at = Date.parse(point.observedAt);
-      if (typeof point.value === "number" && Number.isFinite(point.value) && !Number.isNaN(at)) {
-        // Humidity is stored as a share; people read it in per cent.
-        points.push([at, attr === "relativeHumidity" ? point.value * 100 : point.value]);
-      }
-    }
-    if (points.length > 0) out[attr] = points;
-  }
-  return out;
 }

@@ -1,0 +1,161 @@
+{
+  "gateway": [
+    {
+      "path": "/ngsi-ld/v1/temporal/entities",
+      "query": {
+        "type": "AirQualityObserved",
+        "id": "urn:ngsi-ld:AirQualityObserved:hsy:kallio-2"
+      },
+      "file": "host-test/air.json"
+    },
+    {
+      "path": "/ngsi-ld/v1/temporal/entities",
+      "query": {
+        "type": "WeatherObserved",
+        "id": "urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi"
+      },
+      "file": "host-test/weather.json"
+    },
+    {
+      "path": "/ngsi-ld/v1/temporal/entities",
+      "query": {
+        "type": "AirQualityObserved",
+        "id": "urn:ngsi-ld:AirQualityObserved:hsy:none"
+      },
+      "file": "host-test/none.json"
+    }
+  ],
+  "steps": [
+    {
+      "call": "GET /api/series?air=urn:ngsi-ld:WeatherObserved:x&weather=urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi",
+      "status": 400
+    },
+    {
+      "call": "GET /api/series?air=urn:ngsi-ld:AirQualityObserved:hsy:kallio-2&weather=urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi&days=2",
+      "status": 400
+    },
+    {
+      "call": "GET /api/series?air=urn:ngsi-ld:AirQualityObserved:hsy:none&weather=urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi",
+      "status": 404
+    },
+    {
+      "call": "GET /api/series?air=urn:ngsi-ld:AirQualityObserved:hsy:kallio-2&weather=urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi&days=7",
+      "status": 200,
+      "expect": {
+        "/air/pm25/0": [
+          1893456000000,
+          5.0
+        ],
+        "/air/pm25/2": [
+          1893463200000,
+          9.0
+        ],
+        "/air/airQualityIndex/0": [
+          1893456000000,
+          2.0
+        ],
+        "/weather/relativeHumidity/0": [
+          1893456000000,
+          75.0
+        ],
+        "/weather/windSpeed/1": [
+          1893459600000,
+          2.0
+        ]
+      },
+      "length": {
+        "/air/pm25": 3,
+        "/air/airQualityIndex": 1,
+        "/weather/windSpeed": 3
+      }
+    },
+    {
+      "call": "GET /api/series?air=urn:ngsi-ld:AirQualityObserved:hsy:kallio-2&weather=urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi&days=1",
+      "status": 200,
+      "length": {
+        "/air/pm25": 3
+      }
+    },
+    {
+      "call": "POST /api/exports",
+      "body": {
+        "air": "urn:ngsi-ld:AirQualityObserved:hsy:kallio-2",
+        "weather": "urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi",
+        "days": 7
+      },
+      "status": 201,
+      "download": "/url",
+      "downloaded": "hour_utc,pm10,pm25,airQualityIndex,temperature,windSpeed,relativeHumidity,precipitation\n2030-01-01T00:00:00Z,,5,2,,3.5,75,\n"
+    },
+    {
+      "call": "POST /api/exports",
+      "body": {
+        "air": "urn:ngsi-ld:AirQualityObserved:hsy:kallio-2",
+        "weather": "urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi",
+        "days": 5
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/comparisons",
+      "body": {
+        "name": "Kallio and the wind",
+        "station": "urn:ngsi-ld:AirQualityObserved:hsy:kallio-2",
+        "weather": "urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi",
+        "days": 7,
+        "smoothing": 3,
+        "air": "pm25",
+        "variable": "windSpeed"
+      },
+      "status": 201,
+      "expect": {
+        "/name": "Kallio and the wind"
+      },
+      "save": {
+        "code": "/code"
+      }
+    },
+    {
+      "call": "POST /api/comparisons",
+      "body": {
+        "station": "urn:ngsi-ld:AirQualityObserved:hsy:kallio-2",
+        "weather": "urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi",
+        "days": 2,
+        "smoothing": 3
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/comparisons",
+      "body": {
+        "station": "urn:ngsi-ld:AirQualityObserved:hsy:kallio-2",
+        "weather": "urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi",
+        "days": 3,
+        "smoothing": 3,
+        "colour": "red"
+      },
+      "status": 400
+    },
+    {
+      "call": "GET /api/comparisons/{code}",
+      "status": 200,
+      "expect": {
+        "/station": "urn:ngsi-ld:AirQualityObserved:hsy:kallio-2",
+        "/weather": "urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi",
+        "/days": 7,
+        "/smoothing": 3,
+        "/air": "pm25",
+        "/variable": "windSpeed"
+      }
+    },
+    {
+      "call": "GET /api/comparisons/{code}",
+      "as": "second",
+      "status": 404
+    },
+    {
+      "call": "GET /api/comparisons/ABCDEF123456",
+      "status": 404
+    }
+  ]
+}

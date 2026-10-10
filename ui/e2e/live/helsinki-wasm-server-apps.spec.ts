@@ -102,3 +102,37 @@ test("event-day-planner shares a picked day under a link that opens it again, wi
   await expect.poll(() => new URL(page.url()).searchParams.get("pick")).toBe(picked);
   expect(new URL(page.url()).searchParams.get("share")).toBeNull();
 });
+
+test("air-weather-explorer answers from the hours its server keeps, and a saved comparison opens again from its link", async ({ browser, page }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+  try {
+    await expectPublishedAsWasm(steward.page, "air-weather-explorer");
+  } finally {
+    await steward.context.close();
+  }
+  // A public App: an anonymous visitor.
+  const app = `${APPS_URL}/apps/air-weather-explorer/`;
+  const series = page.waitForResponse((response) => response.url().includes("/apps/air-weather-explorer/api/series"), { timeout: 120_000 });
+  await page.goto(`${app}?lang=en&days=3&window=6`, { waitUntil: "domcontentloaded" });
+  expect((await series).status()).toBe(200);
+  const answer = page.getByRole("region", { name: "The answer" });
+  await expect(answer).toHaveText(/(rises|falls) as .* rises|hardly moves with|Too few common hours|No measurements in the chosen period/, { timeout: 120_000 });
+
+  const exported = page.waitForResponse((response) => response.url().endsWith("/apps/air-weather-explorer/api/exports"));
+  await page.getByRole("button", { name: "Export the hours (CSV)" }).click();
+  const csv = await page.request.get(((await (await exported).json()) as { url: string }).url);
+  expect(csv.status()).toBe(200);
+  expect(await csv.text()).toMatch(/^# air quality station: urn:ngsi-ld:AirQualityObserved:/);
+
+  await page.goto(`${app}?lang=en&days=3&window=6`, { waitUntil: "domcontentloaded" });
+  await page.getByLabel("Name of the comparison (optional)").fill(`e2e T-3348 ${Date.now()}`);
+  await page.getByRole("button", { name: "Save the comparison" }).click();
+  const link = page.getByLabel("Link to the comparison");
+  await expect(link).toHaveValue(/\?compare=[a-z0-9]{12}$/, { timeout: 60_000 });
+  const shared = await link.inputValue();
+
+  await page.goto(shared, { waitUntil: "domcontentloaded" });
+  await expect(page.getByText(/^Saved comparison opened: e2e T-3348 \d+\.$/)).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => new URL(page.url()).searchParams.get("window")).toBe("6");
+  expect(new URL(page.url()).searchParams.get("compare")).toBeNull();
+});
