@@ -239,8 +239,9 @@ classes:
     expect(cycled.every((node) => node.depth <= cycled.length)).toBe(true);
   });
 
-  it("lays a row per depth out and gives every box a place of its own", () => {
-    const placed = place(graphData(parseModel(source)).nodes);
+  it("puts a parent above its child and gives every box a place of its own", () => {
+    const { nodes, edges } = graphData(parseModel(source));
+    const { placed } = place(nodes, edges);
     const vehicle = placed.find((node) => node.name === "Vehicle");
     const thing = placed.find((node) => node.name === "Thing");
     expect(vehicle && thing && vehicle.y > thing.y).toBe(true);

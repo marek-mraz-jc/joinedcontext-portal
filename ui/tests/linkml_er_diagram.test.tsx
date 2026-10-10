@@ -173,7 +173,8 @@ classes:
     expect(onAddRelationship).toHaveBeenCalledExactlyOnceWith("School");
   });
 
-  it("opens the Add relationship form of the structure view from a box", async () => {
+  // T-3589: the structure view's form, opened on the drawing itself in a dialog.
+  it("opens the Add relationship form from a box, on the drawing", async () => {
     const user = userEvent.setup();
     function Editor() {
       const [source, setSource] = useState(SCHOOLS);
@@ -181,8 +182,8 @@ classes:
     }
     renderPart(<Editor />);
     await user.click(screen.getByRole("button", { name: en.models.graph.addRelationship.replace("{name}", "Course") }));
-    expect(screen.getByRole("form", { name: "Add a relationship from Course" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Course", level: 2 })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "New relationship from Course" });
+    expect(within(dialog).getByRole("form", { name: "Add a relationship from Course" })).toBeInTheDocument();
   });
 });
 

@@ -1309,6 +1309,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/apps/{name}/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Builds Of An Application
+         * @description The successful builds of an application built on the forge, one per commit, newest first, and whether Restore is offered (AP-171).
+         */
+        get: operations["builds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/{name}/export": {
         parameters: {
             query?: never;
@@ -1363,6 +1383,26 @@ export interface paths {
          * @description Dispatches the application's build.yml on its repository's default branch.
          */
         post: operations["rebuild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/apps/{name}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore An Earlier Build Of An Application
+         * @description Opens a merge request on the application's repository that brings its default branch back to the commit of an earlier successful build; the build lane builds it once merged (AP-171).
+         */
+        post: operations["restore"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3314,6 +3354,13 @@ export interface components {
              */
             typicalSeconds?: number | null;
         };
+        /** @description The successful builds, newest first, and whether Restore is offered (AP-171). */
+        AppBuilds: {
+            builds: components["schemas"]["BuildEntry"][];
+            /** @description What Restore does not roll back. */
+            dataNote: string;
+            restore: components["schemas"]["Rebuild"];
+        };
         /** @description The last probe of one App (AP-136). */
         AppCheck: {
             /** Format: date-time */
@@ -3588,6 +3635,15 @@ export interface components {
             shortName: string;
             /** @default strict */
             validation: components["schemas"]["Validation"];
+        };
+        /** @description One successful build of an App, as Restore offers it (AP-171). */
+        BuildEntry: {
+            commit: string;
+            completedAt?: string | null;
+            /** @description The build `status.build.commit` names. */
+            current: boolean;
+            /** Format: int64 */
+            number?: number | null;
         };
         Capabilities: {
             /** @description An endpoint not named here is `read`. */
@@ -5567,6 +5623,15 @@ export interface components {
             files?: {
                 [key: string]: string;
             } | null;
+        };
+        RestoreRequest: {
+            /** @description The commit of one of the listed builds. */
+            commit: string;
+        };
+        /** @description The merge request Restore opened. */
+        Restored: {
+            branch: string;
+            pullRequestUrl: string;
         };
         /** @description What a replay sent to the runner, and what it could not send. */
         RetryAnswer: {
@@ -9862,6 +9927,58 @@ export interface operations {
             };
         };
     };
+    builds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The builds */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppBuilds"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such App the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     export_app: {
         parameters: {
             query?: never;
@@ -10031,6 +10148,85 @@ export interface operations {
                 };
             };
             /** @description No forge, or the forge refused the dispatch */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "commit": "9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b"
+                 *     }
+                 */
+                "application/json": components["schemas"]["RestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description The merge request is open */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Restored"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose App here */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such App the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not built on the forge, not a listed build, the current build, nothing to restore, or a file that is not text */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge, or the forge refused */
             503: {
                 headers: {
                     [name: string]: unknown;

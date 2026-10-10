@@ -11,13 +11,13 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use jc_core::kinds::Verb;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::agents::repository;
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
-use crate::git::{GitError, GiteaClient, WorkflowRun};
+use crate::git::{Author, GitError, GiteaClient, WorkflowRun};
 use crate::permissions::ORG_NAMESPACE;
 use crate::state::AppState;
 
@@ -57,6 +57,8 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/projects/{project}/apps/{name}/build", get(build))
         .route("/projects/{project}/apps/{name}/rebuild", post(rebuild))
+        .route("/projects/{project}/apps/{name}/builds", get(builds))
+        .route("/projects/{project}/apps/{name}/restore", post(restore))
 }
 
 /// The App as this person may see it, its repository when it is built on the forge, and the
@@ -243,4 +245,253 @@ pub async fn rebuild(
         .map_err(refused)?;
     tracing::info!(app = %name, project = %project, by = %user.0.identity.username, "rebuild dispatched");
     Ok(StatusCode::ACCEPTED.into_response())
+}
+
+/// How many runs the builds list reads: the forge's page size.
+const BUILDS_READ: u32 = 50;
+
+const DATA_NOTE: &str =
+    "Restore brings back the App's source only; its schema, files and data stay as they are.";
+
+/// One successful build of an App, as Restore offers it (AP-171).
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BuildEntry {
+    pub commit: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub number: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+    /// The build `status.build.commit` names.
+    pub current: bool,
+}
+
+/// The successful builds, newest first, and whether Restore is offered (AP-171).
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AppBuilds {
+    pub builds: Vec<BuildEntry>,
+    pub restore: Rebuild,
+    /// What Restore does not roll back.
+    pub data_note: &'static str,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RestoreRequest {
+    /// The commit of one of the listed builds.
+    pub commit: String,
+}
+
+/// The merge request Restore opened.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Restored {
+    pub branch: String,
+    pub pull_request_url: String,
+}
+
+/// The successful runs of the repository, one per commit, newest first.
+async fn successful_builds(repo: &GiteaClient, current: Option<&str>) -> Vec<BuildEntry> {
+    let runs = match repo.latest_runs(BUILDS_READ).await {
+        Ok(runs) => runs,
+        Err(GitError::NotFound) => Vec::new(),
+        Err(err) => {
+            tracing::warn!(error = %err, "the application's workflow runs were not read");
+            Vec::new()
+        }
+    };
+    let mut builds: Vec<BuildEntry> = Vec::new();
+    for run in runs {
+        if run.conclusion.as_deref() != Some("success")
+            || builds.iter().any(|b| b.commit == run.commit)
+        {
+            continue;
+        }
+        builds.push(BuildEntry {
+            current: current == Some(run.commit.as_str()),
+            commit: run.commit,
+            number: run.number,
+            completed_at: run.completed_at,
+        });
+    }
+    builds
+}
+
+fn current_commit(app: &serde_json::Value) -> Option<&str> {
+    app.pointer("/status/build/commit")
+        .and_then(serde_json::Value::as_str)
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/apps/{name}/builds",
+    summary = "The Builds Of An Application",
+    description = "The successful builds of an application built on the forge, one per commit, newest first, and whether Restore is offered (AP-171).",
+    tag = "apps",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "App name"),
+    ),
+    responses(
+        (status = 200, description = "The builds", body = AppBuilds),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "No such App the caller may read", body = ProblemDetails),
+        (status = 503, description = "No forge is configured", body = ProblemDetails)
+    )
+)]
+pub async fn builds(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<Json<AppBuilds>, ApiError> {
+    let (app, repo) = app_of(&state, &user, &project, &name)?;
+    let Some(repo) = repo else {
+        return Ok(Json(AppBuilds {
+            builds: Vec::new(),
+            restore: Rebuild {
+                allowed: false,
+                reason: Some(NOT_ON_FORGE.into()),
+            },
+            data_note: DATA_NOTE,
+        }));
+    };
+    let builds = successful_builds(&repo, current_commit(&app)).await;
+    let refusal = restore_refusal(&state, &user, &project);
+    Ok(Json(AppBuilds {
+        builds,
+        restore: Rebuild {
+            allowed: refusal.is_none(),
+            reason: refusal,
+        },
+        data_note: DATA_NOTE,
+    }))
+}
+
+/// Why this person may not restore, or `None` when they may: the right of Rebuild (AP-171).
+fn restore_refusal(state: &AppState, user: &CurrentUser, project: &str) -> Option<String> {
+    rebuild_refusal(state, user, project).map(|reason| reason.replacen("Rebuild", "Restore", 1))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/apps/{name}/restore",
+    summary = "Restore An Earlier Build Of An Application",
+    description = "Opens a merge request on the application's repository that brings its default branch back to the commit of an earlier successful build; the build lane builds it once merged (AP-171).",
+    tag = "apps",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "App name"),
+    ),
+    request_body(
+        content = RestoreRequest,
+        example = json!({ "commit": "9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b" })
+    ),
+    responses(
+        (status = 201, description = "The merge request is open", body = Restored),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller may not propose App here", body = ProblemDetails),
+        (status = 404, description = "No such App the caller may read", body = ProblemDetails),
+        (status = 409, description = "Not built on the forge, not a listed build, the current build, nothing to restore, or a file that is not text", body = ProblemDetails),
+        (status = 503, description = "No forge, or the forge refused", body = ProblemDetails)
+    )
+)]
+pub async fn restore(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    Json(request): Json<RestoreRequest>,
+) -> Result<Response, ApiError> {
+    let (app, repo) = app_of(&state, &user, &project, &name)?;
+    if let Some(reason) = restore_refusal(&state, &user, &project) {
+        return Err(ApiError::Denied(reason));
+    }
+    let repo = repo.ok_or_else(|| ApiError::Conflict(NOT_ON_FORGE.into()))?;
+    let commit = request.commit.trim();
+    // Only a commit the forge built successfully for this repository: a digest or commit of
+    // another App is not among them (AP-171).
+    let builds = successful_builds(&repo, current_commit(&app)).await;
+    let build = builds.iter().find(|b| b.commit == commit).ok_or_else(|| {
+        ApiError::Conflict(format!(
+            "{commit} is not a successful build of the App '{name}'"
+        ))
+    })?;
+    if build.current {
+        return Err(ApiError::Conflict(format!(
+            "{commit} is the build the App serves now"
+        )));
+    }
+    let refused =
+        |err: GitError| ApiError::Unavailable(format!("the forge did not restore '{name}': {err}"));
+    let default = repo.default_branch().await.map_err(refused)?;
+    let then = repo.list_tree_blobs(commit).await.map_err(refused)?;
+    let now = repo.list_tree_blobs(&default).await.map_err(refused)?;
+    let mut uploads = Vec::new();
+    for (path, sha) in &then {
+        if now.iter().any(|(p, s)| p == path && s == sha) {
+            continue;
+        }
+        let file = match repo.get_file(path, commit).await {
+            Ok(Some(file)) => file,
+            Ok(None) => return Err(refused(GitError::NotFound)),
+            // ponytail: the change API takes text, so a changed binary file cannot be restored.
+            Err(GitError::Transport(msg)) if msg.contains("utf-8") => {
+                return Err(ApiError::Conflict(format!(
+                    "{path} is not UTF-8 text and cannot be restored through the forge's change API"
+                )))
+            }
+            Err(err) => return Err(refused(err)),
+        };
+        uploads.push((path.clone(), file.content));
+    }
+    let deletes: Vec<(String, String)> = now
+        .iter()
+        .filter(|(path, _)| !then.iter().any(|(p, _)| p == path))
+        .cloned()
+        .collect();
+    if uploads.is_empty() && deletes.is_empty() {
+        return Err(ApiError::Conflict(format!(
+            "the default branch already holds the files of {commit}"
+        )));
+    }
+    let short = &commit[..commit.len().min(7)];
+    let branch = format!("restore/{short}-{}", chrono::Utc::now().timestamp());
+    repo.create_branch(&branch, &default)
+        .await
+        .map_err(refused)?;
+    let (author_name, author_email) =
+        crate::api::mutate::author_credentials(&user.0.identity, &project);
+    let message = format!("Restore the build of {commit} (AP-171)");
+    repo.change_files(
+        &branch,
+        &message,
+        Author {
+            name: &author_name,
+            email: &author_email,
+        },
+        &uploads,
+        &deletes,
+    )
+    .await
+    .map_err(refused)?;
+    let pull = repo
+        .create_pull_request(
+            &branch,
+            &default,
+            &message,
+            &format!(
+                "Brings {default} back to the source of the build of {commit}. Merging it builds that source; {DATA_NOTE}"
+            ),
+        )
+        .await
+        .map_err(refused)?;
+    tracing::info!(app = %name, project = %project, commit = %commit, by = %user.0.identity.username, "restore proposed");
+    Ok((
+        StatusCode::CREATED,
+        Json(Restored {
+            branch,
+            pull_request_url: pull.url,
+        }),
+    )
+        .into_response())
 }

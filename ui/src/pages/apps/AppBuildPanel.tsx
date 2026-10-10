@@ -9,6 +9,8 @@ import { Alert, Badge, Button, ExternalLink } from "../../components/ui";
 
 type AppBuild = components["schemas"]["AppBuild"];
 type WorkflowRun = components["schemas"]["WorkflowRun"];
+type AppBuilds = components["schemas"]["AppBuilds"];
+type Restored = components["schemas"]["Restored"];
 
 /** The forge's run state in the words the catalog uses (AP-86). */
 export function runState(run: WorkflowRun): "building" | "succeeded" | "failed" | "cancelled" {
@@ -178,6 +180,80 @@ export function AppBuildPanel({ project, name }: { project: string; name: string
         {started ? <p className="text-sm">{t("apps.build.started")}</p> : null}
       </div>
       {rebuildError ? <Alert tone="danger">{rebuildError}</Alert> : null}
+      <AppBuildHistory project={project} name={name} />
     </section>
+  );
+}
+
+const problemText = (error: unknown, generic: string): string =>
+  error instanceof ApiError ? (error.problem?.detail ?? error.message) : generic;
+
+/**
+ * The App's earlier successful builds, newest first, with Restore beside each one it does not
+ * serve now (AP-171): Restore opens a merge request that brings the repository back to that
+ * build's commit, and merging it builds that source. Nothing is drawn while the list is not
+ * readable; the data note says what Restore does not roll back.
+ */
+function AppBuildHistory({ project, name }: { project: string; name: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const builds = useQuery({
+    queryKey: [...buildKey(project, name), "history"],
+    queryFn: async (): Promise<AppBuilds> =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/apps/{name}/builds", {
+          params: { path: { project, name } },
+        }),
+      ),
+    retry: false,
+  });
+  const restore = useMutation({
+    mutationFn: async (commit: string): Promise<Restored> =>
+      unwrap(
+        await api.POST("/api/v1/projects/{project}/apps/{name}/restore", {
+          params: { path: { project, name } },
+          body: { commit },
+        }),
+      ),
+  });
+  const earlier = builds.data?.builds.filter((build) => !build.current) ?? [];
+  if (!builds.data || earlier.length === 0) return null;
+  const { restore: offer } = builds.data;
+  return (
+    <div className="space-y-2 border-t border-border pt-2">
+      <h3 className="text-sm font-semibold">{t("apps.build.history.title")}</h3>
+      <ul className="space-y-1 text-sm">
+        {earlier.map((build) => (
+          <li key={build.commit} className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {t("apps.build.history.entry", {
+                commit: build.commit.slice(0, 7),
+                at: build.completedAt ? new Date(build.completedAt).toLocaleString() : "",
+              })}
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={restore.isPending && restore.variables === build.commit}
+              disabled={!offer.allowed || restore.isPending}
+              disabledReason={offer.reason ?? undefined}
+              aria-label={t("apps.build.history.restoreOne", { commit: build.commit.slice(0, 7) })}
+              onClick={() => restore.mutate(build.commit)}
+            >
+              {t("apps.build.history.restore")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-fg-muted">{t("apps.build.history.dataNote")}</p>
+      <div aria-live="polite">
+        {restore.data ? (
+          <p className="text-sm">
+            {t("apps.build.history.opened")}{" "}
+            <ExternalLink href={restore.data.pullRequestUrl}>{t("apps.build.history.request")}</ExternalLink>
+          </p>
+        ) : null}
+      </div>
+      {restore.error ? <Alert tone="danger">{problemText(restore.error, t("app.error.generic"))}</Alert> : null}
+    </div>
   );
 }

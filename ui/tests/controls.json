@@ -716,7 +716,7 @@
     },
     "src/pages/apps/AppBuildPanel.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "app_build_panel.test.tsx"
@@ -1179,11 +1179,23 @@
         "mcp_servers.test.tsx"
       ]
     },
-    "src/pages/models/LinkmlGraphView.tsx": {
+    "src/pages/models/DiagramEditing.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 5
       },
       "tests": [
+        "diagram_editing.test.tsx"
+      ]
+    },
+    "src/pages/models/LinkmlGraphView.tsx": {
+      "controls": {
+        "Button": 9
+      },
+      "tests": [
+        "diagram_editing.test.tsx",
+        "diagram_layout.test.ts",
+        "diagram_notation.test.tsx",
+        "diagram_reading.test.tsx",
         "linkml_editor.test.tsx",
         "linkml_er_diagram.test.tsx",
         "linkml_imports_enums.test.tsx",
@@ -1269,6 +1281,7 @@
         "Checkbox": 1
       },
       "tests": [
+        "diagram_editing.test.tsx",
         "models_page_save.test.tsx"
       ]
     },
