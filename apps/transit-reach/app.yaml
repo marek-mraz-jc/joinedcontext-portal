@@ -1,10 +1,13 @@
 # How far a visitor gets by transit from any point of Helsinki in 10, 20 and 30 minutes (T-3331,
-# T-3356). The analysis rides HSL's stops and lines (8389 stops, 1121 line variants), the time of a
-# ride from its distance at the mode's usual speed; where the space holds none, it derives stops
-# from where vehicles stood still in the last hours instead. Then it walks, waits, rides and
-# changes onto a hexagon grid. It runs in the visitor's browser as WebAssembly
-# compiled from the Rust crate in wasm/ (AP-142), so the App is a `ui` bundle and costs no pod.
-# Hand written, so no generated-by annotation (AP-35).
+# T-3356, T-3349). The analysis rides HSL's stops and lines (8389 stops, 1121 line variants), the
+# time of a ride from its distance at the mode's usual speed; where the space holds none, it
+# derives stops from where vehicles stood still in the last hours instead. Then it walks, waits,
+# rides and changes onto a hexagon grid. It runs in the visitor's browser as WebAssembly compiled
+# from the Rust crate in wasm/ (AP-142), answering a click anywhere at once. A server WASM App
+# (`kind: wasm`, ADR-N-044): its component on the shared host (server/) keeps HSL's network by
+# version and, from a stop, the area reached in each band with its GeoJSON, computed once per
+# version and kept in the App's own schema (migrations/) and prefix. Hand written, so no
+# generated-by annotation (AP-35).
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
 metadata:
@@ -17,7 +20,7 @@ metadata:
     en: "Click anywhere in Helsinki: the area you reach within 10, 20 and 30 minutes walking to a stop and riding, from where the city's vehicles actually went in the last hours."
     fi: "Napsauta mitä tahansa kohtaa Helsingissä: alue, jolle pääset 10, 20 ja 30 minuutissa kävellen pysäkille ja matkustaen, sen mukaan mihin kaupungin ajoneuvot viime tunteina kulkivat."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_transit-reach.git
@@ -26,6 +29,10 @@ spec:
   build:
     node: "22"
     rust: "1.90"
+  storage:
+    sql: { migrations: migrations, quotaMiB: 100 }
+    # A network is some 2 MB; each stop's areas a few hundred kilobytes of GeoJSON.
+    blob: { quotaMiB: 2048 }
   visibility: public
   lifecycle: published
   dataNeeds:

@@ -37,9 +37,10 @@ The page says which of the two it used, under the answer.
 
 ## How it is built
 
-A `ui` App (AP-142): React on the joinedcontext App SDK for the page, inside the SDK's `AppShell`, and the analysis in Rust,
-compiled to WebAssembly and run in a Web Worker in the visitor's browser. Nothing runs on a server
-for it: the static host serves its files, the endpoint answers the vehicles' history.
+A `wasm` App (AP-142, ADR-N-044): React on the joinedcontext App SDK for the page, inside the SDK's
+`AppShell`, and the analysis in Rust, compiled to WebAssembly and run in a Web Worker in the
+visitor's browser, so a click anywhere answers at once. The static host serves its files, the
+endpoint answers the vehicles' history, and the App's server keeps what is worth keeping (below).
 
 - `wasm/` is the crate: `network.rs` (stops and rides from HSL's registers), `stops.rs` (stops
   and rides from the readings), `reach.rs` (Dijkstra over
@@ -51,6 +52,28 @@ for it: the static host serves its files, the endpoint answers the vehicles' his
 - HSL's whole network answers in about 100 ms in the module, 0.6 to 1.1 s to the first answer in
   the page; 32 vehicles of 1000 readings each in about 100 ms.
 
+## From a stop, on the server
+
+The App's server is a WebAssembly component on the platform's shared host (`server/`):
+
+- it reads HSL's stops and lines from the App's own Endpoint, as the page does, and keeps them as
+  one file under the App's prefix, `networks/{version}.json`, where the version is the SHA-256 of
+  the network as read (the same registers always give the same version); a version read more than
+  six hours ago is read again when the page next asks, and a changed network drops the older
+  version's areas;
+- **Download the areas from the start stop (GeoJSON)** asks it for the area reached from the stop
+  the view starts from, on the kept network: computed once per version with the page's own crate
+  (`../wasm`) and kept in the App's schema (`migrations/`) with its hexagons as GeoJSON,
+  `tiles/{version}/{stop}.geojson`, downloaded through a URL valid for two minutes. Every visitor
+  gets the same answer for the same stop and network. When the server has not read the network
+  yet, the page asks it to once and then asks for the areas again.
+
+| Route | What it does |
+|---|---|
+| `GET /api/network` | the kept network's version, sizes, and whether it is due to be read again |
+| `POST /api/network` | HSL's registers read again; a new version when they changed |
+| `GET /api/reach?stop=` | the areas from a stop in each band; a URL their GeoJSON downloads from |
+
 ## Run the tests
 
 ```sh
@@ -60,7 +83,13 @@ pnpm wasm          # cargo build --target wasm32-unknown-unknown, then wasm-bind
 pnpm test          # vitest, with the compiled module run in-process
 pnpm build
 pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe, the panel
+(cd server && cargo test && cargo build --release --target wasm32-wasip2)   # the server component
 ```
+
+`server/host-test.json` is the server component's scenario on the real host: the platform's
+`crates/wasm-host/tests/apps_tests.rs` builds the component, runs `migrations/` twice as the
+reconciler does, and plays the scenario against Postgres, RustFS and a mock of the App's own
+Endpoint (`JC_WASM_TEST_APPS=<this repository's apps>`), with a second App that must see nothing.
 
 The coverage gate (T-3373): `sh ../../scripts/app-coverage-run.sh transit-reach --rust` holds the
 page at 95 % of lines and 90 % of branches, every control used by a test, and `wasm/` at 95 %

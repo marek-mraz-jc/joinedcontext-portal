@@ -136,3 +136,33 @@ test("air-weather-explorer answers from the hours its server keeps, and a saved 
   await expect.poll(() => new URL(page.url()).searchParams.get("window")).toBe("6");
   expect(new URL(page.url()).searchParams.get("compare")).toBeNull();
 });
+
+test("transit-reach keeps the areas from a start stop on the server, the same for a second visitor", async ({ browser, page }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+  try {
+    await expectPublishedAsWasm(steward.page, "transit-reach");
+  } finally {
+    await steward.context.close();
+  }
+  const app = `${APPS_URL}/apps/transit-reach/`;
+  await page.goto(`${app}?lang=en`, { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".app-summary")).toHaveText(/^Reachable from this point/, { timeout: 120_000 });
+  const reached = page.getByRole("list", { name: /^Stops within 30 minutes/ });
+  await reached.getByRole("button", { name: /: start from here$/ }).first().click();
+  await expect(page.getByText(/^Start stop: /)).toBeVisible();
+
+  const kept = page.waitForResponse((response) => response.url().includes("/apps/transit-reach/api/reach?stop="), { timeout: 120_000 });
+  await page.getByRole("button", { name: "Download the areas from the start stop (GeoJSON)" }).click();
+  const first = await kept;
+  expect(first.status()).toBe(200);
+  const answer = (await first.json()) as { url: string; stop: string; bands: { minutes: number }[] };
+  expect(answer.bands.map((b) => b.minutes)).toEqual([10, 20, 30]);
+  const file = await page.request.get(answer.url);
+  expect(file.status()).toBe(200);
+  expect(await file.text()).toContain('"type":"FeatureCollection"');
+
+  // The same stop again: the server answers from what it kept for this version of the network.
+  const again = await page.request.get(`${app}api/reach?stop=${encodeURIComponent(answer.stop)}`);
+  expect(again.status()).toBe(200);
+  expect(((await again.json()) as { cached: boolean }).cached).toBe(true);
+});
