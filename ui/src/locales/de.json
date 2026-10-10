@@ -4737,6 +4737,38 @@
       "between": "von {from} bis {to}",
       "from": "ab {from}",
       "until": "bis {to}"
+    },
+    "try": {
+      "title": "Eine Person ausprobieren",
+      "lead": "Was das Gateway für jemanden an einem Endpoint entscheiden würde und welche Policy entschieden hat. Nur Organisationsadministratoren sehen dies, und jede Frage wird im Aktivitätsprotokoll festgehalten.",
+      "endpoint": "Endpoint",
+      "noEndpoint": "Noch kein Endpoint",
+      "kind": "Wer",
+      "kinds": {
+        "person": "Eine Person",
+        "group": "Ein Mitglied einer Gruppe",
+        "role": "Inhaber einer Realm-Rolle",
+        "serviceAccount": "Ein ServiceAccount",
+        "public": "Die Öffentlichkeit"
+      },
+      "search": "Person suchen",
+      "person": "Person",
+      "noPerson": "Niemand gefunden",
+      "noAccount": "Noch kein ServiceAccount",
+      "action": "Aktion",
+      "type": "Entitätstyp",
+      "typeHelp": "Leer lassen, um nach jedem Typ zu fragen.",
+      "submit": "Gateway fragen",
+      "failed": "Das Gateway konnte nicht gefragt werden",
+      "allowed": "Erlaubt",
+      "refused": "Abgelehnt",
+      "decidedBy": "Entschieden durch die Policy",
+      "reason": {
+        "policy_grant_matched": "Eine Policy erlaubt diese Aktion.",
+        "prohibited": "Ein Verbot lehnt diese Aktion vor jeder Erlaubnis ab.",
+        "no_grant": "Keine Policy erlaubt diese Aktion.",
+        "not_admitted": "Der Endpoint lässt diesen Aufrufer überhaupt nicht zu."
+      }
     }
   },
   "subscriptions": {

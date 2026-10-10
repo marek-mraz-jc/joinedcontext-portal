@@ -4737,6 +4737,38 @@
       "between": "od {from} do {to}",
       "from": "od {from}",
       "until": "do {to}"
+    },
+    "try": {
+      "title": "Vyskúšať osobu",
+      "lead": "Čo by brána rozhodla pre niekoho na jednom Endpointe a ktorá Policy rozhodla. Vidia to len správcovia organizácie a každá otázka sa zapíše do záznamu aktivít.",
+      "endpoint": "Endpoint",
+      "noEndpoint": "Zatiaľ žiadny Endpoint",
+      "kind": "Kto",
+      "kinds": {
+        "person": "Osoba",
+        "group": "Člen skupiny",
+        "role": "Držiteľ roly realmu",
+        "serviceAccount": "ServiceAccount",
+        "public": "Verejnosť"
+      },
+      "search": "Nájsť osobu",
+      "person": "Osoba",
+      "noPerson": "Nikto sa nenašiel",
+      "noAccount": "Zatiaľ žiadny ServiceAccount",
+      "action": "Akcia",
+      "type": "Typ entity",
+      "typeHelp": "Nechajte prázdne pre otázku na akýkoľvek typ.",
+      "submit": "Opýtať sa brány",
+      "failed": "Bránu sa nepodarilo opýtať",
+      "allowed": "Povolené",
+      "refused": "Odmietnuté",
+      "decidedBy": "Rozhodla Policy",
+      "reason": {
+        "policy_grant_matched": "Túto akciu povoľuje Policy.",
+        "prohibited": "Túto akciu odmieta zákaz, ktorý platí pred každým povolením.",
+        "no_grant": "Túto akciu nepovoľuje žiadna Policy.",
+        "not_admitted": "Endpoint tohto volajúceho vôbec nepripúšťa."
+      }
     }
   },
   "subscriptions": {
