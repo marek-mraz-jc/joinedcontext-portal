@@ -307,3 +307,39 @@ describe("the approvals page, mounted on its own", () => {
     expect(within(row).queryByText(/chg-00000005/)).not.toBeInTheDocument();
   });
 });
+
+describe("merge requests in the forge that are not Changes (T-3433)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    window.history.pushState({}, "", "/projects/banskabystrica/approvals");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("names each one, with its link to the forge and why", async () => {
+    renderApprovals({
+      ...CHANGES,
+      outside: [
+        {
+          number: 12,
+          url: "https://gitea.example/city/bb-config/pulls/12",
+          author: "wera.writer",
+          reason: "it comes from a fork; push the branch to the project repository itself",
+        },
+      ],
+    });
+    const alert = await screen.findByText("1 merge request in the forge is not a Change");
+    const box = alert.closest("[role=status]") as HTMLElement;
+    const link = within(box).getByRole("link", { name: /#12 by wera\.writer/ });
+    expect(link).toHaveAttribute("href", "https://gitea.example/city/bb-config/pulls/12");
+    expect(box.textContent).toContain("it comes from a fork");
+  });
+
+  it("says nothing when the API names none", async () => {
+    renderApprovals();
+    await screen.findByRole("link", { name: 'Remove ContextSpace "doprava"' });
+    expect(screen.queryByText(/in the forge (is|are) not/)).toBeNull();
+  });
+});

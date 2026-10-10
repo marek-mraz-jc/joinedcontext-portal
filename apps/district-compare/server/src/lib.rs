@@ -170,7 +170,7 @@ pub fn codes(raw: Option<&str>) -> Result<Vec<String>, String> {
 }
 
 /// Every entity of `kind` the App's Endpoint lets the caller read, page by page, up to [`MOST`].
-fn entities(kind: &str, attrs: &str) -> Result<Vec<Json>, String> {
+fn entities(kind: &str, attrs: &str) -> Result<Vec<Json>, gateway::Error> {
     let mut all = Vec::new();
     loop {
         let path = format!(
@@ -178,7 +178,7 @@ fn entities(kind: &str, attrs: &str) -> Result<Vec<Json>, String> {
             all.len(),
             gateway::encode(attrs),
         );
-        let page: Vec<Json> = gateway::get(&path)?.json()?;
+        let page: Vec<Json> = gateway::get_json(&path)?;
         let last = page.len() < PAGE;
         all.extend(page);
         if last || all.len() >= MOST {
@@ -190,10 +190,7 @@ fn entities(kind: &str, attrs: &str) -> Result<Vec<Json>, String> {
 
 /// Reads the feeds, compares, and keeps today's figures of every district and the boundaries.
 fn refresh() -> Result<(), Response> {
-    let read = |kind: &str, attrs: &str| {
-        entities(kind, attrs)
-            .map_err(|why| Response::problem(502, "Bad Gateway", &format!("{kind}: {why}")))
-    };
+    let read = |kind: &str, attrs: &str| entities(kind, attrs).map_err(|err| refused(kind, err));
     let districts = read("CityDistrict", "name,districtCode,divisionLevel,location")?;
     let input = input(
         &districts,
@@ -294,6 +291,15 @@ fn files(_: &Request, _: &Params) -> Response {
             (Err(err), _) | (_, Err(err)) => Response::from_blob(err),
         },
         Err(err) => Response::from_blob(err),
+    }
+}
+
+/// A read of `kind` that failed: the caller's own 401 or 403 as the gateway said it, anything else
+/// the gateway's, naming the type.
+fn refused(kind: &str, err: gateway::Error) -> Response {
+    match err {
+        gateway::Error::Status(401 | 403, _) => Response::from(err),
+        other => Response::problem(502, "Bad Gateway", &format!("{kind}: {other}")),
     }
 }
 

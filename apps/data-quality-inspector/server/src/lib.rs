@@ -168,7 +168,7 @@ pub fn report(types: &[TypeOutput]) -> Json {
 }
 
 /// Every entity of `kind` the App's Endpoint lets the caller read, page by page, up to [`MOST`].
-fn entities(kind: &str) -> Result<Vec<Json>, String> {
+fn entities(kind: &str) -> Result<Vec<Json>, gateway::Error> {
     let mut all = Vec::new();
     loop {
         let path = format!(
@@ -176,7 +176,7 @@ fn entities(kind: &str) -> Result<Vec<Json>, String> {
             gateway::encode(kind),
             all.len()
         );
-        let page: Vec<Json> = gateway::get(&path)?.json()?;
+        let page: Vec<Json> = gateway::get_json(&path)?;
         let last = page.len() < PAGE;
         all.extend(page);
         if last || all.len() >= MOST {
@@ -188,7 +188,7 @@ fn entities(kind: &str) -> Result<Vec<Json>, String> {
 
 /// The Endpoint's published schema, or `None` when it publishes none the App can read.
 fn schema() -> Option<BTreeMap<String, Json>> {
-    let index: Json = gateway::get("/schema/index.json").ok()?.json().ok()?;
+    let index: Json = gateway::get_json("/schema/index.json").ok()?;
     let mut versions: Vec<i64> = index["models"]
         .as_array()
         .into_iter()
@@ -202,12 +202,7 @@ fn schema() -> Option<BTreeMap<String, Json>> {
     }
     let documents: Vec<Json> = versions
         .iter()
-        .filter_map(|v| {
-            gateway::get(&format!("/schema/v{v}/json-schema"))
-                .ok()?
-                .json()
-                .ok()
-        })
+        .filter_map(|v| gateway::get_json(&format!("/schema/v{v}/json-schema")).ok())
         .collect();
     let schema = served_schema(&index, &documents);
     (!schema.is_empty()).then_some(schema)
@@ -238,7 +233,7 @@ fn inspect() -> Result<i64, Response> {
     let mut types = Vec::new();
     for name in names {
         let rows = entities(&name)
-            .map_err(|why| Response::problem(502, "Bad Gateway", &format!("{name}: {why}")))?
+            .map_err(|err| refused(&name, err))?
             .iter()
             .map(row)
             .collect();
@@ -391,6 +386,15 @@ fn download(_: &Request, params: &Params) -> Response {
             Err(err) => Response::from_blob(err),
         },
         Err(err) => Response::from_sql(err),
+    }
+}
+
+/// A read of `kind` that failed: the caller's own 401 or 403 as the gateway said it, anything else
+/// the gateway's, naming the type.
+fn refused(kind: &str, err: gateway::Error) -> Response {
+    match err {
+        gateway::Error::Status(401 | 403, _) => Response::from(err),
+        other => Response::problem(502, "Bad Gateway", &format!("{kind}: {other}")),
     }
 }
 

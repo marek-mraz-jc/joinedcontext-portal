@@ -12,6 +12,7 @@ import { DuplicateProjectAction } from "../../components/DuplicateProjectDialog"
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import type { EditableForm } from "../../components/EditResourceDialog";
 import { ProjectQuota } from "../../components/ProjectQuota";
+import { ProjectRelease } from "../../components/ProjectRelease";
 import {
   Alert,
   Field,
@@ -126,6 +127,7 @@ function General({ project }: { project: string }): JSX.Element {
   const stored = (manifest.data ?? {}) as ProjectManifest;
   const title = localized(stored.metadata?.title as string | Record<string, string> | undefined, locale, project);
   const description = plainTitle(stored.metadata?.description);
+  const inOwnRepository = Boolean((stored.spec as { repository?: unknown } | undefined)?.repository);
   const form: EditableForm = {
     schema: projectSchema(t),
     fromManifest: fromProject,
@@ -144,10 +146,7 @@ function General({ project }: { project: string }): JSX.Element {
           </div>
           {manifest.data ? (
             <div className="flex flex-wrap gap-2">
-              <DuplicateProjectAction
-                project={project}
-                inOwnRepository={Boolean((stored.spec as { repository?: unknown } | undefined)?.repository)}
-              />
+              <DuplicateProjectAction project={project} inOwnRepository={inOwnRepository} />
               <EditResourceAction
               target={{
                 project,
@@ -185,6 +184,7 @@ function General({ project }: { project: string }): JSX.Element {
           </dd>
         </dl>
       </section>
+      {inOwnRepository ? <ProjectRelease project={project} /> : null}
       <ProjectQuota project={project} />
     </div>
   );

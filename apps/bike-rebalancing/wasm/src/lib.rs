@@ -4,6 +4,7 @@
 //! where [`plan`] takes and answers JSON.
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "web")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 /// The mean radius of the Earth, in kilometres.
@@ -388,7 +389,7 @@ pub fn run(input: &Input) -> Output {
 
 /// The page's entry: [`Input`] as JSON in, [`Output`] as JSON out, or `{"error": "…"}` naming
 /// what could not be read.
-#[wasm_bindgen]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub fn plan(input: &str) -> String {
     match serde_json::from_str::<Input>(input) {
         Ok(input) => serde_json::to_string(&run(&input))

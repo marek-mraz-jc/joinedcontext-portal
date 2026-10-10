@@ -21,7 +21,7 @@ use crate::api::catalogue::{
     CataloguePublisher, CatalogueResource, CatalogueSample, CatalogueTemporal, CatalogueTheme,
 };
 use crate::api::changes::{
-    ChangeAuthor, ChangeDecision, ChangeList, ChangeProposal, ChangeSummary,
+    ChangeAuthor, ChangeDecision, ChangeList, ChangeProposal, ChangeSummary, OutsideMergeRequest,
 };
 use crate::api::ckan::{
     CkanStatus, DataStoreStatus, InstanceSummary, PublicationStatus, ResourceLink,
@@ -39,7 +39,8 @@ use crate::api::ops::{OperationAnnotations, OperationSummary};
 use crate::api::pipelines::PipelineMetrics;
 use crate::api::preferences::Preferences;
 use crate::api::projects::{
-    DuplicateProject, OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary, Usage,
+    DuplicateProject, OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary,
+    RegistryEntry, RegistryTag, Repoint, Usage,
 };
 use crate::api::resources::{ListMeta, ResourceList};
 use crate::api::service_accounts::{ClaimAction, ClaimLink, KeyClaim, KeyInfo, KeyList, MintedKey};
@@ -81,6 +82,8 @@ use crate::tools::model_tools::{
         crate::api::projects::get_project,
         crate::api::projects::delete_project,
         crate::api::projects::duplicate_project,
+        crate::api::projects::get_registry_entry,
+        crate::api::projects::repoint_project,
         crate::api::resources::list,
         crate::api::resources::list_endpoints_everywhere,
         crate::api::blueprints::list_blueprints,
@@ -350,6 +353,9 @@ use crate::tools::model_tools::{
         ResourceList,
         ListMeta,
         DuplicateProject,
+        RegistryEntry,
+        RegistryTag,
+        Repoint,
         OpenProject,
         ProjectDetail,
         ProjectStatus,
@@ -396,6 +402,7 @@ use crate::tools::model_tools::{
         ChangeProposal,
         ChangeList,
         ChangeDecision,
+        OutsideMergeRequest,
         ChangeSummary,
         ChangeAuthor,
         SyncStatus,

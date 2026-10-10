@@ -233,7 +233,7 @@ pub fn weekly(entities: &[Json]) -> BTreeMap<String, (u32, Vec<Spot>)> {
 }
 
 /// Every Alert the App's Endpoint lets the caller read, page by page, up to [`MOST`].
-fn alerts() -> Result<Vec<Json>, String> {
+fn alerts() -> Result<Vec<Json>, gateway::Error> {
     let mut all = Vec::new();
     loop {
         let path = format!(
@@ -241,7 +241,7 @@ fn alerts() -> Result<Vec<Json>, String> {
             all.len(),
             gateway::encode("name,address,validFrom,dateIssued,location"),
         );
-        let page: Vec<Json> = gateway::get(&path)?.json()?;
+        let page: Vec<Json> = gateway::get_json(&path)?;
         let last = page.len() < PAGE;
         all.extend(page);
         if last || all.len() >= MOST {
@@ -254,7 +254,7 @@ fn alerts() -> Result<Vec<Json>, String> {
 /// Reads the feed and stores each week's repeat places; a week the feed no longer holds keeps
 /// what was stored for it.
 fn refresh() -> Result<(), Response> {
-    let entities = alerts().map_err(|why| Response::problem(502, "Bad Gateway", &why))?;
+    let entities = alerts().map_err(Response::from)?;
     for (week, (count, spots)) in weekly(&entities) {
         sql::execute(
             "insert into weekly_places (week, alerts, places, computed_at) values ($1::date, $2, $3::jsonb, now()) \

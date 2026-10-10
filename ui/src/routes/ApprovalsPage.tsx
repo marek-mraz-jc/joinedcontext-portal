@@ -10,8 +10,10 @@ import { ResourceList } from "../components/ResourceList";
 import { ApprovalsHistory } from "./ApprovalsHistory";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
+  Alert,
   Checkbox,
   EmptyState,
+  ExternalLink,
   Icon,
   PageHeader,
   Select,
@@ -69,6 +71,9 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
   );
 
   const all = list.data?.items ?? [];
+  // A fork's or a non-writer's merge request in the forge, which nobody can approve here; the
+  // API names them to an organization administrator alone (T-3433).
+  const outside = list.data?.outside ?? [];
   // The phases the list holds, in the order a change goes through them.
   const phases = [...new Set(all.map((proposal) => proposal.status.phase))];
   // Both filters narrow what the API already let this caller read; they decide nothing.
@@ -143,6 +148,27 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
         className="flex flex-col gap-section"
       >
         {filters}
+        {outside.length > 0 ? (
+          <Alert
+            tone="warning"
+            title={t("approvals.outside.title", { count: outside.length })}
+          >
+            <ul className="mt-1 flex flex-col gap-1">
+              {outside.map((request) => (
+                <li key={request.number}>
+                  <ExternalLink href={request.url}>
+                    {t("approvals.outside.item", {
+                      number: request.number,
+                      author: request.author,
+                    })}
+                  </ExternalLink>
+                  {": "}
+                  {request.reason}
+                </li>
+              ))}
+            </ul>
+          </Alert>
+        ) : null}
         <ResourceList
           query={list}
           caption={t("approvals.title")}

@@ -172,6 +172,14 @@
         "part_language_switcher.test.tsx"
       ]
     },
+    "src/components/ProjectRelease.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "project_release.test.tsx"
+      ]
+    },
     "src/components/ResourceFormDialogBody.tsx": {
       "controls": {
         "Button": 5,

@@ -92,7 +92,7 @@ pub fn model(articles: &[Article]) -> Result<AnalysisOutput, String> {
 }
 
 /// Every NewsArticle the App's Endpoint lets the caller read, page by page, up to [`MOST`].
-fn articles() -> Result<Vec<Json>, String> {
+fn articles() -> Result<Vec<Json>, gateway::Error> {
     let mut all = Vec::new();
     loop {
         let path = format!(
@@ -100,7 +100,7 @@ fn articles() -> Result<Vec<Json>, String> {
             all.len(),
             gateway::encode("name,description,url,datePublished"),
         );
-        let page: Vec<Json> = gateway::get(&path)?.json()?;
+        let page: Vec<Json> = gateway::get_json(&path)?;
         let last = page.len() < PAGE;
         all.extend(page);
         if last || all.len() >= MOST {
@@ -117,7 +117,7 @@ fn corpus_key(week: &str) -> String {
 /// Reads the feed, fits each week's model and keeps its topics and its corpus; a week the feed no
 /// longer holds keeps what was stored for it.
 fn refresh() -> Result<(), Response> {
-    let entities = articles().map_err(|why| Response::problem(502, "Bad Gateway", &why))?;
+    let entities = articles().map_err(Response::from)?;
     for (week, articles) in by_week(&entities) {
         let output = model(&articles)
             .map_err(|why| Response::problem(500, "Internal Server Error", &why))?;

@@ -32,12 +32,23 @@ RUN node /build/lane.mjs lock-manifest . \
     && cp /opt/sdk/sdk-version ./sdk-version \
     && mv /build/sdk/template /opt/template
 
-# The forge's runner binary (ADR-N-028 §3.3), checked against the digest its release publishes.
-FROM node:24-slim AS runner
+# The forge's runner binary (ADR-N-028 §3.3), built from its release's tagged commit: the
+# published 3.5.0 binary (and 4.x, 5.0.0) is linked with go1.27.1 and golang.org/x/net v0.59.0,
+# whose HIGH CVEs (CVE-2026-78667, -78669, -97031) trivy refuses. Back to the release download
+# with --checksum once a release ships go >= 1.27.2 and x/net >= 0.60.0 (T-3469). -buildvcs=false
+# stamps the module `(devel)` as the release does: a commit-only checkout would stamp a v0.0.0
+# pseudo-version that trivy reads as older than CVE-2026-73802's fix (34bfa19), which v3.5.0 holds.
+FROM golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61 AS runner
 ARG RUNNER_VERSION=3.5.0
-ARG RUNNER_SHA256=16dc5c89ad5ac5496369642f01ed29c9bb130a2512e16a8cc3b400d9d0bfea73
-ADD --checksum=sha256:${RUNNER_SHA256} \
-    https://dl.gitea.com/gitea-runner/${RUNNER_VERSION}/gitea-runner-${RUNNER_VERSION}-linux-amd64 /gitea-runner
+ARG RUNNER_COMMIT=699a97fc8cbd58e1381717710a7431aac70893a3
+WORKDIR /src
+RUN git init -q . && git fetch -q --depth 1 https://gitea.com/gitea/runner.git ${RUNNER_COMMIT} \
+    && git checkout -q FETCH_HEAD && test "$(git rev-parse HEAD)" = "${RUNNER_COMMIT}" \
+    && go get golang.org/x/net@v0.60.0 && go mod tidy \
+    && CGO_ENABLED=0 go build -trimpath -buildvcs=false -tags 'netgo osusergo' \
+       -ldflags "-s -w -X gitea.com/gitea/runner/internal/pkg/ver.version=v${RUNNER_VERSION}" -o /gitea-runner . \
+    && go version -m /gitea-runner | grep -E '^/gitea-runner: go1\.27\.([2-9]|[1-9][0-9])$' \
+    && go version -m /gitea-runner | grep -qE 'golang.org/x/net[[:space:]]+v0\.(6[0-9]|[7-9][0-9])\.'
 
 # The crate store of the rust-1.90 runner (AP-106): every crate this release's Cargo.lock names,
 # the reference applications' included, fetched once here so a fullstack build fetches none.
@@ -45,9 +56,7 @@ FROM rust:1.90-slim-bookworm AS crates
 WORKDIR /src
 COPY . .
 # The SDK's React + Rust/WebAssembly example and the Apps with a WebAssembly part keep their own
-# lock (AP-142), as do the server components of `wasm` Apps (AP-151): their crates too. A server
-# component reaches `jc-app-sdk` as a git dependency pinned to a platform commit, so the store
-# keeps git checkouts beside the registry (`/opt/cargo/git`, empty when no App names one).
+# lock (AP-142), as do the server components of `wasm` Apps (AP-151): their crates too.
 RUN mkdir -p /opt/cargo/git && CARGO_HOME=/opt/cargo cargo fetch --locked \
     && for crate in sdk/examples/react-rust-wasm/wasm apps/*/wasm sdk/examples/*/server apps/*/server; do \
          [ -f "$crate/Cargo.toml" ] || continue; \
@@ -103,6 +112,7 @@ COPY --from=node:24-slim /usr/local/bin/node /usr/local/bin/node
 COPY --from=template /opt/template/ /opt/template/
 COPY --from=crates /opt/cargo/registry/index /opt/cargo/registry/index
 COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
+# The git sources the locks name: the guest SDK `jc-app-sdk` of the `wasm` Apps' server/ (T-3346).
 COPY --from=crates /opt/cargo/git /opt/cargo/git
 # Read-only to the lane's uid: a job copies it and never writes it.
 COPY --from=seed /opt/cargo/target-seed /opt/cargo/target-seed

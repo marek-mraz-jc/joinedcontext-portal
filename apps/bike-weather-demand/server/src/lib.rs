@@ -151,9 +151,7 @@ pub fn weather_points(entity: &Json) -> Vec<WeatherPointInput> {
 }
 
 fn read(path: &str) -> Result<Vec<Json>, Response> {
-    gateway::get(path)
-        .and_then(|answer| answer.json::<Vec<Json>>())
-        .map_err(|why| Response::problem(502, "Bad Gateway", &why))
+    gateway::get_json::<Vec<Json>>(path).map_err(Response::from)
 }
 
 /// The scalar the database answers for `statement`, as text.
