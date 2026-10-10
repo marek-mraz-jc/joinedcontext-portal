@@ -53,6 +53,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/organization/health", "the validation checks' published results, about the installation and not a project's data (OPS-53)"),
 ("GET", "/organization/limits", "a summary for the settings page: the catalog and the operator's bounds beside the values the Organization and Project manifests hold, which jc_resource_get reaches; it writes nothing (T-2715, API/01 §28)"),
 ("GET", "/organization/setup", "a summary for the setup page, read from manifests the operations registry already reaches and from the deployment; it writes nothing (T-2748, API/01 §25)"),
+("POST", "/projects/{project}/endpoints/{name}/access/simulate", "an administrator's question from the Policies page about another person's rights; no tool asks it (EP-103)"),
 ("GET", "/organization/people", "jc_person_list"),
 ("POST", "/organization/people", "jc_person_create"),
 ("GET", "/organization/people/{id}", "jc_person_get"),

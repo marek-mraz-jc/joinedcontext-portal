@@ -4386,7 +4386,8 @@
         "traffic": "Endpoint traffic"
       },
       "access": {
-        "denied": "Access refused"
+        "denied": "Access refused",
+        "simulated": "Policy tried on a person"
       },
       "mcp": {
         "tool": "Assistant tool call"
@@ -4736,6 +4737,38 @@
       "between": "from {from} until {to}",
       "from": "from {from}",
       "until": "until {to}"
+    },
+    "try": {
+      "title": "Try a person",
+      "lead": "What the gateway would decide for someone on one Endpoint, and which Policy decided it. Only organization administrators see this, and every question is recorded in the activity log.",
+      "endpoint": "Endpoint",
+      "noEndpoint": "No Endpoint yet",
+      "kind": "Who",
+      "kinds": {
+        "person": "A person",
+        "group": "A member of a group",
+        "role": "A holder of a realm role",
+        "serviceAccount": "A ServiceAccount",
+        "public": "The public"
+      },
+      "search": "Find a person",
+      "person": "Person",
+      "noPerson": "Nobody found",
+      "noAccount": "No ServiceAccount yet",
+      "action": "Action",
+      "type": "Entity type",
+      "typeHelp": "Leave empty to ask about any type.",
+      "submit": "Ask the gateway",
+      "failed": "The gateway could not be asked",
+      "allowed": "Allowed",
+      "refused": "Refused",
+      "decidedBy": "Decided by the Policy",
+      "reason": {
+        "policy_grant_matched": "A Policy grants this action.",
+        "prohibited": "A prohibition refuses this action, ahead of every grant.",
+        "no_grant": "No Policy grants this action.",
+        "not_admitted": "The Endpoint does not admit this caller at all."
+      }
     }
   },
   "subscriptions": {

@@ -410,16 +410,25 @@ impl Admin<'_> {
     /// The names of the realm groups the person is in, and of the realm roles they hold, managed
     /// or not: the bootstrap administrators are one of these (PF-50).
     pub async fn groups_and_roles(&self, id: &str) -> Result<Vec<String>, PeopleError> {
+        let (groups, roles) = self.groups_and_realm_roles(id).await?;
+        Ok(groups.into_iter().chain(roles).collect())
+    }
+
+    /// The same names kept apart, groups first, as a token of theirs carries them in `groups`
+    /// and `realm_access.roles` (EP-103).
+    pub async fn groups_and_realm_roles(
+        &self,
+        id: &str,
+    ) -> Result<(Vec<String>, Vec<String>), PeopleError> {
         let id = segment(id)?;
         let groups: Vec<NamedGroup> = self.json(&format!("/users/{id}/groups")).await?;
         let roles: Vec<NamedRole> = self
             .json(&format!("/users/{id}/role-mappings/realm/composite"))
             .await?;
-        Ok(groups
-            .into_iter()
-            .map(|g| g.name)
-            .chain(roles.into_iter().map(|r| r.name))
-            .collect())
+        Ok((
+            groups.into_iter().map(|g| g.name).collect(),
+            roles.into_iter().map(|r| r.name).collect(),
+        ))
     }
 
     pub async fn delete(&self, id: &str) -> Result<(), PeopleError> {
