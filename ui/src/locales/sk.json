@@ -4768,6 +4768,15 @@
         "prohibited": "Túto akciu odmieta zákaz, ktorý platí pred každým povolením.",
         "no_grant": "Túto akciu nepovoľuje žiadna Policy.",
         "not_admitted": "Endpoint tohto volajúceho vôbec nepripúšťa."
+      },
+      "hints": {
+        "endpoint": "Endpoint, ktorého Policies sa skúšajú.",
+        "kind": "Osoba, člen skupiny alebo roly, ServiceAccount, alebo ktokoľvek.",
+        "search": "Časť mena alebo e-mailovej adresy.",
+        "person": "Osoba, za ktorú brána rozhoduje.",
+        "account": "Jeden zo ServiceAccountov tohto projektu.",
+        "name": "Názov tak, ako ho píše realm.",
+        "action": "Operácia NGSI-LD, ktorú by volanie vykonalo."
       }
     }
   },

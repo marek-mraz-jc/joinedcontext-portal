@@ -1448,6 +1448,14 @@
         "space_changes.test.tsx"
       ]
     },
+    "src/pages/policies/TryAPerson.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "policies_try_a_person.test.tsx"
+      ]
+    },
     "src/pages/spaces/AiField.tsx": {
       "controls": {
         "Button": 1

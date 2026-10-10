@@ -796,6 +796,16 @@
           "test": "a grant wider than the proposer's own rights is refused, and a narrower control is not"
         },
         "assistant": "jc_resource_propose"
+      },
+      "try-a-person": {
+        "live": {
+          "spec": "try-a-person.spec.ts",
+          "test": "Try a person agrees with what the gateway does for demo.viewer"
+        },
+        "personOnly": "weighing another person's rights is an organization administrator's own question, recorded with both subjects (EP-103); no assistant tool reveals another person's access",
+        "routes": [
+          "POST /api/v1/projects/{project}/endpoints/{name}/access/simulate"
+        ]
       }
     },
     "subscription": {
