@@ -123,6 +123,14 @@ export function draftPage(project: string, kind: string, name: string): string |
 }
 
 /**
+ * The sample project the first-run checklist offers in `project` (PF-109): the first one the
+ * person may read other than the project they are in, or none.
+ */
+export function sampleToTry(project: string, samples: readonly string[]): string | undefined {
+  return samples.find((sample) => sample !== project);
+}
+
+/**
  * Where a newcomer's first step for their role is taken (PF-108): a viewer opens the data, an
  * editor connects a source, a steward reviews what waits for them.
  */

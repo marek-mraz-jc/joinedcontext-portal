@@ -895,3 +895,107 @@ async fn an_organization_may_set_no_cooling_period_at_all() {
     let (status, body) = open(&state, person("jana"), json!({ "name": "mobilita" })).await;
     assert_eq!(status, StatusCode::ACCEPTED, "{body}");
 }
+
+/// A `Project` manifest of the organization namespace, with `labels`.
+fn project_manifest(name: &str, labels: &[(&str, &str)]) -> ResourceEnvelope {
+    let mut project = manifest("org", "Project", name);
+    project.metadata.labels = labels
+        .iter()
+        .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+        .collect();
+    project
+}
+
+async fn listed(state: AppState, cookie: &str) -> Vec<(String, bool)> {
+    let response = server::app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/projects")
+                .header(header::COOKIE, cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    list["items"]
+        .as_array()
+        .expect("items")
+        .iter()
+        .map(|item| {
+            (
+                item["name"].as_str().expect("name").to_owned(),
+                item["sample"].as_bool().expect("sample is a boolean"),
+            )
+        })
+        .collect()
+}
+
+/// PF-109 (T-3234): the project labelled `joinedcontext.com/sample: "true"` is listed as the
+/// sample, any other value or none is not, and a caller who may read no project is shown no
+/// sample either: the label grants nothing.
+#[tokio::test]
+async fn the_labelled_project_is_listed_as_the_sample_to_those_who_may_read_it() {
+    let mirror = two_project_mirror();
+    mirror.upsert(project_manifest(
+        "banskabystrica",
+        &[("joinedcontext.com/sample", "true")],
+    ));
+    mirror.upsert(project_manifest(
+        "helsinki",
+        &[("joinedcontext.com/sample", "yes")],
+    ));
+    mirror.upsert(manifest("zilina", "ContextSpace", "zilina"));
+    let config = Config::for_tests();
+    let cookie = make_session_cookie(&config);
+    assert_eq!(
+        listed(
+            AppState::new(config.clone(), None).with_mirror(mirror.clone()),
+            &cookie
+        )
+        .await,
+        [
+            ("banskabystrica".to_owned(), true),
+            ("helsinki".to_owned(), false),
+            ("zilina".to_owned(), false),
+        ]
+    );
+
+    use axum::response::IntoResponse;
+    let now = session::now_unix();
+    let outsider = Session {
+        identity: Identity {
+            client: None,
+            subject: "f:1:passer.by".into(),
+            username: "passer.by".into(),
+            email: None,
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+        },
+        expires_at: now + 3600,
+        access_expires_at: now + 3600,
+        refresh_token: None,
+        issued_at: now,
+        id_token: "id-token-placeholder".into(),
+    };
+    let jar = session::store(PrivateCookieJar::new(config.cookie_key.clone()), &outsider)
+        .expect("store session");
+    let outsider_cookie = (jar, StatusCode::OK)
+        .into_response()
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(';').next().unwrap_or_default().to_owned())
+        .expect("a session cookie");
+    assert_eq!(
+        listed(
+            AppState::new(config, None).with_mirror(mirror),
+            &outsider_cookie
+        )
+        .await,
+        []
+    );
+}

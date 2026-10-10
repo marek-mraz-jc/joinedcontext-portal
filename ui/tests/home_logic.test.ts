@@ -1,7 +1,7 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/home/home.ts,
 // the first-run steps and the role cards of the project home (T-3233, T-3235).
 import { describe, expect, it } from "vitest";
-import { cardsFor, draftPage, firstRunSteps, roleOf, welcomeStep } from "../src/pages/home/home";
+import { cardsFor, draftPage, firstRunSteps, roleOf, sampleToTry, welcomeStep } from "../src/pages/home/home";
 import type { Effective } from "../src/api/permissions";
 
 const grants = (...verbs: string[]): Effective =>
@@ -60,5 +60,14 @@ describe("a newcomer's first step (PF-108)", () => {
     expect(welcomeStep("helsinki", "viewer")).toBe("/projects/helsinki/spaces");
     expect(welcomeStep("helsinki", "editor")).toBe("/projects/helsinki/datasources/new");
     expect(welcomeStep("helsinki", "steward")).toBe("/projects/helsinki/approvals");
+  });
+});
+
+describe("the sample to try (PF-109)", () => {
+  it("offers the first sample other than the project in hand, and none when there is none", () => {
+    expect(sampleToTry("helsinki", ["banskabystrica", "praha"])).toBe("banskabystrica");
+    expect(sampleToTry("banskabystrica", ["banskabystrica", "praha"])).toBe("praha");
+    expect(sampleToTry("banskabystrica", ["banskabystrica"])).toBeUndefined();
+    expect(sampleToTry("helsinki", [])).toBeUndefined();
   });
 });

@@ -6503,6 +6503,13 @@
         "steward": "Review the changes waiting"
       },
       "close": "Close the welcome"
+    },
+    "sample": {
+      "badge": "Sample",
+      "title": "A sample project of real open data",
+      "body": "Look around: every page here shows what the project really holds. You can change only what your role allows, and nothing here touches your own projects.",
+      "lead": "Want to see every feature filled with data first?",
+      "try": "Try it with sample data"
     }
   },
   "alerts": {

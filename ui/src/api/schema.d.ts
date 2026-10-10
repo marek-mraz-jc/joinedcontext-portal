@@ -5317,6 +5317,11 @@ export interface components {
         ProjectSummary: {
             /** @description The project slug, the `{project}` segment of every other path. */
             name: string;
+            /**
+             * @description Whether its `Project` manifest carries [`SAMPLE_LABEL`]: real open data a newcomer may look
+             *     around in (PF-109).
+             */
+            sample: boolean;
         };
         /** @description What one endpoint publishes, and where. */
         PublicationStatus: {
