@@ -336,7 +336,8 @@ describe("a public form", () => {
     // The preview is the published page in a test run, inside a sandbox of its own.
     const preview = within(embed).getByTitle("Preview of the ParkingSpot form");
     expect(preview.getAttribute("src")).toBe("/f/f7m2qz4tv6xh3n5jb2ryd3wcfa?test=1");
-    expect(preview.getAttribute("sandbox")).toBe("allow-scripts allow-forms allow-same-origin");
+    expect(preview.getAttribute("sandbox")).toBe("allow-scripts allow-forms");
+    expect(preview.getAttribute("referrerpolicy")).toBe("no-referrer");
     // axe cannot enter a frame in jsdom; the framed page is the public form, checked above.
     await expectNoViolations(embed, ['[data-testid="form-preview"]']);
   });

@@ -604,7 +604,10 @@ export function FormEmbed({ slug, type, framed }: { slug: string; type: string; 
       <iframe
         title={t("spaces.form.previewFrame", { type })}
         src={`/f/${encodeURIComponent(slug)}?test=1`}
-        sandbox="allow-scripts allow-forms allow-same-origin"
+        // Never allow-same-origin: the page is on the Portal's own origin, and the pair with
+        // allow-scripts would let it read the CSRF cookie and write as the signed-in person (AP-19).
+        sandbox="allow-scripts allow-forms"
+        referrerPolicy="no-referrer"
         className="h-160 w-full rounded-lg border border-border bg-bg"
         data-testid="form-preview"
       />
