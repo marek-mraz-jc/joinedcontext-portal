@@ -1,0 +1,39 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { apiBase, isCode, shareApi, shareLink } from "./share";
+
+function answer(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  document.body.innerHTML = "";
+});
+
+// T-3347: a day shared on the App's own server, under a code a link carries.
+describe("shareApi", () => {
+  it("names the App's own server, never a name that leaves its path", () => {
+    document.body.innerHTML = `<script id="jc-config" type="application/json">{"appName":"event-day-planner"}</script>`;
+    expect(apiBase()).toBe("/apps/event-day-planner/api");
+    document.body.innerHTML = `<script id="jc-config" type="application/json">{"appName":"x/../../portal"}</script>`;
+    expect(apiBase()).toBe("/apps/event-day-planner/api");
+  });
+
+  it("takes only a code the server could have made, and links the page with it alone", () => {
+    expect(isCode("abc123def456")).toBe(true);
+    for (const wrong of ["", "abc", "ABC123DEF456", "abc123def45/", "abc123def4567"]) expect(isCode(wrong)).toBe(false);
+    expect(shareLink("abc123def456", { origin: "https://dev.example", pathname: "/apps/event-day-planner/" })).toBe("https://dev.example/apps/event-day-planner/?share=abc123def456");
+  });
+
+  it("sends the day, the full ids and the language, and reads a refusal's words", async () => {
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => answer(201, { code: "abc123def456" }));
+    vi.stubGlobal("fetch", fetch);
+    await shareApi("/a").share("2030-10-20", ["urn:ngsi-ld:Event:x:1"], "fi");
+    expect(fetch.mock.calls[0][0]).toBe("/a/itineraries");
+    expect(JSON.parse(fetch.mock.calls[0][1]?.body as string)).toEqual({ day: "2030-10-20", ids: ["urn:ngsi-ld:Event:x:1"], lang: "fi" });
+    vi.stubGlobal("fetch", vi.fn(async () => answer(409, { detail: "none of the picked events takes place that day" })));
+    await expect(shareApi("/a").share("2030-10-20", ["x"], "en")).rejects.toMatchObject({ status: 409, message: "none of the picked events takes place that day" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+    await expect(shareApi("/a").get("abc123def456")).rejects.toMatchObject({ status: 0 });
+  });
+});

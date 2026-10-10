@@ -66,3 +66,39 @@ test("bike-rebalancing saves a plan on the server, and it is there after a reloa
     await steward.context.close();
   }
 });
+
+test("event-day-planner shares a picked day under a link that opens it again, with its calendar file", async ({ browser, page }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+  try {
+    await expectPublishedAsWasm(steward.page, "event-day-planner");
+  } finally {
+    await steward.context.close();
+  }
+  // A public App: an anonymous visitor shares the day.
+  const app = `${APPS_URL}/apps/event-day-planner/`;
+  await page.goto(`${app}?lang=en`, { waitUntil: "domcontentloaded" });
+  const list = page.getByRole("list", { name: "Events of the day" });
+  const boxes = list.getByRole("checkbox", { disabled: false });
+  await expect(boxes.first()).toBeVisible({ timeout: 120_000 });
+  await boxes.first().check();
+  await expect(page.getByText(/^1 chosen events in their best order\.$/)).toBeVisible({ timeout: 60_000 });
+  const picked = new URL(page.url()).searchParams.get("pick");
+  expect(picked).toBeTruthy();
+
+  await page.getByRole("button", { name: "Share this day" }).click();
+  const link = page.getByLabel("Link to the shared day");
+  await expect(link).toHaveValue(/\?share=[a-z0-9]{12}$/, { timeout: 60_000 });
+  const shared = await link.inputValue();
+  const code = new URL(shared).searchParams.get("share") ?? "";
+  const ics = await page.request.get(`${app}api/itineraries/${code}/ics`);
+  expect(ics.status()).toBe(200);
+  const file = await page.request.get(((await ics.json()) as { url: string }).url);
+  expect(file.status()).toBe(200);
+  expect(await file.text()).toMatch(/^BEGIN:VCALENDAR\r\n/);
+
+  // The link in a fresh page: the same day and the same pick, the code gone from the address.
+  await page.goto(shared, { waitUntil: "domcontentloaded" });
+  await expect(page.getByText(/^Shared day opened: 1 events/)).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => new URL(page.url()).searchParams.get("pick")).toBe(picked);
+  expect(new URL(page.url()).searchParams.get("share")).toBeNull();
+});

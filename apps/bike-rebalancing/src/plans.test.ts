@@ -53,6 +53,18 @@ describe("plansApi", () => {
     expect(error).toMatchObject({ status: 502, message: "" });
   });
 
+  it("reads one plan and the route sheet's URL", async () => {
+    const fetch = vi
+      .fn(async (_url: string, _init?: RequestInit) => answer(200, {}))
+      .mockResolvedValueOnce(answer(200, { id: 7, operator: "Van 1" }))
+      .mockResolvedValueOnce(answer(200, { url: "https://store.example/s.csv" }));
+    vi.stubGlobal("fetch", fetch);
+    const api = plansApi("/a");
+    await expect(api.get(7)).resolves.toMatchObject({ id: 7 });
+    await expect(api.sheetUrl(7)).resolves.toBe("https://store.example/s.csv");
+    expect(fetch.mock.calls.map((call) => call[0])).toEqual(["/a/plans/7", "/a/plans/7/sheet"]);
+  });
+
   it("reads a deletion's empty answer as done", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
     await expect(plansApi("/a").remove(3)).resolves.toBeUndefined();

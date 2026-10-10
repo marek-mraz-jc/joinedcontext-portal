@@ -223,3 +223,22 @@ body {
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
+/* Sharing the day (T-3347): the link and its two buttons wrap under one another on a phone. */
+.app-share {
+  margin-top: var(--jc-space-3, 0.75rem);
+}
+.app-share-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jc-space-2, 0.5rem);
+  margin-top: var(--jc-space-2, 0.5rem);
+}
+.app-share-link input {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.app-error {
+  color: var(--jc-color-danger, #b91c1c);
+  font-weight: 600;
+}
