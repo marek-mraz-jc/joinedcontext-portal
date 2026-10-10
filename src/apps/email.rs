@@ -142,6 +142,15 @@ pub(super) async fn send(
     {
         return ApiError::Forbidden.into_response();
     }
+    // A cross-site form can post `text/plain` without a preflight, never `application/json`.
+    let json = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.trim_start().starts_with("application/json"));
+    if !json {
+        return ApiError::UnsupportedMediaType("send the message as application/json".into())
+            .into_response();
+    }
     let send: Send = match serde_json::from_slice(&body) {
         Ok(send) => send,
         Err(err) => return bad(format!("the body is not a message: {err}")),

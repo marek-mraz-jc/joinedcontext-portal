@@ -21,6 +21,14 @@ Returns the active SDK client singleton, reading configuration on first access.
 class ProblemError extends Error
 ```
 RFC 7807 problem error representation containing HTTP status, title, detail, type, and source location.
+```ts
+class ServiceRefusedError extends ProblemError { service: "files" | "email" | "jobs" | "ai"; layer?: "organization" | "project" | "app"; quota?: string; resetAt?: string }
+```
+A platform service the organization, the project or the App switched off (`403`, `layer` names which), or a daily quota used up (`429`, `quota` and `resetAt`). Show it; never retry before `resetAt`.
+```ts
+jc().email.send(message: { to: string[] | "me"; subject: string; text: string; html?: string }): Promise<{ id: string }>
+```
+Sends a message to people of the organization, named by person id or `"me"` (the signed-in person), never by address; needs `email` in the App's `spec.services`. The platform adds the unsubscribe link. A subject with a line break is refused.
 
 ### Hooks
 ```ts

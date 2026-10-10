@@ -318,6 +318,19 @@ async fn header_injection_and_an_address_as_recipient_are_refused() {
         body["type"],
         "https://joinedcontext.com/errors/recipient-refused"
     );
+
+    // What a cross-site form could post is no message.
+    let token = common::REALM.person_token(APP, "jana", &[]);
+    let form = Request::post(format!("/apps/{APP}/api/services/email/send"))
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from(to_me("x").to_string()))
+        .expect("a request");
+    let response = joinedcontext_portal::server::app(state.clone())
+        .oneshot(form)
+        .await
+        .expect("a response");
+    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     assert!(delivered(&inbox).is_empty());
 }
 

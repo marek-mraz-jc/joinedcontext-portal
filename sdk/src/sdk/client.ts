@@ -42,6 +42,41 @@ export class ProblemError extends Error {
   }
 }
 
+/** A platform service the App's layers switched off, or whose quota is used up (SDK-43, API/06 §3). */
+export class ServiceRefusedError extends ProblemError {
+  readonly service: "files" | "email" | "jobs" | "ai";
+  readonly layer?: "organization" | "project" | "app";
+  readonly quota?: string;
+  readonly resetAt?: string;
+
+  constructor(status: number, body: unknown, service: ServiceRefusedError["service"]) {
+    super(status, body);
+    const b = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
+    this.name = "ServiceRefusedError";
+    this.service = service;
+    const layer = b.layer;
+    this.layer = layer === "organization" || layer === "project" || layer === "app" ? layer : undefined;
+    this.quota = typeof b.quota === "string" ? b.quota : undefined;
+    this.resetAt = typeof b.resetAt === "string" ? b.resetAt : undefined;
+  }
+}
+
+/** The error of a service's refusal: a switched-off service or a used-up quota is a `ServiceRefusedError`. */
+function serviceError(status: number, body: unknown, service: ServiceRefusedError["service"]): ProblemError {
+  const type = (typeof body === "object" && body !== null ? (body as { type?: unknown }).type : undefined) ?? "";
+  return typeof type === "string" && (type.endsWith("/service-off") || type.endsWith("/quota"))
+    ? new ServiceRefusedError(status, body, service)
+    : new ProblemError(status, body);
+}
+
+/** A message to people of the organization, by person id or `"me"` (AP-168). */
+export interface Email {
+  to: string[] | "me";
+  subject: string;
+  text: string;
+  html?: string;
+}
+
 export interface Query {
   /** The endpoint to read, by the name the served configuration lists; only needed for a type more than one endpoint serves. */
   endpoint?: string;
@@ -113,6 +148,8 @@ export interface EndpointOption {
 
 export interface Client extends DataClient {
   functions: { call<T = unknown>(name: string, body?: unknown): Promise<T> };
+  /** The `email` service: the platform holds the relay, the App names people (SDK-41, API/06 §4). */
+  email: { send(message: Email): Promise<{ id: string }> };
 }
 
 export const FUNCTION_NAME = /^[a-z][a-z0-9-]{0,39}$/;
@@ -578,6 +615,17 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     },
   };
 
+  const email = {
+    async send(message: Email): Promise<{ id: string }> {
+      const path = config.transport === "bridge" ? "/services/email/send" : "/api/services/email/send";
+      const resp = await transport({ method: "POST", path, body: message });
+      if (resp.status < 200 || resp.status >= 300) {
+        throw serviceError(resp.status, resp.body, "email");
+      }
+      return resp.body as { id: string };
+    },
+  };
+
   return {
     config,
     entities,
@@ -587,6 +635,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     me: () => config.user ?? null,
     entityId,
     functions,
+    email,
   };
 }
 

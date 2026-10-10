@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createClient, isEndpointPath, ProblemError } from "../src/sdk/client";
+import { createClient, isEndpointPath, ProblemError, ServiceRefusedError } from "../src/sdk/client";
 import type { JcConfig } from "../src/sdk/config";
 import type { JcRequest, JcResponse, Transport } from "../src/sdk/transport";
 
@@ -339,5 +339,37 @@ describe("temporal, schema, and functions", () => {
       expect(pe.file).toBe("math.ts");
       expect(pe.line).toBe(42);
     }
+  });
+});
+
+describe("email", () => {
+  it("sends on the App's own host and turns a switched-off service or a used-up quota into ServiceRefusedError", async () => {
+    const calls: JcRequest[] = [];
+    const answers = [
+      { status: 202, body: { id: "m-1" } },
+      { status: 403, body: { type: "https://joinedcontext.com/errors/service-off", title: "Service Off", status: 403, service: "email", layer: "project" } },
+      { status: 429, body: { type: "https://joinedcontext.com/errors/quota", title: "Quota Used", status: 429, service: "email", quota: "emailsPerDay", resetAt: "2026-10-11T00:00:00Z" } },
+      { status: 403, body: { type: "https://joinedcontext.com/errors/recipient-refused", title: "Recipient Refused", status: 403, to: "x" } },
+    ];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return answers[calls.length - 1];
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+    const message = { to: "me" as const, subject: "New road defect", text: "Hlavná 4" };
+
+    expect(await client.email.send(message)).toEqual({ id: "m-1" });
+    expect(calls[0]).toEqual({ method: "POST", path: "/api/services/email/send", body: message });
+
+    const off = await client.email.send(message).catch((err: unknown) => err);
+    expect(off).toBeInstanceOf(ServiceRefusedError);
+    expect(off).toMatchObject({ status: 403, service: "email", layer: "project" });
+
+    const quota = await client.email.send(message).catch((err: unknown) => err);
+    expect(quota).toMatchObject({ status: 429, quota: "emailsPerDay", resetAt: "2026-10-11T00:00:00Z" });
+
+    const refused = await client.email.send(message).catch((err: unknown) => err);
+    expect(refused).toBeInstanceOf(ProblemError);
+    expect(refused).not.toBeInstanceOf(ServiceRefusedError);
   });
 });
