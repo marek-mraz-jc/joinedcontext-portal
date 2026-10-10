@@ -16,6 +16,7 @@ import { readModelSource } from "../../api/datamodelSource";
 import { SchemaForm } from "../../components/forms/SchemaForm";
 import type { JsonSchema } from "../../components/forms/types";
 import { Alert, Button, Field, Select, Skeleton, Tabs, tabPanelProps } from "../../components/ui";
+import { download } from "./diagramExport";
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import type { Artifacts } from "./LinkmlPreviewPanel";
 import { importName, parseModel } from "./linkml";
@@ -187,14 +188,7 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
       () => setCopied("no"),
     );
   };
-  const download = () => {
-    const href = URL.createObjectURL(new Blob([source], { type: "application/yaml" }));
-    const link = document.createElement("a");
-    link.href = href;
-    link.download = `${name}.linkml.yaml`;
-    link.click();
-    URL.revokeObjectURL(href);
-  };
+  const downloadYaml = () => download(source, `${name}.linkml.yaml`, "application/yaml");
 
   return (
     <div className="flex flex-col gap-2">
@@ -202,7 +196,7 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
         <Button size="sm" onClick={copy}>
           {t("models.page.copyYaml")}
         </Button>
-        <Button size="sm" variant="secondary" onClick={download}>
+        <Button size="sm" variant="secondary" onClick={downloadYaml}>
           {t("models.page.downloadYaml")}
         </Button>
         <span role="status" className="text-caption text-fg-muted">

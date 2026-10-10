@@ -36,6 +36,8 @@ export interface LinkmlEditorProps {
   initialView?: EditorView;
   /** Where the empty model's "Import a Smart Data Model" hint goes, when the page offers it. */
   onImport?: () => void;
+  /** The drawing without edit handles, for a person who may not propose the model (T-3589). */
+  readOnlyDrawing?: boolean;
 }
 
 const EDIT_VIEWS: EditorView[] = ["structure", "source", "graph", "preview"];
@@ -49,6 +51,7 @@ export function LinkmlEditor({
   onSubsetChange,
   initialView,
   onImport,
+  readOnlyDrawing = false,
 }: LinkmlEditorProps): JSX.Element {
   const { t } = useTranslation();
   const picking = onSubsetChange !== undefined;
@@ -92,13 +95,14 @@ export function LinkmlEditor({
           />
         ) : null}
         {view === "graph" ? (
-          // Read-only: a class, a relationship's line and "Add relationship" all open the class
-          // in the structure view, where its relationships are listed and added (T-1111, T-2738).
+          // A class opens in the structure view. A relationship is added, changed and removed on
+          // the drawing itself (T-3589); read-only, its line and "+" open the class instead.
           <LinkmlGraphView
             source={source}
             onOpenClass={openClass}
             onOpenRelationship={openClass}
             onAddRelationship={openClass}
+            onChange={readOnlyDrawing ? undefined : onChange}
           />
         ) : null}
         {view === "source" ? (
