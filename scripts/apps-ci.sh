@@ -65,7 +65,7 @@ ours() {
 }
 
 wasm() {
-  if touched sdk/examples/react-rust-wasm; then
+  if ours sdk/examples/react-rust-wasm; then
     work=$(mktemp -d)
     cp -r sdk/examples/react-rust-wasm/. "$work"
     cargo fetch --locked --manifest-path "$work/wasm/Cargo.toml"
@@ -75,12 +75,10 @@ wasm() {
       && sh "$RUN" react-rust-wasm --rust && pnpm build \
       && pnpm exec playwright install --with-deps --only-shell chromium \
       && pnpm exec playwright test)
-  else
-    skip react-rust-wasm
   fi
   for app in apps/*/; do
     [ -f "$app/wasm/Cargo.toml" ] && [ -f "$app/package.json" ] || continue
-    touched "$app" || { skip "$app"; continue; }
+    ours "$app" || continue
     work=$(mktemp -d)
     cp -r "$app". "$work"
     cargo fetch --locked --manifest-path "$work/wasm/Cargo.toml"
