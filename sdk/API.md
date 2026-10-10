@@ -444,6 +444,10 @@ Context providing data access and logging to server functions.
 type FnHandler = (request: FnRequest, ctx: FnContext) => Promise<FnResponse>
 ```
 Standard handler signature implemented by backend function files.
+```ts
+function requireRole(request: Pick<FnRequest, "user">, role: string): FnResponse | undefined
+```
+The `403` (or `401` without a signed-in person) a function answers when its caller does not hold the App's `role`, `undefined` when they do. `request.user` is the person the Portal verified for this call, so a patched page changes nothing: `const refused = requireRole(request, "steward"); if (refused) return refused;`.
 Backend functions run in QuickJS without browser Web APIs: no `fetch`, `URLSearchParams`, `URL`, `crypto`, DOM or timers. Read data through `ctx.jc` and build strings by hand.
 
 ---
