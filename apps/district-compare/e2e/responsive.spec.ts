@@ -20,7 +20,7 @@ for (const scheme of ["light", "dark"] as const) {
         await expect(rankedList.locator("li")).toHaveCount(3);
 
         // The table has two district columns (plus 1 measure column = 3 headers)
-        await expect(page.locator(".jc-table thead th")).toHaveCount(3);
+        await expect(page.getByRole("table", { name: lang === "en" ? "Selected districts compared" : "Valitut kaupunginosat rinnakkain" }).locator("thead th")).toHaveCount(3);
 
         // The chart canvas is drawn
         await expect(page.locator(".jc-chart-canvas")).toHaveCount(1);
@@ -43,13 +43,13 @@ test("toggling a district in the list adds it to the comparison table and update
   await page.goto(`${BASE}?lang=en`);
 
   // Initially 2 districts (Kamppi and Kallio)
-  await expect(page.locator(".jc-table thead th")).toHaveCount(3);
+  await expect(page.getByRole("table", { name: "Selected districts compared" }).locator("thead th")).toHaveCount(3);
 
   // Check Töölö
   await page.getByRole("checkbox", { name: "Töölö" }).check();
 
   // Now 3 districts (Kamppi, Kallio, Töölö) -> 4 header columns
-  await expect(page.locator(".jc-table thead th")).toHaveCount(4);
+  await expect(page.getByRole("table", { name: "Selected districts compared" }).locator("thead th")).toHaveCount(4);
   // The address names exactly these three; their order follows the selection, not the code.
   const picked = new URLSearchParams(new URL(page.url()).hash.split("?")[1]).get("d")?.split(",") ?? [];
   expect(picked.sort()).toEqual(["101", "102", "103"]);
