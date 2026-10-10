@@ -5,6 +5,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { policySentence } from "../pages/policies/policySentence";
+import { TryAPerson } from "../pages/policies/TryAPerson";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
@@ -314,6 +315,9 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
           );
         })}
       </ResourceList>
+
+      {/* What the gateway would decide for one person, for organization administrators (EP-103). */}
+      <TryAPerson project={project} />
 
       <ResourceFormDialog<PolicyForm>
         kind="Policy"
