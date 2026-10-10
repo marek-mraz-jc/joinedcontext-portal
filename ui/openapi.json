@@ -20085,12 +20085,17 @@
       "ProjectSummary": {
         "type": "object",
         "required": [
-          "name"
+          "name",
+          "sample"
         ],
         "properties": {
           "name": {
             "type": "string",
             "description": "The project slug, the `{project}` segment of every other path."
+          },
+          "sample": {
+            "type": "boolean",
+            "description": "Whether its `Project` manifest carries [`SAMPLE_LABEL`]: real open data a newcomer may look\naround in (PF-109)."
           }
         }
       },

@@ -10,8 +10,9 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { mayRead, usePermissions } from "../../api/permissions";
 import { spaceUsageQuery } from "../../api/spaceUsage";
-import { Button, PageHeader } from "../../components/ui";
-import { cardsFor, draftPage, firstRunSteps, roleOf, welcomeStep } from "./home";
+import { useSampleProjects } from "../../api/projects";
+import { Alert, Badge, Button, PageHeader } from "../../components/ui";
+import { cardsFor, draftPage, firstRunSteps, roleOf, sampleToTry, welcomeStep } from "./home";
 import type { Facts } from "./home";
 import { useFirstRun } from "./firstRun";
 
@@ -104,10 +105,31 @@ export function HomePage({
     dashboards: (dashboards.data?.items ?? []).map((item) => item.metadata?.name ?? "").filter(Boolean),
   };
   const cards = role ? cardsFor(project, role, facts) : [];
+  const samples = useSampleProjects().data ?? [];
+  const isSample = samples.includes(project);
+  const trySample = sampleToTry(project, samples);
+  // Offered while the person keeps the first-run guidance (PF-109): inside the checklist while it
+  // is open, on its own once every step is done, and nowhere after it was put away.
+  const checklistOpen = firstRun.shown && doneCount < steps.length;
+  const sampleLine =
+    firstRun.shown && trySample ? (
+      <p className="text-body text-fg-muted">
+        {t("home.sample.lead")}{" "}
+        <Link to="/projects/$project/home" params={{ project: trySample }} className="font-medium text-primary-soft-fg underline">
+          {t("home.sample.try")}
+        </Link>
+      </p>
+    ) : null;
 
   return (
     <section className="space-y-8" aria-label={t("home.title")}>
-      <PageHeader title={t("home.title")} description={role ? t(`home.lead.${role}`) : t("home.leadLoading")} />
+      <PageHeader
+        title={t("home.title")}
+        description={role ? t(`home.lead.${role}`) : t("home.leadLoading")}
+        aside={isSample ? <Badge tone="info">{t("home.sample.badge")}</Badge> : undefined}
+      />
+
+      {isSample ? <Alert title={t("home.sample.title")}>{t("home.sample.body")}</Alert> : null}
 
       {welcome && permissions.data !== undefined ? (
         <section aria-labelledby="welcome-heading" className="space-y-3 rounded-lg border border-primary bg-surface p-4">
@@ -130,7 +152,9 @@ export function HomePage({
         </section>
       ) : null}
 
-      {firstRun.shown && doneCount < steps.length ? (
+      {checklistOpen ? null : sampleLine}
+
+      {checklistOpen ? (
         <section aria-labelledby="first-run-heading" className="space-y-3 rounded-lg border border-border bg-surface p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="first-run-heading" className="text-title font-semibold text-fg">
@@ -156,6 +180,7 @@ export function HomePage({
               </li>
             ))}
           </ol>
+          {sampleLine}
           <Button variant="secondary" size="sm" onClick={() => firstRun.dismiss()}>
             {t("home.firstRun.dismiss")}
           </Button>

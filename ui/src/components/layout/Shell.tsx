@@ -14,11 +14,12 @@ import { AssistantDock } from "../../assistant/AssistantDock";
 import { CommandPalette } from "../../navigation/CommandPalette";
 import { PageTools } from "../../navigation/PageTools";
 import { useAuth } from "../../auth/AuthProvider";
-import { rememberProject, useProjects } from "../../api/projects";
+import { rememberProject, useProjects, useSampleProjects } from "../../api/projects";
 import { useAdministers } from "../../api/permissions";
 import { logoUrl, useBranding, useHiddenSections } from "../../branding";
 import {
   Alert,
+  Badge,
   Button,
   buttonClass,
   Icon,
@@ -45,6 +46,7 @@ const NAV_LINK_ACTIVE = "bg-primary-soft font-semibold text-primary-soft-fg hove
 function ProjectSelector({ active }: { active: string }) {
   const { t } = useTranslation();
   const known = useProjects().data ?? [];
+  const samples = useSampleProjects().data ?? [];
   const projects = known.includes(active) ? known : [active, ...known];
   // The page in hand, so the switch keeps it: a person comparing two projects' endpoints stays
   // in Endpoints instead of walking back from Spaces every time (T-2425, UI-05).
@@ -63,6 +65,9 @@ function ProjectSelector({ active }: { active: string }) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-body font-semibold text-fg">{active}</span>
+            {samples.includes(active) ? (
+              <span className="block text-caption text-fg-muted"> {t("home.sample.badge")}</span>
+            ) : null}
           </span>
           <Icon name="chevronDown" className="size-4 text-fg-subtle" />
         </Button>
@@ -80,6 +85,8 @@ function ProjectSelector({ active }: { active: string }) {
             >
               {project === active ? <Icon name="check" className="size-4" /> : <span className="size-4" />}
               {project}
+              {/* A space, so the name is read as two words, not one ("banskabystricaSample"). */}
+              {samples.includes(project) ? <> <Badge tone="info">{t("home.sample.badge")}</Badge></> : null}
             </Link>
           </MenuItem>
         ))}
