@@ -77,7 +77,7 @@ fn create_input_schema() -> Value {
             "appClass": {
                 "type": "string",
                 "description": "How the App is built and served, as the App kind spells it (AP-124)",
-                "enum": ["ui", "ui-rust"]
+                "enum": ["ui", "ui-rust", "wasm"]
             },
             "visibility": {
                 "type": "string",

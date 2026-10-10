@@ -194,6 +194,8 @@ COPY --from=ui /work/ui/dist ./ui/dist
 COPY --from=sdk /sdk/dist ./sdk/dist
 # The template every code run starts from is compiled into the binary too (src/agents/preview.rs).
 COPY sdk/template ./sdk/template
+# And the server half a `wasm` run adds over it (T-3575).
+COPY sdk/template-wasm ./sdk/template-wasm
 # So is the gallery a run adapts when the request is of a sample's kind (src/agents/samples.rs).
 COPY sdk/samples ./sdk/samples
 # A code run's prompt carries the SDK's API and export list (`include_str!` in src/agents/code.rs).
