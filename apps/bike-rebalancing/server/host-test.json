@@ -1,0 +1,164 @@
+{
+  "gateway": [
+    {
+      "path": "/ngsi-ld/v1/entities",
+      "query": {
+        "type": "BikeHireDockingStation",
+        "offset": "0"
+      },
+      "file": "host-test/stations.json"
+    }
+  ],
+  "steps": [
+    {
+      "call": "POST /api/plans",
+      "body": {
+        "operator": ""
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/plans",
+      "body": {
+        "operator": "x",
+        "vanCapacity": 0
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/plans",
+      "body": {
+        "operator": "x",
+        "colour": "red"
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/plans",
+      "body": {
+        "operator": "x",
+        "start": "urn:nowhere"
+      },
+      "status": 400
+    },
+    {
+      "call": "POST /api/plans",
+      "body": {
+        "operator": " Van 1 ",
+        "vanCapacity": 15
+      },
+      "status": 201,
+      "expect": {
+        "/operator": "Van 1",
+        "/moved": 10,
+        "/stops/0/id": "urn:ngsi-ld:BikeHireDockingStation:001",
+        "/stops/0/action": "pick",
+        "/stops/1/id": "urn:ngsi-ld:BikeHireDockingStation:002"
+      },
+      "length": {
+        "/stops": 2
+      },
+      "save": {
+        "plan": "/id"
+      }
+    },
+    {
+      "call": "GET /api/plans?operator=Van%201",
+      "status": 200,
+      "expect": {
+        "/0/stopCount": 2,
+        "/0/drives": 0
+      },
+      "length": {
+        "": 1
+      }
+    },
+    {
+      "call": "GET /api/plans?operator=Van%202",
+      "status": 200,
+      "length": {
+        "": 0
+      }
+    },
+    {
+      "call": "GET /api/plans/{plan}/sheet",
+      "status": 200,
+      "download": "/url",
+      "downloaded": "stop,station,name,action,bikes,load_after,leg_km\n1,urn:ngsi-ld:BikeHireDockingStation:001,Kamppi,take,10,10,"
+    },
+    {
+      "call": "POST /api/plans/{plan}/drives",
+      "body": {
+        "stops": [
+          "urn:ngsi-ld:BikeHireDockingStation:001",
+          "urn:ngsi-ld:BikeHireDockingStation:002"
+        ],
+        "km": 2.4,
+        "note": "rain"
+      },
+      "status": 201,
+      "expect": {
+        "/note": "rain"
+      }
+    },
+    {
+      "call": "POST /api/plans/{plan}/drives",
+      "body": {
+        "stops": [
+          "urn:ngsi-ld:BikeHireDockingStation:003"
+        ]
+      },
+      "status": 400
+    },
+    {
+      "call": "GET /api/plans/{plan}",
+      "status": 200,
+      "expect": {
+        "/drives/0/note": "rain",
+        "/vanCapacity": 15
+      },
+      "length": {
+        "/drives": 1
+      }
+    },
+    {
+      "call": "GET /api/plans",
+      "as": "second",
+      "status": 200,
+      "length": {
+        "": 0
+      }
+    },
+    {
+      "call": "GET /api/plans/{plan}",
+      "as": "second",
+      "status": 404
+    },
+    {
+      "call": "GET /api/plans/{plan}/sheet",
+      "as": "second",
+      "status": 404
+    },
+    {
+      "call": "DELETE /api/plans/{plan}",
+      "as": "second",
+      "status": 404
+    },
+    {
+      "call": "GET /api/plans/{plan}",
+      "status": 200
+    },
+    {
+      "call": "DELETE /api/plans/{plan}",
+      "status": 204
+    },
+    {
+      "call": "GET /api/plans/{plan}",
+      "status": 404
+    },
+    {
+      "call": "GET /api/plans/{plan}/sheet",
+      "status": 404
+    }
+  ]
+}

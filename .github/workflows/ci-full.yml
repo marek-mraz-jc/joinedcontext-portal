@@ -67,41 +67,6 @@ jobs:
         env: { JC_PREVIEW_OUT: "${{ runner.temp }}/preview" }
       - run: cargo doc --workspace --no-deps
         env: { RUSTDOCFLAGS: "-D warnings" }
-  wasm-apps:
-    # The Helsinki server WASM Apps on the real host (T-3346..T-3350, ADR-N-044): each App's
-    # component, its migrations run twice as its owner, its routes against Postgres and RustFS and
-    # a mock gateway (tests/wasm-apps). Its own workspace, so wasmtime stays out of test-all.
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env: { POSTGRES_HOST_AUTH_METHOD: trust }
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-        with: { targets: wasm32-wasip2 }
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with: { workspaces: tests/wasm-apps }
-      # The host judges an App's SQL by Postgres's own parser (pg_query), built with bindgen.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libclang-dev
-      # RustFS at the digest the platform's own storage tests use.
-      - run: >-
-          docker run -d --name wasm-rustfs -p 19000:9000 -e RUSTFS_ACCESS_KEY=ci-root -e RUSTFS_SECRET_KEY=ci-root-secret
-          docker.io/rustfs/rustfs@sha256:c36b3efea3d1e503f1a2581abd0e7611e0e5820dd30e1850a52384b3fc52bda4
-          && for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:19000/ && break; sleep 1; done
-      - run: cargo test --locked --manifest-path tests/wasm-apps/Cargo.toml --no-fail-fast
-        env:
-          JC_WASM_TEST_DATABASE_URL: postgres://postgres@127.0.0.1:5432/postgres
-          JC_WASM_TEST_S3: http://127.0.0.1:19000
-          JC_WASM_TEST_S3_KEY: ci-root
-          JC_WASM_TEST_S3_SECRET: ci-root-secret
   readme:
     # Every command the README tells a newcomer to type is run here (T-2144, TS-19). A
     # renamed crate, a moved script or a flag that no longer exists then fails a lane rather

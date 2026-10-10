@@ -18,9 +18,6 @@ use jc_app_sdk::sql::{self, Value};
 use serde::Deserialize;
 use serde_json::Value as Json;
 
-/// The App's endpoint on the gateway (grants/…/endpoints/app-event-day-planner.yaml): fixed here,
-/// so no caller can point a shared day at another endpoint's data.
-const ENDPOINT: &str = "fxqtz5wpwqicquej2ocrixp3cp";
 const ATTRS: &str = "name,description,startDate,endDate,eventStatus,address,location,source";
 /// The events one day may hold, as the planner plans at most 20.
 const MOST_PICKS: usize = 20;
@@ -247,6 +244,17 @@ fn during(entity: &Json, (start, end): (i64, i64)) -> bool {
     first < end && (last > start || (last == first && first >= start))
 }
 
+/// The gateway's answer read as `T`, or what the caller gets: their own 401 or 403 passes
+/// through, anything else is the gateway's fault.
+fn read<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, Response> {
+    let answer = gateway::get(path).map_err(|why| Response::problem(502, "Bad Gateway", &why))?;
+    answer.json().map_err(|why| match answer.status {
+        401 => Response::problem(401, "Unauthorized", &why),
+        403 => Response::problem(403, "Forbidden", &why),
+        _ => Response::problem(502, "Bad Gateway", &why),
+    })
+}
+
 /// A share's code: 12 letters and digits of a random UUID Postgres makes.
 fn new_code() -> Result<String, Response> {
     let rows = sql::query(
@@ -325,12 +333,13 @@ fn share(request: &Request, _: &Params) -> Response {
         Err(why) => return bad(&why),
     };
     let path = format!(
-        "/api/endpoint/{ENDPOINT}/ngsi-ld/v1/entities?type=Event&options=keyValues&attrs={ATTRS}&limit={MOST_PICKS}&id={}",
-        ids.join(",")
+        "/ngsi-ld/v1/entities?type=Event&options=keyValues&attrs={}&limit={MOST_PICKS}&id={}",
+        gateway::encode(ATTRS),
+        gateway::encode(&ids.join(","))
     );
-    let entities: Vec<Json> = match gateway::get_json(&path) {
+    let entities: Vec<Json> = match read(&path) {
         Ok(entities) => entities,
-        Err(err) => return err.into(),
+        Err(answer) => return answer,
     };
     let found: Vec<&Json> = entities.iter().filter(|e| during(e, bounds)).collect();
     if found.is_empty() {
