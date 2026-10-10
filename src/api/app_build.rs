@@ -12,7 +12,6 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use jc_core::kinds::Verb;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use utoipa::ToSchema;
 
 use crate::agents::repository;
