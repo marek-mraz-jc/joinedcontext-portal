@@ -5429,6 +5429,22 @@
     "button": "Duplicate",
     "needsRepository": "Only a project in a repository of its own can be duplicated."
   },
+  "projectRelease": {
+    "title": "Release",
+    "lead": "What this deployment runs from the project's repository, and its parameter values. A change goes to an organization administrator for approval.",
+    "runs": "Runs",
+    "parameters": "Parameter values",
+    "none": "Every parameter at its default.",
+    "button": "Pin a release",
+    "needsPropose": "Only someone who may change this project at the organization, such as an organization administrator, can pin a release.",
+    "external": "This project is authored outside the forge, so the Portal lists no releases for it.",
+    "dialogTitle": "Pin a release of {name}",
+    "dialogLead": "Proposes the registry entry with this release and these values. Once an organization administrator approves it, the next render runs it.",
+    "ref": "Release",
+    "refHint": "A tag of the project's repository; the ref that runs now is listed first.",
+    "current": "{ref} (runs now)",
+    "propose": "Propose"
+  },
   "projectImport": {
     "title": "Import a project",
     "lead": "Creates the project's repositories from a git export, then proposes its registry entry.",

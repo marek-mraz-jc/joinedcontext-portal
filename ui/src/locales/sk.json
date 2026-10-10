@@ -5429,6 +5429,22 @@
     "button": "Duplikovať",
     "needsRepository": "Duplikovať možno len projekt vo vlastnom repozitári."
   },
+  "projectRelease": {
+    "title": "Vydanie",
+    "lead": "Čo toto nasadenie spúšťa z repozitára projektu a hodnoty jeho parametrov. Zmenu schvaľuje administrátor organizácie.",
+    "runs": "Beží",
+    "parameters": "Hodnoty parametrov",
+    "none": "Všetky parametre majú predvolenú hodnotu.",
+    "button": "Pripnúť vydanie",
+    "needsPropose": "Vydanie môže pripnúť len ten, kto smie meniť tento projekt na úrovni organizácie, napríklad administrátor organizácie.",
+    "external": "Tento projekt sa spravuje mimo forge, preto Portál preň nezobrazuje vydania.",
+    "dialogTitle": "Pripnúť vydanie projektu {name}",
+    "dialogLead": "Navrhne záznam v registri s týmto vydaním a týmito hodnotami. Keď ho administrátor organizácie schváli, ďalšie vykreslenie ho spustí.",
+    "ref": "Vydanie",
+    "refHint": "Tag repozitára projektu; ako prvý je uvedený stav, ktorý beží teraz.",
+    "current": "{ref} (beží teraz)",
+    "propose": "Navrhnúť"
+  },
   "projectImport": {
     "title": "Importovať projekt",
     "lead": "Vytvorí repozitáre projektu z git exportu a potom navrhne jeho záznam v registri.",

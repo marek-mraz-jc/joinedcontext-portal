@@ -5429,6 +5429,22 @@
     "button": "Duplizieren",
     "needsRepository": "Nur ein Projekt in einem eigenen Repository kann dupliziert werden."
   },
+  "projectRelease": {
+    "title": "Version",
+    "lead": "Was diese Bereitstellung aus dem Repository des Projekts ausführt, und ihre Parameterwerte. Eine Änderung genehmigt eine Organisationsadministration.",
+    "runs": "Läuft",
+    "parameters": "Parameterwerte",
+    "none": "Alle Parameter auf ihrem Standardwert.",
+    "button": "Version festlegen",
+    "needsPropose": "Nur wer dieses Projekt auf Organisationsebene ändern darf, etwa eine Organisationsadministration, kann eine Version festlegen.",
+    "external": "Dieses Projekt wird außerhalb der Forge gepflegt, daher listet das Portal keine Versionen dafür.",
+    "dialogTitle": "Version von {name} festlegen",
+    "dialogLead": "Schlägt den Registereintrag mit dieser Version und diesen Werten vor. Sobald eine Organisationsadministration ihn genehmigt, läuft er mit dem nächsten Rendern.",
+    "ref": "Version",
+    "refHint": "Ein Tag des Projekt-Repositorys; der jetzt laufende Stand steht zuerst.",
+    "current": "{ref} (läuft jetzt)",
+    "propose": "Vorschlagen"
+  },
   "projectImport": {
     "title": "Projekt importieren",
     "lead": "Legt die Repositories des Projekts aus einem Git-Export an und schlägt dann seinen Registereintrag vor.",
