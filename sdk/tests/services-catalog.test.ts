@@ -5,7 +5,7 @@
  * SDK under `kit`. Built here from API.md and the real exports, so `services.json` cannot drift:
  * regenerate it with `JC_WRITE_CATALOG=1 pnpm vitest run tests/services-catalog.test.ts`.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import apiMd from "../API.md?raw";
@@ -23,6 +23,7 @@ const SERVICES = [
     rust: [],
     appYaml: [],
     quotas: [],
+    examples: ["examples/services/identity.tsx"],
   },
   {
     service: "data",
@@ -32,6 +33,7 @@ const SERVICES = [
     rust: ["jc_app_sdk::gateway::get(path: &str) -> Result<Vec<u8>, Error>", "jc_app_sdk::gateway::get_json<T>(path: &str) -> Result<T, Error>"],
     appYaml: ["dataNeeds: [{ contextSpaceRef, types, attrs, operations }]"],
     quotas: [],
+    examples: ["examples/services/data.tsx", "template-wasm/server/src/lib.rs"],
   },
   {
     service: "files",
@@ -47,6 +49,7 @@ const SERVICES = [
     ],
     appYaml: ["services: [files]", "kind: wasm and storage.blob for the Rust calls"],
     quotas: ["filesMiB"],
+    examples: [],
   },
   {
     service: "email",
@@ -56,6 +59,7 @@ const SERVICES = [
     rust: [],
     appYaml: ["services: [email]"],
     quotas: ["emailsPerDay"],
+    examples: [],
   },
   {
     service: "jobs",
@@ -65,6 +69,7 @@ const SERVICES = [
     rust: ["an exported fn() -> Result<(), String> named by spec.server.jobs[].export"],
     appYaml: ["kind: wasm", "server.jobs: [{ name, schedule, export }]"],
     quotas: ["at most 10 jobs"],
+    examples: [],
   },
   {
     service: "ai",
@@ -74,6 +79,7 @@ const SERVICES = [
     rust: [],
     appYaml: ["services: [ai]"],
     quotas: ["aiTokensPerDay"],
+    examples: [],
   },
 ];
 
@@ -117,6 +123,13 @@ describe("the services catalog", () => {
     expect(listed.filter((name) => !(name in sdk))).toEqual([]);
     expect(Object.keys(sdk).filter((name) => !listed.includes(name))).toEqual([]);
     expect(new Set(listed).size).toBe(listed.length);
+  });
+
+  it("points at examples that exist, one at least for each service the SDK has calls for", () => {
+    const missing = built.services.flatMap((s) => s.examples).filter((path) => !existsSync(join(__dirname, "..", path)));
+    expect(missing).toEqual([]);
+    const without = built.services.filter((s) => s.typescript.length > 0 && s.examples.length === 0).map((s) => s.service);
+    expect(without).toEqual([]);
   });
 
   it("gives every service call its signature from API.md", () => {

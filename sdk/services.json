@@ -22,7 +22,10 @@
       ],
       "rust": [],
       "appYaml": [],
-      "quotas": []
+      "quotas": [],
+      "examples": [
+        "examples/services/identity.tsx"
+      ]
     },
     {
       "service": "data",
@@ -73,7 +76,11 @@
       "appYaml": [
         "dataNeeds: [{ contextSpaceRef, types, attrs, operations }]"
       ],
-      "quotas": []
+      "quotas": [],
+      "examples": [
+        "examples/services/data.tsx",
+        "template-wasm/server/src/lib.rs"
+      ]
     },
     {
       "service": "files",
@@ -93,7 +100,8 @@
       ],
       "quotas": [
         "filesMiB"
-      ]
+      ],
+      "examples": []
     },
     {
       "service": "email",
@@ -106,7 +114,8 @@
       ],
       "quotas": [
         "emailsPerDay"
-      ]
+      ],
+      "examples": []
     },
     {
       "service": "jobs",
@@ -122,7 +131,8 @@
       ],
       "quotas": [
         "at most 10 jobs"
-      ]
+      ],
+      "examples": []
     },
     {
       "service": "ai",
@@ -135,7 +145,8 @@
       ],
       "quotas": [
         "aiTokensPerDay"
-      ]
+      ],
+      "examples": []
     }
   ],
   "kit": [
