@@ -112,6 +112,18 @@ fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
                     attrs.iter().any(|attr| *attr == "stewardNote"),
                     "the note attribute has to be in the grant"
                 );
+                // A need's attrs are its Policy's propertyNames for every operation it names, so
+                // the write sits in a need of its own on the note alone: a person never writes a
+                // published figure the next pipeline run would overwrite (AP-62, T-3596).
+                for need in &app.spec.data_needs {
+                    if need
+                        .operations
+                        .iter()
+                        .any(|op| writes.contains(&op.as_str()))
+                    {
+                        assert_eq!(need.attrs, ["stewardNote"], "{name} writes the note alone");
+                    }
+                }
             }
             // T-2598, T-2617: the steward's record form. Every write is granted to `steward`
             // alone and none reaches `source`; the next test holds the rest of its shape.

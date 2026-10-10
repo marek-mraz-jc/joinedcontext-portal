@@ -43,6 +43,7 @@ WORKDIR /work
 COPY sdk/package.json sdk/pnpm-lock.yaml ./sdk/
 COPY apps/bbsk-ukazovatele/ui/package.json apps/bbsk-ukazovatele/ui/pnpm-lock.yaml ./apps/bbsk-ukazovatele/ui/
 COPY apps/banskabystrica-zaznamy/ui/package.json apps/banskabystrica-zaznamy/ui/pnpm-lock.yaml ./apps/banskabystrica-zaznamy/ui/
+COPY apps/bbsk-zaznamy/ui/package.json apps/bbsk-zaznamy/ui/pnpm-lock.yaml ./apps/bbsk-zaznamy/ui/
 COPY apps/banskabystrica-ovzdusie/ui/package.json apps/banskabystrica-ovzdusie/ui/pnpm-lock.yaml ./apps/banskabystrica-ovzdusie/ui/
 COPY apps/banskabystrica-mapa/ui/package.json apps/banskabystrica-mapa/ui/pnpm-lock.yaml ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/package.json apps/banskabystrica-data/ui/pnpm-lock.yaml ./apps/banskabystrica-data/ui/
@@ -64,6 +65,7 @@ COPY apps/zilina-vyskum/ui/package.json apps/zilina-vyskum/ui/pnpm-lock.yaml ./a
 RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-zaznamy/ui && pnpm install --frozen-lockfile \
+    && cd ../../bbsk-zaznamy/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-ovzdusie/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-mapa/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-data/ui && pnpm install --frozen-lockfile \
@@ -85,6 +87,7 @@ RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
 COPY sdk/ ./sdk/
 COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
 COPY apps/banskabystrica-zaznamy/ui/ ./apps/banskabystrica-zaznamy/ui/
+COPY apps/bbsk-zaznamy/ui/ ./apps/bbsk-zaznamy/ui/
 COPY apps/banskabystrica-ovzdusie/ui/ ./apps/banskabystrica-ovzdusie/ui/
 COPY apps/banskabystrica-mapa/ui/ ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/ ./apps/banskabystrica-data/ui/
@@ -110,6 +113,9 @@ RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
 RUN cd apps/banskabystrica-zaznamy/ui && pnpm build \
     && cp -r dist /srv/apps/banskabystrica-zaznamy \
     && node /work/scripts/app-integrity.mjs /srv/apps/banskabystrica-zaznamy
+RUN cd apps/bbsk-zaznamy/ui && pnpm build \
+    && cp -r dist /srv/apps/bbsk-zaznamy \
+    && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-zaznamy
 RUN cd apps/banskabystrica-ovzdusie/ui && pnpm build \
     && cp -r dist /srv/apps/banskabystrica-ovzdusie \
     && node /work/scripts/app-integrity.mjs /srv/apps/banskabystrica-ovzdusie

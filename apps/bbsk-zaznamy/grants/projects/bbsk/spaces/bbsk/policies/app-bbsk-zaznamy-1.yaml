@@ -35,4 +35,3 @@ spec:
   operations:
   - queryEntity
   - retrieveEntity
-  - updateAttrs
