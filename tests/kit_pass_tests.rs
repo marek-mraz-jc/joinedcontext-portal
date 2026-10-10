@@ -2533,3 +2533,87 @@ async fn preview_errors_and_call_function_answer_the_model_as_tool_results() {
     assert_eq!(tools[2].1, "failed");
     assert!(tools[2].2.contains("no function 'nope'"), "{}", tools[2].2);
 }
+
+/// T-3575, AP-151: a `wasm` run starts from the template with its server half, the model reads
+/// the server's rules and its crate but not the lock, may change the server's Rust and never its
+/// manifest, and the run commits the crate, the change and the workflow that builds the component.
+#[tokio::test]
+async fn a_wasm_run_writes_the_server_half_and_commits_the_crate_with_its_workflow() {
+    let forge = code_forge().await;
+    let mut blocks = stations_app(STATIONS);
+    blocks.push((
+        "server/src/lib.rs",
+        "pub const MAX_TEXT: usize = 500;\n",
+        "pub const MAX_TEXT: usize = 280;".to_owned(),
+    ));
+    blocks.push((
+        "server/Cargo.toml",
+        "",
+        "[dependencies]\ntokio = \"1\"".to_owned(),
+    ));
+    let answer = code_answer("Stations, and a server that keeps notes.", &blocks);
+    let (_state, app, cookie, proxy) =
+        portal_state_with("openai-compatible", &[answer], Some(&forge)).await;
+    mount_types(&proxy).await;
+    let (status, body) = json(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(json!({
+            "appName": "city-bikes-overview",
+            "endpointName": "helsinki-bikes",
+            "appClass": "wasm",
+            "visibility": "project",
+            "prompt": "Stations, and notes kept on the server",
+            "dataNeeds": [{
+                "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" },
+                "types": ["BikeHireDockingStation"],
+                "attrs": ["name", "location", "availableBikeNumber"],
+                "operations": ["queryEntity"]
+            }]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    let id = body["id"].as_str().expect("a run id").to_owned();
+    wait_for_version(&app, &cookie, &id, 1).await;
+
+    let requests = model_requests(&proxy).await;
+    let user = requests[0]["messages"][1]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(user.contains("## THE SERVER HALF (a wasm App)"));
+    // T-3585: never the catalog's kit; services appear once the SDK has calls for them.
+    assert!(!user.contains("\"kit\""));
+    assert!(user.contains("### server/src/lib.rs"));
+    assert!(!user.contains("[[package]]"), "the lock reached the model");
+
+    let mut committed = std::collections::BTreeMap::new();
+    for request in forge.received_requests().await.unwrap_or_default() {
+        if request.method.as_str() != "POST" || request.url.path() != format!("{APP_REPO}/contents")
+        {
+            continue;
+        }
+        let body: Value = serde_json::from_slice(&request.body).expect("a JSON commit");
+        for file in body["files"].as_array().into_iter().flatten() {
+            let text = file["content"].as_str().map(|content| {
+                String::from_utf8(
+                    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, content)
+                        .expect("base64"),
+                )
+                .expect("utf-8")
+            });
+            committed.insert(file["path"].as_str().unwrap_or_default().to_owned(), text);
+        }
+    }
+    let file = |path: &str| committed.get(path).cloned().flatten().unwrap_or_default();
+    assert!(file("server/src/lib.rs").contains("pub const MAX_TEXT: usize = 280;"));
+    assert!(
+        !file("server/Cargo.toml").contains("tokio"),
+        "the model changed the crate's manifest"
+    );
+    assert!(file("server/Cargo.lock").contains("jc-app-sdk"));
+    assert!(file("migrations/0001_items.sql").contains("create table if not exists items"));
+    assert!(file(".gitea/workflows/build.yml").contains("runs-on: app-build-rust"));
+}

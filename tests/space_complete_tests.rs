@@ -1107,3 +1107,37 @@ async fn complete_with_account(payload: Value) -> (StatusCode, Value) {
         serde_json::from_slice(&bytes).unwrap_or(Value::Null),
     )
 }
+
+const BOOKING_LINKML: &str = "id: https://example.org/models/bookings\nname: bookings\nprefixes:\n  linkml: https://w3id.org/linkml/\nimports:\n  - linkml:types\ndefault_range: string\nclasses:\n  Booking:\n    slots: [id, name, room, startsAt, seats]\nslots:\n  id:\n    identifier: true\n  name: {}\n  room: {}\n  startsAt:\n    range: datetime\n  seats:\n    range: integer\n";
+
+/// T-3608, AP-22: a type no space holds, described only by the LinkML the builder wrote, drafts
+/// the model, the space and a project Endpoint the builder reads its schema through, with no
+/// grant (nothing loads it; the App's own Policy comes with the App), and nothing is proposed:
+/// the person proposes them as one Change.
+#[tokio::test]
+async fn a_linkml_file_alone_drafts_the_model_the_space_and_its_grants() {
+    let (status, body) = complete_as_steward(json!({
+        "space": "room-bookings",
+        "typeName": "Booking",
+        "description": "Bookings of the city's meeting rooms",
+        "files": [{ "name": "room-bookings.linkml.yaml", "content": BOOKING_LINKML }],
+    }))
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let kinds: Vec<&str> = body["drafts"]
+        .as_array()
+        .expect("drafts")
+        .iter()
+        .filter_map(|d| d["kind"].as_str())
+        .collect();
+    assert_eq!(kinds, ["DataModel", "ContextSpace", "Endpoint"], "{body}");
+    let endpoint = &body["drafts"][2]["manifest"]["spec"];
+    assert_eq!(endpoint["audience"], "project", "{endpoint}");
+    assert_eq!(endpoint["contextSpaceRef"], "room-bookings");
+    assert_eq!(endpoint["projection"]["classes"], json!(["Booking"]));
+    assert_eq!(
+        body["change"],
+        Value::Null,
+        "nothing proposed without the person"
+    );
+}

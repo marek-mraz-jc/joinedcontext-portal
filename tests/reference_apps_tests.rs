@@ -782,3 +782,30 @@ fn every_sample_app_role_goes_to_its_default_group() {
         }
     }
 }
+
+/// T-3575, AP-151: a generated `wasm` App keeps the wasm template's `server/Cargo.lock`, which the
+/// model never writes, so the runner's store fetches that lock and the App builds `--locked`
+/// offline; the template's server crate is a cdylib on the guest SDK alone.
+#[test]
+fn the_wasm_templates_lock_is_in_the_runners_store() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let dockerfile =
+        std::fs::read_to_string(root.join("builder/Dockerfile")).expect("the builder's Dockerfile");
+    assert!(
+        dockerfile.contains("sdk/template-wasm/server"),
+        "the crate store does not fetch sdk/template-wasm/server/Cargo.lock"
+    );
+    let server = root.join("sdk/template-wasm/server");
+    let lock = locked_packages(
+        &std::fs::read_to_string(server.join("Cargo.lock")).expect("the template's lock"),
+    );
+    assert!(
+        lock.iter().any(|(name, _)| name == "jc-app-sdk"),
+        "{lock:?}"
+    );
+    let manifest = std::fs::read_to_string(server.join("Cargo.toml")).expect("the manifest");
+    assert!(
+        manifest.contains(r#"crate-type = ["cdylib", "rlib"]"#),
+        "{manifest}"
+    );
+}

@@ -2012,3 +2012,51 @@ async fn a_stream_the_provider_breaks_off_says_so() {
         "the provider's own words stay in the log: {said:?}"
     );
 }
+
+/// T-3608, AP-22: an application that needs a type no space holds starts with its data. The
+/// model writes the type's LinkML; the platform drafts the model, the space and a project
+/// Endpoint the builder reads, opens them for the person, and proposes nothing.
+#[tokio::test]
+async fn an_app_needing_a_type_nobody_publishes_drafts_its_model_space_and_endpoint() {
+    let linkml = "id: https://example.org/models/room-bookings\nname: room-bookings\nprefixes:\n  linkml: https://w3id.org/linkml/\nimports:\n  - linkml:types\ndefault_range: string\nclasses:\n  Booking:\n    slots: [id, name, room, seats]\nslots:\n  id:\n    identifier: true\n  name: {}\n  room: {}\n  seats:\n    range: integer\n";
+    let answer = format!(
+        "Nobody publishes room bookings yet, so their model and space come first.\n\n```json\n{}\n```",
+        json!({
+            "tool": "space_complete",
+            "space": "room-bookings",
+            "typeName": "Booking",
+            "description": "Bookings of the city's meeting rooms",
+            "files": [{ "name": "room-bookings.linkml.yaml", "content": linkml }],
+        })
+    );
+    let started = start(
+        BUILDER,
+        json!({ "message": "An app to book the city's meeting rooms" }),
+        &[&answer],
+    )
+    .await;
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let events = events_until(&started, |e| e.kind == "navigate").await;
+    let completed = of_kind(&events, "tool")
+        .into_iter()
+        .find(|tool| tool["tool"] == "space_complete")
+        .expect("the data is drafted")
+        .clone();
+    assert_eq!(completed["status"], "ok", "{completed}");
+    let kinds: Vec<&str> = completed["output"]["drafts"]
+        .as_array()
+        .expect("drafts")
+        .iter()
+        .filter_map(|d| d["kind"].as_str())
+        .collect();
+    assert_eq!(
+        kinds,
+        ["DataModel", "ContextSpace", "Endpoint"],
+        "{completed}"
+    );
+    assert_eq!(
+        completed["output"]["change"],
+        Value::Null,
+        "the person proposes, never the run"
+    );
+}
