@@ -1,0 +1,251 @@
+//! The platform services an App calls on its own host: which layer switches one off, the quota in
+//! force, today's use against it, and the refusals the routes answer (AP-163…AP-165, ADR-N-045,
+//! API/06 §2, §3).
+//!
+//! A service is on only when the organization, the project and the App all list it; each quota is
+//! the lowest a layer sets, the catalog's default when none does. The check runs on every call, so
+//! switching a layer off stops an App that is already published (AP-164).
+
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
+use jc_core::kinds::org_settings::entry_at;
+use jc_core::kinds::{AppService, AppSpec, DEFAULT_ORGANIZATION_SERVICES};
+use serde::Serialize;
+use serde_json::{json, Value};
+use time::OffsetDateTime;
+
+use crate::permissions::ORG_NAMESPACE;
+use crate::store::{ListOptions, Mirror};
+
+/// The layer that switched a service off (AP-164).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Layer {
+    Organization,
+    Project,
+    App,
+}
+
+/// A per-App quota (AP-165): its member name in each layer's limits and its catalog path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Quota {
+    EmailsPerDay,
+}
+
+impl Quota {
+    fn member(self) -> &'static str {
+        match self {
+            Self::EmailsPerDay => "emailsPerDay",
+        }
+    }
+
+    fn of_app(self, spec: &AppSpec) -> Option<u32> {
+        let limits = spec.limits.as_ref()?;
+        match self {
+            Self::EmailsPerDay => limits.emails_per_day,
+        }
+    }
+}
+
+fn organization(mirror: &Mirror) -> Option<Value> {
+    mirror
+        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
+        .items
+        .into_iter()
+        .next()
+        .map(|envelope| envelope.spec)
+}
+
+fn project(mirror: &Mirror, project: &str) -> Option<Value> {
+    mirror
+        .get(ORG_NAMESPACE, "Project", project)
+        .map(|envelope| envelope.spec)
+}
+
+/// The service list at `pointer` of a layer's spec; `None` when the layer sets none or one this
+/// Portal cannot read, which then takes the layer above.
+fn services_at(spec: Option<&Value>, pointer: &str) -> Option<Vec<AppService>> {
+    serde_json::from_value(spec?.pointer(pointer)?.clone()).ok()
+}
+
+/// The layer that switches `service` off for App `spec` of `project`, `None` when all three have
+/// it on. `identity` and `data` are every App's (AP-161).
+pub fn off_at(
+    mirror: &Mirror,
+    project_name: &str,
+    spec: &AppSpec,
+    service: AppService,
+) -> Option<Layer> {
+    if matches!(service, AppService::Identity | AppService::Data) {
+        return None;
+    }
+    let organization = organization(mirror);
+    let allowed = services_at(organization.as_ref(), "/policies/apps/services")
+        .unwrap_or_else(|| DEFAULT_ORGANIZATION_SERVICES.to_vec());
+    if !allowed.contains(&service) {
+        return Some(Layer::Organization);
+    }
+    let project = project(mirror, project_name);
+    if services_at(project.as_ref(), "/apps/services").is_some_and(|list| !list.contains(&service))
+    {
+        return Some(Layer::Project);
+    }
+    (!spec.services.contains(&service)).then_some(Layer::App)
+}
+
+/// The quota in force for App `spec` of `project`: the lowest any layer sets, the catalog's default
+/// where the organization sets none (AP-165).
+pub fn quota(mirror: &Mirror, project_name: &str, spec: &AppSpec, quota: Quota) -> u32 {
+    let read = |spec: Option<&Value>, pointer: String| -> Option<u32> {
+        spec?
+            .pointer(&pointer)?
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+    };
+    let member = quota.member();
+    let organization = read(
+        organization(mirror).as_ref(),
+        format!("/limits/apps/{member}"),
+    )
+    .or_else(|| entry_at(&format!("spec.limits.apps.{member}")).and_then(|entry| entry.default))
+    .unwrap_or(0);
+    let project = read(
+        project(mirror, project_name).as_ref(),
+        format!("/apps/limits/{member}"),
+    );
+    [Some(organization), project, quota.of_app(spec)]
+        .into_iter()
+        .flatten()
+        .min()
+        .unwrap_or(0)
+}
+
+/// Adds `count` to today's use of one counter if it stays within `limit`, and answers whether it
+/// did. A counter is an App's (`subject` empty) or what one person received from it. Atomic: two
+/// calls at once never both pass the last unit.
+// ponytail: past days' rows stay; a nightly `DELETE … WHERE day < current_date` when they matter.
+pub async fn take(
+    db: impl sqlx::PgExecutor<'_>,
+    (project, app): (&str, &str),
+    service: &str,
+    subject: &str,
+    count: u32,
+    limit: u32,
+) -> Result<bool, sqlx::Error> {
+    if count > limit {
+        return Ok(false);
+    }
+    let row = sqlx::query(
+        "INSERT INTO app_service_usage (project, app, service, subject, day, used) \
+         VALUES ($1, $2, $3, $4, (now() AT TIME ZONE 'utc')::date, $5) \
+         ON CONFLICT (project, app, service, subject, day) \
+         DO UPDATE SET used = app_service_usage.used + EXCLUDED.used \
+         WHERE app_service_usage.used + EXCLUDED.used <= $6 \
+         RETURNING used",
+    )
+    .bind(project)
+    .bind(app)
+    .bind(service)
+    .bind(subject)
+    .bind(i64::from(count))
+    .bind(i64::from(limit))
+    .fetch_optional(db)
+    .await?;
+    Ok(row.is_some())
+}
+
+/// The next midnight UTC, when every daily quota starts again.
+pub fn reset_at(now: OffsetDateTime) -> OffsetDateTime {
+    now.date()
+        .next_day()
+        .unwrap_or(now.date())
+        .midnight()
+        .assume_utc()
+}
+
+fn problem(status: StatusCode, slug: &str, title: &str, detail: String, extra: Value) -> Response {
+    let mut body = json!({
+        "type": format!("https://joinedcontext.com/errors/{slug}"),
+        "title": title,
+        "status": status.as_u16(),
+        "detail": detail,
+    });
+    if let (Some(body), Value::Object(extra)) = (body.as_object_mut(), extra) {
+        body.extend(extra);
+    }
+    let mut response = (status, body.to_string()).into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/problem+json"),
+    );
+    response
+}
+
+fn name(service: AppService) -> String {
+    serde_json::to_value(service)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+/// `403 …/service-off`: the service and the layer that switched it off (AP-164).
+pub fn service_off(service: AppService, layer: Layer) -> Response {
+    let service = name(service);
+    let field = match layer {
+        Layer::Organization => "the organization's spec.policies.apps.services",
+        Layer::Project => "the project's spec.apps.services",
+        Layer::App => "the App's spec.services",
+    };
+    problem(
+        StatusCode::FORBIDDEN,
+        "service-off",
+        "Service Off",
+        format!("{service} is not in {field}"),
+        json!({ "service": service, "layer": layer }),
+    )
+}
+
+/// `429 …/quota`: the quota used up and when it resets, with `Retry-After` (AP-165).
+pub fn quota_used(service: AppService, quota: &str, now: OffsetDateTime) -> Response {
+    let reset = reset_at(now);
+    let reset_text = reset
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default();
+    let mut response = problem(
+        StatusCode::TOO_MANY_REQUESTS,
+        "quota",
+        "Quota Used",
+        format!("{quota} is used up until {reset_text}"),
+        json!({ "service": name(service), "quota": quota, "resetAt": reset_text }),
+    );
+    let wait = (reset - now).whole_seconds().max(1);
+    if let Ok(value) = HeaderValue::from_str(&wait.to_string()) {
+        response.headers_mut().insert(header::RETRY_AFTER, value);
+    }
+    response
+}
+
+/// `403 …/recipient-refused`: a recipient who is not a person of the organization (AP-168).
+pub fn recipient_refused(to: &str) -> Response {
+    problem(
+        StatusCode::FORBIDDEN,
+        "recipient-refused",
+        "Recipient Refused",
+        format!("'{to}' is no person of the organization with a verified address"),
+        json!({ "to": to }),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_quota_resets_at_the_next_midnight_utc() {
+        let now = time::macros::datetime!(2026-10-10 21:30 UTC);
+        assert_eq!(reset_at(now), time::macros::datetime!(2026-10-11 0:00 UTC));
+        let response = quota_used(AppService::Email, "emailsPerDay", now);
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(response.headers()[header::RETRY_AFTER], "9000");
+    }
+}

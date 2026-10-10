@@ -10,6 +10,8 @@ pub mod built;
 pub mod converge;
 /// The default group of every App role, committed with the role (AP-118).
 pub mod default_groups;
+/// An App's mail to people of the organization (AP-168).
+pub mod email;
 pub mod fetch;
 pub mod functions;
 pub mod kube;
@@ -20,6 +22,8 @@ pub mod project_namespace;
 pub mod reconciler;
 /// A person's roles in an application (ADR-N-027).
 pub mod roles;
+/// The platform services an App calls: layers, quotas, refusals (ADR-N-045).
+pub mod services;
 pub mod static_host;
 pub mod template_demos;
 pub mod wasm_apps;

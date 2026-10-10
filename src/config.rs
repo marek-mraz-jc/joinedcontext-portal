@@ -139,6 +139,15 @@ pub struct Config {
     /// leaves every
     /// `/apps/{name}/` path answering 404 rather than reading a guessed directory (AP-14).
     pub apps_dir: Option<String>,
+    /// The mail relay App mail is sent through (`JC_PORTAL_SMTP_URL`), a secret the deployment
+    /// takes from a `secretRef`: `smtp://host:1025` without TLS for the in-cluster catcher,
+    /// `smtps://user:password@host:465` or `smtp://user:password@host:587?tls=required` for a
+    /// relay (T-3583, AP-168). `None` leaves `POST /api/services/email/send` answering 503.
+    pub smtp_url: Option<String>,
+    /// The address App mail is sent from (`JC_PORTAL_MAIL_FROM`, e.g.
+    /// `noreply@dev.joinedcontext.com`); the App's title is the display name beside it. Required
+    /// with `JC_PORTAL_SMTP_URL`.
+    pub mail_from: Option<lettre::Address>,
     /// Where this replica keeps the builds it fetched from the package registry, one
     /// `{name}/{hex}` directory per build (`JC_PORTAL_APPS_CACHE_DIR`, AP-102); it must be
     /// writable, and `{apps_dir}` need not be. `None` fetches nothing, and an App whose
@@ -273,6 +282,8 @@ impl std::fmt::Debug for Config {
                     .map(|_| "[redacted]"),
             )
             .field("pipeline_runner_url", &self.pipeline_runner_url)
+            .field("smtp_url", &self.smtp_url.as_ref().map(|_| "[redacted]"))
+            .field("mail_from", &self.mail_from)
             .field("pipeline_identity", &self.pipeline_identity)
             .field("pipeline_namespace", &self.pipeline_namespace)
             .field("app_identity_namespace", &self.app_identity_namespace)
@@ -1422,6 +1433,22 @@ impl Config {
         let setup = SetupStatements::from_vars(&lookup);
 
         let apps_dir = lookup("JC_PORTAL_APPS_DIR");
+        let smtp_url = lookup("JC_PORTAL_SMTP_URL").filter(|url| !url.trim().is_empty());
+        let mail_from = match lookup("JC_PORTAL_MAIL_FROM").filter(|from| !from.trim().is_empty()) {
+            Some(from) => Some(from.trim().parse::<lettre::Address>().map_err(|err| {
+                ConfigError::Invalid {
+                    var: "JC_PORTAL_MAIL_FROM",
+                    reason: format!("not an email address: {err}"),
+                }
+            })?),
+            None => None,
+        };
+        if smtp_url.is_some() && mail_from.is_none() {
+            return Err(ConfigError::Invalid {
+                var: "JC_PORTAL_MAIL_FROM",
+                reason: "JC_PORTAL_SMTP_URL is set, so mail needs an address to come from".into(),
+            });
+        }
         let apps_cache_dir =
             lookup("JC_PORTAL_APPS_CACHE_DIR").filter(|dir| !dir.trim().is_empty());
         let apps_url = apps_url(&lookup)?;
@@ -1501,6 +1528,8 @@ impl Config {
             functions_url,
             knowledge_url,
             apps_dir,
+            smtp_url,
+            mail_from,
             apps_cache_dir,
             apps_url,
             branding_file,
@@ -1562,6 +1591,8 @@ impl Config {
             basemap: None,
             apps_store_origin: None,
             apps_dir: None,
+            smtp_url: None,
+            mail_from: None,
             apps_cache_dir: None,
             apps_url: None,
             branding_file: None,

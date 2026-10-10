@@ -762,7 +762,20 @@ pub fn router() -> Router<AppState> {
                 axum::extract::DefaultBodyLimit::max(super::functions::MAX_BODY_BYTES),
             ),
         )
+        .route(
+            "/apps/{name}/api/services/email/send",
+            axum::routing::post(super::email::send).layer(axum::extract::DefaultBodyLimit::max(
+                super::email::MAX_BODY_BYTES,
+            )),
+        )
         .route("/apps/{name}/{*path}", get(serve))
+        // The signed link in every App message: on the Portal's host, outside `/api/v1`, since a
+        // mail client's one-click carries no session and no CSRF token; the signature is the
+        // credential (RFC 8058).
+        .route(
+            "/mail/unsubscribe",
+            get(super::email::unsubscribe_page).post(super::email::unsubscribe),
+        )
 }
 
 #[cfg(test)]
