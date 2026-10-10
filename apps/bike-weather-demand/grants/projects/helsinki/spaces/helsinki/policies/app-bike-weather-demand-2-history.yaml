@@ -29,5 +29,6 @@ spec:
     - precipitation
     - dateObserved
   operations:
+  - queryTemporal
   - retrieveTemporal
   temporalQ: timerel=after;timeAt=P-7D

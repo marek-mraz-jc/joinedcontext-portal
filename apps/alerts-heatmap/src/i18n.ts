@@ -20,11 +20,11 @@ const WORDS = {
   none: { fi: "Ei tiedotteita.", en: "No alerts." },
   noneMatch: { fi: "Mikään tiedote ei vastaa valintoja.", en: "No alert matches the filters." },
   summary: {
-    fi: "{kept} tiedotetta {first}–{last}. Eniten kuusikulmiossa: {hot} tiedotetta. Vilkkain alkamistunti: {busiest}.",
-    en: "{kept} alerts from {first} to {last}. Most in one hexagon: {hot}. Busiest starting hour: {busiest}.",
+    fi: "{kept} {kept|tiedote|tiedotetta} {first}–{last}. Eniten kuusikulmiossa: {hot} {hot|tiedote|tiedotetta}. Vilkkain alkamistunti: {busiest}.",
+    en: "{kept} {kept|alert|alerts} from {first} to {last}. Most in one hexagon: {hot}. Busiest starting hour: {busiest}.",
   },
-  summaryNoTime: { fi: "{kept} tiedotetta. Eniten kuusikulmiossa: {hot} tiedotetta.", en: "{kept} alerts. Most in one hexagon: {hot}." },
-  unlocated: { fi: "{n} tiedotteella ei ole sijaintia, eikä niitä näy kartalla.", en: "{n} alerts have no location and are not on the map." },
+  summaryNoTime: { fi: "{kept} {kept|tiedote|tiedotetta}. Eniten kuusikulmiossa: {hot} {hot|tiedote|tiedotetta}.", en: "{kept} {kept|alert|alerts}. Most in one hexagon: {hot}." },
+  unlocated: { fi: "{n} tiedotteella ei ole sijaintia, eikä {n|sitä|niitä} näy kartalla.", en: "{n} {n|alert has|alerts have} no location and {n|is|are} not on the map." },
   filters: { fi: "Rajaa tiedotteita", en: "Filter the alerts" },
   from: { fi: "Alkaen", en: "From" },
   to: { fi: "Päättyen", en: "To" },
@@ -40,8 +40,8 @@ const WORDS = {
   unpick: { fi: "Näytä kaikki tunnit, ei vain {when}", en: "Show every hour, not only {when}" },
   places: { fi: "Toistuvat paikat", en: "Places alerts keep coming back to" },
   placesEmpty: { fi: "Mikään paikka ei toistu: ei vähintään kolmea tiedotetta 120 metrin säteellä.", en: "No place repeats: nowhere holds three alerts within 120 metres." },
-  hexLine: { fi: "{count} tiedotetta tässä kuusikulmiossa", en: "{count} alerts in this hexagon" },
-  placeLine: { fi: "{count} tiedotetta, {radius} m säteellä", en: "{count} alerts within {radius} m" },
+  hexLine: { fi: "{count} {count|tiedote|tiedotetta} tässä kuusikulmiossa", en: "{count} {count|alert|alerts} in this hexagon" },
+  placeLine: { fi: "{count} {count|tiedote|tiedotetta}, {radius} m säteellä", en: "{count} {count|alert|alerts} within {radius} m" },
   weeks: { fi: "Toistuvat paikat viikoittain", en: "Repeat places week by week" },
   weeksNote: {
     fi: "Sovelluksen palvelin säilyttää jokaisen viikon tuloksen myös sen jälkeen, kun syöte on pudottanut viikon tiedotteet.",
@@ -66,7 +66,7 @@ const WORDS = {
   reportsEmpty: { fi: "Ei vielä raportteja.", en: "No reports yet." },
   reportsFailed: { fi: "Raportteja ei voitu lukea: {reason}", en: "The reports could not be read: {reason}" },
   openReport: { fi: "Näytä raportti {title}", en: "Show the report {title}" },
-  reportLine: { fi: "{kept} tiedotetta, tallennettu {when}", en: "{kept} alerts, saved {when}" },
+  reportLine: { fi: "{kept} {kept|tiedote|tiedotetta}, tallennettu {when}", en: "{kept} {kept|alert|alerts}, saved {when}" },
   picture: { fi: "Karttakuva", en: "Map picture" },
   pictureOf: { fi: "Avaa raportin {title} karttakuva", en: "Open the map picture of {title}" },
   pictureFailed: { fi: "Karttakuvaa ei voitu avata: {reason}", en: "The map picture could not be opened: {reason}" },
@@ -88,9 +88,14 @@ const SUB_CATEGORIES: Record<string, Record<Lang, string>> = {
   EXEMPTED_TRANSPORT: { fi: "Erikoiskuljetus", en: "Exempted transport" },
 };
 
-/** One phrase in a language, its `{name}` slots filled. */
+/**
+ * One phrase in a language, its `{name}` slots filled. `{name|one|other}` is the word that agrees
+ * with the count in slot `name`: `one` when the count is 1 (Finnish and English alike), else `other`.
+ */
 export function t(lang: Lang, word: Word, slots: Record<string, string | number> = {}): string {
-  return WORDS[word][lang].replace(/\{(\w+)\}/g, (_, name: string) => String(slots[name] ?? `{${name}}`));
+  return WORDS[word][lang]
+    .replace(/\{(\w+)\|([^|}]*)\|([^}]*)\}/g, (_, name: string, one: string, other: string) => (String(slots[name]) === "1" ? one : other))
+    .replace(/\{(\w+)\}/g, (_, name: string) => String(slots[name] ?? `{${name}}`));
 }
 
 /** The language of the page: `?lang=` when it names one, else the browser's. */

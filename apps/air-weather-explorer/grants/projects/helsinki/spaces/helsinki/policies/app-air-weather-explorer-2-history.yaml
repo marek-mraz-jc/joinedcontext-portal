@@ -33,5 +33,6 @@ spec:
     - relativeHumidity
     - precipitation
   operations:
+  - queryTemporal
   - retrieveTemporal
   temporalQ: timerel=after;timeAt=P-7D

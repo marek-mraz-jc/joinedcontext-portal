@@ -5,7 +5,9 @@
  * else, the probe lists the published Apps of every project it may read and, per App:
  *   1. opens it inside the Portal (`/projects/{project}/apps/{name}/open`) and waits for one row
  *      the App reads through `/api/endpoint/{slug}/ngsi-ld/v1/`;
- *   2. opens its own address ("Open in new window") and waits for a row there too;
+ *   2. opens its own address ("Open in new window") and waits for a row there too, then lays it
+ *      out at 375, 768, 1440 and 2560 px: one h1, nothing scrolling sideways, no response of
+ *      400 or above, and at 1440 px a first view showing data items (T-3580);
  *   3. opens that address in a fresh context, signed in as nobody: a `public` App must show
  *      rows, any other must send the visitor to sign in or refuse them;
  * and records every console error on the way. `scripts/app-probe.ts` turns what it saw into
@@ -18,8 +20,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Browser, BrowserContext, Page, Response } from "@playwright/test";
-import { DATA_WAIT_S, summaryOf } from "../../scripts/app-probe";
-import type { Observation } from "../../scripts/app-probe";
+import { DATA_WAIT_S, WIDTHS, firstViewItems, summaryOf } from "../../scripts/app-probe";
+import type { Layout, Observation } from "../../scripts/app-probe";
 import { PROBE, signIn } from "./portal";
 
 const OUT = process.env.APP_PROBE_OUT ?? "test-results/app-probe/summary.json";
@@ -58,6 +60,32 @@ function collectErrors(page: Page, into: string[]): void {
   page.on("pageerror", (error) => into.push(`${error.name}: ${error.message}`));
 }
 
+/** `firstViewItems` as page source: its own `document`, no argument to type. */
+const COUNT_ITEMS = `(${firstViewItems.toString()})()`;
+
+/** Its own window at each width, and at 1440 px the data items its first view shows. */
+async function layOut(page: Page): Promise<{ layout: Layout[]; items: number }> {
+  const layout: Layout[] = [];
+  let items = 0;
+  for (const width of WIDTHS) {
+    await page.setViewportSize({ width, height: width < 800 ? 820 : 1000 });
+    // Two frames: what the resize re-rendered is drawn before it is measured.
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    if (width === 1440) {
+      await page.waitForFunction(COUNT_ITEMS, undefined, { timeout: 10_000 }).catch(() => null);
+      items = await page.evaluate<number>(COUNT_ITEMS);
+    }
+    layout.push(
+      await page.evaluate((at) => ({
+        width: at,
+        h1: document.querySelectorAll("h1").length,
+        sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
+      }), width),
+    );
+  }
+  return { layout, items };
+}
+
 async function anonymousVisit(browser: Browser, address: string, isPublic: boolean): Promise<Observation["anonymous"]> {
   const context = await browser.newContext();
   try {
@@ -91,21 +119,31 @@ async function probe(browser: Browser, context: BrowserContext, page: Page, proj
   page.removeAllListeners("console");
   page.removeAllListeners("pageerror");
   if (refused) {
-    return { project, name, visibility, refused, dataMs: null, windowDataMs: null, consoleErrors: [], anonymous: "refused" };
+    return {
+      project, name, visibility, refused, dataMs: null, windowDataMs: null, consoleErrors: [],
+      failedRequests: [], layout: [], items: null, anonymous: "refused",
+    };
   }
 
   const link = page.getByRole("link", { name: /Open in new window/ });
   const address = (await link.count()) ? await link.first().getAttribute("href") : null;
   let windowDataMs: number | null = null;
+  const failedRequests: string[] = [];
+  let layout: Layout[] = [];
+  let items: number | null = null;
   let anonymous: Observation["anonymous"] = "blank";
   if (address) {
     const own = await context.newPage();
     collectErrors(own, consoleErrors);
+    own.on("response", (response) => {
+      if (response.status() >= 400) failedRequests.push(`${response.status()} ${response.url()}`);
+    });
     windowDataMs = await firstRow(own, () => own.goto(address, { waitUntil: "load" }));
+    ({ layout, items } = await layOut(own));
     await own.close();
     anonymous = await anonymousVisit(browser, address, visibility === "public");
   }
-  return { project, name, visibility, refused, dataMs, windowDataMs, consoleErrors, anonymous };
+  return { project, name, visibility, refused, dataMs, windowDataMs, consoleErrors, failedRequests, layout, items, anonymous };
 }
 
 test("every published App opens, reads data and keeps strangers out (AP-136)", async ({ browser }) => {
