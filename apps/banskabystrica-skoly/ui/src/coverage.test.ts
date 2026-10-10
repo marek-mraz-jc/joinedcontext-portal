@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toRichRow } from "@joinedcontext/sdk";
-import { schoolOf, sorted, tenth, toCsv, totals } from "./coverage";
+import { schoolOf, sorted, tenth, toCsv, totals, withShared } from "./coverage";
 import { SCHOOLS } from "./fixtures/skoly";
 
 const schools = SCHOOLS.map((entity) => schoolOf(toRichRow(entity), "sk"));
@@ -82,3 +82,47 @@ describe("a school's odd shapes", () => {
   });
 });
 
+
+// T-3577: the national school map repeats one organization's staff and budget on each of its
+// schools (54 city kindergartens each publish 225 teachers, 153.8 other staff, 780 546 €), so a
+// sum counted the same 225 teachers 54 times and the city read 3.5 pupils per teacher.
+describe("staff and budget several schools publish identically", () => {
+  const kindergarten = (id: string, pupils: number | null) =>
+    schoolOf(
+      toRichRow({
+        id: `urn:ngsi-ld:School:x:y:${id}`,
+        type: "School",
+        ...(pupils === null ? {} : { pupilCount: { type: "Property", value: pupils } }),
+        teachingStaff: { type: "Property", value: 225 },
+        nonTeachingStaff: { type: "Property", value: 153.8 },
+        annualBudget: { type: "Property", value: 780546 },
+      }),
+      "sk",
+    );
+  const own = schoolOf(
+    toRichRow({ id: "urn:ngsi-ld:School:x:y:zs", type: "School", pupilCount: { type: "Property", value: 300 }, teachingStaff: { type: "Property", value: 20 }, annualBudget: { type: "Property", value: 900000 } }),
+    "sk",
+  );
+  const marked = withShared([kindergarten("a", 96), kindergarten("b", 88), kindergarten("c", null), own]);
+
+  it("are one organization's, so no school gets a ratio of its own from them", () => {
+    expect(marked.slice(0, 3).map((one) => [one.sharedWith, one.pupilsPerTeacher, one.budgetPerPupil])).toEqual([
+      [3, null, null],
+      [3, null, null],
+      [3, null, null],
+    ]);
+    expect(marked[3]).toMatchObject({ sharedWith: 1, pupilsPerTeacher: 15 });
+  });
+
+  it("count once in the city's totals, against the pupils of the schools that share them", () => {
+    const sum = totals(marked);
+    expect(sum.teachers).toBe(245);
+    expect(sum.pupils).toBe(484);
+    expect(sum.pupilsPerTeacher).toBeCloseTo(484 / 245);
+  });
+
+  it("leave a zero or a missing count alone: nothing is shared by not publishing", () => {
+    const zero = (id: string) => schoolOf(toRichRow({ id: `urn:ngsi-ld:School:x:y:${id}`, type: "School", teachingStaff: { type: "Property", value: 0 } }), "sk");
+    expect(withShared([zero("a"), zero("b")]).map((one) => one.sharedWith)).toEqual([1, 1]);
+  });
+});

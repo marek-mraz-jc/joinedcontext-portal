@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell, Empty, endpointSource, Loading, Page, Problem, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { EntitySource } from "@joinedcontext/sdk";
-import { schoolOf, sorted, tenth, toCsv, totals } from "./coverage";
+import { schoolOf, sorted, tenth, toCsv, totals, withShared } from "./coverage";
 import type { School, SortKey } from "./coverage";
 import { stringsFor } from "./locales";
 import type { Strings } from "./locales";
@@ -32,9 +32,9 @@ export async function loadSchools(source: EntitySource, locale: string): Promise
   for (let offset = 0; offset < MOST; offset += PAGE) {
     const page = await source.query({ type: "School" }, { offset, limit: PAGE });
     schools.push(...page.rows.map((row) => schoolOf(row, locale)));
-    if (page.rows.length < PAGE) return { schools, truncated: false };
+    if (page.rows.length < PAGE) return { schools: withShared(schools), truncated: false };
   }
-  return { schools, truncated: true };
+  return { schools: withShared(schools), truncated: true };
 }
 
 export default function App() {
@@ -231,7 +231,10 @@ function SchoolTable({
                   {one.address ? <span className="address">{one.address}</span> : null}
                 </th>
                 <td>{number(one.pupils)}</td>
-                <td>{number(one.teachers)}</td>
+                <td>
+                  {number(one.teachers)}
+                  {one.sharedWith > 1 ? <span className="address">{s.shared(one.sharedWith)}</span> : null}
+                </td>
                 <td className={high ? "flag" : undefined}>
                   {number(one.pupilsPerTeacher, 1)}
                   {high ? <span className="mark">▲ {s.highest}</span> : null}

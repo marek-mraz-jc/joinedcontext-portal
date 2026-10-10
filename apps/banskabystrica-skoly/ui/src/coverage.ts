@@ -18,6 +18,8 @@ export interface School {
   budgetYear: number | null;
   pupilsPerTeacher: number | null;
   budgetPerPupil: number | null;
+  /** How many schools publish this school's staff and budget identically; 1 = its own. */
+  sharedWith: number;
 }
 
 function first(cell: RichCell | RichCell[] | undefined): RichCell | undefined {
@@ -51,7 +53,33 @@ export function schoolOf(row: RichRow, locale: string): School {
     budgetYear: count(row, "budgetYear"),
     pupilsPerTeacher: pupils !== null && teachers !== null && teachers > 0 ? pupils / teachers : null,
     budgetPerPupil: budget !== null && pupils !== null && pupils > 0 ? budget / pupils : null,
+    sharedWith: 1,
   };
+}
+
+/** The staff and budget a school published, as one key; none when it published no staff. */
+function figures(school: School): string | null {
+  return school.teachers !== null && school.teachers > 0 && school.budget !== null
+    ? `${school.teachers}|${school.otherStaff}|${school.budget}`
+    : null;
+}
+
+/**
+ * The national school map repeats one organization's staff and budget on each of its schools (the
+ * city's kindergartens are one budget organization). Identical figures on several schools are that
+ * organization's: no school gets a ratio of its own from them, and `totals` counts them once.
+ */
+export function withShared(schools: School[]): School[] {
+  const seen = new Map<string, number>();
+  for (const school of schools) {
+    const key = figures(school);
+    if (key) seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+  return schools.map((school) => {
+    const key = figures(school);
+    const sharedWith = key ? (seen.get(key) ?? 1) : 1;
+    return sharedWith > 1 ? { ...school, sharedWith, pupilsPerTeacher: null, budgetPerPupil: null } : school;
+  });
 }
 
 export interface Totals {
@@ -65,13 +93,22 @@ export interface Totals {
 }
 
 export function totals(schools: School[]): Totals {
-  const both = schools.filter((s) => s.pupils !== null && s.teachers !== null && s.teachers > 0);
-  const pupils = both.reduce((sum, s) => sum + (s.pupils ?? 0), 0);
-  const teachers = both.reduce((sum, s) => sum + (s.teachers ?? 0), 0);
+  // One unit per organization: a school of its own, or the schools that share one set of figures
+  // (`withShared`), whose pupils meet that organization's teachers once.
+  const units = new Map<string, { pupils: number | null; teachers: number | null }>();
+  for (const s of schools) {
+    const key = s.sharedWith > 1 ? (figures(s) ?? s.id) : s.id;
+    const unit = units.get(key) ?? { pupils: null, teachers: s.teachers };
+    if (s.pupils !== null) unit.pupils = (unit.pupils ?? 0) + s.pupils;
+    units.set(key, unit);
+  }
+  const both = [...units.values()].filter((u) => u.pupils !== null && u.teachers !== null && u.teachers > 0);
+  const pupils = both.reduce((sum, u) => sum + (u.pupils ?? 0), 0);
+  const teachers = both.reduce((sum, u) => sum + (u.teachers ?? 0), 0);
   return {
     schools: schools.length,
     pupils: schools.reduce((sum, s) => sum + (s.pupils ?? 0), 0),
-    teachers: schools.reduce((sum, s) => sum + (s.teachers ?? 0), 0),
+    teachers: [...units.values()].reduce((sum, u) => sum + (u.teachers ?? 0), 0),
     pupilsPerTeacher: teachers > 0 ? pupils / teachers : null,
     incomplete: schools.filter((s) => s.pupilsPerTeacher === null || s.budgetPerPupil === null).length,
   };

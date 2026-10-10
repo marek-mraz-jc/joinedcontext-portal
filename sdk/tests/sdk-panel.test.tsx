@@ -93,6 +93,27 @@ async function openFromTable() {
 }
 
 describe("the shell (SDK-39)", () => {
+  // T-3577: the Apps' index.html says lang="sk" and a Slovak title; a reader in English got an
+  // English page that a screen reader still read with a Slovak voice (WCAG 3.1.1, 2.4.2).
+  it("names the page's language and title after what it shows", () => {
+    document.documentElement.lang = "sk";
+    document.title = "Mapa";
+    const { rerender } = render(
+      <JcProvider client={stubClient(undefined, { language: "en" })}>
+        <AppShell title="Map" pages={[{ id: "a", label: "A", render: () => null }]} />
+      </JcProvider>,
+    );
+    expect(document.documentElement.lang).toBe("en");
+    expect(document.title).toBe("Map");
+    rerender(
+      <JcProvider client={stubClient(undefined, { language: "en" })}>
+        <AppShell title="Mapa" language="sk" pages={[{ id: "a", label: "A", render: () => null }]} />
+      </JcProvider>,
+    );
+    expect(document.documentElement.lang).toBe("sk");
+    expect(document.title).toBe("Mapa");
+  });
+
   it("speaks the shell's language in the panel too, whatever the client's configuration says", async () => {
     const client = stubClient({ entities: [STATION], schema: SCHEMA, access: READ }, { user: PERSON, portal: PORTAL, language: "en" });
     render(

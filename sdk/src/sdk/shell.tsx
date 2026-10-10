@@ -56,8 +56,16 @@ export function AppShell({
 }): React.JSX.Element {
   const client = useOptionalClient();
   const name = userName ?? client?.config.user?.name;
-  const words = sdkLanguage(language ?? source?.language ?? client?.config.language);
+  const spoken = language ?? source?.language ?? client?.config.language;
+  const words = sdkLanguage(spoken);
   const [active, setActive] = useState(() => initialPage(pages, initial));
+
+  // The page names the language it shows and its own title (WCAG 3.1.1, 2.4.2): an App's
+  // index.html carries one language and one title, the reader may have picked another (T-3577).
+  useEffect(() => {
+    if (spoken) document.documentElement.lang = spoken;
+    document.title = title;
+  }, [spoken, title]);
 
   useEffect(() => {
     // The colour scheme is the App's own stylesheet's (`color-scheme` beside its tokens): forcing
