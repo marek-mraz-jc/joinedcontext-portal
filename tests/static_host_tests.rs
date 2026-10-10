@@ -712,6 +712,55 @@ async fn the_served_index_names_the_apps_endpoint_and_the_shared_one() {
     );
 }
 
+/// T-3599: the loader stores a reference by the slug it resolved (`endpointSlug`), as dev holds
+/// helsinki-mobility's `city-bikes`; the index names the shared endpoint all the same, and a slug
+/// no endpoint carries adds nothing.
+#[tokio::test]
+async fn a_reference_stored_by_slug_names_the_shared_endpoint() {
+    let dir = app_root("byslug", &[("index.html", INDEX)]);
+    let mut spec = app_spec("published");
+    spec["dataNeeds"] = serde_json::json!([{
+        "contextSpaceRef": { "kind": "ContextSpace", "name": "mobility" },
+        "types": ["BikeHireDockingStation"],
+        "operations": ["queryEntity"]
+    }]);
+    let mirror = mirror_with_app(spec);
+    let endpoint =
+        |space: &str, slug: &str| serde_json::json!({ "contextSpaceRef": space, "slug": slug });
+    mirror.upsert(envelope(
+        "Endpoint",
+        "ovzdusie",
+        "mobility",
+        endpoint("mobility", "ownslug"),
+    ));
+    mirror.upsert(envelope(
+        "Endpoint",
+        "helsinki",
+        "helsinki-bikes",
+        endpoint("helsinki-bikes", "bikesslug"),
+    ));
+    for (name, slug) in [("city-bikes", "bikesslug"), ("gone", "noslug")] {
+        mirror.upsert(envelope(
+            "SharedSpaceReference",
+            "ovzdusie",
+            name,
+            serde_json::json!({ "alias": name, "endpointSlug": slug }),
+        ));
+    }
+
+    let (status, body) = get_with(dir.path(), mirror, "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    let config = served_config(&body);
+    let slugs: Vec<&str> = config["endpoints"]
+        .as_array()
+        .expect("endpoints")
+        .iter()
+        .filter_map(|e| e["slug"].as_str())
+        .collect();
+    assert_eq!(slugs, ["ownslug", "bikesslug"], "{config}");
+    assert_eq!(config["endpoints"][1]["space"], "helsinki-bikes");
+}
+
 /// An index that reads nothing is served byte for byte as it was built and signed.
 #[tokio::test]
 async fn an_app_without_data_needs_is_served_as_built() {
