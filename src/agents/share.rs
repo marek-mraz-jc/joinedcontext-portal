@@ -64,6 +64,10 @@ pub struct ProposeEndpoint {
     /// A public form's creates per UTC day: its Endpoint's `spec.creates.perDay` (EP-97).
     #[serde(default)]
     pub creates_per_day: Option<u32>,
+    /// The sites that may frame a public form: its Endpoint's `spec.creates.embedOrigins`
+    /// (EP-101).
+    #[serde(default)]
+    pub embed_origins: Vec<String>,
 }
 
 /// The creates a public form takes a day when its request names no count (API/01 §19).
@@ -278,13 +282,22 @@ pub fn render(
                 ));
             }
         }
+        // The Endpoint's own rule, so the request and the manifest cannot disagree (EP-101).
+        jc_core::kinds::Creates {
+            mint_ids: true,
+            per_day: None,
+            embed_origins: params.embed_origins.clone(),
+        }
+        .validate()
+        .map_err(|e| format!("embedOrigins: {e}"))?;
     } else if !params.write_attributes.is_empty()
         || !params.write_relationships.is_empty()
         || params.creates_per_day.is_some()
+        || !params.embed_origins.is_empty()
     {
         return Err(
-            "writeAttributes, writeRelationships and createsPerDay are for a public form \
-             (access create)"
+            "writeAttributes, writeRelationships, createsPerDay and embedOrigins are for a \
+             public form (access create)"
                 .to_owned(),
         );
     }
@@ -368,6 +381,9 @@ pub fn render(
             "mintIds": true,
             "perDay": params.creates_per_day.unwrap_or(DEFAULT_CREATES_PER_DAY),
         });
+        if !params.embed_origins.is_empty() {
+            spec["creates"]["embedOrigins"] = json!(params.embed_origins);
+        }
     }
     let mut metadata = json!({
         "name": name,
@@ -1301,6 +1317,41 @@ mod tests {
             .contains("public form"));
         let read = render("helsinki", "hel.fi", &app_endpoint(Preset::Read), &[]).expect("read");
         assert!(read.endpoint["spec"].get("creates").is_none());
+    }
+
+    /// EP-101 (T-3266): a form names the sites that may frame it by the Endpoint's own rule; a
+    /// site that is not an https origin is refused by name, and only a form names any.
+    #[test]
+    fn a_public_form_names_the_sites_that_may_frame_it() {
+        let mut form = public_form();
+        let plain = render("helsinki", "hel.fi", &form, &[]).expect("renders");
+        assert!(plain.endpoint["spec"]["creates"]
+            .get("embedOrigins")
+            .is_none());
+        form.embed_origins = vec!["https://www.hel.fi".into()];
+        let framed = render("helsinki", "hel.fi", &form, &[]).expect("renders");
+        assert_eq!(
+            framed.endpoint["spec"]["creates"]["embedOrigins"],
+            json!(["https://www.hel.fi"])
+        );
+        let spec: jc_core::kinds::EndpointSpec =
+            serde_json::from_value(framed.endpoint["spec"].clone()).expect("an Endpoint spec");
+        spec.validate().expect("a valid Endpoint");
+        for bad in [
+            "http://www.hel.fi",
+            "https://*.hel.fi",
+            "https://www.hel.fi/form",
+        ] {
+            form.embed_origins = vec![bad.into()];
+            assert!(render("helsinki", "hel.fi", &form, &[])
+                .expect_err(bad)
+                .contains("embedOrigins"));
+        }
+        let mut not_a_form = app_endpoint(Preset::Full);
+        not_a_form.embed_origins = vec!["https://www.hel.fi".into()];
+        assert!(render("helsinki", "hel.fi", &not_a_form, &[])
+            .expect_err("not a form")
+            .contains("public form"));
     }
 
     /// T-3172: a form that names no field would grant every attribute of the type, a field that

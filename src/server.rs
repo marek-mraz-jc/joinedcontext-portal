@@ -1,4 +1,4 @@
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::{header, HeaderName, HeaderValue};
 use axum::middleware::{from_fn, from_fn_with_state, Next};
 use axum::response::Response;
@@ -69,7 +69,10 @@ pub fn app(state: AppState) -> Router {
         .layer(SetResponseHeaderLayer::overriding(
             header::CONTENT_SECURITY_POLICY,
             content_security_policy,
-        ));
+        ))
+        // Outside the two framing headers, so it is the one place that may relax them, and only
+        // for a public form's page whose Endpoint names the sites (EP-101).
+        .layer(from_fn_with_state(state.clone(), public_form_framing));
 
     Router::new()
         .merge(apps::static_host::router())
@@ -116,6 +119,61 @@ pub fn app(state: AppState) -> Router {
             HeaderName::from_static("permissions-policy"),
             HeaderValue::from_static("geolocation=(self), camera=(), microphone=()"),
         ))
+}
+
+/// The sites a public form's page `/f/{slug}` may be framed by: its Endpoint's
+/// `spec.creates.embedOrigins` under the Endpoint's own rule (EP-101). `None` for any other path,
+/// an unknown slug, an empty list, or a list that does not pass the rule: then the page keeps the
+/// Portal's own framing headers.
+fn embed_origins(state: &AppState, path: &str) -> Option<Vec<String>> {
+    let slug = path.strip_prefix("/f/")?;
+    if slug.is_empty() || slug.contains(['/', '.']) {
+        return None;
+    }
+    // ponytail: a scan of the mirror per form page view; an index by slug if it ever shows up.
+    let endpoint = state.mirror.find(|env| {
+        env.kind == "Endpoint" && env.spec.get("slug").and_then(|s| s.as_str()) == Some(slug)
+    })?;
+    let creates: jc_core::kinds::Creates =
+        serde_json::from_value(endpoint.spec.get("creates")?.clone()).ok()?;
+    if let Err(e) = creates.validate() {
+        // The reconciler refuses such a manifest; one in the mirror anyway keeps SAMEORIGIN.
+        tracing::warn!(slug = ?slug, error = %e, "a form's embedOrigins break the Endpoint's rule");
+        return None;
+    }
+    (!creates.embed_origins.is_empty()).then_some(creates.embed_origins)
+}
+
+/// Lets the sites a form's Endpoint names frame its page and nothing else (EP-101): the page's
+/// `frame-ancestors` gains exactly those origins and `X-Frame-Options`, which cannot name one, is
+/// dropped. Every other response passes untouched.
+async fn public_form_framing(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let origins = embed_origins(&state, request.uri().path());
+    let mut response = next.run(request).await;
+    let Some(origins) = origins else {
+        return response;
+    };
+    let headers = response.headers_mut();
+    let Some(policy) = headers
+        .get(header::CONTENT_SECURITY_POLICY)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return response;
+    };
+    let framed = policy.replacen(
+        "frame-ancestors 'self';",
+        &format!("frame-ancestors 'self' {};", origins.join(" ")),
+        1,
+    );
+    if let Ok(value) = HeaderValue::from_str(&framed) {
+        headers.insert(header::CONTENT_SECURITY_POLICY, value);
+        headers.remove("x-frame-options");
+    }
+    response
 }
 
 /// Whether the route answered that this is a public answer: its `Cache-Control` begins with the

@@ -6,7 +6,7 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/spaces/formView.ts.
 import { describe, expect, it } from "vitest";
 import type { LinkmlSlot } from "../src/pages/models/linkml";
-import { createdId, entityOf, fieldsOf, fieldsOfSchema, prefilled, problemsOf, trapName, visibleFields } from "../src/pages/spaces/formView";
+import { createdId, embedSnippets, isEmbedOrigin, parseEmbedOrigins, entityOf, fieldsOf, fieldsOfSchema, prefilled, problemsOf, trapName, visibleFields } from "../src/pages/spaces/formView";
 import type { FormField } from "../src/pages/spaces/formView";
 
 const slot = (name: string, more: Partial<LinkmlSlot> = {}): LinkmlSlot => ({ name, kind: "Property", ...more });
@@ -173,5 +173,38 @@ describe("a public form's trap and minted id", () => {
     expect(createdId("https://x.example/api/endpoint/s/ngsi-ld/v1/entities/urn:ngsi-ld:Report:b2?x=1")).toBe("urn:ngsi-ld:Report:b2");
     expect(createdId(null)).toBeUndefined();
     expect(createdId("/elsewhere")).toBeUndefined();
+  });
+});
+
+describe("the sites that may embed a public form (EP-101)", () => {
+  it("are https origins as a browser names them, by the Endpoint's own rule", () => {
+    for (const good of ["https://www.hel.fi", "https://news.hel.fi:8443", "https://a-b.example.org"]) expect(isEmbedOrigin(good), good).toBe(true);
+    for (const bad of [
+      "http://www.hel.fi",
+      "https://*.hel.fi",
+      "https://www.hel.fi/form",
+      "https://www.hel.fi:443",
+      "https://www.hel.fi:0",
+      "https://www.hel.fi:99999",
+      "https://localhost",
+      "https://WWW.hel.fi",
+      "https://-a.hel.fi",
+      "https://www.hel.fi; script-src *",
+      "",
+    ])
+      expect(isEmbedOrigin(bad), bad).toBe(false);
+  });
+
+  it("are typed one per line; a trailing slash is forgiven and a repeat is named", () => {
+    expect(parseEmbedOrigins("  https://www.hel.fi/\nhttps://x.hel.fi \n\n")).toEqual({ origins: ["https://www.hel.fi", "https://x.hel.fi"], bad: [] });
+    expect(parseEmbedOrigins("https://a.fi https://a.fi ftp://b.fi")).toEqual({ origins: ["https://a.fi"], bad: ["https://a.fi", "ftp://b.fi"] });
+    expect(parseEmbedOrigins("")).toEqual({ origins: [], bad: [] });
+  });
+
+  it("go into snippets that quote the title and encode the slug", () => {
+    const { iframe, script } = embedSnippets("https://portal.example", "abc", 'A "quoted" <form>');
+    expect(iframe).toContain('src="https://portal.example/f/abc"');
+    expect(iframe).toContain('title="A &quot;quoted&quot; &lt;form>"');
+    expect(script).toBe('<script src="https://portal.example/f/embed.js" data-jc-form="abc" data-jc-title="A &quot;quoted&quot; &lt;form>" async></script>');
   });
 });

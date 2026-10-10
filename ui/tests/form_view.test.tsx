@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { LinkmlSlot } from "../src/pages/models/linkml";
-import { FormSettingsEditor, FormSharePanel, FormView, formPublishRequest, PublicFormPage } from "../src/pages/spaces/FormView";
+import { FormEmbed, FormSettingsEditor, FormSharePanel, FormView, formPublishRequest, PublicFormPage } from "../src/pages/spaces/FormView";
 import type { FormSettings } from "../src/pages/spaces/formView";
 import { expectNoViolations } from "./checks";
 import { renderPage } from "./page_contract";
@@ -279,6 +279,130 @@ describe("a public form", () => {
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(((await posts[0].clone().json()) as Record<string, unknown>).website).toEqual({ type: "Property", value: "https://spam.example" });
     expect(await screen.findByText(/Not created/)).toBeInTheDocument();
+  });
+
+  /** The schema a form of one required field publishes, answered for slug `abc`. */
+  const parkingSchema = async (url: URL) => {
+    if (url.pathname.endsWith("/schema/index.json")) return json({ models: [{ version: 1 }] });
+    if (url.pathname.endsWith("/schema/v1/json-schema")) {
+      return json({ definitions: { ParkingSpot: { required: ["name"], properties: { id: { type: "string" }, type: { type: "string" }, name: { type: ["string", "null"] } } } } });
+    }
+    return undefined;
+  };
+
+  it("names the sites that may embed it, and refuses a line that is not one (EP-101)", async () => {
+    const sent: unknown[] = [];
+    renderPage(<FormSharePanel project="city" space="parking" type="ParkingSpot" attributes={["name"]} asked={["name"]} />, {
+      path: "/projects/city/spaces/parking",
+      answer: async (url, request) => {
+        if (request.method !== "POST" || !url.pathname.endsWith("/assistant/propose-endpoint")) return undefined;
+        sent.push(await request.json());
+        return json({ title: "stop here" }, 400);
+      },
+    });
+    const panel = await screen.findByTestId("form-share");
+    await userEvent.click(within(panel).getByText(en.spaces.form.shareTitle));
+    const sites = within(panel).getByRole("textbox", { name: new RegExp(en.spaces.form.embedSites) });
+    const publish = within(panel).getByRole("button", { name: en.spaces.form.publish });
+    for (const bad of ["http://www.hel.fi", "https://*.hel.fi", "https://www.hel.fi/form", "https://www.hel.fi https://www.hel.fi"]) {
+      await userEvent.clear(sites);
+      await userEvent.type(sites, bad);
+      expect(publish).toHaveAttribute("aria-disabled", "true");
+      expect(within(panel).getAllByText(/Not a site address/).length).toBeGreaterThan(0);
+    }
+    await userEvent.clear(sites);
+    await userEvent.type(sites, "https://www.hel.fi/{enter}https://news.hel.fi:8443");
+    await expectNoViolations(panel);
+    await userEvent.click(publish);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ embedOrigins: ["https://www.hel.fi", "https://news.hel.fi:8443"] });
+  });
+
+  it("gives the two embed snippets and a test preview once published", async () => {
+    renderPage(<FormEmbed slug="f7m2qz4tv6xh3n5jb2ryd3wcfa" type="ParkingSpot" framed />, { path: "/projects/city/spaces/parking", answer: async () => undefined });
+    const embed = await screen.findByTestId("form-embed");
+    const iframe = within(embed).getByRole("textbox", { name: en.spaces.form.embedIframe }) as HTMLTextAreaElement;
+    expect(iframe.value).toContain(`src="${window.location.origin}/f/f7m2qz4tv6xh3n5jb2ryd3wcfa"`);
+    expect(iframe.value).toContain('title="ParkingSpot"');
+    const script = within(embed).getByRole("textbox", { name: en.spaces.form.embedScript }) as HTMLTextAreaElement;
+    expect(script.value).toBe(
+      `<script src="${window.location.origin}/f/embed.js" data-jc-form="f7m2qz4tv6xh3n5jb2ryd3wcfa" data-jc-title="ParkingSpot" async></script>`,
+    );
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await userEvent.click(within(embed).getAllByRole("button", { name: en.spaces.form.copy })[1]);
+    expect(writeText).toHaveBeenCalledWith(script.value);
+    expect(await within(embed).findByText(en.spaces.form.copied)).toBeInTheDocument();
+    // The preview is the published page in a test run, inside a sandbox of its own.
+    const preview = within(embed).getByTitle("Preview of the ParkingSpot form");
+    expect(preview.getAttribute("src")).toBe("/f/f7m2qz4tv6xh3n5jb2ryd3wcfa?test=1");
+    expect(preview.getAttribute("sandbox")).toBe("allow-scripts allow-forms allow-same-origin");
+    // axe cannot enter a frame in jsdom; the framed page is the public form, checked above.
+    await expectNoViolations(embed, ['[data-testid="form-preview"]']);
+  });
+
+  it("says no site may embed it when it names none", async () => {
+    renderPage(<FormEmbed slug="abc" type="ParkingSpot" framed={false} />, { path: "/projects/city/spaces/parking", answer: async () => undefined });
+    expect(await screen.findByText(en.spaces.form.embedNone)).toBeInTheDocument();
+  });
+
+  it("in a test run checks the entry and asks the gateway, and writes nothing (EP-102)", async () => {
+    const requests: Request[] = [];
+    let decision = true;
+    renderPage(<PublicFormPage slug="abc" search={new URLSearchParams("test=1")} />, {
+      path: "/f/abc",
+      answer: async (url, request) => {
+        if (!url.pathname.startsWith("/api/endpoint/abc/")) return undefined;
+        requests.push(request);
+        if (url.pathname.endsWith("/access/check")) return json(decision ? { decision: true, context: { reason: "policy_grant_matched" } } : { decision: false });
+        return parkingSchema(url);
+      },
+    });
+    await screen.findByRole("heading", { level: 1, name: "ParkingSpot" });
+    expect(screen.getByText(en.spaces.form.testMode)).toBeInTheDocument();
+    const send = screen.getByRole("button", { name: en.spaces.form.testSubmit });
+    // The schema's required field is checked before anything is asked.
+    await userEvent.click(send);
+    expect(await screen.findByText(en.spaces.form.fix.replace("{count}", "1"))).toBeInTheDocument();
+    expect(requests.filter((r) => r.method === "POST")).toHaveLength(0);
+    await userEvent.type(screen.getByRole("textbox", { name: /^name/ }), "Hlavná");
+    await userEvent.click(send);
+    expect(await screen.findByText(en.spaces.form.testPassed)).toBeInTheDocument();
+    decision = false;
+    await userEvent.type(screen.getByRole("textbox", { name: /^name/ }), "Druhá");
+    await userEvent.click(send);
+    expect(await screen.findByText(/would not be accepted: this form does not take entries/)).toBeInTheDocument();
+    const posts = requests.filter((r) => r.method === "POST");
+    expect(posts.map((r) => new URL(r.url).pathname)).toEqual(["/api/endpoint/abc/access/check", "/api/endpoint/abc/access/check"]);
+    expect(await posts[0].clone().json()).toEqual({ action: { name: "createEntity" }, resource: { type: "ParkingSpot" } });
+    // Anonymous on every request, the reads included.
+    expect(requests.every((r) => r.credentials === "omit")).toBe(true);
+  });
+
+  it("tells the page that frames it how tall it is, and nothing else", async () => {
+    const posted: unknown[] = [];
+    const parent = { postMessage: (message: unknown, target: string) => posted.push({ message, target }) };
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(private readonly callback: () => void) {}
+      observe() {
+        this.callback();
+      }
+      disconnect() {}
+    });
+    const real = Object.getOwnPropertyDescriptor(window, "parent");
+    Object.defineProperty(window, "parent", { value: parent, configurable: true });
+    try {
+      renderPage(<PublicFormPage slug="abc" search={new URLSearchParams()} />, {
+        path: "/f/abc",
+        answer: async (url) => (url.pathname.startsWith("/api/endpoint/abc/") ? parkingSchema(url) : undefined),
+      });
+      await waitFor(() => expect(posted.length).toBeGreaterThan(0));
+      for (const one of posted) {
+        expect(one).toMatchObject({ message: { type: "jc-form-height", height: expect.any(Number) }, target: "*" });
+      }
+    } finally {
+      if (real) Object.defineProperty(window, "parent", real);
+    }
   });
 
   it("says the form is not published when the Endpoint is gone", async () => {

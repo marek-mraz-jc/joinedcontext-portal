@@ -160,3 +160,19 @@ describe("the auth provider against the UI contract", () => {
     );
   });
 });
+
+describe("on a public form's page (EP-102)", () => {
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+    vi.unstubAllGlobals();
+  });
+
+  it("asks nobody who is signed in and is anonymous at once", async () => {
+    window.history.replaceState(null, "", "/f/zt4qm7ge2xdv6ksb3ncf5arw2y?test=1");
+    const calls = answer(() => new Response(JSON.stringify(IDENTITY), { status: 200, headers: { "Content-Type": "application/json" } }));
+    show();
+    expect(session()).toBe("anonymous nobody steward:false");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls).toHaveLength(0);
+  });
+});
