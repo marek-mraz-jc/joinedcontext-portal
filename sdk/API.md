@@ -33,6 +33,15 @@ Sends a message to people of the organization, named by person id or `"me"` (the
 jc().jobs.list(): Promise<{ name: string; schedule: string; nextRun?: string; lastRun?: { at: string; ok: boolean; message?: string } }[]>
 ```
 Lists the App's scheduled jobs (`spec.server.jobs[]`) with the next minute each runs, absent for a schedule that names none within a year, and its last run as the host reported it. Needs `jobs` on at every layer; the organization's default list has it.
+```ts
+jc().files.put(path: string, body: Blob | ArrayBuffer | string, opts?: { contentType?: string }): Promise<FileInfo>
+jc().files.get(path: string): Promise<Blob>
+jc().files.list(prefix?: string): Promise<FileInfo[]>
+jc().files.remove(path: string): Promise<void>
+jc().files.url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }>
+type FileInfo = { path: string; size: number; contentType: string; modifiedAt: string }
+```
+Keeps the App's objects under its own prefix; a key is relative, has no `.` or `..` segment and is at most 512 bytes. One object is at most 25 MiB (`413`), all of them at most the App's `filesMiB` (`429`, no `resetAt`: delete to make room). `url` hands out a URL for one key and one method that expires within five minutes. Needs `files` on at every layer; the organization's default list has it. In the browser on the App's own host; the preview's bridge does not carry bytes.
 
 ### Hooks
 ```ts

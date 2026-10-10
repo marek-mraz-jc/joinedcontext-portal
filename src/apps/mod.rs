@@ -13,6 +13,7 @@ pub mod default_groups;
 /// An App's mail to people of the organization (AP-168).
 pub mod email;
 pub mod fetch;
+pub mod files;
 pub mod functions;
 pub mod jobs;
 pub mod kube;

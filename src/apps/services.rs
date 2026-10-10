@@ -70,12 +70,14 @@ pub enum Layer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Quota {
     EmailsPerDay,
+    FilesMiB,
 }
 
 impl Quota {
     fn member(self) -> &'static str {
         match self {
             Self::EmailsPerDay => "emailsPerDay",
+            Self::FilesMiB => "filesMiB",
         }
     }
 
@@ -83,6 +85,7 @@ impl Quota {
         let limits = spec.limits.as_ref()?;
         match self {
             Self::EmailsPerDay => limits.emails_per_day,
+            Self::FilesMiB => limits.files_mib,
         }
     }
 }
@@ -245,8 +248,18 @@ pub fn service_off(service: AppService, layer: Layer) -> Response {
     )
 }
 
-/// `429 …/quota`: the quota used up and when it resets, with `Retry-After` (AP-165).
-pub fn quota_used(service: AppService, quota: &str, now: OffsetDateTime) -> Response {
+/// `429 …/quota`: the quota used up and, for a daily one, when it resets with `Retry-After`
+/// (AP-165). A quota of what an App holds (`filesMiB`) resets when it deletes, so it names no time.
+pub fn quota_used(service: AppService, quota: &str, now: Option<OffsetDateTime>) -> Response {
+    let Some(now) = now else {
+        return problem(
+            StatusCode::TOO_MANY_REQUESTS,
+            "quota",
+            "Quota Used",
+            format!("{quota} is used up"),
+            json!({ "service": name(service), "quota": quota }),
+        );
+    };
     let reset = reset_at(now);
     let reset_text = reset
         .format(&time::format_description::well_known::Rfc3339)
@@ -263,6 +276,17 @@ pub fn quota_used(service: AppService, quota: &str, now: OffsetDateTime) -> Resp
         response.headers_mut().insert(header::RETRY_AFTER, value);
     }
     response
+}
+
+/// `413 …/file-too-large`: an object over the size one call may store (AP-170).
+pub fn file_too_large(limit: usize) -> Response {
+    problem(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "file-too-large",
+        "File Too Large",
+        format!("an object is at most {limit} bytes"),
+        json!({ "limit": limit }),
+    )
 }
 
 /// `403 …/recipient-refused`: a recipient who is not a person of the organization (AP-168).
@@ -352,7 +376,7 @@ mod tests {
     fn the_quota_resets_at_the_next_midnight_utc() {
         let now = time::macros::datetime!(2026-10-10 21:30 UTC);
         assert_eq!(reset_at(now), time::macros::datetime!(2026-10-11 0:00 UTC));
-        let response = quota_used(AppService::Email, "emailsPerDay", now);
+        let response = quota_used(AppService::Email, "emailsPerDay", Some(now));
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(response.headers()[header::RETRY_AFTER], "9000");
     }

@@ -168,7 +168,11 @@ pub(super) async fn send(
     match counted(db, (&project, &name), &recipients, limit).await {
         Ok(None) => {}
         Ok(Some(quota)) => {
-            return services::quota_used(AppService::Email, quota, time::OffsetDateTime::now_utc())
+            return services::quota_used(
+                AppService::Email,
+                quota,
+                Some(time::OffsetDateTime::now_utc()),
+            )
         }
         Err(err) => return ApiError::Internal(err.to_string()).into_response(),
     }

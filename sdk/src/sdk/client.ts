@@ -77,6 +77,14 @@ export interface Email {
   html?: string;
 }
 
+/** An object the App keeps under its own prefix (AP-170). */
+export interface FileInfo {
+  path: string;
+  size: number;
+  contentType: string;
+  modifiedAt: string;
+}
+
 /** A scheduled job of the App and its runs (AP-154, AP-162); `nextRun` is absent for a schedule that names no minute within a year. */
 export interface JobStatus {
   name: string;
@@ -158,8 +166,27 @@ export interface Client extends DataClient {
   functions: { call<T = unknown>(name: string, body?: unknown): Promise<T> };
   /** The `email` service: the platform holds the relay, the App names people (SDK-41, API/06 §4). */
   email: { send(message: Email): Promise<{ id: string }> };
+  /**
+   * The `files` service: objects under the App's own prefix, each at most 25 MiB, all within its
+   * `filesMiB` (SDK-41, API/06 §4). Over the browser's own host; a key is relative and has no
+   * `.` or `..` segment.
+   */
+  files: {
+    put(path: string, body: Blob | ArrayBuffer | string, opts?: { contentType?: string }): Promise<FileInfo>;
+    get(path: string): Promise<Blob>;
+    list(prefix?: string): Promise<FileInfo[]>;
+    remove(path: string): Promise<void>;
+    url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }>;
+  };
   /** The `jobs` service: the App's schedules with their next and last run (SDK-41, API/06 §4). */
   jobs: { list(): Promise<JobStatus[]> };
+}
+
+const FILES = "/api/services/files";
+
+/** A key's route, each segment encoded so a `?`, `#` or `%` in a name stays in the key. */
+function filePath(path: string): string {
+  return `${FILES}/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 export const FUNCTION_NAME = /^[a-z][a-z0-9-]{0,39}$/;
@@ -636,6 +663,40 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     },
   };
 
+  const files = {
+    async put(path: string, body: Blob | ArrayBuffer | string, opts?: { contentType?: string }): Promise<FileInfo> {
+      const contentType =
+        opts?.contentType ??
+        (typeof body === "string"
+          ? "text/plain;charset=utf-8"
+          : body instanceof Blob && body.type !== ""
+            ? body.type
+            : "application/octet-stream");
+      const resp = await transport({ method: "PUT", path: filePath(path), raw: { data: body, contentType } });
+      if (resp.status !== 201) throw serviceError(resp.status, resp.body, "files");
+      return resp.body as FileInfo;
+    },
+    async get(path: string): Promise<Blob> {
+      const resp = await transport({ method: "GET", path: filePath(path), as: "blob" });
+      if (resp.status !== 200) throw serviceError(resp.status, resp.body, "files");
+      return resp.body as Blob;
+    },
+    async list(prefix = ""): Promise<FileInfo[]> {
+      const resp = await transport({ method: "GET", path: `${FILES}?prefix=${encodeURIComponent(prefix)}` });
+      if (resp.status !== 200) throw serviceError(resp.status, resp.body, "files");
+      return resp.body as FileInfo[];
+    },
+    async remove(path: string): Promise<void> {
+      const resp = await transport({ method: "DELETE", path: filePath(path) });
+      if (resp.status !== 204) throw serviceError(resp.status, resp.body, "files");
+    },
+    async url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }> {
+      const resp = await transport({ method: "POST", path: `${filePath(path)}:url`, body: { method: opts?.method ?? "GET" } });
+      if (resp.status !== 200) throw serviceError(resp.status, resp.body, "files");
+      return resp.body as { url: string; expiresAt: string };
+    },
+  };
+
   const jobs = {
     async list(): Promise<JobStatus[]> {
       const path = config.transport === "bridge" ? "/services/jobs" : "/api/services/jobs";
@@ -657,6 +718,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     entityId,
     functions,
     email,
+    files,
     jobs,
   };
 }

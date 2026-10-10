@@ -45,6 +45,26 @@ routes:
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
     note: "the App's own token is the credential and the fixture has no published App (AP-162)"
+  - route: GET /apps/{name}/api/services/files
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
+  - route: GET /apps/{name}/api/services/files/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
+  - route: PUT /apps/{name}/api/services/files/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
+  - route: DELETE /apps/{name}/api/services/files/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
+  - route: POST /apps/{name}/api/services/files/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
   - route: POST /auth/backchannel-logout
     rule: "signature:keycloak-backchannel"
     expect: [503, 503, 503, 503, 503, 503, 503, 503]

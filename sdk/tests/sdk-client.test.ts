@@ -394,3 +394,43 @@ describe("jobs", () => {
     expect(off).toMatchObject({ service: "jobs", layer: "organization" });
   });
 });
+
+describe("files", () => {
+  it("keeps objects on the App's own host, a key's segments encoded, and names the quota it ran out of", async () => {
+    const calls: JcRequest[] = [];
+    const info = { path: "defects/1 a.jpg", size: 4, contentType: "image/jpeg", modifiedAt: "2026-10-10T22:00:00Z" };
+    const blob = new Blob(["jpeg"], { type: "image/jpeg" });
+    const answers = [
+      { status: 201, body: info },
+      { status: 200, body: blob },
+      { status: 200, body: [info] },
+      { status: 204, body: null },
+      { status: 200, body: { url: "https://files.dev.example/apps/x?X-Amz-Expires=300", expiresAt: "2026-10-10T22:05:00Z" } },
+      { status: 429, body: { type: "https://joinedcontext.com/errors/quota", title: "Quota Used", status: 429, service: "files", quota: "filesMiB" } },
+    ];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return answers[calls.length - 1];
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+
+    expect(await client.files.put("defects/1 a.jpg", blob)).toEqual(info);
+    expect(calls[0]).toEqual({
+      method: "PUT",
+      path: "/api/services/files/defects/1%20a.jpg",
+      raw: { data: blob, contentType: "image/jpeg" },
+    });
+    expect(await client.files.get("defects/1 a.jpg")).toBe(blob);
+    expect(calls[1]).toMatchObject({ method: "GET", as: "blob" });
+    expect(await client.files.list("defects/")).toEqual([info]);
+    expect(calls[2].path).toBe("/api/services/files?prefix=defects%2F");
+    await client.files.remove("defects/1 a.jpg");
+    expect(calls[3].method).toBe("DELETE");
+    expect((await client.files.url("defects/1 a.jpg", { method: "PUT" })).expiresAt).toBe("2026-10-10T22:05:00Z");
+    expect(calls[4]).toEqual({ method: "POST", path: "/api/services/files/defects/1%20a.jpg:url", body: { method: "PUT" } });
+    const full = await client.files.put("notes.txt", "x").catch((err: unknown) => err);
+    expect(full).toBeInstanceOf(ServiceRefusedError);
+    expect(full).toMatchObject({ service: "files", quota: "filesMiB" });
+    expect((calls[5].raw as { contentType: string }).contentType).toBe("text/plain;charset=utf-8");
+  });
+});
