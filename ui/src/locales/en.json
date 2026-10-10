@@ -6963,5 +6963,49 @@
     "mentions": "Mentions of you",
     "noMentions": "No comment mentions you.",
     "open": "Open your inbox ({count} waiting)"
+  },
+  "appServices": {
+    "title": "Services for Apps",
+    "field": "Services Apps may use",
+    "organizationHint": "The services every project's Apps may use. Identity and data are every App's; no box ticked keeps the default: identity, data, files and jobs.",
+    "projectHint": "Narrows the organization's list for this project's Apps; no box ticked keeps the organization's list.",
+    "projectLead": "Which services this project's Apps may use and the daily quotas each App gets, within the organization's.",
+    "projectQuotaHint": "Per App; the lowest of the organization's, the project's and the App's own is in force.",
+    "quotas": "Quotas per App",
+    "byDefault": "(the default)",
+    "appLead": "What this App may call on its own host. A service the organization or the project keeps off stays off here, and a call to it is refused naming that layer.",
+    "save": "Propose services",
+    "unchanged": "Tick or untick a service first.",
+    "lock": {
+      "everyApp": "Every App has this service.",
+      "organization": "The organization's settings keep this service off.",
+      "project": "The project's settings keep this service off."
+    },
+    "service": {
+      "identity": {
+        "label": "Identity",
+        "hint": "who is signed in and their roles"
+      },
+      "data": {
+        "label": "Data",
+        "hint": "the App's endpoint"
+      },
+      "files": {
+        "label": "Files",
+        "hint": "the App's own storage"
+      },
+      "email": {
+        "label": "E-mail",
+        "hint": "messages to people of the organization"
+      },
+      "jobs": {
+        "label": "Jobs",
+        "hint": "scheduled runs of a server App"
+      },
+      "ai": {
+        "label": "AI",
+        "hint": "completions from the organization's models"
+      }
+    }
   }
 }

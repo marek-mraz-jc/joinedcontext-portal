@@ -6963,5 +6963,49 @@
     "mentions": "Zmienky o vás",
     "noMentions": "Žiadny komentár vás nespomína.",
     "open": "Otvoriť doručené ({count} čaká)"
+  },
+  "appServices": {
+    "title": "Služby pre aplikácie",
+    "field": "Služby, ktoré aplikácie smú používať",
+    "organizationHint": "Služby, ktoré smú používať aplikácie každého projektu. Identita a dáta patria každej aplikácii; bez zaškrtnutia platí predvolený zoznam: identita, dáta, súbory a úlohy.",
+    "projectHint": "Zužuje zoznam organizácie pre aplikácie tohto projektu; bez zaškrtnutia platí zoznam organizácie.",
+    "projectLead": "Ktoré služby smú aplikácie tohto projektu používať a denné kvóty každej aplikácie, v rámci kvót organizácie.",
+    "projectQuotaHint": "Na aplikáciu; platí najnižšia z kvóty organizácie, projektu a aplikácie.",
+    "quotas": "Kvóty na aplikáciu",
+    "byDefault": "(predvolené)",
+    "appLead": "Čo táto aplikácia smie volať na vlastnej adrese. Službu vypnutú organizáciou alebo projektom tu nezapnete a jej volanie je odmietnuté s menom tejto vrstvy.",
+    "save": "Navrhnúť služby",
+    "unchanged": "Najprv zaškrtnite alebo odškrtnite službu.",
+    "lock": {
+      "everyApp": "Túto službu má každá aplikácia.",
+      "organization": "Nastavenia organizácie túto službu vypínajú.",
+      "project": "Nastavenia projektu túto službu vypínajú."
+    },
+    "service": {
+      "identity": {
+        "label": "Identita",
+        "hint": "kto je prihlásený a jeho roly"
+      },
+      "data": {
+        "label": "Dáta",
+        "hint": "endpoint aplikácie"
+      },
+      "files": {
+        "label": "Súbory",
+        "hint": "vlastné úložisko aplikácie"
+      },
+      "email": {
+        "label": "E-mail",
+        "hint": "správy ľuďom organizácie"
+      },
+      "jobs": {
+        "label": "Úlohy",
+        "hint": "plánované behy serverovej aplikácie"
+      },
+      "ai": {
+        "label": "AI",
+        "hint": "odpovede modelov organizácie"
+      }
+    }
   }
 }

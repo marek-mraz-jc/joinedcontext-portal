@@ -6963,5 +6963,49 @@
     "mentions": "Erwähnungen von Ihnen",
     "noMentions": "Kein Kommentar erwähnt Sie.",
     "open": "Eingang öffnen ({count} warten)"
+  },
+  "appServices": {
+    "title": "Dienste für Apps",
+    "field": "Dienste, die Apps nutzen dürfen",
+    "organizationHint": "Die Dienste, die die Apps jedes Projekts nutzen dürfen. Identität und Daten hat jede App; ohne Häkchen gilt die Vorgabe: Identität, Daten, Dateien und geplante Läufe.",
+    "projectHint": "Schränkt die Liste der Organisation für die Apps dieses Projekts ein; ohne Häkchen gilt die Liste der Organisation.",
+    "projectLead": "Welche Dienste die Apps dieses Projekts nutzen dürfen und die Tageskontingente jeder App, innerhalb derer der Organisation.",
+    "projectQuotaHint": "Pro App; es gilt das niedrigste Kontingent von Organisation, Projekt und App.",
+    "quotas": "Kontingente pro App",
+    "byDefault": "(Vorgabe)",
+    "appLead": "Was diese App auf ihrem eigenen Host aufrufen darf. Ein Dienst, den Organisation oder Projekt abschalten, bleibt hier aus, und sein Aufruf wird mit dieser Ebene abgelehnt.",
+    "save": "Dienste vorschlagen",
+    "unchanged": "Zuerst einen Dienst an- oder abhaken.",
+    "lock": {
+      "everyApp": "Diesen Dienst hat jede App.",
+      "organization": "Die Einstellungen der Organisation schalten diesen Dienst ab.",
+      "project": "Die Einstellungen des Projekts schalten diesen Dienst ab."
+    },
+    "service": {
+      "identity": {
+        "label": "Identität",
+        "hint": "wer angemeldet ist und seine Rollen"
+      },
+      "data": {
+        "label": "Daten",
+        "hint": "der Endpunkt der App"
+      },
+      "files": {
+        "label": "Dateien",
+        "hint": "der eigene Speicher der App"
+      },
+      "email": {
+        "label": "E-Mail",
+        "hint": "Nachrichten an Personen der Organisation"
+      },
+      "jobs": {
+        "label": "Geplante Läufe",
+        "hint": "Zeitpläne einer Server-App"
+      },
+      "ai": {
+        "label": "KI",
+        "hint": "Antworten der Modelle der Organisation"
+      }
+    }
   }
 }

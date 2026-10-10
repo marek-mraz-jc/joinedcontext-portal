@@ -239,6 +239,74 @@ pub fn recipient_refused(to: &str) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+
+    fn envelope(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
+        ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, ORG_NAMESPACE),
+            spec,
+            status: None,
+        }
+    }
+
+    /// The organization allows `services` and caps emails at 3; project `roads` lists `email`
+    /// and raises its cap to 10.
+    fn layers(services: Value) -> Mirror {
+        let mirror = Mirror::new();
+        mirror.upsert(envelope(
+            "Organization",
+            "bb",
+            json!({ "domain": "bb.sk", "locales": ["sk"], "defaultLocale": "sk",
+                    "policies": { "apps": { "services": services } },
+                    "limits": { "apps": { "emailsPerDay": 3 } } }),
+        ));
+        mirror.upsert(envelope(
+            "Project",
+            "roads",
+            json!({ "organizationRef": { "kind": "Organization", "name": "bb" },
+                    "apps": { "services": ["email"], "limits": { "emailsPerDay": 10 } } }),
+        ));
+        mirror
+    }
+
+    fn app(limits: Value) -> AppSpec {
+        serde_json::from_value(json!({
+            "kind": "static", "source": { "path": "." }, "build": {}, "visibility": "project",
+            "dataNeeds": [], "services": ["email"], "limits": limits,
+        }))
+        .expect("an App spec")
+    }
+
+    #[test]
+    fn the_organization_off_wins_over_a_project_and_an_app_that_list_it() {
+        let spec = app(json!({}));
+        let off = layers(json!(["identity", "data"]));
+        assert_eq!(
+            off_at(&off, "roads", &spec, AppService::Email),
+            Some(Layer::Organization)
+        );
+        let on = layers(json!(["identity", "data", "email"]));
+        assert_eq!(off_at(&on, "roads", &spec, AppService::Email), None);
+    }
+
+    #[test]
+    fn a_quota_above_the_layer_over_it_is_clamped_to_that_layer() {
+        let mirror = layers(json!(["email"]));
+        let quota = |limits| quota(&mirror, "roads", &app(limits), Quota::EmailsPerDay);
+        assert_eq!(
+            quota(json!({})),
+            3,
+            "the project's 10 is clamped to the organization's 3"
+        );
+        assert_eq!(quota(json!({ "emailsPerDay": 50 })), 3);
+        assert_eq!(
+            quota(json!({ "emailsPerDay": 2 })),
+            2,
+            "the App may go lower"
+        );
+    }
 
     #[test]
     fn the_quota_resets_at_the_next_midnight_utc() {

@@ -9,6 +9,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
+import { DEFAULT_ORGANIZATION_SERVICES } from "../../schemas/kinds";
 import { boundText, entryKey, SECTIONS, valueText } from "./limits";
 import type { OrganizationLimits } from "./limits";
 
@@ -25,11 +26,14 @@ const RUNTIME = ["ingestEventsPerSecond", "agentRunsPerDay", "entitiesPerSpace",
 export function OrganizationLimitsView({
   limits,
   publicApps,
+  services,
   models,
 }: {
   limits: OrganizationLimits;
   /** `spec.policies.apps.public`; absent is `allowed`. */
   publicApps?: string;
+  /** `spec.policies.apps.services`; absent is the default list (ADR-N-045). */
+  services?: string[];
   /** `spec.policies.agents.models`; absent is every model of the installation. */
   models?: string[];
 }): JSX.Element {
@@ -65,6 +69,21 @@ export function OrganizationLimitsView({
                       <p className="text-caption text-fg-muted">{t("organization.policy.publicAppsHint")}</p>
                     </TableCell>
                     <TableCell>{t(`organization.policy.publicApps_${publicApps === "refused" ? "refused" : "allowed"}`)}</TableCell>
+                    <TableCell>—</TableCell>
+                  </TableRow>
+                ) : null}
+                {section === "applications" ? (
+                  <TableRow>
+                    <TableCell>
+                      <span className="font-medium text-fg">{t("appServices.field")}</span>
+                      <p className="text-caption text-fg-muted">{t("appServices.organizationHint")}</p>
+                    </TableCell>
+                    <TableCell>
+                      {(services ?? DEFAULT_ORGANIZATION_SERVICES)
+                        .map((service) => t(`appServices.service.${service}.label`))
+                        .join(", ")}
+                      {services ? null : ` ${t("appServices.byDefault")}`}
+                    </TableCell>
                     <TableCell>—</TableCell>
                   </TableRow>
                 ) : null}

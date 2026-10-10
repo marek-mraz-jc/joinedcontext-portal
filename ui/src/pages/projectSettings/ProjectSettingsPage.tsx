@@ -30,7 +30,7 @@ import {
   tabPanelProps,
   Tabs,
 } from "../../components/ui";
-import { projectSchema } from "../../schemas/kinds";
+import { APP_SERVICES_UI, projectSchema } from "../../schemas/kinds";
 import { EffectivePermissions } from "../access/EffectivePermissions";
 import { findSettings, settingsIndex } from "./settingsIndex";
 import { RoleBindings } from "../access/RoleBindings";
@@ -55,7 +55,12 @@ export function isProjectSettingsTab(value: string): value is ProjectSettingsTab
 
 interface ProjectManifest {
   metadata?: { name?: string; title?: unknown; description?: unknown };
-  spec?: { quotas?: Record<string, number | undefined>; organizationRef?: unknown };
+  spec?: {
+    quotas?: Record<string, number | undefined>;
+    organizationRef?: unknown;
+    /** What the project allows its Apps, within the organization's (AP-163, AP-165). */
+    apps?: { services?: string[]; limits?: Record<string, number | undefined> };
+  };
 }
 
 /** What General edits of `project.yaml`: its title, its description and its own quotas. */
@@ -65,7 +70,16 @@ export function fromProject(manifest: unknown): Record<string, unknown> {
     title: plainTitle(project.metadata?.title),
     description: plainTitle(project.metadata?.description),
     quotas: project.spec?.quotas ?? {},
+    apps: { services: project.spec?.apps?.services ?? [], limits: project.spec?.apps?.limits ?? {} },
   };
+}
+
+/** The numeric members of a form object, or nothing when none is set. */
+function numbers(value: unknown): Record<string, number> | undefined {
+  const kept = Object.fromEntries(
+    Object.entries((value ?? {}) as Record<string, unknown>).filter(([, member]) => typeof member === "number"),
+  ) as Record<string, number>;
+  return Object.keys(kept).length > 0 ? kept : undefined;
 }
 
 /**
@@ -85,13 +99,20 @@ export function toProject(form: Record<string, unknown>, stored: unknown): unkno
       metadata[field] = value;
     }
   }
-  const quotas = Object.fromEntries(
-    Object.entries((form.quotas ?? {}) as Record<string, unknown>).filter(([, value]) => typeof value === "number"),
-  );
-  if (Object.keys(quotas).length === 0) {
-    delete spec.quotas;
-  } else {
+  const quotas = numbers(form.quotas);
+  if (quotas) {
     spec.quotas = quotas;
+  } else {
+    delete spec.quotas;
+  }
+  // No box ticked leaves the organization's list in force; a project narrows, it never widens.
+  const formApps = (form.apps ?? {}) as { services?: unknown; limits?: unknown };
+  const services = Array.isArray(formApps.services) && formApps.services.length > 0 ? formApps.services : undefined;
+  const limits = numbers(formApps.limits);
+  if (services || limits) {
+    spec.apps = { ...(services ? { services } : {}), ...(limits ? { limits } : {}) };
+  } else {
+    delete spec.apps;
   }
   return { ...manifest, metadata, spec };
 }
@@ -130,6 +151,7 @@ function General({ project }: { project: string }): JSX.Element {
   const inOwnRepository = Boolean((stored.spec as { repository?: unknown } | undefined)?.repository);
   const form: EditableForm = {
     schema: projectSchema(t),
+    uiSchema: { apps: { services: APP_SERVICES_UI } },
     fromManifest: fromProject,
     toManifest: toProject,
   };

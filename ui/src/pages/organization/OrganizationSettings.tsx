@@ -7,7 +7,7 @@ import { asManifests, ORG_NAMESPACE } from "../../api/manifest";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import type { EditableForm } from "../../components/EditResourceDialog";
 import { EmptyState, Skeleton } from "../../components/ui";
-import { organizationSchema } from "../../schemas/kinds";
+import { APP_SERVICES_UI, organizationSchema } from "../../schemas/kinds";
 import { OrganizationDomain } from "../access/OrganizationDomain";
 import { OrganizationLimitsView } from "./OrganizationLimitsView";
 
@@ -32,7 +32,7 @@ interface OrganizationSpec {
   defaultLocale?: string;
   contacts?: Contact[];
   projects?: ProjectsPolicy;
-  policies?: { apps?: { public?: string }; agents?: { models?: string[] } };
+  policies?: { apps?: { public?: string; services?: string[] }; agents?: { models?: string[] } };
 }
 
 /** What the form edits: the spec without `gitRepositoryUrl`, which is the installation's. */
@@ -51,7 +51,15 @@ export function toOrganization(form: Record<string, unknown>, stored: unknown): 
   const manifest = { ...((stored ?? {}) as Record<string, unknown>) };
   delete manifest.status;
   const spec = (manifest.spec ?? {}) as OrganizationSpec;
-  return { ...manifest, spec: { ...spec, ...form } };
+  const next = { ...spec, ...form } as OrganizationSpec;
+  // No box ticked is the default list, never "nothing": the form may hand back an empty list for
+  // a field nobody touched, and that would switch files and jobs off for every App (AP-163).
+  if (next.policies?.apps?.services?.length === 0) {
+    const apps = { ...next.policies.apps };
+    delete apps.services;
+    next.policies = { ...next.policies, apps };
+  }
+  return { ...manifest, spec: next };
 }
 
 /** `projects.creation` in words (PF-65). */
@@ -90,6 +98,7 @@ export function OrganizationSettings(): JSX.Element {
   const policy = spec.projects ?? {};
   const form: EditableForm = {
     schema: organizationSchema(t, limits.data?.entries ?? []),
+    uiSchema: { policies: { apps: { services: APP_SERVICES_UI } } },
     fromManifest: fromOrganization,
     toManifest: toOrganization,
   };
@@ -184,6 +193,7 @@ export function OrganizationSettings(): JSX.Element {
           <OrganizationLimitsView
             limits={limits.data}
             publicApps={spec.policies?.apps?.public}
+            services={spec.policies?.apps?.services}
             models={spec.policies?.agents?.models}
           />
         )}
