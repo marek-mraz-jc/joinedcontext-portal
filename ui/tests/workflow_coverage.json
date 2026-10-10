@@ -1175,6 +1175,16 @@
           "POST /api/v1/projects/{project}/apps/{name}/rebuild"
         ]
       },
+      "restore": {
+        "live": {
+          "spec": "apps-samples.spec.ts",
+          "test": "a steward reads an App's earlier builds, the build it serves is not restored again, and a viewer may not restore"
+        },
+        "personOnly": "a person brings an App back to an earlier build by a merge request on its repository that a reviewer merges; the assistant changes an application by a run, which the workflow builds on merge (AP-171)",
+        "routes": [
+          "POST /api/v1/projects/{project}/apps/{name}/restore"
+        ]
+      },
       "rename-shapes": {
         "live": {
           "spec": "apps-samples.spec.ts",
