@@ -636,6 +636,10 @@ impl AppState {
                             Some(namespace) => clients.with_pipelines(namespace),
                             None => clients,
                         };
+                        let clients = match state.config.app_identity_namespace.clone() {
+                            Some(namespace) => clients.with_app_jobs(namespace),
+                            None => clients,
+                        };
                         syncer = syncer.with_workload_clients(Arc::new(clients))
                     }
                     None => tracing::warn!(
@@ -674,6 +678,25 @@ impl AppState {
                         "the ServiceAccount mount is unreadable, so the pipelines' Kubernetes accounts are not made"
                     ),
                 }
+            }
+            // Each App's job ServiceAccount (AP-159, T-3539), by the same in-cluster identity,
+            // which the deployment lets write the identities namespace.
+            match state.config.app_identity_namespace.clone() {
+                Some(namespace) => match crate::apps::kube::KubeClient::in_cluster() {
+                    Ok(Some(kube)) => {
+                        syncer = syncer.with_app_job_service_accounts(Arc::new(kube), namespace)
+                    }
+                    Ok(None) => tracing::warn!(
+                        "no ServiceAccount mount: the Apps' job accounts are not made"
+                    ),
+                    Err(err) => tracing::warn!(
+                        error = %err,
+                        "the ServiceAccount mount is unreadable, so the Apps' job accounts are not made"
+                    ),
+                },
+                None => tracing::info!(
+                    "no JC_PORTAL_APP_IDENTITY_NAMESPACE: no App job gets a principal"
+                ),
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
                 let deployer =
