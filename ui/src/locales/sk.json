@@ -3283,6 +3283,25 @@
       "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny.",
       "screenshot": "{title}, ako ju ukazuje ukážka",
       "demo": "Otvoriť ukážku"
+    },
+    "jobs": {
+      "title": "Plánované úlohy",
+      "caption": "Plánované úlohy aplikácie {name} a ich posledné behy",
+      "job": "Úloha",
+      "schedule": "Plán (UTC)",
+      "lastRun": "Posledný beh",
+      "outcome": "Výsledok",
+      "duration": "Trvanie",
+      "notRun": "Ešte nebežala",
+      "outcomes": {
+        "succeeded": "Úspešná",
+        "failed": "Zlyhala",
+        "timedOut": "Zastavená po časovom limite",
+        "skipped": "Vynechaná, predošlý beh ešte bežal"
+      },
+      "inARow": "{count, plural, one {# neúspešný beh za sebou} few {# neúspešné behy za sebou} other {# neúspešných behov za sebou}}",
+      "ms": "{count} ms",
+      "note": "Úloha beží pod vlastnou identitou aplikácie a zapisuje len cez jej Endpoint. Zoznam ukazuje behy od posledného spustenia hostiteľa."
     }
   },
   "appLifecycle": {
