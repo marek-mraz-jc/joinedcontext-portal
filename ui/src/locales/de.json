@@ -5369,6 +5369,20 @@
             "label": "Größter Upload (MiB)",
             "hint": "Die größte Datei, die man hochladen darf; höchstens das Limit des Rands."
           }
+        },
+        "apps": {
+          "emailsPerDay": {
+            "label": "App-E-Mails pro Tag",
+            "hint": "Wie viele Nachrichten eine App pro Tag senden darf; ein Projekt oder eine App kann weniger festlegen."
+          },
+          "aiTokensPerDay": {
+            "label": "Modell-Tokens einer App pro Tag",
+            "hint": "Wie viele Modell-Tokens, Ein- und Ausgabe, eine App pro Tag nutzen darf; ein Projekt oder eine App kann weniger festlegen."
+          },
+          "filesMiB": {
+            "label": "Dateispeicher einer App (MiB)",
+            "hint": "Wie viel eine App in ihren Dateien speichern darf; ein Projekt oder eine App kann weniger festlegen."
+          }
         }
       },
       "policies": {

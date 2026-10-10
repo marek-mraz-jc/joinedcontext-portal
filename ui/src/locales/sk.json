@@ -5369,6 +5369,20 @@
             "label": "Najväčšie nahratie (MiB)",
             "hint": "Najväčší súbor, ktorý môže človek nahrať; najviac limit okraja."
           }
+        },
+        "apps": {
+          "emailsPerDay": {
+            "label": "E-maily aplikácie za deň",
+            "hint": "Koľko správ môže jedna aplikácia poslať za deň; projekt alebo aplikácia môže nastaviť menej."
+          },
+          "aiTokensPerDay": {
+            "label": "Tokeny modelu aplikácie za deň",
+            "hint": "Koľko tokenov modelu, vstup aj výstup, môže jedna aplikácia použiť za deň; projekt alebo aplikácia môže nastaviť menej."
+          },
+          "filesMiB": {
+            "label": "Úložisko súborov aplikácie (MiB)",
+            "hint": "Koľko môže jedna aplikácia uložiť do svojich súborov; projekt alebo aplikácia môže nastaviť menej."
+          }
         }
       },
       "policies": {
