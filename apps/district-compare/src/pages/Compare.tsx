@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, Empty, Grid, Loading, Page, pointOf, Problem, useEntities, useEntitySelection } from "@joinedcontext/sdk";
+import { Card, Empty, Grid, Loading, Page, pointOf, Problem, useClient, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
 import { DistrictMap } from "../components/DistrictMap";
+import { History } from "../components/History";
 import { useCompare } from "../compare";
 import type { DistrictOutput, Measure } from "../districts";
 import {
@@ -17,6 +18,7 @@ import {
 } from "../districts";
 import type { Lang } from "../i18n";
 import { measureTitle, measureUnit, number, t, translateType } from "../i18n";
+import { useServer } from "../server";
 
 const DISTRICT_QUERY = { attrs: ["name", "districtCode", "divisionLevel", "location"] };
 const EVENT_QUERY = { attrs: ["name", "startDate", "location"] };
@@ -105,6 +107,7 @@ export function barChartOption(
  */
 export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
   const districtsRes = useEntities("CityDistrict", DISTRICT_QUERY);
+  const server = useServer(useClient().config.appName);
   const eventsRes = useEntities("Event", EVENT_QUERY);
   const bikesRes = useEntities("BikeHireDockingStation", BIKE_QUERY);
   const alertsRes = useEntities("Alert", ALERT_QUERY);
@@ -396,6 +399,8 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
               )}
             </Card>
           </Grid>
+
+          <History lang={lang} server={server} codes={selectedCodes} measure={measure} />
         </>
       )}
     </Page>

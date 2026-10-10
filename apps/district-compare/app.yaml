@@ -1,8 +1,9 @@
 # Compare Helsinki districts side by side (T-3335): events, bike stations, alerts and air
 # quality, as counts and per km², with rankings across all districts. The spatial analysis
-# runs in the visitor's browser as WebAssembly compiled from the Rust crate in wasm/ (AP-142),
-# so the App is a `ui` bundle and costs no pod: the static host serves its files and nothing
-# else runs for it. Hand written, so no generated-by annotation (AP-35).
+# runs in the visitor's browser as WebAssembly compiled from the Rust crate in wasm/ (AP-142).
+# The server component in server/ runs on the shared WASM host (T-3353, AP-148): it keeps every
+# district's figures per day in the App's own schema, and the boundaries with their licence under
+# its own storage prefix. No pod of its own. Hand written, so no generated-by annotation (AP-35).
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
 metadata:
@@ -15,7 +16,7 @@ metadata:
     en: "Compare Helsinki districts side by side: events, bike stations, alerts and air quality as totals and per square kilometre, with rankings across all districts."
     fi: "Vertaa Helsingin kaupunginosia rinnakkain: tapahtumat, kaupunkipyöräasemat, tiedotteet ja ilmanlaatu kokonaisina ja neliökilometriä kohti sekä sijoitukset."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_district-compare.git
@@ -23,6 +24,13 @@ spec:
   build:
     node: "22"
     rust: "1.90"
+  # Its own schema, migrated from migrations/ at publish, and its own prefix for the boundaries.
+  storage:
+    sql:
+      migrations: migrations
+      quotaMiB: 50
+    blob:
+      quotaMiB: 64
   visibility: public
   lifecycle: published
   dataNeeds:
