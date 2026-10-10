@@ -54,6 +54,9 @@ function computeExpectedName(proposal: ChangeProposal): string {
   return typeof params.name === "string" ? params.name : proposal.metadata.name;
 }
 
+
+/** The combined states the forge reports for a commit (CC-90). */
+const CI_STATES: readonly string[] = ["success", "pending", "failure", "error"];
 export function ApprovalDetailPage({
   project,
   id,
@@ -225,6 +228,17 @@ export function ApprovalDetailPage({
               {t("approvals.repository")}
             </dt>
             <dd className="mt-1 text-sm text-surface-fg">{proposal.status.repository}</dd>
+          </div>
+        ) : null}
+        {/* The project repository's CI on the head commit (CC-90), in words. */}
+        {proposal.ci ? (
+          <div data-testid="change-ci">
+            <dt className="text-xs font-medium text-surface-fg/70">{t("approvals.ci.label")}</dt>
+            <dd className="mt-1 text-sm font-medium text-surface-fg">
+              {CI_STATES.includes(proposal.ci)
+                ? t(`approvals.ci.${proposal.ci}`)
+                : proposal.ci}
+            </dd>
           </div>
         ) : null}
         {proposal.status.mergeRequest ? (

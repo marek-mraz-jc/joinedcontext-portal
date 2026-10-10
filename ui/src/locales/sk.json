@@ -218,6 +218,17 @@
     "filterPhase": "Fáza",
     "filterAll": "Všetky",
     "noneMatch": "Týmto filtrom nezodpovedá žiadna zmena.",
+    "ci": {
+      "label": "CI na poslednom commite",
+      "success": "Prešla",
+      "pending": "Beží",
+      "failure": "Zlyhala",
+      "error": "Nedala sa spustiť"
+    },
+    "outside": {
+      "title": "{count, plural, one {# žiadosť o zlúčenie vo forge nie je zmenou} few {# žiadosti o zlúčenie vo forge nie sú zmenami} other {# žiadostí o zlúčenie vo forge nie je zmenami}}",
+      "item": "#{number} od {author}"
+    },
     "workspace": "Z kópie",
     "fromWorkspace": "Z kópie {name}, ktorú pripravil(a) {author}, vrátené {date}: upravené mimo živého projektu a pred návrhom znova skontrolované.",
     "emptyHint": "Každá zmena tohto projektu tu čaká, kým ju človek prečíta a rozhodne. Teraz nič nečaká; podajte zmenu a objaví sa v tomto zozname.",
@@ -5428,6 +5439,22 @@
     "note": "Endpointy kópie odpovedajú na vlastných identifikátoroch; dáta v brokeri sa nekopírujú.",
     "button": "Duplikovať",
     "needsRepository": "Duplikovať možno len projekt vo vlastnom repozitári."
+  },
+  "projectRelease": {
+    "title": "Vydanie",
+    "lead": "Čo toto nasadenie spúšťa z repozitára projektu a hodnoty jeho parametrov. Zmenu schvaľuje administrátor organizácie.",
+    "runs": "Beží",
+    "parameters": "Hodnoty parametrov",
+    "none": "Všetky parametre majú predvolenú hodnotu.",
+    "button": "Pripnúť vydanie",
+    "needsPropose": "Vydanie môže pripnúť len ten, kto smie meniť tento projekt na úrovni organizácie, napríklad administrátor organizácie.",
+    "external": "Tento projekt sa spravuje mimo forge, preto Portál preň nezobrazuje vydania.",
+    "dialogTitle": "Pripnúť vydanie projektu {name}",
+    "dialogLead": "Navrhne záznam v registri s týmto vydaním a týmito hodnotami. Keď ho administrátor organizácie schváli, ďalšie vykreslenie ho spustí.",
+    "ref": "Vydanie",
+    "refHint": "Tag repozitára projektu; ako prvý je uvedený stav, ktorý beží teraz.",
+    "current": "{ref} (beží teraz)",
+    "propose": "Navrhnúť"
   },
   "projectImport": {
     "title": "Importovať projekt",

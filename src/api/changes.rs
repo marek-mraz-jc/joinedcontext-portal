@@ -71,6 +71,10 @@ pub struct ChangeProposal {
     /// forge (T-3292); absent on an open change and on one closed in the forge itself.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decision: Option<ChangeDecision>,
+    /// The repository's CI on the head commit (CC-90): `success`, `pending`, `failure` or
+    /// `error`; on the detail of one change, and absent while no check has reported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ci: Option<String>,
 }
 
 /// Who decided a closed change: the approver of a merge, the rejecter of a closed one.
@@ -175,6 +179,23 @@ pub struct ChangeList {
     /// The `page` that continues a history listing, while the forge has older ones.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<u32>,
+    /// The open merge requests of the project repository that are not Changes, a fork's or a
+    /// non-writer's, and why; listed to an organization administrator alone (T-3433).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outside: Vec<OutsideMergeRequest>,
+}
+
+/// An open merge request in the forge that the Portal does not offer for approval (T-3433).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OutsideMergeRequest {
+    pub number: u64,
+    /// Its page in the forge, where it is closed or its author is answered.
+    pub url: String,
+    /// The forge account that opened it.
+    pub author: String,
+    /// Why it is not a Change, in words.
+    pub reason: String,
 }
 
 impl ChangeList {
@@ -186,6 +207,7 @@ impl ChangeList {
             kind: Self::KIND.to_string(),
             items,
             next: None,
+            outside: Vec::new(),
         }
     }
 }
@@ -490,6 +512,78 @@ fn is_change_branch(branch: &str) -> bool {
     branch.starts_with("portal/") || branch.starts_with("workspace/")
 }
 
+/// What an open or closed pull request is to this Portal (T-3433).
+enum Standing {
+    /// A Change: a branch of the Portal's own, or a writer's branch of the project repository.
+    Change,
+    /// A merge request of the project repository that is not one, and why.
+    Outside(String),
+    /// Anything else of the organization repository, which no list mentions.
+    Unlisted,
+}
+
+/// Whether `pr` is a Change. A Portal branch is (CC-79); so is, in a project repository of
+/// layout 2, a branch of that repository itself whose forge author is in `{slug}-writers` by the
+/// project's bindings in force and which merges into its default branch (ADR-N-029, PF-87). The
+/// author is the forge account that opened it, never a commit's own claim, and a forge that says
+/// neither repository nor e-mail lets nothing through.
+async fn standing(
+    state: &AppState,
+    gitea: &GiteaClient,
+    project: &str,
+    pr: &PullRequest,
+) -> Result<Standing, ApiError> {
+    if is_change_branch(&pr.head_branch) {
+        return Ok(Standing::Change);
+    }
+    if !gitea.is_project_repository() {
+        return Ok(Standing::Unlisted);
+    }
+    if !pr.same_repository {
+        return Ok(Standing::Outside(
+            "it comes from a fork; push the branch to the project repository itself".into(),
+        ));
+    }
+    let writer = pr.author_email.as_deref().is_some_and(|email| {
+        crate::permissions::project_members(&state.mirror, project, chrono::Utc::now())
+            .writers
+            .contains(&email.trim().to_ascii_lowercase())
+    });
+    if !writer {
+        return Ok(Standing::Outside(format!(
+            "its author is not a writer of the project '{project}'; a binding granting propose \
+             on the project makes them one"
+        )));
+    }
+    let main = gitea.default_branch().await?;
+    let base = pr
+        .base_branch
+        .strip_prefix("refs/heads/")
+        .unwrap_or(&pr.base_branch);
+    if base != main {
+        return Ok(Standing::Outside(format!(
+            "it merges into '{base}', not into '{main}', which the platform deploys"
+        )));
+    }
+    Ok(Standing::Change)
+}
+
+/// The `404` of a pull request that is not a Change, said like one that is not there (R20).
+async fn require_change(
+    state: &AppState,
+    gitea: &GiteaClient,
+    project: &str,
+    id: &str,
+    pr: &PullRequest,
+) -> Result<(), ApiError> {
+    match standing(state, gitea, project, pr).await? {
+        Standing::Change => Ok(()),
+        Standing::Outside(_) | Standing::Unlisted => Err(ApiError::NotFound(format!(
+            "change proposal '{id}' not found in project '{project}'"
+        ))),
+    }
+}
+
 /// The workspace a Change brings back, when its branch is one (UI-63).
 fn workspace_of(branch: &str) -> Option<String> {
     let branch = branch.strip_prefix("refs/heads/").unwrap_or(branch);
@@ -522,12 +616,13 @@ async fn bundle_headline(
         .head_branch
         .strip_prefix("refs/heads/")
         .unwrap_or(&pr.head_branch);
-    // A workspace brought back is a bundle too: several resources under one Change (CC-79).
+    // A workspace brought back is a bundle too: several resources under one Change (CC-79); so
+    // is a writer's own branch, which names nothing (T-3433). `standing` decided it is a Change.
     let bundle = match branch.strip_prefix("portal/") {
         Some(rest) => BUNDLE_PREFIXES
             .iter()
             .any(|prefix| rest.starts_with(prefix)),
-        None => branch.starts_with("workspace/"),
+        None => true,
     };
     if !bundle {
         return Ok(None);
@@ -668,8 +763,17 @@ async fn load_manifest_data(
                 None
             };
 
+            // A project's registry entry, `projects/{slug}.yaml` of the organization repository
+            // of layout 2, is the Project manifest a repoint or a new project changes (PF-86).
+            let registry = format!("projects/{}.yaml", branch_info.resource_name);
             let path = match path {
                 Some(p) => Some(p),
+                None if branch_info.kind_lower == "project"
+                    && !gitea.is_project_repository()
+                    && matches!(gitea.get_file(&registry, pr.head_ref()).await, Ok(Some(_))) =>
+                {
+                    Some(registry)
+                }
                 None => {
                     find_manifest_in_tree(gitea, pr.head_ref(), project, &branch_info.resource_name)
                         .await?
@@ -736,6 +840,14 @@ async fn load_manifest_data(
 /// answer.
 // ponytail: one forge call per open change; a cache keyed by head sha if the list grows.
 async fn human_author(gitea: &GiteaClient, pr: &crate::git::gitea::PullRequest) -> ChangeAuthor {
+    // A writer's own branch: the forge account that opened it. Its commits say whatever their
+    // author configured, and an approver named there could approve their own Change (T-3433).
+    if !is_change_branch(&pr.head_branch) {
+        return ChangeAuthor {
+            name: pr.author_name.clone(),
+            email: pr.author_email.clone(),
+        };
+    }
     // The head commit, not the branch: a merged change's branch may be gone (T-3292).
     match gitea.list_commits(pr.head_ref(), "", 1).await {
         Ok(commits) if commits.first().is_some_and(|c| !c.author.trim().is_empty()) => {
@@ -852,6 +964,8 @@ fn build_proposal(
         // Filled by the caller, which asks the forge (MF-48).
         waits_on: Vec::new(),
         decision: None,
+        // Filled by the detail, which asks the forge (CC-90).
+        ci: None,
     }
 }
 
@@ -948,7 +1062,7 @@ pub async fn change_history_readable(
     let next = (prs.len() == HISTORY_PAGE as usize).then_some(page + 1);
     let mut items = Vec::new();
     for pr in &prs {
-        if !is_change_branch(&pr.head_branch) {
+        if !matches!(standing(state, gitea, project, pr).await?, Standing::Change) {
             continue;
         }
         // The day it was decided, `closed_at`'s first ten characters, against the filter's days.
@@ -1154,6 +1268,14 @@ pub async fn list_changes_readable(
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
     let list = list_changes_for(state, project).await?;
+    let outside =
+        if crate::permissions::for_request(state, identity, crate::permissions::ORG_NAMESPACE)
+            .administers_organization()
+        {
+            list.outside
+        } else {
+            Vec::new()
+        };
     let items = list
         .items
         .into_iter()
@@ -1163,7 +1285,10 @@ pub async fn list_changes_readable(
             None => false,
         })
         .collect();
-    Ok(ChangeList::new(items))
+    Ok(ChangeList {
+        outside,
+        ..ChangeList::new(items)
+    })
 }
 
 /// One change this caller may read, or the `404` that says nothing about which of the two
@@ -1204,10 +1329,21 @@ pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeL
 
     let prs = gitea.list_pull_requests("open").await?;
     let mut proposals = Vec::new();
+    let mut outside = Vec::new();
 
     for pr in prs {
-        if !is_change_branch(&pr.head_branch) {
-            continue;
+        match standing(state, gitea, project, &pr).await? {
+            Standing::Change => {}
+            Standing::Outside(reason) => {
+                outside.push(OutsideMergeRequest {
+                    number: pr.number,
+                    url: pr.url.clone(),
+                    author: pr.author_login.clone(),
+                    reason,
+                });
+                continue;
+            }
+            Standing::Unlisted => continue,
         }
 
         let Some(data) = load_manifest_data(gitea, &pr, project).await? else {
@@ -1230,7 +1366,10 @@ pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeL
     }
 
     proposals.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-    Ok(ChangeList::new(proposals))
+    Ok(ChangeList {
+        outside,
+        ..ChangeList::new(proposals)
+    })
 }
 
 #[utoipa::path(
@@ -1272,11 +1411,7 @@ pub async fn change_for(
     let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
-    if !is_change_branch(&pr.head_branch) {
-        return Err(ApiError::NotFound(format!(
-            "change proposal '{id}' not found in project '{project}'"
-        )));
-    }
+    require_change(state, gitea, project, id, &pr).await?;
 
     let data = load_manifest_data(gitea, &pr, project)
         .await?
@@ -1295,7 +1430,16 @@ pub async fn change_for(
     let carried = files.iter().fold(Lane::Green, |lane, file| {
         crate::api::import::riskiest(lane, file.lane)
     });
+    // A forge that cannot say is a Change without a CI line, never a detail that fails (CC-90).
+    let ci = match gitea.commit_state(pr.head_ref()).await {
+        Ok(ci) => ci,
+        Err(error) => {
+            tracing::debug!(change = %id, %error, "the forge did not say the head commit's CI");
+            None
+        }
+    };
     Ok(ChangeProposal {
+        ci,
         metadata: change_meta(state, gitea, pr_number, project),
         waits_on: awaited_changes(state, gitea, &pr, project).await?,
         author,
@@ -1609,6 +1753,7 @@ pub async fn approve_change_for(
     let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
+    require_change(state, gitea, project, id, &pr).await?;
     let data = load_manifest_data(gitea, &pr, project)
         .await?
         .ok_or_else(|| {
@@ -2059,6 +2204,7 @@ pub async fn reject_change_for(
     let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
+    require_change(state, gitea, project, id, &pr).await?;
     let data = load_manifest_data(gitea, &pr, project)
         .await?
         .ok_or_else(|| {

@@ -2301,6 +2301,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read A Project's Registry Entry
+         * @description The repository, pinned ref and parameter values of the project's registry entry, the parameters project.yaml declares at that ref, and the repository's tags.
+         */
+        get: operations["get_registry_entry"];
+        /**
+         * Repoint A Project
+         * @description Proposes the project's registry entry pinned to another tag, branch or commit, or with other parameter values, as one red-lane change on the organization repository.
+         */
+        put: operations["repoint_project"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/revisions": {
         parameters: {
             query?: never;
@@ -3800,6 +3824,11 @@ export interface components {
              * @description The `page` that continues a history listing, while the forge has older ones.
              */
             next?: number | null;
+            /**
+             * @description The open merge requests of the project repository that are not Changes, a fork's or a
+             *     non-writer's, and why; listed to an organization administrator alone (T-3433).
+             */
+            outside?: components["schemas"]["OutsideMergeRequest"][];
         };
         /** @description Metadata identifying the change. */
         ChangeMeta: {
@@ -3819,6 +3848,11 @@ export interface components {
         ChangeProposal: {
             apiVersion: string;
             author: components["schemas"]["ChangeAuthor"];
+            /**
+             * @description The repository's CI on the head commit (CC-90): `success`, `pending`, `failure` or
+             *     `error`; on the detail of one change, and absent while no check has reported.
+             */
+            ci?: string | null;
             createdAt: string;
             decision?: null | components["schemas"]["ChangeDecision"];
             /** @description How many files the merge request changes, the headline manifest included. */
@@ -4902,6 +4936,17 @@ export interface components {
             kind: string;
             smartDataModels: components["schemas"]["CatalogueEntry"][];
         };
+        /** @description An open merge request in the forge that the Portal does not offer for approval (T-3433). */
+        OutsideMergeRequest: {
+            /** @description The forge account that opened it. */
+            author: string;
+            /** Format: int64 */
+            number: number;
+            /** @description Why it is not a Change, in words. */
+            reason: string;
+            /** @description Its page in the forge, where it is closed or its author is answered. */
+            url: string;
+        };
         /** @description The page the question was asked from, as the browser sends it: the route only. */
         PageContextRequest: {
             route: string;
@@ -5337,6 +5382,27 @@ export interface components {
             /** @description The entity types the source is claimed to hold. */
             types: string[];
         };
+        /**
+         * @description What the registry entry `projects/{slug}.yaml` says this deployment runs, with what the form
+         *     that changes it needs (PF-86, CC-88).
+         */
+        RegistryEntry: {
+            /** @description The parameters `project.yaml` declares at `ref`; empty for an external repository. */
+            declarations: Record<string, never>;
+            /** @description This deployment's values. */
+            parameters: Record<string, never>;
+            /** @description The tag, branch or commit this deployment runs. */
+            ref: string;
+            /** @description `{name}` of a repository of the local forge, or `{url, secretRef}` of an external one. */
+            repository: Record<string, never>;
+            /** @description The project repository's tags; empty for an external repository. */
+            tags: components["schemas"]["RegistryTag"][];
+        };
+        /** @description One tag of a project repository: a release a registry entry may pin (CC-88). */
+        RegistryTag: {
+            commit: string;
+            name: string;
+        };
         /** @description One record the runner did not write. */
         Rejected: {
             /** @description When the runner refused it, RFC 3339. */
@@ -5390,6 +5456,15 @@ export interface components {
             kind: string;
             payload: unknown;
             runId: string;
+        };
+        /** @description Another ref to run, or another set of values (PF-86, CC-88). */
+        Repoint: {
+            /** @description The whole set of values; an empty object returns every parameter to its default. */
+            parameters?: {
+                [key: string]: unknown;
+            } | null;
+            /** @description A tag, a branch or a commit of the project repository. */
+            ref?: string | null;
         };
         /** @description The side a person kept for one conflicting field of one file (CC-80). */
         Resolution: {
@@ -13131,6 +13206,154 @@ export interface operations {
                 };
             };
             /** @description The log could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_registry_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The registry entry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryEntry"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project, or none this caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The organization is of layout 1 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No git forge configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    repoint_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "parameters": {
+                 *         "audience": "public"
+                 *       },
+                 *       "ref": "v0.2.0"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Repoint"];
+            };
+        };
+        responses: {
+            /** @description The change that repoints the project */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description No ref and no parameters, a ref the repository does not hold, or a value that does not fit the declarations */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose a change to this project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project, or none this caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Layout 1, a repoint already open, or nothing would change */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No git forge configured */
             503: {
                 headers: {
                     [name: string]: unknown;

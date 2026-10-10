@@ -218,6 +218,17 @@
     "filterPhase": "Phase",
     "filterAll": "Alle",
     "noneMatch": "Keine Änderung passt zu diesen Filtern.",
+    "ci": {
+      "label": "CI auf dem letzten Commit",
+      "success": "Bestanden",
+      "pending": "Läuft",
+      "failure": "Fehlgeschlagen",
+      "error": "Konnte nicht laufen"
+    },
+    "outside": {
+      "title": "{count, plural, one {# Merge-Request in der Forge ist keine Änderung} other {# Merge-Requests in der Forge sind keine Änderungen}}",
+      "item": "#{number} von {author}"
+    },
     "workspace": "Aus einer Kopie",
     "fromWorkspace": "Aus der Kopie {name} von {author}, zurückgebracht am {date}: getrennt vom Live-Projekt bearbeitet und vor dem Vorschlag erneut geprüft.",
     "emptyHint": "Jede Änderung an diesem Projekt wartet hier darauf, dass eine Person sie liest und entscheidet. Gerade wartet nichts; schlagen Sie eine Änderung vor, und sie erscheint in dieser Liste.",
@@ -5428,6 +5439,22 @@
     "note": "Die Endpunkte der Kopie antworten unter eigenen Kennungen; Daten im Broker werden nicht kopiert.",
     "button": "Duplizieren",
     "needsRepository": "Nur ein Projekt in einem eigenen Repository kann dupliziert werden."
+  },
+  "projectRelease": {
+    "title": "Version",
+    "lead": "Was diese Bereitstellung aus dem Repository des Projekts ausführt, und ihre Parameterwerte. Eine Änderung genehmigt eine Organisationsadministration.",
+    "runs": "Läuft",
+    "parameters": "Parameterwerte",
+    "none": "Alle Parameter auf ihrem Standardwert.",
+    "button": "Version festlegen",
+    "needsPropose": "Nur wer dieses Projekt auf Organisationsebene ändern darf, etwa eine Organisationsadministration, kann eine Version festlegen.",
+    "external": "Dieses Projekt wird außerhalb der Forge gepflegt, daher listet das Portal keine Versionen dafür.",
+    "dialogTitle": "Version von {name} festlegen",
+    "dialogLead": "Schlägt den Registereintrag mit dieser Version und diesen Werten vor. Sobald eine Organisationsadministration ihn genehmigt, läuft er mit dem nächsten Rendern.",
+    "ref": "Version",
+    "refHint": "Ein Tag des Projekt-Repositorys; der jetzt laufende Stand steht zuerst.",
+    "current": "{ref} (läuft jetzt)",
+    "propose": "Vorschlagen"
   },
   "projectImport": {
     "title": "Projekt importieren",
