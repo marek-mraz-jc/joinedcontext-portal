@@ -79,6 +79,13 @@ wasm() {
     cp -r "$app". "$work"
     cargo fetch --locked --manifest-path "$work/wasm/Cargo.toml"
     JC_CRATE_STORE="$HOME/.cargo/registry" sh builder/build-wasm.sh "$work" "$(mktemp -d)"
+    # A `wasm` App's server component (AP-151): its tests, then the component the lane would pack.
+    if [ -f "$work/server/Cargo.toml" ]; then
+      (cd "$work/server" && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings \
+        && cargo build --release --locked --target wasm32-wasip2 \
+        && node "$ROOT/builder/lane.mjs" component-check \
+          "$(cargo metadata --no-deps --format-version 1 | node -p 'JSON.parse(require("fs").readFileSync(0,"utf8")).target_directory')/wasm32-wasip2/release/$(basename "$app" | tr - _)_server.wasm")
+    fi
     (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
       && pnpm install --no-frozen-lockfile && pnpm typecheck \
       && sh "$RUN" "$(basename "$app")" --rust && pnpm build \

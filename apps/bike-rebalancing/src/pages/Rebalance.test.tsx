@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import { STATIONS } from "../fixtures/stations";
+import type { PlansApi } from "../plans";
 import { choiceOf, fillBands, Rebalance, vanOf, watched } from "./Rebalance";
 
 vi.mock("maplibre-gl", () => ({
@@ -19,6 +20,16 @@ vi.mock("maplibre-gl", () => ({
 // jsdom has no canvas; what the chart is given is tested through fillBands.
 vi.mock("echarts/core", () => ({ use: vi.fn(), init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() })) }));
 
+/** The App's server with no plan saved yet: these tests are about the planner on the page. */
+const NO_PLANS: PlansApi = {
+  list: vi.fn(async () => []),
+  save: vi.fn(),
+  get: vi.fn(),
+  remove: vi.fn(),
+  drive: vi.fn(),
+  sheetUrl: vi.fn(),
+};
+
 const READ = {
   permissions: [{ resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const }],
   prohibitions: [],
@@ -28,7 +39,7 @@ function show(entities = STATIONS, language = "en") {
   const client = stubClient({ entities, access: READ }, { appName: "bike-rebalancing", language });
   render(
     <JcProvider client={client}>
-      <Rebalance />
+      <Rebalance plans={NO_PLANS} />
     </JcProvider>,
   );
   return client;
@@ -114,7 +125,7 @@ describe("Rebalance", () => {
     );
     render(
       <JcProvider client={client}>
-        <Rebalance />
+        <Rebalance plans={NO_PLANS} />
       </JcProvider>,
     );
     const alert = await screen.findByRole("alert");

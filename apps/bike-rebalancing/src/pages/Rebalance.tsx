@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, currentTokens, Empty, Loading, Page, Problem, ProblemError, Split, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
+import { SavedPlans } from "../components/SavedPlans";
 import { MapView } from "../components/MapView";
 import type { MapPoint } from "../components/MapView";
 import { localeOf, number, useLang, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
 import { computePlan } from "../planner";
 import type { Level, Need, Plan, Station } from "../planner";
+import { apiBase, plansApi } from "../plans";
+import type { PlansApi, SavedPlan } from "../plans";
 import { ATTRS, levelColour, newest, STATION, stationsOf } from "../stations";
 import { t } from "../texts";
 import { listOf, useParam } from "../url";
@@ -91,8 +94,9 @@ function unreadable(error: Error, lang: Lang): string {
  * route or the table, and a station on the map open it in the SDK's entity panel (SDK-40); the
  * App writes nothing, so the panel links it to the Portal (README).
  */
-export function Rebalance() {
+export function Rebalance({ plans }: { plans?: PlansApi } = {}) {
   const lang = useLang();
+  const api = useMemo(() => plans ?? plansApi(apiBase()), [plans]);
   const query = useMemo(() => ({ attrs: ATTRS }), []);
   const { rows, loading, error, reload } = useEntities(STATION, query, { refreshMs: REFRESH_MS });
   const [vanText, setVanText] = useParam("van", DEFAULT_VAN);
@@ -207,6 +211,13 @@ export function Rebalance() {
     setAdd("");
     setSkip("");
   };
+  const reopen = (saved: SavedPlan) => {
+    setVanText(String(saved.vanCapacity));
+    setStart(saved.start ?? "");
+    setAdd(saved.include.join(","));
+    setSkip(saved.exclude.join(","));
+  };
+  const current = useMemo(() => ({ vanCapacity: van, start: startAt ? start : null, include: add, exclude: skip }), [van, startAt, start, add, skip]);
 
   return (
     <Page label={t(lang, "page")}>
@@ -379,6 +390,7 @@ export function Rebalance() {
           empty={t(lang, "noStations")}
         />
       </Split>
+      <SavedPlans lang={lang} api={api} current={current} onOpen={reopen} />
     </Page>
   );
 }

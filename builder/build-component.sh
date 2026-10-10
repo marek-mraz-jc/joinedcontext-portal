@@ -6,7 +6,9 @@
 #
 #   build-component <app-dir> <work-dir> <bundle-dir>
 #
-# JC_CRATE_STORE is the crate store's registry folder (default the runner's /opt/cargo/registry).
+# JC_CRATE_STORE is the crate store's registry folder (default the runner's /opt/cargo/registry);
+# the git checkouts beside it (`../git`) hold the guest SDK, `jc-app-sdk`, at the commits the
+# reference Apps pin (T-3346).
 set -eu
 
 fail() { echo "build failed: $*" >&2; exit 1; }
@@ -26,6 +28,7 @@ export CARGO_HOME="$WORK/component-cargo" CARGO_TARGET_DIR="$WORK/component-targ
 rm -rf "${CARGO_HOME:?}" "${CARGO_TARGET_DIR:?}"
 mkdir -p "$CARGO_HOME/registry"
 ln -s "$STORE/index" "$STORE/cache" "$CARGO_HOME/registry/"
+[ -d "$STORE/../git" ] && ln -s "$STORE/../git" "$CARGO_HOME/git"
 cd "$CRATE"
 echo "== server tests"
 cargo test --offline --locked || fail "cargo test failed in server/ (a crate outside the runner's store fails here too)"

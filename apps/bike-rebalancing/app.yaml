@@ -1,11 +1,14 @@
-# The city bike rebalancing planner (T-3328): which docking stations are about to run empty or
-# full, and a route for one service van that moves bikes between them. Hand written, so no
-# generated-by annotation (AP-35).
+# The city bike rebalancing planner (T-3328, T-3346): which docking stations are about to run
+# empty or full, and a route for one service van that moves bikes between them. Hand written, so
+# no generated-by annotation (AP-35).
 #
-# A frontend only (`kind: ui`, no pod): React on the App SDK, and the planner in Rust compiled to
-# WebAssembly, run in the reader's browser in a worker (wasm/). Its source is its own repository on
-# the forge, which the build lane builds at `ref` (AP-75, AP-80); this folder of the portal
-# repository is where CI tests the same tree before it is pushed there (T-2599).
+# A server WASM App (`kind: wasm`, ADR-N-044): React on the App SDK with the planner in Rust
+# compiled to WebAssembly, run in the reader's browser while they click (wasm/); and a server
+# component on the shared host (server/) that plans again from the gateway's counts when a plan is
+# saved, keeps the plans and the drives in the App's own schema (migrations/) and the route sheets
+# under its own prefix. Its source is its own repository on the forge, which the build lane builds
+# at `ref` (AP-75, AP-80, AP-151); this folder of the portal repository is where CI tests the same
+# tree before it is pushed there (T-2599).
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
 metadata:
@@ -15,10 +18,10 @@ metadata:
     en: "City bike rebalancing planner"
     fi: "Kaupunkipyörien tasaussuunnitelma"
   description:
-    en: "Which docking stations are about to run empty or full, and a route for the service van that moves bikes between them, planned in the browser."
-    fi: "Mitkä asemat ovat tyhjenemässä tai täyttymässä, ja huoltoauton reitti, joka siirtää pyöriä niiden välillä, laskettuna selaimessa."
+    en: "Which docking stations are about to run empty or full, and a route for the service van that moves bikes between them, with saved plans, route sheets and the drives made."
+    fi: "Mitkä asemat ovat tyhjenemässä tai täyttymässä, ja huoltoauton reitti, joka siirtää pyöriä niiden välillä, tallennetut suunnitelmat, reittilistat ja ajetut reitit."
 spec:
-  kind: ui
+  kind: wasm
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_bike-rebalancing.git
@@ -26,16 +29,20 @@ spec:
   build:
     node: "22"
     rust: "1.90"
+  storage:
+    sql: { migrations: migrations, quotaMiB: 100 }
+    # Route sheets are a few kilobytes each.
+    blob: { quotaMiB: 256 }
   # For the operator: the people of the project, viewer and steward alike.
   visibility: project
   lifecycle: published
   roles:
     - name: viewer
       title: { en: "Viewer", fi: "Katselija" }
-      description: "Reads the stations and the planned route."
+      description: "Reads the stations, plans the van's route, saves plans and records drives."
     - name: steward
       title: { en: "Steward", fi: "Ylläpitäjä" }
-      description: "Plans the van's route; the app writes nothing, so a steward reads what a viewer reads."
+      description: "What a viewer does: the server sees no role, so it gives a steward nothing more; the city's data is only read."
   access:
     - role: viewer
       subjects: [{ group: bike-rebalancing-viewer }]

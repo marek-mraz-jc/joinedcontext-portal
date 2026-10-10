@@ -161,3 +161,40 @@ body {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+/* The saved plans (T-3346): one row per plan, its actions wrapping under it on a phone. */
+.app-plans {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jc-space-2, 0.5rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-plan {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--jc-space-2, 0.5rem);
+  padding: var(--jc-space-2, 0.5rem) 0;
+  border-bottom: 1px solid var(--jc-color-line, #e2e8f0);
+}
+.app-plan p {
+  margin: var(--jc-space-1, 0.25rem) 0 0;
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  color: var(--jc-color-muted, #64748b);
+}
+.app-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-1, 0.25rem);
+}
+.app-plan-actions .jc-button {
+  font-size: var(--jc-font-size-sm, 0.75rem);
+}
+.app-danger {
+  border-color: var(--jc-color-danger, #b91c1c);
+}
+.app-error {
+  color: var(--jc-color-danger, #b91c1c);
+  font-weight: 600;
+}
