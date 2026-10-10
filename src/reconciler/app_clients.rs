@@ -400,13 +400,14 @@ impl Admin {
     }
 
     pub(crate) async fn token(&self) -> Result<String, String> {
+        let form = self
+            .auth
+            .form(&self.client_id, &[("grant_type", "client_credentials")])
+            .await?;
         let response = self
             .http
             .post(format!("{}/protocol/openid-connect/token", self.issuer))
-            .form(&self.auth.form(
-                self.client_id.as_str(),
-                &[("grant_type", "client_credentials")],
-            )?)
+            .form(&form)
             .send()
             .await
             .map_err(|err| err.to_string())?;

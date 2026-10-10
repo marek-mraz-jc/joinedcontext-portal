@@ -177,8 +177,9 @@ pub struct Config {
     /// The client the reconciler manages the realm's groups with: a `ServiceAccount` client
     /// holding `manage-users` and `query-groups` of `realm-management` and nothing else
     /// (`JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID` and one of `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET`, a
-    /// secret, or `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ASSERTION_FILE`, a projected ServiceAccount
-    /// token; together or neither; PF-63, PF-47). `None` leaves the `Group` manifests read and the realm written by nobody.
+    /// secret, `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ASSERTION_FILE`, a projected ServiceAccount
+    /// token, or `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT`, a ServiceAccount of this
+    /// namespace whose token the Portal mints per request; together or neither; PF-63, PF-47). `None` leaves the `Group` manifests read and the realm written by nobody.
     pub keycloak_admin: Option<(String, ClientAuth)>,
     /// The operator's bounds on what an Organization may set (`JC_PORTAL_ORGANIZATION_BOUNDS_FILE`,
     /// the file the deployment renders `portal.organizationBounds` into; PF-97, ADR-N-035). No
@@ -1451,15 +1452,56 @@ impl Config {
             })
             .unwrap_or_default();
 
-        // Both halves or neither: an id without a proof would send an unauthenticated token
-        // request every tick and log a refusal every time.
-        let keycloak_admin = match (
-            lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID").filter(|v| !v.trim().is_empty()),
+        // The reconciler's client is a second federated client in this pod: its proof is a
+        // token of its own ServiceAccount, minted per request (PF-47, T-2868).
+        let admin_account = lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT")
+            .filter(|v| !v.trim().is_empty());
+        let admin_auth = match (
             ClientAuth::from_vars(
                 &lookup,
                 "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET",
                 "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ASSERTION_FILE",
             )?,
+            admin_account,
+        ) {
+            (Some(_), Some(_)) => {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
+                    reason: "the group reconciler's client authenticates one way: a secret, a \
+                             token file or a ServiceAccount"
+                        .to_owned(),
+                })
+            }
+            (Some(auth), None) => Some(auth),
+            (None, Some(account)) => {
+                let audience = oidc
+                    .as_ref()
+                    .map(|oidc| oidc.issuer.as_str().trim_end_matches('/'));
+                let audience = audience.ok_or_else(|| ConfigError::Invalid {
+                    var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
+                    reason: "a minted token's audience is the realm, and JC_OIDC_ISSUER is unset"
+                        .to_owned(),
+                })?;
+                Some(
+                    ClientAuth::minted(
+                        std::path::Path::new(crate::apps::kube::SERVICE_ACCOUNT_DIR),
+                        crate::apps::kube::IN_CLUSTER_API,
+                        account.trim(),
+                        audience,
+                    )
+                    .map_err(|reason| ConfigError::Invalid {
+                        var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
+                        reason,
+                    })?,
+                )
+            }
+            (None, None) => None,
+        };
+        // Both halves or neither: an id without a proof would send an unauthenticated token
+        // request every tick and log a refusal every time.
+        let keycloak_admin = match (
+            lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID").filter(|v| !v.trim().is_empty()),
+            admin_auth,
         ) {
             (Some(id), Some(auth)) => Some((id, auth)),
             (Some(_), None) => {
@@ -1905,6 +1947,59 @@ mod tests {
             "client secret leaked into Debug: {dumped}"
         );
         assert!(dumped.contains("[redacted]"));
+    }
+
+    #[test]
+    fn the_reconcilers_client_authenticates_one_way_only() {
+        let err = Config::from_vars(|k| match k {
+            "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
+            "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID" => Some("portal-reconciler".to_string()),
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET" => Some("old".to_string()),
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT" => {
+                Some("portal-reconciler".to_string())
+            }
+            _ => None,
+        })
+        .expect_err("a secret beside a ServiceAccount is a fallback nobody asked for");
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
+                ..
+            }
+        ));
+
+        // A ServiceAccount without a realm has no audience to mint for.
+        let err = Config::from_vars(|k| match k {
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID" => Some("portal-reconciler".to_string()),
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT" => {
+                Some("portal-reconciler".to_string())
+            }
+            _ => None,
+        })
+        .expect_err("no issuer");
+        assert!(
+            matches!(err, ConfigError::Invalid { reason, .. } if reason.contains("JC_OIDC_ISSUER"))
+        );
+    }
+
+    #[test]
+    fn a_federated_login_client_reads_its_token_file_and_holds_no_secret() {
+        let config = Config::from_vars(|k| match k {
+            "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_OIDC_CLIENT_ID" => Some("portal-api".to_string()),
+            "JC_OIDC_CLIENT_ASSERTION_FILE" => {
+                Some("/var/run/secrets/jc/keycloak/token".to_string())
+            }
+            _ => None,
+        })
+        .expect("oidc config");
+        assert!(matches!(
+            config.oidc.expect("oidc").auth,
+            ClientAuth::Assertion(path) if path == std::path::Path::new("/var/run/secrets/jc/keycloak/token")
+        ));
     }
 
     #[test]

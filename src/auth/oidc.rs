@@ -215,7 +215,7 @@ impl OidcClient {
         &self,
         grant: &[(&'static str, &str)],
     ) -> Result<openidconnect::core::CoreTokenResponse, String> {
-        let form = self.auth.form(&self.client_id, grant)?;
+        let form = self.auth.form(&self.client_id, grant).await?;
         let response = self
             .http
             .post(self.token_url.clone())

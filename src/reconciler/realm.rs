@@ -20,9 +20,12 @@ pub async fn token(
     client_id: &str,
     auth: &ClientAuth,
 ) -> Result<String, String> {
+    let form = auth
+        .form(client_id, &[("grant_type", "client_credentials")])
+        .await?;
     let response = http
         .post(format!("{issuer}/protocol/openid-connect/token"))
-        .form(&auth.form(client_id, &[("grant_type", "client_credentials")])?)
+        .form(&form)
         .send()
         .await
         .map_err(|err| err.to_string())?;

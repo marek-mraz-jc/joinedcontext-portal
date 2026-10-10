@@ -155,18 +155,15 @@ impl People {
     }
 
     pub async fn admin(&self) -> Result<Admin<'_>, PeopleError> {
+        let form = self
+            .auth
+            .form(&self.client_id, &[("grant_type", "client_credentials")])
+            .await
+            .map_err(PeopleError::Unreachable)?;
         let response = self
             .http
             .post(format!("{}/protocol/openid-connect/token", self.issuer))
-            .form(
-                &self
-                    .auth
-                    .form(
-                        self.client_id.as_str(),
-                        &[("grant_type", "client_credentials")],
-                    )
-                    .map_err(PeopleError::Unreachable)?,
-            )
+            .form(&form)
             .send()
             .await
             .map_err(|err| PeopleError::Unreachable(err.without_url().to_string()))?;
