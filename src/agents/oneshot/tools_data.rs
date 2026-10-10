@@ -785,6 +785,7 @@ mod tests {
             workspace: None,
             waits_on: Vec::new(),
             decision: None,
+            ci: None,
         }
     }
 

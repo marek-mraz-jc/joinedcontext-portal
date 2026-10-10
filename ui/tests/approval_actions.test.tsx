@@ -457,6 +457,26 @@ describe("a change brought back from a copy (UI-63)", () => {
   });
 });
 
+describe("the CI of the project repository (CC-90, T-3433)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    window.history.pushState({}, "", "/projects/banskabystrica/approvals/chg-1a2b3c4d");
+  });
+
+  it("says in words that the head commit's CI failed", async () => {
+    renderDetail({ change: proposal({ ci: "failure" }) });
+    const line = await screen.findByTestId("change-ci");
+    expect(line.textContent).toContain(en.approvals.ci.label);
+    expect(line.textContent).toContain(en.approvals.ci.failure);
+  });
+
+  it("says nothing of CI while no check has reported", async () => {
+    renderDetail({ change: proposal() });
+    await screen.findByText("Marek Mráz");
+    expect(screen.queryByTestId("change-ci")).toBeNull();
+  });
+});
+
 /**
  * The page on its own (T-2137): the two states it shows before any decision can be made — it is
  * still reading the change, and the change could not be read. The refusal carries the API's own
