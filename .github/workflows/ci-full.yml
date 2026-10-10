@@ -128,7 +128,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-        with: { targets: wasm32-unknown-unknown, components: llvm-tools-preview }
+        with: { targets: "wasm32-unknown-unknown,wasm32-wasip2", components: llvm-tools-preview }
       - uses: taiki-e/install-action@26e9283f268b880168bdbd2c545dfcd60ec2c6ab # v2.87.13
         with: { tool: cargo-llvm-cov }
       - name: wasm-bindgen, the runner's version, checked by its digest

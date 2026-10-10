@@ -79,6 +79,13 @@ wasm() {
     cp -r "$app". "$work"
     cargo fetch --locked --manifest-path "$work/wasm/Cargo.toml"
     JC_CRATE_STORE="$HOME/.cargo/registry" sh builder/build-wasm.sh "$work" "$(mktemp -d)"
+    # A `wasm` App's server component as the lane builds it (AP-151, T-3351): its tests, the
+    # wasm32-wasip2 build and the component check, offline against the crates fetched here.
+    if [ -f "$work/server/Cargo.toml" ]; then
+      cargo fetch --locked --manifest-path "$work/server/Cargo.toml"
+      JC_CRATE_STORE="$HOME/.cargo/registry" JC_CRATE_GIT="$HOME/.cargo/git" JC_LANE="$ROOT/builder" \
+        sh builder/build-component.sh "$work" "$(mktemp -d)" "$(mktemp -d)"
+    fi
     (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
       && pnpm install --no-frozen-lockfile && pnpm typecheck \
       && sh "$RUN" "$(basename "$app")" --rust && pnpm build \

@@ -7,6 +7,9 @@ import App from "./App";
 import { AnalyserContext } from "./analysis";
 import { ALERTS } from "./fixtures/alerts";
 import { inProcess } from "./test-analyser";
+import { ServerContext } from "./server";
+import type { Server } from "./server";
+import { fakeServer } from "./test-server";
 import { Map as FakeMap, Popup } from "./testing/maplibre";
 
 vi.mock("maplibre-gl", () => import("./testing/maplibre"));
@@ -30,12 +33,17 @@ const READ = {
 
 const PORTAL = "https://portal.dev.joinedcontext.com/projects/helsinki";
 
-function show(client = stubClient({ entities: ALERTS, access: READ }, { appName: "alerts-heatmap", portal: PORTAL, space: "helsinki" })) {
+function show(
+  client = stubClient({ entities: ALERTS, access: READ }, { appName: "alerts-heatmap", portal: PORTAL, space: "helsinki" }),
+  server: Server = fakeServer(),
+) {
   render(
     <JcProvider client={client}>
-      <AnalyserContext.Provider value={inProcess}>
-        <App />
-      </AnalyserContext.Provider>
+      <ServerContext.Provider value={server}>
+        <AnalyserContext.Provider value={inProcess}>
+          <App />
+        </AnalyserContext.Provider>
+      </ServerContext.Provider>
     </JcProvider>,
   );
   return client;
@@ -46,6 +54,7 @@ describe("alerts-heatmap", () => {
   afterEach(() => {
     window.history.replaceState(null, "", "/");
     FakeMap.built.length = 0;
+    FakeMap.snapshotFails = false;
     Popup.opened.length = 0;
   });
 
@@ -197,11 +206,109 @@ describe("alerts-heatmap", () => {
       return all(type, query);
     }) as typeof client.entities.all;
     show(client);
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Tiedotteita ei voitu lukea (HTTP 503). Yritä myöhemmin uudelleen.");
+    const alert = await screen.findByText("Tiedotteita ei voitu lukea (HTTP 503). Yritä myöhemmin uudelleen.").then((text) => text.closest("[role=alert]") as HTMLElement);
     failing = false;
     await userEvent.setup().click(within(alert).getByRole("button", { name: "Yritä uudelleen" }));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
     expect(await screen.findByText(/^8 tiedotetta /)).toBeInTheDocument();
+  });
+
+  // T-3351: the view saved on the App's server with its places and a picture of the map, and
+  // shown again from the list, the address back as it was saved.
+  it("saves the view as a report with its map picture, and shows it again from the list", async () => {
+    window.history.replaceState(null, "", "/?lang=fi&kind=ROAD_WORK");
+    const server = fakeServer();
+    show(undefined, server);
+    const user = userEvent.setup();
+    await screen.findByText(/tiedotetta /);
+    expect(await screen.findByText("Ei vielä raportteja.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tallenna näkymä" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Anna raportille nimi.");
+    await user.type(screen.getByLabelText("Raportin nimi"), "  Tietyöt  ");
+    await user.click(screen.getByRole("button", { name: "Tallenna näkymä" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Raportti tallennettu: Tietyöt.");
+    expect(server.saved[0]).toMatchObject({ title: "Tietyöt", view: "lang=fi&kind=ROAD_WORK" });
+    expect(server.saved[0]?.places.length).toBeGreaterThan(0);
+    expect(server.pictures.get(1)?.type).toBe("image/png");
+    expect(screen.getByLabelText("Raportin nimi")).toHaveValue("");
+
+    // Another view, then the saved one again.
+    await user.click(screen.getByRole("button", { name: "Tyhjennä valinnat" }));
+    await waitFor(() => expect(window.location.search).not.toContain("kind="));
+    await user.click(screen.getByRole("button", { name: "Näytä raportti Tietyöt" }));
+    await waitFor(() => expect(window.location.search).toContain("kind=ROAD_WORK"));
+    expect(screen.getByRole("status")).toHaveTextContent("Näytetään raportti Tietyöt.");
+
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    await user.click(screen.getByRole("button", { name: "Avaa raportin Tietyöt karttakuva" }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://store.test/apps/0/x/reports/1/map.png", "_blank", "noopener"));
+    open.mockRestore();
+  });
+
+  it("saves a report without a picture when the map cannot take one, and says so", async () => {
+    const server = fakeServer();
+    FakeMap.snapshotFails = true;
+    show(undefined, server);
+    const user = userEvent.setup();
+    await screen.findByText(/tiedotetta /);
+    await user.type(screen.getByLabelText("Raportin nimi"), "Ilman kuvaa");
+    await user.click(screen.getByRole("button", { name: "Tallenna näkymä" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Raportti tallennettu: Ilman kuvaa. Karttakuvaa ei voitu ottaa.");
+    expect(server.pictures.size).toBe(0);
+    expect(screen.queryByRole("button", { name: "Avaa raportin Ilman kuvaa karttakuva" })).toBeNull();
+  });
+
+  it("says why a report was not saved, and why its picture did not open", async () => {
+    show(undefined, fakeServer(undefined, { save: "a report's title has 1 to 120 characters" }));
+    const user = userEvent.setup();
+    await screen.findByText(/tiedotetta /);
+    await user.type(screen.getByLabelText("Raportin nimi"), "x");
+    await user.click(screen.getByRole("button", { name: "Tallenna näkymä" }));
+    expect(await screen.findByText("Raporttia ei voitu tallentaa: a report's title has 1 to 120 characters")).toBeInTheDocument();
+  });
+
+  it("keeps a saved report when its picture cannot be stored, and says a missing picture in words", async () => {
+    const server = fakeServer(undefined, { attach: "Forbidden", picture: "this report has no map snapshot" });
+    server.saved.push({ id: 7, title: "Vanha", view: "lang=fi", kept: 2, places: [], has_snapshot: true, created_at: "2030-10-01T08:00:00Z" });
+    show(undefined, server);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Avaa raportin Vanha karttakuva" }));
+    expect(await screen.findByText("Karttakuvaa ei voitu avata: this report has no map snapshot")).toBeInTheDocument();
+    await screen.findByText(/tiedotetta /);
+    await user.type(screen.getByLabelText("Raportin nimi"), "Uusi");
+    await user.click(screen.getByRole("button", { name: "Tallenna näkymä" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Raportti tallennettu: Uusi. Karttakuvaa ei voitu ottaa.");
+  });
+
+  it("lists the weeks the server keeps, the newest first, and says when they are as last kept", async () => {
+    const weeks = {
+      weeks: [
+        { week: "2030-10-21", alerts: 4, places: [], computed_at: "2030-10-21T10:00:00Z" },
+        { week: "2030-10-14", alerts: 12, places: [{ name: "Hämeentie 3", lon: 24.95, lat: 60.17, count: 5 }, { name: "", lon: 25, lat: 60.2, count: 3 }], computed_at: "2030-10-21T10:00:00Z" },
+        { week: "2030-10-07", alerts: 3, places: [{ name: "", lon: 24.9512, lat: 60.1701, count: 3 }], computed_at: "2030-10-21T10:00:00Z" },
+      ],
+      stale: true,
+    };
+    show(undefined, fakeServer(weeks));
+    const table = await screen.findByRole("table", { name: "Toistuvat paikat viikoittain" });
+    const rows = within(table).getAllByRole("row");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Viikko alkaenTiedotteitaToistuvia paikkojaEniten tiedotteita",
+      "21.10.203040–",
+      "14.10.2030122Hämeentie 3 (5)",
+      "7.10.20303160.1701, 24.9512 (3)",
+    ]);
+    expect(screen.getByText("Syötettä ei voitu lukea juuri nyt: viikot ovat viimeksi tallennetut.")).toBeInTheDocument();
+  });
+
+  it("says when the server keeps no week yet, and when the weeks or reports cannot be read", async () => {
+    show(undefined, fakeServer(undefined, { weeks: "the gateway could not answer right now; try again shortly (502)", reports: "the database is not reachable" }));
+    expect(await screen.findByText("Viikkoja ei voitu lukea: the gateway could not answer right now; try again shortly (502)")).toBeInTheDocument();
+    expect(await screen.findByText("Raportteja ei voitu lukea: the database is not reachable")).toBeInTheDocument();
+  });
+
+  it("says when the server has kept no week yet", async () => {
+    show();
+    expect(await screen.findByText("Palvelin ei ole vielä tallentanut yhtään viikkoa.")).toBeInTheDocument();
   });
 });
