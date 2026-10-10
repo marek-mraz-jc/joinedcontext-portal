@@ -398,18 +398,23 @@ pub(crate) fn served_endpoints(
         });
         found.extend(sorted(serving).iter().filter_map(of));
     }
+    // A reference names its endpoint by project and name, or by the slug the loader resolved that
+    // to (EP-77), the form dev holds (T-3599); the gateway's audience table reads both.
     for reference in sorted(mirror.matching(|env| in_project(env, "SharedSpaceReference"))) {
         let target = &reference.spec["endpointRef"];
-        let (Some(source), Some(endpoint)) = (target["project"].as_str(), target["name"].as_str())
-        else {
-            continue;
+        let shared = match (
+            target["project"].as_str(),
+            target["name"].as_str(),
+            reference.spec["endpointSlug"].as_str(),
+        ) {
+            (Some(source), Some(endpoint), _) => mirror.get(source, "Endpoint", endpoint),
+            (_, _, Some(slug)) if !slug.is_empty() => mirror
+                .matching(|env| env.kind == "Endpoint" && env.spec["slug"] == slug)
+                .into_iter()
+                .next(),
+            _ => None,
         };
-        found.extend(
-            mirror
-                .get(source, "Endpoint", endpoint)
-                .as_ref()
-                .and_then(of),
-        );
+        found.extend(shared.as_ref().and_then(of));
     }
 
     let mut unique: Vec<RunEndpoint> = Vec::new();

@@ -33,5 +33,6 @@ spec:
     - status
     - dateModified
   operations:
+  - queryTemporal
   - retrieveTemporal
   temporalQ: timerel=after;timeAt=P-7D

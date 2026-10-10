@@ -27,5 +27,6 @@ spec:
     - calculationFormula
     - source
   operations:
+  - queryTemporal
   - retrieveTemporal
   temporalQ: timerel=after;timeAt=P-90D
