@@ -1648,6 +1648,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 </summary>
                 <div className="mt-3">
                   <FilterProof
+                    project={project}
+                    name={editing.name}
                     slug={activeSlug}
                     segment={spaceSegment(project, editing.contextSpaceRef, asManifests(spacesQuery.data?.items ?? []))}
                     live

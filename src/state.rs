@@ -101,6 +101,8 @@ pub struct AppState {
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
     /// or a realm client: the two buttons answer 503 rather than writing nowhere.
     pub drift_watch: Option<Arc<crate::reconciler::drift::Watch>>,
+    /// The broker view writer, which the filter preview compiles a draft with (T-3802).
+    pub views: Option<Arc<crate::reconciler::views::ViewSync>>,
     /// The realm's clients and groups this platform did not create, as the last reconcile run
     /// listed them (AP-114, AP-115). Always present; empty until a run has listed the realm.
     pub foreign_names: Arc<crate::reconciler::foreign::ForeignNames>,
@@ -186,6 +188,7 @@ impl AppState {
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             drift_watch: None,
+            views: None,
             foreign_names: Arc::default(),
             people: None,
             kube: None,
@@ -798,7 +801,9 @@ impl AppState {
                 if let Some(url) = state.config.model_tools_url.clone() {
                     views = views.with_model_tools(url);
                 }
-                syncer = syncer.with_views(Arc::new(views));
+                let views = Arc::new(views);
+                state.views = Some(Arc::clone(&views));
+                syncer = syncer.with_views(views);
             }
             // Drift (CC-21, UI-25, UI-26): the seed entities a space declares, against what it
             // holds. Configuration cannot drift under T-0421's option B — every component reads

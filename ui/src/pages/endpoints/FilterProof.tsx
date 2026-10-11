@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
-import { ApiError } from "../../api/client";
+import { api, ApiError, unwrap } from "../../api/client";
 import type { Manifest } from "../../api/manifest";
 import { endpointUrl } from "../../components/endpoints/links";
 import {
@@ -20,7 +20,7 @@ import {
 } from "../../components/ui";
 import { Tabs, tabPanelProps } from "../../components/ui/Tabs";
 
-/** One page of the proof: what CIM 009 calls a page, and what the gateway's preview allows. */
+/** One page of the proof: what CIM 009 calls a page, and what the preview allows. */
 export const PROOF_PAGE = 50;
 /** How long an edit rests before the left side is asked again. */
 const SETTLE_MS = 600;
@@ -170,36 +170,36 @@ async function readSaved(slug: string, type: string, offset: number): Promise<Pa
   );
 }
 
-/** One page under the draft, from the gateway's preview (EP-85). */
+/** One page under the draft, from the Portal's preview through the Endpoint's broker view (EP-85). */
 async function readServed(
-  slug: string,
+  endpoint: { project: string; name: string },
   draft: FilterDraft,
   type: string,
   page: { ids?: string[]; limit: number; offset: number },
 ): Promise<Page> {
-  const body = {
-    projection:
-      draft.classes.length > 0
-        ? {
-            classes: draft.classes,
-            ...(Object.keys(draft.filter).length > 0 ? { filter: draft.filter } : {}),
-          }
-        : null,
-    hiddenAttributes: draft.hiddenAttributes,
-    type,
-    ...(page.ids ? { id: page.ids } : {}),
-    limit: page.limit,
-    offset: page.offset,
-  };
-  return pageOf(
-    await globalThis.fetch(
-      new Request(endpointUrl(slug, "/preview"), {
-        method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    ),
+  const answer = await unwrap(
+    await api.POST("/api/v1/projects/{project}/endpoints/{name}/preview", {
+      params: { path: endpoint },
+      body: {
+        projection:
+          draft.classes.length > 0
+            ? {
+                classes: draft.classes,
+                ...(Object.keys(draft.filter).length > 0 ? { filter: draft.filter } : {}),
+              }
+            : null,
+        hiddenAttributes: draft.hiddenAttributes,
+        type,
+        ...(page.ids ? { id: page.ids } : {}),
+        limit: page.limit,
+        offset: page.offset,
+      },
+    }),
   );
+  const entities = answer.entities.filter(
+    (item): item is ProofEntity => typeof item === "object" && item !== null && typeof item.id === "string",
+  );
+  return { entities, total: answer.count };
 }
 
 /** The value after it has rested for `ms`, so typing does not ask the gateway once per key. */
@@ -220,15 +220,20 @@ function useSettled<T>(value: T, ms: number): T {
  *
  * Both sides are read with the person's own session, and neither is a privileged path: the right side
  * is the canonical surface, which answers only what the person may read, and the left side is the
- * gateway's preview, which never serves past the endpoint's Policies and answers only a member of the
+ * Portal's preview, which never serves past the endpoint's Policies and answers only a member of the
  * space. A person the space refuses sees the left side alone.
  */
 export function FilterProof({
+  project,
+  name,
   slug,
   segment,
   draft,
   live,
 }: {
+  project: string;
+  /** The Endpoint's manifest name, which the preview route names it by (API/01 §40). */
+  name: string;
   slug: string;
   /** The `{space}` segment of `/cs/{space}` (PF-84). */
   segment: string;
@@ -263,9 +268,9 @@ export function FilterProof({
       const ids = original.data.entities.map((entity) => entity.id);
       // The total the draft serves, and the page aligned on the original's ids.
       const [total, page] = await Promise.all([
-        readServed(slug, settled, type, { limit: 1, offset: 0 }),
+        readServed({ project, name }, settled, type, { limit: 1, offset: 0 }),
         ids.length > 0
-          ? readServed(slug, settled, type, { ids, limit: PROOF_PAGE, offset: 0 })
+          ? readServed({ project, name }, settled, type, { ids, limit: PROOF_PAGE, offset: 0 })
           : Promise.resolve({ entities: [], total: 0 }),
       ]);
       return { entities: page.entities, total: total.total };

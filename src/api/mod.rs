@@ -22,6 +22,7 @@ pub mod delete;
 pub mod drafts;
 pub mod drift;
 pub mod dry_run;
+pub mod endpoint_preview;
 pub mod entity_comments;
 pub mod entity_trash;
 pub mod export;
@@ -99,6 +100,7 @@ pub fn router() -> Router<AppState> {
         .merge(permissions::router())
         .merge(people::router())
         .merge(access_simulate::router())
+        .merge(endpoint_preview::router())
         .merge(setup::router())
         .merge(pipelines::router())
         .merge(preferences::router())

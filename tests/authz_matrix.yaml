@@ -207,6 +207,11 @@ routes:
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
     body: {"subject": {"kind": "public"}, "action": "retrieveEntity"}
     note: "it reveals what another person may do (EP-103); an administrator meets the fixture's 404 (no such Endpoint) or 503 (no gateway)"
+  - route: POST /projects/{project}/endpoints/{name}/preview
+    rule: "space-read of the Endpoint's space, then a person"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    body: {"type": "Car"}
+    note: "the fixture's Endpoint names no Context Space, the 404 a non-member gets too (EP-85); a member meets 503 without a broker, a workload token 403 (tests/endpoint_preview_tests.rs)"
   - route: GET /organization/people
     rule: "people-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]

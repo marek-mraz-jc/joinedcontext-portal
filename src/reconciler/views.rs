@@ -23,14 +23,15 @@
 use jc_core::envelope::ORG_NAMESPACE;
 use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
-    ContextSpaceSpec, DataModelLifecycle, DataModelSpec, EndpointSpec, MappingSpec,
-    ModelProjectionSpec, Operation, OperationRef, PolicySpec, PrincipalKind,
+    ContextSpaceSpec, DataModelLifecycle, DataModelRef, DataModelSpec, EndpointSpec, MappingSpec,
+    ModelProjectionSpec, Operation, OperationRef, PolicySpec, PrincipalKind, ProjectedClass,
+    Projection, ProjectionFilter,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// A broker call that has not answered in this long is a failed run, not a slow one.
@@ -561,6 +562,16 @@ fn projection_of<'a>(sources: &'a Sources, e: &EndpointSource) -> Option<&'a Mod
 
 /// The view of one Endpoint (plan 2.1), or why it has none.
 fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String> {
+    view_of(sources, e, projection_of(sources, e))
+}
+
+/// The view of `e` under `projection` in place of the one its `projectionRef` names: the saved
+/// one for the reconciler, a draft for the preview (T-3802).
+fn view_of(
+    sources: &Sources,
+    e: &EndpointSource,
+    projection: Option<&ModelProjectionSpec>,
+) -> Result<Value, String> {
     let mapping = view_mapping(sources, e)?;
     let id = e.spec.slug.to_string();
     if id.len() > MAX_ID {
@@ -585,7 +596,6 @@ fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String>
         .flat_map(|projection| projection.hidden_attributes.iter().cloned())
         .collect();
     let space = e.spec.context_space_ref.name();
-    let projection = projection_of(sources, e);
 
     let mut view = Map::new();
     view.insert("id".into(), json!(id));
@@ -1222,6 +1232,19 @@ pub struct ViewSync {
     /// not compiled again on every run.
     // ponytail: a Model Tools upgrade reaches an unchanged model when the Portal restarts.
     compiled: Mutex<BTreeMap<String, (ModelSource, Value)>>,
+    /// What the last run read, which a preview compiles its draft against (T-3802).
+    // ponytail: only the leader runs, so a replica that does not lead answers the preview 503;
+    // stage the repository on that replica when the Portal runs more than one (T-3820).
+    last: Mutex<Option<Arc<Sources>>>,
+}
+
+/// The part of an Endpoint's filter the Portal's editor changes (API/01 §40): the classes,
+/// slots and rows of its `ModelProjection`, and its hidden attributes.
+#[derive(Debug, Clone, Default)]
+pub struct Draft {
+    /// `None` names no projection: the Endpoint then serves the classes its Policies grant.
+    pub projection: Option<(Vec<ProjectedClass>, Option<ProjectionFilter>)>,
+    pub hidden_attributes: Vec<String>,
 }
 
 impl ViewSync {
@@ -1238,6 +1261,7 @@ impl ViewSync {
             model_tools: None,
             written_schemas: Mutex::default(),
             compiled: Mutex::default(),
+            last: Mutex::default(),
         }
     }
 
@@ -1251,7 +1275,103 @@ impl ViewSync {
     /// Brings the broker's views and rule documents to what the repository declares, and says
     /// per Endpoint and Context Space what happened.
     pub async fn converge(&self, repo: &Repository) -> Vec<(Owner, ViewOutcome)> {
-        self.apply(desired(&Sources::read(repo))).await
+        let sources = Arc::new(Sources::read(repo));
+        *lock(&self.last) = Some(Arc::clone(&sources));
+        self.apply(desired(&sources)).await
+    }
+
+    /// The view id of the Endpoint `name` of `project` and its view with `draft` in place of
+    /// its saved projection and hidden attributes (T-3802, EP-85): its Policies, audience and
+    /// view mapping stay as the last run read them. `Ok(None)` when that run read no such
+    /// Endpoint; `Err` names the draft's member at fault, or why the Endpoint has no view.
+    pub fn draft_view(
+        &self,
+        project: &str,
+        name: &str,
+        draft: &Draft,
+    ) -> Result<Option<(String, Value)>, String> {
+        let Some(sources) = lock(&self.last).clone() else {
+            return Ok(None);
+        };
+        let Some(saved) = sources
+            .endpoints
+            .iter()
+            .find(|e| e.project == project && e.name == name)
+        else {
+            return Ok(None);
+        };
+        let hidden = Projection {
+            hidden_attributes: draft.hidden_attributes.clone(),
+        };
+        hidden
+            .validate()
+            .map_err(|err| format!("hiddenAttributes: {err}"))?;
+        let projection = match &draft.projection {
+            None => None,
+            Some((classes, filter)) => {
+                // A window is the rule document's, which the preview does not replace: a
+                // draft's would be left out and the page read wider than the draft says.
+                if filter.as_ref().is_some_and(|f| f.temporal_q.is_some()) {
+                    return Err(
+                        "projection.filter.temporalQ: a draft's window is not previewed (G6)"
+                            .into(),
+                    );
+                }
+                // Only the classes, their slots and the filter reach the view; the references
+                // are the saved projection's, or neutral ones.
+                let data_model_ref = projection_of(&sources, saved).map_or_else(
+                    || DataModelRef::new("preview", "1"),
+                    |saved| saved.data_model_ref.clone(),
+                );
+                let spec = ModelProjectionSpec {
+                    context_space_ref: saved.spec.context_space_ref.name().to_owned(),
+                    data_model_ref,
+                    classes: classes.clone(),
+                    filter: filter.clone(),
+                };
+                spec.validate().map_err(|err| {
+                    format!(
+                        "projection: {}",
+                        err.to_string().replace("spec.", "projection.")
+                    )
+                })?;
+                Some(spec)
+            }
+        };
+        let mut e = saved.clone();
+        e.spec.projection = (!hidden.hidden_attributes.is_empty()).then_some(hidden);
+        let view = view_of(&sources, &e, projection.as_ref())?;
+        Ok(Some((e.spec.slug.to_string(), view)))
+    }
+
+    /// One page of `query` (a Query Entities query string) through the candidate `view`, read
+    /// as the subject `headers` name (Antares `POST /q/views/{id}/preview`, T-3813): the
+    /// broker's status and body. Nothing is stored.
+    pub async fn preview(
+        &self,
+        id: &str,
+        view: &Value,
+        query: &str,
+        headers: &[(&'static str, String)],
+    ) -> Result<(u16, Value), String> {
+        let token = match std::fs::read_to_string(&self.token_file) {
+            Ok(token) if !token.trim().is_empty() => token.trim().to_owned(),
+            _ => return Err("the broker's admin token is not readable".into()),
+        };
+        let mut request = self
+            .http
+            .post(format!("{}/q/views/{id}/preview?{query}", self.broker))
+            .bearer_auth(token)
+            .json(view);
+        for (name, value) in headers {
+            request = request.header(*name, value);
+        }
+        let answer = request
+            .send()
+            .await
+            .map_err(|err| format!("the broker did not answer: {}", err.without_url()))?;
+        let status = answer.status().as_u16();
+        Ok((status, answer.json().await.unwrap_or(Value::Null)))
     }
 
     async fn apply(&self, desired: Desired) -> Vec<(Owner, ViewOutcome)> {
@@ -1850,6 +1970,187 @@ mod tests {
         ] {
             assert!(intersect(projection, own).is_err(), "{projection} {own:?}");
         }
+    }
+
+    /// A writer holding `s` as its last run, which a draft compiles against (T-3802).
+    fn having(s: Sources, broker: &str, token_file: &Path) -> ViewSync {
+        let sync = ViewSync::new(broker, token_file);
+        *lock(&sync.last) = Some(Arc::new(s));
+        sync
+    }
+
+    fn cars_projection(s: &mut Sources, endpoint: EndpointSource) {
+        s.projections.insert(
+            ("city".into(), "cars-only".into()),
+            serde_json::from_value(json!({
+                "contextSpaceRef": "air", "dataModelRef": {"name": "air", "version": "1.0.0"},
+                "classes": [{"name": "Car", "slots": ["speed"]}],
+                "filter": {"q": "speed>0"}
+            }))
+            .expect("a projection"),
+        );
+        s.endpoints.push(endpoint);
+    }
+
+    /// EP-85: a draft compiles to the view the same filter saved compiles to, so the preview
+    /// narrows as the saved Endpoint will; the Policies stay the saved ones.
+    #[test]
+    fn a_draft_is_the_view_of_the_same_filter_saved() {
+        let mut s = sources(vec![("cars", cars())]);
+        let saved = endpoint(json!({
+            "projectionRef": {"kind": "ModelProjection", "name": "cars-only"},
+            "projection": {"hiddenAttributes": ["owner"]}
+        }));
+        cars_projection(&mut s, endpoint(json!({})));
+        let expected = view_of(&s, &saved).expect("the saved view");
+        let sync = having(s, "http://broker.invalid", Path::new("/nonexistent"));
+        let draft = Draft {
+            projection: Some((
+                vec![ProjectedClass {
+                    name: "Car".into(),
+                    slots: vec!["speed".into()],
+                }],
+                Some(ProjectionFilter {
+                    q: Some("speed>0".into()),
+                    ..ProjectionFilter::default()
+                }),
+            )),
+            hidden_attributes: vec!["owner".into()],
+        };
+        let (id, view) = sync
+            .draft_view("city", "air-public", &draft)
+            .expect("a draft view")
+            .expect("the Endpoint was read");
+        assert_eq!((id.as_str(), &view), (SLUG, &expected));
+        assert_eq!(view["q"], json!("speed>0"));
+
+        // No projection in the draft: what the Policies grant, as an Endpoint without one.
+        let (_, granted) = sync
+            .draft_view("city", "air-public", &Draft::default())
+            .expect("a draft view")
+            .expect("the Endpoint was read");
+        assert_eq!(
+            granted["rules"],
+            json!([{"types": ["Car"], "attributes": ["speed"]}])
+        );
+    }
+
+    /// EP-85: a hidden attribute in the draft is out of the view's rules; a class whose every
+    /// granted slot it hides is out of the view.
+    #[test]
+    fn a_drafts_hidden_attribute_is_absent_from_its_view() {
+        let both = policy(json!({"information": [{"entities": [{"type": "Car"}],
+                                                   "propertyNames": ["speed", "owner"]}]}));
+        let mut s = sources(vec![("cars", both)]);
+        cars_projection(&mut s, endpoint(json!({})));
+        let sync = having(s, "http://broker.invalid", Path::new("/nonexistent"));
+        let hiding = |hidden: &str| Draft {
+            projection: None,
+            hidden_attributes: vec![hidden.into()],
+        };
+        let (_, view) = sync
+            .draft_view("city", "air-public", &hiding("speed"))
+            .expect("a draft view")
+            .expect("the Endpoint was read");
+        assert_eq!(
+            view["rules"],
+            json!([{"types": ["Car"], "attributes": ["owner"]}])
+        );
+        let (_, view) = sync
+            .draft_view("city", "air-public", &Draft::default())
+            .expect("a draft view")
+            .expect("the Endpoint was read");
+        assert_eq!(
+            view["rules"],
+            json!([{"types": ["Car"], "attributes": ["owner", "speed"]}])
+        );
+    }
+
+    /// The members of a draft are checked as the manifest's are, and the reason names the
+    /// member; an Endpoint the last run did not read, or no run yet, has no draft view.
+    #[test]
+    fn a_draft_is_checked_and_an_unread_endpoint_has_none() {
+        let mut s = sources(vec![("cars", cars())]);
+        cars_projection(&mut s, endpoint(json!({})));
+        let sync = having(s, "http://broker.invalid", Path::new("/nonexistent"));
+        let hidden = Draft {
+            projection: None,
+            hidden_attributes: vec!["id".into()],
+        };
+        let reason = sync
+            .draft_view("city", "air-public", &hidden)
+            .expect_err("refused");
+        assert!(reason.starts_with("hiddenAttributes: "), "{reason}");
+        let empty = Draft {
+            projection: Some((Vec::new(), None)),
+            hidden_attributes: Vec::new(),
+        };
+        let reason = sync
+            .draft_view("city", "air-public", &empty)
+            .expect_err("refused");
+        assert!(reason.starts_with("projection: "), "{reason}");
+        let temporal = Draft {
+            projection: Some((
+                vec![ProjectedClass {
+                    name: "Car".into(),
+                    slots: vec!["speed".into()],
+                }],
+                Some(ProjectionFilter {
+                    temporal_q: Some("timerel=after;timeAt=2026-01-01T00:00:00Z".into()),
+                    ..ProjectionFilter::default()
+                }),
+            )),
+            hidden_attributes: Vec::new(),
+        };
+        let reason = sync
+            .draft_view("city", "air-public", &temporal)
+            .expect_err("refused");
+        // the window would go to the rule document, which a preview does not replace
+        assert!(
+            reason.starts_with("projection.filter.temporalQ"),
+            "{reason}"
+        );
+        assert_eq!(
+            sync.draft_view("city", "elsewhere", &Draft::default()),
+            Ok(None)
+        );
+        let unread = ViewSync::new("http://broker.invalid", "/nonexistent");
+        assert_eq!(
+            unread.draft_view("city", "air-public", &Draft::default()),
+            Ok(None)
+        );
+    }
+
+    /// T-3813: the page is asked with the admin token, the candidate view as the body and the
+    /// subject headers as given; no admin token, no question.
+    #[tokio::test]
+    async fn a_preview_asks_the_broker_with_the_view_and_the_subject() {
+        let broker = MockServer::start().await;
+        let view = json!({"id": SLUG, "tenant": "city-air"});
+        Mock::given(method("POST"))
+            .and(path(format!("/q/views/{SLUG}/preview")))
+            .and(wiremock::matchers::query_param("type", "Car"))
+            .and(header("authorization", format!("Bearer {TOKEN}")))
+            .and(header("x-jc-subject", "jana%40hel.fi"))
+            .and(body_json(&view))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"count": 1, "entities": []})),
+            )
+            .expect(1)
+            .mount(&broker)
+            .await;
+        let sync = ViewSync::new(broker.uri(), token_file());
+        let headers = [("x-jc-subject", "jana%40hel.fi".to_owned())];
+        assert_eq!(
+            sync.preview(SLUG, &view, "type=Car&limit=50&offset=0", &headers)
+                .await,
+            Ok((200, json!({"count": 1, "entities": []})))
+        );
+        let tokenless = ViewSync::new(broker.uri(), "/nonexistent/token");
+        assert!(tokenless
+            .preview(SLUG, &view, "type=Car", &headers)
+            .await
+            .is_err());
     }
 
     fn vehicles_ir() -> Value {
