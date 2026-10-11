@@ -7754,6 +7754,132 @@
         }
       }
     },
+    "/api/v1/projects/{project}/endpoints/{name}/preview": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Preview An Endpoint's Filter",
+        "description": "One page of what the Endpoint would serve with the draft projection and hidden attributes saved, read through its candidate broker view as the person (or the anonymous caller on a public Endpoint). Members of the Endpoint's Context Space only (API/01 §40, EP-85). Changes no data.",
+        "operationId": "preview_endpoint",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Endpoint name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The draft and the page.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRequest"
+              },
+              "example": {
+                "hiddenAttributes": [
+                  "source"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "projection": {
+                  "classes": [
+                    {
+                      "name": "Event",
+                      "slots": [
+                        "name",
+                        "startDate",
+                        "location"
+                      ]
+                    }
+                  ],
+                  "filter": {
+                    "q": "endDate>=\"2026-09-25T00:00:00Z\""
+                  }
+                },
+                "type": "Event"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The count and the page under the draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Previewed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A refused draft, naming the member at fault",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A workload token, or the broker refused the reading",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint in a space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No broker, or the Endpoint's view is not compiled yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/export": {
       "get": {
         "tags": [
@@ -17385,6 +17511,40 @@
           }
         }
       },
+      "DraftProjection": {
+        "type": "object",
+        "description": "The part of a `ModelProjection` the editor changes.",
+        "required": [
+          "classes"
+        ],
+        "properties": {
+          "classes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {},
+              "propertyNames": {
+                "type": "string"
+              }
+            },
+            "description": "`{name, slots}` per class, as `ModelProjection.spec.classes`."
+          },
+          "filter": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "`q`, `scopeQ`, `geoQ`, `temporalQ`, as `ModelProjection.spec.filter`.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "DraftRef": {
         "type": "object",
         "required": [
@@ -20249,6 +20409,62 @@
         },
         "additionalProperties": false
       },
+      "PreviewRequest": {
+        "type": "object",
+        "description": "The body of `POST …/endpoints/{name}/preview`.",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "hiddenAttributes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The draft `spec.projection.hiddenAttributes`."
+          },
+          "id": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "At most 100 entity ids the page is restricted to."
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "1 to 100, default 50.",
+            "minimum": 0
+          },
+          "offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "projection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DraftProjection",
+                "description": "The draft `ModelProjection`'s classes and filter; absent names none."
+              }
+            ]
+          },
+          "type": {
+            "type": "string",
+            "description": "The entity type of the page."
+          }
+        },
+        "additionalProperties": false
+      },
       "PreviewState": {
         "type": "string",
         "description": "Where a workspace's preview is (CC-78).",
@@ -20259,6 +20475,33 @@
           "stopped",
           "error"
         ]
+      },
+      "Previewed": {
+        "type": "object",
+        "description": "One page under the draft.",
+        "required": [
+          "count",
+          "entities"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many entities the draft serves of the type.",
+            "minimum": 0
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {},
+              "propertyNames": {
+                "type": "string"
+              }
+            },
+            "description": "The page, normalized as `application/json` returns it."
+          }
+        }
       },
       "Probe": {
         "type": "object",

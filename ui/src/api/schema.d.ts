@@ -1921,6 +1921,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/endpoints/{name}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview An Endpoint's Filter
+         * @description One page of what the Endpoint would serve with the draft projection and hidden attributes saved, read through its candidate broker view as the person (or the anonymous caller on a public Endpoint). Members of the Endpoint's Context Space only (API/01 §40, EP-85). Changes no data.
+         */
+        post: operations["preview_endpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/export": {
         parameters: {
             query?: never;
@@ -4305,6 +4325,17 @@ export interface components {
         DraftList: {
             items: components["schemas"]["Draft"][];
         };
+        /** @description The part of a `ModelProjection` the editor changes. */
+        DraftProjection: {
+            /** @description `{name, slots}` per class, as `ModelProjection.spec.classes`. */
+            classes: {
+                [key: string]: unknown;
+            }[];
+            /** @description `q`, `scopeQ`, `geoQ`, `temporalQ`, as `ModelProjection.spec.filter`. */
+            filter?: {
+                [key: string]: string;
+            } | null;
+        };
         DraftRef: {
             kind: string;
             name: string;
@@ -5342,11 +5373,40 @@ export interface components {
              */
             version: number;
         };
+        /** @description The body of `POST …/endpoints/{name}/preview`. */
+        PreviewRequest: {
+            /** @description The draft `spec.projection.hiddenAttributes`. */
+            hiddenAttributes?: string[];
+            /** @description At most 100 entity ids the page is restricted to. */
+            id?: string[];
+            /**
+             * Format: int32
+             * @description 1 to 100, default 50.
+             */
+            limit?: number | null;
+            /** Format: int32 */
+            offset?: number | null;
+            projection?: null | components["schemas"]["DraftProjection"];
+            /** @description The entity type of the page. */
+            type: string;
+        };
         /**
          * @description Where a workspace's preview is (CC-78).
          * @enum {string}
          */
         PreviewState: "none" | "starting" | "running" | "stopped" | "error";
+        /** @description One page under the draft. */
+        Previewed: {
+            /**
+             * Format: int64
+             * @description How many entities the draft serves of the type.
+             */
+            count: number;
+            /** @description The page, normalized as `application/json` returns it. */
+            entities: {
+                [key: string]: unknown;
+            }[];
+        };
         /** @description One fetch of a DataSource on the project's runner, or why there was none (MF-39). */
         Probe: {
             bytes?: number | null;
@@ -12083,6 +12143,106 @@ export interface operations {
                 };
             };
             /** @description No gateway, no realm admin client, or one of them did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    preview_endpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Endpoint name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** @description The draft and the page. */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "hiddenAttributes": [
+                 *         "source"
+                 *       ],
+                 *       "limit": 50,
+                 *       "offset": 0,
+                 *       "projection": {
+                 *         "classes": [
+                 *           {
+                 *             "name": "Event",
+                 *             "slots": [
+                 *               "name",
+                 *               "startDate",
+                 *               "location"
+                 *             ]
+                 *           }
+                 *         ],
+                 *         "filter": {
+                 *           "q": "endDate>=\"2026-09-25T00:00:00Z\""
+                 *         }
+                 *       },
+                 *       "type": "Event"
+                 *     }
+                 */
+                "application/json": components["schemas"]["PreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description The count and the page under the draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Previewed"];
+                };
+            };
+            /** @description A refused draft, naming the member at fault */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A workload token, or the broker refused the reading */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint in a space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No broker, or the Endpoint's view is not compiled yet */
             503: {
                 headers: {
                     [name: string]: unknown;
