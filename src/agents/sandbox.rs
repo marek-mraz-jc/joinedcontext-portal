@@ -25,6 +25,10 @@ pub struct SandboxSettings {
     pub namespace: String,
     /// Pinned by digest; checked when the configuration is read.
     pub image: String,
+    /// The rust runner (builder/Dockerfile `rust`), pinned by digest: a `wasm` App's version runs
+    /// its server's `cargo test` there beside vitest (T-3618). `None` runs such a version on
+    /// `image`, where the server's tests are left to the build lane and the report says so.
+    pub rust_image: Option<String>,
 }
 
 /// How long one Job may run before Kubernetes stops it.
@@ -173,12 +177,18 @@ fn cut(text: &mut String, limit: usize) {
     }
 }
 
-/// Whether a version holds a test of its interface or its functions.
+/// Whether a version holds a test of its interface, its functions or its server.
 pub fn has_tests(files: &BTreeMap<String, String>) -> bool {
-    files.keys().any(|path| {
-        (path.starts_with("src/") || path.starts_with("functions/"))
-            && (path.ends_with(".test.ts") || path.ends_with(".test.tsx"))
+    files.iter().any(|(path, content)| {
+        ((path.starts_with("src/") || path.starts_with("functions/"))
+            && (path.ends_with(".test.ts") || path.ends_with(".test.tsx")))
+            || (path.starts_with("server/") && path.ends_with(".rs") && content.contains("#[test]"))
     })
+}
+
+/// Whether a version is a `wasm` App's, whose server's tests are `cargo test` (T-3618).
+pub fn is_wasm(files: &BTreeMap<String, String>) -> bool {
+    files.contains_key("server/Cargo.toml")
 }
 
 /// The version as the sandbox reads it: its files, gzipped JSON. The Portal's own files that
@@ -214,8 +224,18 @@ pub fn object_name(run_id: &str, version: u32) -> String {
     format!("app-test-{run}-{version}")
 }
 
-/// The ConfigMap and the Job of one version's test.
-pub fn objects(settings: &SandboxSettings, name: &str, project: &[u8]) -> (Value, Value) {
+/// The ConfigMap and the Job of one version's test; a `wasm` version's Job runs on the rust
+/// runner when there is one.
+pub fn objects(
+    settings: &SandboxSettings,
+    name: &str,
+    project: &[u8],
+    wasm: bool,
+) -> (Value, Value) {
+    let image = match (&settings.rust_image, wasm) {
+        (Some(rust), true) => rust,
+        _ => &settings.image,
+    };
     let labels = json!({
         "app.kubernetes.io/name": "app-test",
         "app.kubernetes.io/part-of": "joinedcontext",
@@ -255,7 +275,7 @@ pub fn objects(settings: &SandboxSettings, name: &str, project: &[u8]) -> (Value
                     },
                     "containers": [{
                         "name": "tests",
-                        "image": settings.image,
+                        "image": image,
                         "command": [
                             "node", "/opt/template/lane.mjs", "test-project",
                             "/project/project.json.gz", "/tmp/app"
@@ -397,7 +417,7 @@ impl Sandbox {
         };
         let name = object_name(run_id, version);
         let namespace = self.settings.namespace.clone();
-        let (config_map, job) = objects(&self.settings, &name, &project);
+        let (config_map, job) = objects(&self.settings, &name, &project, is_wasm(files));
         // A leftover of an earlier attempt with the same name (a Portal that restarted mid-test)
         // would make the create a 409; it is this run's own, so it goes first.
         self.remove(&namespace, &name).await;
@@ -490,6 +510,16 @@ mod tests {
         assert!(!has_tests(&files(&["src/App.tsx", "test-setup.ts"])));
         assert!(!has_tests(&files(&["README.test.ts", "src/App.tsx"])));
         assert!(!has_tests(&BTreeMap::new()));
+        // A wasm App's server holds its tests in its Rust (T-3618).
+        let mut server = files(&["server/Cargo.toml", "server/src/lib.rs"]);
+        assert!(!has_tests(&server));
+        server.insert(
+            "server/src/lib.rs".into(),
+            "#[cfg(test)]\nmod tests {\n    #[test]\n    fn adds() {}\n}\n".into(),
+        );
+        assert!(has_tests(&server));
+        assert!(is_wasm(&server));
+        assert!(!is_wasm(&files(&["src/App.tsx"])));
     }
 
     #[test]
@@ -541,8 +571,9 @@ mod tests {
                 "ghcr.io/x/joinedcontext-app-builder@sha256:{}",
                 "a".repeat(64)
             ),
+            rust_image: None,
         };
-        let (config_map, job) = objects(&settings, "app-test-r-1", b"gz");
+        let (config_map, job) = objects(&settings, "app-test-r-1", b"gz", false);
         assert_eq!(config_map["metadata"]["namespace"], "dev-app-tests");
         assert_eq!(config_map["binaryData"]["project.json.gz"], "Z3o=");
         let pod = &job["spec"]["template"]["spec"];
@@ -582,6 +613,32 @@ mod tests {
             .filter_map(|e| e["name"].as_str())
             .collect();
         assert_eq!(env, ["HOME", "JC_TEST_TIMEOUT_MS"]);
+    }
+
+    /// T-3618: a `wasm` version's Job runs on the rust runner, a `ui` version's on the lane's
+    /// Node image; without a rust runner both run on the Node image.
+    #[test]
+    fn a_wasm_version_is_tested_on_the_rust_runner_and_a_ui_version_on_the_node_image() {
+        let node = format!(
+            "ghcr.io/x/joinedcontext-app-builder@sha256:{}",
+            "a".repeat(64)
+        );
+        let rust = format!(
+            "ghcr.io/x/joinedcontext-app-builder@sha256:{}",
+            "b".repeat(64)
+        );
+        let image = |rust_image: Option<&String>, wasm: bool| {
+            let settings = SandboxSettings {
+                namespace: "dev-app-tests".into(),
+                image: node.clone(),
+                rust_image: rust_image.cloned(),
+            };
+            let (_, job) = objects(&settings, "app-test-r-1", b"gz", wasm);
+            job["spec"]["template"]["spec"]["containers"][0]["image"].clone()
+        };
+        assert_eq!(image(Some(&rust), true), json!(rust));
+        assert_eq!(image(Some(&rust), false), json!(node));
+        assert_eq!(image(None, true), json!(node));
     }
 
     #[test]

@@ -19,6 +19,7 @@ fn sandbox(server: &MockServer) -> Sandbox {
     let settings = SandboxSettings {
         namespace: NS.into(),
         image: format!("registry/app-builder:1@sha256:{}", "a".repeat(64)),
+        rust_image: None,
     };
     Sandbox::new(
         KubeClient::with_token(&server.uri(), "t").expect("a client"),

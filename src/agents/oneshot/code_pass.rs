@@ -2114,6 +2114,7 @@ mod sandbox_tests {
         let settings = SandboxSettings {
             namespace: "jc-app-tests".into(),
             image: format!("builder@sha256:{}", "a".repeat(64)),
+            rust_image: None,
         };
         let kube = KubeClient::with_token(&server.uri(), "t").expect("a client");
         let state = AppState::new(crate::config::Config::for_tests(), None)
