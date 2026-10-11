@@ -110,6 +110,21 @@ RUN set -eu; for app in air-quality hsl-transport; do \
       -o -name 'hsl-transport*' -o -name 'hsl_transport*' -o -name 'libhsl_transport*' \) -exec rm -rf {} +; \
     rm -rf /tmp/build/target/*/incremental /tmp/build/target/*/*/incremental; \
     mv /tmp/build/target /opt/cargo/target-seed
+# The dependencies of a generated `wasm` App's server tests (T-3618): the wasm template's lock,
+# `cargo test` on the host only, kept apart so the test sandbox copies these and nothing else.
+# The same paths as the sandbox's (builder/lane.mjs `CARGO`), the git store linked as it does.
+COPY --from=crates /opt/cargo/git /opt/cargo/git
+COPY sdk/template-wasm/server/Cargo.toml sdk/template-wasm/server/Cargo.lock /manifests/app-server/
+RUN set -eu; rm -rf /tmp/build/app /tmp/build/cargo /tmp/build/target; \
+    mkdir -p /tmp/build/cargo/registry /tmp/build/app/src; \
+    ln -s /opt/cargo/registry/index /opt/cargo/registry/cache /tmp/build/cargo/registry/; \
+    ln -s /opt/cargo/git /tmp/build/cargo/git; \
+    cp /manifests/app-server/Cargo.toml /manifests/app-server/Cargo.lock /tmp/build/app/; \
+    : > /tmp/build/app/src/lib.rs; \
+    cd /tmp/build/app && cargo test --offline --locked --no-run; \
+    find /tmp/build/target -depth \( -name 'app-server*' -o -name 'app_server*' -o -name 'libapp_server*' \) -exec rm -rf {} +; \
+    rm -rf /tmp/build/target/debug/incremental; \
+    mv /tmp/build/target /opt/cargo/test-seed
 
 # The rust-1.90 runner (AP-105, AP-106): the toolchain with the musl target, node and the
 # template for the interface, the crate store, the precompiled dependencies, and the same lane and
@@ -123,6 +138,7 @@ COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
 COPY --from=crates /opt/cargo/git /opt/cargo/git
 # Read-only to the lane's uid: a job copies it and never writes it.
 COPY --from=seed /opt/cargo/target-seed /opt/cargo/target-seed
+COPY --from=seed /opt/cargo/test-seed /opt/cargo/test-seed
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
 COPY builder/build-wasm.sh /usr/local/bin/build-wasm

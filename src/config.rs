@@ -211,7 +211,8 @@ pub struct Config {
     pub agent_settings: Option<AgentSettings>,
     /// Where a run tests each version before it offers publication (SDK-38): the sandbox
     /// namespace (`JC_PORTAL_APP_TESTS_NAMESPACE`) and the lane's builder image pinned by digest
-    /// (`JC_PORTAL_APP_TESTS_IMAGE`), both or neither. `None` runs no tests in the run, says so on
+    /// (`JC_PORTAL_APP_TESTS_IMAGE`), both or neither, and the rust runner for a `wasm` App's
+    /// server tests (`JC_PORTAL_APP_TESTS_RUST_IMAGE`, optional). `None` runs no tests in the run, says so on
     /// it, and leaves the build lane's check as the only one (SDK-24).
     pub app_tests: Option<crate::agents::sandbox::SandboxSettings>,
     /// Where basemap tiles and styles come from (AP-67). `None` disables the basemap route:
@@ -660,7 +661,9 @@ fn app_settings(
 }
 
 /// The run's test sandbox (SDK-38): `JC_PORTAL_APP_TESTS_NAMESPACE`, a Kubernetes name, and
-/// `JC_PORTAL_APP_TESTS_IMAGE`, an image reference pinned by `@sha256:` digest, both or neither.
+/// `JC_PORTAL_APP_TESTS_IMAGE`, an image reference pinned by `@sha256:` digest, both or neither;
+/// with them, optionally `JC_PORTAL_APP_TESTS_RUST_IMAGE`, the rust runner pinned the same way,
+/// which runs a `wasm` App's server tests (T-3618).
 fn app_tests(
     lookup: &impl Fn(&str) -> Option<String>,
 ) -> Result<Option<crate::agents::sandbox::SandboxSettings>, ConfigError> {
@@ -683,27 +686,33 @@ fn app_tests(
                     ),
                 });
             }
-            // The model's code runs on it, so it is the lane's own image and nothing a tag
+            // The model's code runs on them, so they are the lane's own images and nothing a tag
             // could move (non-negotiable: images by digest).
-            let pinned = image.split_once("@sha256:").is_some_and(|(name, hex)| {
-                !name.is_empty()
-                    && hex.len() == 64
-                    && hex
-                        .bytes()
-                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-            });
-            if !pinned || image.chars().any(char::is_whitespace) {
-                return Err(ConfigError::Invalid {
-                    var: "JC_PORTAL_APP_TESTS_IMAGE",
+            let pinned = |var: &'static str, image: String| {
+                let digest = image.split_once("@sha256:").is_some_and(|(name, hex)| {
+                    !name.is_empty()
+                        && hex.len() == 64
+                        && hex
+                            .bytes()
+                            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+                });
+                if digest && !image.chars().any(char::is_whitespace) {
+                    return Ok(image);
+                }
+                Err(ConfigError::Invalid {
+                    var,
                     reason: format!(
                         "'{image}' is not an image pinned by digest, such as \
                          ghcr.io/org/joinedcontext-app-builder@sha256:<64 hex>"
                     ),
-                });
-            }
+                })
+            };
             Ok(Some(crate::agents::sandbox::SandboxSettings {
                 namespace,
-                image,
+                image: pinned("JC_PORTAL_APP_TESTS_IMAGE", image)?,
+                rust_image: set("JC_PORTAL_APP_TESTS_RUST_IMAGE")
+                    .map(|image| pinned("JC_PORTAL_APP_TESTS_RUST_IMAGE", image))
+                    .transpose()?,
             }))
         }
         (Some(_), None) | (None, Some(_)) => Err(ConfigError::Invalid {
@@ -1781,6 +1790,41 @@ mod tests {
             assert!(
                 with(namespace, image).is_err(),
                 "{namespace} {image} was accepted"
+            );
+        }
+    }
+
+    /// T-3618: the rust runner of a `wasm` App's server tests is optional and pinned by digest
+    /// like the lane's image; it means nothing without the sandbox.
+    #[test]
+    fn the_sandbox_s_rust_runner_is_an_image_pinned_by_digest_or_nothing() {
+        let digest = "b".repeat(64);
+        let node = format!(
+            "ghcr.io/x/joinedcontext-app-builder@sha256:{}",
+            "a".repeat(64)
+        );
+        let rust = format!("ghcr.io/x/joinedcontext-app-builder:rust@sha256:{digest}");
+        let with = |sandbox: bool, rust: &str| {
+            let (node, rust) = (node.clone(), rust.to_owned());
+            Config::from_vars(move |name| match name {
+                "JC_PORTAL_APP_TESTS_NAMESPACE" if sandbox => Some("dev-app-tests".to_owned()),
+                "JC_PORTAL_APP_TESTS_IMAGE" if sandbox => Some(node.clone()),
+                "JC_PORTAL_APP_TESTS_RUST_IMAGE" => Some(rust.clone()),
+                _ => None,
+            })
+        };
+        let settings = with(true, &rust).unwrap().app_tests.unwrap();
+        assert_eq!(settings.rust_image.as_deref(), Some(rust.as_str()));
+        assert_eq!(settings.image, node);
+        assert_eq!(with(true, " ").unwrap().app_tests.unwrap().rust_image, None);
+        assert_eq!(with(false, &rust).unwrap().app_tests, None);
+        for bad in ["ghcr.io/x/builder:rust", "ghcr.io/x/builder@sha256:ABC"] {
+            let Err(err) = with(true, bad) else {
+                panic!("{bad} was accepted");
+            };
+            assert!(
+                err.to_string().contains("JC_PORTAL_APP_TESTS_RUST_IMAGE"),
+                "{err}"
             );
         }
     }

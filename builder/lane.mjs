@@ -176,11 +176,94 @@ export function testSummary(report, appDir) {
 }
 
 /**
- * One run of a version's tests in the sandbox (SDK-38): the project from the Portal's gzipped
- * JSON, the template linked, the lane's vitest config, one `vitest run` with a JSON report. The
- * answer is the summary, or `{outcome: "error", reason}` when the tests could not run at all.
+ * What `cargo test --no-fail-fast` printed, as the Portal reads it (SDK-38, T-3618): libtest's
+ * `test … ok` and `test … FAILED` lines, each failure with its `---- name stdout ----` section
+ * as the message and the file its panic names, under `server/`. A run that failed without one
+ * `test result:` line never got to its tests: the crate did not build, and the compiler's
+ * errors are the one failure.
  */
-export function testProject(input, work, { store, timeoutMs = 100_000 } = {}) {
+export function cargoSummary(stdout, stderr, status) {
+  const out = String(stdout ?? "").replace(ANSI, "");
+  let passed = 0;
+  let failed = 0;
+  const names = [];
+  for (const line of out.split("\n")) {
+    const one = /^test (\S+) \.\.\. (ok|FAILED)$/.exec(line.trim());
+    if (!one) continue;
+    if (one[2] === "ok") passed += 1;
+    else {
+      failed += 1;
+      names.push(one[1]);
+    }
+  }
+  const failures = names.map((name) => {
+    const at = out.indexOf(`---- ${name} stdout ----`);
+    const rest = at < 0 ? "" : out.slice(at).split("\n").slice(1).join("\n");
+    const message = rest.split(/\n(?:---- \S+ stdout ----|failures:)\n/)[0] ?? "";
+    const file = /panicked at ([^:\s]+\.rs):\d+/.exec(message)?.[1];
+    return { file: file ? `server/${file}` : "server/", name: cut(name, 300), message: cut(message, MAX_MESSAGE) };
+  });
+  if (status !== 0 && !/^test result:/m.test(out)) {
+    const errors = String(stderr ?? "").replace(ANSI, "");
+    const first = errors.search(/^error/m);
+    failed += 1;
+    failures.unshift({ file: "server/", name: "(the crate did not build)", message: cut(first < 0 ? errors : errors.slice(first), MAX_MESSAGE) });
+  }
+  return { outcome: failed > 0 ? "failed" : "passed", passed, failed, failures: failures.slice(0, MAX_FAILURES) };
+}
+
+/**
+ * The rust runner's crate store and the precompiled dependencies of the wasm template's server
+ * (builder/Dockerfile, T-3618). The job's cargo home and target sit at the paths the seed was
+ * compiled at, so the fingerprints match and only the App's own crate is compiled.
+ */
+const CARGO = { bin: "cargo", store: "/opt/cargo", seed: "/opt/cargo/test-seed", home: "/tmp/build/cargo", target: "/tmp/build/target" };
+
+/**
+ * `cargo test` of the version's `server/` (T-3618): offline and `--locked` against the store,
+ * linked read-only into a cargo home of the job's own, from the seeded target, within `timeoutMs`.
+ * An image without the store reports nothing for it: the build lane still tests the crate.
+ */
+export function cargoTests(work, { timeoutMs, cargo = CARGO } = {}) {
+  const registry = join(cargo.store, "registry");
+  if (!existsSync(join(registry, "index")) || !existsSync(join(registry, "cache"))) {
+    return { skipped: "this sandbox carries no crate store, so server/ is tested by the build lane alone" };
+  }
+  rmSync(cargo.home, { recursive: true, force: true });
+  mkdirSync(join(cargo.home, "registry"), { recursive: true });
+  symlinkSync(join(registry, "index"), join(cargo.home, "registry", "index"));
+  symlinkSync(join(registry, "cache"), join(cargo.home, "registry", "cache"));
+  if (existsSync(join(cargo.store, "git"))) symlinkSync(join(cargo.store, "git"), join(cargo.home, "git"));
+  seed(cargo.seed, cargo.target);
+  const run = spawnSync(cargo.bin, ["test", "--offline", "--locked", "--no-fail-fast"], {
+    cwd: join(work, "server"),
+    env: {
+      PATH: process.env.PATH ?? "/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      // The rust image's toolchain is found through RUSTUP_HOME; nothing else of the pod's
+      // environment reaches the model's code.
+      ...(process.env.RUSTUP_HOME ? { RUSTUP_HOME: process.env.RUSTUP_HOME } : {}),
+      HOME: work,
+      CARGO_HOME: cargo.home,
+      CARGO_TARGET_DIR: cargo.target,
+      CARGO_NET_OFFLINE: "true",
+      CARGO_TERM_COLOR: "never",
+    },
+    encoding: "utf8",
+    timeout: Math.max(timeoutMs, 1_000),
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (run.error?.code === "ENOENT") return { skipped: "this sandbox has no cargo, so server/ is tested by the build lane alone" };
+  if (run.error?.code === "ETIMEDOUT" || run.signal) return { error: `the server's tests did not finish within ${Math.round(timeoutMs / 1000)} s` };
+  return cargoSummary(run.stdout, run.stderr, run.status);
+}
+
+/**
+ * One run of a version's tests in the sandbox (SDK-38): the project from the Portal's gzipped
+ * JSON, the template linked, the lane's vitest config, one `vitest run` with a JSON report, then
+ * `cargo test` of a `wasm` App's `server/` in what time is left (T-3618). The answer is both
+ * summed, or `{outcome: "error", reason}` when the tests could not run at all.
+ */
+export function testProject(input, work, { store, timeoutMs = 100_000, cargo = CARGO } = {}) {
   const started = Date.now();
   let files;
   try {
@@ -218,11 +301,24 @@ export function testProject(input, work, { store, timeoutMs = 100_000 } = {}) {
   if (!existsSync(report)) {
     return { outcome: "error", reason: `vitest wrote no report: ${cut(run.stderr || run.stdout, MAX_MESSAGE)}`, durationMs };
   }
+  let ui;
   try {
-    return { ...testSummary(JSON.parse(readFileSync(report, "utf8")), work), durationMs };
+    ui = testSummary(JSON.parse(readFileSync(report, "utf8")), work);
   } catch (err) {
     return { outcome: "error", reason: `the report could not be read: ${err instanceof Error ? err.message : String(err)}`, durationMs };
   }
+  if (!existsSync(join(work, "server", "Cargo.toml"))) return { ...ui, durationMs };
+  const server = cargoTests(work, { timeoutMs: timeoutMs - durationMs, cargo });
+  const total = Date.now() - started;
+  if (server.error) return { outcome: "error", reason: server.error, durationMs: total };
+  if (server.skipped) return { ...ui, reason: server.skipped, durationMs: total };
+  return {
+    outcome: ui.failed + server.failed > 0 ? "failed" : "passed",
+    passed: ui.passed + server.passed,
+    failed: ui.failed + server.failed,
+    failures: [...ui.failures, ...server.failures].slice(0, MAX_FAILURES),
+    durationMs: total,
+  };
 }
 
 /** The functions of `functions/`, by name; a test file is not a function. */
