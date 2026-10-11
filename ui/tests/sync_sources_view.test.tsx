@@ -210,7 +210,7 @@ describe("sync sources view", () => {
     await screen.findByText("regional-datamodels");
 
     expect(await screen.findByRole("button", { name: en.syncSources.resume })).toBeEnabled();
-    expect(screen.getByRole("button", { name: en.syncSources.syncNow })).toBeDisabled();
+    expect(screen.getByRole("button", { name: en.syncSources.syncNow })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("asks before detaching, and answers with the merge request that removes it", async () => {

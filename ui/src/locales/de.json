@@ -109,7 +109,7 @@
     "cs": "Čeština"
   },
   "form": {
-    "submit": "Absenden",
+    "submit": "Speichern",
     "cancel": "Abbrechen",
     "backToList": "Zurück zur Liste",
     "opening": "Das Formular wird geöffnet…",
@@ -121,7 +121,7 @@
     "useExample": "Beispiel übernehmen",
     "noResults": "Keine Ergebnisse",
     "entityPickerPending": "Wählen Sie zuerst den Raum und den Entitätstyp, dann listet dieses Feld deren Entitäten; eine Entitäts-ID können Sie auch einfügen.",
-    "listFailed": "Die Liste konnte nicht geladen werden: {reason}",
+    "listFailed": "Die Liste konnte nicht geladen werden, versuchen Sie es erneut: {reason}",
     "listRetry": "Erneut versuchen",
     "errors": "{count, plural, =0 {Keine Fehler} one {# Fehler} other {# Fehler}}",
     "type": "Ungültiger Typ",
@@ -138,7 +138,7 @@
       "yaml": "YAML"
     },
     "yamlHint": "Das ganze Manifest, wie es nach Git geschrieben wird. Zurück zum Formular liest es wieder ein; dasselbe Schema prüft beides.",
-    "yamlError": "Das YAML lässt sich nicht lesen: {message}",
+    "yamlError": "Korrigieren Sie das YAML: {message}",
     "yamlNotManifest": "das Dokument ist kein Manifest",
     "schemaErrors": "Das Manifest entspricht nicht dem Schema:",
     "exclusive": "Nur eines dieser Felder darf gesetzt sein",
@@ -226,8 +226,8 @@
       "label": "CI auf dem letzten Commit",
       "success": "Bestanden",
       "pending": "Läuft",
-      "failure": "Fehlgeschlagen",
-      "error": "Konnte nicht laufen"
+      "failure": "Prüfungen fehlgeschlagen",
+      "error": "Konnte nicht laufen; bitten Sie eine Projektverwaltung, den Runner zu prüfen"
     },
     "outside": {
       "title": "{count, plural, one {# Merge-Request in der Forge ist keine Änderung} other {# Merge-Requests in der Forge sind keine Änderungen}}",
@@ -287,7 +287,8 @@
         "update": "{author} schlug vor, {kind} {name} zu ändern",
         "delete": "{author} schlug vor, {kind} {name} zu entfernen"
       }
-    }
+    },
+    "reasonFirst": "Schreiben Sie zuerst, warum Sie die Änderung ablehnen."
   },
   "lane": {
     "green": "Grün",
@@ -824,7 +825,10 @@
       "groupsOf": "Gruppen nach {attr}",
       "allGroups": "Alle",
       "groupsCut": "Gezählt werden die ersten {shown} von {total} Werten.",
-      "toneLabel": "Markiert: {when}"
+      "toneLabel": "Markiert: {when}",
+      "titleFirst": "Geben Sie der Ansicht einen Titel mit höchstens 120 Zeichen.",
+      "modeLocked": "Wer die Ansicht sieht, ändert nur ihr Eigentümer oder eine Datenverwaltung.",
+      "coloursFull": "Eine Ansicht hat höchstens 20 Farbregeln; entfernen Sie zuerst eine."
     },
     "form": {
       "settings": "Felder des Formulars",
@@ -1103,7 +1107,8 @@
         "interval": "Spiegelintervall",
         "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
       },
-      "browse": "Ansehen, was andere Projekte veröffentlichen"
+      "browse": "Ansehen, was andere Projekte veröffentlichen",
+      "noAddress": "Dieser Endpoint hat noch keine Adresse; Sie können ihn nutzen, sobald er veröffentlicht ist."
     },
     "slugHint": "Die Adresse wird für Sie erzeugt und ändert sich nie, auch wenn der Endpunkt umbenannt wird.",
     "picker": {
@@ -3612,7 +3617,8 @@
     "displayNameLabel": "Anzeigename",
     "descriptionLabel": "Beschreibung",
     "notAllowed": "Diese Organisation lässt Sie kein Projekt eröffnen.",
-    "nameNeeded": "Für ein neues Projekt wird ein verwendbarer Name benötigt."
+    "nameNeeded": "Für ein neues Projekt wird ein verwendbarer Name benötigt.",
+    "planLocked": "Schließen Sie den Dialog und beginnen Sie neu, um das zu ändern; der Plan wurde dafür erstellt."
   },
   "entities": {
     "type": "Entitätstyp",
@@ -3645,7 +3651,7 @@
     "next": "Weiter",
     "page": "Seite",
     "showMetadata": "Metadaten anzeigen für",
-    "error": "Fehler",
+    "error": "Nicht geladen, versuchen Sie es erneut",
     "filter": "Filter",
     "ops": {
       "contains": "enthält",
@@ -3698,7 +3704,7 @@
     "relationSearch": "Suchen",
     "relationNone": "Nichts, was Sie lesen dürfen, passt",
     "relationRemove": "Entfernen",
-    "relationFailed": "Die Suche ist fehlgeschlagen",
+    "relationFailed": "Die Suche ist fehlgeschlagen; versuchen Sie es erneut",
     "relationMore": "und weitere",
     "map": {
       "panel": "Karte",
@@ -4236,7 +4242,7 @@
       "lead": "Wählen Sie, was Sie tun möchten, oder fragen Sie in eigenen Worten.",
       "composer": "Den Assistenten fragen",
       "send": "Senden",
-      "failed": "Die Unterhaltung hat nicht begonnen:"
+      "failed": "Die Unterhaltung hat nicht begonnen; versuchen Sie es erneut:"
     },
     "data": {
       "title": "Daten",
@@ -4425,11 +4431,11 @@
       "blockHint": "operations, kinds mit read oder propose, endpoints mit read oder write. Leer entfernt den Block. Die Änderung prüft eine freigebende Person.",
       "propose": "Änderung vorschlagen",
       "cancel": "Abbrechen",
-      "yamlError": "Kein gültiges YAML: {message}",
+      "yamlError": "Kein gültiges YAML, korrigieren Sie es: {message}",
       "showOperations": "Seine {count} Operationen zeigen"
     },
     "states": {
-      "failed": "Fehlgeschlagen",
+      "failed": "Nicht beendet",
       "cancelled": "Gestoppt",
       "expired": "Beendet"
     },
@@ -6591,12 +6597,12 @@
     "finished": {
       "appBuild": {
         "succeeded": "Der Build von {name} ist fertig.",
-        "failed": "Der Build von {name} ist fehlgeschlagen.",
+        "failed": "Der Build von {name} ist fehlgeschlagen. Öffnen Sie die App, um den Grund zu sehen.",
         "cancelled": "Der Build von {name} wurde abgebrochen."
       },
       "knowledgeCrawl": {
         "succeeded": "Das Durchsuchen von {name} ist fertig.",
-        "failed": "Das Durchsuchen von {name} ist fehlgeschlagen.",
+        "failed": "Das Durchsuchen von {name} ist fehlgeschlagen. Öffnen Sie die Quelle, um den Grund zu sehen.",
         "cancelled": "Das Durchsuchen von {name} wurde abgebrochen."
       }
     }

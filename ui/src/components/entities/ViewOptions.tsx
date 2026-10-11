@@ -99,6 +99,7 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
             size="sm"
             className="w-fit"
             disabled={colour.length >= 20}
+          disabledReason={t("spaces.saved.coloursFull")}
             onClick={() => setColour([...colour, { when: "", colour: "warning" }])}
           >
             {t("spaces.saved.addRule")}

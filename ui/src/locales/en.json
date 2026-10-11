@@ -109,7 +109,7 @@
     "cs": "Čeština"
   },
   "form": {
-    "submit": "Submit",
+    "submit": "Save",
     "cancel": "Cancel",
     "backToList": "Back to the list",
     "opening": "Opening the form…",
@@ -121,7 +121,7 @@
     "useExample": "Use the example",
     "noResults": "No results",
     "entityPickerPending": "Choose the space and the entity type first, and this lists their entities; an entity id can also be pasted here.",
-    "listFailed": "The list could not be loaded: {reason}",
+    "listFailed": "The list could not be loaded, try again: {reason}",
     "listRetry": "Try again",
     "errors": "{count, plural, =0 {No errors} one {# error} other {# errors}}",
     "type": "Invalid type",
@@ -138,7 +138,7 @@
       "yaml": "YAML"
     },
     "yamlHint": "The whole manifest as it is written to Git. Switching back to the form reads it again; the same schema checks both.",
-    "yamlError": "The YAML does not parse: {message}",
+    "yamlError": "Correct the YAML: {message}",
     "yamlNotManifest": "the document is not a manifest",
     "schemaErrors": "The manifest does not match the schema:",
     "exclusive": "Only one of these fields may be set",
@@ -226,8 +226,8 @@
       "label": "CI on the latest commit",
       "success": "Passed",
       "pending": "Running",
-      "failure": "Failed",
-      "error": "Could not run"
+      "failure": "Checks failed",
+      "error": "Could not run; ask a project administrator to check the runner"
     },
     "outside": {
       "title": "{count, plural, one {# merge request in the forge is not a Change} other {# merge requests in the forge are not Changes}}",
@@ -287,7 +287,8 @@
         "update": "{author} proposed to change {kind} {name}",
         "delete": "{author} proposed to remove {kind} {name}"
       }
-    }
+    },
+    "reasonFirst": "Write why you reject the change first."
   },
   "lane": {
     "green": "Green",
@@ -824,7 +825,10 @@
       "groupsOf": "Groups by {attr}",
       "allGroups": "All",
       "groupsCut": "The first {shown} of {total} values are counted.",
-      "toneLabel": "Marked: {when}"
+      "toneLabel": "Marked: {when}",
+      "titleFirst": "Give the view a title of at most 120 characters.",
+      "modeLocked": "Only the view's owner or a steward can change who sees it.",
+      "coloursFull": "A view has at most 20 colour rules; remove one first."
     },
     "form": {
       "settings": "Fields of the form",
@@ -1124,7 +1128,8 @@
         "interval": "Mirror interval",
         "intervalHelp": "How often the source's schema is mirrored here, such as 6h or 1d; leave empty for once a day."
       },
-      "browse": "See what other projects publish"
+      "browse": "See what other projects publish",
+      "noAddress": "This endpoint has no address yet; you can use it once it is published."
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",
@@ -3612,7 +3617,8 @@
     "displayNameLabel": "Display name",
     "descriptionLabel": "Description",
     "notAllowed": "This organization does not let you open a project.",
-    "nameNeeded": "A usable name is needed to open a project."
+    "nameNeeded": "A usable name is needed to open a project.",
+    "planLocked": "Close the dialog and start again to change this; the plan was made for it."
   },
   "entities": {
     "type": "Entity type",
@@ -3645,7 +3651,7 @@
     "next": "Next",
     "page": "Page",
     "showMetadata": "Show metadata for",
-    "error": "Error",
+    "error": "Not loaded, try again",
     "filter": "Filter",
     "ops": {
       "contains": "contains",
@@ -3698,7 +3704,7 @@
     "relationSearch": "Search",
     "relationNone": "Nothing you can read matches",
     "relationRemove": "Remove",
-    "relationFailed": "The search failed",
+    "relationFailed": "The search failed; try again",
     "relationMore": "and more",
     "map": {
       "panel": "Map",
@@ -4236,7 +4242,7 @@
       "lead": "Pick what you want to do, or ask in your own words.",
       "composer": "Ask the assistant",
       "send": "Send",
-      "failed": "The conversation did not start:"
+      "failed": "The conversation did not start; try again:"
     },
     "data": {
       "title": "Data",
@@ -4425,11 +4431,11 @@
       "blockHint": "operations, kinds with read or propose, endpoints with read or write. Empty removes the block. The edit is a change an approver reviews.",
       "propose": "Propose change",
       "cancel": "Cancel",
-      "yamlError": "Not valid YAML: {message}",
+      "yamlError": "Not valid YAML, correct it: {message}",
       "showOperations": "Show its {count} operations"
     },
     "states": {
-      "failed": "Failed",
+      "failed": "Did not finish",
       "cancelled": "Stopped",
       "expired": "Ended"
     },
@@ -6591,12 +6597,12 @@
     "finished": {
       "appBuild": {
         "succeeded": "The build of {name} finished.",
-        "failed": "The build of {name} failed.",
+        "failed": "The build of {name} failed. Open the App to see why.",
         "cancelled": "The build of {name} was cancelled."
       },
       "knowledgeCrawl": {
         "succeeded": "The crawl of {name} finished.",
-        "failed": "The crawl of {name} failed.",
+        "failed": "The crawl of {name} failed. Open the source to see why.",
         "cancelled": "The crawl of {name} was cancelled."
       }
     }

@@ -348,6 +348,7 @@ export function ApprovalDetailPage({
               onChange={(e) => setConfirmInput(e.target.value)}
               placeholder={expectedName}
               disabled={!canAct}
+                  title={disabledReason ?? (isMutating ? t("app.busyReason") : undefined)}
               className="max-w-sm"
             />
           </Field>
@@ -394,6 +395,7 @@ export function ApprovalDetailPage({
                 <Button
                   variant="danger"
                   disabled={rejectReason.trim() === ""}
+                disabledReason={t("approvals.reasonFirst")}
                   loading={rejectMutation.isPending}
                   onClick={() => {
                     setRejecting(false);

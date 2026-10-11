@@ -12,26 +12,26 @@
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "an activity entry's title; the entry links to the details and the fix"
     },
     "activity.kinds.federation.error": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a category name in the activity filter, not a message"
     },
     "activity.kinds.pipeline.error": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a category name in the activity filter, not a message"
     },
     "activity.severity.error": {
       "rules": [
         "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a severity filter value, not a message"
     },
     "agentRun.changeTest.failed": {
       "rules": [
@@ -79,67 +79,19 @@
       "rules": [
         "generic"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "screen-reader prefix of an alert box; the alert's own text says what to do"
     },
     "app.error.copied": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "app.error.copy": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "app.error.copyReference": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "app.error.crashHome": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "app.error.crashReference": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "app.error.crashReload": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "confirmation of the copy button, not an error"
     },
     "app.error.crashTitle": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "app.error.reference": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "approvals.ci.error": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "approvals.ci.failure": {
-      "rules": [
-        "generic"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the crash page's heading; its body and buttons give the next step"
     },
     "apps.build.state.failed": {
       "rules": [
@@ -171,30 +123,17 @@
       ],
       "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
-    "assistant.empty.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "assistantPage.access.yamlError": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "assistantPage.access.yes": {
       "rules": [
         "generic"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a table cell value, not a button"
     },
     "assistantPage.states.failed": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a status word beside the item; the item's own page says what to do"
     },
     "catalogue.licence.CC_BYSA_4_0": {
       "rules": [
@@ -206,13 +145,13 @@
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the licence's own name"
     },
     "choice.representation.sta": {
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the OGC standard's own name"
     },
     "ckan.publications.datastore": {
       "rules": [
@@ -232,30 +171,17 @@
       ],
       "reason": "SensorThings API is the OGC standard's own name, the one a reader searches for."
     },
-    "entityGrid.error": {
-      "rules": [
-        "generic",
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "entityGrid.geo.paste": {
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "entityGrid.relationFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "GeoJSON's own terms, which the pasted text must use"
     },
     "entityGrid.yes": {
       "rules": [
         "generic"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a table cell value for a true attribute, not a button"
     },
     "explore.useData.language.javascript": {
       "rules": [
@@ -267,55 +193,25 @@
       "rules": [
         "urn"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "help of an entity id field: the reader types an id of this form"
     },
     "form.errors": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "form.listFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "form.submit": {
-      "rules": [
-        "generic"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "form.yamlError": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a count of a form's errors; each error says what to fix"
     },
     "glossary.entityType.example": {
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the glossary names a real entity type as its example"
     },
     "glossary.policy.example": {
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "jobs.finished.appBuild.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "jobs.finished.knowledgeCrawl.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the glossary names a real entity type as its example"
     },
     "knowledge.state.failed": {
       "rules": [
@@ -339,14 +235,14 @@
       "rules": [
         "urn"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the search accepts an entity id, and the placeholder says so"
     },
     "phase.error": {
       "rules": [
         "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a status word beside the item; the item's own page says what to do"
     },
     "pipelines.debug.rerunFailed": {
       "rules": [
@@ -396,59 +292,11 @@
       ],
       "reason": "a heading over the list of problems, each of which says its fix"
     },
-    "problem.domain-not-verified": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "problem.file-too-large": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "problem.invalid-body": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "problem.payload-too-large": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "problem.precondition-failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "problem.recipient-refused": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "problem.service-off": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "problem.unsupported-media-type": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "problem.urn-scheme": {
       "rules": [
         "urn"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the fix is to send an id of this form, so the message shows it"
     },
     "spaces.api.call.sta": {
       "rules": [
@@ -472,93 +320,37 @@
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "file formats' own names (GeoJSON, NGSI-LD)"
     }
   },
   "disabled": {
-    "src/assistant/AssistantDock.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "src/components/AlertDialog.tsx": {
       "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/components/drift/DriftResolutionModal.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/components/entities/AddFieldDialog.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the e-mail option is disabled, and its own description says why"
     },
     "src/components/entities/ViewBar.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/components/entities/ViewOptions.tsx": {
       "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/components/FeedbackButton.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a locked view mode's own description says why"
     },
     "src/components/forms/theme.tsx": {
       "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the button is hidden and out of the tab order whenever it is disabled"
     },
     "src/components/forms/widgets/CronSchedule.tsx": {
       "count": 5,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/components/ImportProjectDialog.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "follows the form's own disabled or read-only state, which the form says"
     },
     "src/components/pickers/Combobox.tsx": {
       "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/components/ResourceFormDialogBody.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/components/SaveAsDialog.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/components/ui/ConfirmDialog.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "passes the caller's disabled state; the caller says why"
     },
     "src/components/ui/Switch.tsx": {
       "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/assistant/AssistantPage.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the shared control passes its caller's disabled state; the caller says why"
     },
     "src/pages/gallery/Gallery.tsx": {
       "count": 3,
       "reason": "the component gallery shows the disabled state on purpose"
-    },
-    "src/pages/inbox/InboxPage.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/routes/ApprovalDetailPage.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/routes/ApprovalsHistory.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/routes/EndpointsPage.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     }
   }
 }

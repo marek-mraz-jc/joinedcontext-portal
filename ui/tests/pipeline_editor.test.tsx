@@ -445,7 +445,7 @@ describe("pipeline editor", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
 
     const alert = await within(dialog).findByRole("alert");
-    expect(alert).toHaveTextContent(/does not parse/);
+    expect(alert).toHaveTextContent(/Correct the YAML/);
     expect(writes(fetchMock)).toHaveLength(0);
 
     // The form tab is refused too: the text stays where the problem is.

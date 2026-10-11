@@ -109,7 +109,7 @@
     "cs": "Čeština"
   },
   "form": {
-    "submit": "Odoslať",
+    "submit": "Uložiť",
     "cancel": "Zrušiť",
     "backToList": "Späť na zoznam",
     "opening": "Otvára sa formulár…",
@@ -121,7 +121,7 @@
     "useExample": "Použiť príklad",
     "noResults": "Žiadne výsledky",
     "entityPickerPending": "Najprv vyberte priestor a typ entity a tu sa zobrazia ich entity; identifikátor entity sem môžete aj vložiť.",
-    "listFailed": "Zoznam sa nepodarilo načítať: {reason}",
+    "listFailed": "Zoznam sa nepodarilo načítať, skúste znova: {reason}",
     "listRetry": "Skúsiť znova",
     "errors": "{count, plural, =0 {Bez chýb} one {# chyba} few {# chyby} other {# chýb}}",
     "type": "Nesprávny typ hodnoty",
@@ -138,7 +138,7 @@
       "yaml": "YAML"
     },
     "yamlHint": "Celý manifest tak, ako sa zapíše do Gitu. Prepnutie späť na formulár ho znova načíta; obe podoby kontroluje tá istá schéma.",
-    "yamlError": "YAML sa nedá načítať: {message}",
+    "yamlError": "Opravte YAML: {message}",
     "yamlNotManifest": "dokument nie je manifest",
     "schemaErrors": "Manifest nezodpovedá schéme:",
     "exclusive": "Vyplniť možno len jedno z týchto polí",
@@ -226,8 +226,8 @@
       "label": "CI na poslednom commite",
       "success": "Prešla",
       "pending": "Beží",
-      "failure": "Zlyhala",
-      "error": "Nedala sa spustiť"
+      "failure": "Kontroly zlyhali",
+      "error": "Nedala sa spustiť; požiadajte správcu projektu, nech skontroluje runner"
     },
     "outside": {
       "title": "{count, plural, one {# žiadosť o zlúčenie vo forge nie je zmenou} few {# žiadosti o zlúčenie vo forge nie sú zmenami} other {# žiadostí o zlúčenie vo forge nie je zmenami}}",
@@ -287,7 +287,8 @@
         "update": "{author} navrhol zmeniť {kind} {name}",
         "delete": "{author} navrhol odstrániť {kind} {name}"
       }
-    }
+    },
+    "reasonFirst": "Najprv napíšte, prečo zmenu zamietate."
   },
   "lane": {
     "green": "Zelená",
@@ -824,7 +825,10 @@
       "groupsOf": "Skupiny podľa {attr}",
       "allGroups": "Všetky",
       "groupsCut": "Spočítaných je prvých {shown} z {total} hodnôt.",
-      "toneLabel": "Označené: {when}"
+      "toneLabel": "Označené: {when}",
+      "titleFirst": "Dajte pohľadu názov s najviac 120 znakmi.",
+      "modeLocked": "Kto pohľad vidí, môže zmeniť len jeho vlastník alebo správca dát.",
+      "coloursFull": "Pohľad má najviac 20 pravidiel farieb; najprv jedno odstráňte."
     },
     "form": {
       "settings": "Polia formulára",
@@ -1124,7 +1128,8 @@
         "interval": "Interval zrkadlenia",
         "intervalHelp": "Ako často sa sem zrkadlí schéma zdroja, napríklad 6h alebo 1d; prázdne znamená raz denne."
       },
-      "browse": "Pozrieť, čo zverejňujú iné projekty"
+      "browse": "Pozrieť, čo zverejňujú iné projekty",
+      "noAddress": "Tento endpoint ešte nemá adresu; použiť ho môžete, keď bude zverejnený."
     },
     "audienceOption": {
       "project-list": "Vybrané projekty: iba projekty, ktoré označíte",
@@ -3612,7 +3617,8 @@
     "displayNameLabel": "Zobrazovaný názov",
     "descriptionLabel": "Popis",
     "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt.",
-    "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno."
+    "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno.",
+    "planLocked": "Ak to chcete zmeniť, zatvorte okno a začnite znova; plán bol pripravený pre túto hodnotu."
   },
   "entities": {
     "type": "Typ entity",
@@ -3645,7 +3651,7 @@
     "next": "Nasledujúca",
     "page": "Strana",
     "showMetadata": "Zobraziť metadáta pre",
-    "error": "Chyba",
+    "error": "Nenačítané, skúste znova",
     "filter": "Filter",
     "ops": {
       "contains": "obsahuje",
@@ -3698,7 +3704,7 @@
     "relationSearch": "Hľadať",
     "relationNone": "Nič, čo môžete čítať, sa nezhoduje",
     "relationRemove": "Odstrániť",
-    "relationFailed": "Vyhľadávanie zlyhalo",
+    "relationFailed": "Vyhľadávanie zlyhalo; skúste znova",
     "relationMore": "a ďalšie",
     "map": {
       "panel": "Mapa",
@@ -4236,7 +4242,7 @@
       "lead": "Vyberte, čo chcete urobiť, alebo sa opýtajte vlastnými slovami.",
       "composer": "Opýtajte sa asistenta",
       "send": "Odoslať",
-      "failed": "Konverzácia sa nezačala:"
+      "failed": "Konverzácia sa nezačala; skúste znova:"
     },
     "data": {
       "title": "Dáta",
@@ -4425,11 +4431,11 @@
       "blockHint": "operations, kinds s read alebo propose, endpoints s read alebo write. Prázdny blok odstráni. Úprava je zmena, ktorú posúdi schvaľovateľ.",
       "propose": "Navrhnúť zmenu",
       "cancel": "Zrušiť",
-      "yamlError": "Neplatný YAML: {message}",
+      "yamlError": "Neplatný YAML, opravte ho: {message}",
       "showOperations": "Zobraziť jeho operácie ({count})"
     },
     "states": {
-      "failed": "Zlyhalo",
+      "failed": "Nedokončilo sa",
       "cancelled": "Zastavené",
       "expired": "Skončené"
     },
@@ -6591,12 +6597,12 @@
     "finished": {
       "appBuild": {
         "succeeded": "Zostavenie {name} sa dokončilo.",
-        "failed": "Zostavenie {name} zlyhalo.",
+        "failed": "Zostavenie {name} zlyhalo. Otvorte aplikáciu a pozrite prečo.",
         "cancelled": "Zostavenie {name} bolo zrušené."
       },
       "knowledgeCrawl": {
         "succeeded": "Prehľadávanie {name} sa dokončilo.",
-        "failed": "Prehľadávanie {name} zlyhalo.",
+        "failed": "Prehľadávanie {name} zlyhalo. Otvorte zdroj a pozrite prečo.",
         "cancelled": "Prehľadávanie {name} bolo zrušené."
       }
     }
