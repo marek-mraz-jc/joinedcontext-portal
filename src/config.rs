@@ -118,6 +118,12 @@ pub struct Config {
     /// on the same broker (PF-48; `JC_PORTAL_BROKER_URL`). `None` leaves registrations read
     /// from the repository and written nowhere.
     pub broker_url: Option<String>,
+    /// Where the broker's admin token is mounted from its Secret
+    /// (`JC_PORTAL_BROKER_ADMIN_TOKEN_FILE`), read on every run and sent only as the bearer of
+    /// the `/q` calls that write every Endpoint's and Context Space's view and every space's
+    /// policy rule document (T-3640). With `JC_PORTAL_BROKER_URL` it turns the view writer on;
+    /// `None` leaves the Endpoints on the gateway and writes no view.
+    pub broker_admin_token_file: Option<std::path::PathBuf>,
     /// The organization's domain, the third segment of every URN this instance writes
     /// (`JC_PORTAL_ORG_DOMAIN`; `urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}`).
     pub org_domain: Option<String>,
@@ -299,6 +305,7 @@ impl std::fmt::Debug for Config {
             .field("pipeline_runner_client_id", &self.pipeline_runner_client_id)
             .field("invitation_client_id", &self.invitation_client_id)
             .field("broker_url", &self.broker_url)
+            .field("broker_admin_token_file", &self.broker_admin_token_file)
             .field("org_domain", &self.org_domain)
             .field("pipeline_test_capture_url", &self.pipeline_test_capture_url)
             .field("model_tools_url", &self.model_tools_url)
@@ -1297,6 +1304,10 @@ impl Config {
             None => None,
         };
 
+        let broker_admin_token_file = lookup("JC_PORTAL_BROKER_ADMIN_TOKEN_FILE")
+            .filter(|path| !path.trim().is_empty())
+            .map(std::path::PathBuf::from);
+
         // PL-19: a value nobody meant is refused at start-up, not read as either identity.
         let pipeline_identity = match lookup("JC_PORTAL_PIPELINE_IDENTITY")
             .as_deref()
@@ -1581,6 +1592,7 @@ impl Config {
                 .map(|v| v.trim().to_owned())
                 .filter(|v| !v.is_empty()),
             broker_url,
+            broker_admin_token_file,
             org_domain: lookup("JC_PORTAL_ORG_DOMAIN").filter(|v| !v.trim().is_empty()),
             pipeline_test_capture_url,
             model_tools_url,
@@ -1638,6 +1650,7 @@ impl Config {
             pipeline_runner_client_id: None,
             invitation_client_id: None,
             broker_url: None,
+            broker_admin_token_file: None,
             org_domain: None,
             pipeline_test_capture_url: None,
             model_tools_url: None,
