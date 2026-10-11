@@ -2281,6 +2281,13 @@ async fn stage_repository(
             scratch.write(path, &file.content)?;
             continue;
         }
+        if path.ends_with(".linkml.yaml") {
+            // Not a manifest: a DataModel's LinkML source (`spec.linkml` names only such a file,
+            // DM-76), which the view writer compiles into the space's broker schema. Dropped
+            // here, no space on the forge ever had its schema written (T-3781).
+            scratch.write(path, &file.content)?;
+            continue;
+        }
         if is_encrypted_secrets_file(path) {
             // Not a manifest either: the repository's own `*.enc.yaml`, which the SOPS backend
             // decrypts a Pipeline's `secretRef` from (CC-06, T-0935). It is staged as written
@@ -2726,20 +2733,8 @@ output_error{stream="kpi"} 6
     use wiremock::matchers::{method, path, path_regex, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    /// T-0935: the SOPS backend decrypts a Pipeline's `secretRef` from the repository's own
-    /// `*.enc.yaml`, and it reads the tree this function stages. While the stager dropped every
-    /// file that held no manifest, the resolver answered "not declared in any encrypted secrets
-    /// file" for a secret that sat in the repository — with the backend configured, the
-    /// identity mounted and the file committed.
-    #[tokio::test]
-    async fn an_encrypted_secrets_file_is_staged_beside_the_manifests() {
-        const ENCRYPTED: &str = "demo-feed:\n    password: ENC[AES256_GCM,data:aaaa,iv:bbbb,tag:cccc,type:str]\nsops:\n    age: []\n";
-        let space = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: mobility\n  namespace: helsinki\nspec:\n  isSandbox: true\n";
-        let files = [
-            ("projects/helsinki/spaces/mobility/space.yaml", space),
-            ("projects/helsinki/secrets/demo-feed.enc.yaml", ENCRYPTED),
-        ];
-
+    /// A forge serving `files` at revision `rev-1`, and a client of it.
+    async fn forge(files: &[(&str, &str)]) -> (MockServer, GiteaClient) {
         let server = MockServer::start().await;
         let tree: Vec<serde_json::Value> = files
             .iter()
@@ -2772,6 +2767,25 @@ output_error{stream="kpi"} 6
         )
         .expect("client");
 
+        (server, gitea)
+    }
+
+    /// T-0935: the SOPS backend decrypts a Pipeline's `secretRef` from the repository's own
+    /// `*.enc.yaml`, and it reads the tree this function stages. While the stager dropped every
+    /// file that held no manifest, the resolver answered "not declared in any encrypted secrets
+    /// file" for a secret that sat in the repository — with the backend configured, the
+    /// identity mounted and the file committed.
+    #[tokio::test]
+    async fn an_encrypted_secrets_file_is_staged_beside_the_manifests() {
+        const ENCRYPTED: &str = "demo-feed:\n    password: ENC[AES256_GCM,data:aaaa,iv:bbbb,tag:cccc,type:str]\nsops:\n    age: []\n";
+        let space = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: mobility\n  namespace: helsinki\nspec:\n  isSandbox: true\n";
+        let files = [
+            ("projects/helsinki/spaces/mobility/space.yaml", space),
+            ("projects/helsinki/secrets/demo-feed.enc.yaml", ENCRYPTED),
+        ];
+
+        let (_server, gitea) = forge(&files).await;
+
         let scratch = stage(&gitea, "rev-1").await.expect("the run stages");
         let staged = scratch
             .path()
@@ -2788,6 +2802,88 @@ output_error{stream="kpi"} 6
                 .join("projects/helsinki/spaces/mobility/space.yaml")
                 .is_file(),
             "the manifest beside it is staged as before"
+        );
+    }
+
+    /// T-3781: a DataModel's LinkML source holds no manifest, so the stager dropped it, the
+    /// view writer could not read the model a space's `dataModelRef` names, and on dev no
+    /// space's schema reached the broker (Model Tools never called). A space, its DataModel and
+    /// the source beside it as the seed commits them, staged from the forge, end in the PUT of
+    /// the tenant's schema.
+    #[tokio::test]
+    async fn a_spaces_data_model_staged_from_the_forge_reaches_the_broker_as_its_schema() {
+        const SOURCE: &str = "id: https://hel.fi/kpi\nname: helsinki-kpi\nimports: [linkml:types]\nclasses:\n  KeyPerformanceIndicator: {}\n";
+        let space = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: helsinki-kpi\n  namespace: helsinki\nspec:\n  urnSegment: helsinki-kpi\n  isSandbox: false\n  dataModelRef: { kind: DataModel, name: helsinki-kpi }\n";
+        let model = "apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  name: helsinki-kpi\n  namespace: helsinki\nspec:\n  contextSpaceRef: helsinki-kpi\n  linkml: ./helsinki-kpi.linkml.yaml\n  version: 1.0.0\n  lifecycle: published\n  classes: [KeyPerformanceIndicator]\n";
+        let files = [
+            ("projects/helsinki/spaces/helsinki-kpi/space.yaml", space),
+            (
+                "projects/helsinki/spaces/helsinki-kpi/datamodels/helsinki-kpi.yaml",
+                model,
+            ),
+            (
+                "projects/helsinki/spaces/helsinki-kpi/datamodels/helsinki-kpi.linkml.yaml",
+                SOURCE,
+            ),
+        ];
+        let (_forge, gitea) = forge(&files).await;
+        let scratch = stage(&gitea, "rev-1").await.expect("the run stages");
+        let repository = Repository::load(scratch.path()).expect("the staged tree loads");
+
+        let schema = json!({"types": {"KeyPerformanceIndicator": {}}});
+        let tools = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/generate"))
+            .and(wiremock::matchers::body_json(json!({"source": SOURCE})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"brokerSchema": schema, "errors": []})),
+            )
+            .expect(1)
+            .mount(&tools)
+            .await;
+        let broker = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/views"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .mount(&broker)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path_regex("^/q/views/"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&broker)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/schemas/helsinki-kpi"))
+            .and(wiremock::matchers::body_json(&schema))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&broker)
+            .await;
+        let token = std::env::temp_dir().join(format!("t3781-{}.token", std::process::id()));
+        std::fs::write(&token, "admin-token").expect("write the token");
+
+        let outcomes = super::super::views::ViewSync::new(broker.uri(), &token)
+            .with_model_tools(tools.uri())
+            .converge(&repository)
+            .await;
+        let _ = std::fs::remove_file(&token);
+
+        // The space's own outcome also carries its view, which this fixture's missing Policy
+        // refuses; the schema is the request the broker received.
+        let written = broker
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .any(|r| r.method.as_str() == "PUT" && r.url.path() == "/q/schemas/helsinki-kpi");
+        assert!(written, "no schema PUT: {outcomes:?}");
+        assert!(
+            scratch
+                .path()
+                .join("projects/helsinki/spaces/helsinki-kpi/datamodels/helsinki-kpi.linkml.yaml")
+                .is_file(),
+            "the LinkML source is staged beside its DataModel"
         );
     }
 
