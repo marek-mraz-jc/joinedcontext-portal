@@ -148,7 +148,7 @@ pub struct Config {
     /// relay (T-3583, AP-168). `None` leaves `POST /api/services/email/send` answering 503.
     pub smtp_url: Option<String>,
     /// The address App mail is sent from (`JC_PORTAL_MAIL_FROM`, e.g.
-    /// `noreply@dev.joinedcontext.com`); the App's title is the display name beside it. Required
+    /// `noreply@example.org`); the App's title is the display name beside it. Required
     /// with `JC_PORTAL_SMTP_URL`.
     pub mail_from: Option<lettre::Address>,
     /// Where this replica keeps the builds it fetched from the package registry, one
