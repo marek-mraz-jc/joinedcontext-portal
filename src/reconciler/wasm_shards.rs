@@ -150,6 +150,12 @@ pub fn config_map(namespace: &str, shard: u32, placement: &Value) -> Value {
     })
 }
 
+/// A shard's `/jobs` on its admin port, which only the Portal reaches; the edge's 8080 never
+/// answers it (T-3857).
+fn jobs_url(shard: u32, namespace: &str) -> String {
+    format!("http://jc-wasm-host-{shard}.{namespace}.svc.cluster.local:9090/jobs")
+}
+
 /// The job runs of one shard's `/jobs` answer, by App id (AP-154): `{"jobs": [{app, job, lastRun,
 /// outcome, message, durationMs, failuresInARow}]}`. A row that does not read is left out.
 pub fn runs_by_app(answer: &Value) -> BTreeMap<String, Vec<JobRun>> {
@@ -213,10 +219,7 @@ impl WasmShards {
     pub async fn runs(&self) -> (BTreeMap<String, Vec<JobRun>>, Vec<String>) {
         let mut problems = Vec::new();
         for shard in 0..self.shards {
-            let url = format!(
-                "http://jc-wasm-host-{shard}.{}.svc.cluster.local:8080/jobs",
-                self.namespace
-            );
+            let url = jobs_url(shard, &self.namespace);
             let answer = match self.http.get(&url).send().await {
                 Ok(answer) if answer.status().is_success() => answer.json::<Value>().await.ok(),
                 Ok(answer) => {
@@ -297,6 +300,14 @@ impl WasmShards {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn job_records_are_read_on_the_admin_port() {
+        assert_eq!(
+            jobs_url(1, "wasm-host"),
+            "http://jc-wasm-host-1.wasm-host.svc.cluster.local:9090/jobs"
+        );
+    }
 
     fn app(project: &str, name: &str, shard: u32) -> PlacedApp {
         PlacedApp {
