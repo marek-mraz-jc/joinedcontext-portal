@@ -174,7 +174,12 @@ function Explorer({ project }: { project: string }): JSX.Element {
           </Field>
         ) : null}
         <div className="sm:col-span-3">
-          <Button type="submit" disabled={missing} loading={explore.isPending}>
+          <Button
+            type="submit"
+            disabled={missing}
+            title={missing ? t("access.explorer.pickFirst") : undefined}
+            loading={explore.isPending}
+          >
             {t("access.explorer.show")}
           </Button>
         </div>

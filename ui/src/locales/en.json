@@ -2466,7 +2466,7 @@
       "kind": "Who",
       "search": "Search people",
       "show": "Show access",
-      "failed": "Access could not be shown",
+      "failed": "Access could not be shown. Try again in a minute; the reason is below.",
       "nothing": "Reaches nothing",
       "nothingLead": "No Endpoint of this project admits them or grants them anything. Grant access with a Policy, a group or a role binding.",
       "space": "space {space}",
@@ -2488,8 +2488,9 @@
       "revoke": "Revoke",
       "revokeTitle": "Revoke the consent to {client}?",
       "revokeLead": "The client loses its connection and offline sessions and must ask again. No grant changes.",
-      "revokeFailed": "The consent could not be revoked",
-      "endpoints": "{count, plural, one {# Endpoint reached} other {# Endpoints reached}}"
+      "revokeFailed": "The consent could not be revoked. Try again; the reason is below.",
+      "endpoints": "{count, plural, one {# Endpoint reached} other {# Endpoints reached}}",
+      "pickFirst": "Pick who to look up first."
     }
   },
   "flows": {

@@ -2466,7 +2466,7 @@
       "kind": "Kto",
       "search": "Hľadať osoby",
       "show": "Zobraziť prístup",
-      "failed": "Prístup sa nepodarilo zobraziť",
+      "failed": "Prístup sa nepodarilo zobraziť. Skúste to znova o minútu; dôvod je nižšie.",
       "nothing": "Nedosiahne nič",
       "nothingLead": "Žiadny Endpoint tohto projektu ich nepripúšťa ani im nič neudeľuje. Prístup udelíte politikou, skupinou alebo väzbou roly.",
       "space": "priestor {space}",
@@ -2488,8 +2488,9 @@
       "revoke": "Odvolať",
       "revokeTitle": "Odvolať súhlas pre {client}?",
       "revokeLead": "Klient stratí pripojenie a offline relácie a musí požiadať znova. Žiadne oprávnenie sa nemení.",
-      "revokeFailed": "Súhlas sa nepodarilo odvolať",
-      "endpoints": "{count, plural, one {# dosiahnutý Endpoint} few {# dosiahnuté Endpointy} other {# dosiahnutých Endpointov}}"
+      "revokeFailed": "Súhlas sa nepodarilo odvolať. Skúste to znova; dôvod je nižšie.",
+      "endpoints": "{count, plural, one {# dosiahnutý Endpoint} few {# dosiahnuté Endpointy} other {# dosiahnutých Endpointov}}",
+      "pickFirst": "Najprv vyberte, koho chcete vyhľadať."
     }
   },
   "flows": {

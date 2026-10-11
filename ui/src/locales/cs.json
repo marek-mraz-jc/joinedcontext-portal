@@ -2466,7 +2466,7 @@
       "kind": "Kdo",
       "search": "Hledat osoby",
       "show": "Zobrazit přístup",
-      "failed": "Přístup se nepodařilo zobrazit",
+      "failed": "Přístup se nepodařilo zobrazit. Zkuste to znovu za minutu; důvod je níže.",
       "nothing": "Nedosáhne ničeho",
       "nothingLead": "Žádný Endpoint tohoto projektu je nepřipouští ani jim nic neuděluje. Přístup udělíte politikou, skupinou nebo vazbou role.",
       "space": "prostor {space}",
@@ -2488,8 +2488,9 @@
       "revoke": "Odvolat",
       "revokeTitle": "Odvolat souhlas pro {client}?",
       "revokeLead": "Klient ztratí připojení a offline relace a musí požádat znovu. Žádné oprávnění se nemění.",
-      "revokeFailed": "Souhlas se nepodařilo odvolat",
-      "endpoints": "{count, plural, one {# dosažený Endpoint} few {# dosažené Endpointy} other {# dosažených Endpointů}}"
+      "revokeFailed": "Souhlas se nepodařilo odvolat. Zkuste to znovu; důvod je níže.",
+      "endpoints": "{count, plural, one {# dosažený Endpoint} few {# dosažené Endpointy} other {# dosažených Endpointů}}",
+      "pickFirst": "Nejprve vyberte, koho chcete vyhledat."
     }
   },
   "flows": {
