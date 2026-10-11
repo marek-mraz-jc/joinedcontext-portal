@@ -207,6 +207,11 @@ routes:
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
     body: {"subject": {"kind": "public"}, "action": "retrieveEntity"}
     note: "it reveals what another person may do (EP-103); an administrator meets the fixture's 404 (no such Endpoint) or 503 (no gateway)"
+  - route: POST /projects/{project}/access/explore
+    rule: "org-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+    body: {"subject": {"kind": "public"}}
+    note: "it reveals what another principal reaches (API/01 §41, EP-103); an administrator meets the fixture's 503 (no gateway) or an empty list"
   - route: POST /projects/{project}/endpoints/{name}/preview
     rule: "space-read of the Endpoint's space, then a person"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
@@ -245,6 +250,10 @@ routes:
   - route: POST /organization/people/{id}/sign-out
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: DELETE /organization/people/{id}/consents/{client}
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+    note: "revokes a person's consent to one client, as sign-out ends their sessions; no grant changes (API/01 §41)"
   - route: GET /preferences
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
