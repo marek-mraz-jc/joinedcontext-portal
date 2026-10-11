@@ -160,7 +160,7 @@ pub fn output_type_problems(
 }
 
 /// One JSON artifact beside its manifest, never outside the staged tree.
-fn beside(root: &Path, manifest: &Path, relative: &str) -> Option<Value> {
+pub(crate) fn beside(root: &Path, manifest: &Path, relative: &str) -> Option<Value> {
     if relative.starts_with('/') || relative.split('/').any(|part| part == "..") {
         return None;
     }
