@@ -132,7 +132,9 @@
           "signature": "jc().email.send(message: { to: string[] | \"me\"; subject: string; text: string; html?: string }): Promise<{ id: string }>"
         }
       ],
-      "rust": [],
+      "rust": [
+        "jc_app_sdk::email::send(message: &Email) -> Result<String, Error>"
+      ],
       "appYaml": [
         "services: [email]"
       ],
@@ -140,7 +142,8 @@
         "emailsPerDay"
       ],
       "examples": [
-        "examples/services/email.tsx"
+        "examples/services/email.tsx",
+        "template-wasm/server/src/lib.rs"
       ]
     },
     {
@@ -177,7 +180,9 @@
           "signature": "jc().ai.complete(request: { messages: { role: \"system\" | \"user\" | \"assistant\"; content: string }[]; maxTokens?: number; schema?: object }): Promise<{ text: string; json?: unknown; tokens: { in: number; out: number } }>"
         }
       ],
-      "rust": [],
+      "rust": [
+        "jc_app_sdk::ai::complete(request: &Completion) -> Result<Answer, Error>"
+      ],
       "appYaml": [
         "services: [ai]"
       ],
@@ -185,7 +190,8 @@
         "aiTokensPerDay"
       ],
       "examples": [
-        "examples/services/ai.tsx"
+        "examples/services/ai.tsx",
+        "template-wasm/server/src/lib.rs"
       ]
     }
   ],

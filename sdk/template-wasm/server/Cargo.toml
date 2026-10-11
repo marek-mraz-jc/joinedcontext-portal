@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # The guest SDK at the platform commit the reference server Apps pin (AP-147).
-jc-app-sdk = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9d6378b2b21b45917b6fb1653ff6fbb8701d021f" }
+jc-app-sdk = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "26d047615e916e3475fe08a3c4fe5cb50a1c9c6c" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
