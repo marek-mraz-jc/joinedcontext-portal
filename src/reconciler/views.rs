@@ -594,6 +594,13 @@ fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String>
         Some(projection) => {
             // its `temporalQ` is the window of the view's permits, in the rule document
             let filter = projection.filter.clone().unwrap_or_default();
+            if let Some(window) = &filter.temporal_q {
+                for policy in &permits {
+                    intersect(window, policy.temporal_q.as_deref()).map_err(|why| {
+                        format!("the projection's temporalQ and a Policy's: {why}")
+                    })?;
+                }
+            }
             if let Some(q) = filter.q {
                 view.insert("q".into(), json!(q));
             }
@@ -965,17 +972,20 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
         let slug = e.spec.slug.to_string();
         let mut ids = Vec::new();
         for (name, policy) in sources.bound(e) {
-            // The projection's window narrows a permit that has none (T-3632, G6); a permit's own
-            // is narrower by construction (the gateway's GW11), and a prohibition keeps every time.
-            match window.filter(|_| !policy.effect.is_prohibition() && policy.temporal_q.is_none())
-            {
-                Some(window) => {
-                    let id = format!("{project}/{name}@{slug}");
-                    policies.push(policy_document(id.clone(), policy, Some(window)));
-                    ids.push(id);
-                }
-                None => ids.push(format!("{project}/{name}")),
-            }
+            // The projection's window narrows every permit bound to the view (T-3632, G6): a
+            // permit's own window is intersected with it; a prohibition keeps every time.
+            let Some(window) = window.filter(|_| !policy.effect.is_prohibition()) else {
+                ids.push(format!("{project}/{name}"));
+                continue;
+            };
+            // `endpoint_view` refuses a view whose windows cannot be intersected, so this one
+            // is never written; its permit is listed nowhere and grants nothing through it.
+            let Ok(narrowed) = intersect(window, policy.temporal_q.as_deref()) else {
+                continue;
+            };
+            let id = format!("{project}/{name}@{slug}");
+            policies.push(policy_document(id.clone(), policy, Some(&narrowed)));
+            ids.push(id);
         }
         views.insert(slug, json!(ids));
     }
@@ -985,8 +995,128 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
     json!({ "policies": policies, "views": views })
 }
 
+/// One end of a `temporalQ` window as the engine reads it (Antares
+/// `addons/joinedcontext-policy/src/document.rs` `bound`): an instant, or a duration before now.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Bound {
+    At(chrono::DateTime<chrono::Utc>),
+    Ago(chrono::Duration),
+}
+
+/// The window `[from, to)` of a `temporalQ`, each end with the text it was written as.
+type Window<'a> = (Option<(Bound, &'a str)>, Option<(Bound, &'a str)>);
+
+fn window(raw: &str) -> Result<Window<'_>, String> {
+    let (mut rel, mut at, mut end) = (None, None, None);
+    for part in raw.split([';', '&']) {
+        match part.split_once('=').map(|(k, v)| (k.trim(), v.trim())) {
+            Some(("timerel", v)) => rel = Some(v),
+            Some(("timeAt", v)) => at = Some((bound(v)?, v)),
+            Some(("endTimeAt", v)) => end = Some((bound(v)?, v)),
+            _ => return Err(format!("{part:?} is not timerel, timeAt or endTimeAt")),
+        }
+    }
+    match rel {
+        Some("after") => Ok((Some(at.ok_or("no timeAt")?), None)),
+        Some("before") => Ok((None, Some(at.ok_or("no timeAt")?))),
+        Some("between") => Ok((
+            Some(at.ok_or("no timeAt")?),
+            Some(end.ok_or("no endTimeAt")?),
+        )),
+        other => Err(format!("timerel {other:?} is not before, after or between")),
+    }
+}
+
+fn bound(raw: &str) -> Result<Bound, String> {
+    if let Ok(at) = chrono::DateTime::parse_from_rfc3339(raw) {
+        return Ok(Bound::At(at.with_timezone(&chrono::Utc)));
+    }
+    ago(raw)
+        .map(Bound::Ago)
+        .ok_or_else(|| format!("{raw:?} is neither an instant nor a duration before now"))
+}
+
+/// `P-1D`, `-P1D`, `PT-2H30M`: how long before now, in weeks, days, hours, minutes and seconds
+/// (months and years have no fixed length, the engine refuses them too).
+fn ago(raw: &str) -> Option<chrono::Duration> {
+    let (mut negative, rest) = match raw.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, raw),
+    };
+    let rest = rest.strip_prefix('P')?;
+    let (date, time) = rest.split_once('T').unwrap_or((rest, ""));
+    let mut total = chrono::Duration::zero();
+    let mut digits = String::new();
+    let mut units = 0;
+    for (part, allowed) in [(date, "WD"), (time, "HMS")] {
+        for c in part.chars() {
+            match c {
+                '-' if digits.is_empty() => negative = !negative,
+                '0'..='9' => digits.push(c),
+                u if allowed.contains(u) => {
+                    let n: i64 = digits.parse().ok()?;
+                    digits.clear();
+                    units += 1;
+                    total = total.checked_add(&match u {
+                        'W' => chrono::Duration::try_weeks(n)?,
+                        'D' => chrono::Duration::try_days(n)?,
+                        'H' => chrono::Duration::try_hours(n)?,
+                        'M' => chrono::Duration::try_minutes(n)?,
+                        _ => chrono::Duration::try_seconds(n)?,
+                    })?;
+                }
+                _ => return None,
+            }
+        }
+    }
+    (negative && units > 0 && digits.is_empty() && total > chrono::Duration::zero())
+        .then_some(total)
+}
+
+/// The later (`later`) or earlier of two ends, or why they cannot be told apart: an instant and
+/// a duration before now order differently as time passes.
+fn pick<'a>(
+    a: Option<(Bound, &'a str)>,
+    b: Option<(Bound, &'a str)>,
+    later: bool,
+) -> Result<Option<(Bound, &'a str)>, String> {
+    let (Some(x), Some(y)) = (a, b) else {
+        return Ok(a.or(b));
+    };
+    let x_first = match (x.0, y.0) {
+        (Bound::At(p), Bound::At(q)) => p <= q,
+        // further back is earlier
+        (Bound::Ago(p), Bound::Ago(q)) => p >= q,
+        _ => {
+            return Err(format!(
+                "{} and {} cannot be compared, one is an instant and one a time before now",
+                x.1, y.1
+            ))
+        }
+    };
+    Ok(Some(if x_first == later { y } else { x }))
+}
+
+/// The `temporalQ` that holds both `projection` and `own` (a Policy's), as the engine reads one:
+/// the later start and the earlier end.
+fn intersect(projection: &str, own: Option<&str>) -> Result<String, String> {
+    let (from_a, to_a) = window(projection)?;
+    let (from_b, to_b) = match own {
+        Some(own) => window(own)?,
+        None => (None, None),
+    };
+    let from = pick(from_a, from_b, true)?;
+    let to = pick(to_a, to_b, false)?;
+    Ok(match (from, to) {
+        (Some((_, f)), Some((_, t))) => format!("timerel=between;timeAt={f};endTimeAt={t}"),
+        (Some((_, f)), None) => format!("timerel=after;timeAt={f}"),
+        (None, Some((_, t))) => format!("timerel=before;timeAt={t}"),
+        (None, None) => return Err("no timeAt".into()),
+    })
+}
+
 /// One Policy as the engine reads it (README section 2), under `id`, its `temporalQ` the
-/// `window` when one is given.
+/// `window` when one is given (already intersected with the Policy's own).
 fn policy_document(id: String, policy: &PolicySpec, window: Option<&str>) -> Value {
     let mut clauses: Vec<&str> = Vec::new();
     for op in policy.operations.iter().flat_map(expand) {
@@ -1562,26 +1692,16 @@ mod tests {
         );
     }
 
-    /// T-3812 (G6, T-3632): a projection's `temporalQ` is the window of each permit bound to
-    /// the view that has none of its own; a permit's own window and a prohibition keep their ids,
-    /// and the view is written like any other.
-    #[test]
-    fn a_projection_temporal_q_is_the_window_of_the_views_permits() {
-        let week = policy(json!({"temporalQ": "timerel=after;timeAt=P-7D",
-                                 "information": [{"entities": [{"type": "Car"}]}]}));
-        let no_trucks = policy(json!({"effect": "prohibition",
-                                      "information": [{"entities": [{"type": "Truck"}]}]}));
-        let mut s = sources(vec![
-            ("cars", cars()),
-            ("week", week),
-            ("no-trucks", no_trucks),
-        ]);
+    /// `sources` with `policies` and an Endpoint narrowed by a projection whose `temporalQ` is
+    /// `window`, beside one not narrowed in time.
+    fn windowed(policies: Vec<(&str, PolicySpec)>, window: &str) -> (Sources, EndpointSource) {
+        let mut s = sources(policies);
         s.projections.insert(
             ("city".into(), "recent".into()),
             serde_json::from_value(json!({
                 "contextSpaceRef": "air", "dataModelRef": {"name": "air", "version": "1.0.0"},
-                "classes": [{"name": "Car"}],
-                "filter": {"temporalQ": "timerel=after;timeAt=P-1D"}
+                "classes": [{"name": "Car", "slots": ["speed"]}],
+                "filter": {"temporalQ": window}
             }))
             .expect("a projection"),
         );
@@ -1590,40 +1710,146 @@ mod tests {
             e.clone(),
             endpoint_named("plain", json!({"slug": "b".repeat(26)})),
         ];
-        assert!(
-            view_of(&s, &e).is_ok(),
+        (s, e)
+    }
+
+    fn temporal_q(document: &Value, id: &str) -> Value {
+        document["policies"]
+            .as_array()
+            .and_then(|all| all.iter().find(|p| p["id"] == id))
+            .map_or(Value::Null, |p| {
+                p.get("temporalQ").cloned().unwrap_or(Value::Null)
+            })
+    }
+
+    /// T-3812 (G6, T-3632): a projection's `temporalQ` narrows each permit bound to the view, a
+    /// permit's own window intersected with it (sent back: a wider own window served its whole
+    /// width); a prohibition keeps its id and every time, and the view is written.
+    #[test]
+    fn a_projection_temporal_q_is_the_window_of_the_views_permits() {
+        let own = |q: &str| {
+            policy(json!({"temporalQ": q, "information": [{"entities": [{"type": "Car"}]}]}))
+        };
+        let no_trucks = policy(json!({"effect": "prohibition",
+                                      "information": [{"entities": [{"type": "Truck"}]}]}));
+        let (s, e) = windowed(
+            vec![
+                ("cars", cars()),
+                ("month", own("timerel=after;timeAt=P-30D")),
+                ("day", own("timerel=after;timeAt=PT-24H")),
+                ("no-trucks", no_trucks),
+            ],
+            "timerel=after;timeAt=P-7D",
+        );
+        assert_eq!(
+            view_of(&s, &e).err(),
+            None,
             "the Endpoint is served by its view"
         );
 
         let document = &desired(&s).documents["city-air"].1;
-        let copy = format!("city/cars@{SLUG}");
+        let copy = |name: &str| format!("city/{name}@{SLUG}");
         assert_eq!(
             document["views"],
-            json!({ SLUG: [copy, "city/week", "city/no-trucks"] }),
+            json!({ SLUG: [copy("cars"), copy("month"), copy("day"), "city/no-trucks"] }),
             "a view without a window and without a policyRef stays unlisted"
         );
-        let policy = |id: &str| {
-            document["policies"]
-                .as_array()
-                .and_then(|all| all.iter().find(|p| p["id"] == id))
-                .cloned()
-                .unwrap_or(Value::Null)
-        };
-        assert_eq!(policy(&copy)["temporalQ"], "timerel=after;timeAt=P-1D");
         assert_eq!(
-            policy(&copy)["information"],
-            policy("city/cars")["information"]
-        );
-        assert_eq!(
-            policy("city/cars").get("temporalQ"),
-            None,
-            "the Policy itself is unchanged"
-        );
-        assert_eq!(
-            policy("city/week")["temporalQ"],
+            temporal_q(document, &copy("cars")),
             "timerel=after;timeAt=P-7D"
         );
-        assert_eq!(policy("city/no-trucks").get("temporalQ"), None);
+        assert_eq!(
+            temporal_q(document, &copy("month")),
+            "timerel=after;timeAt=P-7D",
+            "a wider own window is cut to the projection's"
+        );
+        assert_eq!(
+            temporal_q(document, &copy("day")),
+            "timerel=after;timeAt=PT-24H"
+        );
+        assert_eq!(
+            temporal_q(document, "city/cars"),
+            Value::Null,
+            "the Policy is unchanged"
+        );
+        assert_eq!(
+            temporal_q(document, "city/month"),
+            "timerel=after;timeAt=P-30D"
+        );
+        assert_eq!(temporal_q(document, "city/no-trucks"), Value::Null);
+    }
+
+    /// T-3812: two windows whose ends cannot be ordered, or a window that does not parse, refuse
+    /// the view, and the rule document grants nothing through it.
+    #[test]
+    fn windows_that_cannot_be_intersected_refuse_the_view() {
+        let fixed = policy(
+            json!({"temporalQ": "timerel=after;timeAt=2026-01-01T00:00:00Z",
+                                  "information": [{"entities": [{"type": "Car"}]}]}),
+        );
+        let (s, e) = windowed(vec![("fixed", fixed)], "timerel=after;timeAt=P-7D");
+        let why = view_of(&s, &e).expect_err("refused");
+        assert!(why.contains("cannot be compared"), "{why}");
+        assert_eq!(
+            desired(&s).documents["city-air"].1["views"],
+            json!({ SLUG: [] })
+        );
+
+        let (s, e) = windowed(vec![("cars", cars())], "timerel=after;timeAt=P-1M");
+        assert!(view_of(&s, &e).is_err(), "months have no fixed length");
+    }
+
+    /// T-3812: the later start and the earlier end, as the engine reads them.
+    #[test]
+    fn two_windows_intersect_to_the_later_start_and_the_earlier_end() {
+        let between = "timerel=between;timeAt=2025-01-01T00:00:00Z;endTimeAt=2026-01-01T00:00:00Z";
+        for (projection, own, want) in [
+            (
+                "timerel=after;timeAt=P-7D",
+                None,
+                "timerel=after;timeAt=P-7D",
+            ),
+            (
+                "timerel=after;timeAt=-P7D",
+                Some("timerel=after;timeAt=P-1W1D"),
+                "timerel=after;timeAt=-P7D",
+            ),
+            (
+                "timerel=after;timeAt=P-7D",
+                Some("timerel=before;timeAt=P-1D"),
+                "timerel=between;timeAt=P-7D;endTimeAt=P-1D",
+            ),
+            (
+                between,
+                Some("timerel=after;timeAt=2025-06-01T00:00:00Z"),
+                "timerel=between;timeAt=2025-06-01T00:00:00Z;endTimeAt=2026-01-01T00:00:00Z",
+            ),
+            (
+                between,
+                Some("timerel=before;timeAt=2025-03-01T00:00:00+01:00"),
+                "timerel=between;timeAt=2025-01-01T00:00:00Z;endTimeAt=2025-03-01T00:00:00+01:00",
+            ),
+        ] {
+            assert_eq!(
+                intersect(projection, own).as_deref(),
+                Ok(want),
+                "{projection} {own:?}"
+            );
+        }
+        for (projection, own) in [
+            (
+                "timerel=after;timeAt=P-7D",
+                Some("timerel=after;timeAt=2025-01-01T00:00:00Z"),
+            ),
+            ("timerel=after;timeAt=P7D", None),
+            ("timerel=after;timeAt=P-1Y", None),
+            ("timerel=after;timeAt=P-", None),
+            ("timerel=during;timeAt=P-1D", None),
+            ("timerel=between;timeAt=P-1D", None),
+            ("timerel=after;timeAt=P-1D;geometry=Point", None),
+        ] {
+            assert!(intersect(projection, own).is_err(), "{projection} {own:?}");
+        }
     }
 
     fn vehicles_ir() -> Value {
