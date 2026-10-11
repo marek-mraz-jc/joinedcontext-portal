@@ -3111,6 +3111,62 @@ mod tests {
         }
     }
 
+    /// What [`the_writer_converges_the_jc_broker`] creates: the cars Policy, the Endpoint and a
+    /// mapped Endpoint no view serves.
+    fn jc_created() -> Sources {
+        let mut s = with_model(sources(vec![("cars", cars())]));
+        s.endpoints.push(endpoint(json!({})));
+        s.endpoints.push(endpoint_named(
+            "mapped",
+            json!({"slug": "m3mqavzt5xkc2nhw7brj4gd6sy",
+                   "viewMappingRef": {"kind": "Mapping", "name": "m"}}),
+        ));
+        s
+    }
+
+    /// What it changes to: a second Policy over `Bike`, a type the model has no class for, so
+    /// it names its Attribute (T-3788 refuses a whole type without a class).
+    fn jc_changed() -> Sources {
+        let mut s = with_model(sources(vec![
+            ("cars", cars()),
+            (
+                "bikes",
+                policy(
+                    json!({"information": [{"entities": [{"type": "Bike"}], "propertyNames": ["wheels"]}]}),
+                ),
+            ),
+        ]));
+        s.endpoints.push(endpoint(json!({})));
+        s
+    }
+
+    /// The `-jc` broker test runs in ci-full alone (T-3824): its sources are checked here on
+    /// every run, so a refusal they meet is red before that lane.
+    #[test]
+    fn the_jc_broker_tests_sources_write_the_endpoints_view() {
+        for (step, s) in [("create", jc_created()), ("change", jc_changed())] {
+            let wanted = desired(&s);
+            assert!(
+                wanted.views.contains_key(SLUG),
+                "{step}: {:?}",
+                wanted.refused
+            );
+            assert!(
+                wanted
+                    .refused
+                    .iter()
+                    .all(|(owner, _)| owner.name == "mapped"),
+                "{step}: {:?}",
+                wanted.refused
+            );
+        }
+        assert_ne!(
+            desired(&jc_changed()).views[SLUG].1,
+            desired(&jc_created()).views[SLUG].1,
+            "the change widens the view"
+        );
+    }
+
     /// The writer against the real `-jc` broker: create, change and delete; a view written by
     /// hand is left alone; a refused Endpoint is reported and never sent; the rule document
     /// and the schema are what the broker then holds. The schema is what Model Tools' `gen_broker_schema.py`
@@ -3164,13 +3220,7 @@ mod tests {
             .mount(&tools)
             .await;
         let sync = ViewSync::new(broker.clone(), &token_file).with_model_tools(tools.uri());
-        let mut s = with_model(sources(vec![("cars", cars())]));
-        s.endpoints.push(endpoint(json!({})));
-        s.endpoints.push(endpoint_named(
-            "mapped",
-            json!({"slug": "m3mqavzt5xkc2nhw7brj4gd6sy",
-                   "viewMappingRef": {"kind": "Mapping", "name": "m"}}),
-        ));
+        let s = jc_created();
 
         // Create.
         let made = desired(&s);
@@ -3209,14 +3259,7 @@ mod tests {
         );
 
         // Change: a second Policy widens the Endpoint's view and the rule document.
-        let mut changed = with_model(sources(vec![
-            ("cars", cars()),
-            (
-                "bikes",
-                policy(json!({"information": [{"entities": [{"type": "Bike"}]}]})),
-            ),
-        ]));
-        changed.endpoints.push(endpoint(json!({})));
+        let changed = jc_changed();
         let wanted = desired(&changed);
         assert_ne!(wanted.views[SLUG].1, made.views[SLUG].1);
         let outcomes = sync.apply(desired(&changed)).await;

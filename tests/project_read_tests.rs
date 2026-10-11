@@ -25,7 +25,7 @@ const READS: &[(&str, &str)] = &[
 
 /// `ovzdusie` holds a sync source, and `reader@hel.fi` reads the kinds these routes read there.
 async fn state() -> AppState {
-    let state = common::state_on(&common::forge().await);
+    let state = common::state_on_forge().await;
     state.mirror.upsert(common::envelope(
         "SyncSource",
         "upstream",

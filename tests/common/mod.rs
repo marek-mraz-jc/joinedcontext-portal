@@ -206,6 +206,16 @@ pub fn state_on(gitea: &MockServer) -> AppState {
     AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client))
 }
 
+/// A state on a forge that takes every write and answers for as long as the test binary runs.
+/// A dropped `MockServer` goes back to wiremock's pool, and the next test that takes it resets
+/// its mocks while this state still asks it: a 404 from a forge that held the file (T-3824).
+pub async fn state_on_forge() -> AppState {
+    let gitea = forge().await;
+    let state = state_on(&gitea);
+    std::mem::forget(gitea);
+    state
+}
+
 /// A forge that takes every write: branches, files, merge requests, merges and closes. The files
 /// and merge requests a test reads are mounted on top of it.
 pub async fn forge() -> MockServer {

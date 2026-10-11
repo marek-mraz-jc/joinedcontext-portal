@@ -35,7 +35,7 @@ fn admin() -> Identity {
 /// stored anywhere — the refusal is the shape of the name and says what a name may be.
 #[tokio::test]
 async fn a_name_shaped_like_markup_is_refused_before_it_is_stored() {
-    let state = common::state_on(&common::forge().await);
+    let state = common::state_on_forge().await;
     let answer = common::send(
         &state,
         admin(),
@@ -64,7 +64,7 @@ async fn a_name_shaped_like_markup_is_refused_before_it_is_stored() {
 /// markup and an inline script would not run even if something did.
 #[tokio::test]
 async fn markup_a_person_typed_travels_as_json_under_the_policy() {
-    let state = common::state_on(&common::forge().await);
+    let state = common::state_on_forge().await;
     let answer = common::send(
         &state,
         admin(),

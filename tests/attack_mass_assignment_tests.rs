@@ -83,7 +83,7 @@ async fn check(state: &AppState, manifest: Value) -> common::Answer {
 /// `status` is the platform's own and `metadata.uid` is not a member of `metadata` at all.
 #[tokio::test]
 async fn a_member_nobody_declared_is_refused_and_named() {
-    let state = common::state_on(&common::forge().await);
+    let state = common::state_on_forge().await;
     for (member, extra) in [
         (
             "uid",
@@ -116,7 +116,7 @@ async fn a_member_nobody_declared_is_refused_and_named() {
 /// it for a status that is merely empty as well — the rule is the field, not its content.
 #[tokio::test]
 async fn nobody_proposes_their_own_status() {
-    let state = common::state_on(&common::forge().await);
+    let state = common::state_on_forge().await;
     for status in [json!({}), json!({ "phase": "Live" })] {
         let answer = check(&state, space(json!({ "status": status }))).await;
         assert!(
@@ -136,7 +136,7 @@ async fn nobody_proposes_their_own_status() {
 /// something a proposal carries — an App deploys the image this platform built and no other.
 #[tokio::test]
 async fn nobody_annotates_their_own_build() {
-    let state = common::state_on(&common::forge().await);
+    let state = common::state_on_forge().await;
     for key in joinedcontext_portal::apps::converge::BUILT_ANNOTATIONS {
         let manifest = space(json!({ "metadata.annotations": { key: "sha256:dead" } }));
         let answer = check(&state, manifest).await;
@@ -158,7 +158,7 @@ async fn nobody_annotates_their_own_build() {
 /// `spaces` door by putting the word in the body.
 #[tokio::test]
 async fn the_body_cannot_name_a_kind_the_route_does_not() {
-    let state = common::state_on(&common::forge().await);
+    let state = common::state_on_forge().await;
     let mut manifest = space(json!({}));
     manifest["kind"] = json!("RoleBinding");
     let answer = check(&state, manifest).await;

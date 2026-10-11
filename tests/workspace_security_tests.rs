@@ -4,7 +4,7 @@
 mod common;
 
 use axum::http::StatusCode;
-use common::{envelope, forge, person, send, state_on};
+use common::{envelope, person, send};
 use joinedcontext_portal::auth::session::Identity;
 use joinedcontext_portal::ops::workspaces::{Opening, Scope, ScopedResource};
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
@@ -24,7 +24,7 @@ fn grouped(name: &str, group: &str) -> Identity {
 /// `project-readers` read everything in helsinki; `bikes-readers` read only the space `bikes`;
 /// `pipeline-readers` read only Pipelines in the project.
 async fn world() -> AppState {
-    let state = state_on(&forge().await);
+    let state = common::state_on_forge().await;
     let role = |name: &str, kinds: Value| {
         envelope(
             "Role",

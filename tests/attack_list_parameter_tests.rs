@@ -43,7 +43,7 @@ fn admin() -> Identity {
 
 /// A project with three Endpoints and a reader of them.
 async fn world() -> AppState {
-    let state = common::state_on(&common::forge().await);
+    let state = common::state_on_forge().await;
     for name in ["air", "bikes", "water"] {
         state.mirror.upsert(common::envelope(
             "Endpoint",
