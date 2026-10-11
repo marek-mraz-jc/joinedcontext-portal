@@ -15,8 +15,7 @@
 //! - the writer owns the ids an Endpoint slug can be (`^[a-z2-7]{26,63}$`) and the ids starting
 //!   with `cs-`; a view written by hand under any other id is never deleted;
 //! - an Endpoint the view cannot express is not written and its status says why: a slug over 63
-//!   characters, over 256 types, a projection `temporalQ` (no view member, G6), hidden
-//!   Attributes on a type shown whole, a `viewMappingRef` whose Mapping has no usable IR. It
+//!   characters, over 256 types, hidden Attributes on a type shown whole, a `viewMappingRef` whose Mapping has no usable IR. It
 //!   stays on the gateway path;
 //! - the broker's admin token is read from the file its Secret is mounted at, on every run, and
 //!   travels only in the `Authorization` header: never in a log, a status or an outcome.
@@ -548,6 +547,18 @@ pub fn desired(sources: &Sources) -> Desired {
     out
 }
 
+/// The projection an Endpoint narrows by: the one it names, in its own Context Space.
+fn projection_of<'a>(sources: &'a Sources, e: &EndpointSource) -> Option<&'a ModelProjectionSpec> {
+    let space = e.spec.context_space_ref.name();
+    e.spec.projection_ref.as_ref().and_then(|reference| {
+        let project = reference.namespace.as_deref().unwrap_or(&e.project);
+        sources
+            .projections
+            .get(&(project.to_owned(), reference.name.clone()))
+            .filter(|projection| projection.context_space_ref == space)
+    })
+}
+
 /// The view of one Endpoint (plan 2.1), or why it has none.
 fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String> {
     let mapping = view_mapping(sources, e)?;
@@ -574,27 +585,15 @@ fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String>
         .flat_map(|projection| projection.hidden_attributes.iter().cloned())
         .collect();
     let space = e.spec.context_space_ref.name();
-    let projection = e.spec.projection_ref.as_ref().and_then(|reference| {
-        let project = reference.namespace.as_deref().unwrap_or(&e.project);
-        sources
-            .projections
-            .get(&(project.to_owned(), reference.name.clone()))
-            .filter(|projection| projection.context_space_ref == space)
-    });
+    let projection = projection_of(sources, e);
 
     let mut view = Map::new();
     view.insert("id".into(), json!(id));
     view.insert("tenant".into(), json!(e.tenant));
     let shown = match projection {
         Some(projection) => {
+            // its `temporalQ` is the window of the view's permits, in the rule document
             let filter = projection.filter.clone().unwrap_or_default();
-            if filter.temporal_q.is_some() {
-                return Err(
-                    "the projection's temporalQ has no view member (G6): the Endpoint \
-                            stays on the gateway"
-                        .into(),
-                );
-            }
             if let Some(q) = filter.q {
                 view.insert("q".into(), json!(q));
             }
@@ -889,69 +888,89 @@ fn space_view(sources: &Sources, project: &str, name: &str, tenant: &str) -> Res
 /// section 2): every Policy, each operation as its clause, and per Endpoint view that binds
 /// fewer than all of them (`policyRef`, an App's Endpoint) the ids it is decided by (T-3702).
 fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
-    let policies: Vec<Value> = sources
+    let mut policies: Vec<Value> = sources
         .policies_of(project, space)
         .iter()
-        .map(|(name, policy)| {
-            let mut clauses: Vec<&str> = Vec::new();
-            for op in policy.operations.iter().flat_map(expand) {
-                let clause = operation(*op).0;
-                if !clauses.contains(&clause) {
-                    clauses.push(clause);
-                }
-            }
-            let mut doc = Map::new();
-            doc.insert("id".into(), json!(format!("{project}/{name}")));
-            doc.insert(
-                "effect".into(),
-                json!(if policy.effect.is_prohibition() {
-                    "prohibit"
-                } else {
-                    "permit"
-                }),
-            );
-            doc.insert(
-                "assignee".into(),
-                json!({"kind": policy.assignee.kind.as_str(), "id": policy.assignee.id}),
-            );
-            doc.insert("operations".into(), json!(clauses));
-            if let Some(validity) = &policy.validity {
-                doc.insert("validity".into(), json!(validity));
-            }
-            if !policy.information.is_empty() {
-                doc.insert("information".into(), json!(policy.information));
-            }
-            for (key, value) in [
-                ("q", &policy.q),
-                ("scopeQ", &policy.scope_q),
-                ("geoQ", &policy.geo_q),
-                ("temporalQ", &policy.temporal_q),
-            ] {
-                if let Some(value) = value {
-                    doc.insert(key.into(), json!(value));
-                }
-            }
-            Value::Object(doc)
-        })
+        .map(|(name, policy)| policy_document(format!("{project}/{name}"), policy, None))
         .collect();
-    let views: Map<String, Value> = sources
+    let mut views = Map::new();
+    for e in sources
         .endpoints
         .iter()
         .filter(|e| e.project == project && e.spec.context_space_ref.name() == space)
-        .filter(|e| e.spec.policy_ref.is_some() || sources.is_app(e))
-        .map(|e| {
-            let ids: Vec<String> = sources
-                .bound(e)
-                .into_iter()
-                .map(|(name, _)| format!("{project}/{name}"))
-                .collect();
-            (e.spec.slug.to_string(), json!(ids))
-        })
-        .collect();
+    {
+        let window = projection_of(sources, e)
+            .and_then(|projection| projection.filter.as_ref())
+            .and_then(|filter| filter.temporal_q.as_deref());
+        // a view not listed is decided by every Policy, as it was written
+        if e.spec.policy_ref.is_none() && !sources.is_app(e) && window.is_none() {
+            continue;
+        }
+        let slug = e.spec.slug.to_string();
+        let mut ids = Vec::new();
+        for (name, policy) in sources.bound(e) {
+            // The projection's window narrows a permit that has none (T-3632, G6); a permit's own
+            // is narrower by construction (the gateway's GW11), and a prohibition keeps every time.
+            match window.filter(|_| !policy.effect.is_prohibition() && policy.temporal_q.is_none())
+            {
+                Some(window) => {
+                    let id = format!("{project}/{name}@{slug}");
+                    policies.push(policy_document(id.clone(), policy, Some(window)));
+                    ids.push(id);
+                }
+                None => ids.push(format!("{project}/{name}")),
+            }
+        }
+        views.insert(slug, json!(ids));
+    }
     if views.is_empty() {
         return json!({ "policies": policies });
     }
     json!({ "policies": policies, "views": views })
+}
+
+/// One Policy as the engine reads it (README section 2), under `id`, its `temporalQ` the
+/// `window` when one is given.
+fn policy_document(id: String, policy: &PolicySpec, window: Option<&str>) -> Value {
+    let mut clauses: Vec<&str> = Vec::new();
+    for op in policy.operations.iter().flat_map(expand) {
+        let clause = operation(*op).0;
+        if !clauses.contains(&clause) {
+            clauses.push(clause);
+        }
+    }
+    let mut doc = Map::new();
+    doc.insert("id".into(), json!(id));
+    doc.insert(
+        "effect".into(),
+        json!(if policy.effect.is_prohibition() {
+            "prohibit"
+        } else {
+            "permit"
+        }),
+    );
+    doc.insert(
+        "assignee".into(),
+        json!({"kind": policy.assignee.kind.as_str(), "id": policy.assignee.id}),
+    );
+    doc.insert("operations".into(), json!(clauses));
+    if let Some(validity) = &policy.validity {
+        doc.insert("validity".into(), json!(validity));
+    }
+    if !policy.information.is_empty() {
+        doc.insert("information".into(), json!(policy.information));
+    }
+    for (key, value) in [
+        ("q", policy.q.as_deref()),
+        ("scopeQ", policy.scope_q.as_deref()),
+        ("geoQ", policy.geo_q.as_deref()),
+        ("temporalQ", window.or(policy.temporal_q.as_deref())),
+    ] {
+        if let Some(value) = value {
+            doc.insert(key.into(), json!(value));
+        }
+    }
+    Value::Object(doc)
 }
 
 /// The gateway's own account (context-gateway `GATEWAY_CLIENT`, T-3767): the hops it makes on
@@ -1457,10 +1476,20 @@ mod tests {
         );
     }
 
-    /// Plan 2.1 `q`: a projection `temporalQ` has no view member, so the Endpoint is refused.
+    /// T-3812 (G6, T-3632): a projection's `temporalQ` is the window of each permit bound to
+    /// the view that has none of its own; a permit's own window and a prohibition keep their ids,
+    /// and the view is written like any other.
     #[test]
-    fn a_projection_temporal_q_is_refused() {
-        let mut s = sources(vec![("cars", cars())]);
+    fn a_projection_temporal_q_is_the_window_of_the_views_permits() {
+        let week = policy(json!({"temporalQ": "timerel=after;timeAt=P-7D",
+                                 "information": [{"entities": [{"type": "Car"}]}]}));
+        let no_trucks = policy(json!({"effect": "prohibition",
+                                      "information": [{"entities": [{"type": "Truck"}]}]}));
+        let mut s = sources(vec![
+            ("cars", cars()),
+            ("week", week),
+            ("no-trucks", no_trucks),
+        ]);
         s.projections.insert(
             ("city".into(), "recent".into()),
             serde_json::from_value(json!({
@@ -1471,7 +1500,44 @@ mod tests {
             .expect("a projection"),
         );
         let e = endpoint(json!({"projectionRef": {"kind": "ModelProjection", "name": "recent"}}));
-        assert!(view_of(&s, &e).expect_err("refused").contains("temporalQ"));
+        s.endpoints = vec![
+            e.clone(),
+            endpoint_named("plain", json!({"slug": "b".repeat(26)})),
+        ];
+        assert!(
+            view_of(&s, &e).is_ok(),
+            "the Endpoint is served by its view"
+        );
+
+        let document = &desired(&s).documents["city-air"].1;
+        let copy = format!("city/cars@{SLUG}");
+        assert_eq!(
+            document["views"],
+            json!({ SLUG: [copy, "city/week", "city/no-trucks"] }),
+            "a view without a window and without a policyRef stays unlisted"
+        );
+        let policy = |id: &str| {
+            document["policies"]
+                .as_array()
+                .and_then(|all| all.iter().find(|p| p["id"] == id))
+                .cloned()
+                .unwrap_or(Value::Null)
+        };
+        assert_eq!(policy(&copy)["temporalQ"], "timerel=after;timeAt=P-1D");
+        assert_eq!(
+            policy(&copy)["information"],
+            policy("city/cars")["information"]
+        );
+        assert_eq!(
+            policy("city/cars").get("temporalQ"),
+            None,
+            "the Policy itself is unchanged"
+        );
+        assert_eq!(
+            policy("city/week")["temporalQ"],
+            "timerel=after;timeAt=P-7D"
+        );
+        assert_eq!(policy("city/no-trucks").get("temporalQ"), None);
     }
 
     fn vehicles_ir() -> Value {
