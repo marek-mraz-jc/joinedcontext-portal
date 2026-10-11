@@ -348,8 +348,9 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         let own = format!("app-{name}");
         let endpoint = format!("app-{name}-endpoint");
         let moved = format!("app-{name}-moved");
+        let services = format!("app-{name}-services");
         let host = app_host(name, &apex);
-        if let Some(id) = [&own, &endpoint, &moved]
+        if let Some(id) = [&own, &endpoint, &moved, &services]
             .into_iter()
             .find(|id| taken.contains(id))
         {
@@ -482,6 +483,42 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
                 }),
             );
         }
+        // The platform services on the App's own host, answered by the Portal for every App
+        // shape (AP-167, API/06 §3): `/*` would hand them to a pod App's own server, and a fetch
+        // cannot follow a login redirect. The session's token reaches the Portal as the bearer.
+        let mut plugins = endpoint_plugins.clone();
+        let mut oidc = login(
+            &template,
+            &host,
+            app,
+            if app.public { "pass" } else { "deny" },
+        );
+        oidc["access_token_in_authorization_header"] = json!(true);
+        plugins["openid-connect"] = oidc;
+        rewrite_uri(
+            &mut plugins,
+            format!("^(?:/apps/{name})?/api/services/(.*)$"),
+            format!("/apps/{name}/api/services/$1"),
+        );
+        push(
+            &mut document,
+            "plugin_configs",
+            json!({ "id": services, "desc": format!("App {name}'s platform services"), "plugins": plugins }),
+        );
+        push(
+            &mut document,
+            "routes",
+            json!({
+                "id": services,
+                "name": services,
+                "desc": format!("App {name}'s platform services"),
+                "uris": ["/api/services/*", format!("/apps/{name}/api/services/*")],
+                "host": host,
+                "priority": ENDPOINT_PRIORITY,
+                "upstream_id": static_upstream.clone(),
+                "plugin_config_id": services,
+            }),
+        );
         // The old address: a `308` to the host that reaches no upstream and runs no login, so
         // a bookmark still arrives and the apex never sets an App's cookie (ADR-N-037 §3).
         push(
@@ -904,6 +941,38 @@ routes:
         assert_eq!(
             plugins["openid-connect"]["session"]["cookie_name"],
             "jc_app_air_quality"
+        );
+
+        let services =
+            by_id(&file, "routes", "app-air-quality-services").expect("the services route");
+        assert_eq!(
+            services["uris"],
+            json!(["/api/services/*", "/apps/air-quality/api/services/*"])
+        );
+        assert_eq!(services["host"], "air-quality.apps.city.example");
+        assert_eq!(services["priority"], 35);
+        let portal = by_id(&file, "routes", "portal-ui").expect("the Portal route");
+        assert_eq!(
+            services["upstream_id"], portal["upstream_id"],
+            "the Portal answers"
+        );
+        let plugins = &by_id(&file, "plugin_configs", "app-air-quality-services")
+            .expect("its plugins")["plugins"];
+        assert_eq!(
+            plugins["proxy-rewrite"]["regex_uri"],
+            json!([
+                "^(?:/apps/air-quality)?/api/services/(.*)$",
+                "/apps/air-quality/api/services/$1"
+            ])
+        );
+        assert_eq!(plugins["openid-connect"]["unauth_action"], "deny");
+        assert_eq!(
+            plugins["openid-connect"]["access_token_in_authorization_header"],
+            true
+        );
+        assert_eq!(
+            plugins["openid-connect"]["client_id"], "app-air-quality",
+            "the App's own client, so the Portal believes the token (AP-92)"
         );
 
         // The template is untouched, and a pod App's path is its own.

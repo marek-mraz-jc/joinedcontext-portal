@@ -1,11 +1,15 @@
 import type { JcConfig } from "./config";
 
-export type Method = "GET" | "POST" | "PATCH" | "DELETE";
+export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface JcRequest {
   method: Method;
   path: string;
   body?: unknown;
+  /** Bytes sent as they are, with their type, in place of a JSON `body` (the `files` service). */
+  raw?: { data: Blob | ArrayBuffer | string; contentType: string };
+  /** `"blob"`: a successful answer's body is read as a `Blob`, whatever its type. */
+  as?: "blob";
 }
 
 export interface JcResponse {
@@ -46,7 +50,9 @@ export function originTransport(fetchImpl?: typeof fetch, doc?: Document): Trans
       if (token) {
         headers[CSRF_HEADER] = token;
       }
-      if (request.body !== undefined) {
+      if (request.raw) {
+        headers["content-type"] = request.raw.contentType;
+      } else if (request.body !== undefined) {
         headers["content-type"] = "application/json";
       }
     }
@@ -56,7 +62,11 @@ export function originTransport(fetchImpl?: typeof fetch, doc?: Document): Trans
         method: request.method,
         credentials: "same-origin",
         headers,
-        body: request.body !== undefined && request.method !== "GET" ? JSON.stringify(request.body) : undefined,
+        body: request.raw
+          ? request.raw.data
+          : request.body !== undefined && request.method !== "GET"
+            ? JSON.stringify(request.body)
+            : undefined,
       });
 
       const answered: Record<string, string> = {};
@@ -70,7 +80,9 @@ export function originTransport(fetchImpl?: typeof fetch, doc?: Document): Trans
 
       const contentType = response.headers.get("content-type") ?? "";
       let body: unknown = null;
-      if (contentType.includes("json")) {
+      if (request.as === "blob" && response.ok) {
+        body = await response.blob();
+      } else if (contentType.includes("json")) {
         body = await response.json().catch(() => null);
       } else {
         const text = await response.text().catch(() => "");

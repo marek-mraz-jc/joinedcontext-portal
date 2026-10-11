@@ -146,6 +146,7 @@ describe("General (PF-17, PF-61)", () => {
       title: "Helsinki city data",
       description: "Open data of the city.",
       quotas: { contextSpaces: 4 },
+      apps: { services: [], limits: {} },
     });
     const edited = toProject(
       { title: "Helsinki", description: "  ", quotas: { contextSpaces: 3, apps: undefined } },

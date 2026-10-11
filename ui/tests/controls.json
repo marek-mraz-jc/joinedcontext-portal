@@ -754,6 +754,15 @@
         "page_app_page.test.tsx"
       ]
     },
+    "src/pages/apps/AppServices.tsx": {
+      "controls": {
+        "Button": 1,
+        "Checkbox": 1
+      },
+      "tests": [
+        "app_services.test.tsx"
+      ]
+    },
     "src/pages/apps/AppTemplates.tsx": {
       "controls": {
         "Button": 1

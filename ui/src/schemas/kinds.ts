@@ -2689,6 +2689,31 @@ export const QUOTA_DIMENSIONS = [
 /** `spec.policies.apps.public` (ADR-N-035): whether a project may publish an app to everyone. */
 const PUBLIC_APPS = ["allowed", "refused"] as const;
 
+/** The platform services an App may call (AP-161…AP-170); `identity` and `data` are every App's. */
+export const APP_SERVICES = ["identity", "data", "files", "email", "jobs", "ai"] as const;
+export type AppServiceName = (typeof APP_SERVICES)[number];
+/** What the organization allows when `spec.policies.apps.services` is absent (ADR-N-045). */
+export const DEFAULT_ORGANIZATION_SERVICES: readonly AppServiceName[] = ["identity", "data", "files", "jobs"];
+/** The per-App quotas each layer may set (AP-165), the members of `limits.apps` and `apps.limits`. */
+export const APP_QUOTAS = ["emailsPerDay", "aiTokensPerDay", "filesMiB"] as const;
+
+/** A layer's service list as a set of boxes; ticking none leaves the layer above in force. */
+function appServicesProperty(t: (key: string) => string, hint: string): JsonSchema {
+  return {
+    type: "array",
+    title: t("appServices.field"),
+    description: t(hint),
+    uniqueItems: true,
+    items: {
+      type: "string",
+      oneOf: APP_SERVICES.map((service) => ({ const: service, title: t(`appServices.service.${service}.label`) })),
+    },
+  } as JsonSchema;
+}
+
+/** The boxes, not a multi-select, for every form that carries a service list. */
+export const APP_SERVICES_UI = { "ui:widget": "checkboxes" } as const;
+
 /**
  * The `Organization` manifest's `spec` as a form (T-2605, PF-01, PF-25, PF-41, PF-61, PF-65,
  * PF-73, PF-78), field for field jc-core's `OrganizationSpec`. `gitRepositoryUrl` is the
@@ -2806,6 +2831,7 @@ export function organizationSchema(t: (key: string) => string, entries: readonly
                 description: t("organization.policy.publicAppsHint"),
                 oneOf: PUBLIC_APPS.map((value) => ({ const: value, title: t(`organization.policy.publicApps_${value}`) })),
               },
+              services: appServicesProperty(t, "appServices.organizationHint"),
             },
           },
           agents: {
@@ -2856,6 +2882,29 @@ export function projectSchema(t: (key: string) => string): JsonSchema {
         type: "object",
         title: t("projectSettings.field.quotas"),
         properties: quotas,
+      },
+      apps: {
+        type: "object",
+        title: t("appServices.title"),
+        description: t("appServices.projectLead"),
+        properties: {
+          services: appServicesProperty(t, "appServices.projectHint"),
+          limits: {
+            type: "object",
+            title: t("appServices.quotas"),
+            properties: Object.fromEntries(
+              APP_QUOTAS.map((quota) => [
+                quota,
+                {
+                  type: "integer",
+                  minimum: 1,
+                  title: t(`organization.limit.limits.apps.${quota}.label`),
+                  description: t("appServices.projectQuotaHint"),
+                },
+              ]),
+            ),
+          },
+        },
       },
     },
   } as JsonSchema;

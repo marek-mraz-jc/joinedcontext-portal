@@ -459,11 +459,68 @@ impl Client {
     }
 }
 
+impl Client {
+    /// A URL that lets its holder do `method` on `key` of `bucket` alone for `expires` seconds,
+    /// signed for `origin`, the address a browser reaches the store at, which is the `Host` it
+    /// sends (AP-145).
+    pub fn presign(
+        &self,
+        (method, bucket, key): (&str, &str, &str),
+        expires: u32,
+        origin: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> String {
+        presigned(
+            &self.settings,
+            (method, &Self::object_path(bucket, key)),
+            expires,
+            origin,
+            now,
+        )
+    }
+}
+
+/// [`Client::presign`] of one encoded path (SigV4 § "Authenticating Requests: Using Query
+/// Parameters"): only `host` is signed, and the payload is `UNSIGNED-PAYLOAD`.
+fn presigned(
+    settings: &Settings,
+    (method, path): (&str, &str),
+    expires: u32,
+    origin: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> String {
+    let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
+    let date = now.format("%Y%m%d").to_string();
+    let scope = format!("{date}/{}/s3/aws4_request", settings.region);
+    let query = canonical_query(&[
+        ("X-Amz-Algorithm", "AWS4-HMAC-SHA256".to_owned()),
+        (
+            "X-Amz-Credential",
+            format!("{}/{scope}", settings.root_access_key),
+        ),
+        ("X-Amz-Date", amz_date.clone()),
+        ("X-Amz-Expires", expires.to_string()),
+        ("X-Amz-SignedHeaders", "host".to_owned()),
+    ]);
+    let origin = origin.trim_end_matches('/');
+    let host = origin.split_once("://").map_or(origin, |(_, host)| host);
+    let headers = BTreeMap::from([("host".to_owned(), host.to_owned())]);
+    let request = canonical_request(method, path, &query, &headers, "UNSIGNED-PAYLOAD");
+    let key = signing_key(&settings.root_secret_key, &date, &settings.region, "s3");
+    let signature = hex(&hmac(
+        &key,
+        string_to_sign(&amz_date, &scope, &request).as_bytes(),
+    ));
+    format!("{origin}{path}?{query}&X-Amz-Signature={signature}")
+}
+
 /// One object of a bucket, as a listing names it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Object {
     pub key: String,
     pub size: u64,
+    /// `LastModified` as the listing writes it, RFC 3339; empty when it names none.
+    pub modified: String,
 }
 
 impl Client {
@@ -473,8 +530,8 @@ impl Client {
         format!("/{}/{}", encode(bucket), key.join("/"))
     }
 
-    /// One signed object request with the root credential (AP-150, AP-151): its status and body.
-    /// `extra` headers are sent and signed.
+    /// One signed object request with the root credential (AP-150, AP-151): its status, its
+    /// headers and its body. `extra` headers are sent and signed.
     pub async fn object(
         &self,
         method: reqwest::Method,
@@ -483,7 +540,7 @@ impl Client {
         body: Vec<u8>,
         extra: &[(&str, String)],
         operation: &'static str,
-    ) -> Result<(u16, Vec<u8>), Error> {
+    ) -> Result<(u16, reqwest::header::HeaderMap, Vec<u8>), Error> {
         let path = Self::object_path(bucket, key);
         let headers = self.sign_with(
             method.as_str(),
@@ -509,11 +566,12 @@ impl Client {
             .await
             .map_err(|source| Error::Transport { operation, source })?;
         let status = response.status().as_u16();
+        let headers = response.headers().clone();
         let bytes = response
             .bytes()
             .await
             .map_err(|source| Error::Transport { operation, source })?;
-        Ok((status, bytes.to_vec()))
+        Ok((status, headers, bytes.to_vec()))
     }
 
     /// Writes `body` at `key`; any answer but 2xx is a refusal.
@@ -528,8 +586,8 @@ impl Client {
             .object(reqwest::Method::PUT, bucket, key, body, &[], operation)
             .await?
         {
-            (200..=299, _) => Ok(()),
-            (status, _) => Err(Error::Refused { operation, status }),
+            (200..=299, _, _) => Ok(()),
+            (status, _, _) => Err(Error::Refused { operation, status }),
         }
     }
 
@@ -547,8 +605,8 @@ impl Client {
             )
             .await?
         {
-            (200..=299, _) => Ok(()),
-            (status, _) => Err(Error::Refused {
+            (200..=299, _, _) => Ok(()),
+            (status, _, _) => Err(Error::Refused {
                 operation: "copy an object",
                 status,
             }),
@@ -568,8 +626,8 @@ impl Client {
             )
             .await?
         {
-            (200..=299 | 404, _) => Ok(()),
-            (status, _) => Err(Error::Refused {
+            (200..=299 | 404, _, _) => Ok(()),
+            (status, _, _) => Err(Error::Refused {
                 operation: "delete an object",
                 status,
             }),
@@ -622,7 +680,15 @@ impl Client {
                     .next()
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(0);
-                found.push(Object { key, size });
+                let modified = elements(&contents, "LastModified")
+                    .into_iter()
+                    .next()
+                    .unwrap_or_default();
+                found.push(Object {
+                    key,
+                    size,
+                    modified,
+                });
             }
             let truncated = elements(&text, "IsTruncated")
                 .first()
@@ -950,5 +1016,44 @@ mod tests {
             root_secret_key: "secret".to_owned(),
         })
         .is_err());
+    }
+
+    #[test]
+    fn a_presigned_url_is_signed_as_aws_documents_it_for_the_host_a_browser_sends() {
+        // The example of SigV4's query-parameter page: the bucket's own host, no bucket segment.
+        let settings = Settings {
+            endpoint: "http://rustfs.store:9000".into(),
+            bucket: "examplebucket".into(),
+            region: "us-east-1".into(),
+            root_access_key: "AKIAIOSFODNN7EXAMPLE".into(),
+            root_secret_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".into(),
+        };
+        let may_24 = chrono::DateTime::parse_from_rfc3339("2013-05-24T00:00:00Z")
+            .expect("a date")
+            .with_timezone(&chrono::Utc);
+        assert_eq!(
+            presigned(
+                &settings,
+                ("GET", "/test.txt"),
+                86_400,
+                "https://examplebucket.s3.amazonaws.com/",
+                may_24
+            ),
+            "https://examplebucket.s3.amazonaws.com/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256\
+             &X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request\
+             &X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host\
+             &X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404"
+        );
+        let client = Client::new(settings).expect("a client");
+        let url = client.presign(
+            ("PUT", "apps", "apps/0/a1/x y.png"),
+            300,
+            "https://files.dev.example",
+            may_24,
+        );
+        assert!(
+            url.starts_with("https://files.dev.example/apps/apps/0/a1/x%20y.png?"),
+            "path style on the public origin: {url}"
+        );
     }
 }

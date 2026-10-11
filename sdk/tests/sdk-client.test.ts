@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createClient, isEndpointPath, ProblemError } from "../src/sdk/client";
+import { createClient, isEndpointPath, ProblemError, ServiceRefusedError } from "../src/sdk/client";
 import type { JcConfig } from "../src/sdk/config";
 import type { JcRequest, JcResponse, Transport } from "../src/sdk/transport";
 
@@ -339,5 +339,119 @@ describe("temporal, schema, and functions", () => {
       expect(pe.file).toBe("math.ts");
       expect(pe.line).toBe(42);
     }
+  });
+});
+
+describe("email", () => {
+  it("sends on the App's own host and turns a switched-off service or a used-up quota into ServiceRefusedError", async () => {
+    const calls: JcRequest[] = [];
+    const answers = [
+      { status: 202, body: { id: "m-1" } },
+      { status: 403, body: { type: "https://joinedcontext.com/errors/service-off", title: "Service Off", status: 403, service: "email", layer: "project" } },
+      { status: 429, body: { type: "https://joinedcontext.com/errors/quota", title: "Quota Used", status: 429, service: "email", quota: "emailsPerDay", resetAt: "2026-10-11T00:00:00Z" } },
+      { status: 403, body: { type: "https://joinedcontext.com/errors/recipient-refused", title: "Recipient Refused", status: 403, to: "x" } },
+    ];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return answers[calls.length - 1];
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+    const message = { to: "me" as const, subject: "New road defect", text: "Hlavná 4" };
+
+    expect(await client.email.send(message)).toEqual({ id: "m-1" });
+    expect(calls[0]).toEqual({ method: "POST", path: "/api/services/email/send", body: message });
+
+    const off = await client.email.send(message).catch((err: unknown) => err);
+    expect(off).toBeInstanceOf(ServiceRefusedError);
+    expect(off).toMatchObject({ status: 403, service: "email", layer: "project" });
+
+    const quota = await client.email.send(message).catch((err: unknown) => err);
+    expect(quota).toMatchObject({ status: 429, quota: "emailsPerDay", resetAt: "2026-10-11T00:00:00Z" });
+
+    const refused = await client.email.send(message).catch((err: unknown) => err);
+    expect(refused).toBeInstanceOf(ProblemError);
+    expect(refused).not.toBeInstanceOf(ServiceRefusedError);
+  });
+});
+
+describe("jobs", () => {
+  it("lists the App's jobs on its own host and turns a switched-off service into ServiceRefusedError", async () => {
+    const calls: JcRequest[] = [];
+    const listed = [{ name: "report", schedule: "*/15 * * * *", nextRun: "2026-10-10T21:45:00Z", lastRun: { at: "2026-10-10T21:15:00Z", ok: false, message: "503" } }];
+    const answers = [
+      { status: 200, body: listed },
+      { status: 403, body: { type: "https://joinedcontext.com/errors/service-off", title: "Service Off", status: 403, service: "jobs", layer: "organization" } },
+    ];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return answers[calls.length - 1];
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+    expect(await client.jobs.list()).toEqual(listed);
+    expect(calls[0]).toEqual({ method: "GET", path: "/api/services/jobs" });
+    const off = await client.jobs.list().catch((err: unknown) => err);
+    expect(off).toBeInstanceOf(ServiceRefusedError);
+    expect(off).toMatchObject({ service: "jobs", layer: "organization" });
+  });
+});
+
+describe("files", () => {
+  it("keeps objects on the App's own host, a key's segments encoded, and names the quota it ran out of", async () => {
+    const calls: JcRequest[] = [];
+    const info = { path: "defects/1 a.jpg", size: 4, contentType: "image/jpeg", modifiedAt: "2026-10-10T22:00:00Z" };
+    const blob = new Blob(["jpeg"], { type: "image/jpeg" });
+    const answers = [
+      { status: 201, body: info },
+      { status: 200, body: blob },
+      { status: 200, body: [info] },
+      { status: 204, body: null },
+      { status: 200, body: { url: "https://files.dev.example/apps/x?X-Amz-Expires=300", expiresAt: "2026-10-10T22:05:00Z" } },
+      { status: 429, body: { type: "https://joinedcontext.com/errors/quota", title: "Quota Used", status: 429, service: "files", quota: "filesMiB" } },
+    ];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return answers[calls.length - 1];
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+
+    expect(await client.files.put("defects/1 a.jpg", blob)).toEqual(info);
+    expect(calls[0]).toEqual({
+      method: "PUT",
+      path: "/api/services/files/defects/1%20a.jpg",
+      raw: { data: blob, contentType: "image/jpeg" },
+    });
+    expect(await client.files.get("defects/1 a.jpg")).toBe(blob);
+    expect(calls[1]).toMatchObject({ method: "GET", as: "blob" });
+    expect(await client.files.list("defects/")).toEqual([info]);
+    expect(calls[2].path).toBe("/api/services/files?prefix=defects%2F");
+    await client.files.remove("defects/1 a.jpg");
+    expect(calls[3].method).toBe("DELETE");
+    expect((await client.files.url("defects/1 a.jpg", { method: "PUT" })).expiresAt).toBe("2026-10-10T22:05:00Z");
+    expect(calls[4]).toEqual({ method: "POST", path: "/api/services/files/defects/1%20a.jpg:url", body: { method: "PUT" } });
+    const full = await client.files.put("notes.txt", "x").catch((err: unknown) => err);
+    expect(full).toBeInstanceOf(ServiceRefusedError);
+    expect(full).toMatchObject({ service: "files", quota: "filesMiB" });
+    expect((calls[5].raw as { contentType: string }).contentType).toBe("text/plain;charset=utf-8");
+  });
+});
+
+describe("ai", () => {
+  it("asks the platform's model on the App's own host and names the day's budget it ran out of", async () => {
+    const calls: JcRequest[] = [];
+    const answers = [
+      { status: 200, body: { text: "{\"severity\":3}", json: { severity: 3 }, tokens: { in: 70, out: 30 } } },
+      { status: 429, body: { type: "https://joinedcontext.com/errors/quota", title: "Quota Used", status: 429, service: "ai", quota: "aiTokensPerDay", resetAt: "2026-10-11T00:00:00Z" } },
+    ];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return answers[calls.length - 1];
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+    const request = { messages: [{ role: "user" as const, content: "How bad?" }], schema: { type: "object" } };
+    expect((await client.ai.complete(request)).json).toEqual({ severity: 3 });
+    expect(calls[0]).toEqual({ method: "POST", path: "/api/services/ai/complete", body: request });
+    const spent = await client.ai.complete(request).catch((err: unknown) => err);
+    expect(spent).toBeInstanceOf(ServiceRefusedError);
+    expect(spent).toMatchObject({ service: "ai", quota: "aiTokensPerDay", resetAt: "2026-10-11T00:00:00Z" });
   });
 });

@@ -37,6 +37,38 @@ routes:
   - route: POST /apps/{name}/api/functions/{fn}
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: POST /apps/{name}/api/services/email/send
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-168)"
+  - route: POST /apps/{name}/api/services/ai/complete
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-169)"
+  - route: GET /apps/{name}/api/services/jobs
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-162)"
+  - route: GET /apps/{name}/api/services/files
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
+  - route: GET /apps/{name}/api/services/files/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
+  - route: PUT /apps/{name}/api/services/files/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
+  - route: DELETE /apps/{name}/api/services/files/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
+  - route: POST /apps/{name}/api/services/files/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the App's own token is the credential and the fixture has no published App (AP-170)"
   - route: POST /auth/backchannel-logout
     rule: "signature:keycloak-backchannel"
     expect: [503, 503, 503, 503, 503, 503, 503, 503]
@@ -120,6 +152,14 @@ routes:
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
     body: {"data": []}
     note: "the gateway's delivery: the key is the credential, and the fixture's key is none this Portal made (API/01 §32)"
+  - route: GET /mail/unsubscribe
+    rule: "signature:unsubscribe-link"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the signed link in an App message is the credential; the fixture's query is none this Portal signed (T-3583)"
+  - route: POST /mail/unsubscribe
+    rule: "signature:unsubscribe-link"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "a mail client's one-click (RFC 8058) carries no session or CSRF token; the signature is the credential (T-3583)"
   - route: GET /metrics
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]

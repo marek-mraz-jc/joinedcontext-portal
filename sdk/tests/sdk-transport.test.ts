@@ -107,6 +107,31 @@ describe("originTransport", () => {
   });
 });
 
+describe("originTransport bytes (T-3584, AP-170)", () => {
+  it("sends a raw body with its own type and the CSRF header, and reads a blob answer as a Blob", async () => {
+    const calls: { init?: RequestInit }[] = [];
+    const fakeFetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init });
+      return init?.method === "PUT"
+        ? new Response(JSON.stringify({ path: "a.jpg" }), { status: 201, headers: { "content-type": "application/json" } })
+        : new Response("{\"looks\":\"like json\"}", { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+    const transport = originTransport(fakeFetch, { cookie: `${CSRF_COOKIE}=t1` } as Document);
+    const data = new Blob(["jpeg"], { type: "image/jpeg" });
+
+    const put = await transport({ method: "PUT", path: "/api/services/files/a.jpg", raw: { data, contentType: "image/jpeg" } });
+    expect(put).toMatchObject({ status: 201, body: { path: "a.jpg" } });
+    const headers = calls[0].init?.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("image/jpeg");
+    expect(headers[CSRF_HEADER]).toBe("t1");
+    expect(calls[0].init?.body).toBe(data);
+
+    const got = await transport({ method: "GET", path: "/api/services/files/a.json", as: "blob" });
+    // The fetch's own Blob, not jsdom's: read, never parsed as the JSON its type says.
+    expect(await (got.body as Blob).text()).toBe('{"looks":"like json"}');
+  });
+});
+
 describe("bridgeTransport", () => {
   beforeEach(() => {
     vi.useFakeTimers();

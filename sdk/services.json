@@ -182,6 +182,7 @@
     "Problem",
     "RelationPicker",
     "SDK_WORDS",
+    "ServiceRefusedError",
     "Sidebar",
     "SourceError",
     "Split",
