@@ -128,3 +128,77 @@ fs-write | joinedcontext_portal::reconciler::daemon::Scratch::new | a per-run di
 fs-write | joinedcontext_portal::reconciler::daemon::Scratch::write | paths from the config repository's git tree (forge write access needed); a .. component is not refused here, noted in chyby.md
 fs-write | joinedcontext_portal::reconciler::daemon::Scratch::drop | removes its own run directory
 fs-write | joinedcontext_portal::sync::remote::write | a SyncSource checkout: zip entries through enclosed_name and write_entry, which refuse .. and a root
+
+# T-3916: the .cg/links rows. route-without-caller names each route's outside caller;
+# button-to-decision says, with the route's matrix rule, why the session alone is enough.
+route-without-caller | DELETE /api/v1/projects/{}/drafts/{}/{} | joinedcontext_portal::api::drafts::drop_draft | documented discard for API clients (API/01 drafts); the same operation is the registry's draft drop (ops::drafts) for MCP and the assistant; no page offers a discard
+route-without-caller | GET /.well-known/oauth-protected-resource | joinedcontext_portal::mcp::oauth_protected_resource | MCP clients read it before they authenticate (RFC 9728, AG-32)
+route-without-caller | GET /.well-known/oauth-protected-resource/api/v1/mcp | joinedcontext_portal::mcp::oauth_protected_resource | MCP clients read it before they authenticate (RFC 9728, AG-32)
+route-without-caller | GET /api/v1/auth/callback | joinedcontext_portal::auth::oidc::callback | Keycloak redirects the browser here after login (authorization code)
+route-without-caller | GET /api/v1/auth/sso-check/done | joinedcontext_portal::auth::oidc::sso_check_done | Keycloak redirects the sso-check frame here (prompt=none)
+route-without-caller | GET /api/v1/health | joinedcontext_portal::api::health::health | the deployment's liveness probe
+route-without-caller | GET /api/v1/mcp | joinedcontext_portal::mcp::router | an MCP client that tries GET on the Streamable HTTP endpoint gets 405
+route-without-caller | GET /api/v1/openapi.json | joinedcontext_portal::openapi::openapi_json | the API contract for clients and the UI build (ui/openapi.json is exported from it; schemathesis reads it)
+route-without-caller | GET /api/v1/organization/feedback | joinedcontext_portal::api::feedback::list_feedback | administrators read feedback over the API (API/01 feedback); no page lists it
+route-without-caller | GET /api/v1/organization/feedback/{}/screenshot | joinedcontext_portal::api::feedback::feedback_screenshot | administrators read feedback over the API (API/01 feedback); no page lists it
+route-without-caller | GET /api/v1/projects/{}/apps/{}/me | joinedcontext_portal::api::app_me::me | a fullstack App's backend calls it as JC_ME_URL (AP-109, Architecture/16)
+route-without-caller | GET /api/v1/projects/{}/assistant/catalog | joinedcontext_portal::api::assistant::get_catalog | the assistant's search_catalog and API clients (AG-58); the page searches through the assistant
+route-without-caller | GET /api/v1/projects/{}/federation-graph | joinedcontext_portal::api::federation::get_graph | for outside tools that draw the graph; the Portal draws no page of it (UI-28, Architecture/04)
+route-without-caller | GET /api/v1/projects/{}/ops | joinedcontext_portal::api::ops::list_ops | the operation registry for API and MCP clients (AG-59, Architecture/07); pages call each operation
+route-without-caller | GET /api/v1/projects/{}/spaces/{}/views/{} | joinedcontext_portal::api::data_views::get_view | documented API read of one view (API/01 data views); the page lists views and edits from the list
+route-without-caller | GET /api/v1/ready | joinedcontext_portal::api::health::ready | the deployment's readiness probe
+route-without-caller | GET /api/v1/sync | joinedcontext_portal::api::sync::get_sync_status | operators and the sync dashboard over the API (API/01 sync); no page reads it yet
+route-without-caller | GET /apps/{} | joinedcontext_portal::apps::static_host::serve_index | a published App's own page, opened by URL from the App launcher (AP-12)
+route-without-caller | GET /apps/{}/{} | joinedcontext_portal::apps::static_host::serve | a published App's own assets, loaded by its page (AP-12)
+route-without-caller | GET /internal/agent-runs/{} | joinedcontext_portal::api::internal::agent_runs::internal_get_run | the agent proxy on the internal listener (AG-52)
+route-without-caller | GET /internal/agent-runs/{}/diagnostics/{}/{} | joinedcontext_portal::api::internal::agent_runs::internal_diagnostics | the agent proxy on the internal listener (AG-52)
+route-without-caller | GET /internal/agent-runs/{}/inbox | joinedcontext_portal::api::internal::agent_runs::internal_inbox | the agent proxy on the internal listener (AG-52)
+route-without-caller | GET /internal/domain-verifications | joinedcontext_portal::api::internal::domain_verifications::domain_verifications | the gateway polls it on the internal listener (PF-41)
+route-without-caller | GET /internal/previews | joinedcontext_portal::api::internal::previews::served_previews | the gateway polls it on the internal listener
+route-without-caller | GET /mail/unsubscribe | joinedcontext_portal::apps::email::unsubscribe_page | the link in an App's email (signature:unsubscribe-link)
+route-without-caller | GET /metrics | joinedcontext_portal::telemetry::metrics | Prometheus scrapes it inside the cluster (OPS-16)
+route-without-caller | GET /templates/assets/{} | joinedcontext_portal::apps::template_demos::asset | loaded by a template demo page (AP-141)
+route-without-caller | PATCH /api/v1/projects/{}/{}/{} | joinedcontext_portal::api::mutate::patch | documented merge-patch of a resource for API clients (API/01 resources); pages replace with PUT
+route-without-caller | POST /api/v1/activity | joinedcontext_portal::api::activity::ingest_activity | the activity collector's Keycloak client (OPS-48)
+route-without-caller | POST /api/v1/auth/backchannel-logout | joinedcontext_portal::auth::oidc::backchannel_logout | Keycloak's back-channel logout (AP-29)
+route-without-caller | POST /api/v1/mcp | joinedcontext_portal::mcp::handle_mcp | MCP clients (AG-60)
+route-without-caller | POST /api/v1/webhooks/gitea | joinedcontext_portal::api::webhook::gitea_webhook | Gitea's push webhook, HMAC-signed
+route-without-caller | POST /api/v1/webhooks/sync/{}/{} | joinedcontext_portal::api::sync_sources::webhook | a SyncSource's origin, HMAC-signed (MF-28)
+route-without-caller | POST /internal/agent-runs/events | joinedcontext_portal::api::internal::agent_runs::internal_post_event | the agent proxy on the internal listener (AG-52)
+route-without-caller | POST /internal/agent-runs/{}/mcp | joinedcontext_portal::api::internal::agent_runs::internal_mcp | the agent proxy on the internal listener (AG-52)
+route-without-caller | POST /internal/model-key | joinedcontext_portal::api::internal::model_key::model_key | the agent proxy reports the model key's state on the internal listener
+route-without-caller | POST /internal/pipeline-tests/{} | joinedcontext_portal::api::internal::pipeline_tests::capture | the pipeline runner on the internal listener
+route-without-caller | POST /internal/pipelines/{}/{}/outcomes | joinedcontext_portal::api::internal::pipeline_rejected::outcomes | the pipeline runner on the internal listener
+route-without-caller | POST /internal/pipelines/{}/{}/rejected | joinedcontext_portal::api::internal::pipeline_rejected::rejected | the pipeline runner on the internal listener
+route-without-caller | POST /live-notify/{} | joinedcontext_portal::api::live::notify | the gateway delivers live-update notifications; the key in the path is the credential (API/01 §32)
+route-without-caller | POST /mail/unsubscribe | joinedcontext_portal::apps::email::unsubscribe | the form of the unsubscribe page (signature:unsubscribe-link)
+button-to-decision | DELETE /api/v1/alerts/{} | joinedcontext_portal::api::alerts::unsubscribe | signed-in: DELETE ... WHERE id = $1 AND subject = $2, another caller's id is 404
+button-to-decision | GET /api/v1/alerts | joinedcontext_portal::api::alerts::list_alerts | signed-in: the caller's own subscriptions, selected by subject
+button-to-decision | GET /api/v1/app-templates | joinedcontext_portal::api::app_templates::list_templates | signed-in: the built-in template list compiled into the binary
+button-to-decision | GET /api/v1/app-templates/{}/screenshot/{} | joinedcontext_portal::api::app_templates::screenshot | signed-in: an embedded PNG of a known template
+button-to-decision | GET /api/v1/auth/login | joinedcontext_portal::auth::oidc::login | public: starts the OIDC login
+button-to-decision | GET /api/v1/auth/me | joinedcontext_portal::auth::oidc::me | signed-in: the caller's own identity
+button-to-decision | GET /api/v1/auth/sso-check | joinedcontext_portal::auth::oidc::sso_check | public: the silent SSO check frame
+button-to-decision | GET /api/v1/blueprints | joinedcontext_portal::api::blueprints::list_blueprints | signed-in: filters every Blueprint through may_run on the caller's identity
+button-to-decision | GET /api/v1/branding | joinedcontext_portal::api::branding::get_branding | public: the instance's name and colours, shown before login
+button-to-decision | GET /api/v1/branding/{} | joinedcontext_portal::api::branding::get_asset | public: the instance's logo and favicon, shown before login
+button-to-decision | GET /api/v1/catalogue | joinedcontext_portal::api::catalogue::get_catalogue | public: the open-data catalogue (EP-84)
+button-to-decision | GET /api/v1/catalogue/datasets/{} | joinedcontext_portal::api::catalogue::get_dataset | public: one dataset of the open-data catalogue
+button-to-decision | GET /api/v1/catalogue/datasets/{}/sample | joinedcontext_portal::api::catalogue::get_sample | public: a public dataset's sample rows
+button-to-decision | GET /api/v1/forms | joinedcontext_portal::api::forms::list_forms | signed-in: the organization's form arrangements, the same for every person; no project data
+button-to-decision | GET /api/v1/notifications | joinedcontext_portal::api::entity_comments::list_notifications | signed-in: the caller's own notifications, selected by recipient
+button-to-decision | GET /api/v1/preferences | joinedcontext_portal::api::preferences::get_preferences | signed-in: the caller's own preferences, keyed by subject
+button-to-decision | GET /api/v1/projects/{}/basemap/{}/style.json | joinedcontext_portal::api::basemap::get_style | public in the matrix: the configured basemap's style, no project data
+button-to-decision | GET /api/v1/projects/{}/basemap/{}/{}/{}/{} | joinedcontext_portal::api::basemap::get_tile | public in the matrix: the configured basemap's tiles, no project data
+button-to-decision | GET /api/v1/tools/sdm-catalog | joinedcontext_portal::tools::model_tools::sdm_catalog | signed-in: the public Smart Data Models catalogue (the refresh flood is in chyby.md)
+button-to-decision | GET /templates/{} | joinedcontext_portal::apps::template_demos::demo | public: a template's demo page, its own CSP forbids every connection (AP-141)
+button-to-decision | POST /api/v1/alerts/notices/{}/read | joinedcontext_portal::api::alerts::read_notice | signed-in: UPDATE ... WHERE id = $1 AND recipient = ANY($2), another caller's id is 404
+button-to-decision | POST /api/v1/alerts/{}/mute | joinedcontext_portal::api::alerts::mute | signed-in: UPDATE ... WHERE id = $1 AND subject = $2, another caller's id is 404
+button-to-decision | POST /api/v1/auth/logout | joinedcontext_portal::auth::oidc::logout | signed-in: ends the caller's own session
+button-to-decision | POST /api/v1/feedback | joinedcontext_portal::api::feedback::send_feedback | signed-in: anyone signed in may send feedback; bounded, rate-limited, scrubbed
+button-to-decision | POST /api/v1/notifications/{}/read | joinedcontext_portal::api::entity_comments::read_notification | signed-in: mark_read filters by the caller's recipients, another caller's id is 404
+button-to-decision | POST /api/v1/preferences/recent | joinedcontext_portal::api::preferences::add_recent | signed-in: the caller's own preferences, keyed by subject
+button-to-decision | POST /api/v1/tools/generate | joinedcontext_portal::tools::model_tools::generate | signed-in: Model Tools transform the caller's own input; they read and write no project
+button-to-decision | POST /api/v1/tools/import-sdm | joinedcontext_portal::tools::model_tools::import_sdm | signed-in: Model Tools transform the caller's own input; they read and write no project
+button-to-decision | POST /api/v1/tools/infer-schema | joinedcontext_portal::tools::model_tools::infer_schema | signed-in: Model Tools transform the caller's own input; they read and write no project
+button-to-decision | PUT /api/v1/preferences | joinedcontext_portal::api::preferences::put_preferences | signed-in: the caller's own preferences, keyed by subject

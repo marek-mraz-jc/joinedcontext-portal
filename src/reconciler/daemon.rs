@@ -926,6 +926,11 @@ impl Syncer {
             serve_leaders_phases(&fresh_mirror, &saved);
             transitions.keep_all(&fresh_mirror);
             self.mirror.replace_all(&fresh_mirror);
+            // The broker is the leader's to write; a draft's preview compiles against what this
+            // replica read, so it answers on every replica (T-3820, EP-85).
+            if let Some(views) = self.views.as_ref() {
+                views.remember(&repository);
+            }
             return Ok((loaded, revision));
         }
 
