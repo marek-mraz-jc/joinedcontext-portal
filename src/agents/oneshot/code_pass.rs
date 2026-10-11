@@ -1309,11 +1309,11 @@ mod tests {
     use super::*;
 
     /// T-3076: the first code call over the template carries the SDK, the components by their
-    /// exports and the application's own files: within 25k tokens (~24.3k measured), where the
-    /// whole template alone was ~50k. It is one call a run; the per-step base is the editing
-    /// opening (edit_loop, within 15k).
+    /// exports and the application's own files: within 26.5k tokens (~25.8k measured since the
+    /// SDK's platform services, T-3583), where the whole template alone was ~50k. It is one call
+    /// a run; the per-step base is the editing opening (edit_loop, within 15k).
     #[tokio::test]
-    async fn the_first_code_call_over_the_template_stays_within_25k_tokens() {
+    async fn the_first_code_call_over_the_template_stays_within_26_5k_tokens() {
         let state = AppState::new(crate::config::Config::for_tests(), None);
         let mut driver = Driver::for_tests(state, "helsinki");
         driver.prompt = "A map and a table of the city bike stations".into();
@@ -1327,7 +1327,7 @@ mod tests {
             .code_pack(&samples, &template, &[], &prompt, None)
             .await;
         let tokens = (code::SYSTEM.len() + pack.len()) / 4;
-        assert!(tokens <= 25_000, "{tokens} tokens");
+        assert!(tokens <= 26_500, "{tokens} tokens");
         assert!(
             pack.contains("export function EntityMap"),
             "the components are named by their exports"

@@ -72,6 +72,12 @@ spec:
         de: Was die Organisation erlaubt und wie viel die Plattform für sie leistet, jeweils im Bereich, den der Betreiber setzt.
       fields: [policies, limits]
   fields:
+    policies.apps.services:
+      help:
+        en: The platform services an app may call beyond identity and data; a project or an app may only narrow the list.
+        sk: Služby platformy, ktoré smie aplikácia volať okrem identity a dát; projekt či aplikácia zoznam môžu len zúžiť.
+        cs: Služby platformy, které smí aplikace volat kromě identity a dat; projekt či aplikace seznam mohou jen zúžit.
+        de: Die Plattformdienste, die eine App neben Identität und Daten aufrufen darf; Projekt oder App können die Liste nur einengen.
     policies.apps.public:
       help:
         en: Whether a project may publish an app everyone can open without signing in.

@@ -25,7 +25,7 @@ spec:
       Ein Projekt hält die Räume, Endpunkte, Pipelines und Anwendungen einer Stelle, und die
       daran gebundenen Personen arbeiten darin. Titel und Beschreibung lesen alle im
       Projektwechsler, und seine Kontingente können die Grenzen der Organisation nur senken.
-  order: [title, description, quotas]
+  order: [title, description, quotas, apps]
   groups:
     - title:
         en: The project
@@ -49,7 +49,42 @@ spec:
         cs: Co smí projekt obsahovat; prázdné ponechá limit organizace pro nový projekt.
         de: Was das Projekt enthalten darf; leer behält die Grenze der Organisation für neue Projekte.
       fields: [quotas]
+    - title:
+        en: Its apps
+        sk: Jeho aplikácie
+        cs: Jeho aplikace
+        de: Seine Apps
+      description:
+        en: The platform services the project's apps may call and their daily quotas, within the organization's.
+        sk: Služby platformy, ktoré smú aplikácie projektu volať, a ich denné kvóty, v rámci tých organizácie.
+        cs: Služby platformy, které smějí aplikace projektu volat, a jejich denní kvóty, v rámci těch organizace.
+        de: Die Plattformdienste, die die Apps des Projekts aufrufen dürfen, und ihre Tageskontingente, im Rahmen der Organisation.
+      fields: [apps]
   fields:
+    apps.services:
+      help:
+        en: The services every app of this project may call; none ticked keeps the organization's list.
+        sk: Služby, ktoré smie volať každá aplikácia projektu; nič nezaškrtnuté ponechá zoznam organizácie.
+        cs: Služby, které smí volat každá aplikace projektu; nic nezaškrtnuté ponechá seznam organizace.
+        de: Die Dienste, die jede App dieses Projekts aufrufen darf; nichts angekreuzt behält die Liste der Organisation.
+    apps.limits.emailsPerDay:
+      help:
+        en: How many messages one app of this project may send in a day; at most the organization's limit.
+        sk: Koľko správ smie jedna aplikácia projektu poslať za deň; najviac limit organizácie.
+        cs: Kolik zpráv smí jedna aplikace projektu poslat za den; nejvýše limit organizace.
+        de: Wie viele Nachrichten eine App dieses Projekts pro Tag senden darf; höchstens die Grenze der Organisation.
+    apps.limits.aiTokensPerDay:
+      help:
+        en: How many model tokens one app of this project may use in a day; at most the organization's limit.
+        sk: Koľko tokenov modelu smie jedna aplikácia projektu použiť za deň; najviac limit organizácie.
+        cs: Kolik tokenů modelu smí jedna aplikace projektu použít za den; nejvýše limit organizace.
+        de: Wie viele Modell-Tokens eine App dieses Projekts pro Tag nutzen darf; höchstens die Grenze der Organisation.
+    apps.limits.filesMiB:
+      help:
+        en: How many MiB of files one app of this project may keep; at most the organization's limit.
+        sk: Koľko MiB súborov smie jedna aplikácia projektu uchovávať; najviac limit organizácie.
+        cs: Kolik MiB souborů smí jedna aplikace projektu uchovávat; nejvýše limit organizace.
+        de: Wie viele MiB Dateien eine App dieses Projekts behalten darf; höchstens die Grenze der Organisation.
     title:
       placeholder: "Air quality"
       help:
