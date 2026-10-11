@@ -1,9 +1,9 @@
 diff --git a/src/api/cg_fixture.rs b/src/api/cg_fixture.rs
 new file mode 100644
-index 00000000..a1d33ee0
+index 00000000..61776765
 --- /dev/null
 +++ b/src/api/cg_fixture.rs
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,61 @@
 +//! dev/cg-invariants/fixture.patch: one violation per statement of dev/security.cypher.
 +
 +use axum::extract::State;
@@ -46,6 +46,57 @@ index 00000000..a1d33ee0
 +        .send()
 +        .await
 +}
++
++/// A signed-in route that reaches no permission decision.
++pub fn decision_router() -> Router<AppState> {
++    Router::new().route("/cg-fixture/mine", axum::routing::get(cg_fixture_mine))
++}
++
++async fn cg_fixture_mine(_user: crate::auth::CurrentUser) -> &'static str {
++    "anyone signed in"
++}
++
++/// A query string that is not a literal.
++pub fn cg_fixture_sql(text: String) -> sqlx::AssertSqlSafe<String> {
++    sqlx::AssertSqlSafe(text)
++}
++
++/// A write on the local filesystem.
++pub fn cg_fixture_fs(path: &std::path::Path) -> std::io::Result<()> {
++    std::fs::write(path, b"fixture")
++}
+diff --git a/src/api/internal/cg_fixture.rs b/src/api/internal/cg_fixture.rs
+new file mode 100644
+index 00000000..fe01acff
+--- /dev/null
++++ b/src/api/internal/cg_fixture.rs
+@@ -0,0 +1,14 @@
++//! dev/cg-invariants/fixture.patch: an internal-listener route that never asks auth::internal.
++
++use axum::routing::get;
++use axum::Router;
++
++use crate::state::AppState;
++
++pub fn router() -> Router<AppState> {
++    Router::new().route("/internal/cg-fixture", get(cg_fixture_open))
++}
++
++async fn cg_fixture_open() -> &'static str {
++    "nobody asked"
++}
+diff --git a/src/api/internal/mod.rs b/src/api/internal/mod.rs
+index 21a11f92..f341bc16 100644
+--- a/src/api/internal/mod.rs
++++ b/src/api/internal/mod.rs
+@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
+ use crate::state::AppState;
+ 
+ pub mod agent_runs;
++pub mod cg_fixture;
+ pub mod domain_verifications;
+ pub mod model_key;
+ pub mod pipeline_rejected;
 diff --git a/src/api/mod.rs b/src/api/mod.rs
 index 0cbfa50a..da743f37 100644
 --- a/src/api/mod.rs

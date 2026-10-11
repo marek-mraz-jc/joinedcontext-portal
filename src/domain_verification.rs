@@ -238,8 +238,20 @@ pub async fn check(
     }
 }
 
+/// Where a domain's DID document lives, unless the domain is an address inside the cluster: the
+/// verifier runs in it, and a domain is whatever an org administrator writes (T-3877). A name is
+/// judged once it resolves, by the client's [`crate::sync::guard::PublicOnly`] resolver.
+fn did_url(domain: &str) -> Result<String, Unanswered> {
+    let url = format!("https://{domain}/.well-known/did.json");
+    match crate::sync::guard::internal_host(&url) {
+        Some(_) => Err(Unanswered),
+        None => Ok(url),
+    }
+}
+
 /// The lookups over the network: the pod's own resolver for TXT, and one HTTPS GET that follows
-/// no redirect, so the document is the declared domain's and nobody else's.
+/// no redirect and reaches public addresses only, so the document is the declared domain's and
+/// nobody else's.
 pub struct NetLookup {
     resolver: hickory_resolver::TokioResolver,
     http: reqwest::Client,
@@ -252,6 +264,7 @@ impl NetLookup {
         builder.options_mut().timeout = LOOKUP_TIMEOUT;
         let http = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
+            .dns_resolver(std::sync::Arc::new(crate::sync::guard::PublicOnly))
             .timeout(LOOKUP_TIMEOUT)
             .user_agent("joinedcontext-portal domain verification")
             .build()
@@ -285,7 +298,7 @@ impl Lookup for NetLookup {
     }
 
     async fn did_document(&self, domain: &str) -> Result<Value, Unanswered> {
-        let url = format!("https://{domain}/.well-known/did.json");
+        let url = did_url(domain)?;
         let mut response = self.http.get(url).send().await.map_err(|_| Unanswered)?;
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(Value::Null);
@@ -444,6 +457,26 @@ fn pending(domain: &str, challenge: String) -> DomainVerification {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// T-3877: an Organization's domain is a DNS-shaped name an org administrator writes, and
+    /// `10.0.0.1` is one. The verifier runs inside the cluster, so the document is never asked of
+    /// an address the cluster keeps to itself; a public name is asked as before.
+    #[test]
+    fn a_did_document_is_never_fetched_from_an_internal_address() {
+        for domain in [
+            "10.0.0.1",
+            "127.0.0.1",
+            "169.254.169.254",
+            "100.64.0.10",
+            "192.168.1.1",
+        ] {
+            assert_eq!(did_url(domain), Err(Unanswered), "{domain}");
+        }
+        assert_eq!(
+            did_url("hel.fi").as_deref(),
+            Ok("https://hel.fi/.well-known/did.json")
+        );
+    }
 
     /// A resolver and a web server that answer what the case says.
     struct Stub {
