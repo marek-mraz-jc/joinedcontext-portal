@@ -1592,4 +1592,92 @@ mod tests {
             "{outcomes:?}"
         );
     }
+
+    /// Two Endpoints with one slug, or two spaces rendering one tenant: the second is refused
+    /// and the first keeps its view and document.
+    #[test]
+    fn a_second_owner_of_a_slug_or_tenant_is_refused() {
+        let mut s = sources(vec![("cars", cars())]);
+        s.endpoints.push(endpoint(json!({})));
+        s.endpoints.push(endpoint_named("copy", json!({})));
+        s.spaces
+            .push(("other".into(), "air".into(), "city-air".into()));
+        let d = desired(&s);
+        assert_eq!(d.views[SLUG].0.name, "air-public");
+        assert_eq!(d.documents["city-air"].0.project, "city");
+        let refused: Vec<(&str, &str)> = d
+            .refused
+            .iter()
+            .map(|(owner, reason)| (owner.name.as_str(), reason.as_str()))
+            .collect();
+        assert!(
+            refused
+                .iter()
+                .any(|(n, r)| *n == "copy" && r.contains("same slug")),
+            "{refused:?}"
+        );
+        assert!(
+            refused
+                .iter()
+                .any(|(n, r)| *n == "air" && r.contains("same tenant")),
+            "{refused:?}"
+        );
+    }
+
+    /// An empty repository wants nothing: every owned view goes, a hand-made one stays, and
+    /// there is no outcome to report.
+    #[tokio::test]
+    async fn an_empty_repository_removes_every_owned_view() {
+        let server = broker().await;
+        json_at(
+            "/q/views",
+            200,
+            json!({SLUG: {}, "cs-city-air": {}, "my-view": {}}),
+        )
+        .mount(&server)
+        .await;
+        json_at("/q/policy", 404, json!({})).mount(&server).await;
+        for (id, times) in [(SLUG, 1), ("cs-city-air", 1), ("my-view", 0)] {
+            Mock::given(method("DELETE"))
+                .and(path(format!("/q/views/{id}")))
+                .respond_with(ResponseTemplate::new(204))
+                .expect(times)
+                .mount(&server)
+                .await;
+        }
+        let file = token_file();
+        let outcomes = ViewSync::new(server.uri(), &file)
+            .apply(desired(&Sources::default()))
+            .await;
+        let _ = std::fs::remove_file(&file);
+        assert!(outcomes.is_empty(), "{outcomes:?}");
+    }
+
+    /// A broker that does not answer, or one without the views feature, fails every object
+    /// with the reason and writes nothing.
+    #[tokio::test]
+    async fn a_broker_that_cannot_take_views_fails_every_object() {
+        let file = token_file();
+        let s = sources(vec![("cars", cars())]);
+        let down = ViewSync::new("http://127.0.0.1:9", &file)
+            .apply(desired(&s))
+            .await;
+        assert!(
+            matches!(&down[..], [(_, ViewOutcome::Failed(r))] if r.contains("did not answer")),
+            "{down:?}"
+        );
+        let vanilla = broker().await;
+        json_at("/q/views", 404, json!({})).mount(&vanilla).await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(0)
+            .mount(&vanilla)
+            .await;
+        let outcomes = ViewSync::new(vanilla.uri(), &file).apply(desired(&s)).await;
+        let _ = std::fs::remove_file(&file);
+        assert!(
+            matches!(&outcomes[..], [(_, ViewOutcome::Failed(r))] if r.contains("views feature")),
+            "{outcomes:?}"
+        );
+    }
 }
