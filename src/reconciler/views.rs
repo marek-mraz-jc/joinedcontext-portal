@@ -1232,9 +1232,8 @@ pub struct ViewSync {
     /// not compiled again on every run.
     // ponytail: a Model Tools upgrade reaches an unchanged model when the Portal restarts.
     compiled: Mutex<BTreeMap<String, (ModelSource, Value)>>,
-    /// What the last run read, which a preview compiles its draft against (T-3802).
-    // ponytail: only the leader runs, so a replica that does not lead answers the preview 503;
-    // stage the repository on that replica when the Portal runs more than one (T-3820).
+    /// What the last run read, which a preview compiles its draft against (T-3802): the
+    /// leader's converge and every follower's sync record it, so any replica previews (T-3820).
     last: Mutex<Option<Arc<Sources>>>,
 }
 
@@ -1275,9 +1274,17 @@ impl ViewSync {
     /// Brings the broker's views and rule documents to what the repository declares, and says
     /// per Endpoint and Context Space what happened.
     pub async fn converge(&self, repo: &Repository) -> Vec<(Owner, ViewOutcome)> {
+        let sources = self.remember(repo);
+        self.apply(desired(&sources)).await
+    }
+
+    /// Reads `repo` as the one a draft compiles against, and writes nothing: a replica that does
+    /// not lead the reconciler calls it on every sync, so its preview answers like the leader's
+    /// (T-3820, EP-85).
+    pub fn remember(&self, repo: &Repository) -> Arc<Sources> {
         let sources = Arc::new(Sources::read(repo));
         *lock(&self.last) = Some(Arc::clone(&sources));
-        self.apply(desired(&sources)).await
+        sources
     }
 
     /// The view id of the Endpoint `name` of `project` and its view with `draft` in place of
@@ -2645,6 +2652,61 @@ mod tests {
         ] {
             assert!(geo(bad).is_err(), "{bad}");
         }
+    }
+
+    /// T-3820: a replica that never converged (it does not lead) has no draft view until it
+    /// remembers the repository its sync loaded; then it previews as the leader does, and writes
+    /// nothing to the broker doing so.
+    #[test]
+    fn a_follower_that_remembers_the_repository_previews_a_draft() {
+        let dir = std::env::temp_dir().join(format!(
+            "portal-views-follower-{}-{:?}",
+            std::process::id(),
+            std::time::SystemTime::now()
+        ));
+        let write = |rel: &str, body: &str| {
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().expect("a parent")).expect("mkdir");
+            std::fs::write(path, body).expect("write");
+        };
+        let head = |kind: &str, name: &str| {
+            format!("apiVersion: joinedcontext.com/v1alpha1\nkind: {kind}\nmetadata:\n  name: {name}\n  namespace: city\nspec:\n")
+        };
+        write(
+            "projects/city/spaces/air/space.yaml",
+            &format!("{}  isSandbox: false\n", head("ContextSpace", "air")),
+        );
+        write(
+            "projects/city/spaces/air/endpoints/air-public.yaml",
+            &format!("{}  contextSpaceRef: air\n  slug: {SLUG}\n  audience: public\n  enabledRepresentations: [ngsi-ld]\n", head("Endpoint", "air-public")),
+        );
+        write(
+            "projects/city/spaces/air/policies/cars.yaml",
+            &format!("{}  contextSpaceRef: air\n  assigner: did:web:city.example\n  assignee: {{ kind: role, id: public }}\n  operations: [retrieveOps]\n  information:\n    - entities: [{{ type: Car }}]\n      propertyNames: [speed]\n", head("Policy", "cars")),
+        );
+        let repo = Repository::load(&dir).expect("the repository loads");
+        let _ = std::fs::remove_dir_all(&dir);
+        // An unreachable broker and no token: remembering must not need either.
+        let follower = ViewSync::new("http://127.0.0.1:1", dir.join("no-token"));
+        let draft = Draft {
+            projection: None,
+            hidden_attributes: vec!["internalNote".into()],
+        };
+        assert_eq!(follower.draft_view("city", "air-public", &draft), Ok(None));
+
+        follower.remember(&repo);
+        let (id, view) = follower
+            .draft_view("city", "air-public", &draft)
+            .expect("the draft compiles")
+            .expect("the remembered repository holds the Endpoint");
+        assert_eq!(id, SLUG);
+        assert_eq!(view["id"], json!(SLUG));
+        assert_eq!(
+            follower.draft_view("city", "nosuch", &draft),
+            Ok(None),
+            "an Endpoint the repository does not hold has no draft"
+        );
+        assert!(follower.written_documents.lock().expect("lock").is_empty());
     }
 
     /// The tenant is the space's rendered segment and the derived Policies are read, from a
