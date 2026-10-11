@@ -787,6 +787,17 @@ impl AppState {
                      federated"
                 ),
             }
+            // Every Endpoint's and Context Space's view and every space's rule document, written
+            // into the broker with its admin token (T-3640). Without both the Endpoints stay on
+            // the gateway.
+            if let (Some(broker), Some(token_file)) = (
+                state.config.broker_url.clone(),
+                state.config.broker_admin_token_file.clone(),
+            ) {
+                syncer = syncer.with_views(Arc::new(crate::reconciler::views::ViewSync::new(
+                    broker, token_file,
+                )));
+            }
             // Drift (CC-21, UI-25, UI-26): the seed entities a space declares, against what it
             // holds. Configuration cannot drift under T-0421's option B — every component reads
             // it from the repository — so this is the whole of what drift means here. Without

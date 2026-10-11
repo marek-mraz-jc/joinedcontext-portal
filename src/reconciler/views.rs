@@ -1,0 +1,1683 @@
+//! The broker's views and policy rule documents, written from the repository (T-3640; Antares
+//! `docs/analysis/platform-switch-plan.md` sections 2.1, 2.2, 3.3 and 5.1).
+//!
+//! Every Endpoint becomes the view `{slug}` and every Context Space the view `cs-{segment}`
+//! (`PUT /q/views/{id}`); every Context Space's Policies become the rule document of its tenant
+//! (`PUT /q/policy/{tenant}`), which the broker's `joinedcontext` engine decides with. A view is
+//! the widest an Endpoint ever shows: its projection's classes and slots, else what its Policies
+//! name, less its hidden Attributes, with the operations its Policies grant. Who sees how much
+//! of that is the engine's.
+//!
+//! Three rules:
+//!
+//! - the writer owns the ids an Endpoint slug can be (`^[a-z2-7]{26,63}$`) and the ids starting
+//!   with `cs-`; a view written by hand under any other id is never deleted;
+//! - an Endpoint the view cannot express is not written and its status says why: a slug over 63
+//!   characters, over 256 types, a projection `temporalQ` (no view member, G6), a
+//!   `viewMappingRef` (a transform, G18), hidden Attributes on a type shown whole. It stays on
+//!   the gateway path;
+//! - the broker's admin token is read from the file its Secret is mounted at, on every run, and
+//!   travels only in the `Authorization` header: never in a log, a status or an outcome.
+
+use jc_core::kinds::{
+    DataModelLifecycle, DataModelSpec, EndpointSpec, ModelProjectionSpec, Operation, OperationRef,
+    PolicySpec, PrincipalKind,
+};
+use jcctl::loader::Repository;
+use serde_json::{json, Map, Value};
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Duration;
+
+/// A broker call that has not answered in this long is a failed run, not a slow one.
+const TIMEOUT: Duration = Duration::from_secs(15);
+
+/// A view id is `[a-z0-9-]{1,63}` (Antares `views.rs`).
+const MAX_ID: usize = 63;
+
+/// The most names in one list of a view.
+const MAX_NAMES: usize = 256;
+
+/// The most rules one view holds.
+const MAX_RULES: usize = 64;
+
+/// What the view of a Context Space's own surface (`/cs/{space}`) is called before its segment.
+pub const SPACE_VIEW_PREFIX: &str = "cs-";
+
+/// The condition an Endpoint's or a Context Space's status carries about its view.
+pub const CONDITION: &str = "ViewWritten";
+
+/// The CIM 009 clause of a Table 4.20-1 operation, and the rows of Antares'
+/// `operation-matrix.yaml` that serve it through a view. Purge, Entity Maps and the source
+/// identity have no row a view serves (plan 2.1: they never enter a view).
+fn operation(op: Operation) -> (&'static str, &'static [&'static str]) {
+    use Operation as O;
+    match op {
+        O::CreateEntity => ("5.6.1", &["create_entity"]),
+        O::UpdateEntity => ("5.6.2", &["update_attributes"]),
+        O::AppendAttrs => ("5.6.3", &["append_attributes"]),
+        O::UpdateAttrs => ("5.6.4", &["partial_attribute_update"]),
+        O::DeleteAttrs => ("5.6.5", &["delete_attribute"]),
+        O::DeleteEntity => ("5.6.6", &["delete_entity"]),
+        O::CreateBatch => ("5.6.7", &["batch_create"]),
+        O::UpsertBatch => ("5.6.8", &["batch_upsert"]),
+        O::UpdateBatch => ("5.6.9", &["batch_update"]),
+        O::DeleteBatch => ("5.6.10", &["batch_delete"]),
+        O::UpsertTemporal => ("5.6.11", &["temporal_upsert"]),
+        O::AppendAttrsTemporal => ("5.6.12", &["temporal_add_attributes"]),
+        O::DeleteAttrsTemporal => ("5.6.13", &["temporal_delete_attribute"]),
+        O::UpdateAttrInstanceTemporal => ("5.6.14", &["temporal_modify_instance"]),
+        O::DeleteAttrInstanceTemporal => ("5.6.15", &["temporal_delete_instance"]),
+        O::DeleteTemporal => ("5.6.16", &["temporal_delete"]),
+        O::MergeEntity => ("5.6.17", &["merge_entity"]),
+        O::ReplaceEntity => ("5.6.18", &["replace_entity"]),
+        O::ReplaceAttrs => ("5.6.19", &["replace_attribute"]),
+        O::MergeBatch => ("5.6.20", &["batch_merge"]),
+        O::PurgeEntity => ("5.6.21", &[]),
+        O::RetrieveEntity => ("5.7.1", &["retrieve_entity"]),
+        O::QueryEntity => ("5.7.2", &["query_entities"]),
+        O::QueryBatch => ("5.7.2", &["query_entities_post"]),
+        O::RetrieveTemporal => ("5.7.3", &["temporal_retrieve"]),
+        O::QueryTemporal => ("5.7.4", &["temporal_query", "temporal_query_post"]),
+        O::RetrieveEntityTypes => ("5.7.5", &["retrieve_entity_types"]),
+        O::RetrieveEntityTypeDetails => ("5.7.6", &["retrieve_entity_type_details"]),
+        O::RetrieveEntityTypeInfo => ("5.7.7", &["retrieve_entity_type_info"]),
+        O::RetrieveAttrTypes => ("5.7.8", &["retrieve_attributes"]),
+        O::RetrieveAttrTypeDetails => ("5.7.9", &["retrieve_attribute_details"]),
+        O::RetrieveAttrTypeInfo => ("5.7.10", &["retrieve_attribute_info"]),
+        O::CreateSubscription => ("5.8.1", &["create_subscription"]),
+        O::UpdateSubscription => ("5.8.2", &["update_subscription"]),
+        O::RetrieveSubscription => ("5.8.3", &["retrieve_subscription"]),
+        O::QuerySubscription => ("5.8.4", &["query_subscriptions"]),
+        O::DeleteSubscription => ("5.8.5", &["delete_subscription"]),
+        O::RetrieveEntityMap => ("5.14.1", &[]),
+        O::UpdateEntityMap => ("5.14.2", &[]),
+        O::DeleteEntityMap => ("5.14.3", &[]),
+        O::CreateEntityMapQueryEntity => ("5.14.4", &[]),
+        O::CreateEntityMapQueryTemporal => ("5.14.5", &[]),
+        O::RetrieveContextSourceIdentity => ("5.15.1", &[]),
+    }
+}
+
+/// The Table 4.20-1 operations a reference stands for, a Table 4.20-2 group expanded.
+fn expand(reference: &OperationRef) -> &[Operation] {
+    match reference {
+        OperationRef::Single(op) => std::slice::from_ref(op),
+        OperationRef::Group(group) => group.operations(),
+    }
+}
+
+/// One Endpoint as the views are made from it.
+#[derive(Debug, Clone)]
+pub struct EndpointSource {
+    pub project: String,
+    pub name: String,
+    /// Its space's broker tenant, the rendered URN segment (PF-84).
+    pub tenant: String,
+    pub spec: EndpointSpec,
+}
+
+/// What the views and documents are made of, read from one loaded repository.
+#[derive(Debug, Default)]
+pub struct Sources {
+    /// Every Context Space: `(project, name, tenant)`.
+    pub spaces: Vec<(String, String, String)>,
+    pub endpoints: Vec<EndpointSource>,
+    /// Every Policy by `(project, space)` with its manifest name, each Pipeline's derived ones
+    /// included (PL-20): they reach the broker through the same Endpoints.
+    pub policies: BTreeMap<(String, String), Vec<(String, PolicySpec)>>,
+    /// Every `ModelProjection` by `(project, name)`.
+    pub projections: BTreeMap<(String, String), ModelProjectionSpec>,
+    /// The classes of each space's own data models by `(project, space)`; a mirrored model is
+    /// another organisation's and selects nothing here (DM-49).
+    pub classes: BTreeMap<(String, String), BTreeSet<String>>,
+    /// Every App by `(project, name)`: its generated Endpoint `app-{name}` evaluates the App's
+    /// own grants and the space's prohibitions alone (AP-139).
+    pub apps: BTreeSet<(String, String)>,
+}
+
+impl Sources {
+    /// Reads the kinds the views are made of. A manifest whose spec does not parse is left
+    /// out: the load already reported it.
+    pub fn read(repo: &Repository) -> Self {
+        let mut sources = Self::default();
+        for (id, resource) in repo.iter() {
+            let project = id.namespace.clone().unwrap_or_default();
+            let spec = &resource.manifest.spec;
+            match id.kind.as_str() {
+                "ContextSpace" => {
+                    let tenant = repo.space_segment(&project, &id.name);
+                    sources.spaces.push((project, id.name.clone(), tenant));
+                }
+                "Endpoint" => {
+                    if let Ok(spec) = serde_json::from_value::<EndpointSpec>(spec.clone()) {
+                        let tenant = repo.space_segment(&project, spec.context_space_ref.name());
+                        sources.endpoints.push(EndpointSource {
+                            project,
+                            name: id.name.clone(),
+                            tenant,
+                            spec,
+                        });
+                    }
+                }
+                "Policy" => {
+                    if let Ok(spec) = serde_json::from_value::<PolicySpec>(spec.clone()) {
+                        let space = spec.context_space_ref.name().to_owned();
+                        sources
+                            .policies
+                            .entry((project, space))
+                            .or_default()
+                            .push((id.name.clone(), spec));
+                    }
+                }
+                "ModelProjection" => {
+                    if let Ok(spec) = serde_json::from_value::<ModelProjectionSpec>(spec.clone()) {
+                        sources.projections.insert((project, id.name.clone()), spec);
+                    }
+                }
+                "DataModel" => {
+                    let Ok(spec) = serde_json::from_value::<DataModelSpec>(spec.clone()) else {
+                        continue;
+                    };
+                    if spec.lifecycle == DataModelLifecycle::Mirrored {
+                        continue;
+                    }
+                    if let Some(space) = spec.context_space_ref {
+                        sources
+                            .classes
+                            .entry((project, space))
+                            .or_default()
+                            .extend(spec.classes);
+                    }
+                }
+                "App" => {
+                    sources.apps.insert((project, id.name.clone()));
+                }
+                _ => {}
+            }
+        }
+        for (project, derived) in jcctl::pipeline_identity::derived(repo) {
+            for (name, spec) in derived.policies {
+                let space = spec.context_space_ref.name().to_owned();
+                sources
+                    .policies
+                    .entry((project.clone(), space))
+                    .or_default()
+                    .push((name, spec));
+            }
+        }
+        sources
+    }
+
+    fn policies_of(&self, project: &str, space: &str) -> &[(String, PolicySpec)] {
+        self.policies
+            .get(&(project.to_owned(), space.to_owned()))
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    fn classes_of(&self, project: &str, space: &str) -> BTreeSet<String> {
+        self.classes
+            .get(&(project.to_owned(), space.to_owned()))
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// The Policies an Endpoint evaluates, as the gateway binds them (`store.rs`
+    /// `endpoints_with_models`): with `policyRef` that one Policy of its space, else every
+    /// Policy of its space; an App's Endpoint keeps the App's own grants and the prohibitions.
+    fn bound(&self, e: &EndpointSource) -> Vec<&PolicySpec> {
+        let space = e.spec.context_space_ref.name();
+        let app = e
+            .name
+            .strip_prefix("app-")
+            .is_some_and(|app| self.apps.contains(&(e.project.clone(), app.to_owned())));
+        self.policies_of(&e.project, space)
+            .iter()
+            .filter(|(name, _)| match &e.spec.policy_ref {
+                Some(reference) => {
+                    reference.space() == Some(e.tenant.as_str()) && name == reference.local_id()
+                }
+                None => true,
+            })
+            .map(|(_, policy)| policy)
+            .filter(|policy| {
+                !app || policy.effect.is_prohibition() || own_grant(policy, &e.project, &e.name)
+            })
+            .collect()
+    }
+}
+
+/// Whether `policy` is assigned to a role the Endpoint hands out (AP-96, AP-139).
+fn own_grant(policy: &PolicySpec, project: &str, endpoint: &str) -> bool {
+    let own = jc_core::kinds::endpoint_role(project, endpoint, None);
+    policy.assignee.kind == PrincipalKind::Role
+        && policy
+            .assignee
+            .id
+            .strip_prefix(own.as_str())
+            .is_some_and(|rest| {
+                rest.is_empty()
+                    || rest
+                        .strip_prefix('/')
+                        .is_some_and(|role| !role.is_empty() && !role.contains('/'))
+            })
+}
+
+/// Whose a view or a document is: the object whose status reports it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Owner {
+    /// `Endpoint` or `ContextSpace`.
+    pub kind: &'static str,
+    pub project: String,
+    pub name: String,
+}
+
+impl Owner {
+    fn endpoint(e: &EndpointSource) -> Self {
+        Self {
+            kind: "Endpoint",
+            project: e.project.clone(),
+            name: e.name.clone(),
+        }
+    }
+
+    fn space(project: &str, name: &str) -> Self {
+        Self {
+            kind: "ContextSpace",
+            project: project.to_owned(),
+            name: name.to_owned(),
+        }
+    }
+}
+
+/// What one run wants the broker to hold.
+#[derive(Debug, Default)]
+pub struct Desired {
+    /// The view documents by id.
+    pub views: BTreeMap<String, (Owner, Value)>,
+    /// The rule documents by tenant.
+    pub documents: BTreeMap<String, (Owner, Value)>,
+    /// The objects the writer refused, and why.
+    pub refused: Vec<(Owner, String)>,
+}
+
+/// Every view and rule document the repository declares (plan 2.1, 3.3, 5.1).
+pub fn desired(sources: &Sources) -> Desired {
+    let mut out = Desired::default();
+    for e in &sources.endpoints {
+        let owner = Owner::endpoint(e);
+        let made = endpoint_view(sources, e).and_then(|view| {
+            let id = e.spec.slug.to_string();
+            match out.views.get(&id) {
+                Some((other, _)) => Err(format!(
+                    "the Endpoint {} of project {} has the same slug",
+                    other.name, other.project
+                )),
+                None => Ok((id, view)),
+            }
+        });
+        match made {
+            Ok((id, view)) => {
+                out.views.insert(id, (owner, view));
+            }
+            Err(reason) => out.refused.push((owner, reason)),
+        }
+    }
+    for (project, name, tenant) in &sources.spaces {
+        let owner = Owner::space(project, name);
+        match space_view(sources, project, name, tenant) {
+            Ok(view) => {
+                out.views.insert(
+                    format!("{SPACE_VIEW_PREFIX}{tenant}"),
+                    (owner.clone(), view),
+                );
+            }
+            Err(reason) => out.refused.push((owner.clone(), reason)),
+        }
+        if let Some((other, _)) = out.documents.get(tenant) {
+            let reason = format!(
+                "the Context Space {} of project {} renders the same tenant",
+                other.name, other.project
+            );
+            out.refused.push((owner, reason));
+            continue;
+        }
+        out.documents.insert(
+            tenant.clone(),
+            (owner, rule_document(sources, project, name)),
+        );
+    }
+    out
+}
+
+/// The view of one Endpoint (plan 2.1), or why it has none.
+fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String> {
+    if e.spec.view_mapping_ref.is_some() {
+        return Err(
+            "viewMappingRef serves another model, which a view cannot (G18): the \
+                    Endpoint stays on the gateway"
+                .into(),
+        );
+    }
+    let id = e.spec.slug.to_string();
+    if id.len() > MAX_ID {
+        return Err(format!(
+            "the slug is {} characters and a view id at most {MAX_ID}",
+            id.len()
+        ));
+    }
+    let permits: Vec<&PolicySpec> = sources
+        .bound(e)
+        .into_iter()
+        .filter(|policy| !policy.effect.is_prohibition())
+        .collect();
+    if permits.is_empty() {
+        return Err("no Policy grants anything through this Endpoint".into());
+    }
+    let hidden: BTreeSet<String> = e
+        .spec
+        .projection
+        .iter()
+        .flat_map(|projection| projection.hidden_attributes.iter().cloned())
+        .collect();
+    let space = e.spec.context_space_ref.name();
+    let projection = e.spec.projection_ref.as_ref().and_then(|reference| {
+        let project = reference.namespace.as_deref().unwrap_or(&e.project);
+        sources
+            .projections
+            .get(&(project.to_owned(), reference.name.clone()))
+            .filter(|projection| projection.context_space_ref == space)
+    });
+
+    let mut view = Map::new();
+    view.insert("id".into(), json!(id));
+    view.insert("tenant".into(), json!(e.tenant));
+    let shown = match projection {
+        Some(projection) => {
+            let filter = projection.filter.clone().unwrap_or_default();
+            if filter.temporal_q.is_some() {
+                return Err(
+                    "the projection's temporalQ has no view member (G6): the Endpoint \
+                            stays on the gateway"
+                        .into(),
+                );
+            }
+            if let Some(q) = filter.q {
+                view.insert("q".into(), json!(q));
+            }
+            if let Some(scope_q) = filter.scope_q {
+                view.insert("scopeQ".into(), json!(scope_q));
+            }
+            if let Some(geo_q) = filter.geo_q {
+                view.insert("geoQ".into(), geo(&geo_q)?);
+            }
+            projection
+                .classes
+                .iter()
+                .map(|class| {
+                    let slots = (!class.slots.is_empty())
+                        .then(|| class.slots.iter().cloned().collect::<BTreeSet<_>>());
+                    (class.name.clone(), slots)
+                })
+                .collect()
+        }
+        None => granted(&permits, &sources.classes_of(&e.project, space))?,
+    };
+    let rules = rules(shown, &hidden)?;
+    let selector: BTreeSet<&String> = rules.iter().flat_map(|(_, types)| types).collect();
+    if selector.len() > MAX_NAMES {
+        return Err(format!(
+            "it selects {} types and a view at most {MAX_NAMES}",
+            selector.len()
+        ));
+    }
+    view.insert("selector".into(), json!(selector));
+    view.insert(
+        "rules".into(),
+        Value::Array(
+            rules
+                .iter()
+                .map(|(attributes, types)| json!({"types": types, "attributes": attributes}))
+                .collect(),
+        ),
+    );
+    view.insert("operations".into(), json!(rows(&permits)?));
+    Ok(Value::Object(view))
+}
+
+/// What the Policies name, type by type: `None` is the whole Entity. A permission without
+/// `information` grants every type, which the view writes as the space model's classes.
+fn granted(
+    permits: &[&PolicySpec],
+    classes: &BTreeSet<String>,
+) -> Result<BTreeMap<String, Option<BTreeSet<String>>>, String> {
+    let mut shown: BTreeMap<String, Option<BTreeSet<String>>> = BTreeMap::new();
+    let mut add = |entity_type: &str, attributes: Option<BTreeSet<String>>| {
+        let entry = shown
+            .entry(entity_type.to_owned())
+            .or_insert(Some(BTreeSet::new()));
+        match (entry.as_mut(), attributes) {
+            (Some(held), Some(more)) => held.extend(more),
+            _ => *entry = None,
+        }
+    };
+    for policy in permits {
+        if policy.information.is_empty() {
+            if classes.is_empty() {
+                return Err(
+                    "a Policy grants every type and the space's data model names no \
+                            class to select"
+                        .into(),
+                );
+            }
+            for class in classes {
+                add(class, None);
+            }
+        }
+        for info in &policy.information {
+            let attributes: BTreeSet<String> = info
+                .property_names
+                .iter()
+                .chain(&info.relationship_names)
+                .cloned()
+                .collect();
+            for selector in &info.entities {
+                add(
+                    &selector.entity_type,
+                    (!attributes.is_empty()).then(|| attributes.clone()),
+                );
+            }
+        }
+    }
+    Ok(shown)
+}
+
+/// One rule of a view: the Attributes it shows (none = the whole Entity) and its types.
+type Rule = (Vec<String>, Vec<String>);
+
+/// The rules of a view: the types that show the same Attributes share one. A type whose every
+/// Attribute is hidden shows nothing and is left out; one shown whole cannot have Attributes
+/// taken away, since an empty list is the whole Entity.
+fn rules(
+    shown: BTreeMap<String, Option<BTreeSet<String>>>,
+    hidden: &BTreeSet<String>,
+) -> Result<Vec<Rule>, String> {
+    let mut by_attributes: BTreeMap<Vec<String>, Vec<String>> = BTreeMap::new();
+    for (entity_type, attributes) in shown {
+        let attributes = match attributes {
+            None if hidden.is_empty() => Vec::new(),
+            None => {
+                return Err(format!(
+                    "{entity_type} is shown whole and the projection hides {}: list the \
+                     Attributes it shows",
+                    hidden.iter().cloned().collect::<Vec<_>>().join(", ")
+                ))
+            }
+            Some(attributes) => {
+                let left: Vec<String> = attributes.difference(hidden).cloned().collect();
+                if left.is_empty() {
+                    continue;
+                }
+                left
+            }
+        };
+        if attributes.len() > MAX_NAMES {
+            return Err(format!(
+                "{entity_type} shows {} Attributes and a view rule at most {MAX_NAMES}",
+                attributes.len()
+            ));
+        }
+        by_attributes
+            .entry(attributes)
+            .or_default()
+            .push(entity_type);
+    }
+    if by_attributes.is_empty() {
+        return Err("it shows no Attribute of any type".into());
+    }
+    if by_attributes.len() > MAX_RULES {
+        return Err(format!(
+            "its types show {} different Attribute lists and a view holds at most {MAX_RULES} \
+             rules",
+            by_attributes.len()
+        ));
+    }
+    Ok(by_attributes.into_iter().collect())
+}
+
+/// The matrix rows the permissions grant, in name order.
+fn rows(permits: &[&PolicySpec]) -> Result<Vec<&'static str>, String> {
+    let rows: BTreeSet<&'static str> = permits
+        .iter()
+        .flat_map(|policy| &policy.operations)
+        .flat_map(expand)
+        .flat_map(|op| operation(*op).1.iter().copied())
+        .collect();
+    if rows.is_empty() {
+        return Err("its Policies grant no operation a view serves".into());
+    }
+    Ok(rows.into_iter().collect())
+}
+
+/// A `geoQ` written as `georel=…;geometry=…;coordinates=…[;geoproperty=…]` as the view's
+/// object; `near;maxDistance==…` keeps its distance in `georel`.
+fn geo(raw: &str) -> Result<Value, String> {
+    let mut parts: BTreeMap<&str, String> = BTreeMap::new();
+    for part in raw.split(';').map(str::trim).filter(|p| !p.is_empty()) {
+        match part.split_once('=') {
+            Some((key @ ("georel" | "geometry" | "coordinates" | "geoproperty"), value)) => {
+                parts.insert(key, value.to_owned());
+            }
+            _ if part.starts_with("maxDistance") || part.starts_with("minDistance") => {
+                let georel = parts
+                    .get_mut("georel")
+                    .ok_or_else(|| format!("geoQ {raw:?}: {part:?} comes before georel"))?;
+                georel.push(';');
+                georel.push_str(part);
+            }
+            _ => return Err(format!("geoQ {raw:?}: {part:?} is not a geoquery member")),
+        }
+    }
+    let mut out = Map::new();
+    for key in ["georel", "geometry", "coordinates"] {
+        let value = parts
+            .remove(key)
+            .ok_or_else(|| format!("geoQ {raw:?} has no {key}"))?;
+        out.insert(key.into(), json!(value));
+    }
+    if let Some(property) = parts.remove("geoproperty") {
+        out.insert("geoproperty".into(), json!(property));
+    }
+    Ok(Value::Object(out))
+}
+
+/// The view of the space surface `/cs/{space}` (plan 5.1): the space model's classes, whole,
+/// with every operation its Policies grant; the engine narrows it per subject.
+fn space_view(sources: &Sources, project: &str, name: &str, tenant: &str) -> Result<Value, String> {
+    let id = format!("{SPACE_VIEW_PREFIX}{tenant}");
+    if id.len() > MAX_ID {
+        return Err(format!(
+            "the view {id} is {} characters and a view id at most {MAX_ID}",
+            id.len()
+        ));
+    }
+    let permits: Vec<&PolicySpec> = sources
+        .policies_of(project, name)
+        .iter()
+        .map(|(_, policy)| policy)
+        .filter(|policy| !policy.effect.is_prohibition())
+        .collect();
+    let mut types = sources.classes_of(project, name);
+    if types.is_empty() {
+        types = permits
+            .iter()
+            .flat_map(|policy| &policy.information)
+            .flat_map(|info| &info.entities)
+            .map(|selector| selector.entity_type.clone())
+            .collect();
+    }
+    if types.is_empty() {
+        return Err("neither the space's data model nor a Policy names a type to select".into());
+    }
+    if types.len() > MAX_NAMES {
+        return Err(format!(
+            "it selects {} types and a view at most {MAX_NAMES}",
+            types.len()
+        ));
+    }
+    Ok(json!({
+        "id": id,
+        "tenant": tenant,
+        "selector": types,
+        "rules": [{"types": types, "attributes": []}],
+        "operations": rows(&permits)?,
+    }))
+}
+
+/// The rule document of one space's tenant (plan 3.3, the `joinedcontext` engine's README
+/// section 2): every Policy, each operation as its clause.
+fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
+    let policies: Vec<Value> = sources
+        .policies_of(project, space)
+        .iter()
+        .map(|(name, policy)| {
+            let mut clauses: Vec<&str> = Vec::new();
+            for op in policy.operations.iter().flat_map(expand) {
+                let clause = operation(*op).0;
+                if !clauses.contains(&clause) {
+                    clauses.push(clause);
+                }
+            }
+            let mut doc = Map::new();
+            doc.insert("id".into(), json!(format!("{project}/{name}")));
+            doc.insert(
+                "effect".into(),
+                json!(if policy.effect.is_prohibition() {
+                    "prohibit"
+                } else {
+                    "permit"
+                }),
+            );
+            doc.insert(
+                "assignee".into(),
+                json!({"kind": policy.assignee.kind.as_str(), "id": policy.assignee.id}),
+            );
+            doc.insert("operations".into(), json!(clauses));
+            if let Some(validity) = &policy.validity {
+                doc.insert("validity".into(), json!(validity));
+            }
+            if !policy.information.is_empty() {
+                doc.insert("information".into(), json!(policy.information));
+            }
+            for (key, value) in [
+                ("q", &policy.q),
+                ("scopeQ", &policy.scope_q),
+                ("geoQ", &policy.geo_q),
+                ("temporalQ", &policy.temporal_q),
+            ] {
+                if let Some(value) = value {
+                    doc.insert(key.into(), json!(value));
+                }
+            }
+            Value::Object(doc)
+        })
+        .collect();
+    json!({ "policies": policies })
+}
+
+/// Whether the writer owns a view of this id: an Endpoint slug or a space surface.
+fn owned(id: &str) -> bool {
+    id.starts_with(SPACE_VIEW_PREFIX)
+        || ((26..=MAX_ID).contains(&id.len())
+            && id.bytes().all(|b| matches!(b, b'a'..=b'z' | b'2'..=b'7')))
+}
+
+/// What happened to one Endpoint's or Context Space's view and document in a run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ViewOutcome {
+    /// The broker holds what the repository declares.
+    Written,
+    /// The writer cannot express it; nothing was sent.
+    Refused(String),
+    /// The broker refused it or did not answer.
+    Failed(String),
+}
+
+/// One HTTP client, the broker's address and where its admin token is mounted.
+pub struct ViewSync {
+    http: reqwest::Client,
+    /// The broker as this Portal reaches it, without a trailing slash.
+    broker: String,
+    token_file: PathBuf,
+    /// The tenants whose rule document this Portal wrote since it started: only those are
+    /// deleted when their space goes.
+    // ponytail: in memory, so a space deleted while the Portal restarts keeps its document;
+    // with no view left to route to it, nothing reads it.
+    written_documents: Mutex<BTreeSet<String>>,
+}
+
+impl ViewSync {
+    /// A writer against one broker, its admin token read from `token_file` on every run.
+    pub fn new(broker: impl Into<String>, token_file: impl Into<PathBuf>) -> Self {
+        Self {
+            http: reqwest::Client::builder()
+                .timeout(TIMEOUT)
+                .build()
+                .unwrap_or_default(),
+            broker: broker.into().trim_end_matches('/').to_owned(),
+            token_file: token_file.into(),
+            written_documents: Mutex::default(),
+        }
+    }
+
+    /// Brings the broker's views and rule documents to what the repository declares, and says
+    /// per Endpoint and Context Space what happened.
+    pub async fn converge(&self, repo: &Repository) -> Vec<(Owner, ViewOutcome)> {
+        self.apply(desired(&Sources::read(repo))).await
+    }
+
+    async fn apply(&self, desired: Desired) -> Vec<(Owner, ViewOutcome)> {
+        let mut outcomes: BTreeMap<Owner, ViewOutcome> = BTreeMap::new();
+        for (owner, reason) in desired.refused {
+            outcomes.insert(owner, ViewOutcome::Refused(reason));
+        }
+        let mut note = |owner: &Owner, outcome: ViewOutcome| {
+            let held = outcomes
+                .entry(owner.clone())
+                .or_insert(ViewOutcome::Written);
+            if *held == ViewOutcome::Written {
+                *held = outcome;
+            }
+        };
+        let token = match std::fs::read_to_string(&self.token_file) {
+            Ok(token) if !token.trim().is_empty() => token.trim().to_owned(),
+            _ => {
+                let reason = format!(
+                    "the broker's admin token is not readable at {}",
+                    self.token_file.display()
+                );
+                for (owner, _) in desired.views.values().chain(desired.documents.values()) {
+                    note(owner, ViewOutcome::Failed(reason.clone()));
+                }
+                return outcomes.into_iter().collect();
+            }
+        };
+
+        let listed = match self.get(&token, "/q/views").await {
+            Ok(Some(Value::Object(listed))) => listed,
+            other => {
+                let reason = match other {
+                    Err(reason) => reason,
+                    _ => "the broker serves no views (built without the views feature)".into(),
+                };
+                for (owner, _) in desired.views.values().chain(desired.documents.values()) {
+                    note(owner, ViewOutcome::Failed(reason.clone()));
+                }
+                return outcomes.into_iter().collect();
+            }
+        };
+        for (id, (owner, view)) in &desired.views {
+            let outcome = self
+                .put_if_changed(&token, &format!("/q/views/{id}"), view)
+                .await;
+            note(owner, outcome);
+        }
+        for id in listed.keys() {
+            if owned(id) && !desired.views.contains_key(id) {
+                match self.delete(&token, &format!("/q/views/{id}")).await {
+                    Ok(()) => tracing::info!(view = %id, "view removed with its Endpoint or space"),
+                    Err(reason) => tracing::warn!(view = %id, %reason, "view not removed"),
+                }
+            }
+        }
+
+        // No engine that reads rule documents: `/q/policy` answers 404 and the views stand
+        // under whatever engine the broker runs.
+        match self.get(&token, "/q/policy").await {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                tracing::debug!("the broker runs no engine that reads rule documents");
+                return outcomes.into_iter().collect();
+            }
+            Err(reason) => {
+                for (owner, _) in desired.documents.values() {
+                    note(owner, ViewOutcome::Failed(reason.clone()));
+                }
+                return outcomes.into_iter().collect();
+            }
+        }
+        for (tenant, (owner, document)) in &desired.documents {
+            let path = format!("/q/policy/{tenant}");
+            let outcome = match self.get(&token, &path).await {
+                Ok(Some(stored)) if stored.get("document") == Some(document) => {
+                    ViewOutcome::Written
+                }
+                Ok(_) => self.put(&token, &path, document).await,
+                Err(reason) => ViewOutcome::Failed(reason),
+            };
+            if outcome == ViewOutcome::Written {
+                self.written().insert(tenant.clone());
+            }
+            note(owner, outcome);
+        }
+        let gone: Vec<String> = self
+            .written()
+            .iter()
+            .filter(|tenant| !desired.documents.contains_key(*tenant))
+            .cloned()
+            .collect();
+        for tenant in gone {
+            match self.delete(&token, &format!("/q/policy/{tenant}")).await {
+                Ok(()) => {
+                    self.written().remove(&tenant);
+                    tracing::info!(%tenant, "rule document removed with its space");
+                }
+                Err(reason) => tracing::warn!(%tenant, %reason, "rule document not removed"),
+            }
+        }
+        outcomes.into_iter().collect()
+    }
+
+    fn written(&self) -> std::sync::MutexGuard<'_, BTreeSet<String>> {
+        self.written_documents
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    async fn put_if_changed(&self, token: &str, path: &str, doc: &Value) -> ViewOutcome {
+        match self.get(token, path).await {
+            Ok(Some(stored)) if stored == *doc => ViewOutcome::Written,
+            Ok(_) => self.put(token, path, doc).await,
+            Err(reason) => ViewOutcome::Failed(reason),
+        }
+    }
+
+    /// The JSON at `path`, `None` on 404.
+    async fn get(&self, token: &str, path: &str) -> Result<Option<Value>, String> {
+        let response = self
+            .http
+            .get(format!("{}{path}", self.broker))
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|err| format!("the broker did not answer GET {path}: {err}"))?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        if !response.status().is_success() {
+            return Err(refusal(&format!("GET {path}"), response).await);
+        }
+        response
+            .json()
+            .await
+            .map(Some)
+            .map_err(|err| format!("GET {path} did not answer JSON: {err}"))
+    }
+
+    async fn put(&self, token: &str, path: &str, doc: &Value) -> ViewOutcome {
+        let sent = self
+            .http
+            .put(format!("{}{path}", self.broker))
+            .bearer_auth(token)
+            .json(doc)
+            .send()
+            .await;
+        match sent {
+            Ok(response) if response.status().is_success() => ViewOutcome::Written,
+            Ok(response) => ViewOutcome::Failed(
+                refusal(&format!("the broker refused PUT {path}"), response).await,
+            ),
+            Err(err) => ViewOutcome::Failed(format!("the broker did not answer PUT {path}: {err}")),
+        }
+    }
+
+    async fn delete(&self, token: &str, path: &str) -> Result<(), String> {
+        let response = self
+            .http
+            .delete(format!("{}{path}", self.broker))
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|err| err.to_string())?;
+        match response.status().is_success() || response.status() == reqwest::StatusCode::NOT_FOUND
+        {
+            true => Ok(()),
+            false => Err(refusal(&format!("DELETE {path}"), response).await),
+        }
+    }
+}
+
+/// `what: status: detail`, the detail of a problem document when it is one, cut short.
+async fn refusal(what: &str, response: reqwest::Response) -> String {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    let detail = serde_json::from_str::<Value>(&body)
+        .ok()
+        .and_then(|problem| {
+            problem
+                .get("detail")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or(body);
+    let mut said = detail.trim().replace('\n', " ");
+    if said.len() > 300 {
+        let mut end = 300;
+        while !said.is_char_boundary(end) {
+            end -= 1;
+        }
+        said.truncate(end);
+    }
+    match said.is_empty() {
+        true => format!("{what}: {status}"),
+        false => format!("{what}: {status}: {said}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{body_json, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const SLUG: &str = "k4y7pq2mzt6vhx3nbwrs5cjdaf";
+
+    fn endpoint(spec: Value) -> EndpointSource {
+        endpoint_named("air-public", spec)
+    }
+
+    fn endpoint_named(name: &str, extra: Value) -> EndpointSource {
+        let mut spec = json!({
+            "contextSpaceRef": "air", "slug": SLUG, "audience": "public",
+            "enabledRepresentations": ["ngsi-ld"]
+        });
+        if let (Some(spec), Some(extra)) = (spec.as_object_mut(), extra.as_object()) {
+            spec.extend(extra.clone());
+        }
+        EndpointSource {
+            project: "city".into(),
+            name: name.into(),
+            tenant: "city-air".into(),
+            spec: serde_json::from_value(spec).expect("an Endpoint spec"),
+        }
+    }
+
+    fn policy(extra: Value) -> PolicySpec {
+        let mut spec = json!({
+            "contextSpaceRef": "air", "assigner": "did:web:city.example",
+            "assignee": {"kind": "role", "id": "public"},
+            "operations": ["retrieveOps"]
+        });
+        if let (Some(spec), Some(extra)) = (spec.as_object_mut(), extra.as_object()) {
+            spec.extend(extra.clone());
+        }
+        serde_json::from_value(spec).expect("a Policy spec")
+    }
+
+    fn sources(policies: Vec<(&str, PolicySpec)>) -> Sources {
+        let mut sources = Sources::default();
+        sources
+            .spaces
+            .push(("city".into(), "air".into(), "city-air".into()));
+        sources.policies.insert(
+            ("city".into(), "air".into()),
+            policies
+                .into_iter()
+                .map(|(name, spec)| (name.to_owned(), spec))
+                .collect(),
+        );
+        sources
+    }
+
+    fn cars() -> PolicySpec {
+        policy(
+            json!({"information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]}),
+        )
+    }
+
+    fn view_of(sources: &Sources, e: &EndpointSource) -> Result<Value, String> {
+        endpoint_view(sources, e)
+    }
+
+    /// Plan 2.1 `id`, `tenant`, `selector` and `rules` without a projection: the slug, the
+    /// space's segment, the Policies' types with their Attributes; `operations` the rows of the
+    /// group they grant.
+    #[test]
+    fn an_endpoint_view_is_its_slug_tenant_and_policies() {
+        let s = sources(vec![("cars", cars())]);
+        let view = view_of(&s, &endpoint(json!({}))).expect("a view");
+        assert_eq!(
+            view,
+            json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
+                   "rules": [{"types": ["Car"], "attributes": ["speed"]}],
+                   "operations": ["query_entities", "retrieve_entity"]})
+        );
+    }
+
+    /// Plan 2.1 `id`: a slug longer than a view id is refused with the reason, not cut.
+    #[test]
+    fn a_slug_over_63_characters_is_refused() {
+        let long = "a".repeat(64);
+        let s = sources(vec![("cars", cars())]);
+        let reason = view_of(&s, &endpoint(json!({"slug": long}))).expect_err("refused");
+        assert!(reason.contains("64 characters"), "{reason}");
+        assert!(owned(SLUG) && owned("cs-city-air") && owned(&"a".repeat(63)));
+        assert!(!owned("my-view") && !owned(&long) && !owned("k4y7pq2mzt6vhx3nbwrs5cjda"));
+    }
+
+    /// Plan 2.1 `selector`, `rules`: a projection's classes and slots, less the hidden
+    /// Attributes; a class whose every slot is hidden is left out; the filter is copied.
+    #[test]
+    fn a_projection_gives_classes_slots_and_filter() {
+        let mut s = sources(vec![("cars", cars())]);
+        s.projections.insert(
+            ("city".into(), "cars-only".into()),
+            serde_json::from_value(json!({
+                "contextSpaceRef": "air", "dataModelRef": {"name": "air", "version": "1.0.0"},
+                "classes": [{"name": "Car", "slots": ["speed", "owner"]},
+                            {"name": "Bus", "slots": ["speed", "owner"]},
+                            {"name": "Note", "slots": ["owner"]}],
+                "filter": {"q": "speed>0", "scopeQ": "/city/#",
+                           "geoQ": "georel=near;maxDistance==2000;geometry=Point;coordinates=[1,2]"}
+            }))
+            .expect("a projection"),
+        );
+        let e = endpoint(json!({
+            "projectionRef": {"kind": "ModelProjection", "name": "cars-only"},
+            "projection": {"hiddenAttributes": ["owner"]}
+        }));
+        let view = view_of(&s, &e).expect("a view");
+        assert_eq!(view["selector"], json!(["Bus", "Car"]));
+        assert_eq!(
+            view["rules"],
+            json!([{"types": ["Bus", "Car"], "attributes": ["speed"]}])
+        );
+        assert_eq!(view["q"], json!("speed>0"));
+        assert_eq!(view["scopeQ"], json!("/city/#"));
+        assert_eq!(
+            view["geoQ"],
+            json!({"georel": "near;maxDistance==2000", "geometry": "Point", "coordinates": "[1,2]"})
+        );
+    }
+
+    /// Plan 2.1 `q`: a projection `temporalQ` has no view member, so the Endpoint is refused.
+    #[test]
+    fn a_projection_temporal_q_is_refused() {
+        let mut s = sources(vec![("cars", cars())]);
+        s.projections.insert(
+            ("city".into(), "recent".into()),
+            serde_json::from_value(json!({
+                "contextSpaceRef": "air", "dataModelRef": {"name": "air", "version": "1.0.0"},
+                "classes": [{"name": "Car"}],
+                "filter": {"temporalQ": "timerel=after;timeAt=P-1D"}
+            }))
+            .expect("a projection"),
+        );
+        let e = endpoint(json!({"projectionRef": {"kind": "ModelProjection", "name": "recent"}}));
+        assert!(view_of(&s, &e).expect_err("refused").contains("temporalQ"));
+    }
+
+    /// Plan 2.1, fields that do not reach the view: `viewMappingRef` keeps the gateway.
+    #[test]
+    fn a_view_mapping_is_refused() {
+        let s = sources(vec![("cars", cars())]);
+        let e = endpoint(json!({"viewMappingRef": {"kind": "Mapping", "name": "to-dcat"}}));
+        assert!(view_of(&s, &e)
+            .expect_err("refused")
+            .contains("viewMappingRef"));
+    }
+
+    /// Plan 2.1 `rules`: types the Policies grant with the same Attributes share a rule; a
+    /// type granted whole by one Policy is whole; a Policy without information is the model's
+    /// classes; hidden Attributes on a whole type are refused rather than shown.
+    #[test]
+    fn policies_union_into_rules() {
+        let s = sources(vec![
+            ("cars", cars()),
+            (
+                "buses",
+                policy(json!({"information": [{"entities": [{"type": "Bus"}],
+                                               "propertyNames": ["speed"]},
+                                              {"entities": [{"type": "Car"}],
+                                               "relationshipNames": ["ownedBy"]}]})),
+            ),
+            (
+                "stops",
+                policy(json!({"information": [{"entities": [{"type": "Stop"}]}]})),
+            ),
+        ]);
+        let view = view_of(&s, &endpoint(json!({}))).expect("a view");
+        assert_eq!(
+            view["rules"],
+            json!([{"types": ["Stop"], "attributes": []},
+                   {"types": ["Car"], "attributes": ["ownedBy", "speed"]},
+                   {"types": ["Bus"], "attributes": ["speed"]}])
+        );
+
+        let hidden = endpoint(json!({"projection": {"hiddenAttributes": ["note"]}}));
+        assert!(view_of(&s, &hidden)
+            .expect_err("refused")
+            .contains("Stop is shown whole"));
+
+        let mut every = sources(vec![("all", policy(json!({})))]);
+        assert!(
+            view_of(&every, &endpoint(json!({}))).is_err(),
+            "no class to select"
+        );
+        every.classes.insert(
+            ("city".into(), "air".into()),
+            ["Car".to_owned(), "Bus".to_owned()].into(),
+        );
+        let view = view_of(&every, &endpoint(json!({}))).expect("a view");
+        assert_eq!(view["selector"], json!(["Bus", "Car"]));
+    }
+
+    /// Plan 2.1 `selector`: over 256 types is refused, not truncated.
+    #[test]
+    fn over_256_types_is_refused() {
+        let entities: Vec<Value> = (0..257).map(|n| json!({"type": format!("T{n}")})).collect();
+        let s = sources(vec![(
+            "many",
+            policy(json!({"information": [{"entities": entities, "propertyNames": ["a"]}]})),
+        )]);
+        let reason = view_of(&s, &endpoint(json!({}))).expect_err("refused");
+        assert!(reason.contains("257 types"), "{reason}");
+    }
+
+    /// Plan 2.1 `operations`: groups expanded, each name to the rows of its clause; purge and
+    /// Entity Maps never enter a view; a prohibition grants no operation; a Policy that grants
+    /// only what no view serves leaves nothing to write.
+    #[test]
+    fn operations_map_to_matrix_rows() {
+        let s = sources(vec![
+            (
+                "write",
+                policy(
+                    json!({"operations": ["queryBatch", "updateAttrs", "purgeEntity",
+                                             "retrieveEntityMap", "queryTemporal"],
+                              "information": [{"entities": [{"type": "Car"}]}]}),
+                ),
+            ),
+            (
+                "deny",
+                policy(
+                    json!({"effect": "prohibition", "operations": ["deleteEntity"],
+                              "information": [{"entities": [{"type": "Car"}]}]}),
+                ),
+            ),
+        ]);
+        let view = view_of(&s, &endpoint(json!({}))).expect("a view");
+        assert_eq!(
+            view["operations"],
+            json!([
+                "partial_attribute_update",
+                "query_entities_post",
+                "temporal_query",
+                "temporal_query_post"
+            ])
+        );
+        let only_maps = sources(vec![(
+            "maps",
+            policy(json!({"operations": ["retrieveEntityMap"],
+                          "information": [{"entities": [{"type": "Car"}]}]})),
+        )]);
+        assert!(view_of(&only_maps, &endpoint(json!({})))
+            .expect_err("refused")
+            .contains("no operation"));
+        let none = sources(vec![]);
+        assert!(view_of(&none, &endpoint(json!({})))
+            .expect_err("refused")
+            .contains("no Policy"));
+    }
+
+    /// Every Table 4.20-1 name has its clause; only Query Entities has two names.
+    #[test]
+    fn every_operation_has_a_clause() {
+        let mut clauses: BTreeMap<&str, Vec<Operation>> = BTreeMap::new();
+        for op in Operation::ALL {
+            clauses.entry(operation(*op).0).or_default().push(*op);
+        }
+        assert_eq!(clauses.len(), Operation::ALL.len() - 1);
+        assert_eq!(
+            clauses["5.7.2"],
+            [Operation::QueryEntity, Operation::QueryBatch]
+        );
+    }
+
+    /// Plan 2.1 `policyRef`: the one Policy it names, of this space; another space's binds
+    /// nothing. An App's Endpoint keeps its own grants and the prohibitions (AP-139).
+    #[test]
+    fn policy_ref_and_app_endpoints_bind_as_the_gateway_does() {
+        let own = jc_core::kinds::endpoint_role("city", "app-map", None);
+        let s = {
+            let mut s = sources(vec![
+                ("cars", cars()),
+                (
+                    "buses",
+                    policy(json!({"information": [{"entities": [{"type": "Bus"}]}]})),
+                ),
+                (
+                    "mine",
+                    policy(json!({"assignee": {"kind": "role", "id": own},
+                                  "information": [{"entities": [{"type": "Stop"}]}]})),
+                ),
+            ]);
+            s.apps.insert(("city".into(), "map".into()));
+            s
+        };
+        let bound =
+            endpoint(json!({"policyRef": "urn:ngsi-ld:Policy:city.example:city-air:buses"}));
+        assert_eq!(
+            view_of(&s, &bound).expect("a view")["selector"],
+            json!(["Bus"])
+        );
+        let elsewhere =
+            endpoint(json!({"policyRef": "urn:ngsi-ld:Policy:city.example:other:buses"}));
+        assert!(view_of(&s, &elsewhere).is_err());
+        let app = endpoint_named("app-map", json!({}));
+        assert_eq!(
+            view_of(&s, &app).expect("a view")["selector"],
+            json!(["Stop"])
+        );
+    }
+
+    /// Plan 5.1: the space surface's view selects the model's classes whole; without a model,
+    /// the Policies' types.
+    #[test]
+    fn a_space_view_selects_the_models_classes() {
+        let mut s = sources(vec![("cars", cars())]);
+        let view = space_view(&s, "city", "air", "city-air").expect("a view");
+        assert_eq!(
+            view,
+            json!({"id": "cs-city-air", "tenant": "city-air", "selector": ["Car"],
+                   "rules": [{"types": ["Car"], "attributes": []}],
+                   "operations": ["query_entities", "retrieve_entity"]})
+        );
+        s.classes
+            .insert(("city".into(), "air".into()), ["Bus".to_owned()].into());
+        assert_eq!(
+            space_view(&s, "city", "air", "city-air").expect("a view")["selector"],
+            json!(["Bus"])
+        );
+        let long = "x".repeat(61);
+        assert!(space_view(&s, "city", "air", &long).is_err());
+    }
+
+    /// Plan 3.3: one document per tenant, every Policy with its clauses, effect, assignee,
+    /// validity, information and conditions, in the engine's format.
+    #[test]
+    fn the_rule_document_carries_every_policy() {
+        let s = sources(vec![
+            ("cars", cars()),
+            (
+                "no-trucks",
+                policy(
+                    json!({"effect": "prohibition", "operations": ["updateOps", "updateAttrs"],
+                              "assignee": {"kind": "group", "id": "drivers"},
+                              "information": [{"entities": [{"type": "Truck",
+                                                             "idPattern": "^urn:ngsi-ld:Truck:.*$"}]}],
+                              "q": "weight>3", "scopeQ": "/city/#", "temporalQ": "timerel=after;timeAt=P-1D",
+                              "validity": {"from": "2026-01-01T00:00:00Z"}}),
+                ),
+            ),
+        ]);
+        let desired = desired(&s);
+        let (owner, document) = &desired.documents["city-air"];
+        assert_eq!(owner, &Owner::space("city", "air"));
+        assert_eq!(
+            document,
+            &json!({"policies": [
+                {"id": "city/cars", "effect": "permit", "assignee": {"kind": "role", "id": "public"},
+                 "operations": ["5.7.1", "5.7.2"],
+                 "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]},
+                {"id": "city/no-trucks", "effect": "prohibit", "assignee": {"kind": "group", "id": "drivers"},
+                 "operations": ["5.6.2", "5.6.4", "5.6.18", "5.6.19"],
+                 "validity": {"from": "2026-01-01T00:00:00Z"},
+                 "information": [{"entities": [{"type": "Truck", "idPattern": "^urn:ngsi-ld:Truck:.*$"}]}],
+                 "q": "weight>3", "scopeQ": "/city/#", "temporalQ": "timerel=after;timeAt=P-1D"}
+            ]})
+        );
+        assert!(desired.views.contains_key(SLUG) || desired.views.contains_key("cs-city-air"));
+    }
+
+    #[test]
+    fn a_geo_query_without_its_members_is_refused() {
+        for bad in [
+            "georel=within;geometry=Point",
+            "maxDistance==1;georel=near;geometry=Point;coordinates=[1,2]",
+            "georel=within;geometry=Point;coordinates=[1,2];shape=x",
+        ] {
+            assert!(geo(bad).is_err(), "{bad}");
+        }
+    }
+
+    /// The tenant is the space's rendered segment and the derived Policies are read, from a
+    /// repository loaded the way the reconciler loads it.
+    #[test]
+    fn sources_read_a_loaded_repository() {
+        let dir = std::env::temp_dir().join(format!(
+            "portal-views-read-{}-{:?}",
+            std::process::id(),
+            std::time::SystemTime::now()
+        ));
+        let write = |rel: &str, body: &str| {
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().expect("a parent")).expect("mkdir");
+            std::fs::write(path, body).expect("write");
+        };
+        let head = |kind: &str, name: &str| {
+            format!("apiVersion: joinedcontext.com/v1alpha1\nkind: {kind}\nmetadata:\n  name: {name}\n  namespace: city\nspec:\n")
+        };
+        write(
+            "projects/city/spaces/air/space.yaml",
+            &format!(
+                "{}  isSandbox: false\n  urnSegment: luft\n",
+                head("ContextSpace", "air")
+            ),
+        );
+        write(
+            "projects/city/spaces/air/endpoints/air-public.yaml",
+            &format!("{}  contextSpaceRef: air\n  slug: {SLUG}\n  audience: public\n  enabledRepresentations: [ngsi-ld]\n", head("Endpoint", "air-public")),
+        );
+        write(
+            "projects/city/spaces/air/policies/cars.yaml",
+            &format!("{}  contextSpaceRef: air\n  assigner: did:web:city.example\n  assignee: {{ kind: role, id: public }}\n  operations: [retrieveOps]\n  information:\n    - entities: [{{ type: Car }}]\n", head("Policy", "cars")),
+        );
+        let repo = Repository::load(&dir).expect("the repository loads");
+        let read = Sources::read(&repo);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(read.spaces, [("city".into(), "air".into(), "luft".into())]);
+        assert_eq!(read.endpoints.len(), 1);
+        assert_eq!(read.endpoints[0].tenant, "luft");
+        let desired = desired(&read);
+        assert_eq!(desired.views[SLUG].1["tenant"], json!("luft"));
+        assert!(desired.views.contains_key("cs-luft"));
+        assert_eq!(
+            desired.documents["luft"].1["policies"][0]["id"],
+            json!("city/cars")
+        );
+    }
+
+    const TOKEN: &str = "an-admin-token-of-at-least-32-bytes!";
+
+    fn token_file() -> PathBuf {
+        let file = std::env::temp_dir().join(format!(
+            "portal-views-token-{}-{:?}",
+            std::process::id(),
+            std::time::SystemTime::now()
+        ));
+        std::fs::write(&file, format!("{TOKEN}\n")).expect("write the token");
+        file
+    }
+
+    async fn broker() -> MockServer {
+        MockServer::start().await
+    }
+
+    fn json_at(server_path: &str, status: u16, body: Value) -> Mock {
+        Mock::given(method("GET"))
+            .and(path(server_path))
+            .respond_with(ResponseTemplate::new(status).set_body_json(body))
+    }
+
+    /// The writer against the broker's `/q`: a new view is written, an unchanged one is not
+    /// sent again, a changed one is replaced, an owned one that is gone is deleted, a view
+    /// written by hand is left alone, a refused Endpoint is reported without a call, a broker
+    /// 400 lands in the outcome with its detail, the rule document is written, and every call
+    /// carries the token, which no outcome repeats.
+    #[tokio::test]
+    async fn the_writer_converges_the_brokers_views_and_documents() {
+        let server = broker().await;
+        let gone = "zzzzzzzzzzzzzzzzzzzzzzzzzz";
+        let s = {
+            let mut s = sources(vec![("cars", cars())]);
+            s.endpoints.push(endpoint(json!({})));
+            s.endpoints.push(endpoint_named(
+                "mapped",
+                json!({"slug": "m3mqavzt5xkc2nhw7brj4gd6sy",
+                       "viewMappingRef": {"kind": "Mapping", "name": "m"}}),
+            ));
+            s.endpoints.push(endpoint_named(
+                "refused-by-broker",
+                json!({"slug": "p3mqavzt5xkc2nhw7brj4gd6sy"}),
+            ));
+            s
+        };
+        let desired = desired(&s);
+        let space_view = desired.views["cs-city-air"].1.clone();
+        let document = desired.documents["city-air"].1.clone();
+
+        json_at(
+            "/q/views",
+            200,
+            json!({"cs-city-air": {"state": "loaded"}, gone: {"state": "loaded"},
+                   "my-view": {"state": "loaded"}}),
+        )
+        .mount(&server)
+        .await;
+        json_at(&format!("/q/views/{SLUG}"), 404, json!({}))
+            .mount(&server)
+            .await;
+        json_at("/q/views/cs-city-air", 200, space_view)
+            .mount(&server)
+            .await;
+        json_at(
+            "/q/views/p3mqavzt5xkc2nhw7brj4gd6sy",
+            200,
+            json!({"id": "old"}),
+        )
+        .mount(&server)
+        .await;
+        json_at("/q/policy", 200, json!({"loaded": [], "refused": []}))
+            .mount(&server)
+            .await;
+        json_at("/q/policy/city-air", 404, json!({}))
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path(format!("/q/views/{SLUG}")))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/views/cs-city-air"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(0)
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/views/p3mqavzt5xkc2nhw7brj4gd6sy"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(
+                json!({"type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+                       "detail": "rules[0].types: \"Car\" is wrong"}),
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path(format!("/q/views/{gone}")))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/q/views/my-view"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(0)
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/policy/city-air"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(&document))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file);
+        let outcomes: BTreeMap<String, ViewOutcome> = sync
+            .apply(desired)
+            .await
+            .into_iter()
+            .map(|(owner, outcome)| (owner.name, outcome))
+            .collect();
+        let _ = std::fs::remove_file(&file);
+
+        assert_eq!(outcomes["air-public"], ViewOutcome::Written);
+        assert_eq!(outcomes["air"], ViewOutcome::Written);
+        assert!(
+            matches!(&outcomes["mapped"], ViewOutcome::Refused(r) if r.contains("viewMappingRef")),
+            "{outcomes:?}"
+        );
+        assert!(
+            matches!(&outcomes["refused-by-broker"],
+                     ViewOutcome::Failed(r) if r.contains("400") && r.contains("is wrong")),
+            "{outcomes:?}"
+        );
+        assert!(!format!("{outcomes:?}").contains(TOKEN));
+        assert!(sync.written().contains("city-air"));
+    }
+
+    /// A rule document whose space is gone is deleted; one the broker already holds is not
+    /// sent again; a broker without a document-reading engine gets views only.
+    #[tokio::test]
+    async fn rule_documents_follow_their_spaces() {
+        let server = broker().await;
+        let s = sources(vec![("cars", cars())]);
+        let document = desired(&s).documents["city-air"].1.clone();
+        json_at("/q/views", 200, json!({})).mount(&server).await;
+        json_at(
+            "/q/views/cs-city-air",
+            200,
+            desired(&s).views["cs-city-air"].1.clone(),
+        )
+        .mount(&server)
+        .await;
+        json_at("/q/policy", 200, json!({})).mount(&server).await;
+        json_at(
+            "/q/policy/city-air",
+            200,
+            json!({"tenant": "city-air", "revision": 3, "document": document}),
+        )
+        .mount(&server)
+        .await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(0)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/q/policy/old-space"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file);
+        sync.written().insert("old-space".into());
+        let outcomes = sync.apply(desired(&s)).await;
+        assert_eq!(
+            outcomes,
+            [(Owner::space("city", "air"), ViewOutcome::Written)]
+        );
+        assert!(!sync.written().contains("old-space"));
+
+        let no_engine = broker().await;
+        json_at("/q/views", 200, json!({})).mount(&no_engine).await;
+        json_at("/q/views/cs-city-air", 404, json!({}))
+            .mount(&no_engine)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/views/cs-city-air"))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&no_engine)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/policy/city-air"))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(0)
+            .mount(&no_engine)
+            .await;
+        let outcomes = ViewSync::new(no_engine.uri(), &file)
+            .apply(desired(&s))
+            .await;
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(
+            outcomes,
+            [(Owner::space("city", "air"), ViewOutcome::Written)]
+        );
+    }
+
+    /// Without a readable token nothing is sent and every object says why, naming the file and
+    /// never a token.
+    #[tokio::test]
+    async fn without_the_token_nothing_is_sent() {
+        let server = broker().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let sync = ViewSync::new(server.uri(), "/nonexistent/broker-admin-token");
+        let outcomes = sync.apply(desired(&sources(vec![("cars", cars())]))).await;
+        assert!(
+            matches!(&outcomes[..], [(_, ViewOutcome::Failed(r))] if r.contains("/nonexistent/broker-admin-token")),
+            "{outcomes:?}"
+        );
+    }
+
+    /// Two Endpoints with one slug, or two spaces rendering one tenant: the second is refused
+    /// and the first keeps its view and document.
+    #[test]
+    fn a_second_owner_of_a_slug_or_tenant_is_refused() {
+        let mut s = sources(vec![("cars", cars())]);
+        s.endpoints.push(endpoint(json!({})));
+        s.endpoints.push(endpoint_named("copy", json!({})));
+        s.spaces
+            .push(("other".into(), "air".into(), "city-air".into()));
+        let d = desired(&s);
+        assert_eq!(d.views[SLUG].0.name, "air-public");
+        assert_eq!(d.documents["city-air"].0.project, "city");
+        let refused: Vec<(&str, &str)> = d
+            .refused
+            .iter()
+            .map(|(owner, reason)| (owner.name.as_str(), reason.as_str()))
+            .collect();
+        assert!(
+            refused
+                .iter()
+                .any(|(n, r)| *n == "copy" && r.contains("same slug")),
+            "{refused:?}"
+        );
+        assert!(
+            refused
+                .iter()
+                .any(|(n, r)| *n == "air" && r.contains("same tenant")),
+            "{refused:?}"
+        );
+    }
+
+    /// An empty repository wants nothing: every owned view goes, a hand-made one stays, and
+    /// there is no outcome to report.
+    #[tokio::test]
+    async fn an_empty_repository_removes_every_owned_view() {
+        let server = broker().await;
+        json_at(
+            "/q/views",
+            200,
+            json!({SLUG: {}, "cs-city-air": {}, "my-view": {}}),
+        )
+        .mount(&server)
+        .await;
+        json_at("/q/policy", 404, json!({})).mount(&server).await;
+        for (id, times) in [(SLUG, 1), ("cs-city-air", 1), ("my-view", 0)] {
+            Mock::given(method("DELETE"))
+                .and(path(format!("/q/views/{id}")))
+                .respond_with(ResponseTemplate::new(204))
+                .expect(times)
+                .mount(&server)
+                .await;
+        }
+        let file = token_file();
+        let outcomes = ViewSync::new(server.uri(), &file)
+            .apply(desired(&Sources::default()))
+            .await;
+        let _ = std::fs::remove_file(&file);
+        assert!(outcomes.is_empty(), "{outcomes:?}");
+    }
+
+    /// A broker that does not answer, or one without the views feature, fails every object
+    /// with the reason and writes nothing.
+    #[tokio::test]
+    async fn a_broker_that_cannot_take_views_fails_every_object() {
+        let file = token_file();
+        let s = sources(vec![("cars", cars())]);
+        let down = ViewSync::new("http://127.0.0.1:9", &file)
+            .apply(desired(&s))
+            .await;
+        assert!(
+            matches!(&down[..], [(_, ViewOutcome::Failed(r))] if r.contains("did not answer")),
+            "{down:?}"
+        );
+        let vanilla = broker().await;
+        json_at("/q/views", 404, json!({})).mount(&vanilla).await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(0)
+            .mount(&vanilla)
+            .await;
+        let outcomes = ViewSync::new(vanilla.uri(), &file).apply(desired(&s)).await;
+        let _ = std::fs::remove_file(&file);
+        assert!(
+            matches!(&outcomes[..], [(_, ViewOutcome::Failed(r))] if r.contains("views feature")),
+            "{outcomes:?}"
+        );
+    }
+}
