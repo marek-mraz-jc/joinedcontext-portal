@@ -591,7 +591,7 @@
     "fields": {
       "add": "Add field",
       "title": "Add a field to {type}",
-      "lead": "A field is an attribute of the type's DataModel. Adding one proposes a model change for review; no data changes until it is merged.",
+      "lead": "A field is an attribute of the type's data model. Adding one proposes a model change for review; no data changes until it is merged.",
       "propose": "Propose field",
       "refused": "The field could not be proposed",
       "refusedStatus": "The Portal answered {status}.",
@@ -615,12 +615,12 @@
         "nameInvalid": "Use letters, digits and _ only, starting with a letter.",
         "nameTaken": "This type or its model already has an attribute of this name.",
         "valuesMissing": "Give at least one choice.",
-        "valueInvalid": "A choice is empty, too long (over 100 characters) or contains a control character.",
-        "valueTwice": "A choice is listed twice.",
+        "valueInvalid": "A choice is empty, longer than 100 characters or holds a control character. Fill it in or shorten it.",
+        "valueTwice": "A choice is listed twice. Remove one of them.",
         "targetMissing": "Pick the type it points to.",
         "inverseInvalid": "Use letters, digits and _ only, and a name other than the field's.",
         "inverseTaken": "The target type already has an attribute of this name.",
-        "formulaInvalid": "The formula cannot be computed: {reason}"
+        "formulaInvalid": "The formula cannot be computed: {reason}. Correct the formula and check it again."
       },
       "types": {
         "text": "Text",
@@ -642,7 +642,7 @@
         "expression": "Formula",
         "help": "Computed from this entity's slots, every five minutes, and stored as its value: for example {example}. You may use {slots}, numbers, quoted text, + - * / %, comparisons, and, or, not, abs, round, min and max.",
         "noEndpoint": "No Endpoint of this space answers by every Policy of the space, so a formula's pipeline has nowhere to read and write. Add one without policyRef first.",
-        "noAccount": "This project has no pipelines ServiceAccount, which runs a formula's pipeline. Add it first.",
+        "noAccount": "This project has no service account named pipelines, which runs a formula's pipeline. Add it first.",
         "pipelineRefused": "The field is proposed, but its pipeline was not: {reason}"
       }
     },
@@ -731,8 +731,8 @@
       "index": "Endpoint index",
       "answered": "The endpoint answered {status}, read with your session:",
       "tokens": "A token for a program",
-      "tokensLead": "A program reads with its own ServiceAccount: a Keycloak client with a role in this project, whose tokens the Endpoint's Policy decides like yours. Never paste a person's session into a program.",
-      "tokensLink": "ServiceAccounts of this project",
+      "tokensLead": "A program reads with its own service account: a Keycloak client with a role in this project, whose tokens the Endpoint's Policy decides like yours. Never paste a person's session into a program.",
+      "tokensLink": "Service accounts of this project",
       "webhooks": "Webhooks",
       "webhooksLead": "An NGSI-LD subscription on {type} that calls a URL when an entity changes, proposed as a Change.",
       "noWebhook": "No webhook watches this type yet.",
@@ -794,7 +794,7 @@
       "governReason": "Only the view's owner or a steward of the space deletes it.",
       "deleteTitle": "Delete the view {title}?",
       "deleteHelp": "Only the view is deleted; no data in the space changes.",
-      "failed": "The view could not be saved",
+      "failed": "The view could not be saved. Try again in a minute.",
       "conflict": "Someone saved this view meanwhile ({detail}). Reload to see their version, then save again.",
       "reload": "Reload views",
       "unavailable": "Saved views cannot be loaded now; the grid still works.",
@@ -852,12 +852,12 @@
       "created": "Created {id}.",
       "noFields": "The model of {type} has no field a form can ask for.",
       "problem": {
-        "required": "An answer is needed.",
-        "integer": "A whole number, such as 12.",
-        "number": "A number, such as 2.5.",
-        "urn": "An entity id, urn:ngsi-ld:Type:…",
-        "point": "Both a latitude (−90 to 90) and a longitude (−180 to 180).",
-        "date": "A date the calendar knows."
+        "required": "Answer this one: it is required.",
+        "integer": "Enter a whole number, such as 12.",
+        "number": "Enter a number, such as 2.5.",
+        "urn": "Enter an entity id, such as urn:ngsi-ld:Vehicle:bus-12.",
+        "point": "Enter both a latitude (−90 to 90) and a longitude (−180 to 180).",
+        "date": "Enter a date the calendar knows, such as 2026-10-11."
       },
       "shareTitle": "Publish as a public form",
       "shareLead": "Anyone with the link can create one {type} through a public endpoint that allows creating and nothing else. It is proposed as a change and reviewed before it works.",
@@ -952,7 +952,8 @@
       "post": "Comment",
       "remove": "Remove",
       "removeOne": "Remove your comment of {when}",
-      "unknown": "Not notified, because they may not read this space: {names}"
+      "unknown": "Not notified, because they may not read this space: {names}",
+      "writeFirst": "Write a comment first."
     }
   },
   "endpoints": {
@@ -1520,7 +1521,7 @@
       "resident": "resident",
       "residentHelp": "Runs continuously in the project's Bento runner.",
       "scheduled": "scheduled",
-      "scheduledHelp": "Runs as a Kubernetes CronJob and stops between runs.",
+      "scheduledHelp": "Runs on a schedule and stops between runs.",
       "auto": "auto",
       "autoHelp": "The reconciler picks: resident under 30 seconds or push-based, scheduled otherwise."
     },
@@ -1652,7 +1653,7 @@
       },
       "kpi": {
         "title": "Analyse (KPI)",
-        "lead": "Aggregate context data from an endpoint into a KeyPerformanceIndicator entity written to the project KPI space.",
+        "lead": "Aggregate context data from an endpoint into a KPI entity written to the project's KPI space.",
         "endpoint": "Source endpoint",
         "type": "Entity type",
         "attribute": "Attribute",
@@ -1669,7 +1670,8 @@
         "attributeHint": "The numeric attribute of that type the aggregate reads.",
         "attributePick": "The numeric attributes the model of that type lists; pick the one the aggregate reads.",
         "aggregateHint": "How the values of one period become one number.",
-        "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h."
+        "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h.",
+        "pickEndpoint": "Pick an endpoint first."
       },
       "process": "3. Process",
       "processHint": "A snippet writes the Bloblang below; edit it afterwards or pick another compute kind in the form.",
@@ -1682,7 +1684,9 @@
       "sourceKindHint": "An external feed this project connects to, or a context space this project already fills.",
       "dataSourceHint": "The feed's connection, as saved under Data sources; a new feed is added there first.",
       "spaceHint": "The space the pipeline reads, through one of its endpoints and that endpoint's policy.",
-      "attributeHint": "The attribute the snippet below works on."
+      "attributeHint": "The attribute the snippet below works on.",
+      "pickSpaceFirst": "Pick a space first.",
+      "pickTypeFirst": "Pick an endpoint and a type first."
     },
     "test": {
       "title": "Try it on a sample",
@@ -1794,7 +1798,12 @@
           "mappingRef": "Needs a mapping name",
           "module": "Needs a module"
         }
-      }
+      },
+      "nothingToUndo": "Nothing to undo yet.",
+      "nothingToRedo": "Nothing to redo.",
+      "zoomClosed": "Zoom works on the canvas view, from 50 % to 200 %.",
+      "atTop": "Already the first step.",
+      "atBottom": "Already the last step."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
@@ -1842,7 +1851,7 @@
       "hour": "Hour from {at}",
       "sent": "Written",
       "rejected": "Rejected",
-      "failed": "Failed",
+      "failed": "Ended with an error",
       "log": "Log",
       "show": "Show the log of {run}",
       "logCaption": "Log of the run {run}",
@@ -1856,7 +1865,7 @@
       "outcomes": {
         "sent": "Written",
         "rejected": "Rejected",
-        "failed": "Failed"
+        "failed": "Ended with an error"
       },
       "newest": "Newest",
       "older": "Older lines",
@@ -1946,7 +1955,7 @@
         "compare": "Compare with the space",
         "hint": "Reads the entities with these ids as you may read them; nothing is written.",
         "noIds": "The mapped records carry no id to compare by.",
-        "failed": "The space could not be read: {reason}",
+        "failed": "The space could not be read: {reason}. Reload the page to try again.",
         "counts": "{create, plural, =0 {nothing to create} one {# to create} other {# to create}}, {update, plural, =0 {nothing to update} one {# to update} other {# to update}}, {unchanged, plural, =0 {none unchanged} one {# unchanged} other {# unchanged}}.",
         "caption": "Each mapped record against the entity {space} holds now",
         "entity": "Entity",
@@ -1996,10 +2005,10 @@
       "previewEmpty": "No record to preview yet.",
       "problem": {
         "required": "{name} is required: map a field to it or give it a value.",
-        "notInSample": "The sample has no field {field}.",
-        "notNumber": "{field} holds “{value}”, which is not a number; {name} takes a number.",
-        "notBoolean": "{field} holds “{value}”, which is not true or false; {name} takes true or false.",
-        "notValue": "{field} holds “{value}”; {name} takes one of {values}.",
+        "notInSample": "The sample has no field {field}. Pick a field the sample has, or load another sample.",
+        "notNumber": "{field} holds “{value}”, which is not a number; {name} takes a number. Pick another field or change the sample.",
+        "notBoolean": "{field} holds “{value}”, which is not true or false; {name} takes true or false. Pick another field or change the sample.",
+        "notValue": "{field} holds “{value}”; {name} takes one of {values}. Pick another field or change the sample.",
         "noId": "Choose the field each entity's id comes from."
       }
     },
@@ -2037,7 +2046,9 @@
       "stepModeFile": "Step mode cuts a file sample into its messages; give a file instead of the URL.",
       "runMessage": "Run message {number} of {total}",
       "startOver": "Start over",
-      "position": "Message {number} of {total}"
+      "position": "Message {number} of {total}",
+      "nothingToClear": "The log is empty.",
+      "atFirst": "This is the first message."
     },
     "schedule": {
       "how": "How often",
@@ -2104,7 +2115,7 @@
         "source": "Choose the source.",
         "target": "Choose where the pipeline writes.",
         "type": "Name the entity type to aggregate.",
-        "attribute": "Name a numeric attribute: letters, digits and underscores."
+        "attribute": "Enter a numeric attribute name: letters, digits and underscores."
       }
     }
   },

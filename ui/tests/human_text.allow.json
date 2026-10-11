@@ -468,103 +468,53 @@
       ],
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
-    "pipelines.class.scheduledHelp": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "pipelines.debug.rerunFailed": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a step's state beside its rerun button, not a message; the step's error sits under it"
     },
     "pipelines.field.computeChoice.wasm": {
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the main text is 'Compute module'; WebAssembly in brackets is the standard's own name, secondary"
     },
     "pipelines.mapper.idHint": {
       "rules": [
         "urn"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "pipelines.mapper.problem.notBoolean": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "pipelines.mapper.problem.notInSample": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "pipelines.mapper.problem.notNumber": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "pipelines.mapper.problem.notValue": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the id format is what this help line explains, shown under the field as copyable detail"
     },
     "pipelines.metrics.errors": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "pipelines.recipe.problem.attribute": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a column heading of the metrics table, not a message"
     },
     "pipelines.runs.failed": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a run's state in the runs list; the run's page holds the error and the retry"
     },
     "pipelines.runs.outcomes.failed": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "pipelines.studio.kpi.lead": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a run's state in the runs list; the run's page holds the error and the retry"
     },
     "pipelines.test.errors": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "pipelines.workbench.changes.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a count label over the list of errors, not a message"
     },
     "pipelines.workbench.output.problems": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a heading over the list of problems, each of which says its fix"
     },
     "problem.domain-not-verified": {
       "rules": [
@@ -624,91 +574,13 @@
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.api.tokensLead": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.api.tokensLink": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.fields.formula.noAccount": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.fields.lead": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.fields.problem.formulaInvalid": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.fields.problem.valueInvalid": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.fields.problem.valueTwice": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.form.problem.date": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.form.problem.integer": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.form.problem.number": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.form.problem.point": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.form.problem.required": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "SensorThings is the OGC standard's own name, the one a developer searches for"
     },
     "spaces.form.problem.urn": {
       "rules": [
         "urn"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "spaces.saved.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the entity id is the value asked for; the example id is copyable detail"
     },
     "syncSources.lastError": {
       "rules": [
@@ -858,26 +730,6 @@
     },
     "src/pages/models/RelationshipEditor.tsx": {
       "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/pipelines/DebugPanel.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/pipelines/PipelineFlow.tsx": {
-      "count": 7,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/pipelines/PipelineStudio.tsx": {
-      "count": 3,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/pipelines/PipelineTest.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/spaces/Comments.tsx": {
-      "count": 2,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/pages/sync/SyncSourcesPage.tsx": {

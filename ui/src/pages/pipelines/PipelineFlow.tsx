@@ -768,10 +768,10 @@ export function PipelineFlow({
         aria-label={t("pipelines.flow.tools")}
         className="flex flex-wrap items-center gap-2"
       >
-        <Button size="sm" variant="ghost" disabled={past.length === 0} onClick={undo} aria-keyshortcuts="Control+Z">
+        <Button size="sm" variant="ghost" disabled={past.length === 0} disabledReason={t("pipelines.flow.nothingToUndo")} onClick={undo} aria-keyshortcuts="Control+Z">
           {t("pipelines.flow.undo")}
         </Button>
-        <Button size="sm" variant="ghost" disabled={future.length === 0} onClick={redo} aria-keyshortcuts="Control+Shift+Z">
+        <Button size="sm" variant="ghost" disabled={future.length === 0} disabledReason={t("pipelines.flow.nothingToRedo")} onClick={redo} aria-keyshortcuts="Control+Shift+Z">
           {t("pipelines.flow.redo")}
         </Button>
         <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
@@ -780,6 +780,7 @@ export function PipelineFlow({
           variant="ghost"
           aria-label={t("pipelines.flow.zoomOut")}
           disabled={view !== "canvas" || (zoom ?? 1) <= 0.5}
+          disabledReason={t("pipelines.flow.zoomClosed")}
           onClick={() => setZoom(Math.max(0.5, (zoom ?? 1) - 0.25))}
         >
           −
@@ -792,11 +793,12 @@ export function PipelineFlow({
           variant="ghost"
           aria-label={t("pipelines.flow.zoomIn")}
           disabled={view !== "canvas" || (zoom ?? 1) >= 2}
+          disabledReason={t("pipelines.flow.zoomClosed")}
           onClick={() => setZoom(Math.min(2, (zoom ?? 1) + 0.25))}
         >
           +
         </Button>
-        <Button size="sm" variant="ghost" disabled={view !== "canvas" || zoom === null} onClick={() => setZoom(null)}>
+        <Button size="sm" variant="ghost" disabled={view !== "canvas" || zoom === null} disabledReason={t("pipelines.flow.zoomClosed")} onClick={() => setZoom(null)}>
           {t("pipelines.flow.fit")}
         </Button>
         <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
@@ -837,11 +839,11 @@ export function PipelineFlow({
                   </Button>
                   {at >= 0 ? (
                     <>
-                      <Button size="sm" variant="ghost" disabled={at === 0} onClick={() => shift(node.id, -1)}>
+                      <Button size="sm" variant="ghost" disabled={at === 0} disabledReason={t("pipelines.flow.atTop")} onClick={() => shift(node.id, -1)}>
                         {t("pipelines.flow.moveUp")}
                         <span className="sr-only"> {nodeName(node)} {node.kind}</span>
                       </Button>
-                      <Button size="sm" variant="ghost" disabled={at === lane.length - 1} onClick={() => shift(node.id, 1)}>
+                      <Button size="sm" variant="ghost" disabled={at === lane.length - 1} disabledReason={t("pipelines.flow.atBottom")} onClick={() => shift(node.id, 1)}>
                         {t("pipelines.flow.moveDown")}
                         <span className="sr-only"> {nodeName(node)} {node.kind}</span>
                       </Button>

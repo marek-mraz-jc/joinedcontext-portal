@@ -875,6 +875,7 @@ export function PipelineStudio({
               variant="primary"
               data-testid="studio-kpi-test"
               disabled={!kpiEndpoint || kpiTesting}
+              disabledReason={kpiTesting ? t("app.busyReason") : t("pipelines.studio.kpi.pickEndpoint")}
               onClick={() => {
                 void runKpiTest();
               }}
@@ -1264,6 +1265,7 @@ export function PipelineStudio({
                     id="studio-endpoint"
                     value={endpointName ?? ""}
                     disabled={!space}
+                    title={!space ? t("pipelines.studio.pickSpaceFirst") : undefined}
                     onChange={(event) => chooseEndpoint(event.target.value)}
                   >
                     <option value="">—</option>
@@ -1296,6 +1298,7 @@ export function PipelineStudio({
                 <Button
                   size="sm"
                   disabled={!slug || !type || loading}
+                  disabledReason={loading ? t("app.busyReason") : t("pipelines.studio.pickTypeFirst")}
                   onClick={() => {
                     void loadSample();
                   }}

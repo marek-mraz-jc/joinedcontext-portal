@@ -87,11 +87,11 @@ describe("the pipeline graph", () => {
 
     await user.click(screen.getByRole("button", { name: flow.undo }));
     expect(run(last())).toEqual(["log", "jq", "compute"]);
-    expect(screen.getByRole("button", { name: flow.undo })).toBeDisabled();
+    expect(screen.getByRole("button", { name: flow.undo })).toHaveAttribute("aria-disabled", "true");
 
     await user.click(screen.getByRole("button", { name: flow.redo }));
     expect(run(last())).toEqual(["jq", "compute", "log"]);
-    expect(screen.getByRole("button", { name: flow.redo })).toBeDisabled();
+    expect(screen.getByRole("button", { name: flow.redo })).toHaveAttribute("aria-disabled", "true");
 
     // The keys do the same from anywhere on the graph that is not a text box.
     fireEvent.keyDown(screen.getByTestId("flow-node-source"), { key: "z", ctrlKey: true });
@@ -142,7 +142,7 @@ describe("the pipeline graph", () => {
     const user = userEvent.setup();
     held(THREE);
     const svg = screen.getByTestId("flow-canvas");
-    expect(screen.getByRole("button", { name: flow.fit })).toBeDisabled();
+    expect(screen.getByRole("button", { name: flow.fit })).toHaveAttribute("aria-disabled", "true");
     await user.click(screen.getByRole("button", { name: flow.zoomIn }));
     expect(screen.getByText("125 %")).toBeInTheDocument();
     const wide = Number(svg.getAttribute("width"));
@@ -151,7 +151,7 @@ describe("the pipeline graph", () => {
     expect(Number(svg.getAttribute("width"))).toBeLessThan(wide);
     await user.click(screen.getByRole("button", { name: flow.zoomOut }));
     expect(screen.getByText("50 %")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: flow.zoomOut })).toBeDisabled();
+    expect(screen.getByRole("button", { name: flow.zoomOut })).toHaveAttribute("aria-disabled", "true");
     await user.click(screen.getByRole("button", { name: flow.fit }));
     expect(svg).not.toHaveAttribute("width");
     expect(screen.getByText(flow.fitted)).toBeInTheDocument();
@@ -184,7 +184,7 @@ describe("the pipeline graph", () => {
 
     // The first step cannot go up; moving it down swaps it with the second.
     const first = within(items[1]);
-    expect(first.getByRole("button", { name: /^Move up/ })).toBeDisabled();
+    expect(first.getByRole("button", { name: /^Move up/ })).toHaveAttribute("aria-disabled", "true");
     await user.click(first.getByRole("button", { name: /^Move down/ }));
     expect(run(last())).toEqual(["jq", "log", "compute"]);
 

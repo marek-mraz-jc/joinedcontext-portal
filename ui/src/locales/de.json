@@ -591,7 +591,7 @@
     "fields": {
       "add": "Feld hinzufügen",
       "title": "Feld zu {type} hinzufügen",
-      "lead": "Ein Feld ist ein Attribut im DataModel des Typs. Das Hinzufügen schlägt eine Modelländerung zur Prüfung vor; die Daten ändern sich erst nach dem Zusammenführen.",
+      "lead": "Ein Feld ist ein Attribut im Datenmodell des Typs. Das Hinzufügen schlägt eine Modelländerung zur Prüfung vor; die Daten ändern sich erst nach dem Zusammenführen.",
       "propose": "Feld vorschlagen",
       "refused": "Das Feld konnte nicht vorgeschlagen werden",
       "refusedStatus": "Das Portal antwortete {status}.",
@@ -615,12 +615,12 @@
         "nameInvalid": "Nur Buchstaben, Ziffern und _, beginnend mit einem Buchstaben.",
         "nameTaken": "Dieser Typ oder sein Modell hat bereits ein Attribut mit diesem Namen.",
         "valuesMissing": "Geben Sie mindestens einen Auswahlwert an.",
-        "valueInvalid": "Ein Auswahlwert ist leer, zu lang (über 100 Zeichen) oder enthält ein Steuerzeichen.",
-        "valueTwice": "Ein Auswahlwert steht doppelt in der Liste.",
+        "valueInvalid": "Ein Auswahlwert ist leer, länger als 100 Zeichen oder enthält ein Steuerzeichen. Füllen Sie ihn aus oder kürzen Sie ihn.",
+        "valueTwice": "Ein Auswahlwert steht doppelt in der Liste. Entfernen Sie einen davon.",
         "targetMissing": "Wählen Sie den Typ, auf den verwiesen wird.",
         "inverseInvalid": "Nur Buchstaben, Ziffern und _, und ein anderer Name als der des Feldes.",
         "inverseTaken": "Der Zieltyp hat bereits ein Attribut mit diesem Namen.",
-        "formulaInvalid": "Die Formel lässt sich nicht berechnen: {reason}"
+        "formulaInvalid": "Die Formel lässt sich nicht berechnen: {reason}. Korrigieren Sie die Formel und prüfen Sie sie erneut."
       },
       "types": {
         "text": "Text",
@@ -642,7 +642,7 @@
         "expression": "Formel",
         "help": "Wird alle fünf Minuten aus den Feldern dieser Entität berechnet und als ihr Wert gespeichert, etwa {example}. Erlaubt sind {slots}, Zahlen, Text in Anführungszeichen, + - * / %, Vergleiche, and, or, not, abs, round, min und max.",
         "noEndpoint": "Kein Endpoint dieses Raums antwortet nach allen Policies des Raums, daher hat die Pipeline einer Formel keinen Ort zum Lesen und Schreiben. Legen Sie zuerst einen ohne policyRef an.",
-        "noAccount": "Dieses Projekt hat kein ServiceAccount pipelines, das die Pipeline einer Formel ausführt. Legen Sie es zuerst an.",
+        "noAccount": "Dieses Projekt hat kein Dienstkonto namens pipelines, das die Pipeline einer Formel ausführt. Legen Sie es zuerst an.",
         "pipelineRefused": "Das Feld ist vorgeschlagen, seine Pipeline aber nicht: {reason}"
       }
     },
@@ -731,8 +731,8 @@
       "index": "Endpoint-Index",
       "answered": "Der Endpoint antwortete {status}, gelesen mit Ihrer Sitzung:",
       "tokens": "Ein Token für ein Programm",
-      "tokensLead": "Ein Programm liest mit seinem eigenen ServiceAccount: einem Keycloak-Client mit einer Rolle in diesem Projekt, dessen Tokens die Policy des Endpoints wie Ihre beurteilt. Fügen Sie nie die Sitzung einer Person in ein Programm ein.",
-      "tokensLink": "ServiceAccounts dieses Projekts",
+      "tokensLead": "Ein Programm liest mit seinem eigenen Dienstkonto: einem Keycloak-Client mit einer Rolle in diesem Projekt, dessen Tokens die Policy des Endpoints wie Ihre beurteilt. Fügen Sie nie die Sitzung einer Person in ein Programm ein.",
+      "tokensLink": "Dienstkonten dieses Projekts",
       "webhooks": "Webhooks",
       "webhooksLead": "Eine NGSI-LD-Subscription auf {type}, die eine URL aufruft, wenn sich eine Entität ändert, als Change vorgeschlagen.",
       "noWebhook": "Noch kein Webhook beobachtet diesen Typ.",
@@ -794,7 +794,7 @@
       "governReason": "Nur der Eigentümer der Ansicht oder ein Verwalter des Raums löscht sie.",
       "deleteTitle": "Ansicht {title} löschen?",
       "deleteHelp": "Nur die Ansicht wird gelöscht; die Daten im Raum bleiben unverändert.",
-      "failed": "Die Ansicht konnte nicht gespeichert werden",
+      "failed": "Die Ansicht konnte nicht gespeichert werden. Versuchen Sie es in einer Minute erneut.",
       "conflict": "Jemand hat diese Ansicht inzwischen gespeichert ({detail}). Laden Sie deren Fassung und speichern Sie erneut.",
       "reload": "Ansichten neu laden",
       "unavailable": "Gespeicherte Ansichten können gerade nicht geladen werden; die Tabelle funktioniert weiter.",
@@ -852,12 +852,12 @@
       "created": "Angelegt: {id}.",
       "noFields": "Das Modell von {type} hat kein Feld, das ein Formular abfragen kann.",
       "problem": {
-        "required": "Eine Antwort ist nötig.",
-        "integer": "Eine ganze Zahl, etwa 12.",
-        "number": "Eine Zahl, etwa 2,5.",
-        "urn": "Eine Entitäts-ID, urn:ngsi-ld:Typ:…",
-        "point": "Breite (−90 bis 90) und Länge (−180 bis 180).",
-        "date": "Ein gültiges Datum."
+        "required": "Beantworten Sie diese Frage: Sie ist erforderlich.",
+        "integer": "Geben Sie eine ganze Zahl ein, etwa 12.",
+        "number": "Geben Sie eine Zahl ein, etwa 2,5.",
+        "urn": "Geben Sie eine Entitäts-ID ein, etwa urn:ngsi-ld:Vehicle:bus-12.",
+        "point": "Geben Sie Breite (−90 bis 90) und Länge (−180 bis 180) ein.",
+        "date": "Geben Sie ein gültiges Datum ein, etwa 2026-10-11."
       },
       "shareTitle": "Als öffentliches Formular veröffentlichen",
       "shareLead": "Wer den Link hat, kann einen Datensatz {type} über einen öffentlichen Endpoint anlegen, der nur das Anlegen erlaubt. Er wird als Änderung vorgeschlagen und wirkt erst nach der Prüfung.",
@@ -952,7 +952,8 @@
       "post": "Kommentieren",
       "remove": "Entfernen",
       "removeOne": "Ihren Kommentar vom {when} entfernen",
-      "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}"
+      "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}",
+      "writeFirst": "Schreiben Sie zuerst einen Kommentar."
     }
   },
   "endpoints": {
@@ -1520,7 +1521,7 @@
       "resident": "resident",
       "residentHelp": "Läuft durchgehend im Bento-Runner des Projekts.",
       "scheduled": "geplant",
-      "scheduledHelp": "Läuft als Kubernetes-CronJob und pausiert zwischen den Läufen.",
+      "scheduledHelp": "Läuft nach Zeitplan und pausiert zwischen den Läufen.",
       "auto": "auto",
       "autoHelp": "Der Reconciler wählt: resident unter 30 Sekunden oder push-basiert, sonst geplant."
     },
@@ -1660,7 +1661,7 @@
       },
       "kpi": {
         "title": "Analyse (KPI)",
-        "lead": "Fasst Kontextdaten eines Endpunkts zu einer KeyPerformanceIndicator-Entität zusammen, die in den KPI-Raum des Projekts geschrieben wird.",
+        "lead": "Fasst Kontextdaten eines Endpunkts zu einer KPI-Entität zusammen, die in den KPI-Raum des Projekts geschrieben wird.",
         "endpoint": "Quell-Endpunkt",
         "type": "Entitätstyp",
         "attribute": "Attribut",
@@ -1677,12 +1678,15 @@
         "attributeHint": "Das numerische Attribut dieses Typs, das die Aggregation liest.",
         "attributePick": "Die numerischen Attribute, die das Modell dieses Typs nennt; wählen Sie das, das die Aggregation liest.",
         "aggregateHint": "Wie die Werte eines Zeitraums zu einer Zahl werden.",
-        "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h."
+        "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h.",
+        "pickEndpoint": "Wählen Sie zuerst einen Endpoint."
       },
       "sourceKindHint": "Eine externe Quelle, mit der sich dieses Projekt verbindet, oder ein Context Space, den dieses Projekt bereits füllt.",
       "dataSourceHint": "Die Verbindung der Quelle, wie unter Datenquellen gespeichert; eine neue Quelle legen Sie zuerst dort an.",
       "spaceHint": "Der Space, den die Pipeline liest, über einen seiner Endpoints und dessen Policy.",
-      "attributeHint": "Das Attribut, mit dem das Snippet unten arbeitet."
+      "attributeHint": "Das Attribut, mit dem das Snippet unten arbeitet.",
+      "pickSpaceFirst": "Wählen Sie zuerst einen Raum.",
+      "pickTypeFirst": "Wählen Sie zuerst einen Endpoint und einen Typ."
     },
     "test": {
       "title": "An einer Probe ausprobieren",
@@ -1794,7 +1798,12 @@
           "mappingRef": "Mapping-Name fehlt",
           "module": "Modul fehlt"
         }
-      }
+      },
+      "nothingToUndo": "Noch nichts rückgängig zu machen.",
+      "nothingToRedo": "Nichts zu wiederholen.",
+      "zoomClosed": "Zoom funktioniert in der Leinwandansicht, von 50 % bis 200 %.",
+      "atTop": "Bereits der erste Schritt.",
+      "atBottom": "Bereits der letzte Schritt."
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
@@ -1842,7 +1851,7 @@
       "hour": "Stunde ab {at}",
       "sent": "Geschrieben",
       "rejected": "Abgelehnt",
-      "failed": "Gescheitert",
+      "failed": "Mit Fehler beendet",
       "log": "Protokoll",
       "show": "Protokoll des Laufs {run} anzeigen",
       "logCaption": "Protokoll des Laufs {run}",
@@ -1856,7 +1865,7 @@
       "outcomes": {
         "sent": "Geschrieben",
         "rejected": "Abgelehnt",
-        "failed": "Gescheitert"
+        "failed": "Mit Fehler beendet"
       },
       "newest": "Neueste",
       "older": "Ältere Zeilen",
@@ -1946,7 +1955,7 @@
         "compare": "Mit dem Raum vergleichen",
         "hint": "Liest die Entitäten mit diesen IDs, wie Sie sie lesen dürfen; nichts wird geschrieben.",
         "noIds": "Die gemappten Datensätze haben keine ID zum Vergleichen.",
-        "failed": "Der Raum konnte nicht gelesen werden: {reason}",
+        "failed": "Der Raum konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
         "counts": "{create, plural, =0 {nichts anzulegen} other {# anzulegen}}, {update, plural, =0 {nichts zu ändern} other {# zu ändern}}, {unchanged, plural, =0 {keine unverändert} other {# unverändert}}.",
         "caption": "Jeder gemappte Datensatz gegen die Entität, die {space} jetzt hält",
         "entity": "Entität",
@@ -1996,10 +2005,10 @@
       "previewEmpty": "Noch nichts zur Vorschau.",
       "problem": {
         "required": "{name} ist Pflicht: ordnen Sie ein Feld zu oder geben Sie einen Wert an.",
-        "notInSample": "Die Stichprobe hat kein Feld {field}.",
-        "notNumber": "{field} enthält „{value}“, keine Zahl; {name} erwartet eine Zahl.",
-        "notBoolean": "{field} enthält „{value}“, weder true noch false; {name} erwartet true oder false.",
-        "notValue": "{field} enthält „{value}“; {name} erwartet einen der Werte {values}.",
+        "notInSample": "Die Stichprobe hat kein Feld {field}. Wählen Sie ein Feld der Stichprobe oder laden Sie eine andere.",
+        "notNumber": "{field} enthält „{value}“, keine Zahl; {name} erwartet eine Zahl. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
+        "notBoolean": "{field} enthält „{value}“, weder true noch false; {name} erwartet true oder false. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
+        "notValue": "{field} enthält „{value}“; {name} erwartet einen der Werte {values}. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
         "noId": "Wählen Sie das Feld, aus dem die Id jeder Entität entsteht."
       }
     },
@@ -2037,7 +2046,9 @@
       "stepModeFile": "Der Schrittmodus teilt eine Dateiprobe in Nachrichten; geben Sie statt der URL eine Datei.",
       "runMessage": "Nachricht {number} von {total} ausführen",
       "startOver": "Von vorn",
-      "position": "Nachricht {number} von {total}"
+      "position": "Nachricht {number} von {total}",
+      "nothingToClear": "Das Protokoll ist leer.",
+      "atFirst": "Das ist die erste Nachricht."
     },
     "schedule": {
       "how": "Wie oft",
@@ -2104,7 +2115,7 @@
         "source": "Wählen Sie die Quelle.",
         "target": "Wählen Sie, wohin die Pipeline schreibt.",
         "type": "Nennen Sie den zu aggregierenden Entitätstyp.",
-        "attribute": "Nennen Sie ein numerisches Attribut: Buchstaben, Ziffern und Unterstriche."
+        "attribute": "Geben Sie den Namen eines numerischen Attributs ein: Buchstaben, Ziffern und Unterstriche."
       }
     }
   },

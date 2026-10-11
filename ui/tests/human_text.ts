@@ -50,7 +50,7 @@ export function hasNextStep(text: string): boolean {
     .split(/[.!?](?:\s|$)/)
     .filter((s) => s.trim().length > 0);
   if (sentences.length >= 2) return true;
-  return /\b(try|check|ask|use|open|sign in|reload|contact|choose|pick|enter|fix|add|remove|wait|retry|change|correct|select|type|give)\b/i.test(
+  return /\b(try|check|ask|use|open|sign in|reload|contact|choose|pick|enter|fix|add|remove|wait|retry|change|correct|select|type|give|answer)\b/i.test(
     text,
   );
 }

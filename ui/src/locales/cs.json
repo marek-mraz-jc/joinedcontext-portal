@@ -591,7 +591,7 @@
     "fields": {
       "add": "Přidat pole",
       "title": "Přidat pole do {type}",
-      "lead": "Pole je atribut DataModelu typu. Přidání navrhne změnu modelu ke schválení; data se nezmění, dokud není sloučena.",
+      "lead": "Pole je atribut datového modelu typu. Přidání navrhne změnu modelu ke schválení; data se nezmění, dokud není sloučena.",
       "propose": "Navrhnout pole",
       "refused": "Pole se nepodařilo navrhnout",
       "refusedStatus": "Portál odpověděl {status}.",
@@ -615,12 +615,12 @@
         "nameInvalid": "Použijte pouze písmena, číslice a _, na začátku písmeno.",
         "nameTaken": "Tento typ nebo jeho model už má atribut s tímto názvem.",
         "valuesMissing": "Zadejte alespoň jednu možnost.",
-        "valueInvalid": "Některá možnost je prázdná, příliš dlouhá (nad 100 znaků) nebo obsahuje řídicí znak.",
-        "valueTwice": "Některá možnost je uvedena dvakrát.",
+        "valueInvalid": "Některá možnost je prázdná, delší než 100 znaků nebo obsahuje řídicí znak. Vyplňte ji nebo ji zkraťte.",
+        "valueTwice": "Některá možnost je uvedena dvakrát. Jednu z nich odstraňte.",
         "targetMissing": "Vyberte typ, na který odkazuje.",
         "inverseInvalid": "Použijte pouze písmena, číslice a _ a jiný název, než má pole.",
         "inverseTaken": "Cílový typ už má atribut s tímto názvem.",
-        "formulaInvalid": "Vzorec nelze vypočítat: {reason}"
+        "formulaInvalid": "Vzorec nelze vypočítat: {reason}. Opravte vzorec a zkontrolujte ho znovu."
       },
       "types": {
         "text": "Text",
@@ -731,8 +731,8 @@
       "index": "Index endpointu",
       "answered": "Endpoint odpověděl {status}, čteno s vaší relací:",
       "tokens": "Token pro program",
-      "tokensLead": "Program čte vlastním ServiceAccountem: klientem Keycloak s rolí v tomto projektu, jehož tokeny posuzuje politika endpointu jako ty vaše. Nikdy nevkládejte relaci osoby do programu.",
-      "tokensLink": "ServiceAccounty tohoto projektu",
+      "tokensLead": "Program čte vlastním servisním účtem: klientem Keycloak s rolí v tomto projektu, jehož tokeny posuzuje politika endpointu jako ty vaše. Nikdy nevkládejte relaci osoby do programu.",
+      "tokensLink": "Servisní účty tohoto projektu",
       "webhooks": "Webhooky",
       "webhooksLead": "NGSI-LD subscription na {type}, která zavolá URL, když se entita změní, navržená jako změna.",
       "noWebhook": "Tento typ zatím nesleduje žádný webhook.",
@@ -794,7 +794,7 @@
       "governReason": "Smazat pohled může jen jeho vlastník nebo správce prostoru.",
       "deleteTitle": "Smazat pohled {title}?",
       "deleteHelp": "Smaže se jen pohled; data v prostoru se nezmění.",
-      "failed": "Pohled se nepodařilo uložit",
+      "failed": "Pohled se nepodařilo uložit. Zkuste to znovu za minutu.",
       "conflict": "Mezitím tento pohled uložil někdo jiný ({detail}). Načtěte jeho verzi a uložte znovu.",
       "reload": "Znovu načíst pohledy",
       "unavailable": "Uložené pohledy se teď nedají načíst; tabulka funguje dál.",
@@ -852,12 +852,12 @@
       "created": "Vytvořeno {id}.",
       "noFields": "Model typu {type} nemá pole, na které by se formulář mohl ptát.",
       "problem": {
-        "required": "Odpověď je povinná.",
-        "integer": "Celé číslo.",
-        "number": "Číslo.",
-        "urn": "Identifikátor entity, urn:ngsi-ld:Typ:…",
-        "point": "Zeměpisnou šířku (−90 až 90) i délku (−180 až 180).",
-        "date": "Datum, které kalendář zná."
+        "required": "Odpovězte, tato otázka je povinná.",
+        "integer": "Zadejte celé číslo, například 12.",
+        "number": "Zadejte číslo, například 2,5.",
+        "urn": "Zadejte identifikátor entity, například urn:ngsi-ld:Vehicle:bus-12.",
+        "point": "Zadejte zeměpisnou šířku (−90 až 90) i délku (−180 až 180).",
+        "date": "Zadejte platné datum, například 2026-10-11."
       },
       "shareTitle": "Zveřejnit jako veřejný formulář",
       "shareLead": "Kdokoli s odkazem může vytvořit jeden záznam {type} přes veřejný endpoint, který dovoluje pouze vytváření. Navrhne se jako změna a funguje až po schválení.",
@@ -952,7 +952,8 @@
       "post": "Komentovat",
       "remove": "Odstranit",
       "removeOne": "Odstranit váš komentář z {when}",
-      "unknown": "Bez upozornění, protože nemohou číst tento prostor: {names}"
+      "unknown": "Bez upozornění, protože nemohou číst tento prostor: {names}",
+      "writeFirst": "Nejprve napište komentář."
     }
   },
   "endpoints": {
@@ -1520,7 +1521,7 @@
       "resident": "rezidentní",
       "residentHelp": "Běží nepřetržitě v Bento runneru projektu.",
       "scheduled": "plánovaná",
-      "scheduledHelp": "Běží jako Kubernetes CronJob a mezi běhy se zastaví.",
+      "scheduledHelp": "Běží podle plánu a mezi běhy se zastaví.",
       "auto": "auto",
       "autoHelp": "Vybere reconciler: rezidentní pod 30 sekund nebo push, jinak plánovaná."
     },
@@ -1660,7 +1661,7 @@
       },
       "kpi": {
         "title": "Analýza (KPI)",
-        "lead": "Agreguje kontextová data z koncového bodu do entity KeyPerformanceIndicator zapsané do KPI prostoru projektu.",
+        "lead": "Agreguje kontextová data z koncového bodu do entity KPI zapsané do KPI prostoru projektu.",
         "endpoint": "Zdrojový koncový bod",
         "type": "Typ entity",
         "attribute": "Atribut",
@@ -1677,12 +1678,15 @@
         "attributeHint": "Číselný atribut toho typu, který agregace čte.",
         "attributePick": "Číselné atributy, které model daného typu uvádí; vyberte ten, který agregace čte.",
         "aggregateHint": "Jak se hodnoty jednoho období sloučí do jednoho čísla.",
-        "periodHint": "Jak často se ukazatel počítá, jako doba trvání, například 15m nebo 1h."
+        "periodHint": "Jak často se ukazatel počítá, jako doba trvání, například 15m nebo 1h.",
+        "pickEndpoint": "Nejprve vyberte endpoint."
       },
       "sourceKindHint": "Externí zdroj, ke kterému se projekt připojuje, nebo kontextový prostor, který projekt už plní.",
       "dataSourceHint": "Připojení zdroje, jak je uložené ve Zdrojích dat; nový zdroj přidáte nejprve tam.",
       "spaceHint": "Prostor, který pipeline čte, přes jeden z jeho endpointů a politiku toho endpointu.",
-      "attributeHint": "Atribut, se kterým pracuje úryvek níže."
+      "attributeHint": "Atribut, se kterým pracuje úryvek níže.",
+      "pickSpaceFirst": "Nejprve vyberte prostor.",
+      "pickTypeFirst": "Nejprve vyberte endpoint a typ."
     },
     "test": {
       "title": "Vyzkoušet na vzorku",
@@ -1794,7 +1798,12 @@
           "mappingRef": "Chybí název mapování",
           "module": "Chybí modul"
         }
-      }
+      },
+      "nothingToUndo": "Zatím není co vrátit.",
+      "nothingToRedo": "Není co zopakovat.",
+      "zoomClosed": "Přiblížení funguje v zobrazení plátna, od 50 % do 200 %.",
+      "atTop": "Už je to první krok.",
+      "atBottom": "Už je to poslední krok."
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
@@ -1842,7 +1851,7 @@
       "hour": "Hodina od {at}",
       "sent": "Zapsané",
       "rejected": "Odmítnuté",
-      "failed": "Selhané",
+      "failed": "Skončil chybou",
       "log": "Záznam",
       "show": "Zobrazit záznam běhu {run}",
       "logCaption": "Záznam běhu {run}",
@@ -1856,7 +1865,7 @@
       "outcomes": {
         "sent": "Zapsán",
         "rejected": "Odmítnut",
-        "failed": "Selhal"
+        "failed": "Skončil chybou"
       },
       "newest": "Nejnovější",
       "older": "Starší řádky",
@@ -1946,7 +1955,7 @@
         "compare": "Porovnat s prostorem",
         "hint": "Přečte entity s těmito id tak, jak je smíte číst vy; nic se nezapíše.",
         "noIds": "Namapované záznamy nemají id, podle kterého porovnat.",
-        "failed": "Prostor se nepodařilo přečíst: {reason}",
+        "failed": "Prostor se nepodařilo přečíst: {reason}. Obnovte stránku a zkuste to znovu.",
         "counts": "{create, plural, =0 {nic k vytvoření} other {k vytvoření: #}}, {update, plural, =0 {nic ke změně} other {ke změně: #}}, {unchanged, plural, =0 {žádné beze změny} other {beze změny: #}}.",
         "caption": "Každý namapovaný záznam proti entitě, kterou {space} drží teď",
         "entity": "Entita",
@@ -1996,10 +2005,10 @@
       "previewEmpty": "Zatím není co zobrazit.",
       "problem": {
         "required": "{name} je povinný: přiřaďte mu pole nebo zadejte hodnotu.",
-        "notInSample": "Vzorek nemá pole {field}.",
-        "notNumber": "{field} obsahuje „{value}“, což není číslo; {name} očekává číslo.",
-        "notBoolean": "{field} obsahuje „{value}“, což není true ani false; {name} očekává true nebo false.",
-        "notValue": "{field} obsahuje „{value}“; {name} očekává jednu z hodnot {values}.",
+        "notInSample": "Vzorek nemá pole {field}. Vyberte pole, které vzorek má, nebo načtěte jiný vzorek.",
+        "notNumber": "{field} obsahuje „{value}“, což není číslo; {name} očekává číslo. Vyberte jiné pole nebo změňte vzorek.",
+        "notBoolean": "{field} obsahuje „{value}“, což není true ani false; {name} očekává true nebo false. Vyberte jiné pole nebo změňte vzorek.",
+        "notValue": "{field} obsahuje „{value}“; {name} očekává jednu z hodnot {values}. Vyberte jiné pole nebo změňte vzorek.",
         "noId": "Vyberte pole, ze kterého vznikne id každé entity."
       }
     },
@@ -2037,7 +2046,9 @@
       "stepModeFile": "Krokování dělí vzorek ze souboru na zprávy; místo URL dejte soubor.",
       "runMessage": "Spustit zprávu {number} z {total}",
       "startOver": "Od začátku",
-      "position": "Zpráva {number} z {total}"
+      "position": "Zpráva {number} z {total}",
+      "nothingToClear": "Záznam je prázdný.",
+      "atFirst": "Toto je první zpráva."
     },
     "schedule": {
       "how": "Jak často",
@@ -2104,7 +2115,7 @@
         "source": "Vyberte zdroj.",
         "target": "Vyberte, kam pipeline zapisuje.",
         "type": "Zadejte typ entity k agregaci.",
-        "attribute": "Zadejte číselný atribut: písmena, číslice a podtržítka."
+        "attribute": "Zadejte název číselného atributu: písmena, číslice a podtržítka."
       }
     }
   },
