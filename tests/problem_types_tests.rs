@@ -1,7 +1,7 @@
 //! Every problem type the Portal API answers with has words in the Portal (T-3243, API/00 §4):
 //! the hint `problem.{slug}` the UI shows beside the API's sentence, in every locale it ships.
 //! The source walk is the audit: a slug the Portal starts answering with and nobody translated
-//! fails here, and so does a third place that builds a problem's `type` by hand.
+//! fails here, and so does a fourth place that builds a problem's `type` by hand.
 
 use std::path::{Path, PathBuf};
 
@@ -34,8 +34,11 @@ fn source_files() -> Vec<(String, String)> {
         .collect()
 }
 
-/// The two places that build a problem's `type`, and the slugs they are given: the `ApiError`
-/// mapping of `error.rs` (a `StatusCode::…` line, then the slug) and basemap's `problem_response`.
+/// The three places that build a problem's `type`, and the slugs they are given: the `ApiError`
+/// mapping of `error.rs` (a `StatusCode::…` line, then the slug), basemap's `problem_response` and
+/// the App services' `problem`, called in `apps/services.rs` and `apps/ai.rs` (API/06, T-3699).
+const AFTER_STATUS: [&str; 4] = ["error.rs", "basemap.rs", "apps/services.rs", "apps/ai.rs"];
+
 fn slugs() -> Vec<(String, String)> {
     let mut found = Vec::new();
     for (file, text) in source_files() {
@@ -48,7 +51,7 @@ fn slugs() -> Vec<(String, String)> {
                 if let Some(slug) = trimmed.split('"').nth(1) {
                     found.push((file.clone(), slug.to_owned()));
                 }
-            } else if (file.ends_with("error.rs") || file.ends_with("basemap.rs")) && after_status {
+            } else if AFTER_STATUS.iter().any(|f| file.ends_with(f)) && after_status {
                 if let Some(slug) = trimmed
                     .strip_prefix('"')
                     .and_then(|s| s.strip_suffix("\","))
@@ -83,7 +86,7 @@ fn every_problem_type_of_the_portal_has_its_hint_in_every_locale() {
 }
 
 #[test]
-fn a_problem_type_is_built_in_the_two_known_places_only() {
+fn a_problem_type_is_built_in_the_three_known_places_only() {
     let mut builders: Vec<String> = source_files()
         .into_iter()
         .filter(|(_, text)| text.contains("joinedcontext.com/errors/{"))
@@ -92,7 +95,7 @@ fn a_problem_type_is_built_in_the_two_known_places_only() {
     builders.sort();
     assert_eq!(
         builders,
-        vec!["src/api/basemap.rs", "src/error.rs"],
+        vec!["src/api/basemap.rs", "src/apps/services.rs", "src/error.rs"],
         "a new place builds a problem's type by hand; route it through ApiError, or add it to this walk"
     );
 }
