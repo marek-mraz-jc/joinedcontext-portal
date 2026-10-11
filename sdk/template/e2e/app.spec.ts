@@ -38,3 +38,20 @@ for (const size of WIDTHS) {
     expect(served).toEqual({ outside: [], missing: [], problems: [] });
   });
 }
+
+// EP-29 (T-3751): the overview's map of a located type reads its Features from the endpoint's OGC
+// API - Features surface, one `/items` page per type, and draws them without an error.
+test("the overview map reads its Features from the endpoint's OGC Features surface", async ({ page }) => {
+  const served = await serve(page);
+  const items = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/endpoint/app/ogc/features/collections/Station/items");
+  await page.goto(BASE);
+  const answer = await items;
+  expect(answer.status()).toBe(200);
+  const body = (await answer.json()) as { type: string; features: { id: string; geometry: { type: string } | null }[] };
+  expect(body.type).toBe("FeatureCollection");
+  expect(body.features.map((f) => f.geometry?.type)).toEqual(["Point", "Point", "Point"]);
+  await settled(page);
+  await expect(page.locator(".maplibregl-canvas").first()).toBeVisible();
+  expect(await page.locator(".jc-problem").allInnerTexts()).toEqual([]);
+  expect(served).toEqual({ outside: [], missing: [], problems: [] });
+});
