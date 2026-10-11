@@ -26,6 +26,13 @@ class ServiceRefusedError extends ProblemError { service: "files" | "email" | "j
 ```
 A platform service the organization, the project or the App switched off (`403`, `layer` names which), or a daily quota used up (`429`, `quota` and `resetAt`). Show it; never retry before `resetAt`.
 ```ts
+jc().features.collections(options?: { endpoint?: string }): Promise<FeatureCollectionInfo[]>
+jc().features.items(collection: string, query?: FeatureQuery): Promise<FeatureCollection>
+jc().features.get(collection: string, id: string, options?: { endpoint?: string }): Promise<Feature>
+type FeatureQuery = { endpoint?: string; bbox?: [number, number, number, number]; datetime?: string; filter?: string; properties?: string[]; sortby?: string[]; limit?: number }
+```
+The endpoint's OGC API - Features surface (EP-29), only where it lists `ogc-features` (else `404`): a collection is an entity type, a Feature's `id` the URN, `geometry` the `location`, `properties` the other attributes; the entities the endpoint's view and Policy admit. `filter` is CQL2 text; an operator the endpoint lacks is a `400` naming it. `bbox` is `[minLon, minLat, maxLon, maxLat]` (WGS 84), `datetime` an instant or interval (`..` open end), `sortby` names (`-` descending), `limit` 1 to 1000 (default 100). A `FeatureCollection` is a GeoJSON source as it is.
+```ts
 jc().email.send(message: { to: string[] | "me"; subject: string; text: string; html?: string }): Promise<{ id: string }>
 ```
 Sends a message to people of the organization, named by person id or `"me"` (the signed-in person), never by address; needs `email` in the App's `spec.services`. The platform adds the unsubscribe link. A subject with a line break is refused.
@@ -461,7 +468,8 @@ Creates an in-memory transport holding entity fixtures and recording request cal
 carries `entities`, `schema`, `access`, `functions`, `temporal` (the temporal read's answer as the
 broker's `temporalValues` bodies, filtered by the asked type), `refuse` (a response to send
 instead, per request) and `services` (an answer per request for `files`, `email`, `jobs` and `ai`,
-by service; a service without one answers `404`).
+by service; a service without one answers `404`). `features` reads the same entities
+(`location` the geometry; `bbox`, `properties`, `limit` apply); a CQL2 `filter` is `501`, use `refuse`.
 ```ts
 function stubClient(fixture?: Fixture, config?: Partial<JcConfig>): Client & { transport: StubTransport }
 ```

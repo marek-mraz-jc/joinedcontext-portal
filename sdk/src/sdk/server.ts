@@ -1,5 +1,5 @@
 export type { Cell, Row } from "../ngsi";
-export type { DataClient, Query, TemporalPoint, TemporalQuery, TemporalRow } from "./client";
+export type { DataClient, Feature, FeatureCollection, FeatureCollectionInfo, FeatureQuery, Query, TemporalPoint, TemporalQuery, TemporalRow } from "./client";
 export { ProblemError } from "./client";
 export type { JcUser } from "./config";
 import type { JcUser } from "./config";
