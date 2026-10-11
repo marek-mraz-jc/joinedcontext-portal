@@ -256,12 +256,9 @@ impl Sources {
     /// The Policies an Endpoint evaluates, as the gateway binds them (`store.rs`
     /// `endpoints_with_models`): with `policyRef` that one Policy of its space, else every
     /// Policy of its space; an App's Endpoint keeps the App's own grants and the prohibitions.
-    fn bound(&self, e: &EndpointSource) -> Vec<&PolicySpec> {
+    fn bound<'s>(&'s self, e: &EndpointSource) -> Vec<(&'s str, &'s PolicySpec)> {
         let space = e.spec.context_space_ref.name();
-        let app = e
-            .name
-            .strip_prefix("app-")
-            .is_some_and(|app| self.apps.contains(&(e.project.clone(), app.to_owned())));
+        let app = self.is_app(e);
         self.policies_of(&e.project, space)
             .iter()
             .filter(|(name, _)| match &e.spec.policy_ref {
@@ -270,11 +267,18 @@ impl Sources {
                 }
                 None => true,
             })
-            .map(|(_, policy)| policy)
-            .filter(|policy| {
+            .filter(|(_, policy)| {
                 !app || policy.effect.is_prohibition() || own_grant(policy, &e.project, &e.name)
             })
+            .map(|(name, policy)| (name.as_str(), policy))
             .collect()
+    }
+
+    /// Whether `e` is the Endpoint `app-{name}` an App of its project generated (AP-139).
+    fn is_app(&self, e: &EndpointSource) -> bool {
+        e.name
+            .strip_prefix("app-")
+            .is_some_and(|app| self.apps.contains(&(e.project.clone(), app.to_owned())))
     }
 }
 
@@ -505,6 +509,7 @@ fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String>
     let permits: Vec<&PolicySpec> = sources
         .bound(e)
         .into_iter()
+        .map(|(_, policy)| policy)
         .filter(|policy| !policy.effect.is_prohibition())
         .collect();
     if permits.is_empty() {
@@ -771,7 +776,8 @@ fn space_view(sources: &Sources, project: &str, name: &str, tenant: &str) -> Res
 }
 
 /// The rule document of one space's tenant (plan 3.3, the `joinedcontext` engine's README
-/// section 2): every Policy, each operation as its clause.
+/// section 2): every Policy, each operation as its clause, and per Endpoint view that binds
+/// fewer than all of them (`policyRef`, an App's Endpoint) the ids it is decided by (T-3702).
 fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
     let policies: Vec<Value> = sources
         .policies_of(project, space)
@@ -818,7 +824,24 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
             Value::Object(doc)
         })
         .collect();
-    json!({ "policies": policies })
+    let views: Map<String, Value> = sources
+        .endpoints
+        .iter()
+        .filter(|e| e.project == project && e.spec.context_space_ref.name() == space)
+        .filter(|e| e.spec.policy_ref.is_some() || sources.is_app(e))
+        .map(|e| {
+            let ids: Vec<String> = sources
+                .bound(e)
+                .into_iter()
+                .map(|(name, _)| format!("{project}/{name}"))
+                .collect();
+            (e.spec.slug.to_string(), json!(ids))
+        })
+        .collect();
+    if views.is_empty() {
+        return json!({ "policies": policies });
+    }
+    json!({ "policies": policies, "views": views })
 }
 
 /// The gateway's own account (context-gateway `GATEWAY_CLIENT`, T-3767): the hops it makes on
@@ -1502,6 +1525,63 @@ mod tests {
         assert_eq!(
             view_of(&s, &app).expect("a view")["selector"],
             json!(["Stop"])
+        );
+    }
+
+    /// T-3702: the rule document lists, per Endpoint view that binds fewer than all the
+    /// space's Policies, the ids it is decided by: `policyRef` its one Policy (another space's
+    /// binds none), an App's Endpoint its own grants and the prohibitions. An Endpoint binding
+    /// every Policy is not listed, so the engine decides it with all of them.
+    #[test]
+    fn the_rule_document_lists_the_policies_each_bound_view_is_decided_by() {
+        let own = jc_core::kinds::endpoint_role("city", "app-map", None);
+        let mut s = sources(vec![
+            ("cars", cars()),
+            (
+                "buses",
+                policy(json!({"information": [{"entities": [{"type": "Bus"}]}]})),
+            ),
+            (
+                "mine",
+                policy(json!({"assignee": {"kind": "role", "id": own},
+                              "information": [{"entities": [{"type": "Stop"}]}]})),
+            ),
+            (
+                "no-trucks",
+                policy(json!({"effect": "prohibition",
+                              "information": [{"entities": [{"type": "Truck"}]}]})),
+            ),
+        ]);
+        s.apps.insert(("city".into(), "map".into()));
+        let slug = |c: char| c.to_string().repeat(26);
+        let with_slug = |name: &str, c: char, mut extra: Value| {
+            if let Some(o) = extra.as_object_mut() {
+                o.insert("slug".into(), json!(slug(c)));
+            }
+            endpoint_named(name, extra)
+        };
+        s.endpoints = vec![
+            with_slug("air-public", 'a', json!({})),
+            with_slug(
+                "buses-only",
+                'b',
+                json!({"policyRef": "urn:ngsi-ld:Policy:city.example:city-air:buses"}),
+            ),
+            with_slug(
+                "elsewhere",
+                'c',
+                json!({"policyRef": "urn:ngsi-ld:Policy:city.example:other:buses"}),
+            ),
+            with_slug("app-map", 'd', json!({})),
+        ];
+        let document = &desired(&s).documents["city-air"].1;
+        assert_eq!(
+            document["views"],
+            json!({
+                slug('b'): ["city/buses"],
+                slug('c'): [],
+                slug('d'): ["city/mine", "city/no-trucks"],
+            })
         );
     }
 
