@@ -250,6 +250,11 @@ describe("each rule fails its fixture and passes its fix", () => {
     ).toBe(0);
     expect(silentDisabled('<Input disabled aria-describedby="why" />')).toBe(0);
     expect(silentDisabled("<Badge disabled>x</Badge>")).toBe(0);
+    expect(
+      silentDisabled(
+        '<Button disabled={n > 0} disabledReason={t("x.why")}>Go</Button>',
+      ),
+    ).toBe(0);
   });
 
   it("takes a second sentence or an instruction as the next step", () => {

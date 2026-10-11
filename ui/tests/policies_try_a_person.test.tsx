@@ -168,7 +168,8 @@ describe("Try a person (T-3311)", () => {
     );
     const ask = within(panel).getByRole("button", { name: "Ask the gateway" });
     // Nothing to ask about until a group is named.
-    expect(ask).toBeDisabled();
+    expect(ask).toHaveAttribute("aria-disabled", "true");
+    expect(ask).toHaveAccessibleDescription("Pick the Endpoint and who to try first.");
     await userEvent.type(
       within(panel).getByLabelText(/A member of a group/),
       "stewards",

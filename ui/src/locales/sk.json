@@ -46,7 +46,10 @@
       "close": "Teraz nie",
       "notYet": "Ešte nie ste prihlásení. Dokončite prihlásenie na druhej karte a potom pokračujte."
     },
-    "listHidden": "Tento zoznam vám v {project} nie je prístupný. Udeliť ho môže ten, kto projekt spravuje."
+    "listHidden": "Tento zoznam vám v {project} nie je prístupný. Udeliť ho môže ten, kto projekt spravuje.",
+    "busyReason": "Počkajte, kým sa dokončí prebiehajúca akcia.",
+    "firstPage": "Toto je prvá stránka.",
+    "lastPage": "Toto je posledná stránka."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
@@ -968,7 +971,7 @@
     "picker": {
       "title": "Projekcia modelu",
       "hint": "Vyberte triedy a sloty, ktoré tento endpoint sprístupní. Politika a projekcia sa vytvoria spolu.",
-      "noModel": "Tento priestor nemá DataModel, takže projekciu nemožno navrhnúť.",
+      "noModel": "Tento priestor nemá dátový model, takže projekciu nemožno navrhnúť. Najprv pridajte do priestoru dátový model.",
       "identityOnly": "iba identita (id, type)",
       "writable": "Zapisovateľné",
       "idPattern": "Vzor ID",
@@ -982,7 +985,8 @@
       "nothingTicked": "Zaškrtnite aspoň jednu triedu, ktorú má endpoint sprístupniť.",
       "projectionName": "Názov projekcie",
       "preview": "Vytvorené manifesty",
-      "identityAlways": "Každý záznam má id a typ, preto je toto vždy zverejnené."
+      "identityAlways": "Každý záznam má id a typ, preto je toto vždy zverejnené.",
+      "readOnly": "Táto projekcia je zdieľaná. Ak ju chcete zmeniť tu, oddeľte ju a skopírujte."
     },
     "audience": {
       "project-list": "Vybrané projekty",
@@ -1163,7 +1167,7 @@
       "proposedNotice": "Zmena tu sa navrhne a schvaľovateľ ju posúdi, než sa čokoľvek zverejní.",
       "stop": {
         "title": "Zastavenie tohto endpointu",
-        "lead": "Endpoint sa nedá pozastaviť. Ak ho chcete prestať zverejňovať, zmažte ho: zmazanie sa navrhne ako zmena a posúdi ho schvaľovateľ. Keď sa zmena uplatní, adresa odpovedá 404 Not Found a už sa nikdy nepoužije. Nový endpoint dostane novú adresu.",
+        "lead": "Endpoint sa nedá pozastaviť. Ak ho chcete prestať zverejňovať, zmažte ho: zmazanie sa navrhne ako zmena a posúdi ho schvaľovateľ. Keď sa zmena uplatní, adresa už neodpovedá a nikdy sa znova nepoužije. Nový endpoint dostane novú adresu.",
         "delete": "Zmazať tento endpoint…"
       },
       "change": "Zmeniť tieto nastavenia",
@@ -1249,7 +1253,9 @@
       "firstCallOpen": "Otvoriť v prehliadači",
       "firstCallCopy": "Kopírovať príkaz",
       "firstCallPublic": "Volať ho môže ktokoľvek, token netreba.",
-      "firstCallToken": "V prehliadači stačí vaše prihlásenie do Portálu. Program posiela token servisného účtu ako $TOKEN."
+      "firstCallToken": "V prehliadači stačí vaše prihlásenie do Portálu. Program posiela token servisného účtu ako $TOKEN.",
+      "filterUntouched": "Najprv zmeňte filter: je rovnaký ako uložený.",
+      "filterFaulty": "Najprv opravte označené polia."
     },
     "condition": {
       "title": "Pridať podmienku",
@@ -1266,7 +1272,7 @@
       "matches": "filtru odpovedá {matching} z {all} entít",
       "none": "Nezverejnilo by sa nič.",
       "counting": "Počítam, čomu filter odpovedá...",
-      "failed": "Odpovedajúce entity sa nepodarilo spočítať: {reason}",
+      "failed": "Odpovedajúce entity sa nepodarilo spočítať: {reason}. Zmeňte filter alebo to skúste znova.",
       "unavailable": "Počet sa číta cez endpoint, takže je dostupný až keď je endpoint Live a zverejňuje typ."
     },
     "area": {
@@ -1310,7 +1316,7 @@
       "hiddenMark": "neposkytuje sa",
       "empty": "Na tejto strane nie sú žiadne entity.",
       "refused": "Návrh filtra bol odmietnutý: {reason}",
-      "failed": "Nepodarilo sa prečítať, čo filter poskytuje: {reason}",
+      "failed": "Nepodarilo sa prečítať, čo filter poskytuje: {reason}. Zmeňte filter alebo to skúste znova.",
       "notLive": "Porovnanie číta cez endpoint, preto sa zobrazí, keď je endpoint aktívny.",
       "noType": "Porovnanie potrebuje aspoň jeden typ, ktorý endpoint obsluhuje.",
       "previous": "Predchádzajúca strana",
@@ -2209,7 +2215,7 @@
       "whereHelp": "Kam až rola siaha: tento projekt, celá organizácia, alebo jeden kontextový priestor projektu.",
       "untilHelp": "Posledný deň platnosti roly. Prázdne pole znamená bez konca, čo potrebuje stály člen.",
       "rolesEmpty": "Táto organizácia zatiaľ nemá žiadne roly. Kým niekto nejakú nevyhlási v časti Roly, nedá sa prideliť.",
-      "spacesFailed": "Kontextové priestory tohto projektu sa nepodarilo načítať, takže pridelenia platné pre jeden priestor v tomto zozname chýbajú: {reason}",
+      "spacesFailed": "Kontextové priestory tohto projektu sa nepodarilo načítať, takže pridelenia platné pre jeden priestor v tomto zozname chýbajú: {reason}. Obnovte stránku, aby ste ich videli.",
       "discardTitle": "Zahodiť toto pridelenie?",
       "discardConfirm": "To, čo ste napísali, sa stratí a nič sa nenavrhne. Už pridelené roly sa nemenia.",
       "discard": "Zahodiť pridelenie",
@@ -2364,7 +2370,7 @@
       "mayNot": "Nesmiete {action} {type}",
       "attrDenied": "mimo vášho oprávnenia",
       "attrProhibited": "výslovne zakázaný",
-      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}"
+      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}. Obnovte stránku a skúste to znova."
     },
     "groups": {
       "title": "Skupiny",
@@ -2399,7 +2405,7 @@
       "state": {
         "pending": "Zatiaľ neoverená",
         "verified": "Overená",
-        "failed": "Overenie zlyhalo"
+        "failed": "Overenie zlyhalo. Skontrolujte tu uvedený DNS záznam a overte znova."
       },
       "unchecked": "Zatiaľ nekontrolovaná",
       "method": {
@@ -2458,7 +2464,8 @@
       "ckanLead": "Katalógy CKAN, ktoré priradenia skupiny {group} dovoľujú jej členom meniť.",
       "noCkan": "Táto skupina nespravuje žiadny katalóg.",
       "ckanInstance": "{project} / {name}",
-      "ckanVia": "cez rolu {role}"
+      "ckanVia": "cez rolu {role}",
+      "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať."
     }
   },
   "flows": {
@@ -4652,7 +4659,7 @@
       "starting": "Spúšťa sa",
       "running": "Beží",
       "stopped": "Zastavený",
-      "error": "Zlyhal"
+      "error": "Nespustil sa. Otvorte ho a uvidíte prečo."
     },
     "actions": "Akcie",
     "openAction": "Otvoriť",
@@ -4731,7 +4738,7 @@
       "lead": "Náhľad obsluhuje kópiu {name} popri projekte, na vlastných adresách. Nič v ňom nie je živé.",
       "start": "Spustiť náhľad",
       "stop": "Zastaviť",
-      "failed": "Náhľad sa nespustil",
+      "failed": "Náhľad sa nespustil. Skúste to znova; dôvod je nižšie.",
       "notOwner": "Náhľad spúšťa iba osoba, ktorá kópiu založila.",
       "addresses": "Kde odpovedá",
       "noEndpoints": "Kópia nemá endpointy.",
@@ -4823,18 +4830,18 @@
         "person": "Osoba",
         "group": "Člen skupiny",
         "role": "Držiteľ roly realmu",
-        "serviceAccount": "ServiceAccount",
+        "serviceAccount": "Servisný účet",
         "public": "Verejnosť"
       },
       "search": "Nájsť osobu",
       "person": "Osoba",
       "noPerson": "Nikto sa nenašiel",
-      "noAccount": "Zatiaľ žiadny ServiceAccount",
+      "noAccount": "Zatiaľ žiadny servisný účet",
       "action": "Akcia",
       "type": "Typ entity",
       "typeHelp": "Nechajte prázdne pre otázku na akýkoľvek typ.",
       "submit": "Opýtať sa brány",
-      "failed": "Bránu sa nepodarilo opýtať",
+      "failed": "Bránu sa nepodarilo opýtať. Skúste to znova o minútu; dôvod je nižšie.",
       "allowed": "Povolené",
       "refused": "Odmietnuté",
       "decidedBy": "Rozhodla Policy",
@@ -4846,13 +4853,14 @@
       },
       "hints": {
         "endpoint": "Endpoint, ktorého Policies sa skúšajú.",
-        "kind": "Osoba, člen skupiny alebo roly, ServiceAccount, alebo ktokoľvek.",
+        "kind": "Osoba, člen skupiny alebo roly, servisný účet, alebo ktokoľvek.",
         "search": "Časť mena alebo e-mailovej adresy.",
         "person": "Osoba, za ktorú brána rozhoduje.",
-        "account": "Jeden zo ServiceAccountov tohto projektu.",
+        "account": "Jeden zo servisných účtov tohto projektu.",
         "name": "Názov tak, ako ho píše realm.",
         "action": "Operácia NGSI-LD, ktorú by volanie vykonalo."
-      }
+      },
+      "pickFirst": "Najprv vyberte Endpoint a koho chcete vyskúšať."
     }
   },
   "subscriptions": {
@@ -5664,7 +5672,8 @@
     "check": "Skontrolovať archív",
     "import": "Importovať",
     "repository": "Repozitár na vytvorenie",
-    "redLane": "Import navrhne aplikáciu ako zmenu v červenom pruhu; zostaví sa, keď ju schváli administrátor."
+    "redLane": "Import navrhne aplikáciu ako zmenu v červenom pruhu; zostaví sa, keď ju schváli administrátor.",
+    "checked": "Archív bol skontrolovaný pre túto voľbu. Ak ju chcete zmeniť, vyberte iný archív."
   },
   "appExport": {
     "button": "Exportovať",
@@ -6421,7 +6430,7 @@
     "new": "Nový MCP server",
     "empty": "Tento projekt zatiaľ nemá MCP server",
     "emptyHint": "MCP server spojí endpointy, ktoré patria k sebe, napríklad dáta o doprave v meste, pod jednu adresu.",
-    "listFailed": "MCP servery sa nepodarilo načítať: {reason}",
+    "listFailed": "MCP servery sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova.",
     "memberCount": "Členovia: {count}",
     "edit": "Upraviť",
     "editOf": "Upraviť {name}",
@@ -6472,13 +6481,13 @@
       "members": "Vyberte jeden až {max} členských endpointov.",
       "noMcp": "Vybraný endpoint neposkytuje MCP; odstráňte ho.",
       "audience": "Publikum je širšie, ako dovoľuje najužší člen; vyberte užšie.",
-      "projects": "Každý názov projektu tvoria malé písmená, číslice a pomlčky."
+      "projects": "Pre každý názov projektu použite malé písmená, číslice a pomlčky, napríklad city-air."
     },
     "health": {
       "checking": "Overujem…",
       "answers": "Odpovedá, nástroje: {count}",
       "refused": "Vám odmietnuté (HTTP {status})",
-      "failed": "Neodpovedá: {reason}"
+      "failed": "Neodpovedá: {reason}. Skontrolujte Endpointy servera a skúste to znova o minútu."
     },
     "preview": {
       "title": "Nástroje, ktoré by ste dostali",

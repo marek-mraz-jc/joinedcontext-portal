@@ -46,7 +46,10 @@
       "close": "Nicht jetzt",
       "notYet": "Sie sind noch nicht angemeldet. Schließen Sie die Anmeldung im anderen Tab ab und machen Sie dann weiter."
     },
-    "listHidden": "Diese Liste ist für Sie in {project} nicht offen. Wer das Projekt verwaltet, kann sie freigeben."
+    "listHidden": "Diese Liste ist für Sie in {project} nicht offen. Wer das Projekt verwaltet, kann sie freigeben.",
+    "busyReason": "Warten Sie, bis die laufende Aktion abgeschlossen ist.",
+    "firstPage": "Das ist die erste Seite.",
+    "lastPage": "Das ist die letzte Seite."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",
@@ -1103,7 +1106,7 @@
     "picker": {
       "title": "Modellprojektion",
       "hint": "Wählen Sie die Klassen und Slots, die dieser Endpunkt bereitstellt. Richtlinie und Projektion werden zusammen erzeugt.",
-      "noModel": "Dieser Raum hat kein DataModel, daher lässt sich keine Projektion entwerfen.",
+      "noModel": "Dieser Raum hat kein Datenmodell, daher lässt sich keine Projektion entwerfen. Fügen Sie dem Raum zuerst ein Datenmodell hinzu.",
       "identityOnly": "nur Identität (id, type)",
       "writable": "Beschreibbar",
       "idPattern": "ID-Muster",
@@ -1117,7 +1120,8 @@
       "nothingTicked": "Kreuzen Sie mindestens eine Klasse an, die der Endpoint veröffentlichen soll.",
       "projectionName": "Name der Projektion",
       "preview": "Erzeugte Manifeste",
-      "identityAlways": "Jede Entität hat eine id und einen type, daher wird dies immer veröffentlicht."
+      "identityAlways": "Jede Entität hat eine id und einen type, daher wird dies immer veröffentlicht.",
+      "readOnly": "Diese Projektion ist geteilt. Lösen und kopieren Sie sie, um sie hier zu ändern."
     },
     "audienceOption": {
       "project-list": "Ausgewählte Projekte: nur die Projekte, die Sie ankreuzen",
@@ -1163,7 +1167,7 @@
       "proposedNotice": "Eine Änderung hier wird vorgeschlagen und von einer Genehmigerin geprüft, bevor etwas veröffentlicht wird.",
       "stop": {
         "title": "Diesen Endpoint stoppen",
-        "lead": "Ein Endpoint lässt sich nicht pausieren. Um die Veröffentlichung zu beenden, löschen Sie ihn: Das Löschen wird als Änderung vorgeschlagen und von einer Genehmigerin geprüft. Sobald sie übernommen ist, antwortet die Adresse mit 404 Not Found und wird nie wieder vergeben. Ein neuer Endpoint erhält eine neue Adresse.",
+        "lead": "Ein Endpoint lässt sich nicht pausieren. Um die Veröffentlichung zu beenden, löschen Sie ihn: Das Löschen wird als Änderung vorgeschlagen und von einer Genehmigerin geprüft. Sobald sie übernommen ist, antwortet die Adresse nicht mehr und wird nie wieder vergeben. Ein neuer Endpoint erhält eine neue Adresse.",
         "delete": "Diesen Endpoint löschen…"
       },
       "change": "Diese Einstellungen ändern",
@@ -1249,7 +1253,9 @@
       "firstCallOpen": "Im Browser öffnen",
       "firstCallCopy": "Befehl kopieren",
       "firstCallPublic": "Jeder kann ihn aufrufen, kein Token nötig.",
-      "firstCallToken": "Im Browser genügt Ihre Portal-Sitzung. Ein Programm sendet ein Service-Account-Token als $TOKEN."
+      "firstCallToken": "Im Browser genügt Ihre Portal-Sitzung. Ein Programm sendet ein Service-Account-Token als $TOKEN.",
+      "filterUntouched": "Ändern Sie zuerst den Filter: Er ist derselbe wie der gespeicherte.",
+      "filterFaulty": "Korrigieren Sie zuerst die markierten Felder."
     },
     "condition": {
       "title": "Bedingung hinzufügen",
@@ -1266,7 +1272,7 @@
       "matches": "{matching} von {all} Entitäten entsprechen diesem Filter",
       "none": "Es würde nichts veröffentlicht.",
       "counting": "Es wird gezählt, was der Filter trifft...",
-      "failed": "Die passenden Entitäten konnten nicht gezählt werden: {reason}",
+      "failed": "Die passenden Entitäten konnten nicht gezählt werden: {reason}. Ändern Sie den Filter oder versuchen Sie es erneut.",
       "unavailable": "Der Zählwert wird über den Endpunkt gelesen, also erst wenn er Live ist und einen Typ veröffentlicht."
     },
     "area": {
@@ -1310,7 +1316,7 @@
       "hiddenMark": "nicht geliefert",
       "empty": "Keine Entitäten auf dieser Seite.",
       "refused": "Der Filterentwurf wurde abgelehnt: {reason}",
-      "failed": "Was der Filter liefert, konnte nicht gelesen werden: {reason}",
+      "failed": "Was der Filter liefert, konnte nicht gelesen werden: {reason}. Ändern Sie den Filter oder versuchen Sie es erneut.",
       "notLive": "Der Vergleich liest über den Endpunkt und erscheint, sobald der Endpunkt aktiv ist.",
       "noType": "Der Vergleich braucht mindestens einen Typ, den der Endpunkt bedient.",
       "previous": "Vorherige Seite",
@@ -2209,7 +2215,7 @@
       "whereHelp": "Wie weit die Rolle reicht: dieses Projekt, die ganze Organisation, oder ein Kontextraum des Projekts.",
       "untilHelp": "Der letzte Tag, an dem die Rolle gilt. Leer gelassen endet sie nicht, was ein dauerhaftes Mitglied braucht.",
       "rolesEmpty": "Diese Organisation hat noch keine Rollen. Eine muss unter Rollen erklärt werden, bevor sie vergeben werden kann.",
-      "spacesFailed": "Die Kontexträume dieses Projekts konnten nicht geladen werden, daher fehlen in dieser Liste die Vergaben, die für einen einzelnen Raum gelten: {reason}",
+      "spacesFailed": "Die Kontexträume dieses Projekts konnten nicht geladen werden, daher fehlen in dieser Liste die Vergaben, die für einen einzelnen Raum gelten: {reason}. Laden Sie die Seite neu, um sie zu sehen.",
       "discardTitle": "Diese Vergabe verwerfen?",
       "discardConfirm": "Was Sie eingegeben haben, geht verloren und es wird nichts vorgeschlagen. Bereits vergebene Rollen bleiben unberührt.",
       "discard": "Vergabe verwerfen",
@@ -2364,7 +2370,7 @@
       "mayNot": "Sie dürfen nicht {action} {type}",
       "attrDenied": "nicht in Ihrem Grant",
       "attrProhibited": "ausdrücklich verweigert",
-      "checkFailed": "Diese Berechtigungen konnten nicht geprüft werden: {reason}"
+      "checkFailed": "Diese Berechtigungen konnten nicht geprüft werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen."
     },
     "groups": {
       "title": "Gruppen",
@@ -2399,7 +2405,7 @@
       "state": {
         "pending": "Noch nicht verifiziert",
         "verified": "Verifiziert",
-        "failed": "Verifizierung fehlgeschlagen"
+        "failed": "Verifizierung fehlgeschlagen. Prüfen Sie den hier gezeigten DNS-Eintrag und verifizieren Sie erneut."
       },
       "unchecked": "Noch nicht geprüft",
       "method": {
@@ -2458,7 +2464,8 @@
       "ckanLead": "Die CKAN-Kataloge, die die Zuweisungen von {group} ihren Mitgliedern zu ändern erlauben.",
       "noCkan": "Diese Gruppe verwaltet keinen Katalog.",
       "ckanInstance": "{project} / {name}",
-      "ckanVia": "über die Rolle {role}"
+      "ckanVia": "über die Rolle {role}",
+      "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen."
     }
   },
   "flows": {
@@ -4652,7 +4659,7 @@
       "starting": "Startet",
       "running": "Läuft",
       "stopped": "Gestoppt",
-      "error": "Fehlgeschlagen"
+      "error": "Nicht gestartet. Öffnen Sie sie, um den Grund zu sehen."
     },
     "actions": "Aktionen",
     "openAction": "Öffnen",
@@ -4731,7 +4738,7 @@
       "lead": "Eine Vorschau bedient die Kopie {name} neben dem Projekt, unter eigenen Adressen. Nichts darin ist live.",
       "start": "Vorschau starten",
       "stop": "Stoppen",
-      "failed": "Die Vorschau ist nicht gestartet",
+      "failed": "Die Vorschau ist nicht gestartet. Versuchen Sie es erneut; der Grund steht unten.",
       "notOwner": "Nur wer die Kopie begonnen hat, startet ihre Vorschau.",
       "addresses": "Wo sie antwortet",
       "noEndpoints": "Die Kopie hat keine Endpunkte.",
@@ -4823,18 +4830,18 @@
         "person": "Eine Person",
         "group": "Ein Mitglied einer Gruppe",
         "role": "Inhaber einer Realm-Rolle",
-        "serviceAccount": "Ein ServiceAccount",
+        "serviceAccount": "Ein Dienstkonto",
         "public": "Die Öffentlichkeit"
       },
       "search": "Person suchen",
       "person": "Person",
       "noPerson": "Niemand gefunden",
-      "noAccount": "Noch kein ServiceAccount",
+      "noAccount": "Noch kein Dienstkonto",
       "action": "Aktion",
       "type": "Entitätstyp",
       "typeHelp": "Leer lassen, um nach jedem Typ zu fragen.",
       "submit": "Gateway fragen",
-      "failed": "Das Gateway konnte nicht gefragt werden",
+      "failed": "Das Gateway konnte nicht gefragt werden. Versuchen Sie es in einer Minute erneut; der Grund steht unten.",
       "allowed": "Erlaubt",
       "refused": "Abgelehnt",
       "decidedBy": "Entschieden durch die Policy",
@@ -4846,13 +4853,14 @@
       },
       "hints": {
         "endpoint": "Der Endpoint, dessen Policies geprüft werden.",
-        "kind": "Eine Person, ein Mitglied einer Gruppe oder Rolle, ein ServiceAccount oder jeder.",
+        "kind": "Eine Person, ein Mitglied einer Gruppe oder Rolle, ein Dienstkonto oder jeder.",
         "search": "Ein Teil des Namens oder der E-Mail-Adresse.",
         "person": "Die Person, für die das Gateway entscheidet.",
-        "account": "Einer der ServiceAccounts dieses Projekts.",
+        "account": "Eines der Dienstkonten dieses Projekts.",
         "name": "Der Name, wie der Realm ihn schreibt.",
         "action": "Die NGSI-LD-Operation, die der Aufruf ausführen würde."
-      }
+      },
+      "pickFirst": "Wählen Sie zuerst den Endpoint und wen Sie ausprobieren."
     }
   },
   "subscriptions": {
@@ -5664,7 +5672,8 @@
     "check": "Archiv prüfen",
     "import": "Importieren",
     "repository": "Anzulegendes Repository",
-    "redLane": "Der Import schlägt die App als Änderung auf der roten Spur vor; sie wird gebaut, sobald eine Administratorin oder ein Administrator zustimmt."
+    "redLane": "Der Import schlägt die App als Änderung auf der roten Spur vor; sie wird gebaut, sobald eine Administratorin oder ein Administrator zustimmt.",
+    "checked": "Das Archiv wurde für diese Auswahl geprüft. Wählen Sie ein anderes Archiv, um sie zu ändern."
   },
   "appExport": {
     "button": "Exportieren",
@@ -6421,7 +6430,7 @@
     "new": "Neuer MCP-Server",
     "empty": "Dieses Projekt hat noch keinen MCP-Server",
     "emptyHint": "Ein MCP-Server fasst zusammengehörige Endpoints, etwa die Mobilitätsdaten der Stadt, unter einer Adresse zusammen.",
-    "listFailed": "Die MCP-Server konnten nicht gelesen werden: {reason}",
+    "listFailed": "Die MCP-Server konnten nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "memberCount": "Mitglieder: {count}",
     "edit": "Bearbeiten",
     "editOf": "{name} bearbeiten",
@@ -6472,13 +6481,13 @@
       "members": "Wählen Sie einen bis {max} Mitglieds-Endpoints.",
       "noMcp": "Ein gewählter Endpoint bietet keine MCP-Schnittstelle; entfernen Sie ihn.",
       "audience": "Die Zielgruppe ist weiter, als das engste Mitglied erlaubt; wählen Sie eine engere.",
-      "projects": "Jeder Projektname besteht aus Kleinbuchstaben, Ziffern und Bindestrichen."
+      "projects": "Verwenden Sie für jeden Projektnamen Kleinbuchstaben, Ziffern und Bindestriche, etwa city-air."
     },
     "health": {
       "checking": "Wird geprüft…",
       "answers": "Antwortet, Werkzeuge: {count}",
       "refused": "Für Sie abgelehnt (HTTP {status})",
-      "failed": "Antwortet nicht: {reason}"
+      "failed": "Antwortet nicht: {reason}. Prüfen Sie die Endpoints des Servers und versuchen Sie es in einer Minute erneut."
     },
     "preview": {
       "title": "Werkzeuge, die Sie bekämen",

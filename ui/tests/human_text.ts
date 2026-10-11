@@ -23,7 +23,7 @@ export function textProblems(key: string, text: string): string[] {
     problems.push("uuid");
   // ICU arguments (`{name}`) are the code's, not the reader's; what is left is what they read.
   const read = text.replace(/\{\s*\w+\s*\}/g, "");
-  if (/\b[A-Z][a-z]+[A-Z][A-Za-z]*\b/.test(read)) problems.push("kind");
+  if (/\b[A-Z][a-z]+[A-Z][a-z]+[A-Za-z]*\b/.test(read)) problems.push("kind");
   if (/\b(HTTP\s*)?[45]\d\d\b/.test(read)) problems.push("http");
   if (/[{[]\s*"|"\s*:/.test(read)) problems.push("json");
   if (isError(key) && !hasNextStep(read)) problems.push("next-step");
@@ -50,7 +50,7 @@ export function hasNextStep(text: string): boolean {
     .split(/[.!?](?:\s|$)/)
     .filter((s) => s.trim().length > 0);
   if (sentences.length >= 2) return true;
-  return /\b(try|check|ask|use|open|sign in|reload|contact|choose|pick|enter|fix|add|remove|wait|retry|change|correct|select|type)\b/i.test(
+  return /\b(try|check|ask|use|open|sign in|reload|contact|choose|pick|enter|fix|add|remove|wait|retry|change|correct|select|type|give)\b/i.test(
     text,
   );
 }
@@ -88,7 +88,9 @@ const CONTROLS =
  */
 export function silentDisabled(source: string): number {
   let count = 0;
-  for (const match of source.matchAll(
+  // A comparison inside a prop (`count > 0`) is not the end of the tag.
+  const tags = source.replace(/ >=? (?=\S)/g, " gt ");
+  for (const match of tags.matchAll(
     /<([A-Za-z]+)\b((?:[^<>]|=>|<[^<>]*>)*?)\/?>/g,
   )) {
     const [, tag, props] = match;

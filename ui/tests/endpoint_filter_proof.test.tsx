@@ -328,7 +328,10 @@ describe("the endpoint's filter editor and its proof", () => {
 
     await user.click(await screen.findByRole("checkbox", { name: "Event" }));
     expect(screen.getByText(en.endpoints.filterEditor.noType)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toBeDisabled();
+    // Refused with its reason (ui-writing rule 7): aria-disabled keeps it reachable to say why.
+    const propose = screen.getByRole("button", { name: en.endpoints.page.filterPropose });
+    expect(propose).toHaveAttribute("aria-disabled", "true");
+    expect(propose).toHaveAccessibleDescription(en.endpoints.page.filterFaulty);
   });
 
   it("shows a person the space refuses what the endpoint serves today, and says why", async () => {

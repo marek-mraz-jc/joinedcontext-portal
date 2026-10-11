@@ -111,11 +111,11 @@ export function TryItPage({ project, name }: { project: string; name: string }):
         </Badge>
         {mine ? (
           running ? (
-            <Button variant="secondary" onClick={() => stop.mutate()} disabled={stop.isPending}>
+            <Button variant="secondary" onClick={() => stop.mutate()} disabled={stop.isPending} disabledReason={t("app.busyReason")}>
               {t("workspaces.tryIt.stop")}
             </Button>
           ) : (
-            <Button onClick={() => start.mutate()} disabled={start.isPending || preview.isLoading}>
+            <Button onClick={() => start.mutate()} disabled={start.isPending || preview.isLoading} disabledReason={t("app.busyReason")}>
               {t("workspaces.tryIt.start")}
             </Button>
           )
@@ -155,6 +155,7 @@ export function TryItPage({ project, name }: { project: string; name: string }):
                             size="sm"
                             variant="secondary"
                             disabled={copy.isPending}
+                            disabledReason={t("app.busyReason")}
                             onClick={() =>
                               copy.mutate({
                                 name: endpoint.name,
