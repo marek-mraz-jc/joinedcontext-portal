@@ -21,6 +21,31 @@ Returns the active SDK client singleton, reading configuration on first access.
 class ProblemError extends Error
 ```
 RFC 7807 problem error representation containing HTTP status, title, detail, type, and source location.
+```ts
+class ServiceRefusedError extends ProblemError { service: "files" | "email" | "jobs" | "ai"; layer?: "organization" | "project" | "app"; quota?: string; resetAt?: string }
+```
+A platform service the organization, the project or the App switched off (`403`, `layer` names which), or a daily quota used up (`429`, `quota` and `resetAt`). Show it; never retry before `resetAt`.
+```ts
+jc().email.send(message: { to: string[] | "me"; subject: string; text: string; html?: string }): Promise<{ id: string }>
+```
+Sends a message to people of the organization, named by person id or `"me"` (the signed-in person), never by address; needs `email` in the App's `spec.services`. The platform adds the unsubscribe link. A subject with a line break is refused.
+```ts
+jc().jobs.list(): Promise<{ name: string; schedule: string; nextRun?: string; lastRun?: { at: string; ok: boolean; message?: string } }[]>
+```
+Lists the App's scheduled jobs (`spec.server.jobs[]`) with the next minute each runs, absent for a schedule that names none within a year, and its last run as the host reported it. Needs `jobs` on at every layer; the organization's default list has it.
+```ts
+jc().files.put(path: string, body: Blob | ArrayBuffer | string, opts?: { contentType?: string }): Promise<FileInfo>
+jc().files.get(path: string): Promise<Blob>
+jc().files.list(prefix?: string): Promise<FileInfo[]>
+jc().files.remove(path: string): Promise<void>
+jc().files.url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }>
+type FileInfo = { path: string; size: number; contentType: string; modifiedAt: string }
+```
+Keeps the App's objects under its own prefix; a key is relative, has no `.` or `..` segment and is at most 512 bytes. One object is at most 25 MiB (`413`), all of them at most the App's `filesMiB` (`429`, no `resetAt`: delete to make room). `url` hands out a URL for one key and one method that expires within five minutes. Needs `files` on at every layer; the organization's default list has it. In the browser on the App's own host; the preview's bridge does not carry bytes.
+```ts
+jc().ai.complete(request: { messages: { role: "system" | "user" | "assistant"; content: string }[]; maxTokens?: number; schema?: object }): Promise<{ text: string; json?: unknown; tokens: { in: number; out: number } }>
+```
+Asks the model the platform chooses; the App names no model and holds no key. At most 50 messages and 100 KB, `maxTokens` 1 to 4096 (1024 when absent) and never more than the App's `aiTokensPerDay` has left. With `schema`, `json` is the answer as one value of that JSON Schema, or the call fails with `502` (`…/no-json`): ask again. A spent day is `429` with `resetAt`; an organization without a working model key is `503` (`…/no-model-key`). Needs `ai` on at every layer, which the organization's default list does not have.
 
 ### Hooks
 ```ts
@@ -419,6 +444,10 @@ Context providing data access and logging to server functions.
 type FnHandler = (request: FnRequest, ctx: FnContext) => Promise<FnResponse>
 ```
 Standard handler signature implemented by backend function files.
+```ts
+function requireRole(request: Pick<FnRequest, "user">, role: string): FnResponse | undefined
+```
+The `403` (or `401` without a signed-in person) a function answers when its caller does not hold the App's `role`, `undefined` when they do. `request.user` is the person the Portal verified for this call, so a patched page changes nothing: `const refused = requireRole(request, "steward"); if (refused) return refused;`.
 Backend functions run in QuickJS without browser Web APIs: no `fetch`, `URLSearchParams`, `URL`, `crypto`, DOM or timers. Read data through `ctx.jc` and build strings by hand.
 
 ---

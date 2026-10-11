@@ -1,5 +1,7 @@
 //! Serving the apps a project builds on the platform (AP-12, AP-14, AP-17).
 
+/// An App's mail to people of the organization (AP-168).
+pub mod ai;
 /// The database of the server WASM Apps: a schema, roles and migrations per App (AP-149).
 pub mod apps_db;
 /// A build pod per App and its own build cache (AP-130, AP-131).
@@ -10,10 +12,13 @@ pub mod built;
 pub mod converge;
 /// The default group of every App role, committed with the role (AP-118).
 pub mod default_groups;
+pub mod email;
 pub mod fetch;
+pub mod files;
 pub mod functions;
 /// The names of the Organization's own domain an App also answers on (AP-172).
 pub mod hostnames;
+pub mod jobs;
 pub mod kube;
 /// An App name is unique in the organization (AP-14a).
 pub mod names;
@@ -22,6 +27,8 @@ pub mod project_namespace;
 pub mod reconciler;
 /// A person's roles in an application (ADR-N-027).
 pub mod roles;
+/// The platform services an App calls: layers, quotas, refusals (ADR-N-045).
+pub mod services;
 pub mod static_host;
 pub mod template_demos;
 pub mod wasm_apps;

@@ -660,13 +660,16 @@ pub fn content_security_policy(
 
 /// `policy` with the object store's public origin added to `connect-src`, exactly that origin,
 /// for a `wasm` App that declares blob storage: its browser sends presigned uploads and downloads
-/// there itself (AP-145, T-3359). Any other App, or no configured origin, keeps `policy` as it is.
+/// there itself (AP-145, T-3359); so does any App that lists the `files` service, whose
+/// `files.url()` hands out the same URLs (AP-170). Any other App, or no configured origin, keeps
+/// `policy` as it is.
 pub fn with_store(policy: &str, spec: &AppSpec, store: Option<&str>) -> String {
-    let stores_files = spec.class == jc_core::kinds::AppClass::Wasm
+    let stores_files = (spec.class == jc_core::kinds::AppClass::Wasm
         && spec
             .storage
             .as_ref()
-            .is_some_and(|storage| storage.blob.is_some());
+            .is_some_and(|storage| storage.blob.is_some()))
+        || spec.services.contains(&jc_core::kinds::AppService::Files);
     match store {
         Some(origin) if stores_files => policy.replacen(
             "connect-src 'self'",
@@ -762,7 +765,38 @@ pub fn router() -> Router<AppState> {
                 axum::extract::DefaultBodyLimit::max(super::functions::MAX_BODY_BYTES),
             ),
         )
+        .route(
+            "/apps/{name}/api/services/email/send",
+            axum::routing::post(super::email::send).layer(axum::extract::DefaultBodyLimit::max(
+                super::email::MAX_BODY_BYTES,
+            )),
+        )
+        .route("/apps/{name}/api/services/jobs", get(super::jobs::list))
+        .route(
+            "/apps/{name}/api/services/ai/complete",
+            axum::routing::post(super::ai::complete).layer(axum::extract::DefaultBodyLimit::max(
+                super::ai::MAX_BODY_BYTES,
+            )),
+        )
+        .route("/apps/{name}/api/services/files", get(super::files::list))
+        .route(
+            "/apps/{name}/api/services/files/{*path}",
+            get(super::files::get)
+                .put(super::files::put)
+                .delete(super::files::delete)
+                .post(super::files::url)
+                .layer(axum::extract::DefaultBodyLimit::max(
+                    super::files::MAX_BODY_BYTES,
+                )),
+        )
         .route("/apps/{name}/{*path}", get(serve))
+        // The signed link in every App message: on the Portal's host, outside `/api/v1`, since a
+        // mail client's one-click carries no session and no CSRF token; the signature is the
+        // credential (RFC 8058).
+        .route(
+            "/mail/unsubscribe",
+            get(super::email::unsubscribe_page).post(super::email::unsubscribe),
+        )
 }
 
 #[cfg(test)]
@@ -834,9 +868,15 @@ mod tests {
         let sql_only = wasm(serde_json::json!({ "sql": {} }));
         let policy = content_security_policy(&sql_only, Some(PORTAL), None);
         assert_eq!(with_store(&policy, &sql_only, Some(STORE)), policy);
-        let ui = spec();
+        let mut ui = spec();
         let policy = content_security_policy(&ui, Some(PORTAL), None);
         assert_eq!(with_store(&policy, &ui, Some(STORE)), policy);
+        ui.services = vec![jc_core::kinds::AppService::Files];
+        assert!(
+            with_store(&policy, &ui, Some(STORE))
+                .contains("connect-src 'self' https://files.example.sk;"),
+            "an App with the files service (AP-170)"
+        );
         let policy = content_security_policy(&storing, Some(PORTAL), None);
         assert_eq!(with_store(&policy, &storing, None), policy);
     }

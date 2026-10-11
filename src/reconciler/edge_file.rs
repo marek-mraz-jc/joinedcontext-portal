@@ -360,19 +360,29 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         let own = format!("app-{name}");
         let endpoint = format!("app-{name}-endpoint");
         let moved = format!("app-{name}-moved");
+        let services = format!("app-{name}-services");
         let host = app_host(name, &apex);
-        // The App's host, then each hostname of its Organization's domain with the same two
-        // routes and a login that returns to it (AP-133, AP-172).
-        let hosts: Vec<(String, String, String)> =
-            std::iter::once((host.clone(), own.clone(), endpoint.clone()))
-                .chain(app.hostnames.iter().map(|hostname| {
-                    let at = format!("app-{name}-at-{}", hostname_key(hostname));
-                    (hostname.clone(), at.clone(), format!("{at}-endpoint"))
-                }))
-                .collect();
+        // The App's host, then each hostname of its Organization's domain with the same three
+        // routes and a login that returns to it (AP-133, AP-167, AP-172).
+        let hosts: Vec<[String; 4]> = std::iter::once([
+            host.clone(),
+            own.clone(),
+            endpoint.clone(),
+            services.clone(),
+        ])
+        .chain(app.hostnames.iter().map(|hostname| {
+            let at = format!("app-{name}-at-{}", hostname_key(hostname));
+            [
+                hostname.clone(),
+                at.clone(),
+                format!("{at}-endpoint"),
+                format!("{at}-services"),
+            ]
+        }))
+        .collect();
         if let Some(id) = hosts
             .iter()
-            .flat_map(|(_, route, endpoint)| [route, endpoint])
+            .flat_map(|[_, route, endpoint, services]| [route, endpoint, services])
             .chain([&moved])
             .find(|id| taken.contains(id))
         {
@@ -404,7 +414,7 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
             }
             Upstream::Static => static_upstream.clone(),
         };
-        for (host, own, endpoint) in &hosts {
+        for [host, own, endpoint, services] in &hosts {
             let mut plugins = surface_plugins.clone();
             let policy = match &app.upstream {
                 Upstream::Pod { csp, .. } => Some(csp.as_str()),
@@ -507,6 +517,42 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
                     }),
                 );
             }
+            // The platform services on each of the App's hosts, answered by the Portal for every App
+            // shape (AP-167, API/06 §3): `/*` would hand them to a pod App's own server, and a fetch
+            // cannot follow a login redirect. The session's token reaches the Portal as the bearer.
+            let mut plugins = endpoint_plugins.clone();
+            let mut oidc = login(
+                &template,
+                host,
+                app,
+                if app.public { "pass" } else { "deny" },
+            );
+            oidc["access_token_in_authorization_header"] = json!(true);
+            plugins["openid-connect"] = oidc;
+            rewrite_uri(
+                &mut plugins,
+                format!("^(?:/apps/{name})?/api/services/(.*)$"),
+                format!("/apps/{name}/api/services/$1"),
+            );
+            push(
+                &mut document,
+                "plugin_configs",
+                json!({ "id": services, "desc": format!("App {name}'s platform services"), "plugins": plugins }),
+            );
+            push(
+                &mut document,
+                "routes",
+                json!({
+                    "id": services,
+                    "name": services,
+                    "desc": format!("App {name}'s platform services"),
+                    "uris": ["/api/services/*", format!("/apps/{name}/api/services/*")],
+                    "host": host,
+                    "priority": ENDPOINT_PRIORITY,
+                    "upstream_id": static_upstream.clone(),
+                    "plugin_config_id": services,
+                }),
+            );
         }
         // The old address: a `308` to the host that reaches no upstream and runs no login, so
         // a bookmark still arrives and the apex never sets an App's cookie (ADR-N-037 §3).
@@ -936,6 +982,38 @@ routes:
             "jc_app_air_quality"
         );
 
+        let services =
+            by_id(&file, "routes", "app-air-quality-services").expect("the services route");
+        assert_eq!(
+            services["uris"],
+            json!(["/api/services/*", "/apps/air-quality/api/services/*"])
+        );
+        assert_eq!(services["host"], "air-quality.apps.city.example");
+        assert_eq!(services["priority"], 35);
+        let portal = by_id(&file, "routes", "portal-ui").expect("the Portal route");
+        assert_eq!(
+            services["upstream_id"], portal["upstream_id"],
+            "the Portal answers"
+        );
+        let plugins = &by_id(&file, "plugin_configs", "app-air-quality-services")
+            .expect("its plugins")["plugins"];
+        assert_eq!(
+            plugins["proxy-rewrite"]["regex_uri"],
+            json!([
+                "^(?:/apps/air-quality)?/api/services/(.*)$",
+                "/apps/air-quality/api/services/$1"
+            ])
+        );
+        assert_eq!(plugins["openid-connect"]["unauth_action"], "deny");
+        assert_eq!(
+            plugins["openid-connect"]["access_token_in_authorization_header"],
+            true
+        );
+        assert_eq!(
+            plugins["openid-connect"]["client_id"], "app-air-quality",
+            "the App's own client, so the Portal believes the token (AP-92)"
+        );
+
         // The template is untouched, and a pod App's path is its own.
         let surface = by_id(&file, "plugin_configs", "apps-surface").expect("the surface");
         assert_eq!(surface["plugins"]["openid-connect"]["client_id"], "edge");
@@ -983,6 +1061,17 @@ routes:
         assert!(named["session"].get("cookie_domain").is_none());
         assert_eq!(
             oidc(&format!("{at}-endpoint"))["redirect_uri"],
+            "https://bikes.hel.fi/callback"
+        );
+        // The platform services answer on the hostname too, with its own login (AP-167).
+        let services = by_id(&file, "routes", &format!("{at}-services")).expect("its services");
+        let theirs = by_id(&file, "routes", "app-bikes-services").expect("the host's");
+        assert_eq!(services["host"], "bikes.hel.fi");
+        for field in ["uris", "priority", "upstream_id"] {
+            assert_eq!(services[field], theirs[field], "{field}");
+        }
+        assert_eq!(
+            oidc(&format!("{at}-services"))["redirect_uri"],
             "https://bikes.hel.fi/callback"
         );
         // The key is the name's, whatever its place in the list.

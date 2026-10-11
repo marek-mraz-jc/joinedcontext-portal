@@ -689,7 +689,7 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 [[package]]
 name = "context-gateway"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ff5ede31e7039be7771883b01b82b0848b7a158c#ff5ede31e7039be7771883b01b82b0848b7a158c"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=4db300485c75de7399be942ce0ea9ec6c75b3a46#4db300485c75de7399be942ce0ea9ec6c75b3a46"
 dependencies = [
  "antares-jsonld",
  "antares-ql",
@@ -1179,6 +1179,16 @@ dependencies = [
  "serdect",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "email-encoding"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "420b9da095f052ea597503e39073b5b3c522f7db933fbac202d91d24492693fd"
+dependencies = [
+ "base64 0.23.1",
+ "memchr",
 ]
 
 [[package]]
@@ -2506,7 +2516,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ff5ede31e7039be7771883b01b82b0848b7a158c#ff5ede31e7039be7771883b01b82b0848b7a158c"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=4db300485c75de7399be942ce0ea9ec6c75b3a46#4db300485c75de7399be942ce0ea9ec6c75b3a46"
 dependencies = [
  "axum",
  "chrono",
@@ -2525,7 +2535,7 @@ dependencies = [
 [[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ff5ede31e7039be7771883b01b82b0848b7a158c#ff5ede31e7039be7771883b01b82b0848b7a158c"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=4db300485c75de7399be942ce0ea9ec6c75b3a46#4db300485c75de7399be942ce0ea9ec6c75b3a46"
 dependencies = [
  "aes-gcm",
  "age",
@@ -2667,6 +2677,7 @@ dependencies = [
  "jcctl",
  "jsonschema",
  "jsonwebtoken",
+ "lettre",
  "metrics",
  "metrics-exporter-prometheus",
  "mime_guess",
@@ -2813,6 +2824,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 dependencies = [
  "spin",
+]
+
+[[package]]
+name = "lettre"
+version = "0.11.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2c646bd5cc763b1087b15493e29a64be6147ba8f19342004fa52048ee596eae"
+dependencies = [
+ "async-trait",
+ "base64 0.23.1",
+ "email-encoding",
+ "email_address",
+ "fastrand",
+ "futures-io",
+ "futures-util",
+ "httpdate",
+ "idna",
+ "mime",
+ "nom",
+ "percent-encoding",
+ "quoted_printable",
+ "rustls",
+ "socket2",
+ "tokio",
+ "tokio-rustls",
+ "url",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -4064,6 +4102,12 @@ checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "quoted_printable"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "478e0585659a122aa407eb7e3c0e1fa51b1d8a870038bd29f0cf4a8551eea972"
 
 [[package]]
 name = "r-efi"

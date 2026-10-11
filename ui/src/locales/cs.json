@@ -5425,6 +5425,20 @@
             "label": "Největší nahrání (MiB)",
             "hint": "Největší soubor, který smí člověk nahrát; nejvýše limit okraje."
           }
+        },
+        "apps": {
+          "emailsPerDay": {
+            "label": "E-maily aplikace za den",
+            "hint": "Kolik zpráv smí jedna aplikace poslat za den; projekt nebo aplikace může nastavit méně."
+          },
+          "aiTokensPerDay": {
+            "label": "Tokeny modelu aplikace za den",
+            "hint": "Kolik tokenů modelu, vstup i výstup, smí jedna aplikace použít za den; projekt nebo aplikace může nastavit méně."
+          },
+          "filesMiB": {
+            "label": "Úložiště souborů aplikace (MiB)",
+            "hint": "Kolik smí jedna aplikace uložit do svých souborů; projekt nebo aplikace může nastavit méně."
+          }
         }
       },
       "policies": {
@@ -6954,5 +6968,49 @@
     "mentions": "Zmínky o vás",
     "noMentions": "Žádný komentář vás nezmiňuje.",
     "open": "Otevřít doručené ({count} čeká)"
+  },
+  "appServices": {
+    "title": "Služby pro aplikace",
+    "field": "Služby, které aplikace smějí používat",
+    "organizationHint": "Služby, které smějí používat aplikace každého projektu. Identita a data patří každé aplikaci; bez zaškrtnutí platí výchozí seznam: identita, data, soubory a úlohy.",
+    "projectHint": "Zužuje seznam organizace pro aplikace tohoto projektu; bez zaškrtnutí platí seznam organizace.",
+    "projectLead": "Které služby smějí aplikace tohoto projektu používat a denní kvóty každé aplikace, v rámci kvót organizace.",
+    "projectQuotaHint": "Na aplikaci; platí nejnižší z kvóty organizace, projektu a aplikace.",
+    "quotas": "Kvóty na aplikaci",
+    "byDefault": "(výchozí)",
+    "appLead": "Co tato aplikace smí volat na vlastní adrese. Službu vypnutou organizací nebo projektem zde nezapnete a její volání je odmítnuto se jménem této vrstvy.",
+    "save": "Navrhnout služby",
+    "unchanged": "Nejprve zaškrtněte nebo odškrtněte službu.",
+    "lock": {
+      "everyApp": "Tuto službu má každá aplikace.",
+      "organization": "Nastavení organizace tuto službu vypínají.",
+      "project": "Nastavení projektu tuto službu vypínají."
+    },
+    "service": {
+      "identity": {
+        "label": "Identita",
+        "hint": "kdo je přihlášen a jeho role"
+      },
+      "data": {
+        "label": "Data",
+        "hint": "endpoint aplikace"
+      },
+      "files": {
+        "label": "Soubory",
+        "hint": "vlastní úložiště aplikace"
+      },
+      "email": {
+        "label": "E-mail",
+        "hint": "zprávy lidem organizace"
+      },
+      "jobs": {
+        "label": "Úlohy",
+        "hint": "plánované běhy serverové aplikace"
+      },
+      "ai": {
+        "label": "AI",
+        "hint": "odpovědi modelů organizace"
+      }
+    }
   }
 }

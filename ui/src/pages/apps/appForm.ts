@@ -80,12 +80,13 @@ export function toAppEnvelope(project: string, form: AppForm, stored?: unknown):
   const csp = form.csp
     ? members({ connectSrc: list(form.csp.connectSrc), frameAncestors: list(form.csp.frameAncestors) })
     : undefined;
-  const limits = form.limits
-    ? members({
-        requestsPerMinute: form.limits.requestsPerMinute,
-        maxFileRows: form.limits.maxFileRows,
-      })
-    : undefined;
+  // The service quotas (AP-165) have no field here: they travel on as stored, and the two the form
+  // edits replace theirs.
+  const limits = members({
+    ...((kept.limits as Record<string, unknown> | undefined) ?? {}),
+    requestsPerMinute: form.limits?.requestsPerMinute,
+    maxFileRows: form.limits?.maxFileRows,
+  });
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "App",
@@ -118,6 +119,8 @@ export function toAppEnvelope(project: string, form: AppForm, stored?: unknown):
       // The App's roles and who holds them have no field here; an edit keeps them as stored
       // rather than dropping them (AP-90, AP-91).
       ...(kept.roles !== undefined ? { roles: kept.roles } : {}),
+      // The App's services are the Services section's to switch (AP-163); an edit keeps them.
+      ...(kept.services !== undefined ? { services: kept.services } : {}),
       ...(kept.access !== undefined ? { access: kept.access } : {}),
     },
   };

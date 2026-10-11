@@ -42,6 +42,70 @@ export class ProblemError extends Error {
   }
 }
 
+/** A platform service the App's layers switched off, or whose quota is used up (SDK-43, API/06 §3). */
+export class ServiceRefusedError extends ProblemError {
+  readonly service: "files" | "email" | "jobs" | "ai";
+  readonly layer?: "organization" | "project" | "app";
+  readonly quota?: string;
+  readonly resetAt?: string;
+
+  constructor(status: number, body: unknown, service: ServiceRefusedError["service"]) {
+    super(status, body);
+    const b = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
+    this.name = "ServiceRefusedError";
+    this.service = service;
+    const layer = b.layer;
+    this.layer = layer === "organization" || layer === "project" || layer === "app" ? layer : undefined;
+    this.quota = typeof b.quota === "string" ? b.quota : undefined;
+    this.resetAt = typeof b.resetAt === "string" ? b.resetAt : undefined;
+  }
+}
+
+/** The error of a service's refusal: a switched-off service or a used-up quota is a `ServiceRefusedError`. */
+function serviceError(status: number, body: unknown, service: ServiceRefusedError["service"]): ProblemError {
+  const type = (typeof body === "object" && body !== null ? (body as { type?: unknown }).type : undefined) ?? "";
+  return typeof type === "string" && (type.endsWith("/service-off") || type.endsWith("/quota"))
+    ? new ServiceRefusedError(status, body, service)
+    : new ProblemError(status, body);
+}
+
+/** A message to people of the organization, by person id or `"me"` (AP-168). */
+export interface Email {
+  to: string[] | "me";
+  subject: string;
+  text: string;
+  html?: string;
+}
+
+/** An object the App keeps under its own prefix (AP-170). */
+export interface FileInfo {
+  path: string;
+  size: number;
+  contentType: string;
+  modifiedAt: string;
+}
+
+/** One turn of a conversation with the platform's model (AP-169). */
+export interface AiMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/** A completion: the answer, the JSON value when a schema was asked for, and the tokens it took. */
+export interface Completion {
+  text: string;
+  json?: unknown;
+  tokens: { in: number; out: number };
+}
+
+/** A scheduled job of the App and its runs (AP-154, AP-162); `nextRun` is absent for a schedule that names no minute within a year. */
+export interface JobStatus {
+  name: string;
+  schedule: string;
+  nextRun?: string;
+  lastRun?: { at: string; ok: boolean; message?: string };
+}
+
 export interface Query {
   /** The endpoint to read, by the name the served configuration lists; only needed for a type more than one endpoint serves. */
   endpoint?: string;
@@ -113,6 +177,34 @@ export interface EndpointOption {
 
 export interface Client extends DataClient {
   functions: { call<T = unknown>(name: string, body?: unknown): Promise<T> };
+  /** The `email` service: the platform holds the relay, the App names people (SDK-41, API/06 §4). */
+  email: { send(message: Email): Promise<{ id: string }> };
+  /**
+   * The `files` service: objects under the App's own prefix, each at most 25 MiB, all within its
+   * `filesMiB` (SDK-41, API/06 §4). Over the browser's own host; a key is relative and has no
+   * `.` or `..` segment.
+   */
+  files: {
+    put(path: string, body: Blob | ArrayBuffer | string, opts?: { contentType?: string }): Promise<FileInfo>;
+    get(path: string): Promise<Blob>;
+    list(prefix?: string): Promise<FileInfo[]>;
+    remove(path: string): Promise<void>;
+    url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }>;
+  };
+  /**
+   * The `ai` service: a completion from the model the platform chooses, within the App's
+   * `aiTokensPerDay` (SDK-41, API/06 §4). With `schema`, the answer is one JSON value of it.
+   */
+  ai: { complete(request: { messages: AiMessage[]; maxTokens?: number; schema?: object }): Promise<Completion> };
+  /** The `jobs` service: the App's schedules with their next and last run (SDK-41, API/06 §4). */
+  jobs: { list(): Promise<JobStatus[]> };
+}
+
+const FILES = "/api/services/files";
+
+/** A key's route, each segment encoded so a `?`, `#` or `%` in a name stays in the key. */
+function filePath(path: string): string {
+  return `${FILES}/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 export const FUNCTION_NAME = /^[a-z][a-z0-9-]{0,39}$/;
@@ -578,6 +670,71 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     },
   };
 
+  const email = {
+    async send(message: Email): Promise<{ id: string }> {
+      const path = config.transport === "bridge" ? "/services/email/send" : "/api/services/email/send";
+      const resp = await transport({ method: "POST", path, body: message });
+      if (resp.status < 200 || resp.status >= 300) {
+        throw serviceError(resp.status, resp.body, "email");
+      }
+      return resp.body as { id: string };
+    },
+  };
+
+  const files = {
+    async put(path: string, body: Blob | ArrayBuffer | string, opts?: { contentType?: string }): Promise<FileInfo> {
+      const contentType =
+        opts?.contentType ??
+        (typeof body === "string"
+          ? "text/plain;charset=utf-8"
+          : body instanceof Blob && body.type !== ""
+            ? body.type
+            : "application/octet-stream");
+      const resp = await transport({ method: "PUT", path: filePath(path), raw: { data: body, contentType } });
+      if (resp.status !== 201) throw serviceError(resp.status, resp.body, "files");
+      return resp.body as FileInfo;
+    },
+    async get(path: string): Promise<Blob> {
+      const resp = await transport({ method: "GET", path: filePath(path), as: "blob" });
+      if (resp.status !== 200) throw serviceError(resp.status, resp.body, "files");
+      return resp.body as Blob;
+    },
+    async list(prefix = ""): Promise<FileInfo[]> {
+      const resp = await transport({ method: "GET", path: `${FILES}?prefix=${encodeURIComponent(prefix)}` });
+      if (resp.status !== 200) throw serviceError(resp.status, resp.body, "files");
+      return resp.body as FileInfo[];
+    },
+    async remove(path: string): Promise<void> {
+      const resp = await transport({ method: "DELETE", path: filePath(path) });
+      if (resp.status !== 204) throw serviceError(resp.status, resp.body, "files");
+    },
+    async url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }> {
+      const resp = await transport({ method: "POST", path: `${filePath(path)}:url`, body: { method: opts?.method ?? "GET" } });
+      if (resp.status !== 200) throw serviceError(resp.status, resp.body, "files");
+      return resp.body as { url: string; expiresAt: string };
+    },
+  };
+
+  const ai = {
+    async complete(request: { messages: AiMessage[]; maxTokens?: number; schema?: object }): Promise<Completion> {
+      const path = config.transport === "bridge" ? "/services/ai/complete" : "/api/services/ai/complete";
+      const resp = await transport({ method: "POST", path, body: request });
+      if (resp.status !== 200) throw serviceError(resp.status, resp.body, "ai");
+      return resp.body as Completion;
+    },
+  };
+
+  const jobs = {
+    async list(): Promise<JobStatus[]> {
+      const path = config.transport === "bridge" ? "/services/jobs" : "/api/services/jobs";
+      const resp = await transport({ method: "GET", path });
+      if (resp.status < 200 || resp.status >= 300) {
+        throw serviceError(resp.status, resp.body, "jobs");
+      }
+      return resp.body as JobStatus[];
+    },
+  };
+
   return {
     config,
     entities,
@@ -587,6 +744,10 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     me: () => config.user ?? null,
     entityId,
     functions,
+    email,
+    files,
+    jobs,
+    ai,
   };
 }
 
