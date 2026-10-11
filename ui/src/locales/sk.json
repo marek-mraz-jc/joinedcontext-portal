@@ -2459,6 +2459,37 @@
       "noCkan": "Táto skupina nespravuje žiadny katalóg.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "cez rolu {role}"
+    },
+    "explorer": {
+      "title": "Pozrite, k čomu má niekto prístup",
+      "lead": "Vyberte osobu, skupinu, rolu, servisný účet alebo verejnosť. Každý Endpoint tohto projektu, ku ktorému sa dostanú, sa zobrazí s tým, čo tam smú čítať a robiť, ako rozhodla brána. Endpointy, ku ktorým sa nedostanú, sa nezobrazia.",
+      "kind": "Kto",
+      "search": "Hľadať osoby",
+      "show": "Zobraziť prístup",
+      "failed": "Prístup sa nepodarilo zobraziť",
+      "nothing": "Nedosiahne nič",
+      "nothingLead": "Žiadny Endpoint tohto projektu ich nepripúšťa ani im nič neudeľuje. Prístup udelíte politikou, skupinou alebo väzbou roly.",
+      "space": "priestor {space}",
+      "through": "Udelené cez",
+      "openEndpoint": "Otvoriť Endpoint",
+      "may": "Smie",
+      "mayNot": "Nesmie",
+      "attributes": "Atribúty:",
+      "allAttributes": "všetky",
+      "only": "Len kde",
+      "copy": "Kopírovať URL {surface}",
+      "geoQ": "Oblasť obmedzenia: {shape}",
+      "mcp": "Jeden MCP konektor na všetko",
+      "mcpLead": "Hub pokrýva všetky Endpointy vyššie jedným konektorom; Endpoint sa uvádza pri každom volaní.",
+      "connectAll": "Pripojiť všetko (kopírovať URL hubu)",
+      "consents": "Pripojení klienti",
+      "noConsents": "Žiadni pripojení klienti.",
+      "lastUsed": "naposledy použité {when}",
+      "revoke": "Odvolať",
+      "revokeTitle": "Odvolať súhlas pre {client}?",
+      "revokeLead": "Klient stratí pripojenie a offline relácie a musí požiadať znova. Žiadne oprávnenie sa nemení.",
+      "revokeFailed": "Súhlas sa nepodarilo odvolať",
+      "endpoints": "{count, plural, one {# dosiahnutý Endpoint} few {# dosiahnuté Endpointy} other {# dosiahnutých Endpointov}}"
     }
   },
   "flows": {
@@ -4462,7 +4493,8 @@
       },
       "access": {
         "denied": "Prístup odmietnutý",
-        "simulated": "Pravidlo vyskúšané na osobe"
+        "simulated": "Pravidlo vyskúšané na osobe",
+        "explored": "Prístup zobrazený"
       },
       "mcp": {
         "tool": "Volanie nástroja asistenta"
@@ -5549,7 +5581,8 @@
       "roles": "Roly",
       "service-accounts": "Servisné účty",
       "access": "Váš prístup",
-      "danger": "Odstrániť alebo odovzdať"
+      "danger": "Odstrániť alebo odovzdať",
+      "explorer": "Prehľad prístupu"
     },
     "field": {
       "title": "Názov",
