@@ -14,3 +14,9 @@ MATCH (c:Symbol)-[:CALLS]->(f:Symbol) WHERE f.external AND f.path =~ 'reqwest::.
 GREP AssertSqlSafe\( IN src/**/*.rs;
 // fs-write: a write, rename or removal on the local filesystem; each names where its path comes from (T-3846)
 GREP (fs::write|fs::remove_file|fs::remove_dir_all|fs::rename|fs::create_dir_all|File::create|OpenOptions::new) IN src/**/*.rs;
+// ui-call-to-missing-route: a UI or App SDK call (.cg/links) to a route no handler provides; each row is a broken button (T-3916)
+MATCH (u)-[:USES]->(c:Channel {channel:'http'}) WHERE c.providers = 0 RETURN DISTINCT c.key, u.path ORDER BY c.key;
+// route-without-caller: a route no UI page or App SDK call reaches; each row names its outside caller (a client of the documented API, a workload, a probe, a redirect), or is dead code to delete (T-3916)
+MATCH (h:Symbol)-[:PROVIDES]->(c:Channel {channel:'http'}) WHERE c.users = 0 RETURN DISTINCT c.key, h.path ORDER BY c.key;
+// button-to-decision: a route a UI page or App SDK call reaches whose handler reaches no decision of crate::permissions and none of the other doors (the internal bearer, the MCP bearer, an App's service gate or person) within 8 hops; each row says why the session alone is enough (T-3916)
+MATCH (u:Symbol)-[:USES]->(c:Channel {channel:'http'})<-[:PROVIDES]-(h:Symbol) WHERE NOT EXISTS { MATCH (h)-[:CALLS|DISPATCHES*1..8]->(g:Symbol) WHERE g.path STARTS WITH 'joinedcontext_portal::permissions::' OR g.path STARTS WITH 'joinedcontext_portal::auth::internal::' OR g.path STARTS WITH 'joinedcontext_portal::auth::bearer::' OR g.path IN ['joinedcontext_portal::apps::services::gate', 'joinedcontext_portal::apps::roles::person'] } RETURN DISTINCT c.key, h.path ORDER BY c.key;
