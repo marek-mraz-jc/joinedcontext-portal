@@ -462,17 +462,19 @@ impl Client {
 impl Client {
     /// A URL that lets its holder do `method` on `key` of `bucket` alone for `expires` seconds,
     /// signed for `origin`, the address a browser reaches the store at, which is the `Host` it
-    /// sends (AP-145).
+    /// sends (AP-145). With a `length`, the URL signs `Content-Length` too, so the store refuses
+    /// a body of any other length (AP-170).
     pub fn presign(
         &self,
         (method, bucket, key): (&str, &str, &str),
+        length: Option<u64>,
         expires: u32,
         origin: &str,
         now: chrono::DateTime<chrono::Utc>,
     ) -> String {
         presigned(
             &self.settings,
-            (method, &Self::object_path(bucket, key)),
+            (method, &Self::object_path(bucket, key), length),
             expires,
             origin,
             now,
@@ -481,10 +483,11 @@ impl Client {
 }
 
 /// [`Client::presign`] of one encoded path (SigV4 § "Authenticating Requests: Using Query
-/// Parameters"): only `host` is signed, and the payload is `UNSIGNED-PAYLOAD`.
+/// Parameters"): `host` is signed, with `content-length` when a length is given, and the payload
+/// is `UNSIGNED-PAYLOAD`.
 fn presigned(
     settings: &Settings,
-    (method, path): (&str, &str),
+    (method, path, length): (&str, &str, Option<u64>),
     expires: u32,
     origin: &str,
     now: chrono::DateTime<chrono::Utc>,
@@ -492,6 +495,13 @@ fn presigned(
     let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
     let date = now.format("%Y%m%d").to_string();
     let scope = format!("{date}/{}/s3/aws4_request", settings.region);
+    let origin = origin.trim_end_matches('/');
+    let host = origin.split_once("://").map_or(origin, |(_, host)| host);
+    let mut headers = BTreeMap::from([("host".to_owned(), host.to_owned())]);
+    if let Some(length) = length {
+        headers.insert("content-length".to_owned(), length.to_string());
+    }
+    let signed = headers.keys().cloned().collect::<Vec<_>>().join(";");
     let query = canonical_query(&[
         ("X-Amz-Algorithm", "AWS4-HMAC-SHA256".to_owned()),
         (
@@ -500,11 +510,8 @@ fn presigned(
         ),
         ("X-Amz-Date", amz_date.clone()),
         ("X-Amz-Expires", expires.to_string()),
-        ("X-Amz-SignedHeaders", "host".to_owned()),
+        ("X-Amz-SignedHeaders", signed),
     ]);
-    let origin = origin.trim_end_matches('/');
-    let host = origin.split_once("://").map_or(origin, |(_, host)| host);
-    let headers = BTreeMap::from([("host".to_owned(), host.to_owned())]);
     let request = canonical_request(method, path, &query, &headers, "UNSIGNED-PAYLOAD");
     let key = signing_key(&settings.root_secret_key, &date, &settings.region, "s3");
     let signature = hex(&hmac(
@@ -1034,7 +1041,7 @@ mod tests {
         assert_eq!(
             presigned(
                 &settings,
-                ("GET", "/test.txt"),
+                ("GET", "/test.txt", None),
                 86_400,
                 "https://examplebucket.s3.amazonaws.com/",
                 may_24
@@ -1047,6 +1054,7 @@ mod tests {
         let client = Client::new(settings).expect("a client");
         let url = client.presign(
             ("PUT", "apps", "apps/0/a1/x y.png"),
+            None,
             300,
             "https://files.dev.example",
             may_24,
@@ -1054,6 +1062,22 @@ mod tests {
         assert!(
             url.starts_with("https://files.dev.example/apps/apps/0/a1/x%20y.png?"),
             "path style on the public origin: {url}"
+        );
+        // T-3661: a PUT held to a length signs it, and the signature is another one.
+        let held = client.presign(
+            ("PUT", "apps", "apps/0/a1/x y.png"),
+            Some(1024),
+            300,
+            "https://files.dev.example",
+            may_24,
+        );
+        assert!(
+            held.contains("X-Amz-SignedHeaders=content-length%3Bhost"),
+            "{held}"
+        );
+        assert_ne!(
+            held.split("X-Amz-Signature=").nth(1),
+            url.split("X-Amz-Signature=").nth(1)
         );
     }
 }

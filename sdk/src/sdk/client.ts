@@ -189,7 +189,8 @@ export interface Client extends DataClient {
     get(path: string): Promise<Blob>;
     list(prefix?: string): Promise<FileInfo[]>;
     remove(path: string): Promise<void>;
-    url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }>;
+    /** A PUT URL is signed for `size` bytes: the store refuses a body of any other length. */
+    url(path: string, opts?: { method?: "GET" } | { method: "PUT"; size: number }): Promise<{ url: string; expiresAt: string }>;
   };
   /**
    * The `ai` service: a completion from the model the platform chooses, within the App's
@@ -708,8 +709,9 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       const resp = await transport({ method: "DELETE", path: filePath(path) });
       if (resp.status !== 204) throw serviceError(resp.status, resp.body, "files");
     },
-    async url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }> {
-      const resp = await transport({ method: "POST", path: `${filePath(path)}:url`, body: { method: opts?.method ?? "GET" } });
+    async url(path: string, opts?: { method?: "GET" } | { method: "PUT"; size: number }): Promise<{ url: string; expiresAt: string }> {
+      const body = opts?.method === "PUT" ? { method: "PUT", size: opts.size } : { method: "GET" };
+      const resp = await transport({ method: "POST", path: `${filePath(path)}:url`, body });
       if (resp.status !== 200) throw serviceError(resp.status, resp.body, "files");
       return resp.body as { url: string; expiresAt: string };
     },

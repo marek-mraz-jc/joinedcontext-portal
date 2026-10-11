@@ -254,7 +254,9 @@ async fn a_url_names_one_key_and_one_method_on_the_public_origin_for_five_minute
         &state,
         "POST",
         "/defects/1.jpg:url",
-        json!({ "method": "PUT" }).to_string().into_bytes(),
+        json!({ "method": "PUT", "size": 1000 })
+            .to_string()
+            .into_bytes(),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{text}");
@@ -263,8 +265,23 @@ async fn a_url_names_one_key_and_one_method_on_the_public_origin_for_five_minute
         url.starts_with(&format!(
             "https://files.dev.example/apps/{}defects/1.jpg?",
             prefix()
-        )) && url.contains("X-Amz-Expires=300"),
-        "{url}"
+        )) && url.contains("X-Amz-Expires=300")
+            && url.contains("X-Amz-SignedHeaders=content-length%3Bhost"),
+        "the PUT's length is signed: {url}"
+    );
+    let (status, body, text) = call(
+        &state,
+        "POST",
+        "/defects/1.jpg:url",
+        json!({ "method": "GET" }).to_string().into_bytes(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{text}");
+    assert!(
+        body["url"]
+            .as_str()
+            .is_some_and(|url| url.contains("X-Amz-SignedHeaders=host&")),
+        "{text}"
     );
     let (status, _, _) = call(
         &state,
@@ -291,4 +308,43 @@ async fn an_app_without_files_is_refused_naming_the_app() {
         .await
         .unwrap_or_default()
         .is_empty());
+}
+
+/// T-3661: a PUT URL is issued only for a size the object and the App's `filesMiB` hold, and the
+/// store, which the URL signs that size for, refuses any other.
+#[tokio::test]
+async fn a_put_url_is_held_to_25_mib_and_to_what_files_mib_has_left() {
+    let store = store(1024 * 1024 - 100).await;
+    let state = state(&store, json!(["files"]));
+    let ask = |body: Value| {
+        call(
+            &state,
+            "POST",
+            "/defects/1.jpg:url",
+            body.to_string().into_bytes(),
+        )
+    };
+
+    let (status, body, text) = ask(json!({ "method": "PUT", "size": 25 * 1024 * 1024 + 1 })).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "{text}");
+    assert_eq!(
+        body["type"],
+        "https://joinedcontext.com/errors/file-too-large"
+    );
+
+    let (status, body, text) = ask(json!({ "method": "PUT", "size": 101 })).await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "{text}");
+    assert_eq!(body["quota"], "filesMiB", "{text}");
+    let (status, _, text) = ask(json!({ "method": "PUT", "size": 100 })).await;
+    assert_eq!(status, StatusCode::OK, "the last 100 bytes fit: {text}");
+
+    for (body, why) in [
+        (json!({ "method": "PUT" }), "size"),
+        (json!({ "method": "GET", "size": 1 }), "size"),
+        (json!({ "method": "PUT", "size": -1 }), "body"),
+    ] {
+        let (status, _, text) = ask(body.clone()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}: {text}");
+        assert!(text.contains(why), "{body}: {text}");
+    }
 }

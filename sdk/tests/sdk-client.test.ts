@@ -426,8 +426,8 @@ describe("files", () => {
     expect(calls[2].path).toBe("/api/services/files?prefix=defects%2F");
     await client.files.remove("defects/1 a.jpg");
     expect(calls[3].method).toBe("DELETE");
-    expect((await client.files.url("defects/1 a.jpg", { method: "PUT" })).expiresAt).toBe("2026-10-10T22:05:00Z");
-    expect(calls[4]).toEqual({ method: "POST", path: "/api/services/files/defects/1%20a.jpg:url", body: { method: "PUT" } });
+    expect((await client.files.url("defects/1 a.jpg", { method: "PUT", size: 2048 })).expiresAt).toBe("2026-10-10T22:05:00Z");
+    expect(calls[4]).toEqual({ method: "POST", path: "/api/services/files/defects/1%20a.jpg:url", body: { method: "PUT", size: 2048 } });
     const full = await client.files.put("notes.txt", "x").catch((err: unknown) => err);
     expect(full).toBeInstanceOf(ServiceRefusedError);
     expect(full).toMatchObject({ service: "files", quota: "filesMiB" });

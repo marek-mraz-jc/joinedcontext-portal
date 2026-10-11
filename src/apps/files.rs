@@ -237,6 +237,48 @@ pub(super) async fn get(
     }
 }
 
+/// Whether `size` bytes under `key` fit: at most 25 MiB, and the App's `filesMiB` with the object
+/// it replaces taken out of the total as this one enters it.
+async fn room(
+    state: &AppState,
+    files: &Files,
+    (name, key): (&str, &str),
+    size: u64,
+) -> Result<(), Box<Response>> {
+    if size > MAX_OBJECT_BYTES as u64 {
+        return Err(Box::new(services::file_too_large(MAX_OBJECT_BYTES)));
+    }
+    let Some((_, spec, _)) = super::static_host::published_app(state, name) else {
+        return Err(Box::new(
+            ApiError::NotFound(format!("app '{name}' not found")).into_response(),
+        ));
+    };
+    let limit = u64::from(services::quota(
+        &state.mirror,
+        &files.project,
+        &spec,
+        Quota::FilesMiB,
+    )) * MIB;
+    let held = files
+        .store
+        .list(&files.bucket, &files.prefix)
+        .await
+        .map_err(|err| Box::new(unavailable(err)))?;
+    let used: u64 = held
+        .iter()
+        .filter(|object| object.key != key)
+        .map(|object| object.size)
+        .sum();
+    if used.saturating_add(size) > limit {
+        return Err(Box::new(services::quota_used(
+            AppService::Files,
+            "filesMiB",
+            None,
+        )));
+    }
+    Ok(())
+}
+
 /// `PUT /api/services/files/{path}`: stores the body under the App's prefix, within 25 MiB and
 /// the App's `filesMiB`.
 pub(super) async fn put(
@@ -254,30 +296,8 @@ pub(super) async fn put(
         Ok(key) => format!("{}{key}", files.prefix),
         Err(why) => return bad(why),
     };
-    if body.len() > MAX_OBJECT_BYTES {
-        return services::file_too_large(MAX_OBJECT_BYTES);
-    }
-    let Some((_, spec, _)) = super::static_host::published_app(&state, &name) else {
-        return ApiError::NotFound(format!("app '{name}' not found")).into_response();
-    };
-    let limit = u64::from(services::quota(
-        &state.mirror,
-        &files.project,
-        &spec,
-        Quota::FilesMiB,
-    )) * MIB;
-    let held = match files.store.list(&files.bucket, &files.prefix).await {
-        Ok(objects) => objects,
-        Err(err) => return unavailable(err),
-    };
-    // The object it replaces leaves the total as this one enters it.
-    let used: u64 = held
-        .iter()
-        .filter(|object| object.key != key)
-        .map(|object| object.size)
-        .sum();
-    if used + body.len() as u64 > limit {
-        return services::quota_used(AppService::Files, "filesMiB", None);
+    if let Err(refused) = room(&state, &files, (&name, &key), body.len() as u64).await {
+        return *refused;
     }
     let kind = headers
         .get(header::CONTENT_TYPE)
@@ -342,12 +362,15 @@ pub(super) async fn delete(
 #[serde(deny_unknown_fields)]
 pub struct Presign {
     method: String,
+    /// The bytes a PUT will store: required for a PUT, refused on a GET.
+    #[serde(default)]
+    size: Option<u64>,
 }
 
 /// `POST /api/services/files/{path}:url`: a URL for one key and one method, for five minutes,
-/// on the store's public origin (AP-145).
-// ponytail: a presigned PUT is held to one key and five minutes but not to 25 MiB or `filesMiB`,
-// as `jc:app/blob`'s is not; a POST policy with `content-length-range` when that matters.
+/// on the store's public origin (AP-145). A PUT names its `size`, held to 25 MiB and to what
+/// `filesMiB` has left, and the URL signs that `Content-Length`, so the store refuses a body of
+/// any other length (AP-170, T-3661). The quota counts the object once it is stored.
 pub(super) async fn url(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -369,19 +392,40 @@ pub(super) async fn url(
         Ok(key) => format!("{}{key}", files.prefix),
         Err(why) => return bad(why),
     };
-    let method = match serde_json::from_slice::<Presign>(&body) {
-        Ok(Presign { method }) if method == "GET" || method == "PUT" => method,
+    let (method, size) = match serde_json::from_slice::<Presign>(&body) {
+        Ok(Presign { method, size: None }) if method == "GET" => (method, None),
+        Ok(Presign {
+            method,
+            size: Some(size),
+        }) if method == "PUT" => (method, Some(size)),
+        Ok(Presign { method, .. }) if method == "GET" => return bad("a GET URL names no size"),
+        Ok(Presign { method, .. }) if method == "PUT" => {
+            return bad("a PUT URL names the size it stores, in bytes")
+        }
         Ok(_) => return bad("method is GET or PUT"),
-        Err(err) => return bad(format!("the body is not {{ \"method\" }}: {err}")),
+        Err(err) => {
+            return bad(format!(
+                "the body is not {{ \"method\", \"size\"? }}: {err}"
+            ))
+        }
     };
+    if let Some(size) = size {
+        if let Err(refused) = room(&state, &files, (&name, &key), size).await {
+            return *refused;
+        }
+    }
     let Some(origin) = state.config.apps_store_origin.as_deref() else {
         return ApiError::Unavailable("this installation hands out no file URLs".into())
             .into_response();
     };
     let now = chrono::Utc::now();
-    let url = files
-        .store
-        .presign((&method, &files.bucket, &key), PRESIGN_SECONDS, origin, now);
+    let url = files.store.presign(
+        (&method, &files.bucket, &key),
+        size,
+        PRESIGN_SECONDS,
+        origin,
+        now,
+    );
     let expires = now + chrono::Duration::seconds(i64::from(PRESIGN_SECONDS));
     Json(serde_json::json!({
         "url": url,
