@@ -604,6 +604,28 @@ impl Driver {
         })
     }
 
+    /// Whether the App's organization, project and App layers all have `service` on (AP-164): an
+    /// App the mirror does not hold yet uses none beyond identity and data.
+    fn service_on(&self, service: &str) -> bool {
+        let Ok(service) = serde_json::from_value::<jc_core::kinds::AppService>(json!(service))
+        else {
+            return false;
+        };
+        let Some(spec) = self
+            .state
+            .mirror
+            .find(|env| {
+                env.kind == "App"
+                    && env.metadata.name == self.app_name
+                    && env.metadata.namespace.as_deref() == Some(self.project.as_str())
+            })
+            .and_then(|env| serde_json::from_value::<jc_core::kinds::AppSpec>(env.spec).ok())
+        else {
+            return false;
+        };
+        crate::apps::services::off_at(&self.state.mirror, &self.project, &spec, service).is_none()
+    }
+
     /// One call over the project: the blocks applied where SDK-11 allows, then what keeps the
     /// files from building. A refused block goes back only beside a problem, so a stray path
     /// never costs a second call.
@@ -641,6 +663,11 @@ impl Driver {
         )
         .await?;
         let mut problems = code::problems(files);
+        problems.extend(code::off_service_calls(
+            crate::ops::runs::SERVICES_CATALOG,
+            files,
+            |service| self.service_on(service),
+        ));
         // The prose already says what those blocks did, so a lost one is a repair, not a note.
         if unread > 0 {
             problems.push(unread_problem(unread));
@@ -706,7 +733,10 @@ impl Driver {
                 named.join(", ")
             ));
         }
-        pack.push_str(&code::services_section(crate::ops::runs::SERVICES_CATALOG));
+        pack.push_str(&code::services_section(
+            crate::ops::runs::SERVICES_CATALOG,
+            |service| self.service_on(service),
+        ));
         if files.contains_key(code::SERVER_MANIFEST) {
             pack.push_str(code::SERVER_SECTION);
         }
@@ -1337,6 +1367,144 @@ mod tests {
             "no template test is carried"
         );
         assert!(pack.contains("Unchanged template tests and styles"));
+    }
+
+    /// T-3623: the builder offers the services the App's layers have on and never one a layer
+    /// keeps off: `ai` is on the App and off at the organization, so the pack names no call of it.
+    #[tokio::test]
+    async fn the_pack_offers_no_service_a_layer_keeps_off() {
+        let envelope = |kind: &str, name: &str, namespace: &str, spec: Value| {
+            crate::resource::ResourceEnvelope {
+                api_version: crate::resource::API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: crate::resource::ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            }
+        };
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(envelope(
+            "App",
+            "test",
+            "helsinki",
+            json!({ "kind": "ui", "source": { "path": "." }, "build": {}, "visibility": "project",
+                    "lifecycle": "draft", "dataNeeds": [], "services": ["email", "ai"] }),
+        ));
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.prompt = "Mail me the worst defects, rated".into();
+        let template = crate::agents::preview::template_files();
+        let prompt = driver.prompt.clone();
+        let org = |services: Value| {
+            envelope(
+                "Organization",
+                "helsinki",
+                "org",
+                json!({ "domain": "hel.fi", "locales": ["en"], "defaultLocale": "en",
+                        "policies": { "apps": { "services": services } } }),
+            )
+        };
+
+        driver
+            .state
+            .mirror
+            .upsert(org(json!(["email", "files", "jobs"])));
+        let pack = driver
+            .code_pack(&json!({}), &template, &[], &prompt, None)
+            .await;
+        assert!(
+            pack.contains("- email: calls jc().email.send"),
+            "on at every layer"
+        );
+        // The SDK's API.md, also in the pack, names every call; the services section offers them.
+        assert!(!pack.contains("- ai: calls"), "off at the organization");
+        assert!(!pack.contains("- files: calls"), "off at the App");
+
+        driver
+            .state
+            .mirror
+            .upsert(org(json!(["email", "files", "jobs", "ai"])));
+        let pack = driver
+            .code_pack(&json!({}), &template, &[], &prompt, None)
+            .await;
+        assert!(
+            pack.contains("- ai: calls jc().ai.complete"),
+            "on once the organization allows it"
+        );
+    }
+
+    /// T-3623, recorded answers: the model writes a call of `ai`, which the organization keeps
+    /// off; the call goes back to it as a problem of its file, and the version that is built has
+    /// no call of it.
+    #[tokio::test]
+    async fn generated_code_that_calls_a_service_a_layer_keeps_off_is_sent_back() {
+        let server = wiremock::MockServer::start().await;
+        let answer = |text: &str| {
+            wiremock::ResponseTemplate::new(200)
+                .set_body_json(json!({ "content": [{ "type": "text", "text": text }] }))
+        };
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(answer(
+                "A rating.\nsrc/Rate.ts\n<<<<<<< SEARCH\n=======\nexport const rate = (c: { ai: { complete(x: object): unknown } }) => c.ai.complete({});\n>>>>>>> REPLACE\n",
+            ))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(answer(
+                "Without the model.\nsrc/Rate.ts\n<<<<<<< SEARCH\nexport const rate = (c: { ai: { complete(x: object): unknown } }) => c.ai.complete({});\n=======\nexport const rate = (severity: number) => Math.min(5, Math.max(1, severity));\n>>>>>>> REPLACE\n",
+            ))
+            .mount(&server)
+            .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let envelope = |kind: &str, name: &str, namespace: &str, spec: Value| {
+            crate::resource::ResourceEnvelope {
+                api_version: crate::resource::API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: crate::resource::ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            }
+        };
+        state.mirror.upsert(envelope(
+            "App",
+            "test",
+            "helsinki",
+            json!({ "kind": "ui", "source": { "path": "." }, "build": {}, "visibility": "project",
+                    "lifecycle": "draft", "dataNeeds": [], "services": ["ai"] }),
+        ));
+        state.mirror.upsert(envelope(
+            "Organization",
+            "helsinki",
+            "org",
+            json!({ "domain": "hel.fi", "locales": ["en"], "defaultLocale": "en",
+                    "policies": { "apps": { "services": ["email"] } } }),
+        ));
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.prompt = "Rate each defect".into();
+        let mut files = crate::agents::preview::template_files();
+        let prompt = driver.prompt.clone();
+        let pass = driver
+            .code_pass(&json!({}), &mut files, &[], &prompt, None, false)
+            .await
+            .expect("the pass ends");
+        assert!(matches!(pass, CodePass::Built { .. }));
+        assert!(
+            files
+                .values()
+                .all(|content| !content.contains(".ai.complete(")),
+            "the built version calls no ai"
+        );
+        let asked = server.received_requests().await.unwrap_or_default();
+        assert_eq!(asked.len(), 2, "one call and its repair");
+        let repair = String::from_utf8_lossy(&asked[1].body);
+        assert!(
+            repair.contains("src/Rate.ts: calls the ai service"),
+            "{repair}"
+        );
     }
 
     /// What the one model call a verification makes looks like, for a version of the first run

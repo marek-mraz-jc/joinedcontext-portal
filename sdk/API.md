@@ -459,8 +459,9 @@ function stubTransport(fixture?: Fixture): StubTransport
 ```
 Creates an in-memory transport holding entity fixtures and recording request calls. The fixture
 carries `entities`, `schema`, `access`, `functions`, `temporal` (the temporal read's answer as the
-broker's `temporalValues` bodies, filtered by the asked type) and `refuse` (a response to send
-instead, per request).
+broker's `temporalValues` bodies, filtered by the asked type), `refuse` (a response to send
+instead, per request) and `services` (an answer per request for `files`, `email`, `jobs` and `ai`,
+by service; a service without one answers `404`).
 ```ts
 function stubClient(fixture?: Fixture, config?: Partial<JcConfig>): Client & { transport: StubTransport }
 ```

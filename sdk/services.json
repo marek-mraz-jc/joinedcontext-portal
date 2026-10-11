@@ -82,7 +82,28 @@
       "service": "files",
       "always": false,
       "what": "objects under the App's own prefix (AP-170)",
-      "typescript": [],
+      "typescript": [
+        {
+          "name": "jc().files.put",
+          "signature": "jc().files.put(path: string, body: Blob | ArrayBuffer | string, opts?: { contentType?: string }): Promise<FileInfo>"
+        },
+        {
+          "name": "jc().files.get",
+          "signature": "jc().files.get(path: string): Promise<Blob>"
+        },
+        {
+          "name": "jc().files.list",
+          "signature": "jc().files.list(prefix?: string): Promise<FileInfo[]>"
+        },
+        {
+          "name": "jc().files.remove",
+          "signature": "jc().files.remove(path: string): Promise<void>"
+        },
+        {
+          "name": "jc().files.url",
+          "signature": "jc().files.url(path: string, opts?: { method?: \"GET\" } | { method: \"PUT\"; size: number }): Promise<{ url: string; expiresAt: string }>"
+        }
+      ],
       "rust": [
         "jc_app_sdk::blob::get(key: &str) -> Result<Vec<u8>, Error>",
         "jc_app_sdk::blob::put(key: &str, data: &[u8], content_type: Option<&str>) -> Result<(), Error>",
@@ -97,13 +118,20 @@
       "quotas": [
         "filesMiB"
       ],
-      "examples": []
+      "examples": [
+        "examples/services/files.tsx"
+      ]
     },
     {
       "service": "email",
       "always": false,
       "what": "a message to people of the organization, never to a typed address (AP-168)",
-      "typescript": [],
+      "typescript": [
+        {
+          "name": "jc().email.send",
+          "signature": "jc().email.send(message: { to: string[] | \"me\"; subject: string; text: string; html?: string }): Promise<{ id: string }>"
+        }
+      ],
       "rust": [],
       "appYaml": [
         "services: [email]"
@@ -111,13 +139,20 @@
       "quotas": [
         "emailsPerDay"
       ],
-      "examples": []
+      "examples": [
+        "examples/services/email.tsx"
+      ]
     },
     {
       "service": "jobs",
       "always": false,
       "what": "the schedules of a wasm App, five-field cron in UTC (AP-154)",
-      "typescript": [],
+      "typescript": [
+        {
+          "name": "jc().jobs.list",
+          "signature": "jc().jobs.list(): Promise<{ name: string; schedule: string; nextRun?: string; lastRun?: { at: string; ok: boolean; message?: string } }[]>"
+        }
+      ],
       "rust": [
         "an exported fn() -> Result<(), String> named by spec.server.jobs[].export"
       ],
@@ -128,13 +163,20 @@
       "quotas": [
         "at most 10 jobs"
       ],
-      "examples": []
+      "examples": [
+        "examples/services/jobs.tsx"
+      ]
     },
     {
       "service": "ai",
       "always": false,
       "what": "a completion from a model of the organization's list (AP-169)",
-      "typescript": [],
+      "typescript": [
+        {
+          "name": "jc().ai.complete",
+          "signature": "jc().ai.complete(request: { messages: { role: \"system\" | \"user\" | \"assistant\"; content: string }[]; maxTokens?: number; schema?: object }): Promise<{ text: string; json?: unknown; tokens: { in: number; out: number } }>"
+        }
+      ],
       "rust": [],
       "appYaml": [
         "services: [ai]"
@@ -142,7 +184,9 @@
       "quotas": [
         "aiTokensPerDay"
       ],
-      "examples": []
+      "examples": [
+        "examples/services/ai.tsx"
+      ]
     }
   ],
   "kit": [

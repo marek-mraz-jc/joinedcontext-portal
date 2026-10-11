@@ -39,7 +39,7 @@ const SERVICES = [
     service: "files",
     always: false,
     what: "objects under the App's own prefix (AP-170)",
-    typescript: [],
+    typescript: ["jc().files.put", "jc().files.get", "jc().files.list", "jc().files.remove", "jc().files.url"],
     rust: [
       "jc_app_sdk::blob::get(key: &str) -> Result<Vec<u8>, Error>",
       "jc_app_sdk::blob::put(key: &str, data: &[u8], content_type: Option<&str>) -> Result<(), Error>",
@@ -49,47 +49,51 @@ const SERVICES = [
     ],
     appYaml: ["services: [files]", "kind: wasm and storage.blob for the Rust calls"],
     quotas: ["filesMiB"],
-    examples: [],
+    examples: ["examples/services/files.tsx"],
   },
   {
     service: "email",
     always: false,
     what: "a message to people of the organization, never to a typed address (AP-168)",
-    typescript: [],
+    typescript: ["jc().email.send"],
     rust: [],
     appYaml: ["services: [email]"],
     quotas: ["emailsPerDay"],
-    examples: [],
+    examples: ["examples/services/email.tsx"],
   },
   {
     service: "jobs",
     always: false,
     what: "the schedules of a wasm App, five-field cron in UTC (AP-154)",
-    typescript: [],
+    typescript: ["jc().jobs.list"],
     rust: ["an exported fn() -> Result<(), String> named by spec.server.jobs[].export"],
     appYaml: ["kind: wasm", "server.jobs: [{ name, schedule, export }]"],
     quotas: ["at most 10 jobs"],
-    examples: [],
+    examples: ["examples/services/jobs.tsx"],
   },
   {
     service: "ai",
     always: false,
     what: "a completion from a model of the organization's list (AP-169)",
-    typescript: [],
+    typescript: ["jc().ai.complete"],
     rust: [],
     appYaml: ["services: [ai]"],
     quotas: ["aiTokensPerDay"],
-    examples: [],
+    examples: ["examples/services/ai.tsx"],
   },
 ];
+
+/** A call on the client `jc()` returns (`jc().email.send`), not an export of its own. */
+const isClientCall = (name: string) => name.startsWith("jc().");
 
 /** The `ts` line of API.md that declares `name`, or `null` when API.md names it only in prose. */
 function signatureOf(name: string): string | null {
   for (const block of apiMd.matchAll(/```ts\n([\s\S]*?)```/g)) {
     for (const line of block[1].split("\n")) {
-      if (new RegExp(`^(?:async\\s+)?(?:function|class|const|interface|type)\\s+${name}\\b`).test(line.trim())) {
-        return line.trim();
-      }
+      const declared = isClientCall(name)
+        ? line.trim().startsWith(`${name}(`)
+        : new RegExp(`^(?:async\\s+)?(?:function|class|const|interface|type)\\s+${name}\\b`).test(line.trim());
+      if (declared) return line.trim();
     }
   }
   return null;
@@ -119,7 +123,7 @@ describe("the services catalog", () => {
   });
 
   it("names every export of the SDK once, and nothing the SDK does not export", () => {
-    const listed = [...built.services.flatMap((s) => s.typescript.map((f) => f.name)), ...built.kit];
+    const listed = [...built.services.flatMap((s) => s.typescript.map((f) => f.name)).filter((name) => !isClientCall(name)), ...built.kit];
     expect(listed.filter((name) => !(name in sdk))).toEqual([]);
     expect(Object.keys(sdk).filter((name) => !listed.includes(name))).toEqual([]);
     expect(new Set(listed).size).toBe(listed.length);

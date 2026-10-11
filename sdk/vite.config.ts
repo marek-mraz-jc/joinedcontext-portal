@@ -60,6 +60,7 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "template/src/**/*.test.{ts,tsx}",
-      "template-wasm/src/**/*.test.{ts,tsx}", "template/functions/**/*.test.ts", "samples/*/src/**/*.test.{ts,tsx}"],
+      "template-wasm/src/**/*.test.{ts,tsx}", "template/functions/**/*.test.ts", "samples/*/src/**/*.test.{ts,tsx}",
+      "samples/*/functions/**/*.test.ts"],
   },
 });
