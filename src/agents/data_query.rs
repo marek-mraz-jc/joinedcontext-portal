@@ -305,9 +305,11 @@ pub fn reading_notes(call: &QueryCall, answer: &Value) -> String {
     let total = structured
         .and_then(|s| s.get("total"))
         .and_then(Value::as_u64);
+    // Passed on as the answer gave it, as JSON: the gateway's offset is a number, the
+    // broker's cursor opaque text (T-3807).
     let next = structured
         .and_then(|s| s.get("nextCursor"))
-        .and_then(Value::as_u64);
+        .filter(|next| !next.is_null());
     match (next, total) {
         (Some(next), Some(total)) => notes.push(format!(
             "The set goes on: this page holds {} of {total}. Call again with \"cursor\": {next} \
@@ -336,7 +338,7 @@ fn facade_tools() -> Value {
         // LinkML at once: without `format` the gateway answers with its index of formats, and
         // the model spent a second call asking for the one it recommends (T-2769).
         { "name": "describe_schema", "arguments": { "format": "linkml", "entityType": "<entity type>" } },
-        { "name": "query_entities", "arguments": { "type": "<entity type>", "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true, "cursor": 0 } },
+        { "name": "query_entities", "arguments": { "type": ["<entity type>"], "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true } },
         { "name": "get_entity", "arguments": { "id": "<entity id>" } }
     ])
 }
@@ -385,7 +387,7 @@ run at once, on one endpoint or several, so ask for everything you need together
   "tool": "query_endpoint",
   "endpoint": "<an endpoint name from either list below>",
   "name": "<a read tool name>",
-  "arguments": {{ "type": "<entity type>", "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true }}
+  "arguments": {{ "type": ["<entity type>"], "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true }}
 }}
 ```
 
@@ -426,7 +428,7 @@ Say only what you read (T-2459):
 
 Read the whole set (T-2460). A question of "which", "what" or "how many" is answered from every
 entity, not from the first page: ask with `"count": true`, and while an answer carries
-`nextCursor`, call again with `"cursor"` set to it. Several small targeted calls beat one wide
+`nextCursor`, call again with `"cursor"` set to it, unchanged. Several small targeted calls beat one wide
 one. If the calls of this message run out first, say how many of the total you read.
 
 The answer reads as a person would write it (T-2769):
@@ -702,11 +704,13 @@ mod tests {
         let list = json!({ "result": { "tools": [
             { "name": "query_entities", "annotations": { "readOnlyHint": true }, "inputSchema": {} },
             { "name": "upsert_entity", "annotations": { "readOnlyHint": false }, "inputSchema": {} },
+            { "name": "batch_upsert", "annotations": { "readOnlyHint": false, "destructiveHint": true }, "inputSchema": {} },
             { "name": "unannotated", "inputSchema": {} }
         ] } });
         let tools = read_only_tools(&list);
         assert!(offers(&tools, "query_entities"));
         assert!(!offers(&tools, "upsert_entity"));
+        assert!(!offers(&tools, "batch_upsert"));
         assert!(!offers(&tools, "unannotated"));
 
         let big = "x".repeat(MAX_RESULT_CHARS + 10);
@@ -809,10 +813,22 @@ mod tests {
         assert!(last.contains("whole set: 20"), "{last}");
         assert!(!last.contains("cursor"), "{last}");
 
+        // The broker's cursor is opaque text (T-3807): it is passed on as it came, quoted.
+        let mut opaque = page(None);
+        opaque["result"]["structuredContent"]["nextCursor"] = json!("eyJvIjoyfQ");
+        let next = reading_notes(&call, &opaque);
+        assert!(next.contains("\"cursor\": \"eyJvIjoyfQ\""), "{next}");
+        assert!(next.contains("this page holds 2 of 20"), "{next}");
+
         let text = section(&[], &[], &[]);
         assert!(text.contains("\"count\": true"), "{text}");
         assert!(text.contains("nextCursor"), "{text}");
         assert!(text.contains("\"limit\": 100"), "{text}");
+        // The form both the gateway and the broker take (T-3807): a list of types, and no
+        // cursor but the one an answer handed out.
+        assert!(text.contains("\"type\": [\"<entity type>\"]"), "{text}");
+        assert!(!text.contains("\"type\": \"<entity type>\""), "{text}");
+        assert!(!text.contains("\"cursor\": 0"), "{text}");
     }
 
     #[test]
