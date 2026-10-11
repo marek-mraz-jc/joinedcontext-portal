@@ -46,7 +46,11 @@
       "close": "Teraz nie",
       "notYet": "Ešte nie ste prihlásení. Dokončite prihlásenie na druhej karte a potom pokračujte."
     },
-    "listHidden": "Tento zoznam vám v {project} nie je prístupný. Udeliť ho môže ten, kto projekt spravuje."
+    "listHidden": "Tento zoznam vám v {project} nie je prístupný. Udeliť ho môže ten, kto projekt spravuje.",
+    "busyReason": "Počkajte, kým sa dokončí prebiehajúca akcia.",
+    "firstPage": "Toto je prvá stránka.",
+    "lastPage": "Toto je posledná stránka.",
+    "nothingToUndo": "Zatiaľ nie je čo vrátiť."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
@@ -588,7 +592,7 @@
     "fields": {
       "add": "Pridať pole",
       "title": "Pridať pole do {type}",
-      "lead": "Pole je atribút DataModelu typu. Pridanie navrhne zmenu modelu na posúdenie; dáta sa nezmenia, kým nie je zlúčená.",
+      "lead": "Pole je atribút dátového modelu typu. Pridanie navrhne zmenu modelu na posúdenie; dáta sa nezmenia, kým nie je zlúčená.",
       "propose": "Navrhnúť pole",
       "refused": "Pole sa nepodarilo navrhnúť",
       "refusedStatus": "Portál odpovedal {status}.",
@@ -612,12 +616,12 @@
         "nameInvalid": "Použite iba písmená, číslice a _, na začiatku písmeno.",
         "nameTaken": "Tento typ alebo jeho model už má atribút s týmto názvom.",
         "valuesMissing": "Zadajte aspoň jednu možnosť.",
-        "valueInvalid": "Niektorá možnosť je prázdna, príliš dlhá (nad 100 znakov) alebo obsahuje riadiaci znak.",
-        "valueTwice": "Niektorá možnosť je uvedená dvakrát.",
+        "valueInvalid": "Niektorá možnosť je prázdna, dlhšia ako 100 znakov alebo obsahuje riadiaci znak. Vyplňte ju alebo ju skráťte.",
+        "valueTwice": "Niektorá možnosť je uvedená dvakrát. Jednu z nich odstráňte.",
         "targetMissing": "Vyberte typ, na ktorý odkazuje.",
         "inverseInvalid": "Použite iba písmená, číslice a _ a iný názov než má pole.",
         "inverseTaken": "Cieľový typ už má atribút s týmto názvom.",
-        "formulaInvalid": "Vzorec sa nedá vypočítať: {reason}"
+        "formulaInvalid": "Vzorec sa nedá vypočítať: {reason}. Opravte vzorec a skontrolujte ho znova."
       },
       "types": {
         "text": "Text",
@@ -728,8 +732,8 @@
       "index": "Index endpointu",
       "answered": "Endpoint odpovedal {status}, čítané s vašou reláciou:",
       "tokens": "Token pre program",
-      "tokensLead": "Program číta vlastným ServiceAccountom: klientom Keycloak s rolou v tomto projekte, ktorého tokeny posudzuje politika endpointu ako tie vaše. Nikdy nevkladajte reláciu osoby do programu.",
-      "tokensLink": "ServiceAccounty tohto projektu",
+      "tokensLead": "Program číta vlastným servisným účtom: klientom Keycloak s rolou v tomto projekte, ktorého tokeny posudzuje politika endpointu ako tie vaše. Nikdy nevkladajte reláciu osoby do programu.",
+      "tokensLink": "Servisné účty tohto projektu",
       "webhooks": "Webhooky",
       "webhooksLead": "NGSI-LD subscription na {type}, ktorá zavolá URL, keď sa entita zmení, navrhnutá ako zmena.",
       "noWebhook": "Tento typ zatiaľ nesleduje žiadny webhook.",
@@ -791,7 +795,7 @@
       "governReason": "Vymazať pohľad môže iba jeho vlastník alebo správca priestoru.",
       "deleteTitle": "Vymazať pohľad {title}?",
       "deleteHelp": "Vymaže sa iba pohľad; dáta v priestore sa nezmenia.",
-      "failed": "Pohľad sa nepodarilo uložiť",
+      "failed": "Pohľad sa nepodarilo uložiť. Skúste to znova o minútu.",
       "conflict": "Medzitým tento pohľad uložil niekto iný ({detail}). Načítajte jeho verziu a uložte znova.",
       "reload": "Znovu načítať pohľady",
       "unavailable": "Uložené pohľady sa teraz nedajú načítať; tabuľka funguje ďalej.",
@@ -849,12 +853,12 @@
       "created": "Vytvorené {id}.",
       "noFields": "Model typu {type} nemá pole, na ktoré by sa formulár mohol pýtať.",
       "problem": {
-        "required": "Odpoveď je povinná.",
-        "integer": "Celé číslo.",
-        "number": "Číslo.",
-        "urn": "Identifikátor entity, urn:ngsi-ld:Typ:…",
-        "point": "Zemepisnú šírku (−90 až 90) aj dĺžku (−180 až 180).",
-        "date": "Dátum, ktorý kalendár pozná."
+        "required": "Odpovedzte, táto otázka je povinná.",
+        "integer": "Zadajte celé číslo.",
+        "number": "Zadajte číslo.",
+        "urn": "Zadajte identifikátor entity, napríklad urn:ngsi-ld:Vehicle:bus-12.",
+        "point": "Zadajte zemepisnú šírku (−90 až 90) aj dĺžku (−180 až 180).",
+        "date": "Zadajte platný dátum."
       },
       "shareTitle": "Zverejniť ako verejný formulár",
       "shareLead": "Ktokoľvek s odkazom môže vytvoriť jeden záznam {type} cez verejný endpoint, ktorý dovoľuje iba vytváranie. Navrhne sa ako zmena a funguje až po schválení.",
@@ -929,7 +933,8 @@
         "decimalComma": "desatinná čiarka",
         "decimalPoint": "desatinná bodka",
         "dates": "dátumy ako {format}"
-      }
+      },
+      "nothingToCreate": "Žiadny riadok nie je pripravený na vytvorenie. Najprv priraďte stĺpce."
     },
     "export": {
       "label": "Exportovať:",
@@ -949,7 +954,8 @@
       "post": "Komentovať",
       "remove": "Odstrániť",
       "removeOne": "Odstrániť váš komentár z {when}",
-      "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}"
+      "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}",
+      "writeFirst": "Najprv napíšte komentár."
     }
   },
   "endpoints": {
@@ -968,7 +974,7 @@
     "picker": {
       "title": "Projekcia modelu",
       "hint": "Vyberte triedy a sloty, ktoré tento endpoint sprístupní. Politika a projekcia sa vytvoria spolu.",
-      "noModel": "Tento priestor nemá DataModel, takže projekciu nemožno navrhnúť.",
+      "noModel": "Tento priestor nemá dátový model, takže projekciu nemožno navrhnúť. Najprv pridajte do priestoru dátový model.",
       "identityOnly": "iba identita (id, type)",
       "writable": "Zapisovateľné",
       "idPattern": "Vzor ID",
@@ -982,7 +988,8 @@
       "nothingTicked": "Zaškrtnite aspoň jednu triedu, ktorú má endpoint sprístupniť.",
       "projectionName": "Názov projekcie",
       "preview": "Vytvorené manifesty",
-      "identityAlways": "Každý záznam má id a typ, preto je toto vždy zverejnené."
+      "identityAlways": "Každý záznam má id a typ, preto je toto vždy zverejnené.",
+      "readOnly": "Táto projekcia je zdieľaná. Ak ju chcete zmeniť tu, oddeľte ju a skopírujte."
     },
     "audience": {
       "project-list": "Vybrané projekty",
@@ -1163,7 +1170,7 @@
       "proposedNotice": "Zmena tu sa navrhne a schvaľovateľ ju posúdi, než sa čokoľvek zverejní.",
       "stop": {
         "title": "Zastavenie tohto endpointu",
-        "lead": "Endpoint sa nedá pozastaviť. Ak ho chcete prestať zverejňovať, zmažte ho: zmazanie sa navrhne ako zmena a posúdi ho schvaľovateľ. Keď sa zmena uplatní, adresa odpovedá 404 Not Found a už sa nikdy nepoužije. Nový endpoint dostane novú adresu.",
+        "lead": "Endpoint sa nedá pozastaviť. Ak ho chcete prestať zverejňovať, zmažte ho: zmazanie sa navrhne ako zmena a posúdi ho schvaľovateľ. Keď sa zmena uplatní, adresa už neodpovedá a nikdy sa znova nepoužije. Nový endpoint dostane novú adresu.",
         "delete": "Zmazať tento endpoint…"
       },
       "change": "Zmeniť tieto nastavenia",
@@ -1249,7 +1256,9 @@
       "firstCallOpen": "Otvoriť v prehliadači",
       "firstCallCopy": "Kopírovať príkaz",
       "firstCallPublic": "Volať ho môže ktokoľvek, token netreba.",
-      "firstCallToken": "V prehliadači stačí vaše prihlásenie do Portálu. Program posiela token servisného účtu ako $TOKEN."
+      "firstCallToken": "V prehliadači stačí vaše prihlásenie do Portálu. Program posiela token servisného účtu ako $TOKEN.",
+      "filterUntouched": "Najprv zmeňte filter: je rovnaký ako uložený.",
+      "filterFaulty": "Najprv opravte označené polia."
     },
     "condition": {
       "title": "Pridať podmienku",
@@ -1266,7 +1275,7 @@
       "matches": "filtru odpovedá {matching} z {all} entít",
       "none": "Nezverejnilo by sa nič.",
       "counting": "Počítam, čomu filter odpovedá...",
-      "failed": "Odpovedajúce entity sa nepodarilo spočítať: {reason}",
+      "failed": "Odpovedajúce entity sa nepodarilo spočítať: {reason}. Zmeňte filter alebo to skúste znova.",
       "unavailable": "Počet sa číta cez endpoint, takže je dostupný až keď je endpoint Live a zverejňuje typ."
     },
     "area": {
@@ -1310,7 +1319,7 @@
       "hiddenMark": "neposkytuje sa",
       "empty": "Na tejto strane nie sú žiadne entity.",
       "refused": "Návrh filtra bol odmietnutý: {reason}",
-      "failed": "Nepodarilo sa prečítať, čo filter poskytuje: {reason}",
+      "failed": "Nepodarilo sa prečítať, čo filter poskytuje: {reason}. Zmeňte filter alebo to skúste znova.",
       "notLive": "Porovnanie číta cez endpoint, preto sa zobrazí, keď je endpoint aktívny.",
       "noType": "Porovnanie potrebuje aspoň jeden typ, ktorý endpoint obsluhuje.",
       "previous": "Predchádzajúca strana",
@@ -1433,7 +1442,8 @@
       "secretName": "Názov tajomstva",
       "secretKey": "Kľúč v tajomstve",
       "input": "Konfigurácia vstupu",
-      "typeHint": "Ako sa platforma k zdroju dostane; polia nižšie sa podľa toho menia a uložený zdroj si typ ponechá."
+      "typeHint": "Ako sa platforma k zdroju dostane; polia nižšie sa podľa toho menia a uložený zdroj si typ ponechá.",
+      "typeFixed": "Typ je pevný, keď zdroj údajov existuje. Pre iný typ pridajte nový zdroj údajov."
     },
     "probe": {
       "title": "Jedno stiahnutie feedu",
@@ -1452,7 +1462,7 @@
     },
     "runner": {
       "summary": "Čo runner hovorí o tomto vstupe",
-      "yamlError": "{field}: neplatný YAML: {error}"
+      "yamlError": "{field}: neplatný YAML: {error}. Opravte ho na uvedenom riadku."
     },
     "secretRef": {
       "name": "Názov tajomstva",
@@ -1514,7 +1524,7 @@
       "resident": "rezidentná",
       "residentHelp": "Beží nepretržite v Bento runneri projektu.",
       "scheduled": "plánovaná",
-      "scheduledHelp": "Beží ako Kubernetes CronJob a medzi behmi sa zastaví.",
+      "scheduledHelp": "Beží podľa plánu a medzi behmi sa zastaví.",
       "auto": "auto",
       "autoHelp": "Vyberie reconciler: rezidentná pod 30 sekúnd alebo push, inak plánovaná."
     },
@@ -1654,7 +1664,7 @@
       },
       "kpi": {
         "title": "Analýza (KPI)",
-        "lead": "Agreguje kontextové údaje z endpointu do entity KeyPerformanceIndicator zapísanej do KPI priestoru projektu.",
+        "lead": "Agreguje kontextové údaje z endpointu do entity KPI zapísanej do KPI priestoru projektu.",
         "endpoint": "Zdrojový endpoint",
         "type": "Typ entity",
         "attribute": "Atribút",
@@ -1671,12 +1681,15 @@
         "attributeHint": "Číselný atribút toho typu, ktorý agregácia číta.",
         "attributePick": "Číselné atribúty, ktoré model daného typu uvádza; vyberte ten, ktorý agregácia číta.",
         "aggregateHint": "Ako sa hodnoty jedného obdobia zlúčia do jedného čísla.",
-        "periodHint": "Ako často sa ukazovateľ počíta, ako trvanie, napríklad 15m alebo 1h."
+        "periodHint": "Ako často sa ukazovateľ počíta, ako trvanie, napríklad 15m alebo 1h.",
+        "pickEndpoint": "Najprv vyberte endpoint."
       },
       "sourceKindHint": "Externý zdroj, ku ktorému sa projekt pripája, alebo kontextový priestor, ktorý projekt už plní.",
       "dataSourceHint": "Pripojenie zdroja, ako je uložené v Zdrojoch údajov; nový zdroj pridáte najprv tam.",
       "spaceHint": "Priestor, ktorý pipeline číta, cez jeden z jeho endpointov a politiku toho endpointu.",
-      "attributeHint": "Atribút, s ktorým pracuje úryvok nižšie."
+      "attributeHint": "Atribút, s ktorým pracuje úryvok nižšie.",
+      "pickSpaceFirst": "Najprv vyberte priestor.",
+      "pickTypeFirst": "Najprv vyberte endpoint a typ."
     },
     "test": {
       "title": "Vyskúšať na vzorke",
@@ -1788,7 +1801,12 @@
           "mappingRef": "Chýba názov mapovania",
           "module": "Chýba modul"
         }
-      }
+      },
+      "nothingToUndo": "Zatiaľ nie je čo vrátiť.",
+      "nothingToRedo": "Nie je čo zopakovať.",
+      "zoomClosed": "Priblíženie funguje v zobrazení plátna, od 50 % do 200 %.",
+      "atTop": "Už je to prvý krok.",
+      "atBottom": "Už je to posledný krok."
     },
     "emptyHint": "Pridajte zdroj údajov a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj údajov {name}",
@@ -1836,7 +1854,7 @@
       "hour": "Hodina od {at}",
       "sent": "Zapísané",
       "rejected": "Odmietnuté",
-      "failed": "Zlyhané",
+      "failed": "Skončil chybou",
       "log": "Záznam",
       "show": "Zobraziť záznam behu {run}",
       "logCaption": "Záznam behu {run}",
@@ -1850,7 +1868,7 @@
       "outcomes": {
         "sent": "Zapísaný",
         "rejected": "Odmietnutý",
-        "failed": "Zlyhal"
+        "failed": "Skončil chybou"
       },
       "newest": "Najnovšie",
       "older": "Staršie riadky",
@@ -1940,7 +1958,7 @@
         "compare": "Porovnať s priestorom",
         "hint": "Prečíta entity s týmito id tak, ako ich smiete čítať vy; nič sa nezapíše.",
         "noIds": "Namapované záznamy nemajú id, podľa ktorého porovnať.",
-        "failed": "Priestor sa nepodarilo prečítať: {reason}",
+        "failed": "Priestor sa nepodarilo prečítať: {reason}. Obnovte stránku a skúste to znova.",
         "counts": "{create, plural, =0 {nič na vytvorenie} other {na vytvorenie: #}}, {update, plural, =0 {nič na zmenu} other {na zmenu: #}}, {unchanged, plural, =0 {žiadne bez zmeny} other {bez zmeny: #}}.",
         "caption": "Každý namapovaný záznam oproti entite, ktorú {space} drží teraz",
         "entity": "Entita",
@@ -1990,10 +2008,10 @@
       "previewEmpty": "Zatiaľ nie je čo zobraziť.",
       "problem": {
         "required": "{name} je povinný: priraďte mu pole alebo zadajte hodnotu.",
-        "notInSample": "Vzorka nemá pole {field}.",
-        "notNumber": "{field} obsahuje „{value}“, čo nie je číslo; {name} očakáva číslo.",
-        "notBoolean": "{field} obsahuje „{value}“, čo nie je true ani false; {name} očakáva true alebo false.",
-        "notValue": "{field} obsahuje „{value}“; {name} očakáva jednu z hodnôt {values}.",
+        "notInSample": "Vzorka nemá pole {field}. Vyberte pole, ktoré vzorka má, alebo načítajte inú vzorku.",
+        "notNumber": "{field} obsahuje „{value}“, čo nie je číslo; {name} očakáva číslo. Vyberte iné pole alebo zmeňte vzorku.",
+        "notBoolean": "{field} obsahuje „{value}“, čo nie je true ani false; {name} očakáva true alebo false. Vyberte iné pole alebo zmeňte vzorku.",
+        "notValue": "{field} obsahuje „{value}“; {name} očakáva jednu z hodnôt {values}. Vyberte iné pole alebo zmeňte vzorku.",
         "noId": "Vyberte pole, z ktorého vznikne id každej entity."
       }
     },
@@ -2031,7 +2049,9 @@
       "stepModeFile": "Krokovanie delí vzorku zo súboru na správy; namiesto URL dajte súbor.",
       "runMessage": "Spustiť správu {number} z {total}",
       "startOver": "Od začiatku",
-      "position": "Správa {number} z {total}"
+      "position": "Správa {number} z {total}",
+      "nothingToClear": "Záznam je prázdny.",
+      "atFirst": "Toto je prvá správa."
     },
     "schedule": {
       "how": "Ako často",
@@ -2098,7 +2118,7 @@
         "source": "Vyberte zdroj.",
         "target": "Vyberte, kam pipeline zapisuje.",
         "type": "Zadajte typ entity na agregáciu.",
-        "attribute": "Zadajte číselný atribút: písmená, číslice a podčiarkovníky."
+        "attribute": "Zadajte názov číselného atribútu: písmená, číslice a podčiarkovníky."
       }
     }
   },
@@ -2209,7 +2229,7 @@
       "whereHelp": "Kam až rola siaha: tento projekt, celá organizácia, alebo jeden kontextový priestor projektu.",
       "untilHelp": "Posledný deň platnosti roly. Prázdne pole znamená bez konca, čo potrebuje stály člen.",
       "rolesEmpty": "Táto organizácia zatiaľ nemá žiadne roly. Kým niekto nejakú nevyhlási v časti Roly, nedá sa prideliť.",
-      "spacesFailed": "Kontextové priestory tohto projektu sa nepodarilo načítať, takže pridelenia platné pre jeden priestor v tomto zozname chýbajú: {reason}",
+      "spacesFailed": "Kontextové priestory tohto projektu sa nepodarilo načítať, takže pridelenia platné pre jeden priestor v tomto zozname chýbajú: {reason}. Obnovte stránku, aby ste ich videli.",
       "discardTitle": "Zahodiť toto pridelenie?",
       "discardConfirm": "To, čo ste napísali, sa stratí a nič sa nenavrhne. Už pridelené roly sa nemenia.",
       "discard": "Zahodiť pridelenie",
@@ -2364,7 +2384,7 @@
       "mayNot": "Nesmiete {action} {type}",
       "attrDenied": "mimo vášho oprávnenia",
       "attrProhibited": "výslovne zakázaný",
-      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}"
+      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}. Obnovte stránku a skúste to znova."
     },
     "groups": {
       "title": "Skupiny",
@@ -2399,7 +2419,7 @@
       "state": {
         "pending": "Zatiaľ neoverená",
         "verified": "Overená",
-        "failed": "Overenie zlyhalo"
+        "failed": "Overenie zlyhalo. Skontrolujte tu uvedený DNS záznam a overte znova."
       },
       "unchecked": "Zatiaľ nekontrolovaná",
       "method": {
@@ -2458,7 +2478,8 @@
       "ckanLead": "Katalógy CKAN, ktoré priradenia skupiny {group} dovoľujú jej členom meniť.",
       "noCkan": "Táto skupina nespravuje žiadny katalóg.",
       "ckanInstance": "{project} / {name}",
-      "ckanVia": "cez rolu {role}"
+      "ckanVia": "cez rolu {role}",
+      "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať."
     },
     "explorer": {
       "title": "Pozrite, k čomu má niekto prístup",
@@ -2555,11 +2576,11 @@
       "lead": "Kópia {name} v{version} pribudne bajt po bajte medzi modely organizácie, aby ju mohol importovať každý projekt. Schvaľuje ju administrátor organizácie; dovtedy sa nič nemení a tento projekt si v každom prípade ponechá vlastný model.",
       "confirm": "Navrhnúť zdieľanie",
       "notPublished": "Zdieľať sa dá len publikovaný model: najprv ho publikujte.",
-      "failed": "Zdieľanie sa nenavrhlo: {reason}",
+      "failed": "Zdieľanie sa nenavrhlo: {reason}. Odstráňte príčinu a navrhnite ho znova.",
       "adoptLead": "Organizácia má tento model ako {importName} (v{version}), zdieľaný odtiaľto. Použite jej kópiu: tento model ju potom importuje namiesto tried, ktoré sám definuje, s rovnakými názvami a IRI, takže sa žiadna entita nezmení.",
       "adopt": "Použiť kópiu organizácie",
       "copyLoading": "Načítava sa kópia organizácie…",
-      "copyFailed": "Kópiu organizácie sa nepodarilo načítať: {reason}"
+      "copyFailed": "Kópiu organizácie sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova."
     },
     "title": "Editor modelov",
     "version": "Verzia {version}",
@@ -2722,7 +2743,7 @@
       "chooseFile": "Vybrať vzorový súbor",
       "reading": "Čítam {name}…",
       "tooLarge": "Súbor je väčší ako 10 MiB. Použite menšiu vzorku.",
-      "failed": "Vzorku sa nepodarilo prečítať: {detail}",
+      "failed": "Vzorku sa nepodarilo prečítať: {detail}. Skontrolujte súbor a skúste to znova.",
       "unreadable": "Z tohto súboru sa nepodarilo navrhnúť model. Skúste vzorku CSV alebo JSON.",
       "preview": "Návrh zo súboru {name}",
       "previewLead": "Prečítaných {rows} riadkov, navrhnutých {classes} tried. Každá hodnota je odhad na opravu v editore.",
@@ -2742,7 +2763,8 @@
       "urlHelp": "Raz ju prečíta runner projektu, ako ju číta overenie zdroja údajov; model sa odvodí zo záznamov, ktoré vráti.",
       "readUrl": "Prečítať adresu",
       "urlInvalid": "Zadajte celú adresu začínajúcu na https:// alebo http://.",
-      "urlCredential": "Adresa obsahuje meno, heslo alebo kľúč. Zadajte ju bez nich, alebo zdroj pripojte ako zdroj údajov, ktorého prihlasovací údaj je secret."
+      "urlCredential": "Adresa obsahuje meno, heslo alebo kľúč. Zadajte ju bez nich, alebo zdroj pripojte ako zdroj údajov, ktorého prihlasovací údaj je secret.",
+      "enterAddress": "Najprv zadajte adresu súboru."
     },
     "source": {
       "loading": "Načítava sa zdroj modelu…",
@@ -2757,7 +2779,8 @@
       "refused": "Zmena bola odmietnutá: {reason}",
       "fixErrors": "Pred uložením opravte chyby, ktoré editor uvádza. Zostáva: {count}.",
       "confirmBreaking": "Uložiť ako verziu {version}, nekompatibilná zmena",
-      "handOffRefused": "Zmenu od asistenta sa do tohto modelu nepodarilo použiť:"
+      "handOffRefused": "Zmenu od asistenta sa do tohto modelu nepodarilo použiť:",
+      "nameTaken": "Model s týmto názvom už existuje. Zvoľte iný názov."
     },
     "classParent": "Trieda, ktorú rozširuje",
     "classParentNone": "Žiadna",
@@ -2828,8 +2851,11 @@
         "relationshipTitle": "Vzťah {name} / {inverse}",
         "breakingTitle": "Táto úprava rozbije dátový model",
         "breakingBody": "Entity uložené podľa publikovaného modelu môžu používať to, čo úprava odstraňuje alebo premenúva. Koncept úpravu prevezme, len keď ju potvrdíte; Uložiť ju potom navrhne pod novou hlavnou verziou.",
-        "breakingConfirm": "Použiť rozbíjajúcu úpravu"
-      }
+        "breakingConfirm": "Použiť rozbíjajúcu úpravu",
+        "nothingToApply": "Najprv niečo zmeňte."
+      },
+      "zoomMin": "Už je najmenšie priblíženie.",
+      "zoomMax": "Už je najväčšie priblíženie."
     },
     "field": {
       "name": "Názov",
@@ -2881,7 +2907,7 @@
       "edit": "Upraviť model",
       "notFound": "Dátový model {name} neexistuje",
       "notFoundLead": "Možno bol premenovaný alebo odstránený, alebo patrí inému projektu. Zoznam ukazuje každý model, ktorý smiete čítať.",
-      "sourceFailed": "Zdroj modelu sa nepodarilo načítať: {reason}",
+      "sourceFailed": "Zdroj modelu sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova.",
       "views": "Pohľady na model",
       "view": {
         "overview": "Prehľad",
@@ -2982,7 +3008,8 @@
         "nameEmpty": "Pomenujte pole.",
         "nameInvalid": "Len písmená, číslice a _, na začiatku písmeno.",
         "nameTaken": "Pole s názvom {name} už existuje.",
-        "inverseSame": "Inverzný koniec je druhé pole; dajte mu iný názov."
+        "inverseSame": "Inverzný koniec je druhé pole; dajte mu iný názov.",
+        "pickFirst": "Najprv vyberte cieľovú triedu a pomenujte oba konce."
       }
     }
   },
@@ -3435,10 +3462,10 @@
         "onReconcile": "obnovovaná pri každom použití konfigurácie"
       },
       "lastChange": "Posledná zmena {time}: {summary}",
-      "lastFailed": "Posledný beh zlyhal {time}: {summary}",
+      "lastFailed": "Posledný beh zlyhal {time}: {summary}. Odstráňte príčinu a zverejnite znova.",
       "needsCatalogue": "Najprv vyššie pridajte katalóg: dataset potrebuje portál CKAN, kam sa zverejní."
     },
-    "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}",
+    "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}. Obnovte stránku a skúste to znova.",
     "access": {
       "sectionTitle": "Kto spravuje ktorý katalóg",
       "title": "Prístup ku katalógu {instance}",
@@ -3577,7 +3604,8 @@
       "prune": "Zmazať to, čo zdroj odstránil",
       "autoMerge": "Zlúčiť čistý beh bez revízie"
     },
-    "emptyHint": "Zdroj synchronizácie drží tento projekt v súlade s Git repozitárom, zverejneným balíkom alebo inou instanciou. Pridajte jeden a to, čo prinesie, príde ako zmeny, o ktorých niekto rozhodne."
+    "emptyHint": "Zdroj synchronizácie drží tento projekt v súlade s Git repozitárom, zverejneným balíkom alebo inou instanciou. Pridajte jeden a to, čo prinesie, príde ako zmeny, o ktorých niekto rozhodne.",
+    "pausedReason": "Najprv zdroj obnovte."
   },
   "allEndpoints": {
     "title": "Všetky endpointy",
@@ -4579,7 +4607,8 @@
         "host": "Hostiteľ",
         "credential": "Prístupový údaj"
       }
-    }
+    },
+    "clearPasted": "Odstráňte z balíka prihlasovací údaj a vyberte súbor znova."
   },
   "drift": {
     "section": {
@@ -4685,7 +4714,7 @@
       "starting": "Spúšťa sa",
       "running": "Beží",
       "stopped": "Zastavený",
-      "error": "Zlyhal"
+      "error": "Nespustil sa. Otvorte ho a uvidíte prečo."
     },
     "actions": "Akcie",
     "openAction": "Otvoriť",
@@ -4764,7 +4793,7 @@
       "lead": "Náhľad obsluhuje kópiu {name} popri projekte, na vlastných adresách. Nič v ňom nie je živé.",
       "start": "Spustiť náhľad",
       "stop": "Zastaviť",
-      "failed": "Náhľad sa nespustil",
+      "failed": "Náhľad sa nespustil. Skúste to znova; dôvod je nižšie.",
       "notOwner": "Náhľad spúšťa iba osoba, ktorá kópiu založila.",
       "addresses": "Kde odpovedá",
       "noEndpoints": "Kópia nemá endpointy.",
@@ -4856,18 +4885,18 @@
         "person": "Osoba",
         "group": "Člen skupiny",
         "role": "Držiteľ roly realmu",
-        "serviceAccount": "ServiceAccount",
+        "serviceAccount": "Servisný účet",
         "public": "Verejnosť"
       },
       "search": "Nájsť osobu",
       "person": "Osoba",
       "noPerson": "Nikto sa nenašiel",
-      "noAccount": "Zatiaľ žiadny ServiceAccount",
+      "noAccount": "Zatiaľ žiadny servisný účet",
       "action": "Akcia",
       "type": "Typ entity",
       "typeHelp": "Nechajte prázdne pre otázku na akýkoľvek typ.",
       "submit": "Opýtať sa brány",
-      "failed": "Bránu sa nepodarilo opýtať",
+      "failed": "Bránu sa nepodarilo opýtať. Skúste to znova o minútu; dôvod je nižšie.",
       "allowed": "Povolené",
       "refused": "Odmietnuté",
       "decidedBy": "Rozhodla Policy",
@@ -4879,13 +4908,14 @@
       },
       "hints": {
         "endpoint": "Endpoint, ktorého Policies sa skúšajú.",
-        "kind": "Osoba, člen skupiny alebo roly, ServiceAccount, alebo ktokoľvek.",
+        "kind": "Osoba, člen skupiny alebo roly, servisný účet, alebo ktokoľvek.",
         "search": "Časť mena alebo e-mailovej adresy.",
         "person": "Osoba, za ktorú brána rozhoduje.",
-        "account": "Jeden zo ServiceAccountov tohto projektu.",
+        "account": "Jeden zo servisných účtov tohto projektu.",
         "name": "Názov tak, ako ho píše realm.",
         "action": "Operácia NGSI-LD, ktorú by volanie vykonalo."
-      }
+      },
+      "pickFirst": "Najprv vyberte Endpoint a koho chcete vyskúšať."
     }
   },
   "subscriptions": {
@@ -5698,7 +5728,8 @@
     "check": "Skontrolovať archív",
     "import": "Importovať",
     "repository": "Repozitár na vytvorenie",
-    "redLane": "Import navrhne aplikáciu ako zmenu v červenom pruhu; zostaví sa, keď ju schváli administrátor."
+    "redLane": "Import navrhne aplikáciu ako zmenu v červenom pruhu; zostaví sa, keď ju schváli administrátor.",
+    "checked": "Archív bol skontrolovaný pre túto voľbu. Ak ju chcete zmeniť, vyberte iný archív."
   },
   "appExport": {
     "button": "Exportovať",
@@ -6455,7 +6486,7 @@
     "new": "Nový MCP server",
     "empty": "Tento projekt zatiaľ nemá MCP server",
     "emptyHint": "MCP server spojí endpointy, ktoré patria k sebe, napríklad dáta o doprave v meste, pod jednu adresu.",
-    "listFailed": "MCP servery sa nepodarilo načítať: {reason}",
+    "listFailed": "MCP servery sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova.",
     "memberCount": "Členovia: {count}",
     "edit": "Upraviť",
     "editOf": "Upraviť {name}",
@@ -6506,13 +6537,13 @@
       "members": "Vyberte jeden až {max} členských endpointov.",
       "noMcp": "Vybraný endpoint neposkytuje MCP; odstráňte ho.",
       "audience": "Publikum je širšie, ako dovoľuje najužší člen; vyberte užšie.",
-      "projects": "Každý názov projektu tvoria malé písmená, číslice a pomlčky."
+      "projects": "Pre každý názov projektu použite malé písmená, číslice a pomlčky, napríklad city-air."
     },
     "health": {
       "checking": "Overujem…",
       "answers": "Odpovedá, nástroje: {count}",
       "refused": "Vám odmietnuté (HTTP {status})",
-      "failed": "Neodpovedá: {reason}"
+      "failed": "Neodpovedá: {reason}. Skontrolujte Endpointy servera a skúste to znova o minútu."
     },
     "preview": {
       "title": "Nástroje, ktoré by ste dostali",

@@ -46,7 +46,11 @@
       "close": "Nicht jetzt",
       "notYet": "Sie sind noch nicht angemeldet. Schließen Sie die Anmeldung im anderen Tab ab und machen Sie dann weiter."
     },
-    "listHidden": "Diese Liste ist für Sie in {project} nicht offen. Wer das Projekt verwaltet, kann sie freigeben."
+    "listHidden": "Diese Liste ist für Sie in {project} nicht offen. Wer das Projekt verwaltet, kann sie freigeben.",
+    "busyReason": "Warten Sie, bis die laufende Aktion abgeschlossen ist.",
+    "firstPage": "Das ist die erste Seite.",
+    "lastPage": "Das ist die letzte Seite.",
+    "nothingToUndo": "Noch nichts rückgängig zu machen."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",
@@ -588,7 +592,7 @@
     "fields": {
       "add": "Feld hinzufügen",
       "title": "Feld zu {type} hinzufügen",
-      "lead": "Ein Feld ist ein Attribut im DataModel des Typs. Das Hinzufügen schlägt eine Modelländerung zur Prüfung vor; die Daten ändern sich erst nach dem Zusammenführen.",
+      "lead": "Ein Feld ist ein Attribut im Datenmodell des Typs. Das Hinzufügen schlägt eine Modelländerung zur Prüfung vor; die Daten ändern sich erst nach dem Zusammenführen.",
       "propose": "Feld vorschlagen",
       "refused": "Das Feld konnte nicht vorgeschlagen werden",
       "refusedStatus": "Das Portal antwortete {status}.",
@@ -612,12 +616,12 @@
         "nameInvalid": "Nur Buchstaben, Ziffern und _, beginnend mit einem Buchstaben.",
         "nameTaken": "Dieser Typ oder sein Modell hat bereits ein Attribut mit diesem Namen.",
         "valuesMissing": "Geben Sie mindestens einen Auswahlwert an.",
-        "valueInvalid": "Ein Auswahlwert ist leer, zu lang (über 100 Zeichen) oder enthält ein Steuerzeichen.",
-        "valueTwice": "Ein Auswahlwert steht doppelt in der Liste.",
+        "valueInvalid": "Ein Auswahlwert ist leer, länger als 100 Zeichen oder enthält ein Steuerzeichen. Füllen Sie ihn aus oder kürzen Sie ihn.",
+        "valueTwice": "Ein Auswahlwert steht doppelt in der Liste. Entfernen Sie einen davon.",
         "targetMissing": "Wählen Sie den Typ, auf den verwiesen wird.",
         "inverseInvalid": "Nur Buchstaben, Ziffern und _, und ein anderer Name als der des Feldes.",
         "inverseTaken": "Der Zieltyp hat bereits ein Attribut mit diesem Namen.",
-        "formulaInvalid": "Die Formel lässt sich nicht berechnen: {reason}"
+        "formulaInvalid": "Die Formel lässt sich nicht berechnen: {reason}. Korrigieren Sie die Formel und prüfen Sie sie erneut."
       },
       "types": {
         "text": "Text",
@@ -639,7 +643,7 @@
         "expression": "Formel",
         "help": "Wird alle fünf Minuten aus den Feldern dieser Entität berechnet und als ihr Wert gespeichert, etwa {example}. Erlaubt sind {slots}, Zahlen, Text in Anführungszeichen, + - * / %, Vergleiche, and, or, not, abs, round, min und max.",
         "noEndpoint": "Kein Endpoint dieses Raums antwortet nach allen Policies des Raums, daher hat die Pipeline einer Formel keinen Ort zum Lesen und Schreiben. Legen Sie zuerst einen ohne policyRef an.",
-        "noAccount": "Dieses Projekt hat kein ServiceAccount pipelines, das die Pipeline einer Formel ausführt. Legen Sie es zuerst an.",
+        "noAccount": "Dieses Projekt hat kein Dienstkonto namens pipelines, das die Pipeline einer Formel ausführt. Legen Sie es zuerst an.",
         "pipelineRefused": "Das Feld ist vorgeschlagen, seine Pipeline aber nicht: {reason}"
       }
     },
@@ -728,8 +732,8 @@
       "index": "Endpoint-Index",
       "answered": "Der Endpoint antwortete {status}, gelesen mit Ihrer Sitzung:",
       "tokens": "Ein Token für ein Programm",
-      "tokensLead": "Ein Programm liest mit seinem eigenen ServiceAccount: einem Keycloak-Client mit einer Rolle in diesem Projekt, dessen Tokens die Policy des Endpoints wie Ihre beurteilt. Fügen Sie nie die Sitzung einer Person in ein Programm ein.",
-      "tokensLink": "ServiceAccounts dieses Projekts",
+      "tokensLead": "Ein Programm liest mit seinem eigenen Dienstkonto: einem Keycloak-Client mit einer Rolle in diesem Projekt, dessen Tokens die Policy des Endpoints wie Ihre beurteilt. Fügen Sie nie die Sitzung einer Person in ein Programm ein.",
+      "tokensLink": "Dienstkonten dieses Projekts",
       "webhooks": "Webhooks",
       "webhooksLead": "Eine NGSI-LD-Subscription auf {type}, die eine URL aufruft, wenn sich eine Entität ändert, als Change vorgeschlagen.",
       "noWebhook": "Noch kein Webhook beobachtet diesen Typ.",
@@ -791,7 +795,7 @@
       "governReason": "Nur der Eigentümer der Ansicht oder ein Verwalter des Raums löscht sie.",
       "deleteTitle": "Ansicht {title} löschen?",
       "deleteHelp": "Nur die Ansicht wird gelöscht; die Daten im Raum bleiben unverändert.",
-      "failed": "Die Ansicht konnte nicht gespeichert werden",
+      "failed": "Die Ansicht konnte nicht gespeichert werden. Versuchen Sie es in einer Minute erneut.",
       "conflict": "Jemand hat diese Ansicht inzwischen gespeichert ({detail}). Laden Sie deren Fassung und speichern Sie erneut.",
       "reload": "Ansichten neu laden",
       "unavailable": "Gespeicherte Ansichten können gerade nicht geladen werden; die Tabelle funktioniert weiter.",
@@ -849,12 +853,12 @@
       "created": "Angelegt: {id}.",
       "noFields": "Das Modell von {type} hat kein Feld, das ein Formular abfragen kann.",
       "problem": {
-        "required": "Eine Antwort ist nötig.",
-        "integer": "Eine ganze Zahl, etwa 12.",
-        "number": "Eine Zahl, etwa 2,5.",
-        "urn": "Eine Entitäts-ID, urn:ngsi-ld:Typ:…",
-        "point": "Breite (−90 bis 90) und Länge (−180 bis 180).",
-        "date": "Ein gültiges Datum."
+        "required": "Beantworten Sie diese Frage: Sie ist erforderlich.",
+        "integer": "Geben Sie eine ganze Zahl ein, etwa 12.",
+        "number": "Geben Sie eine Zahl ein, etwa 2,5.",
+        "urn": "Geben Sie eine Entitäts-ID ein, etwa urn:ngsi-ld:Vehicle:bus-12.",
+        "point": "Geben Sie Breite (−90 bis 90) und Länge (−180 bis 180) ein.",
+        "date": "Geben Sie ein gültiges Datum ein, etwa 2026-10-11."
       },
       "shareTitle": "Als öffentliches Formular veröffentlichen",
       "shareLead": "Wer den Link hat, kann einen Datensatz {type} über einen öffentlichen Endpoint anlegen, der nur das Anlegen erlaubt. Er wird als Änderung vorgeschlagen und wirkt erst nach der Prüfung.",
@@ -929,7 +933,8 @@
         "decimalComma": "Dezimalkomma",
         "decimalPoint": "Dezimalpunkt",
         "dates": "Datum als {format}"
-      }
+      },
+      "nothingToCreate": "Keine Zeile ist bereit zum Anlegen. Ordnen Sie zuerst die Spalten zu."
     },
     "export": {
       "label": "Exportieren:",
@@ -949,7 +954,8 @@
       "post": "Kommentieren",
       "remove": "Entfernen",
       "removeOne": "Ihren Kommentar vom {when} entfernen",
-      "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}"
+      "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}",
+      "writeFirst": "Schreiben Sie zuerst einen Kommentar."
     }
   },
   "endpoints": {
@@ -1103,7 +1109,7 @@
     "picker": {
       "title": "Modellprojektion",
       "hint": "Wählen Sie die Klassen und Slots, die dieser Endpunkt bereitstellt. Richtlinie und Projektion werden zusammen erzeugt.",
-      "noModel": "Dieser Raum hat kein DataModel, daher lässt sich keine Projektion entwerfen.",
+      "noModel": "Dieser Raum hat kein Datenmodell, daher lässt sich keine Projektion entwerfen. Fügen Sie dem Raum zuerst ein Datenmodell hinzu.",
       "identityOnly": "nur Identität (id, type)",
       "writable": "Beschreibbar",
       "idPattern": "ID-Muster",
@@ -1117,7 +1123,8 @@
       "nothingTicked": "Kreuzen Sie mindestens eine Klasse an, die der Endpoint veröffentlichen soll.",
       "projectionName": "Name der Projektion",
       "preview": "Erzeugte Manifeste",
-      "identityAlways": "Jede Entität hat eine id und einen type, daher wird dies immer veröffentlicht."
+      "identityAlways": "Jede Entität hat eine id und einen type, daher wird dies immer veröffentlicht.",
+      "readOnly": "Diese Projektion ist geteilt. Lösen und kopieren Sie sie, um sie hier zu ändern."
     },
     "audienceOption": {
       "project-list": "Ausgewählte Projekte: nur die Projekte, die Sie ankreuzen",
@@ -1163,7 +1170,7 @@
       "proposedNotice": "Eine Änderung hier wird vorgeschlagen und von einer Genehmigerin geprüft, bevor etwas veröffentlicht wird.",
       "stop": {
         "title": "Diesen Endpoint stoppen",
-        "lead": "Ein Endpoint lässt sich nicht pausieren. Um die Veröffentlichung zu beenden, löschen Sie ihn: Das Löschen wird als Änderung vorgeschlagen und von einer Genehmigerin geprüft. Sobald sie übernommen ist, antwortet die Adresse mit 404 Not Found und wird nie wieder vergeben. Ein neuer Endpoint erhält eine neue Adresse.",
+        "lead": "Ein Endpoint lässt sich nicht pausieren. Um die Veröffentlichung zu beenden, löschen Sie ihn: Das Löschen wird als Änderung vorgeschlagen und von einer Genehmigerin geprüft. Sobald sie übernommen ist, antwortet die Adresse nicht mehr und wird nie wieder vergeben. Ein neuer Endpoint erhält eine neue Adresse.",
         "delete": "Diesen Endpoint löschen…"
       },
       "change": "Diese Einstellungen ändern",
@@ -1249,7 +1256,9 @@
       "firstCallOpen": "Im Browser öffnen",
       "firstCallCopy": "Befehl kopieren",
       "firstCallPublic": "Jeder kann ihn aufrufen, kein Token nötig.",
-      "firstCallToken": "Im Browser genügt Ihre Portal-Sitzung. Ein Programm sendet ein Service-Account-Token als $TOKEN."
+      "firstCallToken": "Im Browser genügt Ihre Portal-Sitzung. Ein Programm sendet ein Service-Account-Token als $TOKEN.",
+      "filterUntouched": "Ändern Sie zuerst den Filter: Er ist derselbe wie der gespeicherte.",
+      "filterFaulty": "Korrigieren Sie zuerst die markierten Felder."
     },
     "condition": {
       "title": "Bedingung hinzufügen",
@@ -1266,7 +1275,7 @@
       "matches": "{matching} von {all} Entitäten entsprechen diesem Filter",
       "none": "Es würde nichts veröffentlicht.",
       "counting": "Es wird gezählt, was der Filter trifft...",
-      "failed": "Die passenden Entitäten konnten nicht gezählt werden: {reason}",
+      "failed": "Die passenden Entitäten konnten nicht gezählt werden: {reason}. Ändern Sie den Filter oder versuchen Sie es erneut.",
       "unavailable": "Der Zählwert wird über den Endpunkt gelesen, also erst wenn er Live ist und einen Typ veröffentlicht."
     },
     "area": {
@@ -1310,7 +1319,7 @@
       "hiddenMark": "nicht geliefert",
       "empty": "Keine Entitäten auf dieser Seite.",
       "refused": "Der Filterentwurf wurde abgelehnt: {reason}",
-      "failed": "Was der Filter liefert, konnte nicht gelesen werden: {reason}",
+      "failed": "Was der Filter liefert, konnte nicht gelesen werden: {reason}. Ändern Sie den Filter oder versuchen Sie es erneut.",
       "notLive": "Der Vergleich liest über den Endpunkt und erscheint, sobald der Endpunkt aktiv ist.",
       "noType": "Der Vergleich braucht mindestens einen Typ, den der Endpunkt bedient.",
       "previous": "Vorherige Seite",
@@ -1433,7 +1442,8 @@
       "secretName": "Name des Secrets",
       "secretKey": "Schlüssel im Secret",
       "input": "Eingabekonfiguration",
-      "typeHint": "Wie die Plattform die Quelle erreicht; die Felder darunter richten sich danach, und eine gespeicherte Quelle behält ihren Typ."
+      "typeHint": "Wie die Plattform die Quelle erreicht; die Felder darunter richten sich danach, und eine gespeicherte Quelle behält ihren Typ.",
+      "typeFixed": "Der Typ steht fest, sobald die Datenquelle existiert. Legen Sie für einen anderen Typ eine neue Datenquelle an."
     },
     "probe": {
       "title": "Ein Abruf des Feeds",
@@ -1452,7 +1462,7 @@
     },
     "runner": {
       "summary": "Was der Runner über diese Eingabe sagt",
-      "yamlError": "{field}: kein gültiges YAML: {error}"
+      "yamlError": "{field}: kein gültiges YAML: {error}. Korrigieren Sie es in der genannten Zeile."
     },
     "secretRef": {
       "name": "Secret-Name",
@@ -1514,7 +1524,7 @@
       "resident": "resident",
       "residentHelp": "Läuft durchgehend im Bento-Runner des Projekts.",
       "scheduled": "geplant",
-      "scheduledHelp": "Läuft als Kubernetes-CronJob und pausiert zwischen den Läufen.",
+      "scheduledHelp": "Läuft nach Zeitplan und pausiert zwischen den Läufen.",
       "auto": "auto",
       "autoHelp": "Der Reconciler wählt: resident unter 30 Sekunden oder push-basiert, sonst geplant."
     },
@@ -1654,7 +1664,7 @@
       },
       "kpi": {
         "title": "Analyse (KPI)",
-        "lead": "Fasst Kontextdaten eines Endpunkts zu einer KeyPerformanceIndicator-Entität zusammen, die in den KPI-Raum des Projekts geschrieben wird.",
+        "lead": "Fasst Kontextdaten eines Endpunkts zu einer KPI-Entität zusammen, die in den KPI-Raum des Projekts geschrieben wird.",
         "endpoint": "Quell-Endpunkt",
         "type": "Entitätstyp",
         "attribute": "Attribut",
@@ -1671,12 +1681,15 @@
         "attributeHint": "Das numerische Attribut dieses Typs, das die Aggregation liest.",
         "attributePick": "Die numerischen Attribute, die das Modell dieses Typs nennt; wählen Sie das, das die Aggregation liest.",
         "aggregateHint": "Wie die Werte eines Zeitraums zu einer Zahl werden.",
-        "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h."
+        "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h.",
+        "pickEndpoint": "Wählen Sie zuerst einen Endpoint."
       },
       "sourceKindHint": "Eine externe Quelle, mit der sich dieses Projekt verbindet, oder ein Context Space, den dieses Projekt bereits füllt.",
       "dataSourceHint": "Die Verbindung der Quelle, wie unter Datenquellen gespeichert; eine neue Quelle legen Sie zuerst dort an.",
       "spaceHint": "Der Space, den die Pipeline liest, über einen seiner Endpoints und dessen Policy.",
-      "attributeHint": "Das Attribut, mit dem das Snippet unten arbeitet."
+      "attributeHint": "Das Attribut, mit dem das Snippet unten arbeitet.",
+      "pickSpaceFirst": "Wählen Sie zuerst einen Raum.",
+      "pickTypeFirst": "Wählen Sie zuerst einen Endpoint und einen Typ."
     },
     "test": {
       "title": "An einer Probe ausprobieren",
@@ -1788,7 +1801,12 @@
           "mappingRef": "Mapping-Name fehlt",
           "module": "Modul fehlt"
         }
-      }
+      },
+      "nothingToUndo": "Noch nichts rückgängig zu machen.",
+      "nothingToRedo": "Nichts zu wiederholen.",
+      "zoomClosed": "Zoom funktioniert in der Leinwandansicht, von 50 % bis 200 %.",
+      "atTop": "Bereits der erste Schritt.",
+      "atBottom": "Bereits der letzte Schritt."
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
@@ -1836,7 +1854,7 @@
       "hour": "Stunde ab {at}",
       "sent": "Geschrieben",
       "rejected": "Abgelehnt",
-      "failed": "Gescheitert",
+      "failed": "Mit Fehler beendet",
       "log": "Protokoll",
       "show": "Protokoll des Laufs {run} anzeigen",
       "logCaption": "Protokoll des Laufs {run}",
@@ -1850,7 +1868,7 @@
       "outcomes": {
         "sent": "Geschrieben",
         "rejected": "Abgelehnt",
-        "failed": "Gescheitert"
+        "failed": "Mit Fehler beendet"
       },
       "newest": "Neueste",
       "older": "Ältere Zeilen",
@@ -1940,7 +1958,7 @@
         "compare": "Mit dem Raum vergleichen",
         "hint": "Liest die Entitäten mit diesen IDs, wie Sie sie lesen dürfen; nichts wird geschrieben.",
         "noIds": "Die gemappten Datensätze haben keine ID zum Vergleichen.",
-        "failed": "Der Raum konnte nicht gelesen werden: {reason}",
+        "failed": "Der Raum konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
         "counts": "{create, plural, =0 {nichts anzulegen} other {# anzulegen}}, {update, plural, =0 {nichts zu ändern} other {# zu ändern}}, {unchanged, plural, =0 {keine unverändert} other {# unverändert}}.",
         "caption": "Jeder gemappte Datensatz gegen die Entität, die {space} jetzt hält",
         "entity": "Entität",
@@ -1990,10 +2008,10 @@
       "previewEmpty": "Noch nichts zur Vorschau.",
       "problem": {
         "required": "{name} ist Pflicht: ordnen Sie ein Feld zu oder geben Sie einen Wert an.",
-        "notInSample": "Die Stichprobe hat kein Feld {field}.",
-        "notNumber": "{field} enthält „{value}“, keine Zahl; {name} erwartet eine Zahl.",
-        "notBoolean": "{field} enthält „{value}“, weder true noch false; {name} erwartet true oder false.",
-        "notValue": "{field} enthält „{value}“; {name} erwartet einen der Werte {values}.",
+        "notInSample": "Die Stichprobe hat kein Feld {field}. Wählen Sie ein Feld der Stichprobe oder laden Sie eine andere.",
+        "notNumber": "{field} enthält „{value}“, keine Zahl; {name} erwartet eine Zahl. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
+        "notBoolean": "{field} enthält „{value}“, weder true noch false; {name} erwartet true oder false. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
+        "notValue": "{field} enthält „{value}“; {name} erwartet einen der Werte {values}. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
         "noId": "Wählen Sie das Feld, aus dem die Id jeder Entität entsteht."
       }
     },
@@ -2031,7 +2049,9 @@
       "stepModeFile": "Der Schrittmodus teilt eine Dateiprobe in Nachrichten; geben Sie statt der URL eine Datei.",
       "runMessage": "Nachricht {number} von {total} ausführen",
       "startOver": "Von vorn",
-      "position": "Nachricht {number} von {total}"
+      "position": "Nachricht {number} von {total}",
+      "nothingToClear": "Das Protokoll ist leer.",
+      "atFirst": "Das ist die erste Nachricht."
     },
     "schedule": {
       "how": "Wie oft",
@@ -2098,7 +2118,7 @@
         "source": "Wählen Sie die Quelle.",
         "target": "Wählen Sie, wohin die Pipeline schreibt.",
         "type": "Nennen Sie den zu aggregierenden Entitätstyp.",
-        "attribute": "Nennen Sie ein numerisches Attribut: Buchstaben, Ziffern und Unterstriche."
+        "attribute": "Geben Sie den Namen eines numerischen Attributs ein: Buchstaben, Ziffern und Unterstriche."
       }
     }
   },
@@ -2209,7 +2229,7 @@
       "whereHelp": "Wie weit die Rolle reicht: dieses Projekt, die ganze Organisation, oder ein Kontextraum des Projekts.",
       "untilHelp": "Der letzte Tag, an dem die Rolle gilt. Leer gelassen endet sie nicht, was ein dauerhaftes Mitglied braucht.",
       "rolesEmpty": "Diese Organisation hat noch keine Rollen. Eine muss unter Rollen erklärt werden, bevor sie vergeben werden kann.",
-      "spacesFailed": "Die Kontexträume dieses Projekts konnten nicht geladen werden, daher fehlen in dieser Liste die Vergaben, die für einen einzelnen Raum gelten: {reason}",
+      "spacesFailed": "Die Kontexträume dieses Projekts konnten nicht geladen werden, daher fehlen in dieser Liste die Vergaben, die für einen einzelnen Raum gelten: {reason}. Laden Sie die Seite neu, um sie zu sehen.",
       "discardTitle": "Diese Vergabe verwerfen?",
       "discardConfirm": "Was Sie eingegeben haben, geht verloren und es wird nichts vorgeschlagen. Bereits vergebene Rollen bleiben unberührt.",
       "discard": "Vergabe verwerfen",
@@ -2364,7 +2384,7 @@
       "mayNot": "Sie dürfen nicht {action} {type}",
       "attrDenied": "nicht in Ihrem Grant",
       "attrProhibited": "ausdrücklich verweigert",
-      "checkFailed": "Diese Berechtigungen konnten nicht geprüft werden: {reason}"
+      "checkFailed": "Diese Berechtigungen konnten nicht geprüft werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen."
     },
     "groups": {
       "title": "Gruppen",
@@ -2399,7 +2419,7 @@
       "state": {
         "pending": "Noch nicht verifiziert",
         "verified": "Verifiziert",
-        "failed": "Verifizierung fehlgeschlagen"
+        "failed": "Verifizierung fehlgeschlagen. Prüfen Sie den hier gezeigten DNS-Eintrag und verifizieren Sie erneut."
       },
       "unchecked": "Noch nicht geprüft",
       "method": {
@@ -2458,7 +2478,8 @@
       "ckanLead": "Die CKAN-Kataloge, die die Zuweisungen von {group} ihren Mitgliedern zu ändern erlauben.",
       "noCkan": "Diese Gruppe verwaltet keinen Katalog.",
       "ckanInstance": "{project} / {name}",
-      "ckanVia": "über die Rolle {role}"
+      "ckanVia": "über die Rolle {role}",
+      "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen."
     },
     "explorer": {
       "title": "Sehen, worauf jemand zugreifen kann",
@@ -2555,11 +2576,11 @@
       "lead": "Eine Kopie von {name} v{version} kommt Byte für Byte zu den Modellen der Organisation, damit jedes Projekt sie importieren kann. Eine Administratorin oder ein Administrator der Organisation genehmigt sie; bis dahin ändert sich nichts, und dieses Projekt behält sein eigenes Modell in jedem Fall.",
       "confirm": "Teilen vorschlagen",
       "notPublished": "Nur ein veröffentlichtes Modell wird geteilt: Veröffentlichen Sie es zuerst.",
-      "failed": "Das Teilen wurde nicht vorgeschlagen: {reason}",
+      "failed": "Das Teilen wurde nicht vorgeschlagen: {reason}. Beheben Sie die Ursache und schlagen Sie es erneut vor.",
       "adoptLead": "Die Organisation führt dieses Modell als {importName} (v{version}), von hier geteilt. Verwenden Sie ihre Kopie: Dieses Modell importiert sie dann anstelle der Klassen, die es selbst definiert, mit denselben Namen und IRIs, sodass sich keine Entität ändert.",
       "adopt": "Kopie der Organisation verwenden",
       "copyLoading": "Die Kopie der Organisation wird gelesen …",
-      "copyFailed": "Die Kopie der Organisation konnte nicht gelesen werden: {reason}"
+      "copyFailed": "Die Kopie der Organisation konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen."
     },
     "title": "Modelleditor",
     "version": "Version {version}",
@@ -2722,7 +2743,7 @@
       "chooseFile": "Beispieldatei wählen",
       "reading": "Lese {name}…",
       "tooLarge": "Die Datei ist größer als 10 MiB. Verwenden Sie eine kleinere Probe.",
-      "failed": "Die Datei konnte nicht gelesen werden: {detail}",
+      "failed": "Die Datei konnte nicht gelesen werden: {detail}. Prüfen Sie die Datei und versuchen Sie es erneut.",
       "unreadable": "Aus dieser Datei ließ sich kein Modell entwerfen. Versuchen Sie eine CSV- oder JSON-Probe.",
       "preview": "Entwurf aus {name}",
       "previewLead": "{rows} Zeilen gelesen, {classes} Klassen entworfen. Jeder Wert ist eine Annahme, die im Editor korrigiert wird.",
@@ -2742,7 +2763,8 @@
       "urlHelp": "Einmal vom Runner des Projekts gelesen, wie die Prüfung einer Datenquelle sie liest; das Modell entsteht aus den Datensätzen der Antwort.",
       "readUrl": "Adresse lesen",
       "urlInvalid": "Geben Sie eine vollständige Adresse an, die mit https:// oder http:// beginnt.",
-      "urlCredential": "Die Adresse enthält einen Benutzernamen, ein Passwort oder einen Schlüssel. Geben Sie sie ohne an, oder binden Sie die Quelle als Datenquelle an, deren Zugangsdaten ein Secret sind."
+      "urlCredential": "Die Adresse enthält einen Benutzernamen, ein Passwort oder einen Schlüssel. Geben Sie sie ohne an, oder binden Sie die Quelle als Datenquelle an, deren Zugangsdaten ein Secret sind.",
+      "enterAddress": "Geben Sie zuerst die Adresse der Datei ein."
     },
     "source": {
       "loading": "Modellquelle wird geladen…",
@@ -2757,7 +2779,8 @@
       "refused": "Die Änderung wurde abgelehnt: {reason}",
       "fixErrors": "Beheben Sie vor dem Speichern die Fehler, die der Editor anzeigt. Offen: {count}.",
       "confirmBreaking": "Als Version {version} speichern, eine inkompatible Änderung",
-      "handOffRefused": "Die Änderung des Assistenten ließ sich nicht auf dieses Modell anwenden:"
+      "handOffRefused": "Die Änderung des Assistenten ließ sich nicht auf dieses Modell anwenden:",
+      "nameTaken": "Ein Modell mit diesem Namen existiert bereits. Wählen Sie einen anderen Namen."
     },
     "classParent": "Die Klasse, die sie erweitert",
     "classParentNone": "Keine",
@@ -2828,8 +2851,11 @@
         "relationshipTitle": "Beziehung {name} / {inverse}",
         "breakingTitle": "Diese Änderung bricht das Datenmodell",
         "breakingBody": "Nach dem veröffentlichten Modell gespeicherte Entitäten können nutzen, was die Änderung entfernt oder umbenennt. Der Entwurf übernimmt sie erst, wenn Sie bestätigen; Speichern schlägt sie dann unter einer neuen Hauptversion vor.",
-        "breakingConfirm": "Brechende Änderung anwenden"
-      }
+        "breakingConfirm": "Brechende Änderung anwenden",
+        "nothingToApply": "Ändern Sie zuerst etwas."
+      },
+      "zoomMin": "Bereits die kleinste Zoomstufe.",
+      "zoomMax": "Bereits die größte Zoomstufe."
     },
     "field": {
       "name": "Name",
@@ -2881,7 +2907,7 @@
       "edit": "Modell bearbeiten",
       "notFound": "Kein Datenmodell namens {name}",
       "notFoundLead": "Es wurde vielleicht umbenannt oder entfernt, oder es gehört zu einem anderen Projekt. Die Liste zeigt jedes Modell, das Sie lesen dürfen.",
-      "sourceFailed": "Die Quelle des Modells konnte nicht gelesen werden: {reason}",
+      "sourceFailed": "Die Quelle des Modells konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
       "views": "Ansichten des Modells",
       "view": {
         "overview": "Übersicht",
@@ -2982,7 +3008,8 @@
         "nameEmpty": "Das Feld benennen.",
         "nameInvalid": "Nur Buchstaben, Ziffern und _, am Anfang ein Buchstabe.",
         "nameTaken": "Ein Feld namens {name} existiert bereits.",
-        "inverseSame": "Das inverse Ende ist ein zweites Feld; einen anderen Namen geben."
+        "inverseSame": "Das inverse Ende ist ein zweites Feld; einen anderen Namen geben.",
+        "pickFirst": "Wählen Sie zuerst die Zielklasse und benennen Sie beide Enden."
       }
     }
   },
@@ -3435,10 +3462,10 @@
         "onReconcile": "aktualisiert, sooft die Konfiguration angewendet wird"
       },
       "lastChange": "Letzte Änderung {time}: {summary}",
-      "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}",
+      "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}. Beheben Sie die Ursache und veröffentlichen Sie erneut.",
       "needsCatalogue": "Fügen Sie zuerst oben einen Katalog hinzu: ein Datensatz braucht ein CKAN-Portal."
     },
-    "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}",
+    "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "access": {
       "sectionTitle": "Wer welchen Katalog verwaltet",
       "title": "Zugriff auf {instance}",
@@ -3577,7 +3604,8 @@
       "prune": "Löschen, was die Quelle entfernt hat",
       "autoMerge": "Sauberen Lauf ohne Review mergen"
     },
-    "emptyHint": "Eine Synchronisationsquelle hält dieses Projekt mit einem Git-Repository, einem veröffentlichten Bundle oder einer anderen Instanz im Gleichschritt. Fügen Sie eine hinzu, und was sie bringt, kommt als Änderungen, über die jemand entscheidet."
+    "emptyHint": "Eine Synchronisationsquelle hält dieses Projekt mit einem Git-Repository, einem veröffentlichten Bundle oder einer anderen Instanz im Gleichschritt. Fügen Sie eine hinzu, und was sie bringt, kommt als Änderungen, über die jemand entscheidet.",
+    "pausedReason": "Setzen Sie die Quelle zuerst fort."
   },
   "allEndpoints": {
     "title": "Alle Endpunkte",
@@ -4579,7 +4607,8 @@
         "host": "Host",
         "credential": "Zugangsdaten"
       }
-    }
+    },
+    "clearPasted": "Entfernen Sie den Zugangswert aus dem Bündel und wählen Sie die Datei erneut."
   },
   "drift": {
     "section": {
@@ -4685,7 +4714,7 @@
       "starting": "Startet",
       "running": "Läuft",
       "stopped": "Gestoppt",
-      "error": "Fehlgeschlagen"
+      "error": "Nicht gestartet. Öffnen Sie sie, um den Grund zu sehen."
     },
     "actions": "Aktionen",
     "openAction": "Öffnen",
@@ -4764,7 +4793,7 @@
       "lead": "Eine Vorschau bedient die Kopie {name} neben dem Projekt, unter eigenen Adressen. Nichts darin ist live.",
       "start": "Vorschau starten",
       "stop": "Stoppen",
-      "failed": "Die Vorschau ist nicht gestartet",
+      "failed": "Die Vorschau ist nicht gestartet. Versuchen Sie es erneut; der Grund steht unten.",
       "notOwner": "Nur wer die Kopie begonnen hat, startet ihre Vorschau.",
       "addresses": "Wo sie antwortet",
       "noEndpoints": "Die Kopie hat keine Endpunkte.",
@@ -4856,18 +4885,18 @@
         "person": "Eine Person",
         "group": "Ein Mitglied einer Gruppe",
         "role": "Inhaber einer Realm-Rolle",
-        "serviceAccount": "Ein ServiceAccount",
+        "serviceAccount": "Ein Dienstkonto",
         "public": "Die Öffentlichkeit"
       },
       "search": "Person suchen",
       "person": "Person",
       "noPerson": "Niemand gefunden",
-      "noAccount": "Noch kein ServiceAccount",
+      "noAccount": "Noch kein Dienstkonto",
       "action": "Aktion",
       "type": "Entitätstyp",
       "typeHelp": "Leer lassen, um nach jedem Typ zu fragen.",
       "submit": "Gateway fragen",
-      "failed": "Das Gateway konnte nicht gefragt werden",
+      "failed": "Das Gateway konnte nicht gefragt werden. Versuchen Sie es in einer Minute erneut; der Grund steht unten.",
       "allowed": "Erlaubt",
       "refused": "Abgelehnt",
       "decidedBy": "Entschieden durch die Policy",
@@ -4879,13 +4908,14 @@
       },
       "hints": {
         "endpoint": "Der Endpoint, dessen Policies geprüft werden.",
-        "kind": "Eine Person, ein Mitglied einer Gruppe oder Rolle, ein ServiceAccount oder jeder.",
+        "kind": "Eine Person, ein Mitglied einer Gruppe oder Rolle, ein Dienstkonto oder jeder.",
         "search": "Ein Teil des Namens oder der E-Mail-Adresse.",
         "person": "Die Person, für die das Gateway entscheidet.",
-        "account": "Einer der ServiceAccounts dieses Projekts.",
+        "account": "Eines der Dienstkonten dieses Projekts.",
         "name": "Der Name, wie der Realm ihn schreibt.",
         "action": "Die NGSI-LD-Operation, die der Aufruf ausführen würde."
-      }
+      },
+      "pickFirst": "Wählen Sie zuerst den Endpoint und wen Sie ausprobieren."
     }
   },
   "subscriptions": {
@@ -5698,7 +5728,8 @@
     "check": "Archiv prüfen",
     "import": "Importieren",
     "repository": "Anzulegendes Repository",
-    "redLane": "Der Import schlägt die App als Änderung auf der roten Spur vor; sie wird gebaut, sobald eine Administratorin oder ein Administrator zustimmt."
+    "redLane": "Der Import schlägt die App als Änderung auf der roten Spur vor; sie wird gebaut, sobald eine Administratorin oder ein Administrator zustimmt.",
+    "checked": "Das Archiv wurde für diese Auswahl geprüft. Wählen Sie ein anderes Archiv, um sie zu ändern."
   },
   "appExport": {
     "button": "Exportieren",
@@ -6455,7 +6486,7 @@
     "new": "Neuer MCP-Server",
     "empty": "Dieses Projekt hat noch keinen MCP-Server",
     "emptyHint": "Ein MCP-Server fasst zusammengehörige Endpoints, etwa die Mobilitätsdaten der Stadt, unter einer Adresse zusammen.",
-    "listFailed": "Die MCP-Server konnten nicht gelesen werden: {reason}",
+    "listFailed": "Die MCP-Server konnten nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "memberCount": "Mitglieder: {count}",
     "edit": "Bearbeiten",
     "editOf": "{name} bearbeiten",
@@ -6506,13 +6537,13 @@
       "members": "Wählen Sie einen bis {max} Mitglieds-Endpoints.",
       "noMcp": "Ein gewählter Endpoint bietet keine MCP-Schnittstelle; entfernen Sie ihn.",
       "audience": "Die Zielgruppe ist weiter, als das engste Mitglied erlaubt; wählen Sie eine engere.",
-      "projects": "Jeder Projektname besteht aus Kleinbuchstaben, Ziffern und Bindestrichen."
+      "projects": "Verwenden Sie für jeden Projektnamen Kleinbuchstaben, Ziffern und Bindestriche, etwa city-air."
     },
     "health": {
       "checking": "Wird geprüft…",
       "answers": "Antwortet, Werkzeuge: {count}",
       "refused": "Für Sie abgelehnt (HTTP {status})",
-      "failed": "Antwortet nicht: {reason}"
+      "failed": "Antwortet nicht: {reason}. Prüfen Sie die Endpoints des Servers und versuchen Sie es in einer Minute erneut."
     },
     "preview": {
       "title": "Werkzeuge, die Sie bekämen",

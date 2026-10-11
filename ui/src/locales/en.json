@@ -46,7 +46,11 @@
       "close": "Not now",
       "notYet": "You are not signed in yet. Finish signing in in the other tab, then continue."
     },
-    "listHidden": "This list is not open to you in {project}. Whoever manages the project can grant it."
+    "listHidden": "This list is not open to you in {project}. Whoever manages the project can grant it.",
+    "busyReason": "Wait for the action in progress to finish.",
+    "firstPage": "This is the first page.",
+    "lastPage": "This is the last page.",
+    "nothingToUndo": "Nothing to undo yet."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# change waits for your approval} other {# changes wait for your approval}}",
@@ -588,7 +592,7 @@
     "fields": {
       "add": "Add field",
       "title": "Add a field to {type}",
-      "lead": "A field is an attribute of the type's DataModel. Adding one proposes a model change for review; no data changes until it is merged.",
+      "lead": "A field is an attribute of the type's data model. Adding one proposes a model change for review; no data changes until it is merged.",
       "propose": "Propose field",
       "refused": "The field could not be proposed",
       "refusedStatus": "The Portal answered {status}.",
@@ -612,12 +616,12 @@
         "nameInvalid": "Use letters, digits and _ only, starting with a letter.",
         "nameTaken": "This type or its model already has an attribute of this name.",
         "valuesMissing": "Give at least one choice.",
-        "valueInvalid": "A choice is empty, too long (over 100 characters) or contains a control character.",
-        "valueTwice": "A choice is listed twice.",
+        "valueInvalid": "A choice is empty, longer than 100 characters or holds a control character. Fill it in or shorten it.",
+        "valueTwice": "A choice is listed twice. Remove one of them.",
         "targetMissing": "Pick the type it points to.",
         "inverseInvalid": "Use letters, digits and _ only, and a name other than the field's.",
         "inverseTaken": "The target type already has an attribute of this name.",
-        "formulaInvalid": "The formula cannot be computed: {reason}"
+        "formulaInvalid": "The formula cannot be computed: {reason}. Correct the formula and check it again."
       },
       "types": {
         "text": "Text",
@@ -639,7 +643,7 @@
         "expression": "Formula",
         "help": "Computed from this entity's slots, every five minutes, and stored as its value: for example {example}. You may use {slots}, numbers, quoted text, + - * / %, comparisons, and, or, not, abs, round, min and max.",
         "noEndpoint": "No Endpoint of this space answers by every Policy of the space, so a formula's pipeline has nowhere to read and write. Add one without policyRef first.",
-        "noAccount": "This project has no pipelines ServiceAccount, which runs a formula's pipeline. Add it first.",
+        "noAccount": "This project has no service account named pipelines, which runs a formula's pipeline. Add it first.",
         "pipelineRefused": "The field is proposed, but its pipeline was not: {reason}"
       }
     },
@@ -728,8 +732,8 @@
       "index": "Endpoint index",
       "answered": "The endpoint answered {status}, read with your session:",
       "tokens": "A token for a program",
-      "tokensLead": "A program reads with its own ServiceAccount: a Keycloak client with a role in this project, whose tokens the Endpoint's Policy decides like yours. Never paste a person's session into a program.",
-      "tokensLink": "ServiceAccounts of this project",
+      "tokensLead": "A program reads with its own service account: a Keycloak client with a role in this project, whose tokens the Endpoint's Policy decides like yours. Never paste a person's session into a program.",
+      "tokensLink": "Service accounts of this project",
       "webhooks": "Webhooks",
       "webhooksLead": "An NGSI-LD subscription on {type} that calls a URL when an entity changes, proposed as a Change.",
       "noWebhook": "No webhook watches this type yet.",
@@ -791,7 +795,7 @@
       "governReason": "Only the view's owner or a steward of the space deletes it.",
       "deleteTitle": "Delete the view {title}?",
       "deleteHelp": "Only the view is deleted; no data in the space changes.",
-      "failed": "The view could not be saved",
+      "failed": "The view could not be saved. Try again in a minute.",
       "conflict": "Someone saved this view meanwhile ({detail}). Reload to see their version, then save again.",
       "reload": "Reload views",
       "unavailable": "Saved views cannot be loaded now; the grid still works.",
@@ -849,12 +853,12 @@
       "created": "Created {id}.",
       "noFields": "The model of {type} has no field a form can ask for.",
       "problem": {
-        "required": "An answer is needed.",
-        "integer": "A whole number, such as 12.",
-        "number": "A number, such as 2.5.",
-        "urn": "An entity id, urn:ngsi-ld:Type:…",
-        "point": "Both a latitude (−90 to 90) and a longitude (−180 to 180).",
-        "date": "A date the calendar knows."
+        "required": "Answer this one: it is required.",
+        "integer": "Enter a whole number, such as 12.",
+        "number": "Enter a number, such as 2.5.",
+        "urn": "Enter an entity id, such as urn:ngsi-ld:Vehicle:bus-12.",
+        "point": "Enter both a latitude (−90 to 90) and a longitude (−180 to 180).",
+        "date": "Enter a date the calendar knows, such as 2026-10-11."
       },
       "shareTitle": "Publish as a public form",
       "shareLead": "Anyone with the link can create one {type} through a public endpoint that allows creating and nothing else. It is proposed as a change and reviewed before it works.",
@@ -929,7 +933,8 @@
         "decimalComma": "decimal comma",
         "decimalPoint": "decimal point",
         "dates": "dates as {format}"
-      }
+      },
+      "nothingToCreate": "No row is ready to create. Map the columns first."
     },
     "export": {
       "label": "Export:",
@@ -949,7 +954,8 @@
       "post": "Comment",
       "remove": "Remove",
       "removeOne": "Remove your comment of {when}",
-      "unknown": "Not notified, because they may not read this space: {names}"
+      "unknown": "Not notified, because they may not read this space: {names}",
+      "writeFirst": "Write a comment first."
     }
   },
   "endpoints": {
@@ -968,7 +974,7 @@
     "picker": {
       "title": "Model projection",
       "hint": "Pick the classes and slots this endpoint exposes. The policy and projection are generated together.",
-      "noModel": "This space has no DataModel, so no projection can be drawn.",
+      "noModel": "This space has no data model, so no projection can be drawn. Add a data model to the space first.",
       "identityOnly": "identity only (id, type)",
       "writable": "Writable",
       "idPattern": "ID pattern",
@@ -982,7 +988,8 @@
       "nothingTicked": "Tick at least one class to expose through the endpoint.",
       "projectionName": "Projection name",
       "preview": "Generated manifests",
-      "identityAlways": "Every entity has an id and a type, so this is always exposed."
+      "identityAlways": "Every entity has an id and a type, so this is always exposed.",
+      "readOnly": "This projection is shared. Detach and copy it to change it here."
     },
     "audience": {
       "project-list": "Selected projects",
@@ -1163,7 +1170,7 @@
       "proposedNotice": "A change here is proposed and an approver reviews it before anything is published.",
       "stop": {
         "title": "Stopping this endpoint",
-        "lead": "An endpoint has no pause. To stop publishing, delete it: the deletion is proposed as a change and an approver reviews it. Once it lands, the address answers 404 Not Found and is never used again. A new endpoint gets a new address.",
+        "lead": "An endpoint has no pause. To stop publishing, delete it: the deletion is proposed as a change and an approver reviews it. Once it lands, the address no longer answers and is never used again. A new endpoint gets a new address.",
         "delete": "Delete this endpoint…"
       },
       "change": "Change these settings",
@@ -1249,7 +1256,9 @@
       "firstCallOpen": "Open in the browser",
       "firstCallCopy": "Copy the command",
       "firstCallPublic": "Anyone can call it; no token needed.",
-      "firstCallToken": "In the browser your Portal session is enough. A program sends a service account token as $TOKEN."
+      "firstCallToken": "In the browser your Portal session is enough. A program sends a service account token as $TOKEN.",
+      "filterUntouched": "Change the filter first: it is the same as the one saved.",
+      "filterFaulty": "Fix the marked fields first."
     },
     "condition": {
       "title": "Add a condition",
@@ -1266,7 +1275,7 @@
       "matches": "{matching} of {all} entities match this filter",
       "none": "Nothing would be published.",
       "counting": "Counting what the filter matches...",
-      "failed": "The matching entities could not be counted: {reason}",
+      "failed": "The matching entities could not be counted: {reason}. Change the filter or try again.",
       "unavailable": "The count is read through the endpoint, so it is available once the endpoint is Live and publishes a type."
     },
     "area": {
@@ -1310,7 +1319,7 @@
       "hiddenMark": "not served",
       "empty": "No entities on this page.",
       "refused": "The draft filter is refused: {reason}",
-      "failed": "What the filter serves could not be read: {reason}",
+      "failed": "What the filter serves could not be read: {reason}. Change the filter or try again.",
       "notLive": "The proof reads through the endpoint, so it appears once the endpoint is Live.",
       "noType": "The proof needs at least one type the endpoint serves.",
       "previous": "Previous page",
@@ -1412,7 +1421,7 @@
     },
     "runner": {
       "summary": "What the runner says about this input",
-      "yamlError": "{field}: not valid YAML: {error}"
+      "yamlError": "{field}: not valid YAML: {error}. Correct it at the line named."
     },
     "secretRef": {
       "name": "Secret name",
@@ -1452,7 +1461,8 @@
       "secretName": "Secret name",
       "secretKey": "Key in the secret",
       "input": "Input configuration",
-      "typeHint": "How the platform reaches the source; the fields below follow it, and a saved source keeps its type."
+      "typeHint": "How the platform reaches the source; the fields below follow it, and a saved source keeps its type.",
+      "typeFixed": "The type is fixed once the data source exists. Add a new data source for another type."
     },
     "probe": {
       "title": "One fetch of the feed",
@@ -1514,7 +1524,7 @@
       "resident": "resident",
       "residentHelp": "Runs continuously in the project's Bento runner.",
       "scheduled": "scheduled",
-      "scheduledHelp": "Runs as a Kubernetes CronJob and stops between runs.",
+      "scheduledHelp": "Runs on a schedule and stops between runs.",
       "auto": "auto",
       "autoHelp": "The reconciler picks: resident under 30 seconds or push-based, scheduled otherwise."
     },
@@ -1646,7 +1656,7 @@
       },
       "kpi": {
         "title": "Analyse (KPI)",
-        "lead": "Aggregate context data from an endpoint into a KeyPerformanceIndicator entity written to the project KPI space.",
+        "lead": "Aggregate context data from an endpoint into a KPI entity written to the project's KPI space.",
         "endpoint": "Source endpoint",
         "type": "Entity type",
         "attribute": "Attribute",
@@ -1663,7 +1673,8 @@
         "attributeHint": "The numeric attribute of that type the aggregate reads.",
         "attributePick": "The numeric attributes the model of that type lists; pick the one the aggregate reads.",
         "aggregateHint": "How the values of one period become one number.",
-        "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h."
+        "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h.",
+        "pickEndpoint": "Pick an endpoint first."
       },
       "process": "3. Process",
       "processHint": "A snippet writes the Bloblang below; edit it afterwards or pick another compute kind in the form.",
@@ -1676,7 +1687,9 @@
       "sourceKindHint": "An external feed this project connects to, or a context space this project already fills.",
       "dataSourceHint": "The feed's connection, as saved under Data sources; a new feed is added there first.",
       "spaceHint": "The space the pipeline reads, through one of its endpoints and that endpoint's policy.",
-      "attributeHint": "The attribute the snippet below works on."
+      "attributeHint": "The attribute the snippet below works on.",
+      "pickSpaceFirst": "Pick a space first.",
+      "pickTypeFirst": "Pick an endpoint and a type first."
     },
     "test": {
       "title": "Try it on a sample",
@@ -1788,7 +1801,12 @@
           "mappingRef": "Needs a mapping name",
           "module": "Needs a module"
         }
-      }
+      },
+      "nothingToUndo": "Nothing to undo yet.",
+      "nothingToRedo": "Nothing to redo.",
+      "zoomClosed": "Zoom works on the canvas view, from 50 % to 200 %.",
+      "atTop": "Already the first step.",
+      "atBottom": "Already the last step."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
@@ -1836,7 +1854,7 @@
       "hour": "Hour from {at}",
       "sent": "Written",
       "rejected": "Rejected",
-      "failed": "Failed",
+      "failed": "Ended with an error",
       "log": "Log",
       "show": "Show the log of {run}",
       "logCaption": "Log of the run {run}",
@@ -1850,7 +1868,7 @@
       "outcomes": {
         "sent": "Written",
         "rejected": "Rejected",
-        "failed": "Failed"
+        "failed": "Ended with an error"
       },
       "newest": "Newest",
       "older": "Older lines",
@@ -1940,7 +1958,7 @@
         "compare": "Compare with the space",
         "hint": "Reads the entities with these ids as you may read them; nothing is written.",
         "noIds": "The mapped records carry no id to compare by.",
-        "failed": "The space could not be read: {reason}",
+        "failed": "The space could not be read: {reason}. Reload the page to try again.",
         "counts": "{create, plural, =0 {nothing to create} one {# to create} other {# to create}}, {update, plural, =0 {nothing to update} one {# to update} other {# to update}}, {unchanged, plural, =0 {none unchanged} one {# unchanged} other {# unchanged}}.",
         "caption": "Each mapped record against the entity {space} holds now",
         "entity": "Entity",
@@ -1990,10 +2008,10 @@
       "previewEmpty": "No record to preview yet.",
       "problem": {
         "required": "{name} is required: map a field to it or give it a value.",
-        "notInSample": "The sample has no field {field}.",
-        "notNumber": "{field} holds “{value}”, which is not a number; {name} takes a number.",
-        "notBoolean": "{field} holds “{value}”, which is not true or false; {name} takes true or false.",
-        "notValue": "{field} holds “{value}”; {name} takes one of {values}.",
+        "notInSample": "The sample has no field {field}. Pick a field the sample has, or load another sample.",
+        "notNumber": "{field} holds “{value}”, which is not a number; {name} takes a number. Pick another field or change the sample.",
+        "notBoolean": "{field} holds “{value}”, which is not true or false; {name} takes true or false. Pick another field or change the sample.",
+        "notValue": "{field} holds “{value}”; {name} takes one of {values}. Pick another field or change the sample.",
         "noId": "Choose the field each entity's id comes from."
       }
     },
@@ -2031,7 +2049,9 @@
       "stepModeFile": "Step mode cuts a file sample into its messages; give a file instead of the URL.",
       "runMessage": "Run message {number} of {total}",
       "startOver": "Start over",
-      "position": "Message {number} of {total}"
+      "position": "Message {number} of {total}",
+      "nothingToClear": "The log is empty.",
+      "atFirst": "This is the first message."
     },
     "schedule": {
       "how": "How often",
@@ -2098,7 +2118,7 @@
         "source": "Choose the source.",
         "target": "Choose where the pipeline writes.",
         "type": "Name the entity type to aggregate.",
-        "attribute": "Name a numeric attribute: letters, digits and underscores."
+        "attribute": "Enter a numeric attribute name: letters, digits and underscores."
       }
     }
   },
@@ -2209,7 +2229,7 @@
       "whereHelp": "How far the role reaches: this project, the whole organization, or one context space of the project.",
       "untilHelp": "The last day the role holds. Left empty it does not expire, which is what a permanent member needs.",
       "rolesEmpty": "This organization has no roles yet. One has to be declared under Roles before it can be granted.",
-      "spacesFailed": "The context spaces of this project could not be loaded, so grants that apply to a single space are missing from this list: {reason}",
+      "spacesFailed": "The context spaces of this project could not be loaded, so grants that apply to a single space are missing from this list: {reason}. Reload the page to see them.",
       "discardTitle": "Discard this grant?",
       "discardConfirm": "What you typed is lost and nothing is proposed. The roles already held are not touched.",
       "discard": "Discard the grant",
@@ -2364,7 +2384,7 @@
       "mayNot": "You may not {action} {type}",
       "attrDenied": "not in your grant",
       "attrProhibited": "explicitly denied",
-      "checkFailed": "These permissions could not be checked: {reason}"
+      "checkFailed": "These permissions could not be checked: {reason}. Reload the page to try again."
     },
     "groups": {
       "title": "Groups",
@@ -2399,7 +2419,7 @@
       "state": {
         "pending": "Not verified yet",
         "verified": "Verified",
-        "failed": "Verification failed"
+        "failed": "Verification failed. Check the DNS record shown here and verify again."
       },
       "unchecked": "Not checked yet",
       "method": {
@@ -2458,7 +2478,8 @@
       "ckanLead": "The CKAN catalogues the bindings of {group} let its members change.",
       "noCkan": "This group manages no catalogue.",
       "ckanInstance": "{project} / {name}",
-      "ckanVia": "through the role {role}"
+      "ckanVia": "through the role {role}",
+      "appNotLoaded": "The app is still loading, or you may not read it."
     },
     "explorer": {
       "title": "See what someone can access",
@@ -2555,11 +2576,11 @@
       "lead": "A copy of {name} v{version} goes to the organization's models, byte for byte, for every project to import. An organization administrator approves it; until then nothing changes, and this project keeps its own model either way.",
       "confirm": "Propose the share",
       "notPublished": "Only a published model is shared: publish it first.",
-      "failed": "The share was not proposed: {reason}",
+      "failed": "The share was not proposed: {reason}. Fix the cause and propose it again.",
       "adoptLead": "The organization holds this model as {importName} (v{version}), shared from here. Use its copy: this model then imports it in place of the classes it defines, with the same names and IRIs, so no entity changes.",
       "adopt": "Use the organization's copy",
       "copyLoading": "Reading the organization's copy…",
-      "copyFailed": "The organization's copy could not be read: {reason}"
+      "copyFailed": "The organization's copy could not be read: {reason}. Reload the page to try again."
     },
     "title": "Model editor",
     "version": "Version {version}",
@@ -2651,7 +2672,8 @@
       "refused": "The change was refused: {reason}",
       "fixErrors": "Fix the errors the editor lists before saving. Left: {count}.",
       "confirmBreaking": "Save it as version {version}, a breaking change",
-      "handOffRefused": "The assistant's change could not be applied to this model:"
+      "handOffRefused": "The assistant's change could not be applied to this model:",
+      "nameTaken": "A model with this name already exists. Choose another name."
     },
     "sdm": {
       "browse": "Smart Data Models catalogue",
@@ -2737,7 +2759,7 @@
       "chooseFile": "Choose a sample file",
       "reading": "Reading {name}…",
       "tooLarge": "The file is larger than 10 MiB. Use a smaller sample.",
-      "failed": "The sample could not be read: {detail}",
+      "failed": "The sample could not be read: {detail}. Check the file and try again.",
       "unreadable": "No model could be drafted from this file. Try a CSV or JSON sample.",
       "preview": "Draft from {name}",
       "previewLead": "{rows} rows read, {classes} classes drafted. Every value is a guess to correct in the editor.",
@@ -2757,7 +2779,8 @@
       "urlHelp": "Read once by the project's runner, as a data source check reads it; the model is drawn from the records it answers.",
       "readUrl": "Read the address",
       "urlInvalid": "Give a full address starting with https:// or http://.",
-      "urlCredential": "The address carries a user name, a password or a key. Give one without, or connect the source as a data source whose credential is a secret."
+      "urlCredential": "The address carries a user name, a password or a key. Give one without, or connect the source as a data source whose credential is a secret.",
+      "enterAddress": "Enter the file's address first."
     },
     "classParent": "The class it specialises",
     "classParentNone": "None",
@@ -2828,8 +2851,11 @@
         "relationshipTitle": "Relationship {name} / {inverse}",
         "breakingTitle": "This edit breaks the data model",
         "breakingBody": "Entities stored under the published model may use what it removes or renames. The draft takes the edit only when you confirm; Save then proposes it under a new major version.",
-        "breakingConfirm": "Apply the breaking edit"
-      }
+        "breakingConfirm": "Apply the breaking edit",
+        "nothingToApply": "Change something first."
+      },
+      "zoomMin": "Already at the smallest zoom.",
+      "zoomMax": "Already at the largest zoom."
     },
     "field": {
       "name": "Name",
@@ -2881,7 +2907,7 @@
       "edit": "Edit model",
       "notFound": "No data model named {name}",
       "notFoundLead": "It may have been renamed or removed, or it belongs to another project. The list shows every model you may read.",
-      "sourceFailed": "The model's source could not be read: {reason}",
+      "sourceFailed": "The model's source could not be read: {reason}. Reload the page to try again.",
       "views": "Views of the model",
       "view": {
         "overview": "Overview",
@@ -2982,7 +3008,8 @@
         "nameEmpty": "Name the field.",
         "nameInvalid": "Letters, digits and _ only, starting with a letter.",
         "nameTaken": "A field named {name} already exists.",
-        "inverseSame": "The inverse is a second field; give it another name."
+        "inverseSame": "The inverse is a second field; give it another name.",
+        "pickFirst": "Pick the target class and name both ends first."
       }
     }
   },
@@ -3435,10 +3462,10 @@
         "onReconcile": "refreshed each time the configuration is applied"
       },
       "lastChange": "Last change {time}: {summary}",
-      "lastFailed": "Last run failed {time}: {summary}",
+      "lastFailed": "Last run failed {time}: {summary}. Fix the cause, then publish again.",
       "needsCatalogue": "Add a catalogue above first: a dataset needs a CKAN portal to land in."
     },
-    "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}",
+    "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}. Reload the page to try again.",
     "access": {
       "sectionTitle": "Who manages each catalogue",
       "title": "Access to {instance}",
@@ -3577,7 +3604,8 @@
       "prune": "Delete what the source dropped",
       "autoMerge": "Merge a clean run without review"
     },
-    "emptyHint": "A sync source keeps this project in step with a Git repository, a published bundle or another instance. Add one and what it brings arrives as changes somebody decides."
+    "emptyHint": "A sync source keeps this project in step with a Git repository, a published bundle or another instance. Add one and what it brings arrives as changes somebody decides.",
+    "pausedReason": "Resume the source first."
   },
   "allEndpoints": {
     "title": "All endpoints",
@@ -4579,7 +4607,8 @@
         "host": "Host",
         "credential": "Credential"
       }
-    }
+    },
+    "clearPasted": "Remove the credential from the bundle and choose the file again."
   },
   "drift": {
     "section": {
@@ -4685,7 +4714,7 @@
       "starting": "Starting",
       "running": "Running",
       "stopped": "Stopped",
-      "error": "Failed"
+      "error": "Did not start. Open it to see why."
     },
     "actions": "Actions",
     "openAction": "Open",
@@ -4764,7 +4793,7 @@
       "lead": "A preview serves the copy {name} beside the project, under addresses of its own. Nothing in it is live.",
       "start": "Start the preview",
       "stop": "Stop",
-      "failed": "The preview did not start",
+      "failed": "The preview did not start. Try again; the reason is below.",
       "notOwner": "Only the person who started this copy runs its preview.",
       "addresses": "Where it answers",
       "noEndpoints": "The copy has no endpoints.",
@@ -4856,18 +4885,18 @@
         "person": "A person",
         "group": "A member of a group",
         "role": "A holder of a realm role",
-        "serviceAccount": "A ServiceAccount",
+        "serviceAccount": "A service account",
         "public": "The public"
       },
       "search": "Find a person",
       "person": "Person",
       "noPerson": "Nobody found",
-      "noAccount": "No ServiceAccount yet",
+      "noAccount": "No service account yet",
       "action": "Action",
       "type": "Entity type",
       "typeHelp": "Leave empty to ask about any type.",
       "submit": "Ask the gateway",
-      "failed": "The gateway could not be asked",
+      "failed": "The gateway could not be asked. Try again in a minute; the reason is below.",
       "allowed": "Allowed",
       "refused": "Refused",
       "decidedBy": "Decided by the Policy",
@@ -4879,13 +4908,14 @@
       },
       "hints": {
         "endpoint": "The Endpoint whose Policies are tried.",
-        "kind": "A person, a member of a group or role, a ServiceAccount, or anyone.",
+        "kind": "A person, a member of a group or role, a service account, or anyone.",
         "search": "Part of a name or an email address.",
         "person": "The person the gateway decides for.",
-        "account": "One of this project's ServiceAccounts.",
+        "account": "One of this project's service accounts.",
         "name": "The name as the realm spells it.",
         "action": "The NGSI-LD operation the call would make."
-      }
+      },
+      "pickFirst": "Pick the Endpoint and who to try first."
     }
   },
   "subscriptions": {
@@ -5698,7 +5728,8 @@
     "check": "Check the archive",
     "import": "Import",
     "repository": "Repository to create",
-    "redLane": "Import proposes the App as a red-lane change; it builds once an administrator approves it."
+    "redLane": "Import proposes the App as a red-lane change; it builds once an administrator approves it.",
+    "checked": "The archive was checked against this choice. Choose another archive to change it."
   },
   "appExport": {
     "button": "Export",
@@ -6455,7 +6486,7 @@
     "new": "New MCP server",
     "empty": "This project has no MCP server yet",
     "emptyHint": "An MCP server joins Endpoints that belong together, such as the city's mobility data, behind one address.",
-    "listFailed": "The MCP servers could not be read: {reason}",
+    "listFailed": "The MCP servers could not be read: {reason}. Reload the page to try again.",
     "memberCount": "Members: {count}",
     "edit": "Edit",
     "editOf": "Edit {name}",
@@ -6506,13 +6537,13 @@
       "members": "Pick between one and {max} member Endpoints.",
       "noMcp": "A picked Endpoint serves no MCP surface; remove it.",
       "audience": "The audience is wider than the narrowest member allows; pick a narrower one.",
-      "projects": "Each project name is lowercase letters, digits and dashes."
+      "projects": "Use lowercase letters, digits and dashes for each project name, such as city-air."
     },
     "health": {
       "checking": "Checking…",
       "answers": "Answers, tools: {count}",
       "refused": "Refused to you (HTTP {status})",
-      "failed": "Not answering: {reason}"
+      "failed": "Not answering: {reason}. Check the server's Endpoints and try again in a minute."
     },
     "preview": {
       "title": "Tools you would get",

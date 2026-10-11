@@ -155,8 +155,8 @@ describe("the import wizard", () => {
 
     await user.upload(await screen.findByLabelText(en.import.file), bundle());
     // Nothing is proposed from an unchecked bundle (MF-33).
-    expect(screen.getByRole("button", { name: en.import.propose })).toBeDisabled();
-    expect(screen.getByText(en.import.checkFirst)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.import.propose })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("status")).toHaveTextContent(en.import.checkFirst);
 
     await user.click(screen.getByRole("button", { name: en.import.check }));
 
@@ -221,8 +221,8 @@ describe("the import wizard", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/password/);
-    expect(screen.getByRole("button", { name: en.import.check })).toBeDisabled();
-    expect(screen.getByRole("button", { name: en.import.propose })).toBeDisabled();
+    expect(screen.getByRole("button", { name: en.import.check })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: en.import.propose })).toHaveAttribute("aria-disabled", "true");
     expect(posts).toHaveLength(0);
   });
 
@@ -248,9 +248,9 @@ describe("the import wizard", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("git forge is not configured");
     expect(screen.queryByRole("heading", { name: en.import.report.title })).toBeNull();
-    expect(screen.getByRole("button", { name: en.import.propose })).toBeDisabled();
+    expect(screen.getByRole("button", { name: en.import.propose })).toHaveAttribute("aria-disabled", "true");
     // The check can be asked again once the server is back.
-    expect(screen.getByRole("button", { name: en.import.check })).toBeEnabled();
+    expect(screen.getByRole("button", { name: en.import.check })).not.toHaveAttribute("aria-disabled");
   });
 
   it("says a bundle is uploaded rather than fetched, and offers no URL to fetch", async () => {

@@ -360,7 +360,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         </span>
         {stepping && messages.length > 0 ? (
           <>
-            <Button size="sm" variant="ghost" disabled={at === 0} onClick={() => setAt(0)}>
+            <Button size="sm" variant="ghost" disabled={at === 0} disabledReason={t("pipelines.debug.atFirst")} onClick={() => setAt(0)}>
               {t("pipelines.debug.startOver")}
             </Button>
             <span className="text-caption text-fg-muted" aria-live="polite">

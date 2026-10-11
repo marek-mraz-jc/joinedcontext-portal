@@ -110,7 +110,7 @@ describe("a pipeline's runs and log", () => {
     const log = await within(dialog).findByRole("region", { name: /^Log of the run / });
     expect(await within(log).findByText("capacity is not an integer")).toBeInTheDocument();
     expect(within(log).getByText("In step 2")).toBeInTheDocument();
-    expect(within(log).getByText("Failed")).toBeInTheDocument();
+    expect(within(log).getByText("Ended with an error")).toBeInTheDocument();
     expect(within(log).getByText("Rejected")).toBeInTheDocument();
     const [newest, older] = within(runs).getAllByRole("button");
     expect(newest).toHaveAttribute("aria-pressed", "true");

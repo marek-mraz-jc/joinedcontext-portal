@@ -210,6 +210,7 @@ export function ImportAppDialog({
               id={`${ids}-project`}
               value={project}
               disabled={plan !== null}
+              title={plan !== null ? t("appImport.checked") : undefined}
               onChange={(event) => setProject(event.target.value)}
             >
               <option value="">{t("appImport.chooseProject")}</option>
@@ -242,6 +243,7 @@ export function ImportAppDialog({
               autoComplete="off"
               spellCheck={false}
               disabled={plan !== null}
+              title={plan !== null ? t("appImport.checked") : undefined}
               onChange={(event) => setName(event.target.value)}
             />
           </Field>

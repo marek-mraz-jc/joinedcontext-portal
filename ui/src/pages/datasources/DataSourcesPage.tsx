@@ -497,6 +497,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           id="datasource-type"
           value={type}
           disabled={editing !== null}
+          title={editing !== null ? t("datasources.field.typeFixed") : undefined}
           onChange={(event) => {
             setType(event.target.value as DataSourceType);
             // What the person already named stays; the connection fields belong to the old type.

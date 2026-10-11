@@ -46,7 +46,11 @@
       "close": "Teď ne",
       "notYet": "Ještě nejste přihlášeni. Dokončete přihlášení na druhé kartě a pak pokračujte."
     },
-    "listHidden": "Tento seznam vám v {project} není přístupný. Udělit ho může ten, kdo projekt spravuje."
+    "listHidden": "Tento seznam vám v {project} není přístupný. Udělit ho může ten, kdo projekt spravuje.",
+    "busyReason": "Počkejte, až se dokončí probíhající akce.",
+    "firstPage": "Toto je první stránka.",
+    "lastPage": "Toto je poslední stránka.",
+    "nothingToUndo": "Zatím není co vrátit."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# změna čeká na vaše schválení} few {# změny čekají na vaše schválení} other {# změn čeká na vaše schválení}}",
@@ -588,7 +592,7 @@
     "fields": {
       "add": "Přidat pole",
       "title": "Přidat pole do {type}",
-      "lead": "Pole je atribut DataModelu typu. Přidání navrhne změnu modelu ke schválení; data se nezmění, dokud není sloučena.",
+      "lead": "Pole je atribut datového modelu typu. Přidání navrhne změnu modelu ke schválení; data se nezmění, dokud není sloučena.",
       "propose": "Navrhnout pole",
       "refused": "Pole se nepodařilo navrhnout",
       "refusedStatus": "Portál odpověděl {status}.",
@@ -612,12 +616,12 @@
         "nameInvalid": "Použijte pouze písmena, číslice a _, na začátku písmeno.",
         "nameTaken": "Tento typ nebo jeho model už má atribut s tímto názvem.",
         "valuesMissing": "Zadejte alespoň jednu možnost.",
-        "valueInvalid": "Některá možnost je prázdná, příliš dlouhá (nad 100 znaků) nebo obsahuje řídicí znak.",
-        "valueTwice": "Některá možnost je uvedena dvakrát.",
+        "valueInvalid": "Některá možnost je prázdná, delší než 100 znaků nebo obsahuje řídicí znak. Vyplňte ji nebo ji zkraťte.",
+        "valueTwice": "Některá možnost je uvedena dvakrát. Jednu z nich odstraňte.",
         "targetMissing": "Vyberte typ, na který odkazuje.",
         "inverseInvalid": "Použijte pouze písmena, číslice a _ a jiný název, než má pole.",
         "inverseTaken": "Cílový typ už má atribut s tímto názvem.",
-        "formulaInvalid": "Vzorec nelze vypočítat: {reason}"
+        "formulaInvalid": "Vzorec nelze vypočítat: {reason}. Opravte vzorec a zkontrolujte ho znovu."
       },
       "types": {
         "text": "Text",
@@ -728,8 +732,8 @@
       "index": "Index endpointu",
       "answered": "Endpoint odpověděl {status}, čteno s vaší relací:",
       "tokens": "Token pro program",
-      "tokensLead": "Program čte vlastním ServiceAccountem: klientem Keycloak s rolí v tomto projektu, jehož tokeny posuzuje politika endpointu jako ty vaše. Nikdy nevkládejte relaci osoby do programu.",
-      "tokensLink": "ServiceAccounty tohoto projektu",
+      "tokensLead": "Program čte vlastním servisním účtem: klientem Keycloak s rolí v tomto projektu, jehož tokeny posuzuje politika endpointu jako ty vaše. Nikdy nevkládejte relaci osoby do programu.",
+      "tokensLink": "Servisní účty tohoto projektu",
       "webhooks": "Webhooky",
       "webhooksLead": "NGSI-LD subscription na {type}, která zavolá URL, když se entita změní, navržená jako změna.",
       "noWebhook": "Tento typ zatím nesleduje žádný webhook.",
@@ -791,7 +795,7 @@
       "governReason": "Smazat pohled může jen jeho vlastník nebo správce prostoru.",
       "deleteTitle": "Smazat pohled {title}?",
       "deleteHelp": "Smaže se jen pohled; data v prostoru se nezmění.",
-      "failed": "Pohled se nepodařilo uložit",
+      "failed": "Pohled se nepodařilo uložit. Zkuste to znovu za minutu.",
       "conflict": "Mezitím tento pohled uložil někdo jiný ({detail}). Načtěte jeho verzi a uložte znovu.",
       "reload": "Znovu načíst pohledy",
       "unavailable": "Uložené pohledy se teď nedají načíst; tabulka funguje dál.",
@@ -849,12 +853,12 @@
       "created": "Vytvořeno {id}.",
       "noFields": "Model typu {type} nemá pole, na které by se formulář mohl ptát.",
       "problem": {
-        "required": "Odpověď je povinná.",
-        "integer": "Celé číslo.",
-        "number": "Číslo.",
-        "urn": "Identifikátor entity, urn:ngsi-ld:Typ:…",
-        "point": "Zeměpisnou šířku (−90 až 90) i délku (−180 až 180).",
-        "date": "Datum, které kalendář zná."
+        "required": "Odpovězte, tato otázka je povinná.",
+        "integer": "Zadejte celé číslo.",
+        "number": "Zadejte číslo.",
+        "urn": "Zadejte identifikátor entity, například urn:ngsi-ld:Vehicle:bus-12.",
+        "point": "Zadejte zeměpisnou šířku (−90 až 90) i délku (−180 až 180).",
+        "date": "Zadejte platné datum."
       },
       "shareTitle": "Zveřejnit jako veřejný formulář",
       "shareLead": "Kdokoli s odkazem může vytvořit jeden záznam {type} přes veřejný endpoint, který dovoluje pouze vytváření. Navrhne se jako změna a funguje až po schválení.",
@@ -929,7 +933,8 @@
         "decimalComma": "desetinná čárka",
         "decimalPoint": "desetinná tečka",
         "dates": "data jako {format}"
-      }
+      },
+      "nothingToCreate": "Žádný řádek není připraven k vytvoření. Nejprve přiřaďte sloupce."
     },
     "export": {
       "label": "Exportovat:",
@@ -949,7 +954,8 @@
       "post": "Komentovat",
       "remove": "Odstranit",
       "removeOne": "Odstranit váš komentář z {when}",
-      "unknown": "Bez upozornění, protože nemohou číst tento prostor: {names}"
+      "unknown": "Bez upozornění, protože nemohou číst tento prostor: {names}",
+      "writeFirst": "Nejprve napište komentář."
     }
   },
   "endpoints": {
@@ -968,7 +974,7 @@
     "picker": {
       "title": "Projekce modelu",
       "hint": "Vyberte třídy a sloty, které tento koncový bod zpřístupní. Politika a projekce se vytvoří společně.",
-      "noModel": "Tento prostor nemá DataModel, takže projekci nelze navrhnout.",
+      "noModel": "Tento prostor nemá datový model, takže projekci nelze navrhnout. Nejprve do prostoru přidejte datový model.",
       "identityOnly": "pouze identita (id, type)",
       "writable": "Zapisovatelné",
       "idPattern": "Vzor ID",
@@ -982,7 +988,8 @@
       "nothingTicked": "Zaškrtněte alespoň jednu třídu, kterou má endpoint zpřístupnit.",
       "projectionName": "Název projekce",
       "preview": "Vytvořené manifesty",
-      "identityAlways": "Každý záznam má id a typ, proto je toto vždy zveřejněno."
+      "identityAlways": "Každý záznam má id a typ, proto je toto vždy zveřejněno.",
+      "readOnly": "Tato projekce je sdílená. Chcete-li ji změnit zde, oddělte ji a zkopírujte."
     },
     "audience": {
       "project-list": "Vybrané projekty",
@@ -1163,7 +1170,7 @@
       "proposedNotice": "Změna se tu navrhne a schvalovatel ji posoudí, než se cokoli zveřejní.",
       "stop": {
         "title": "Zastavení tohoto endpointu",
-        "lead": "Endpoint nejde pozastavit. Chcete-li ho přestat zveřejňovat, smažte ho: smazání se navrhne jako změna a posoudí ho schvalovatel. Až se změna uplatní, adresa odpovídá 404 Not Found a už se nikdy nepoužije. Nový endpoint dostane novou adresu.",
+        "lead": "Endpoint nejde pozastavit. Chcete-li ho přestat zveřejňovat, smažte ho: smazání se navrhne jako změna a posoudí ho schvalovatel. Až se změna uplatní, adresa už neodpovídá a nikdy se znovu nepoužije. Nový endpoint dostane novou adresu.",
         "delete": "Smazat tento endpoint…"
       },
       "change": "Změnit tato nastavení",
@@ -1249,7 +1256,9 @@
       "firstCallOpen": "Otevřít v prohlížeči",
       "firstCallCopy": "Kopírovat příkaz",
       "firstCallPublic": "Volat ho může kdokoli, token není potřeba.",
-      "firstCallToken": "V prohlížeči stačí vaše přihlášení do Portálu. Program posílá token servisního účtu jako $TOKEN."
+      "firstCallToken": "V prohlížeči stačí vaše přihlášení do Portálu. Program posílá token servisního účtu jako $TOKEN.",
+      "filterUntouched": "Nejprve změňte filtr: je stejný jako uložený.",
+      "filterFaulty": "Nejprve opravte označená pole."
     },
     "condition": {
       "title": "Přidat podmínku",
@@ -1266,7 +1275,7 @@
       "matches": "filtru odpovídá {matching} z {all} entit",
       "none": "Nezveřejnilo by se nic.",
       "counting": "Počítám, čemu filtr odpovídá...",
-      "failed": "Odpovídající entity se nepodařilo spočítat: {reason}",
+      "failed": "Odpovídající entity se nepodařilo spočítat: {reason}. Změňte filtr nebo to zkuste znovu.",
       "unavailable": "Počet se čte přes endpoint, takže je dostupný teprve když je endpoint Live a zveřejňuje typ."
     },
     "area": {
@@ -1310,7 +1319,7 @@
       "hiddenMark": "neposkytuje se",
       "empty": "Na této stránce nejsou žádné entity.",
       "refused": "Návrh filtru byl odmítnut: {reason}",
-      "failed": "Nepodařilo se přečíst, co filtr poskytuje: {reason}",
+      "failed": "Nepodařilo se přečíst, co filtr poskytuje: {reason}. Změňte filtr nebo to zkuste znovu.",
       "notLive": "Porovnání čte přes rozhraní, proto se zobrazí, když je rozhraní aktivní.",
       "noType": "Porovnání potřebuje alespoň jeden typ, který rozhraní obsluhuje.",
       "previous": "Předchozí stránka",
@@ -1433,7 +1442,8 @@
       "secretName": "Název tajemství",
       "secretKey": "Klíč v tajemství",
       "input": "Konfigurace vstupu",
-      "typeHint": "Jak se platforma ke zdroji dostane; pole níže se podle toho mění a uložený zdroj si typ ponechá."
+      "typeHint": "Jak se platforma ke zdroji dostane; pole níže se podle toho mění a uložený zdroj si typ ponechá.",
+      "typeFixed": "Typ je pevný, jakmile zdroj dat existuje. Pro jiný typ přidejte nový zdroj dat."
     },
     "probe": {
       "title": "Jedno stažení feedu",
@@ -1452,7 +1462,7 @@
     },
     "runner": {
       "summary": "Co runner říká o tomto vstupu",
-      "yamlError": "{field}: neplatný YAML: {error}"
+      "yamlError": "{field}: neplatný YAML: {error}. Opravte ho na uvedeném řádku."
     },
     "secretRef": {
       "name": "Název tajemství",
@@ -1514,7 +1524,7 @@
       "resident": "rezidentní",
       "residentHelp": "Běží nepřetržitě v Bento runneru projektu.",
       "scheduled": "plánovaná",
-      "scheduledHelp": "Běží jako Kubernetes CronJob a mezi běhy se zastaví.",
+      "scheduledHelp": "Běží podle plánu a mezi běhy se zastaví.",
       "auto": "auto",
       "autoHelp": "Vybere reconciler: rezidentní pod 30 sekund nebo push, jinak plánovaná."
     },
@@ -1654,7 +1664,7 @@
       },
       "kpi": {
         "title": "Analýza (KPI)",
-        "lead": "Agreguje kontextová data z koncového bodu do entity KeyPerformanceIndicator zapsané do KPI prostoru projektu.",
+        "lead": "Agreguje kontextová data z koncového bodu do entity KPI zapsané do KPI prostoru projektu.",
         "endpoint": "Zdrojový koncový bod",
         "type": "Typ entity",
         "attribute": "Atribut",
@@ -1671,12 +1681,15 @@
         "attributeHint": "Číselný atribut toho typu, který agregace čte.",
         "attributePick": "Číselné atributy, které model daného typu uvádí; vyberte ten, který agregace čte.",
         "aggregateHint": "Jak se hodnoty jednoho období sloučí do jednoho čísla.",
-        "periodHint": "Jak často se ukazatel počítá, jako doba trvání, například 15m nebo 1h."
+        "periodHint": "Jak často se ukazatel počítá, jako doba trvání, například 15m nebo 1h.",
+        "pickEndpoint": "Nejprve vyberte endpoint."
       },
       "sourceKindHint": "Externí zdroj, ke kterému se projekt připojuje, nebo kontextový prostor, který projekt už plní.",
       "dataSourceHint": "Připojení zdroje, jak je uložené ve Zdrojích dat; nový zdroj přidáte nejprve tam.",
       "spaceHint": "Prostor, který pipeline čte, přes jeden z jeho endpointů a politiku toho endpointu.",
-      "attributeHint": "Atribut, se kterým pracuje úryvek níže."
+      "attributeHint": "Atribut, se kterým pracuje úryvek níže.",
+      "pickSpaceFirst": "Nejprve vyberte prostor.",
+      "pickTypeFirst": "Nejprve vyberte endpoint a typ."
     },
     "test": {
       "title": "Vyzkoušet na vzorku",
@@ -1788,7 +1801,12 @@
           "mappingRef": "Chybí název mapování",
           "module": "Chybí modul"
         }
-      }
+      },
+      "nothingToUndo": "Zatím není co vrátit.",
+      "nothingToRedo": "Není co zopakovat.",
+      "zoomClosed": "Přiblížení funguje v zobrazení plátna, od 50 % do 200 %.",
+      "atTop": "Už je to první krok.",
+      "atBottom": "Už je to poslední krok."
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
@@ -1836,7 +1854,7 @@
       "hour": "Hodina od {at}",
       "sent": "Zapsané",
       "rejected": "Odmítnuté",
-      "failed": "Selhané",
+      "failed": "Skončil chybou",
       "log": "Záznam",
       "show": "Zobrazit záznam běhu {run}",
       "logCaption": "Záznam běhu {run}",
@@ -1850,7 +1868,7 @@
       "outcomes": {
         "sent": "Zapsán",
         "rejected": "Odmítnut",
-        "failed": "Selhal"
+        "failed": "Skončil chybou"
       },
       "newest": "Nejnovější",
       "older": "Starší řádky",
@@ -1940,7 +1958,7 @@
         "compare": "Porovnat s prostorem",
         "hint": "Přečte entity s těmito id tak, jak je smíte číst vy; nic se nezapíše.",
         "noIds": "Namapované záznamy nemají id, podle kterého porovnat.",
-        "failed": "Prostor se nepodařilo přečíst: {reason}",
+        "failed": "Prostor se nepodařilo přečíst: {reason}. Obnovte stránku a zkuste to znovu.",
         "counts": "{create, plural, =0 {nic k vytvoření} other {k vytvoření: #}}, {update, plural, =0 {nic ke změně} other {ke změně: #}}, {unchanged, plural, =0 {žádné beze změny} other {beze změny: #}}.",
         "caption": "Každý namapovaný záznam proti entitě, kterou {space} drží teď",
         "entity": "Entita",
@@ -1990,10 +2008,10 @@
       "previewEmpty": "Zatím není co zobrazit.",
       "problem": {
         "required": "{name} je povinný: přiřaďte mu pole nebo zadejte hodnotu.",
-        "notInSample": "Vzorek nemá pole {field}.",
-        "notNumber": "{field} obsahuje „{value}“, což není číslo; {name} očekává číslo.",
-        "notBoolean": "{field} obsahuje „{value}“, což není true ani false; {name} očekává true nebo false.",
-        "notValue": "{field} obsahuje „{value}“; {name} očekává jednu z hodnot {values}.",
+        "notInSample": "Vzorek nemá pole {field}. Vyberte pole, které vzorek má, nebo načtěte jiný vzorek.",
+        "notNumber": "{field} obsahuje „{value}“, což není číslo; {name} očekává číslo. Vyberte jiné pole nebo změňte vzorek.",
+        "notBoolean": "{field} obsahuje „{value}“, což není true ani false; {name} očekává true nebo false. Vyberte jiné pole nebo změňte vzorek.",
+        "notValue": "{field} obsahuje „{value}“; {name} očekává jednu z hodnot {values}. Vyberte jiné pole nebo změňte vzorek.",
         "noId": "Vyberte pole, ze kterého vznikne id každé entity."
       }
     },
@@ -2031,7 +2049,9 @@
       "stepModeFile": "Krokování dělí vzorek ze souboru na zprávy; místo URL dejte soubor.",
       "runMessage": "Spustit zprávu {number} z {total}",
       "startOver": "Od začátku",
-      "position": "Zpráva {number} z {total}"
+      "position": "Zpráva {number} z {total}",
+      "nothingToClear": "Záznam je prázdný.",
+      "atFirst": "Toto je první zpráva."
     },
     "schedule": {
       "how": "Jak často",
@@ -2098,7 +2118,7 @@
         "source": "Vyberte zdroj.",
         "target": "Vyberte, kam pipeline zapisuje.",
         "type": "Zadejte typ entity k agregaci.",
-        "attribute": "Zadejte číselný atribut: písmena, číslice a podtržítka."
+        "attribute": "Zadejte název číselného atributu: písmena, číslice a podtržítka."
       }
     }
   },
@@ -2209,7 +2229,7 @@
       "whereHelp": "Kam až role sahá: tento projekt, celá organizace, nebo jeden kontextový prostor projektu.",
       "untilHelp": "Poslední den platnosti role. Prázdné pole znamená bez konce, což potřebuje stálý člen.",
       "rolesEmpty": "Tato organizace zatím nemá žádné role. Než ji lze přidělit, musí ji někdo vyhlásit v části Role.",
-      "spacesFailed": "Kontextové prostory tohoto projektu se nepodařilo načíst, takže přidělení platná pro jeden prostor v tomto seznamu chybí: {reason}",
+      "spacesFailed": "Kontextové prostory tohoto projektu se nepodařilo načíst, takže přidělení platná pro jeden prostor v tomto seznamu chybí: {reason}. Obnovte stránku, abyste je viděli.",
       "discardTitle": "Zahodit toto přidělení?",
       "discardConfirm": "To, co jste napsali, se ztratí a nic se nenavrhne. Již přidělené role se nemění.",
       "discard": "Zahodit přidělení",
@@ -2364,7 +2384,7 @@
       "mayNot": "Nesmíte {action} {type}",
       "attrDenied": "mimo vaše oprávnění",
       "attrProhibited": "výslovně zakázaný",
-      "checkFailed": "Tato oprávnění se nepodařilo ověřit: {reason}"
+      "checkFailed": "Tato oprávnění se nepodařilo ověřit: {reason}. Obnovte stránku a zkuste to znovu."
     },
     "groups": {
       "title": "Skupiny",
@@ -2399,7 +2419,7 @@
       "state": {
         "pending": "Zatím neověřená",
         "verified": "Ověřená",
-        "failed": "Ověření selhalo"
+        "failed": "Ověření selhalo. Zkontrolujte zde uvedený DNS záznam a ověřte znovu."
       },
       "unchecked": "Zatím nekontrolovaná",
       "method": {
@@ -2458,7 +2478,8 @@
       "ckanLead": "Katalogy CKAN, které přiřazení skupiny {group} dovolují jejím členům měnit.",
       "noCkan": "Tato skupina nespravuje žádný katalog.",
       "ckanInstance": "{project} / {name}",
-      "ckanVia": "přes roli {role}"
+      "ckanVia": "přes roli {role}",
+      "appNotLoaded": "Aplikace se ještě načítá nebo ji nemůžete číst."
     },
     "explorer": {
       "title": "Podívejte se, k čemu má kdo přístup",
@@ -2555,11 +2576,11 @@
       "lead": "Kopie {name} v{version} přibude bajt po bajtu mezi modely organizace, aby ji mohl importovat každý projekt. Schvaluje ji administrátor organizace; do té doby se nic nemění a tento projekt si v každém případě ponechá vlastní model.",
       "confirm": "Navrhnout sdílení",
       "notPublished": "Sdílet lze jen publikovaný model: nejdřív ho publikujte.",
-      "failed": "Sdílení se nenavrhlo: {reason}",
+      "failed": "Sdílení se nenavrhlo: {reason}. Odstraňte příčinu a navrhněte ho znovu.",
       "adoptLead": "Organizace má tento model jako {importName} (v{version}), sdílený odsud. Použijte její kopii: tento model ji pak importuje místo tříd, které sám definuje, se stejnými názvy a IRI, takže se žádná entita nezmění.",
       "adopt": "Použít kopii organizace",
       "copyLoading": "Načítá se kopie organizace…",
-      "copyFailed": "Kopii organizace se nepodařilo načíst: {reason}"
+      "copyFailed": "Kopii organizace se nepodařilo načíst: {reason}. Obnovte stránku a zkuste to znovu."
     },
     "title": "Editor modelů",
     "version": "Verze {version}",
@@ -2722,7 +2743,7 @@
       "chooseFile": "Vybrat vzorový soubor",
       "reading": "Čtu {name}…",
       "tooLarge": "Soubor je větší než 10 MiB. Použijte menší vzorek.",
-      "failed": "Vzorek se nepodařilo přečíst: {detail}",
+      "failed": "Vzorek se nepodařilo přečíst: {detail}. Zkontrolujte soubor a zkuste to znovu.",
       "unreadable": "Z tohoto souboru se nepodařilo navrhnout model. Zkuste vzorek CSV nebo JSON.",
       "preview": "Návrh ze souboru {name}",
       "previewLead": "Přečteno {rows} řádků, navrženo {classes} tříd. Každá hodnota je odhad k opravě v editoru.",
@@ -2742,7 +2763,8 @@
       "urlHelp": "Jednou ji přečte runner projektu, jako ji čte ověření zdroje dat; model se odvodí ze záznamů, které vrátí.",
       "readUrl": "Přečíst adresu",
       "urlInvalid": "Zadejte celou adresu začínající na https:// nebo http://.",
-      "urlCredential": "Adresa obsahuje jméno, heslo nebo klíč. Zadejte ji bez nich, nebo zdroj připojte jako zdroj dat, jehož přihlašovací údaj je secret."
+      "urlCredential": "Adresa obsahuje jméno, heslo nebo klíč. Zadejte ji bez nich, nebo zdroj připojte jako zdroj dat, jehož přihlašovací údaj je secret.",
+      "enterAddress": "Nejprve zadejte adresu souboru."
     },
     "source": {
       "loading": "Načítá se zdroj modelu…",
@@ -2757,7 +2779,8 @@
       "refused": "Změna byla odmítnuta: {reason}",
       "fixErrors": "Před uložením opravte chyby, které editor uvádí. Zbývá: {count}.",
       "confirmBreaking": "Uložit jako verzi {version}, nekompatibilní změna",
-      "handOffRefused": "Změnu od asistenta se do tohoto modelu nepodařilo použít:"
+      "handOffRefused": "Změnu od asistenta se do tohoto modelu nepodařilo použít:",
+      "nameTaken": "Model s tímto názvem už existuje. Zvolte jiný název."
     },
     "classParent": "Třída, kterou rozšiřuje",
     "classParentNone": "Žádná",
@@ -2828,8 +2851,11 @@
         "relationshipTitle": "Vztah {name} / {inverse}",
         "breakingTitle": "Tato úprava rozbije datový model",
         "breakingBody": "Entity uložené podle publikovaného modelu mohou používat to, co úprava odebírá nebo přejmenovává. Koncept úpravu převezme, jen když ji potvrdíte; Uložit ji pak navrhne pod novou hlavní verzí.",
-        "breakingConfirm": "Použít rozbíjející úpravu"
-      }
+        "breakingConfirm": "Použít rozbíjející úpravu",
+        "nothingToApply": "Nejprve něco změňte."
+      },
+      "zoomMin": "Už je nejmenší přiblížení.",
+      "zoomMax": "Už je největší přiblížení."
     },
     "field": {
       "name": "Název",
@@ -2881,7 +2907,7 @@
       "edit": "Upravit model",
       "notFound": "Datový model {name} neexistuje",
       "notFoundLead": "Možná byl přejmenován nebo odstraněn, nebo patří jinému projektu. Seznam ukazuje každý model, který smíte číst.",
-      "sourceFailed": "Zdroj modelu se nepodařilo načíst: {reason}",
+      "sourceFailed": "Zdroj modelu se nepodařilo načíst: {reason}. Obnovte stránku a zkuste to znovu.",
       "views": "Pohledy na model",
       "view": {
         "overview": "Přehled",
@@ -2982,7 +3008,8 @@
         "nameEmpty": "Pojmenujte pole.",
         "nameInvalid": "Jen písmena, číslice a _, na začátku písmeno.",
         "nameTaken": "Pole s názvem {name} už existuje.",
-        "inverseSame": "Inverzní konec je druhé pole; dejte mu jiný název."
+        "inverseSame": "Inverzní konec je druhé pole; dejte mu jiný název.",
+        "pickFirst": "Nejprve vyberte cílovou třídu a pojmenujte oba konce."
       }
     }
   },
@@ -3435,10 +3462,10 @@
         "onReconcile": "obnovovaná při každém použití konfigurace"
       },
       "lastChange": "Poslední změna {time}: {summary}",
-      "lastFailed": "Poslední běh selhal {time}: {summary}",
+      "lastFailed": "Poslední běh selhal {time}: {summary}. Odstraňte příčinu a zveřejněte znovu.",
       "needsCatalogue": "Nejprve výše přidejte katalog: dataset potřebuje portál CKAN, kam se zveřejní."
     },
-    "statusFailed": "Stav katalogů tohoto projektu se nepodařilo přečíst, takže níže uvedené může být neúplné: {reason}",
+    "statusFailed": "Stav katalogů tohoto projektu se nepodařilo přečíst, takže níže uvedené může být neúplné: {reason}. Obnovte stránku a zkuste to znovu.",
     "access": {
       "sectionTitle": "Kdo spravuje který katalog",
       "title": "Přístup ke katalogu {instance}",
@@ -3577,7 +3604,8 @@
       "prune": "Smazat to, co zdroj odstranil",
       "autoMerge": "Sloučit čistý běh bez revize"
     },
-    "emptyHint": "Zdroj synchronizace drží tento projekt v souladu s Git repozitářem, zveřejněným balíkem nebo jinou instancí. Přidejte jeden a to, co přinese, přijde jako změny, o kterých někdo rozhodne."
+    "emptyHint": "Zdroj synchronizace drží tento projekt v souladu s Git repozitářem, zveřejněným balíkem nebo jinou instancí. Přidejte jeden a to, co přinese, přijde jako změny, o kterých někdo rozhodne.",
+    "pausedReason": "Nejprve zdroj obnovte."
   },
   "allEndpoints": {
     "title": "Všechny koncové body",
@@ -4579,7 +4607,8 @@
         "host": "Hostitel",
         "credential": "Přístupový údaj"
       }
-    }
+    },
+    "clearPasted": "Odstraňte z balíčku přihlašovací údaj a vyberte soubor znovu."
   },
   "drift": {
     "section": {
@@ -4685,7 +4714,7 @@
       "starting": "Spouští se",
       "running": "Běží",
       "stopped": "Zastaven",
-      "error": "Selhal"
+      "error": "Nespustil se. Otevřete ho a uvidíte proč."
     },
     "actions": "Akce",
     "openAction": "Otevřít",
@@ -4764,7 +4793,7 @@
       "lead": "Náhled obsluhuje kopii {name} vedle projektu, na vlastních adresách. Nic v něm není živé.",
       "start": "Spustit náhled",
       "stop": "Zastavit",
-      "failed": "Náhled se nespustil",
+      "failed": "Náhled se nespustil. Zkuste to znovu; důvod je níže.",
       "notOwner": "Náhled spouští jen osoba, která kopii založila.",
       "addresses": "Kde odpovídá",
       "noEndpoints": "Kopie nemá endpointy.",
@@ -4856,18 +4885,18 @@
         "person": "Osoba",
         "group": "Člen skupiny",
         "role": "Držitel role realmu",
-        "serviceAccount": "ServiceAccount",
+        "serviceAccount": "Servisní účet",
         "public": "Veřejnost"
       },
       "search": "Najít osobu",
       "person": "Osoba",
       "noPerson": "Nikdo nenalezen",
-      "noAccount": "Zatím žádný ServiceAccount",
+      "noAccount": "Zatím žádný servisní účet",
       "action": "Akce",
       "type": "Typ entity",
       "typeHelp": "Nechte prázdné pro dotaz na jakýkoli typ.",
       "submit": "Zeptat se brány",
-      "failed": "Bránu se nepodařilo zeptat",
+      "failed": "Bránu se nepodařilo zeptat. Zkuste to znovu za minutu; důvod je níže.",
       "allowed": "Povoleno",
       "refused": "Odmítnuto",
       "decidedBy": "Rozhodla Policy",
@@ -4879,13 +4908,14 @@
       },
       "hints": {
         "endpoint": "Endpoint, jehož Policies se zkoušejí.",
-        "kind": "Osoba, člen skupiny nebo role, ServiceAccount, nebo kdokoli.",
+        "kind": "Osoba, člen skupiny nebo role, servisní účet, nebo kdokoli.",
         "search": "Část jména nebo e-mailové adresy.",
         "person": "Osoba, za kterou brána rozhoduje.",
-        "account": "Jeden z ServiceAccountů tohoto projektu.",
+        "account": "Jeden ze servisních účtů tohoto projektu.",
         "name": "Název tak, jak ho píše realm.",
         "action": "Operace NGSI-LD, kterou by volání provedlo."
-      }
+      },
+      "pickFirst": "Nejprve vyberte Endpoint a koho chcete vyzkoušet."
     }
   },
   "subscriptions": {
@@ -5698,7 +5728,8 @@
     "check": "Zkontrolovat archiv",
     "import": "Importovat",
     "repository": "Repozitář k vytvoření",
-    "redLane": "Import navrhne aplikaci jako změnu v červeném pruhu; sestaví se, jakmile ji schválí administrátor."
+    "redLane": "Import navrhne aplikaci jako změnu v červeném pruhu; sestaví se, jakmile ji schválí administrátor.",
+    "checked": "Archiv byl zkontrolován pro tuto volbu. Chcete-li ji změnit, vyberte jiný archiv."
   },
   "appExport": {
     "button": "Exportovat",
@@ -6455,7 +6486,7 @@
     "new": "Nový MCP server",
     "empty": "Tento projekt zatím nemá MCP server",
     "emptyHint": "MCP server spojí endpointy, které patří k sobě, například data o dopravě ve městě, pod jednu adresu.",
-    "listFailed": "MCP servery se nepodařilo načíst: {reason}",
+    "listFailed": "MCP servery se nepodařilo načíst: {reason}. Obnovte stránku a zkuste to znovu.",
     "memberCount": "Členové: {count}",
     "edit": "Upravit",
     "editOf": "Upravit {name}",
@@ -6506,13 +6537,13 @@
       "members": "Vyberte jeden až {max} členských endpointů.",
       "noMcp": "Vybraný endpoint neposkytuje MCP; odstraňte ho.",
       "audience": "Publikum je širší, než dovoluje nejužší člen; vyberte užší.",
-      "projects": "Každý název projektu tvoří malá písmena, číslice a pomlčky."
+      "projects": "Pro každý název projektu použijte malá písmena, číslice a pomlčky, například city-air."
     },
     "health": {
       "checking": "Ověřuji…",
       "answers": "Odpovídá, nástroje: {count}",
       "refused": "Vám odmítnuto (HTTP {status})",
-      "failed": "Neodpovídá: {reason}"
+      "failed": "Neodpovídá: {reason}. Zkontrolujte Endpointy serveru a zkuste to znovu za minutu."
     },
     "preview": {
       "title": "Nástroje, které byste dostali",

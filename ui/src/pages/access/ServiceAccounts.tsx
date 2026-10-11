@@ -585,7 +585,7 @@ function MintDialog({
           <Button type="button" onClick={close}>
             {t("access.keys.claim.cancel")}
           </Button>
-          <Button type="submit" variant="primary" disabled={pending}>
+          <Button type="submit" variant="primary" disabled={pending} disabledReason={t("app.busyReason")}>
             {t("access.keys.mint.submit")}
           </Button>
         </div>
@@ -707,6 +707,7 @@ function KeyTable({
             <Button
               key={credential.name}
               disabled={busy}
+              disabledReason={t("app.busyReason")}
               variant="primary"
               onClick={() => setAsking(credential)}
             >
@@ -804,6 +805,7 @@ function KeyTable({
                         <Button
                           size="sm"
                           disabled={busy}
+                          disabledReason={t("app.busyReason")}
                           onClick={() => rotate.mutate(key.keyId)}
                           title={t("access.keys.rotateHint")}
                         >
@@ -813,6 +815,7 @@ function KeyTable({
                           size="sm"
                           variant="danger"
                           disabled={busy}
+                          disabledReason={t("app.busyReason")}
                           onClick={() => setConfirming(key.keyId)}
                         >
                           {t("access.keys.revoke")}

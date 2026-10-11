@@ -242,6 +242,7 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
           <Button
             onClick={() => check.mutate()}
             disabled={!file || pasted.length > 0}
+            disabledReason={pasted.length > 0 ? t("import.clearPasted") : t("import.fileMissing")}
             loading={check.isPending}
           >
             {t("import.check")}
@@ -251,6 +252,7 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
               variant="primary"
               onClick={() => propose.mutate()}
               disabled={!report || pasted.length > 0}
+              disabledReason={pasted.length > 0 ? t("import.clearPasted") : t("import.checkFirst")}
               loading={propose.isPending}
             >
               {t("import.propose")}

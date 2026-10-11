@@ -412,6 +412,7 @@ export function FilterProof({
           variant="secondary"
           size="sm"
           disabled={offset === 0}
+          disabledReason={t("app.firstPage")}
           onClick={() => setOffset(Math.max(0, offset - PROOF_PAGE))}
         >
           {t("endpoints.proof.previous")}
@@ -421,6 +422,7 @@ export function FilterProof({
           variant="secondary"
           size="sm"
           disabled={offset + PROOF_PAGE >= total}
+          disabledReason={t("app.lastPage")}
           onClick={() => setOffset(offset + PROOF_PAGE)}
         >
           {t("endpoints.proof.next")}

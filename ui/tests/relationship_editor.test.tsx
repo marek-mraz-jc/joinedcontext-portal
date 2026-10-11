@@ -122,7 +122,7 @@ describe("relationship editor", () => {
     await user.selectOptions(add.getByLabelText("Target class"), "User");
     await user.clear(add.getByLabelText(/^Inverse on User/));
 
-    expect(add.getByRole("button", { name: "Add relationship" })).toBeDisabled();
+    expect(add.getByRole("button", { name: "Add relationship" })).toHaveAttribute("aria-disabled", "true");
     expect(add.getByLabelText(/^Inverse on User/)).toHaveAccessibleDescription(expect.stringContaining("Name the field."));
     expect(source()).toBe(SOURCE);
   });
@@ -132,26 +132,26 @@ describe("relationship editor", () => {
     const add = within(form());
     const button = () => add.getByRole("button", { name: "Add relationship" });
     // No target yet.
-    expect(button()).toBeDisabled();
+    expect(button()).toHaveAttribute("aria-disabled", "true");
 
     await user.selectOptions(add.getByLabelText("Target class"), "User");
-    expect(button()).toBeEnabled();
+    expect(button()).not.toHaveAttribute("aria-disabled");
     // A name that cannot become a slot.
     await user.clear(add.getByLabelText("Name on School"));
     await user.type(add.getByLabelText("Name on School"), "9lives");
-    expect(button()).toBeDisabled();
+    expect(button()).toHaveAttribute("aria-disabled", "true");
     expect(add.getByLabelText("Name on School")).toHaveAccessibleDescription(expect.stringContaining("starting with a letter"));
     // A name the model already has.
     await user.clear(add.getByLabelText("Name on School"));
     await user.type(add.getByLabelText("Name on School"), "title");
-    expect(button()).toBeDisabled();
+    expect(button()).toHaveAttribute("aria-disabled", "true");
     expect(add.getByLabelText("Name on School")).toHaveAccessibleDescription(expect.stringContaining("A field named title already exists."));
     // The inverse the same as the name.
     await user.clear(add.getByLabelText("Name on School"));
     await user.type(add.getByLabelText("Name on School"), "users");
     await user.clear(add.getByLabelText(/^Inverse on User/));
     await user.type(add.getByLabelText(/^Inverse on User/), "users");
-    expect(button()).toBeDisabled();
+    expect(button()).toHaveAttribute("aria-disabled", "true");
   });
 
   it("lets only the stored end be required", async () => {
