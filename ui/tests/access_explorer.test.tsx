@@ -169,7 +169,7 @@ describe("Access explorer (T-3792)", () => {
     const kind = await screen.findByLabelText(/Who/);
     kind.focus();
     await user.selectOptions(kind, "serviceAccount");
-    await waitFor(() => expect(screen.getByRole("combobox", { name: /ServiceAccount/ })).toHaveValue("etl"));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /service ?account/i })).toHaveValue("etl"));
     await user.tab();
     await user.tab();
     expect(screen.getByRole("button", { name: "Show access" })).toHaveFocus();

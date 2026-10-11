@@ -177,7 +177,7 @@ function Explorer({ project }: { project: string }): JSX.Element {
           <Button
             type="submit"
             disabled={missing}
-            title={missing ? t("access.explorer.pickFirst") : undefined}
+            disabledReason={t("access.explorer.pickFirst")}
             loading={explore.isPending}
           >
             {t("access.explorer.show")}
