@@ -32,5 +32,15 @@
     "vite": "^8.2.2",
     "vitest": "^5.0.0",
     "@playwright/test": "1.63.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@loaders.gl/core": "4.5.3",
+      "@loaders.gl/images": "4.5.3",
+      "@loaders.gl/schema": "4.5.3",
+      "@loaders.gl/loader-utils": "4.5.3",
+      "@loaders.gl/schema-utils": "4.5.3",
+      "@loaders.gl/worker-utils": "4.5.3"
+    }
   }
 }
