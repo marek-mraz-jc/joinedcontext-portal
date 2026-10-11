@@ -49,7 +49,8 @@
     "listHidden": "Tento zoznam vám v {project} nie je prístupný. Udeliť ho môže ten, kto projekt spravuje.",
     "busyReason": "Počkajte, kým sa dokončí prebiehajúca akcia.",
     "firstPage": "Toto je prvá stránka.",
-    "lastPage": "Toto je posledná stránka."
+    "lastPage": "Toto je posledná stránka.",
+    "nothingToUndo": "Zatiaľ nie je čo vrátiť."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
@@ -932,7 +933,8 @@
         "decimalComma": "desatinná čiarka",
         "decimalPoint": "desatinná bodka",
         "dates": "dátumy ako {format}"
-      }
+      },
+      "nothingToCreate": "Žiadny riadok nie je pripravený na vytvorenie. Najprv priraďte stĺpce."
     },
     "export": {
       "label": "Exportovať:",
@@ -1440,7 +1442,8 @@
       "secretName": "Názov tajomstva",
       "secretKey": "Kľúč v tajomstve",
       "input": "Konfigurácia vstupu",
-      "typeHint": "Ako sa platforma k zdroju dostane; polia nižšie sa podľa toho menia a uložený zdroj si typ ponechá."
+      "typeHint": "Ako sa platforma k zdroju dostane; polia nižšie sa podľa toho menia a uložený zdroj si typ ponechá.",
+      "typeFixed": "Typ je pevný, keď zdroj údajov existuje. Pre iný typ pridajte nový zdroj údajov."
     },
     "probe": {
       "title": "Jedno stiahnutie feedu",
@@ -1459,7 +1462,7 @@
     },
     "runner": {
       "summary": "Čo runner hovorí o tomto vstupe",
-      "yamlError": "{field}: neplatný YAML: {error}"
+      "yamlError": "{field}: neplatný YAML: {error}. Opravte ho na uvedenom riadku."
     },
     "secretRef": {
       "name": "Názov tajomstva",
@@ -2541,11 +2544,11 @@
       "lead": "Kópia {name} v{version} pribudne bajt po bajte medzi modely organizácie, aby ju mohol importovať každý projekt. Schvaľuje ju administrátor organizácie; dovtedy sa nič nemení a tento projekt si v každom prípade ponechá vlastný model.",
       "confirm": "Navrhnúť zdieľanie",
       "notPublished": "Zdieľať sa dá len publikovaný model: najprv ho publikujte.",
-      "failed": "Zdieľanie sa nenavrhlo: {reason}",
+      "failed": "Zdieľanie sa nenavrhlo: {reason}. Odstráňte príčinu a navrhnite ho znova.",
       "adoptLead": "Organizácia má tento model ako {importName} (v{version}), zdieľaný odtiaľto. Použite jej kópiu: tento model ju potom importuje namiesto tried, ktoré sám definuje, s rovnakými názvami a IRI, takže sa žiadna entita nezmení.",
       "adopt": "Použiť kópiu organizácie",
       "copyLoading": "Načítava sa kópia organizácie…",
-      "copyFailed": "Kópiu organizácie sa nepodarilo načítať: {reason}"
+      "copyFailed": "Kópiu organizácie sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova."
     },
     "title": "Editor modelov",
     "version": "Verzia {version}",
@@ -2708,7 +2711,7 @@
       "chooseFile": "Vybrať vzorový súbor",
       "reading": "Čítam {name}…",
       "tooLarge": "Súbor je väčší ako 10 MiB. Použite menšiu vzorku.",
-      "failed": "Vzorku sa nepodarilo prečítať: {detail}",
+      "failed": "Vzorku sa nepodarilo prečítať: {detail}. Skontrolujte súbor a skúste to znova.",
       "unreadable": "Z tohto súboru sa nepodarilo navrhnúť model. Skúste vzorku CSV alebo JSON.",
       "preview": "Návrh zo súboru {name}",
       "previewLead": "Prečítaných {rows} riadkov, navrhnutých {classes} tried. Každá hodnota je odhad na opravu v editore.",
@@ -2728,7 +2731,8 @@
       "urlHelp": "Raz ju prečíta runner projektu, ako ju číta overenie zdroja údajov; model sa odvodí zo záznamov, ktoré vráti.",
       "readUrl": "Prečítať adresu",
       "urlInvalid": "Zadajte celú adresu začínajúcu na https:// alebo http://.",
-      "urlCredential": "Adresa obsahuje meno, heslo alebo kľúč. Zadajte ju bez nich, alebo zdroj pripojte ako zdroj údajov, ktorého prihlasovací údaj je secret."
+      "urlCredential": "Adresa obsahuje meno, heslo alebo kľúč. Zadajte ju bez nich, alebo zdroj pripojte ako zdroj údajov, ktorého prihlasovací údaj je secret.",
+      "enterAddress": "Najprv zadajte adresu súboru."
     },
     "source": {
       "loading": "Načítava sa zdroj modelu…",
@@ -2743,7 +2747,8 @@
       "refused": "Zmena bola odmietnutá: {reason}",
       "fixErrors": "Pred uložením opravte chyby, ktoré editor uvádza. Zostáva: {count}.",
       "confirmBreaking": "Uložiť ako verziu {version}, nekompatibilná zmena",
-      "handOffRefused": "Zmenu od asistenta sa do tohto modelu nepodarilo použiť:"
+      "handOffRefused": "Zmenu od asistenta sa do tohto modelu nepodarilo použiť:",
+      "nameTaken": "Model s týmto názvom už existuje. Zvoľte iný názov."
     },
     "classParent": "Trieda, ktorú rozširuje",
     "classParentNone": "Žiadna",
@@ -2814,8 +2819,11 @@
         "relationshipTitle": "Vzťah {name} / {inverse}",
         "breakingTitle": "Táto úprava rozbije dátový model",
         "breakingBody": "Entity uložené podľa publikovaného modelu môžu používať to, čo úprava odstraňuje alebo premenúva. Koncept úpravu prevezme, len keď ju potvrdíte; Uložiť ju potom navrhne pod novou hlavnou verziou.",
-        "breakingConfirm": "Použiť rozbíjajúcu úpravu"
-      }
+        "breakingConfirm": "Použiť rozbíjajúcu úpravu",
+        "nothingToApply": "Najprv niečo zmeňte."
+      },
+      "zoomMin": "Už je najmenšie priblíženie.",
+      "zoomMax": "Už je najväčšie priblíženie."
     },
     "field": {
       "name": "Názov",
@@ -2867,7 +2875,7 @@
       "edit": "Upraviť model",
       "notFound": "Dátový model {name} neexistuje",
       "notFoundLead": "Možno bol premenovaný alebo odstránený, alebo patrí inému projektu. Zoznam ukazuje každý model, ktorý smiete čítať.",
-      "sourceFailed": "Zdroj modelu sa nepodarilo načítať: {reason}",
+      "sourceFailed": "Zdroj modelu sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova.",
       "views": "Pohľady na model",
       "view": {
         "overview": "Prehľad",
@@ -2968,7 +2976,8 @@
         "nameEmpty": "Pomenujte pole.",
         "nameInvalid": "Len písmená, číslice a _, na začiatku písmeno.",
         "nameTaken": "Pole s názvom {name} už existuje.",
-        "inverseSame": "Inverzný koniec je druhé pole; dajte mu iný názov."
+        "inverseSame": "Inverzný koniec je druhé pole; dajte mu iný názov.",
+        "pickFirst": "Najprv vyberte cieľovú triedu a pomenujte oba konce."
       }
     }
   },
@@ -3421,10 +3430,10 @@
         "onReconcile": "obnovovaná pri každom použití konfigurácie"
       },
       "lastChange": "Posledná zmena {time}: {summary}",
-      "lastFailed": "Posledný beh zlyhal {time}: {summary}",
+      "lastFailed": "Posledný beh zlyhal {time}: {summary}. Odstráňte príčinu a zverejnite znova.",
       "needsCatalogue": "Najprv vyššie pridajte katalóg: dataset potrebuje portál CKAN, kam sa zverejní."
     },
-    "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}",
+    "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}. Obnovte stránku a skúste to znova.",
     "access": {
       "sectionTitle": "Kto spravuje ktorý katalóg",
       "title": "Prístup ku katalógu {instance}",
@@ -3563,7 +3572,8 @@
       "prune": "Zmazať to, čo zdroj odstránil",
       "autoMerge": "Zlúčiť čistý beh bez revízie"
     },
-    "emptyHint": "Zdroj synchronizácie drží tento projekt v súlade s Git repozitárom, zverejneným balíkom alebo inou instanciou. Pridajte jeden a to, čo prinesie, príde ako zmeny, o ktorých niekto rozhodne."
+    "emptyHint": "Zdroj synchronizácie drží tento projekt v súlade s Git repozitárom, zverejneným balíkom alebo inou instanciou. Pridajte jeden a to, čo prinesie, príde ako zmeny, o ktorých niekto rozhodne.",
+    "pausedReason": "Najprv zdroj obnovte."
   },
   "allEndpoints": {
     "title": "Všetky endpointy",
@@ -4564,7 +4574,8 @@
         "host": "Hostiteľ",
         "credential": "Prístupový údaj"
       }
-    }
+    },
+    "clearPasted": "Odstráňte z balíka prihlasovací údaj a vyberte súbor znova."
   },
   "drift": {
     "section": {

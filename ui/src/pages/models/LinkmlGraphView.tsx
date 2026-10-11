@@ -389,10 +389,10 @@ export function LinkmlGraphView({
       {pairs.length > 0 ? <p className="text-caption text-fg-muted">{t("models.graph.legendRelationship")}</p> : null}
       <Legend id={markerId} />
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom / ZOOM.step)} disabled={zoom <= ZOOM.min}>
+        <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom / ZOOM.step)} disabled={zoom <= ZOOM.min} disabledReason={t("models.graph.zoomMin")}>
           {t("models.graph.zoomOut")}
         </Button>
-        <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom * ZOOM.step)} disabled={zoom >= ZOOM.max}>
+        <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom * ZOOM.step)} disabled={zoom >= ZOOM.max} disabledReason={t("models.graph.zoomMax")}>
           {t("models.graph.zoomIn")}
         </Button>
         <Button size="sm" variant="secondary" onClick={fit}>
@@ -412,7 +412,7 @@ export function LinkmlGraphView({
             <Button size="sm" onClick={editing.addClass}>
               {t("models.graph.edit.addClass")}
             </Button>
-            <Button size="sm" variant="secondary" onClick={editing.undo} disabled={!editing.canUndo}>
+            <Button size="sm" variant="secondary" onClick={editing.undo} disabled={!editing.canUndo} disabledReason={t("app.nothingToUndo")}>
               {t("models.graph.edit.undo")}
             </Button>
           </>

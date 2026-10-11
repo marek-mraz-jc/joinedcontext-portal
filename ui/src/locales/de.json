@@ -49,7 +49,8 @@
     "listHidden": "Diese Liste ist für Sie in {project} nicht offen. Wer das Projekt verwaltet, kann sie freigeben.",
     "busyReason": "Warten Sie, bis die laufende Aktion abgeschlossen ist.",
     "firstPage": "Das ist die erste Seite.",
-    "lastPage": "Das ist die letzte Seite."
+    "lastPage": "Das ist die letzte Seite.",
+    "nothingToUndo": "Noch nichts rückgängig zu machen."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",
@@ -932,7 +933,8 @@
         "decimalComma": "Dezimalkomma",
         "decimalPoint": "Dezimalpunkt",
         "dates": "Datum als {format}"
-      }
+      },
+      "nothingToCreate": "Keine Zeile ist bereit zum Anlegen. Ordnen Sie zuerst die Spalten zu."
     },
     "export": {
       "label": "Exportieren:",
@@ -1440,7 +1442,8 @@
       "secretName": "Name des Secrets",
       "secretKey": "Schlüssel im Secret",
       "input": "Eingabekonfiguration",
-      "typeHint": "Wie die Plattform die Quelle erreicht; die Felder darunter richten sich danach, und eine gespeicherte Quelle behält ihren Typ."
+      "typeHint": "Wie die Plattform die Quelle erreicht; die Felder darunter richten sich danach, und eine gespeicherte Quelle behält ihren Typ.",
+      "typeFixed": "Der Typ steht fest, sobald die Datenquelle existiert. Legen Sie für einen anderen Typ eine neue Datenquelle an."
     },
     "probe": {
       "title": "Ein Abruf des Feeds",
@@ -1459,7 +1462,7 @@
     },
     "runner": {
       "summary": "Was der Runner über diese Eingabe sagt",
-      "yamlError": "{field}: kein gültiges YAML: {error}"
+      "yamlError": "{field}: kein gültiges YAML: {error}. Korrigieren Sie es in der genannten Zeile."
     },
     "secretRef": {
       "name": "Secret-Name",
@@ -2541,11 +2544,11 @@
       "lead": "Eine Kopie von {name} v{version} kommt Byte für Byte zu den Modellen der Organisation, damit jedes Projekt sie importieren kann. Eine Administratorin oder ein Administrator der Organisation genehmigt sie; bis dahin ändert sich nichts, und dieses Projekt behält sein eigenes Modell in jedem Fall.",
       "confirm": "Teilen vorschlagen",
       "notPublished": "Nur ein veröffentlichtes Modell wird geteilt: Veröffentlichen Sie es zuerst.",
-      "failed": "Das Teilen wurde nicht vorgeschlagen: {reason}",
+      "failed": "Das Teilen wurde nicht vorgeschlagen: {reason}. Beheben Sie die Ursache und schlagen Sie es erneut vor.",
       "adoptLead": "Die Organisation führt dieses Modell als {importName} (v{version}), von hier geteilt. Verwenden Sie ihre Kopie: Dieses Modell importiert sie dann anstelle der Klassen, die es selbst definiert, mit denselben Namen und IRIs, sodass sich keine Entität ändert.",
       "adopt": "Kopie der Organisation verwenden",
       "copyLoading": "Die Kopie der Organisation wird gelesen …",
-      "copyFailed": "Die Kopie der Organisation konnte nicht gelesen werden: {reason}"
+      "copyFailed": "Die Kopie der Organisation konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen."
     },
     "title": "Modelleditor",
     "version": "Version {version}",
@@ -2708,7 +2711,7 @@
       "chooseFile": "Beispieldatei wählen",
       "reading": "Lese {name}…",
       "tooLarge": "Die Datei ist größer als 10 MiB. Verwenden Sie eine kleinere Probe.",
-      "failed": "Die Datei konnte nicht gelesen werden: {detail}",
+      "failed": "Die Datei konnte nicht gelesen werden: {detail}. Prüfen Sie die Datei und versuchen Sie es erneut.",
       "unreadable": "Aus dieser Datei ließ sich kein Modell entwerfen. Versuchen Sie eine CSV- oder JSON-Probe.",
       "preview": "Entwurf aus {name}",
       "previewLead": "{rows} Zeilen gelesen, {classes} Klassen entworfen. Jeder Wert ist eine Annahme, die im Editor korrigiert wird.",
@@ -2728,7 +2731,8 @@
       "urlHelp": "Einmal vom Runner des Projekts gelesen, wie die Prüfung einer Datenquelle sie liest; das Modell entsteht aus den Datensätzen der Antwort.",
       "readUrl": "Adresse lesen",
       "urlInvalid": "Geben Sie eine vollständige Adresse an, die mit https:// oder http:// beginnt.",
-      "urlCredential": "Die Adresse enthält einen Benutzernamen, ein Passwort oder einen Schlüssel. Geben Sie sie ohne an, oder binden Sie die Quelle als Datenquelle an, deren Zugangsdaten ein Secret sind."
+      "urlCredential": "Die Adresse enthält einen Benutzernamen, ein Passwort oder einen Schlüssel. Geben Sie sie ohne an, oder binden Sie die Quelle als Datenquelle an, deren Zugangsdaten ein Secret sind.",
+      "enterAddress": "Geben Sie zuerst die Adresse der Datei ein."
     },
     "source": {
       "loading": "Modellquelle wird geladen…",
@@ -2743,7 +2747,8 @@
       "refused": "Die Änderung wurde abgelehnt: {reason}",
       "fixErrors": "Beheben Sie vor dem Speichern die Fehler, die der Editor anzeigt. Offen: {count}.",
       "confirmBreaking": "Als Version {version} speichern, eine inkompatible Änderung",
-      "handOffRefused": "Die Änderung des Assistenten ließ sich nicht auf dieses Modell anwenden:"
+      "handOffRefused": "Die Änderung des Assistenten ließ sich nicht auf dieses Modell anwenden:",
+      "nameTaken": "Ein Modell mit diesem Namen existiert bereits. Wählen Sie einen anderen Namen."
     },
     "classParent": "Die Klasse, die sie erweitert",
     "classParentNone": "Keine",
@@ -2814,8 +2819,11 @@
         "relationshipTitle": "Beziehung {name} / {inverse}",
         "breakingTitle": "Diese Änderung bricht das Datenmodell",
         "breakingBody": "Nach dem veröffentlichten Modell gespeicherte Entitäten können nutzen, was die Änderung entfernt oder umbenennt. Der Entwurf übernimmt sie erst, wenn Sie bestätigen; Speichern schlägt sie dann unter einer neuen Hauptversion vor.",
-        "breakingConfirm": "Brechende Änderung anwenden"
-      }
+        "breakingConfirm": "Brechende Änderung anwenden",
+        "nothingToApply": "Ändern Sie zuerst etwas."
+      },
+      "zoomMin": "Bereits die kleinste Zoomstufe.",
+      "zoomMax": "Bereits die größte Zoomstufe."
     },
     "field": {
       "name": "Name",
@@ -2867,7 +2875,7 @@
       "edit": "Modell bearbeiten",
       "notFound": "Kein Datenmodell namens {name}",
       "notFoundLead": "Es wurde vielleicht umbenannt oder entfernt, oder es gehört zu einem anderen Projekt. Die Liste zeigt jedes Modell, das Sie lesen dürfen.",
-      "sourceFailed": "Die Quelle des Modells konnte nicht gelesen werden: {reason}",
+      "sourceFailed": "Die Quelle des Modells konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
       "views": "Ansichten des Modells",
       "view": {
         "overview": "Übersicht",
@@ -2968,7 +2976,8 @@
         "nameEmpty": "Das Feld benennen.",
         "nameInvalid": "Nur Buchstaben, Ziffern und _, am Anfang ein Buchstabe.",
         "nameTaken": "Ein Feld namens {name} existiert bereits.",
-        "inverseSame": "Das inverse Ende ist ein zweites Feld; einen anderen Namen geben."
+        "inverseSame": "Das inverse Ende ist ein zweites Feld; einen anderen Namen geben.",
+        "pickFirst": "Wählen Sie zuerst die Zielklasse und benennen Sie beide Enden."
       }
     }
   },
@@ -3421,10 +3430,10 @@
         "onReconcile": "aktualisiert, sooft die Konfiguration angewendet wird"
       },
       "lastChange": "Letzte Änderung {time}: {summary}",
-      "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}",
+      "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}. Beheben Sie die Ursache und veröffentlichen Sie erneut.",
       "needsCatalogue": "Fügen Sie zuerst oben einen Katalog hinzu: ein Datensatz braucht ein CKAN-Portal."
     },
-    "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}",
+    "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "access": {
       "sectionTitle": "Wer welchen Katalog verwaltet",
       "title": "Zugriff auf {instance}",
@@ -3563,7 +3572,8 @@
       "prune": "Löschen, was die Quelle entfernt hat",
       "autoMerge": "Sauberen Lauf ohne Review mergen"
     },
-    "emptyHint": "Eine Synchronisationsquelle hält dieses Projekt mit einem Git-Repository, einem veröffentlichten Bundle oder einer anderen Instanz im Gleichschritt. Fügen Sie eine hinzu, und was sie bringt, kommt als Änderungen, über die jemand entscheidet."
+    "emptyHint": "Eine Synchronisationsquelle hält dieses Projekt mit einem Git-Repository, einem veröffentlichten Bundle oder einer anderen Instanz im Gleichschritt. Fügen Sie eine hinzu, und was sie bringt, kommt als Änderungen, über die jemand entscheidet.",
+    "pausedReason": "Setzen Sie die Quelle zuerst fort."
   },
   "allEndpoints": {
     "title": "Alle Endpunkte",
@@ -4564,7 +4574,8 @@
         "host": "Host",
         "credential": "Zugangsdaten"
       }
-    }
+    },
+    "clearPasted": "Entfernen Sie den Zugangswert aus dem Bündel und wählen Sie die Datei erneut."
   },
   "drift": {
     "section": {

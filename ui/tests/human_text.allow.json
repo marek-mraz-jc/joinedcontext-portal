@@ -278,27 +278,9 @@
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "ckan.publications.lastFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "ckan.statusFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "DataStore is CKAN's own name for the feature, the one the catalogue's administrator knows"
     },
     "dashboards.widget.historyFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "datasources.runner.yamlError": {
       "rules": [
         "next-step"
       ],
@@ -308,7 +290,7 @@
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "WebSocket is the protocol's own name; the option lists the kinds of source by protocol"
     },
     "endpoints.representationOption.sta": {
       "rules": [
@@ -425,35 +407,11 @@
       ],
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
-    "models.infer.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "models.page.sourceFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "models.sdm.origin": {
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "models.share.copyFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "models.share.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "GitHub is where the Smart Data Models live; the link opens it"
     },
     "palette.placeholder": {
       "rules": [
@@ -586,7 +544,7 @@
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a column heading over each source's last error, not a message"
     },
     "whatsNew.entries.useData.body": {
       "rules": [
@@ -613,15 +571,19 @@
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/components/entities/ViewBar.tsx": {
-      "count": 1,
+      "count": 2,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/components/entities/ViewOptions.tsx": {
       "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
+    "src/components/FeedbackButton.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
     "src/components/forms/theme.tsx": {
-      "count": 3,
+      "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/components/forms/widgets/CronSchedule.tsx": {
@@ -645,7 +607,7 @@
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/components/ui/ConfirmDialog.tsx": {
-      "count": 1,
+      "count": 2,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/components/ui/Switch.tsx": {
@@ -657,7 +619,7 @@
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/pages/apps/ConversationPanel.tsx": {
-      "count": 1,
+      "count": 2,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/pages/apps/EntityWriteCard.tsx": {
@@ -692,10 +654,6 @@
       "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
-    "src/pages/datasources/DataSourcesPage.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "src/pages/explore/ChartFromView.tsx": {
       "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
@@ -716,28 +674,8 @@
       "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
-    "src/pages/models/DiagramEditing.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/models/LinkmlGraphView.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/models/ModelFileDrop.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/models/RelationshipEditor.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/sync/SyncSourcesPage.tsx": {
-      "count": 3,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "src/routes/ApprovalDetailPage.tsx": {
-      "count": 1,
+      "count": 2,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/routes/ApprovalsHistory.tsx": {
@@ -745,10 +683,6 @@
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "src/routes/EndpointsPage.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/routes/PipelinesPage.tsx": {
       "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     }

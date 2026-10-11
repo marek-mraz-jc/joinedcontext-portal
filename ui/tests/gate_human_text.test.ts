@@ -252,9 +252,22 @@ describe("each rule fails its fixture and passes its fix", () => {
     expect(silentDisabled("<Badge disabled>x</Badge>")).toBe(0);
     expect(
       silentDisabled(
+        "<Dialog footer={<><Button onClick={close}>Cancel</Button><Button disabled={bad}>Save</Button></>}>",
+      ),
+    ).toBe(1);
+    expect(
+      silentDisabled(
         '<Button disabled={n > 0} disabledReason={t("x.why")}>Go</Button>',
       ),
     ).toBe(0);
+    expect(
+      silentDisabled("<Button onClick={out} disabled={zoom <= min}>-</Button>"),
+    ).toBe(1);
+    expect(
+      silentDisabled(
+        "<Button onClick={() => go()} disabled={busy}>Go</Button>",
+      ),
+    ).toBe(1);
   });
 
   it("takes a second sentence or an instruction as the next step", () => {

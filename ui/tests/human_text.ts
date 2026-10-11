@@ -78,8 +78,8 @@ export function missingKeys(
   ].sort();
 }
 
-const CONTROLS =
-  /^(Button|button|Input|input|Select|select|Textarea|textarea|Switch|Checkbox|RadioGroup)$/;
+const CONTROL_TAG =
+  /<(Button|button|Input|input|Select|select|Textarea|textarea|Switch|Checkbox|RadioGroup)(?![\w.])((?:[^<>]|<[^<>]*>)*?)\/?>/g;
 
 /**
  * Controls a module can disable without saying why (rule 7): an opening tag of a control with a
@@ -88,13 +88,13 @@ const CONTROLS =
  */
 export function silentDisabled(source: string): number {
   let count = 0;
-  // A comparison inside a prop (`count > 0`) is not the end of the tag.
-  const tags = source.replace(/ >=? (?=\S)/g, " gt ");
-  for (const match of tags.matchAll(
-    /<([A-Za-z]+)\b((?:[^<>]|=>|<[^<>]*>)*?)\/?>/g,
-  )) {
-    const [, tag, props] = match;
-    if (!CONTROLS.test(tag) || !/\bdisabled\b/.test(props)) continue;
+  // A comparison (`count > 0`, `zoom <= min`) or an arrow (`() => go()`) inside a prop is not
+  // the edge of a tag.
+  const tags = source.replace(/ [<>]=? (?=\S)/g, " cmp ").replace(/=>/g, "=)");
+  // Each control's own opening tag, so a control inside another component's props (a dialog's
+  // footer) is read as itself.
+  for (const [, , props] of tags.matchAll(CONTROL_TAG)) {
+    if (!/\bdisabled\b/.test(props)) continue;
     if (/\b(title|aria-describedby|disabledReason)=/.test(props)) continue;
     count += 1;
   }

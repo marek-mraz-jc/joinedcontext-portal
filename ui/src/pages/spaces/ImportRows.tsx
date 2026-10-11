@@ -103,7 +103,11 @@ export function ImportRowsDialog({
         <Button variant="secondary" onClick={() => setStep({ kind: "file" })}>
           {t("spaces.import.back")}
         </Button>
-        <Button onClick={() => void write()} disabled={checked.entities.length === 0}>
+        <Button
+          onClick={() => void write()}
+          disabled={checked.entities.length === 0}
+          disabledReason={t("spaces.import.nothingToCreate")}
+        >
           {t("spaces.import.create", { count: checked.entities.length })}
         </Button>
       </>

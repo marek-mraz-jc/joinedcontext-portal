@@ -49,7 +49,8 @@
     "listHidden": "This list is not open to you in {project}. Whoever manages the project can grant it.",
     "busyReason": "Wait for the action in progress to finish.",
     "firstPage": "This is the first page.",
-    "lastPage": "This is the last page."
+    "lastPage": "This is the last page.",
+    "nothingToUndo": "Nothing to undo yet."
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# change waits for your approval} other {# changes wait for your approval}}",
@@ -932,7 +933,8 @@
         "decimalComma": "decimal comma",
         "decimalPoint": "decimal point",
         "dates": "dates as {format}"
-      }
+      },
+      "nothingToCreate": "No row is ready to create. Map the columns first."
     },
     "export": {
       "label": "Export:",
@@ -1419,7 +1421,7 @@
     },
     "runner": {
       "summary": "What the runner says about this input",
-      "yamlError": "{field}: not valid YAML: {error}"
+      "yamlError": "{field}: not valid YAML: {error}. Correct it at the line named."
     },
     "secretRef": {
       "name": "Secret name",
@@ -1459,7 +1461,8 @@
       "secretName": "Secret name",
       "secretKey": "Key in the secret",
       "input": "Input configuration",
-      "typeHint": "How the platform reaches the source; the fields below follow it, and a saved source keeps its type."
+      "typeHint": "How the platform reaches the source; the fields below follow it, and a saved source keeps its type.",
+      "typeFixed": "The type is fixed once the data source exists. Add a new data source for another type."
     },
     "probe": {
       "title": "One fetch of the feed",
@@ -2541,11 +2544,11 @@
       "lead": "A copy of {name} v{version} goes to the organization's models, byte for byte, for every project to import. An organization administrator approves it; until then nothing changes, and this project keeps its own model either way.",
       "confirm": "Propose the share",
       "notPublished": "Only a published model is shared: publish it first.",
-      "failed": "The share was not proposed: {reason}",
+      "failed": "The share was not proposed: {reason}. Fix the cause and propose it again.",
       "adoptLead": "The organization holds this model as {importName} (v{version}), shared from here. Use its copy: this model then imports it in place of the classes it defines, with the same names and IRIs, so no entity changes.",
       "adopt": "Use the organization's copy",
       "copyLoading": "Reading the organization's copy…",
-      "copyFailed": "The organization's copy could not be read: {reason}"
+      "copyFailed": "The organization's copy could not be read: {reason}. Reload the page to try again."
     },
     "title": "Model editor",
     "version": "Version {version}",
@@ -2637,7 +2640,8 @@
       "refused": "The change was refused: {reason}",
       "fixErrors": "Fix the errors the editor lists before saving. Left: {count}.",
       "confirmBreaking": "Save it as version {version}, a breaking change",
-      "handOffRefused": "The assistant's change could not be applied to this model:"
+      "handOffRefused": "The assistant's change could not be applied to this model:",
+      "nameTaken": "A model with this name already exists. Choose another name."
     },
     "sdm": {
       "browse": "Smart Data Models catalogue",
@@ -2723,7 +2727,7 @@
       "chooseFile": "Choose a sample file",
       "reading": "Reading {name}…",
       "tooLarge": "The file is larger than 10 MiB. Use a smaller sample.",
-      "failed": "The sample could not be read: {detail}",
+      "failed": "The sample could not be read: {detail}. Check the file and try again.",
       "unreadable": "No model could be drafted from this file. Try a CSV or JSON sample.",
       "preview": "Draft from {name}",
       "previewLead": "{rows} rows read, {classes} classes drafted. Every value is a guess to correct in the editor.",
@@ -2743,7 +2747,8 @@
       "urlHelp": "Read once by the project's runner, as a data source check reads it; the model is drawn from the records it answers.",
       "readUrl": "Read the address",
       "urlInvalid": "Give a full address starting with https:// or http://.",
-      "urlCredential": "The address carries a user name, a password or a key. Give one without, or connect the source as a data source whose credential is a secret."
+      "urlCredential": "The address carries a user name, a password or a key. Give one without, or connect the source as a data source whose credential is a secret.",
+      "enterAddress": "Enter the file's address first."
     },
     "classParent": "The class it specialises",
     "classParentNone": "None",
@@ -2814,8 +2819,11 @@
         "relationshipTitle": "Relationship {name} / {inverse}",
         "breakingTitle": "This edit breaks the data model",
         "breakingBody": "Entities stored under the published model may use what it removes or renames. The draft takes the edit only when you confirm; Save then proposes it under a new major version.",
-        "breakingConfirm": "Apply the breaking edit"
-      }
+        "breakingConfirm": "Apply the breaking edit",
+        "nothingToApply": "Change something first."
+      },
+      "zoomMin": "Already at the smallest zoom.",
+      "zoomMax": "Already at the largest zoom."
     },
     "field": {
       "name": "Name",
@@ -2867,7 +2875,7 @@
       "edit": "Edit model",
       "notFound": "No data model named {name}",
       "notFoundLead": "It may have been renamed or removed, or it belongs to another project. The list shows every model you may read.",
-      "sourceFailed": "The model's source could not be read: {reason}",
+      "sourceFailed": "The model's source could not be read: {reason}. Reload the page to try again.",
       "views": "Views of the model",
       "view": {
         "overview": "Overview",
@@ -2968,7 +2976,8 @@
         "nameEmpty": "Name the field.",
         "nameInvalid": "Letters, digits and _ only, starting with a letter.",
         "nameTaken": "A field named {name} already exists.",
-        "inverseSame": "The inverse is a second field; give it another name."
+        "inverseSame": "The inverse is a second field; give it another name.",
+        "pickFirst": "Pick the target class and name both ends first."
       }
     }
   },
@@ -3421,10 +3430,10 @@
         "onReconcile": "refreshed each time the configuration is applied"
       },
       "lastChange": "Last change {time}: {summary}",
-      "lastFailed": "Last run failed {time}: {summary}",
+      "lastFailed": "Last run failed {time}: {summary}. Fix the cause, then publish again.",
       "needsCatalogue": "Add a catalogue above first: a dataset needs a CKAN portal to land in."
     },
-    "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}",
+    "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}. Reload the page to try again.",
     "access": {
       "sectionTitle": "Who manages each catalogue",
       "title": "Access to {instance}",
@@ -3563,7 +3572,8 @@
       "prune": "Delete what the source dropped",
       "autoMerge": "Merge a clean run without review"
     },
-    "emptyHint": "A sync source keeps this project in step with a Git repository, a published bundle or another instance. Add one and what it brings arrives as changes somebody decides."
+    "emptyHint": "A sync source keeps this project in step with a Git repository, a published bundle or another instance. Add one and what it brings arrives as changes somebody decides.",
+    "pausedReason": "Resume the source first."
   },
   "allEndpoints": {
     "title": "All endpoints",
@@ -4564,7 +4574,8 @@
         "host": "Host",
         "credential": "Credential"
       }
-    }
+    },
+    "clearPasted": "Remove the credential from the bundle and choose the file again."
   },
   "drift": {
     "section": {

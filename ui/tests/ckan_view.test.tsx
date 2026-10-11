@@ -206,7 +206,7 @@ describe("ckan publishing manager", () => {
     );
     const missing = (await screen.findByText("hluk-public")).closest("li") as HTMLElement;
     const failed = await within(missing).findByTestId("ckan-last-run");
-    expect(failed).toHaveTextContent(/^Last run failed .*no CkanInstance 'gone' in this project$/);
+    expect(failed).toHaveTextContent(/^Last run failed .*no CkanInstance 'gone' in this project\. Fix the cause, then publish again\.$/);
     expect(failed).toHaveClass("text-danger");
   });
 

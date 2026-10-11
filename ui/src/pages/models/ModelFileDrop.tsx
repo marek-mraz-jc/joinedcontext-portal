@@ -330,7 +330,11 @@ export function ModelFileDrop({
               onChange={(event) => setAddress(event.target.value)}
             />
           </Field>
-          <Button type="submit" disabled={address.trim() === "" || busy !== null}>
+          <Button
+            type="submit"
+            disabled={address.trim() === "" || busy !== null}
+            disabledReason={busy !== null ? t("app.busyReason") : t("models.infer.enterAddress")}
+          >
             {t("models.infer.readUrl")}
           </Button>
         </form>
