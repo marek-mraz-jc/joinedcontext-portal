@@ -120,7 +120,7 @@ if (view === "sample") {
   const [{ default: Sample }, fixtures] = await Promise.all([SAMPLES[at + "App.tsx"](), SAMPLE_ROWS[at + "fixtures.ts"](), SAMPLE_CSS[at + "app.css"]?.()]);
   applyTokens(SAMPLE_TOKENS[at + "design-tokens.json"]);
   const sampleClient = stubClient({
-    entities: fixtures.ROWS, schema: fixtures.SCHEMA, access: ALL, functions: fixtures.FUNCTIONS, temporal: fixtures.TEMPORAL,
+    entities: fixtures.ROWS, schema: fixtures.SCHEMA, access: ALL, functions: fixtures.FUNCTIONS, temporal: fixtures.TEMPORAL, services: fixtures.SERVICES,
   }, { appName: params.get("name"), endpointName: "sample", user: fixtures.USER ?? null });
   root.render(h(JcProvider, { client: sampleClient }, h(Sample)));
 } else {

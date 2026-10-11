@@ -36,9 +36,10 @@ pub const REFUSAL: &str = "not a path the application may write: src/**/*.tsx, s
 pub const SERVER_MANIFEST: &str = "server/Cargo.toml";
 
 /// The platform services beyond identity and data that the App can call from TypeScript, from
-/// the SDK's catalog (T-3585, ADR-N-045): each one's calls, its `app.yaml` lines and quotas.
-/// Empty while no such service has a call, so the pack carries nothing it cannot use.
-pub fn services_section(catalog: &str) -> String {
+/// the SDK's catalog (T-3585, ADR-N-045): each one's calls, its `app.yaml` lines and quotas, for
+/// the services `on` holds (T-3623). Empty while none has a call or is on, so the pack carries
+/// nothing it cannot use.
+pub fn services_section(catalog: &str, on: impl Fn(&str) -> bool) -> String {
     let catalog: serde_json::Value = serde_json::from_str(catalog).unwrap_or_default();
     let names = |value: &serde_json::Value, key: &str| {
         value[key]
@@ -54,6 +55,8 @@ pub fn services_section(catalog: &str) -> String {
         .into_iter()
         .flatten()
         .filter(|service| service["always"] != true && !names(service, "typescript").is_empty())
+        // A service a layer keeps off is never offered: the call would be refused (AP-164).
+        .filter(|service| on(service["service"].as_str().unwrap_or_default()))
         .map(|service| {
             format!(
                 "- {}: calls {}; app.yaml {}; quotas {}\n",
@@ -71,6 +74,41 @@ pub fn services_section(catalog: &str) -> String {
         "\n## THE PLATFORM SERVICES\n\nBeyond identity and data, each needs its app.yaml lines:\n{}",
         lines.concat()
     )
+}
+
+/// The writable files that call a service `on` does not hold (AP-164, T-3623), one problem per
+/// file and service: the Portal would refuse the call, so the model takes it out before the
+/// version is built. The calls are the catalog's `jc().{service}.{method}`, matched as
+/// `.{service}.{method}(` so `useClient().ai.complete(` counts too.
+pub fn off_service_calls(
+    catalog: &str,
+    files: &BTreeMap<String, String>,
+    on: impl Fn(&str) -> bool,
+) -> Vec<String> {
+    let catalog: serde_json::Value = serde_json::from_str(catalog).unwrap_or_default();
+    let mut problems = Vec::new();
+    for service in catalog["services"].as_array().into_iter().flatten() {
+        let name = service["service"].as_str().unwrap_or_default();
+        if service["always"] == true || on(name) {
+            continue;
+        }
+        let calls: Vec<String> = service["typescript"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|call| call["name"].as_str()?.strip_prefix("jc()"))
+            .map(|call| format!("{call}("))
+            .collect();
+        for (path, content) in files {
+            if writable(path) && calls.iter().any(|call| content.contains(call.as_str())) {
+                problems.push(format!(
+                    "{path}: calls the {name} service, which this App's organization, project or \
+                     App keeps off; take the call out"
+                ));
+            }
+        }
+    }
+    problems
 }
 
 /// What a `wasm` run's model reads beside the SDK: the server half and its rules (AP-147).
@@ -472,24 +510,73 @@ mod tests {
         }
     }
 
-    /// T-3585: the pack names a service beyond identity and data once the SDK has a call for it,
-    /// with its app.yaml lines and quotas, and nothing while none has.
+    /// T-3585, T-3623: the pack names each service beyond identity and data the SDK has calls
+    /// for, with its app.yaml lines and quotas, and never one a layer keeps off.
     #[test]
-    fn the_pack_lists_a_platform_service_once_it_has_a_call() {
-        assert_eq!(services_section(crate::ops::runs::SERVICES_CATALOG), "");
-        let catalog = serde_json::json!({ "services": [
-            { "service": "identity", "always": true, "typescript": [{ "name": "useMe" }] },
-            { "service": "email", "always": false, "typescript": [{ "name": "email.send" }],
-              "appYaml": ["services: [email]"], "quotas": ["emailsPerDay"] },
+    fn the_pack_lists_the_services_that_are_on_with_their_calls() {
+        let all = services_section(crate::ops::runs::SERVICES_CATALOG, |_| true);
+        for line in [
+            "- files: calls jc().files.put, jc().files.get, jc().files.list, jc().files.remove, jc().files.url; app.yaml services: [files], kind: wasm and storage.blob for the Rust calls; quotas filesMiB",
+            "- email: calls jc().email.send; app.yaml services: [email]; quotas emailsPerDay",
+            "- jobs: calls jc().jobs.list;",
+            "- ai: calls jc().ai.complete; app.yaml services: [ai]; quotas aiTokensPerDay",
+        ] {
+            assert!(all.contains(line), "{line} in {all}");
+        }
+        assert!(
+            !all.contains("- identity") && !all.contains("- data"),
+            "{all}"
+        );
+
+        let no_ai = services_section(crate::ops::runs::SERVICES_CATALOG, |s| s != "ai");
+        assert!(
+            !no_ai.contains("ai.complete") && no_ai.contains("jc().email.send"),
+            "{no_ai}"
+        );
+        assert_eq!(
+            services_section(crate::ops::runs::SERVICES_CATALOG, |_| false),
+            ""
+        );
+        let none = serde_json::json!({ "services": [
             { "service": "ai", "always": false, "typescript": [], "appYaml": ["services: [ai]"] },
         ]});
-        let section = services_section(&catalog.to_string());
-        assert!(section.contains(
-            "- email: calls email.send; app.yaml services: [email]; quotas emailsPerDay"
-        ));
+        assert_eq!(
+            services_section(&none.to_string(), |_| true),
+            "",
+            "no call, no line"
+        );
+    }
+
+    /// T-3623: a call of a service a layer keeps off is a problem of the file that makes it,
+    /// whichever client it is called on; a service that is on, or a file the model does not
+    /// write, is none.
+    #[test]
+    fn a_call_of_a_service_a_layer_keeps_off_is_a_problem() {
+        let files = BTreeMap::from([
+            (
+                "src/Rate.tsx".to_owned(),
+                "await useClient().ai.complete({ messages });".to_owned(),
+            ),
+            (
+                "src/Mail.tsx".to_owned(),
+                "await jc().email.send({ to: \"me\" });".to_owned(),
+            ),
+            ("src/Upload.tsx".to_owned(), "input.files.length".to_owned()),
+        ]);
+        let found = off_service_calls(crate::ops::runs::SERVICES_CATALOG, &files, |s| s == "email");
+        assert_eq!(found.len(), 1, "{found:?}");
         assert!(
-            !section.contains("- identity") && !section.contains("- ai"),
-            "{section}"
+            found[0].starts_with("src/Rate.tsx: calls the ai service"),
+            "{found:?}"
+        );
+        assert!(off_service_calls(crate::ops::runs::SERVICES_CATALOG, &files, |_| true).is_empty());
+        let mut unwritable = files.clone();
+        unwritable.retain(|path, _| path == "src/Mail.tsx");
+        unwritable.insert("package.json".to_owned(), "jc().ai.complete(".to_owned());
+        assert!(
+            off_service_calls(crate::ops::runs::SERVICES_CATALOG, &unwritable, |s| s
+                == "email")
+            .is_empty()
         );
     }
 

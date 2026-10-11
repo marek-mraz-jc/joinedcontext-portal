@@ -26,7 +26,7 @@ if (!SAMPLES[at + "App.tsx"]) {
   const [{ default: Sample }, fixtures] = await Promise.all([SAMPLES[at + "App.tsx"](), ROWS[at + "fixtures.ts"](), CSS[at + "app.css"]?.()]);
   applyTokens(TOKENS[at + "design-tokens.json"]);
   const client = stubClient(
-    { entities: fixtures.ROWS, schema: fixtures.SCHEMA, access: ALL, functions: fixtures.FUNCTIONS, temporal: fixtures.TEMPORAL },
+    { entities: fixtures.ROWS, schema: fixtures.SCHEMA, access: ALL, functions: fixtures.FUNCTIONS, temporal: fixtures.TEMPORAL, services: fixtures.SERVICES },
     { appName: name, endpointName: "demo", user: fixtures.USER ?? null },
   );
   document.title = `${name} · demo`;

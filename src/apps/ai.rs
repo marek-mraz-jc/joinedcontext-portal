@@ -191,6 +191,70 @@ fn answer(body: &Value) -> Option<(String, u32, u32)> {
     ))
 }
 
+/// The prompt's tokens before the model counts them: one per four bytes, rounded up, of the
+/// messages and system part as sent, the schema's instruction with them. Close enough to hold
+/// the day to; the model's own count settles it after the answer.
+fn prompt_tokens(body: &Value) -> u32 {
+    let bytes: usize = ["messages", "system"]
+        .iter()
+        .filter_map(|member| body.get(member))
+        .map(|part| part.to_string().len())
+        .sum();
+    u32::try_from(bytes.div_ceil(4)).unwrap_or(u32::MAX)
+}
+
+/// One call to the model service as the Portal's own account naming the App: the answer's
+/// text and its tokens in and out, or the response the App gets instead.
+async fn ask_model(
+    oidc: &crate::auth::oidc::OidcClient,
+    settings: &crate::config::AgentSettings,
+    (project, name): (&str, &str),
+    (path, body): (&str, &Value),
+) -> Result<(String, u32, u32), Box<Response>> {
+    let token = oidc.service_token().await.map_err(|_| {
+        Box::new(unavailable(
+            "the Portal has no token to ask the model service with",
+        ))
+    })?;
+    let http = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(PROXY_TIMEOUT)
+        .build()
+        .map_err(|_| Box::new(unavailable("the model service cannot be reached")))?;
+    let response = http
+        .post(format!(
+            "{}{path}",
+            settings.proxy_base.trim_end_matches('/')
+        ))
+        .bearer_auth(token)
+        .header("x-jc-app", format!("{project}/{name}"))
+        .json(body)
+        .send()
+        .await
+        .map_err(|err| {
+            tracing::warn!(app = %name, %project, timeout = err.is_timeout(), "an App's ai call did not reach the model service");
+            Box::new(unavailable("the model service did not answer; try again in a moment"))
+        })?;
+    let status = response.status().as_u16();
+    let text = response.text().await.unwrap_or_default();
+    if matches!(status, 401..=403) {
+        // The provider's refusal of the key reaches the App as the installation's problem.
+        tracing::warn!(app = %name, %project, status, "the model service refused an App's ai call");
+        return Err(Box::new(no_model_key()));
+    }
+    if !(200..300).contains(&status) {
+        tracing::warn!(app = %name, %project, status, "the model service failed an App's ai call");
+        return Err(Box::new(unavailable(
+            "the model service failed; try again in a moment",
+        )));
+    }
+    serde_json::from_str::<Value>(&text)
+        .ok()
+        .as_ref()
+        .and_then(answer)
+        .ok_or_else(|| Box::new(unavailable("the model service's answer could not be read")))
+}
+
 fn no_model_key() -> Response {
     services::problem(
         StatusCode::SERVICE_UNAVAILABLE,
@@ -255,80 +319,48 @@ pub(super) async fn complete(
         Ok(used) => used,
         Err(err) => return ApiError::Internal(err.to_string()).into_response(),
     };
-    if used >= limit {
-        return services::quota_used(
+    let spent = || {
+        services::quota_used(
             AppService::Ai,
             "aiTokensPerDay",
             Some(time::OffsetDateTime::now_utc()),
-        );
+        )
+    };
+    let (path, mut upstream_body) = upstream((&model, &provider), &request, 0);
+    let prompt = prompt_tokens(&upstream_body);
+    let left = limit.saturating_sub(used).saturating_sub(prompt);
+    if left == 0 {
+        return spent();
     }
-    // ponytail: the answer is held to what is left of the day, the prompt is not, so one call
-    // may pass the quota by its prompt; reserve the prompt's tokens first if that matters.
-    let max_tokens = request
-        .max_tokens
-        .unwrap_or(DEFAULT_MAX_TOKENS)
-        .min(limit - used);
-
-    let (path, upstream_body) = upstream((&model, &provider), &request, max_tokens);
-    let token = match oidc.service_token().await {
-        Ok(token) => token,
-        Err(_) => return unavailable("the Portal has no token to ask the model service with"),
-    };
-    let http = match reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(PROXY_TIMEOUT)
-        .build()
-    {
-        Ok(http) => http,
-        Err(_) => return unavailable("the model service cannot be reached"),
-    };
-    let sent = http
-        .post(format!(
-            "{}{path}",
-            settings.proxy_base.trim_end_matches('/')
-        ))
-        .bearer_auth(token)
-        .header("x-jc-app", format!("{project}/{name}"))
-        .json(&upstream_body)
-        .send()
-        .await;
-    let response = match sent {
-        Ok(response) => response,
-        Err(err) => {
-            tracing::warn!(app = %name, %project, timeout = err.is_timeout(), "an App's ai call did not reach the model service");
-            return unavailable("the model service did not answer; try again in a moment");
-        }
-    };
-    let status = response.status().as_u16();
-    let text = response.text().await.unwrap_or_default();
-    if matches!(status, 401..=403) {
-        // The provider's refusal of the key reaches the App as the installation's problem.
-        tracing::warn!(app = %name, %project, status, "the model service refused an App's ai call");
-        return no_model_key();
+    let max_tokens = request.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS).min(left);
+    upstream_body["max_tokens"] = json!(max_tokens);
+    // The prompt and the answer's ceiling are held before the call, in the statement that checks
+    // the day, so calls in flight together cannot pass it together (T-3661).
+    let held = prompt.saturating_add(max_tokens);
+    match services::take(db, (&project, &name), SERVICE, "", held, limit).await {
+        Ok(true) => {}
+        Ok(false) => return spent(),
+        Err(err) => return ApiError::Internal(err.to_string()).into_response(),
     }
-    if !(200..300).contains(&status) {
-        tracing::warn!(app = %name, %project, status, "the model service failed an App's ai call");
-        return unavailable("the model service failed; try again in a moment");
-    }
-    let Some((answer_text, tokens_in, tokens_out)) = serde_json::from_str::<Value>(&text)
-        .ok()
-        .as_ref()
-        .and_then(answer)
-    else {
-        return unavailable("the model service's answer could not be read");
-    };
-    if let Err(err) = services::take(
+    let asked = ask_model(oidc, settings, (&project, &name), (path, &upstream_body)).await;
+    let used = asked.as_ref().map_or(0, |(_, tokens_in, tokens_out)| {
+        tokens_in.saturating_add(*tokens_out)
+    });
+    if let Err(err) = services::settle(
         db,
         (&project, &name),
         SERVICE,
         "",
-        tokens_in.saturating_add(tokens_out),
-        u32::MAX,
+        i64::from(used) - i64::from(held),
     )
     .await
     {
-        tracing::error!(app = %name, %project, error = %err, "an App's ai tokens were not counted");
+        tracing::error!(app = %name, %project, error = %err, "an App's ai tokens were not settled");
     }
+    let (answer_text, tokens_in, tokens_out) = match asked {
+        Ok(answer) => answer,
+        Err(refused) => return *refused,
+    };
     tracing::info!(app = %name, %project, tokens_in, tokens_out, "app ai completion");
 
     let mut out = json!({ "text": answer_text, "tokens": { "in": tokens_in, "out": tokens_out } });

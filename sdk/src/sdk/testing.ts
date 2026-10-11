@@ -15,7 +15,12 @@ export interface Fixture {
   /** The temporal read's answer, as the broker's `temporalValues` bodies; those of the asked type are returned. */
   temporal?: { id: string; type: string; [attr: string]: unknown }[];
   refuse?: (request: JcRequest) => JcResponse | null;
+  /** The platform services' answers per request, by service; a service without one answers 404. */
+  services?: Partial<Record<Service, (request: JcRequest) => JcResponse | Promise<JcResponse>>>;
 }
+
+type Service = "files" | "email" | "jobs" | "ai";
+const SERVICE_PATH = /^(?:\/api)?\/services\/(files|email|jobs|ai)(?:[/?:]|$)/;
 
 export interface StubTransport extends Transport {
   calls: JcRequest[];
@@ -76,6 +81,13 @@ export function stubTransport(fixture?: Fixture): StubTransport {
     }
 
     const { method, path, body } = request;
+
+    const service = SERVICE_PATH.exec(path)?.[1] as Service | undefined;
+    if (service) {
+      const answer = fixture?.services?.[service];
+      if (answer) return answer(request);
+      return { status: 404, body: { type: "about:blank", title: "Not Found", status: 404, detail: `no ${service} answer in the fixture` } };
+    }
 
     if (method === "POST" && path.startsWith("/functions/")) {
       const name = path.slice("/functions/".length);

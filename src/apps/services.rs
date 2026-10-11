@@ -200,6 +200,30 @@ pub async fn take(
     Ok(row.is_some())
 }
 
+/// Moves today's counter by `delta`, never below `0`: a reservation [`take`] made, settled to
+/// what was spent (T-3661). A counter of another day is left alone.
+pub async fn settle(
+    db: impl sqlx::PgExecutor<'_>,
+    (project, app): (&str, &str),
+    service: &str,
+    subject: &str,
+    delta: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE app_service_usage SET used = GREATEST(used + $5, 0) \
+         WHERE project = $1 AND app = $2 AND service = $3 AND subject = $4 \
+           AND day = (now() AT TIME ZONE 'utc')::date",
+    )
+    .bind(project)
+    .bind(app)
+    .bind(service)
+    .bind(subject)
+    .bind(delta)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
 /// Today's use of one counter, `0` before its first.
 pub async fn used_today(
     db: impl sqlx::PgExecutor<'_>,

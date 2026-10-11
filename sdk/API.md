@@ -38,14 +38,14 @@ jc().files.put(path: string, body: Blob | ArrayBuffer | string, opts?: { content
 jc().files.get(path: string): Promise<Blob>
 jc().files.list(prefix?: string): Promise<FileInfo[]>
 jc().files.remove(path: string): Promise<void>
-jc().files.url(path: string, opts?: { method?: "GET" | "PUT" }): Promise<{ url: string; expiresAt: string }>
+jc().files.url(path: string, opts?: { method?: "GET" } | { method: "PUT"; size: number }): Promise<{ url: string; expiresAt: string }>
 type FileInfo = { path: string; size: number; contentType: string; modifiedAt: string }
 ```
-Keeps the App's objects under its own prefix; a key is relative, has no `.` or `..` segment and is at most 512 bytes. One object is at most 25 MiB (`413`), all of them at most the App's `filesMiB` (`429`, no `resetAt`: delete to make room). `url` hands out a URL for one key and one method that expires within five minutes. Needs `files` on at every layer; the organization's default list has it. In the browser on the App's own host; the preview's bridge does not carry bytes.
+Keeps the App's objects under its own prefix; a key is relative, has no `.` or `..` segment and is at most 512 bytes. One object is at most 25 MiB (`413`), all of them at most the App's `filesMiB` (`429`, no `resetAt`: delete to make room). `url` hands out a URL for one key and one method that expires within five minutes; a PUT URL names the `size` it stores, held to 25 MiB and to what `filesMiB` has left, and the store refuses a body of any other length. Needs `files` on at every layer; the organization's default list has it. In the browser on the App's own host; the preview's bridge does not carry bytes.
 ```ts
 jc().ai.complete(request: { messages: { role: "system" | "user" | "assistant"; content: string }[]; maxTokens?: number; schema?: object }): Promise<{ text: string; json?: unknown; tokens: { in: number; out: number } }>
 ```
-Asks the model the platform chooses; the App names no model and holds no key. At most 50 messages and 100 KB, `maxTokens` 1 to 4096 (1024 when absent) and never more than the App's `aiTokensPerDay` has left. With `schema`, `json` is the answer as one value of that JSON Schema, or the call fails with `502` (`…/no-json`): ask again. A spent day is `429` with `resetAt`; an organization without a working model key is `503` (`…/no-model-key`). Needs `ai` on at every layer, which the organization's default list does not have.
+Asks the model the platform chooses; the App names no model and holds no key. At most 50 messages and 100 KB, `maxTokens` 1 to 4096 (1024 when absent) and never more than the App's `aiTokensPerDay` has left after the prompt, which counts about one token per four bytes; a prompt the day has no room for is `429`. With `schema`, `json` is the answer as one value of that JSON Schema, or the call fails with `502` (`…/no-json`): ask again. A spent day is `429` with `resetAt`; an organization without a working model key is `503` (`…/no-model-key`). Needs `ai` on at every layer, which the organization's default list does not have.
 
 ### Hooks
 ```ts
@@ -459,8 +459,9 @@ function stubTransport(fixture?: Fixture): StubTransport
 ```
 Creates an in-memory transport holding entity fixtures and recording request calls. The fixture
 carries `entities`, `schema`, `access`, `functions`, `temporal` (the temporal read's answer as the
-broker's `temporalValues` bodies, filtered by the asked type) and `refuse` (a response to send
-instead, per request).
+broker's `temporalValues` bodies, filtered by the asked type), `refuse` (a response to send
+instead, per request) and `services` (an answer per request for `files`, `email`, `jobs` and `ai`,
+by service; a service without one answers `404`).
 ```ts
 function stubClient(fixture?: Fixture, config?: Partial<JcConfig>): Client & { transport: StubTransport }
 ```
