@@ -1,0 +1,13 @@
+# Rows dev/security.cypher may return, checked by dev/cg-invariants.py (T-3681, after Antares T-3587).
+# name | key | reason. An entry without a reason, or one that matches no row, fails the job.
+# Reviewed like code: a new row says why the invariant does not apply there.
+
+manifest-write-without-rbac | joinedcontext_portal::api::sync_sources::webhook | no user to check: the body must carry the HMAC of this SyncSource's own secret or every case answers the same 401 (MF-44, PF-59), and a run opens a proposal under the source, it does not write main
+
+token-request-outside-owners | joinedcontext_portal::auth::oidc::OidcClient::service_token | owner: the Portal's own client-credentials token
+token-request-outside-owners | joinedcontext_portal::auth::oidc::OidcClient::refresh | owner: refresh of a signed-in user's session
+token-request-outside-owners | joinedcontext_portal::auth::oidc::callback | owner: the authorization-code exchange of the login
+token-request-outside-owners | joinedcontext_portal::people::People::admin | the Keycloak admin token for the People page's user lookups, the Portal's own client (secretRef)
+token-request-outside-owners | joinedcontext_portal::reconciler::app_clients::Admin::token | the reconciler's shared Keycloak admin client: clients, protocol mappers, roles (app_clients.rs, shared by every wave that writes clients)
+token-request-outside-owners | joinedcontext_portal::reconciler::groups::GroupSync::token | the Keycloak admin token for the group sync; same client as app_clients, its own holder (candidate to fold into app_clients::Admin)
+token-request-outside-owners | joinedcontext_portal::reconciler::realm::token | the Keycloak admin token for the realm wave; same client as app_clients, its own holder (candidate to fold into app_clients::Admin)
