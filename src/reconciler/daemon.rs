@@ -108,6 +108,9 @@ pub struct Syncer {
     /// `None` when no gateway address is configured: a `Subscription` is then read from the
     /// repository and written into no broker (T-0931, CC-72).
     registrations: Option<Arc<super::registrations::RegistrationSync>>,
+    /// `None` without the broker's address and admin token: the Endpoints are served by the
+    /// gateway and no view or rule document is written (T-3640).
+    views: Option<Arc<super::views::ViewSync>>,
     /// The seed-entity drift scan and what its last run found (CC-21, UI-25, UI-26).
     drift: Option<(Arc<super::drift::Watch>, Arc<super::drift::Store>)>,
     /// The daily data-quality run (DM-74); the leader starts it when it is due.
@@ -217,6 +220,7 @@ impl Syncer {
             stalls: super::stall::StallWatch::default(),
             teams_left_to_bootstrap: Arc::default(),
             registrations: None,
+            views: None,
             drift: None,
             quality: None,
             alerts: None,
@@ -440,6 +444,13 @@ impl Syncer {
         registrations: Arc<super::registrations::RegistrationSync>,
     ) -> Self {
         self.registrations = Some(registrations);
+        self
+    }
+
+    /// Makes each run write every Endpoint's and Context Space's view and every space's rule
+    /// document into the broker (T-3640).
+    pub fn with_views(mut self, views: Arc<super::views::ViewSync>) -> Self {
+        self.views = Some(views);
         self
     }
 
@@ -1041,6 +1052,45 @@ impl Syncer {
                             )];
                         }
                     }
+                }
+                fresh_mirror.upsert(envelope);
+            }
+        }
+
+        // 5b'''. Every Endpoint's and Context Space's view and every space's rule document,
+        //        written into the broker (T-3640). The condition says whether the broker holds
+        //        it; an Endpoint whose view is refused keeps the gateway path and its phase.
+        if let Some(views) = self.views.as_ref() {
+            for (owner, outcome) in views.converge(&repository).await {
+                let Some(mut envelope) = fresh_mirror.get(&owner.project, owner.kind, &owner.name)
+                else {
+                    continue;
+                };
+                if let Some(status) = envelope.status.as_mut() {
+                    let condition = match &outcome {
+                        super::views::ViewOutcome::Written => make_condition(
+                            super::views::CONDITION,
+                            "True",
+                            "Written",
+                            "the broker holds this view and rule document",
+                        ),
+                        super::views::ViewOutcome::Refused(reason) => make_condition(
+                            super::views::CONDITION,
+                            "False",
+                            "WriterRefused",
+                            reason,
+                        ),
+                        super::views::ViewOutcome::Failed(reason) => make_condition(
+                            super::views::CONDITION,
+                            "False",
+                            "BrokerRefused",
+                            reason,
+                        ),
+                    };
+                    status
+                        .conditions
+                        .retain(|held| held.r#type != super::views::CONDITION);
+                    status.conditions.push(condition);
                 }
                 fresh_mirror.upsert(envelope);
             }
