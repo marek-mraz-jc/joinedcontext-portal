@@ -888,6 +888,19 @@ async fn propose_engine(
         organization_within_bounds(state, kind_info.kind, &envelope.spec, ApiError::BadRequest)?;
         // 4f. The organization's public-app policy (PF-103), held again at approval.
         public_app_allowed(state, project, &envelope, ApiError::BadRequest)?;
+        // 4g. An App's hostnames lie in the organization's verified domain and are no other
+        //     App's (AP-172); the reconciler routes only the names that still pass.
+        if kind_info.kind == "App" {
+            let apex = state.config.app_settings.as_ref().map(|s| s.apex.as_str());
+            crate::apps::hostnames::check(
+                &state.mirror,
+                project,
+                &envelope.metadata.name,
+                &envelope.spec,
+                apex,
+            )
+            .map_err(ApiError::BadRequest)?;
+        }
     }
 
     // 4d. A projection names only what its model version has (MP-01, T-2558): the same check

@@ -1449,22 +1449,48 @@ impl Syncer {
         if let (Some(hosts), Some((_, settings))) =
             (self.app_hosts.as_ref(), self.edge_file.as_ref())
         {
-            let published: std::collections::BTreeSet<String> = self
-                .mirror
-                .matching(|env| {
-                    env.kind == "App"
-                        && env
-                            .spec
-                            .get("lifecycle")
-                            .and_then(serde_json::Value::as_str)
-                            == Some(jc_core::kinds::AppLifecycle::Published.as_str())
+            let published_apps = self.mirror.matching(|env| {
+                env.kind == "App"
+                    && env
+                        .spec
+                        .get("lifecycle")
+                        .and_then(serde_json::Value::as_str)
+                        == Some(jc_core::kinds::AppLifecycle::Published.as_str())
+            });
+            // The hostnames each App is routed on, on its Organization's verified domain (AP-172).
+            let hostnames: BTreeMap<String, Vec<String>> = published_apps
+                .iter()
+                .map(|env| {
+                    let project = env.metadata.namespace.clone().unwrap_or_default();
+                    let routed = crate::apps::hostnames::routed(
+                        &self.mirror,
+                        &project,
+                        &env.metadata.name,
+                        &env.spec,
+                        &settings.apex,
+                    );
+                    (env.metadata.name.clone(), routed)
                 })
+                .collect();
+            let published: std::collections::BTreeSet<String> = published_apps
                 .into_iter()
                 .map(|env| env.metadata.name)
                 .collect();
             let states = hosts.converge(&published, &settings.apex).await;
+            // A hostname's certificate is reported, never a gate on its App: the App's own host
+            // serves it all along (AP-172).
+            for (hostname, state) in hosts.converge_hostnames(&hostnames).await {
+                match state {
+                    super::app_hosts::HostState::Ready => {}
+                    super::app_hosts::HostState::Pending(message)
+                    | super::app_hosts::HostState::Failed(message) => {
+                        tracing::warn!(%hostname, %message, "an App's hostname is not served yet")
+                    }
+                }
+            }
             if scratch.unstaged.is_empty() {
                 hosts.retire(&published).await;
+                hosts.retire_hostnames(&hostnames).await;
             } else {
                 tracing::warn!(projects = ?scratch.unstaged, "no App host is retired this run: a project's repository did not stage, so its Apps may only be missing from this read");
             }
