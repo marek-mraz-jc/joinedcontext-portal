@@ -11,3 +11,120 @@ token-request-outside-owners | joinedcontext_portal::people::People::admin | the
 token-request-outside-owners | joinedcontext_portal::reconciler::app_clients::Admin::token | the reconciler's shared Keycloak admin client: clients, protocol mappers, roles (app_clients.rs, shared by every wave that writes clients)
 token-request-outside-owners | joinedcontext_portal::reconciler::groups::GroupSync::token | the Keycloak admin token for the group sync; same client as app_clients, its own holder (candidate to fold into app_clients::Admin)
 token-request-outside-owners | joinedcontext_portal::reconciler::realm::token | the Keycloak admin token for the realm wave; same client as app_clients, its own holder (candidate to fold into app_clients::Admin)
+
+# T-3846: the portal source-to-sink trace. Each row was read; the reason is the verdict.
+handler-without-decision | joinedcontext_portal::api::activity::ingest_activity | refuses every caller but the collector's own Keycloak client over a bearer (OPS-48, T-1402); projects are checked against the mirror
+handler-without-decision | joinedcontext_portal::api::alerts::list_alerts | the caller's own subscriptions, selected by subject
+handler-without-decision | joinedcontext_portal::api::alerts::mute | UPDATE ... WHERE id = $1 AND subject = $2: another caller's id is 404
+handler-without-decision | joinedcontext_portal::api::alerts::read_notice | UPDATE ... WHERE id = $1 AND recipient = ANY($2): another caller's id is 404
+handler-without-decision | joinedcontext_portal::api::alerts::unsubscribe | DELETE ... WHERE id = $1 AND subject = $2: another caller's id is 404
+handler-without-decision | joinedcontext_portal::api::app_templates::list_templates | the built-in template list compiled into the binary
+handler-without-decision | joinedcontext_portal::api::app_templates::screenshot | embedded PNG; the name must be a known template and the width 1440 or 375, so no path is built from input
+handler-without-decision | joinedcontext_portal::api::blueprints::list_blueprints | filters every Blueprint through may_run on the caller's identity
+handler-without-decision | joinedcontext_portal::api::entity_comments::list_notifications | the caller's own notifications, selected by recipient
+handler-without-decision | joinedcontext_portal::api::entity_comments::read_notification | mark_read filters by the caller's recipients: another caller's id is 404
+handler-without-decision | joinedcontext_portal::api::feedback::send_feedback | anyone signed in may send feedback; bounded text, rate-limited per subject, scrubbed; reading it needs an org administrator
+handler-without-decision | joinedcontext_portal::api::forms::list_forms | the organization's form arrangements (UISchema), the same for every person; no project data
+handler-without-decision | joinedcontext_portal::api::preferences::add_recent | the caller's own preferences, keyed by subject
+handler-without-decision | joinedcontext_portal::api::preferences::get_preferences | the caller's own preferences, keyed by subject
+handler-without-decision | joinedcontext_portal::api::preferences::put_preferences | the caller's own preferences, keyed by subject
+handler-without-decision | joinedcontext_portal::api::sync::get_sync_status | the instance's mirror state (revision, count, error text without credentials); no project data
+handler-without-decision | joinedcontext_portal::auth::oidc::me | the caller's own identity
+handler-without-decision | joinedcontext_portal::tools::model_tools::generate | stateless compile of the caller's own source in Model Tools; writes nothing
+handler-without-decision | joinedcontext_portal::tools::model_tools::import_sdm | stateless compile of a catalogue id (is_catalogue_id refuses a URL); writes nothing
+handler-without-decision | joinedcontext_portal::tools::model_tools::infer_schema | stateless inference over the caller's own sample, parsed in memory by Model Tools; writes nothing
+handler-without-decision | joinedcontext_portal::tools::model_tools::sdm_catalog | the public Smart Data Models index; the URL is Model Tools' own allowlist, the caller steers only refresh
+
+handler-without-identity | joinedcontext_portal::api::api_not_found | the /api/v1 404 answer
+handler-without-identity | joinedcontext_portal::api::basemap::get_style | the public basemap style; project checked against the mirror
+handler-without-identity | joinedcontext_portal::api::basemap::get_tile | public tiles: style fixed to default, z/x/y parsed as integers in range, extension allowlisted, so the cache path takes no free text
+handler-without-identity | joinedcontext_portal::api::branding::get_asset | the installation's public branding
+handler-without-identity | joinedcontext_portal::api::branding::get_branding | the installation's public branding
+handler-without-identity | joinedcontext_portal::api::catalogue::get_catalogue | the open-data catalogue: only audience public Endpoints, private datasets dropped (EP-81)
+handler-without-identity | joinedcontext_portal::api::catalogue::get_dataset | one public dataset (EP-82)
+handler-without-identity | joinedcontext_portal::api::catalogue::get_sample | reads a public Endpoint with no credential, so the gateway's own anonymous policy decides what comes back
+handler-without-identity | joinedcontext_portal::api::health::health | liveness probe
+handler-without-identity | joinedcontext_portal::api::health::ready | readiness probe
+handler-without-identity | joinedcontext_portal::api::live::notify | the path key is an HMAC under a per-process secret (live::LiveHub::key); body bounded, a delivery only makes a view read again
+handler-without-identity | joinedcontext_portal::api::sync_sources::webhook | the body must carry the HMAC of the SyncSource's own secret (MF-44, PF-59)
+handler-without-identity | joinedcontext_portal::apps::email::unsubscribe | the link is an HMAC over project, app and subject, each validated before it is echoed or bound
+handler-without-identity | joinedcontext_portal::apps::email::unsubscribe_page | same signed link; the page echoes only a DNS-1123 app name under a default-src 'none' CSP
+handler-without-identity | joinedcontext_portal::apps::template_demos::asset | the built-in templates' demo files, CSP forbids every connection (AP-141)
+handler-without-identity | joinedcontext_portal::apps::template_demos::demo | the built-in templates' demo pages (AP-141)
+handler-without-identity | joinedcontext_portal::assets::static_handler | the embedded UI bundle
+handler-without-identity | joinedcontext_portal::auth::csrf::require_csrf | middleware: the CSRF guard itself
+handler-without-identity | joinedcontext_portal::auth::oidc::OidcClient::refresh | the session refresh, reached from the refresh middleware with the caller's own cookie
+handler-without-identity | joinedcontext_portal::auth::oidc::backchannel_logout | the realm's call: the logout token's signature, issuer and audience are verified, and it must carry the logout event and no nonce
+handler-without-identity | joinedcontext_portal::auth::oidc::callback | login: state and PKCE verifier from the private cookie jar
+handler-without-identity | joinedcontext_portal::auth::oidc::login | login start
+handler-without-identity | joinedcontext_portal::auth::oidc::logout | ends the caller's own session
+handler-without-identity | joinedcontext_portal::auth::oidc::sso_check | silent SSO probe, a redirect to the realm
+handler-without-identity | joinedcontext_portal::auth::oidc::sso_check_done | static page ending the probe
+handler-without-identity | joinedcontext_portal::auth::refresh::middleware | middleware: keeps the caller's own session alive
+handler-without-identity | joinedcontext_portal::mcp::oauth_protected_resource | RFC 9728 metadata, public by the standard
+handler-without-identity | joinedcontext_portal::openapi::openapi_json | the published API contract
+handler-without-identity | joinedcontext_portal::request_id::middleware | middleware: request id
+handler-without-identity | joinedcontext_portal::server::api_cache_control_middleware | middleware: cache headers
+handler-without-identity | joinedcontext_portal::server::public_form_framing | middleware: relaxes framing only for a public form whose Endpoint's validated embedOrigins name the site (EP-101)
+handler-without-identity | joinedcontext_portal::telemetry::metrics | /metrics: the edge refuses the path (deployment components/portal/apisix-routes.yaml portal-metrics), scraped in-cluster only
+handler-without-identity | joinedcontext_portal::telemetry::record | middleware: request metrics
+
+outbound-http | src/agents/held.rs | the context gateway's /access, base from config, the caller's own token
+outbound-http | src/agents/identity.rs | the realm's token endpoint for an agent's identity, URL from config
+outbound-http | src/agents/oneshot/model.rs | the model provider, URL from config
+outbound-http | src/agents/oneshot/tools_data.rs | the context gateway, base from config
+outbound-http | src/api/access_simulate.rs | the context gateway, base from config
+outbound-http | src/api/agent_runs.rs | the agent runner, URL from config
+outbound-http | src/api/basemap.rs | the configured tile upstream; z/x/y integers only
+outbound-http | src/api/catalogue.rs | the gateway or the public base, both from config; the slug must name an Endpoint on the public host
+outbound-http | src/api/datamodels.rs | Model Tools, URL from config
+outbound-http | src/api/entity_comments.rs | the context gateway, base from config, path segments escaped by path_segments_mut
+outbound-http | src/api/knowledge.rs | the knowledge service and model, URLs from config
+outbound-http | src/api/pipeline_test.rs | the pipeline test runner, URL from config
+outbound-http | src/api/pipelines.rs | the pipeline runner, URL from config
+outbound-http | src/apps/ai.rs | the model provider, URL from config
+outbound-http | src/apps/kube.rs | the Kubernetes API server, from the pod's service account
+outbound-http | src/artifact_store.rs | the object store, endpoint from config
+outbound-http | src/auth/bearer.rs | the realm's JWKS, issuer from config
+outbound-http | src/auth/oidc.rs | the realm, issuer from config
+outbound-http | src/domain_verification.rs | https://{spec.domain}/.well-known/did.json: an Organization's domain, a DNS name an org administrator writes; no redirect followed. T-3877 puts it behind the sync::guard address rule
+outbound-http | src/git/gitea.rs | the forge, URL from config
+outbound-http | src/git/github_mirror.rs | GitHub's API, fixed host
+outbound-http | src/people.rs | the realm's admin API, issuer from config
+outbound-http | src/reconciler/app_clients.rs | the realm's admin API, issuer from config
+outbound-http | src/reconciler/drift.rs | the forge and the gateway, URLs from config
+outbound-http | src/reconciler/groups.rs | the realm's admin API, issuer from config
+outbound-http | src/reconciler/realm.rs | the realm's admin API, issuer from config
+outbound-http | src/reconciler/registrations.rs | the gateway, URL from config
+outbound-http | src/reconciler/streams.rs | the stream runner, URL from config
+outbound-http | src/reconciler/subscriptions.rs | the broker, URL from config
+outbound-http | src/reconciler/views.rs | the broker and the view writer, URLs from config
+outbound-http | src/reconciler/wasm_shards.rs | the wasm host shards, URLs from config
+outbound-http | src/space_usage.rs | the broker, URL from config
+outbound-http | src/sync/remote.rs | a SyncSource's URL: https only, literal address, resolved address and every redirect checked by sync::guard (MF-32, T-1705)
+outbound-http | src/sync/schema_api.rs | a peer's schema surface: sync::guard address rule (DM-49, T-1705)
+outbound-http | src/tools/model_tools.rs | Model Tools, URL from config
+
+dynamic-sql | joinedcontext_portal::activity::ActivityStore::list | shape from which filter fields are set; every value bound
+dynamic-sql | joinedcontext_portal::apps::apps_db::AppsDb::migrate_as_owner | an App's own migration SQL, run as that App's own owner role in its schema (AP-149); the schema name is the checked 16-hex id
+dynamic-sql | joinedcontext_portal::db::get_key_claim | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::take_key_claim | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::load_agent_run | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::list_agent_runs | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::list_agent_runs_filtered | shape from which filter fields are set; every value bound
+dynamic-sql | joinedcontext_portal::db::load_live_agent_run_for_app | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::list_agent_runs_for_app | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::list_expired_agent_runs | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::list_agent_runs_in_status | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::append_agent_run_event | constant column list; values bound
+dynamic-sql | joinedcontext_portal::db::load_agent_run_events | constant column list; values bound
+
+fs-write | joinedcontext_portal::api::basemap::save_and_evict | the tile cache: file name from the fixed style and integer z/x/y and an allowlisted extension
+fs-write | joinedcontext_portal::apps::fetch::install | the App bundle cache: a partial directory renamed into place
+fs-write | joinedcontext_portal::apps::fetch::prune | removes stale App bundle directories under the cache root
+fs-write | joinedcontext_portal::apps::fetch::unpack | tar entries: only Normal components, files and directories, create_new, entry and byte ceilings
+fs-write | joinedcontext_portal::ops::previews::render | removes its own temporary directory
+fs-write | joinedcontext_portal::reconciler::daemon::Scratch::new | a per-run directory under the temp dir
+fs-write | joinedcontext_portal::reconciler::daemon::Scratch::write | paths from the config repository's git tree (forge write access needed); a .. component is not refused here, noted in chyby.md
+fs-write | joinedcontext_portal::reconciler::daemon::Scratch::drop | removes its own run directory
+fs-write | joinedcontext_portal::sync::remote::write | a SyncSource checkout: zip entries through enclosed_name and write_entry, which refuse .. and a root
