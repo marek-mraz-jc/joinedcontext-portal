@@ -369,7 +369,7 @@ async fn people_are_named_by_id_and_an_unknown_one_is_refused() {
     state.people = joinedcontext_portal::people::People::new(
         &common::REALM.issuer,
         "portal-admin".into(),
-        "secret".into(),
+        joinedcontext_portal::config::ClientAuth::Secret("secret".into()),
     )
     .map(Arc::new);
 
