@@ -235,7 +235,7 @@ async fn a_ref_the_repository_does_not_hold_is_refused_by_name() {
 /// exists only from `v0.2.0` on, and an enum takes only its values.
 #[tokio::test]
 async fn values_are_checked_against_the_release_the_entry_will_pin() {
-    let (_, state) = world().await;
+    let (_forge, state) = world().await;
     let answer = repoint(
         &state,
         "vlasta",
@@ -316,7 +316,7 @@ async fn who_may_repoint_and_what_is_refused() {
 /// Layout 1 has no registry entry to repoint.
 #[tokio::test]
 async fn layout_one_has_no_registry_entry() {
-    let (_, state) = world().await;
+    let (_forge, state) = world().await;
     state.mirror.set_layout(1);
     refused(
         &repoint(&state, "vlasta", json!({ "ref": "v0.2.0" })).await,
@@ -350,7 +350,7 @@ async fn a_second_repoint_waits_for_the_open_one() {
 /// The form's read: what runs, the values, the knobs of that release and the releases to pin.
 #[tokio::test]
 async fn the_entry_is_read_with_its_declarations_and_the_tags() {
-    let (_, state) = world().await;
+    let (_forge, state) = world().await;
     let answer = send(
         &state,
         person("cyril"),

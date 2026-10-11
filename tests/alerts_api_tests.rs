@@ -10,7 +10,7 @@ use std::sync::Arc;
 use axum::http::StatusCode;
 use serde_json::{json, Value};
 
-use common::{envelope, forge, person, send};
+use common::{envelope, person, send};
 use joinedcontext_portal::alerts::Evaluator;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::ResourceKey;
@@ -20,8 +20,7 @@ const ALERTS: &str = "/api/v1/alerts";
 const NOTICES: &str = "/api/v1/alerts/notices";
 
 async fn world() -> AppState {
-    let gitea = forge().await;
-    let state = common::state_on(&gitea);
+    let state = common::state_on_forge().await;
     state.mirror.upsert(envelope(
         "Role",
         "pipeline-reader",

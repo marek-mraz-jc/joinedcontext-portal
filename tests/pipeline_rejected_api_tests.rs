@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use wiremock::matchers::{method, path_regex};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use common::{envelope, forge, person, send};
+use common::{envelope, person, send};
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::pipeline_outcomes::Reason;
@@ -27,8 +27,7 @@ const RUNS: &str = "/api/v1/projects/helsinki/pipelines/stations/runs";
 const RETRY: &str = "/api/v1/projects/helsinki/pipelines/stations/rejected/retry";
 
 async fn world() -> AppState {
-    let gitea = forge().await;
-    let state = common::state_on(&gitea);
+    let state = common::state_on_forge().await;
     seed(&state).await;
     state
 }

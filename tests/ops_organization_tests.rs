@@ -8,7 +8,7 @@ mod common;
 use axum::http::StatusCode;
 use serde_json::{json, Value};
 
-use common::{checked_send, envelope, forge, person, send};
+use common::{checked_send, envelope, person, send};
 use joinedcontext_portal::auth::session::Identity;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::API_VERSION;
@@ -28,7 +28,7 @@ fn spec(default_locale: &str) -> Value {
 }
 
 async fn state() -> AppState {
-    let state = common::state_on(&forge().await);
+    let state = common::state_on_forge().await;
     state
         .mirror
         .upsert(envelope("Organization", "hel", ORG_NAMESPACE, spec("en")));
