@@ -56,10 +56,10 @@ const SERVICES = [
     always: false,
     what: "a message to people of the organization, never to a typed address (AP-168)",
     typescript: ["jc().email.send"],
-    rust: [],
+    rust: ["jc_app_sdk::email::send(message: &Email) -> Result<String, Error>"],
     appYaml: ["services: [email]"],
     quotas: ["emailsPerDay"],
-    examples: ["examples/services/email.tsx"],
+    examples: ["examples/services/email.tsx", "template-wasm/server/src/lib.rs"],
   },
   {
     service: "jobs",
@@ -76,10 +76,10 @@ const SERVICES = [
     always: false,
     what: "a completion from a model of the organization's list (AP-169)",
     typescript: ["jc().ai.complete"],
-    rust: [],
+    rust: ["jc_app_sdk::ai::complete(request: &Completion) -> Result<Answer, Error>"],
     appYaml: ["services: [ai]"],
     quotas: ["aiTokensPerDay"],
-    examples: ["examples/services/ai.tsx"],
+    examples: ["examples/services/ai.tsx", "template-wasm/server/src/lib.rs"],
   },
 ];
 

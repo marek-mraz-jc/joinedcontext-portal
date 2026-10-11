@@ -79,7 +79,8 @@ pub fn services_section(catalog: &str, on: impl Fn(&str) -> bool) -> String {
 /// The writable files that call a service `on` does not hold (AP-164, T-3623), one problem per
 /// file and service: the Portal would refuse the call, so the model takes it out before the
 /// version is built. The calls are the catalog's `jc().{service}.{method}`, matched as
-/// `.{service}.{method}(` so `useClient().ai.complete(` counts too.
+/// `.{service}.{method}(` so `useClient().ai.complete(` counts too, and its Rust
+/// `jc_app_sdk::{module}::{fn}`, matched as `{module}::{fn}(` (T-3695).
 pub fn off_service_calls(
     catalog: &str,
     files: &BTreeMap<String, String>,
@@ -97,6 +98,14 @@ pub fn off_service_calls(
             .into_iter()
             .flatten()
             .filter_map(|call| call["name"].as_str()?.strip_prefix("jc()"))
+            .chain(
+                service["rust"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|call| call.as_str()?.strip_prefix("jc_app_sdk::")),
+            )
+            .filter_map(|call| call.split(['(', '<']).next())
             .map(|call| format!("{call}("))
             .collect();
         for (path, content) in files {
@@ -562,12 +571,28 @@ mod tests {
                 "await jc().email.send({ to: \"me\" });".to_owned(),
             ),
             ("src/Upload.tsx".to_owned(), "input.files.length".to_owned()),
+            (
+                "server/src/lib.rs".to_owned(),
+                include_str!("../../sdk/template-wasm/server/src/lib.rs").to_owned(),
+            ),
         ]);
         let found = off_service_calls(crate::ops::runs::SERVICES_CATALOG, &files, |s| s == "email");
-        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(
+            found
+                .iter()
+                .map(|p| p.split(" service").next().unwrap_or_default())
+                .collect::<Vec<_>>(),
+            [
+                "server/src/lib.rs: calls the ai",
+                "src/Rate.tsx: calls the ai"
+            ],
+        );
+        let no_mail = off_service_calls(crate::ops::runs::SERVICES_CATALOG, &files, |s| s == "ai");
         assert!(
-            found[0].starts_with("src/Rate.tsx: calls the ai service"),
-            "{found:?}"
+            no_mail
+                .iter()
+                .any(|p| p.starts_with("server/src/lib.rs: calls the email service")),
+            "{no_mail:?}"
         );
         assert!(off_service_calls(crate::ops::runs::SERVICES_CATALOG, &files, |_| true).is_empty());
         let mut unwritable = files.clone();

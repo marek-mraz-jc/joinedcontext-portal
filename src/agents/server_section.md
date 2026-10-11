@@ -14,6 +14,11 @@ What the crate may use, and nothing else (`server/Cargo.toml` and its lock are t
 - `jc_app_sdk::sql::{query, execute, objects, rows, Value}`: bound parameters `$1, $2` only,
   `Value` from `i64`, `f64`, `bool`, `&str`, `String`, `Option<T>`; `Response::from_sql(err)`.
 - `jc_app_sdk::gateway::get_json(path)`: the App's own Endpoint, `"/ngsi-ld/v1/entities?type=…"`.
+- `jc_app_sdk::identity::caller()`: `Option<Caller { id, name, email, roles }>`, `None` for a visitor.
+- `jc_app_sdk::email::send(&Email { to: Recipients::Me | Recipients::People(ids), subject, text, html })`
+  and `jc_app_sdk::ai::complete(&Completion { messages: vec![Message { role: Role::User, content }],
+  max_tokens, schema })` → `Answer { text, json, .. }`, only with `services: [email]` / `[ai]` in
+  app.yaml; `Response::from_service(err)` answers a refusal.
 - `serde` (derive, `#[serde(deny_unknown_fields)]` on every body) and `serde_json`.
 - `pub fn handle(request: Request) -> Response` routed once, and `jc_app_sdk::app!(handle);`.
 
