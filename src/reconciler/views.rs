@@ -346,7 +346,7 @@ pub fn desired(sources: &Sources) -> Desired {
         }
         out.documents.insert(
             tenant.clone(),
-            (owner, rule_document(sources, project, name)),
+            (owner, with_gateway(rule_document(sources, project, name))),
         );
     }
     out
@@ -685,6 +685,28 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
         })
         .collect();
     json!({ "policies": policies })
+}
+
+/// The gateway's own account (context-gateway `GATEWAY_CLIENT`, T-3767): the hops it makes on
+/// nobody's behalf (a conditional write's probe, a held delete's unlink, a notification's read).
+const GATEWAY_CLIENT: &str = "context-gateway";
+
+/// The clauses those hops use: the unlinking's attribute patch, attribute delete and entity
+/// delete, the probes' retrieve and query, the stored subscription's retrieve.
+const GATEWAY_CLAUSES: &[&str] = &["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"];
+
+/// A rule document plus the one policy that admits the gateway's own hops; `@` keeps its id
+/// apart from every `{project}/{name}`.
+fn with_gateway(mut document: Value) -> Value {
+    if let Some(policies) = document["policies"].as_array_mut() {
+        policies.push(json!({
+            "id": format!("@{GATEWAY_CLIENT}"),
+            "effect": "permit",
+            "assignee": {"kind": "serviceAccount", "id": GATEWAY_CLIENT},
+            "operations": GATEWAY_CLAUSES,
+        }));
+    }
+    document
 }
 
 /// Whether the writer owns a view of this id: an Endpoint slug or a space surface.
@@ -1265,6 +1287,21 @@ mod tests {
         assert!(space_view(&s, "city", "air", &long).is_err());
     }
 
+    /// T-3767: a space with no Policy still admits the gateway's own hops, and only on the
+    /// clauses they use; nothing else in the document names the gateway.
+    #[test]
+    fn every_rule_document_admits_the_gateway_on_its_own_hops_alone() {
+        let desired = desired(&sources(Vec::new()));
+        assert_eq!(
+            desired.documents["city-air"].1,
+            json!({"policies": [
+                {"id": "@context-gateway", "effect": "permit",
+                 "assignee": {"kind": "serviceAccount", "id": "context-gateway"},
+                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"]}
+            ]})
+        );
+    }
+
     /// Plan 3.3: one document per tenant, every Policy with its clauses, effect, assignee,
     /// validity, information and conditions, in the engine's format.
     #[test]
@@ -1296,7 +1333,10 @@ mod tests {
                  "operations": ["5.6.2", "5.6.4", "5.6.18", "5.6.19"],
                  "validity": {"from": "2026-01-01T00:00:00Z"},
                  "information": [{"entities": [{"type": "Truck", "idPattern": "^urn:ngsi-ld:Truck:.*$"}]}],
-                 "q": "weight>3", "scopeQ": "/city/#", "temporalQ": "timerel=after;timeAt=P-1D"}
+                 "q": "weight>3", "scopeQ": "/city/#", "temporalQ": "timerel=after;timeAt=P-1D"},
+                {"id": "@context-gateway", "effect": "permit",
+                 "assignee": {"kind": "serviceAccount", "id": "context-gateway"},
+                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"]}
             ]})
         );
         assert!(desired.views.contains_key(SLUG) || desired.views.contains_key("cs-city-air"));
