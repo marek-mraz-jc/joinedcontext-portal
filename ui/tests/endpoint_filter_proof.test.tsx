@@ -23,6 +23,8 @@ import { alignRows, hiddenOf, shownValue } from "../src/pages/endpoints/FilterPr
 const PROJECT = "helsinki";
 const NAME = "helsinki-events";
 const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
+/** The Portal's preview of the Endpoint's draft (API/01 §40, T-3802). */
+const PREVIEW = `/api/v1/projects/${PROJECT}/endpoints/${NAME}/preview`;
 const SEGMENT = "helsinki";
 
 const IDENTITY = {
@@ -168,14 +170,14 @@ function renderPage({
         ? json([concert, lecture], 200, { "NGSILD-Results-Count": "2" })
         : json({ title: "Not Found" }, 404);
     }
-    if (path === `/api/endpoint/${SLUG}/preview`) {
+    if (path === PREVIEW) {
       if (preview === "refuses") {
         return json({ title: "Bad Request", detail: "projection.filter.q: an empty query string filters nothing" }, 400);
       }
       const asked = JSON.parse(text) as { id?: string[]; limit: number };
       // Only the upcoming concert passes the filter; asked for both ids, it answers one.
       const served = asked.id ? [concertServed].filter((one) => asked.id?.includes(one.id)) : [concertServed];
-      return json(served.slice(0, asked.limit), 200, { "NGSILD-Results-Count": "1" });
+      return json({ count: 1, entities: served.slice(0, asked.limit) });
     }
     if (path === `/api/endpoint/${SLUG}/ngsi-ld/v1/entities`) {
       return json([concertServed], 200, { "NGSILD-Results-Count": "1" });
@@ -216,7 +218,7 @@ function renderPage({
   return sent;
 }
 
-const previews = (sent: Sent[]) => sent.filter((call) => call.path.startsWith(`/api/endpoint/${SLUG}/preview`));
+const previews = (sent: Sent[]) => sent.filter((call) => call.path === PREVIEW);
 
 describe("the rows of the proof", () => {
   it("marks a row the filter drops and strikes what the endpoint would not serve", () => {

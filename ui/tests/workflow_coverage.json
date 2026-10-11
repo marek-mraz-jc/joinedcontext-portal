@@ -724,7 +724,8 @@
         "assistant": "jc_endpoint_propose",
         "routes": [
           "PUT /api/v1/projects/{project}/{plural}/{name}",
-          "PATCH /api/v1/projects/{project}/{plural}/{name}"
+          "PATCH /api/v1/projects/{project}/{plural}/{name}",
+          "POST /api/v1/projects/{project}/endpoints/{name}/preview"
         ]
       },
       "retire": {

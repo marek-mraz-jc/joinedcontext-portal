@@ -877,6 +877,8 @@ function FilterForm({
         </PermissionGuard>
       </form>
       <FilterProof
+        project={project}
+        name={endpoint.metadata.name}
         slug={slug}
         segment={segment}
         live={live}
