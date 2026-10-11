@@ -12,6 +12,7 @@
 //! client whose server is gone is deleted. A client of that id this platform did not create is
 //! never written or removed; the server is reported instead.
 
+use crate::config::ClientAuth;
 use std::collections::BTreeSet;
 
 use serde_json::{json, Value};
@@ -91,9 +92,9 @@ pub struct McpClientSync {
 
 impl McpClientSync {
     /// `None` when the issuer is not a realm URL.
-    pub fn new(issuer: &str, client_id: String, client_secret: String) -> Option<Self> {
+    pub fn new(issuer: &str, client_id: String, auth: ClientAuth) -> Option<Self> {
         Some(Self {
-            admin: Admin::new(issuer, client_id, client_secret)?,
+            admin: Admin::new(issuer, client_id, auth)?,
         })
     }
 

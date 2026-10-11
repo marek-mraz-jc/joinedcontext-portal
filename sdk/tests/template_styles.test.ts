@@ -95,7 +95,15 @@ describe("the stylesheets a generated application loads", () => {
 describe("the map's own attribution in an App", () => {
   it("underlines its link, because colour is not the only way to tell it from the text", () => {
     const css = readFileSync(join(__dirname, "..", "src", "sdk", "style.css"), "utf8");
-    expect(css).toMatch(/\.maplibregl-ctrl-attrib a\s*\{[^}]*text-decoration:\s*underline/);
+    expect(css).toMatch(/\.maplibregl-ctrl-attrib a\[href\]\s*\{[^}]*text-decoration:\s*underline/);
+  });
+
+  // T-3577: MapLibre's own `.maplibregl-ctrl-attrib a { text-decoration: none }` has the same
+  // specificity and loads after this stylesheet, so a bare `a` lost on dev and axe still flagged
+  // both map Apps. The attribute selector outranks it whatever the load order.
+  it("outranks MapLibre's own rule for that link", () => {
+    const css = readFileSync(join(__dirname, "..", "src", "sdk", "style.css"), "utf8");
+    expect(css).not.toMatch(/\.maplibregl-ctrl-attrib a\s*\{/);
   });
 });
 

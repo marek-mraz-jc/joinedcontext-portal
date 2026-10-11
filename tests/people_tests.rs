@@ -9,6 +9,7 @@
 
 mod common;
 
+use joinedcontext_portal::config::ClientAuth;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
@@ -119,7 +120,7 @@ fn state_with(kc: &MockServer, gitea: &MockServer) -> AppState {
     state.people = People::new(
         &format!("{}/realms/hel", kc.uri()),
         "portal".into(),
-        "secret".into(),
+        ClientAuth::Secret("secret".into()),
     )
     .map(Arc::new);
     organization(&state);
@@ -593,7 +594,7 @@ async fn deleting_a_person_proposes_the_change_and_deletes_them_only_after_the_m
     state.people = People::new(
         &format!("{}/realms/hel", kc.uri()),
         "portal".into(),
-        "secret".into(),
+        ClientAuth::Secret("secret".into()),
     )
     .map(Arc::new);
 

@@ -275,7 +275,7 @@ mod tests {
             server.uri(),
             &format!("{}/realms/jc", server.uri()),
             "portal".into(),
-            "secret".into(),
+            crate::config::ClientAuth::Secret("secret".into()),
             "hel.fi",
         );
         let hub = Arc::new(LiveHub::new(

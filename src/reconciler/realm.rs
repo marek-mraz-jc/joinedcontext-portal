@@ -5,6 +5,7 @@
 //! like any other client's. The token is never stored, never logged and never leaves the call
 //! it was minted for.
 
+use crate::config::ClientAuth;
 #[derive(serde::Deserialize)]
 struct RealmToken {
     access_token: String,
@@ -17,15 +18,14 @@ pub async fn token(
     http: &reqwest::Client,
     issuer: &str,
     client_id: &str,
-    client_secret: &str,
+    auth: &ClientAuth,
 ) -> Result<String, String> {
+    let form = auth
+        .form(client_id, &[("grant_type", "client_credentials")])
+        .await?;
     let response = http
         .post(format!("{issuer}/protocol/openid-connect/token"))
-        .form(&[
-            ("grant_type", "client_credentials"),
-            ("client_id", client_id),
-            ("client_secret", client_secret),
-        ])
+        .form(&form)
         .send()
         .await
         .map_err(|err| err.to_string())?;
