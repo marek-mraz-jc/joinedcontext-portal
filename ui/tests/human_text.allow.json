@@ -1,0 +1,1266 @@
+{
+  "$comment": [
+    "T-3847: what breaks a UI writing rule today (docs User-Guide/ui-writing.md), with a reason per entry.",
+    "gate_human_text.test.ts fails on a break not listed here and on an entry that no longer breaks, so",
+    "the list only shrinks. It is the work list of the walks T-3848 to T-3852. Rewrite it with",
+    "HUMAN_TEXT_RECORD=1 pnpm vitest run tests/gate_human_text.test.ts, which keeps every reason already",
+    "written; give a kept entry a real reason (a product name, a code sample a developer copies) instead",
+    "of the baseline one when the walk decides it stays."
+  ],
+  "strings": {
+    "access.domain.state.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "access.panel.checkFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "access.roles.spacesFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "activity.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "activity.kinds.federation.error": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "activity.kinds.pipeline.error": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "activity.severity.error": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.changeTest.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.follow.stage.failed": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.follow.test.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.kpiPipeline.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.line.testsError": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.line.testsFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.proposal.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.publication.mirror": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.states.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.step.error": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.step.failed": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "agentRun.timeSpent.failed": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.alert.danger": {
+      "rules": [
+        "generic"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.copied": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.copy": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.copyReference": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.crashHome": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.crashReference": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.crashReload": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.crashTitle": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.forbiddenHint": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "app.error.reference": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "approvals.ci.error": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "approvals.ci.failure": {
+      "rules": [
+        "generic"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "apps.build.run.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "apps.build.state.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "apps.checklist.state.problem": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "apps.drafts.state.failed": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "apps.generate.kinds.wasm": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "apps.jobs.outcomes.failed": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "apps.openDisabled.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "apps.openPage.fullscreenFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "assistant.empty.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "assistantPage.access.yamlError": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "assistantPage.access.yes": {
+      "rules": [
+        "generic"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "assistantPage.states.failed": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "catalogue.licence.CC_BYSA_4_0": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "catalogue.publish.error.period": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "choice.licence.CC_BYSA_4_0": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "choice.modelProvider.openai-compatible": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "choice.representation.geojson": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "choice.representation.sta": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "ckan.publications.datastore": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "ckan.publications.lastFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "ckan.statusFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "dashboards.mapUnavailable": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "dashboards.widget.historyFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.field.qos": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.runner.yamlError": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.template.problem.layer": {
+      "rules": [
+        "kind",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.template.problem.name": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.template.problem.url": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.template.wfs.layerHelp": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.template.wfs.title": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.template.wfs.url": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.template.wfs.urlHelp": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.template.wfs.what": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "datasources.type.websocket": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "endpoints.count.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "endpoints.docs.download": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "endpoints.page.stop.lead": {
+      "rules": [
+        "http"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "endpoints.picker.noModel": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "endpoints.proof.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "endpoints.representationOption.geojson": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "endpoints.representationOption.sta": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "entityGrid.error": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "entityGrid.geo.paste": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "entityGrid.geo.upload": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "entityGrid.relationFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "entityGrid.yes": {
+      "rules": [
+        "generic"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "explore.exportView.formats.geojson": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "explore.exportView.noGeometry": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "explore.useData.language.javascript": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "form.entityUrn": {
+      "rules": [
+        "urn"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "form.errors": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "form.listFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "form.submit": {
+      "rules": [
+        "generic"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "form.yamlError": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "glossary.entityType.example": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "glossary.linkml.term": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "glossary.policy.example": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "jobs.finished.appBuild.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "jobs.finished.knowledgeCrawl.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "knowledge.emptyHint": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "knowledge.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "knowledge.state.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "knowledge.status.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "mcp.health.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "mcp.listFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "mcp.problem.projects": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "models.infer.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "models.infer.tooLarge": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "models.page.sourceFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "models.page.yaml": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "models.sdm.origin": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "models.share.copyFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "models.share.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "organization.limit.limits.apps.filesMiB.label": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "organization.limit.limits.data.uploadMegabytes.label": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "organization.limit.limits.edge.maxRequestBodyMegabytes.label": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "organization.limit.limits.gateway.maxRequestBodyMegabytes.label": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "organization.limit.limits.pipelines.sampleMegabytes.label": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "organization.people.invite.roleFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pageHelp.endpoints.purpose": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "palette.placeholder": {
+      "rules": [
+        "urn"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "phase.error": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.class.scheduledHelp": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.debug.rerunFailed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.field.computeChoice.wasm": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.mapper.idHint": {
+      "rules": [
+        "urn"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.mapper.problem.notBoolean": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.mapper.problem.notInSample": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.mapper.problem.notNumber": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.mapper.problem.notValue": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.mapper.problem.required": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.metrics.errors": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.recipe.problem.attribute": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.runs.failed": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.runs.outcomes.failed": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.studio.kpi.lead": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.test.errors": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.test.tooLarge": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.workbench.changes.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "pipelines.workbench.output.problems": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "policies.try.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "policies.try.hints.account": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "policies.try.hints.kind": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "policies.try.kinds.serviceAccount": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "policies.try.noAccount": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.domain-not-verified": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.file-too-large": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.invalid-body": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.payload-too-large": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.precondition-failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.recipient-refused": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.service-off": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.unsupported-media-type": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "problem.urn-scheme": {
+      "rules": [
+        "urn"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.api.call.geojson": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.api.call.sta": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.api.tokensLead": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.api.tokensLink": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.fields.formula.noAccount": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.fields.lead": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.fields.problem.formulaInvalid": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.fields.problem.valueInvalid": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.fields.problem.valuesMissing": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.fields.problem.valueTwice": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.form.problem.date": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.form.problem.integer": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.form.problem.number": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.form.problem.point": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.form.problem.required": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.form.problem.urn": {
+      "rules": [
+        "urn"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "spaces.saved.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "syncSources.lastError": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "whatsNew.entries.loadFile.body": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "whatsNew.entries.useData.body": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "workspaces.previewStates.error": {
+      "rules": [
+        "generic",
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "workspaces.tryIt.failed": {
+      "rules": [
+        "next-step"
+      ],
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    }
+  },
+  "disabled": {
+    "src/assistant/AssistantDock.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/AlertDialog.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/drift/DriftResolutionModal.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/entities/AddFieldDialog.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/entities/ViewBar.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/entities/ViewOptions.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/forms/theme.tsx": {
+      "count": 3,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/forms/widgets/CronSchedule.tsx": {
+      "count": 5,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/ImportProjectDialog.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/pickers/Combobox.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/ResourceFormDialogBody.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/SaveAsDialog.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/ui/ConfirmDialog.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/components/ui/Switch.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/access/GroupPage.tsx": {
+      "count": 3,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/access/ServiceAccounts.tsx": {
+      "count": 4,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/AgentRunPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/AppGenerator.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/ConversationPanel.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/EntityWriteCard.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/KpiCard.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/KpiPipelineCard.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/QuestionData.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/QuestionOptions.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/RolesAndMembers.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/apps/RunPublication.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/assistant/AssistantPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/catalogue/CataloguePage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/datasources/DataSourcesPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/endpoints/EndpointPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/endpoints/FilterProof.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/endpoints/ModelPicker.tsx": {
+      "count": 10,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/endpoints/ShareFlow.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/explore/ChartFromView.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/explore/ExplorePage.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/gallery/Gallery.tsx": {
+      "count": 3,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/inbox/InboxPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/knowledge/AssistantChat.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/models/DiagramEditing.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/models/LinkmlGraphView.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/models/ModelFileDrop.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/models/ModelsPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/models/RelationshipEditor.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/organization/OrganizationApplications.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/organization/People.tsx": {
+      "count": 6,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/pipelines/DebugPanel.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/pipelines/PipelineFlow.tsx": {
+      "count": 7,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/pipelines/PipelineStudio.tsx": {
+      "count": 3,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/pipelines/PipelineTest.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/policies/TryAPerson.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/spaces/Comments.tsx": {
+      "count": 2,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/spaces/DataViews.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/sync/SyncSourcesPage.tsx": {
+      "count": 3,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/workspaces/BringBackPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/pages/workspaces/TryItPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/routes/ApprovalDetailPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/routes/ApprovalsHistory.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/routes/EndpointsPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    },
+    "src/routes/PipelinesPage.tsx": {
+      "count": 1,
+      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+    }
+  }
+}
