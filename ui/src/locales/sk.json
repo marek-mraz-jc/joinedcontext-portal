@@ -6526,7 +6526,13 @@
     "upstream-unavailable": "Služba za platformou neodpovedala; skúste to o minútu.",
     "upstream-redirect": "Služba za platformou poslala presmerovanie, ktoré nesmie nasledovať; požiadajte jej vlastníka o konečnú adresu.",
     "service-unavailable": "Platforma na to ešte nie je pripravená; skúste to o minútu.",
-    "delivery-timeout": "Príjemca neodpovedal včas; overte, že je dostupný, a skúste to znova."
+    "delivery-timeout": "Príjemca neodpovedal včas; overte, že je dostupný, a skúste to znova.",
+    "service-off": "Zapnite službu na úrovni, ktorú uvádza popis (organizácia, projekt alebo aplikácia), alebo volanie vynechajte.",
+    "quota": "Počkajte, kým sa kvóta v uvedenom čase obnoví, alebo požiadajte správcu o vyššiu kvótu; miesto na súbory sa uvoľní, keď aplikácia súbory zmaže.",
+    "file-too-large": "Uložte menší objekt; jeden objekt môže mať najviac uvedený limit.",
+    "recipient-refused": "Posielajte len ľuďom z organizácie s overenou e-mailovou adresou.",
+    "no-model-key": "Požiadajte správcu organizácie, aby pridal alebo obnovil kľúč k modelu, a skúste to znova.",
+    "no-json": "Opýtajte sa znova; odpoveď modelu nezodpovedala požadovanej schéme."
   },
   "jobs": {
     "title": "Čo ste spustili",

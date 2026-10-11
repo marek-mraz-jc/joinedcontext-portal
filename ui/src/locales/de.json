@@ -6526,7 +6526,13 @@
     "upstream-unavailable": "Ein Dienst hinter der Plattform hat nicht geantwortet; versuchen Sie es in einer Minute.",
     "upstream-redirect": "Der Dienst hinter der Plattform hat eine Weiterleitung geschickt, der sie nicht folgen darf; fragen Sie den Betreiber nach der endgültigen Adresse.",
     "service-unavailable": "Die Plattform ist dafür noch nicht bereit; versuchen Sie es in einer Minute.",
-    "delivery-timeout": "Der Empfänger hat nicht rechtzeitig geantwortet; prüfen Sie die Erreichbarkeit und versuchen Sie es erneut."
+    "delivery-timeout": "Der Empfänger hat nicht rechtzeitig geantwortet; prüfen Sie die Erreichbarkeit und versuchen Sie es erneut.",
+    "service-off": "Schalten Sie den Dienst auf der Ebene ein, die die Beschreibung nennt (Organisation, Projekt oder App), oder lassen Sie den Aufruf weg.",
+    "quota": "Warten Sie, bis das Kontingent zur angegebenen Zeit zurückgesetzt wird, oder bitten Sie die Administration um ein größeres Kontingent; Dateiplatz wird frei, wenn die App Dateien löscht.",
+    "file-too-large": "Speichern Sie ein kleineres Objekt; ein Objekt darf höchstens das angegebene Limit groß sein.",
+    "recipient-refused": "Senden Sie nur an Personen der Organisation mit bestätigter E-Mail-Adresse.",
+    "no-model-key": "Bitten Sie die Administration der Organisation, den Modellschlüssel hinzuzufügen oder zu erneuern, und versuchen Sie es erneut.",
+    "no-json": "Fragen Sie erneut; die Antwort des Modells entsprach nicht dem angeforderten Schema."
   },
   "jobs": {
     "title": "Was Sie gestartet haben",
