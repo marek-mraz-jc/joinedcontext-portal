@@ -854,11 +854,11 @@
       "noFields": "Model typu {type} nemá pole, na které by se formulář mohl ptát.",
       "problem": {
         "required": "Odpovězte, tato otázka je povinná.",
-        "integer": "Zadejte celé číslo, například 12.",
-        "number": "Zadejte číslo, například 2,5.",
+        "integer": "Zadejte celé číslo.",
+        "number": "Zadejte číslo.",
         "urn": "Zadejte identifikátor entity, například urn:ngsi-ld:Vehicle:bus-12.",
         "point": "Zadejte zeměpisnou šířku (−90 až 90) i délku (−180 až 180).",
-        "date": "Zadejte platné datum, například 2026-10-11."
+        "date": "Zadejte platné datum."
       },
       "shareTitle": "Zveřejnit jako veřejný formulář",
       "shareLead": "Kdokoli s odkazem může vytvořit jeden záznam {type} přes veřejný endpoint, který dovoluje pouze vytváření. Navrhne se jako změna a funguje až po schválení.",
