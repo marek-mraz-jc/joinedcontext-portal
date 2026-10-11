@@ -671,8 +671,10 @@ fn object_meta(name: &str, namespace: &str, labels: &Value) -> Value {
 /// - `JC_ANONYMOUS` — set to `true` for a public app, so its backend treats an absent
 ///   `X-Access-Token` as normal rather than as a bug.
 /// - `JC_APP_CONFIG` — the `#jc-config` object the static host writes for a `ui` App, without
-///   `user` and with the project's `basemap` style URL when one is configured (AP-67): the backend writes it into its page with `user` from `JC_ME_URL`, so the App SDK in
-///   `ui/` reads its endpoints as it does on the static host (AP-95, AP-126).
+///   `user`, with the project's `basemap` style URL when one is configured (AP-67) and
+///   `portal`, the project's page in the Portal for the entity panel's link (SDK-40): the
+///   backend writes it into its page with `user` from `JC_ME_URL`, so the App SDK in `ui/`
+///   reads its endpoints as it does on the static host (AP-95, AP-126).
 ///
 /// Never a credential: an application calls its Endpoint with the caller's own token.
 fn app_container(
