@@ -15,6 +15,7 @@
 //! and reads who holds each role; `portal-reconciler` looks up every group and user and writes
 //! or removes every mapping. A refused member credential fails the roles, never the login.
 
+use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
 
 use joinedcontext_portal::reconciler::app_clients::{
@@ -130,7 +131,7 @@ fn sync(keycloak: &MockServer) -> AppClientSync {
     AppClientSync::new(
         &format!("{}/realms/bb", keycloak.uri()),
         "portal-api".to_owned(),
-        "portal-api-credential".to_owned(),
+        ClientAuth::Secret("portal-api-credential".into()),
         HOST.to_owned(),
     )
     .expect("a realm issuer")
@@ -899,7 +900,7 @@ async fn realm_of_two() -> MockServer {
 fn sync_of_two(keycloak: &MockServer) -> AppClientSync {
     sync(keycloak).with_members(
         "portal-reconciler".to_owned(),
-        "portal-reconciler-credential".to_owned(),
+        ClientAuth::Secret("portal-reconciler-credential".into()),
     )
 }
 

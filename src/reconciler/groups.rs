@@ -9,6 +9,7 @@
 //! repository stays the answer to "who is in this group" and the Access page can show that the
 //! two disagreed (PF-63, PF-51).
 
+use crate::config::ClientAuth;
 use std::collections::BTreeSet;
 use std::time::Duration;
 
@@ -84,7 +85,7 @@ pub struct GroupSync {
     /// `https://host/admin/realms/{realm}`: where the groups are.
     admin: String,
     client_id: String,
-    client_secret: String,
+    auth: ClientAuth,
     /// Where a run records the groups it may not write, for the write doors (AP-115).
     foreign: Option<std::sync::Arc<super::foreign::ForeignNames>>,
 }
@@ -106,26 +107,26 @@ impl GroupSync {
 
     /// `None` when no admin client is configured: the groups are then read from the repository
     /// and written nowhere, which is what a Portal without the credential does.
-    pub fn new(issuer: &str, client_id: String, client_secret: String) -> Option<Self> {
+    pub fn new(issuer: &str, client_id: String, auth: ClientAuth) -> Option<Self> {
         Some(Self {
             http: reqwest::Client::builder().timeout(TIMEOUT).build().ok()?,
             issuer: issuer.trim_end_matches('/').to_owned(),
             admin: Self::admin_base(issuer)?,
             client_id,
-            client_secret,
+            auth,
             foreign: None,
         })
     }
 
     async fn token(&self) -> Result<String, String> {
+        let form = self
+            .auth
+            .form(&self.client_id, &[("grant_type", "client_credentials")])
+            .await?;
         let response = self
             .http
             .post(format!("{}/protocol/openid-connect/token", self.issuer))
-            .form(&[
-                ("grant_type", "client_credentials"),
-                ("client_id", self.client_id.as_str()),
-                ("client_secret", self.client_secret.as_str()),
-            ])
+            .form(&form)
             .send()
             .await
             .map_err(|err| err.to_string())?;

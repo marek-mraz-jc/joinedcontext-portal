@@ -4,6 +4,7 @@
 
 mod common;
 
+use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
 
 use axum::http::StatusCode;
@@ -47,7 +48,7 @@ fn state_with(kc: &MockServer, gitea: &MockServer, said: SetupStatements) -> App
     state.people = People::new(
         &format!("{}/realms/hel", kc.uri()),
         "portal".into(),
-        "secret".into(),
+        ClientAuth::Secret("secret".into()),
     )
     .map(Arc::new);
     let mirror = &state.mirror;

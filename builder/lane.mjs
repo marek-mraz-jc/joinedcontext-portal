@@ -25,6 +25,9 @@
 //                                      complete entry for <key>, else from the seed (AP-131)
 //   node lane.mjs save <from> <cache> <key>
 //                                      keeps a green build's target/ as the App's cache entry
+//   node lane.mjs unstamped <bundle-dir>
+//                                      fails when a file of the bundle carries the preview's
+//                                      data-jc-src stamp (SDK-46)
 //   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
 //                                      outputs (JC_DIGEST, JC_COMMIT, JC_SDK_VERSION, JC_BUILT_AT)
 //                                      to JC_PORTAL_URL with JC_LANE_TOKEN
@@ -728,6 +731,19 @@ export function browserChecks(appDir, bundleDir, reportDir, run = spawnSync) {
   return result.status ?? 1;
 }
 
+/**
+ * The files of a bundle that carry the preview's `data-jc-src` stamp (SDK-46): only the Portal's
+ * preview transpiler writes it, so a published bundle that holds one leaks source positions.
+ */
+export function stampedFiles(bundleDir) {
+  return readdirSync(bundleDir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.(?:html|m?js)$/.test(entry.name))
+    .map((entry) => join(entry.parentPath, entry.name))
+    .filter((path) => readFileSync(path, "utf8").includes("data-jc-src"))
+    .map((path) => relative(bundleDir, path))
+    .sort();
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [command, appDir, outDir] = process.argv.slice(2);
   try {
@@ -762,6 +778,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         throw new Error(`${appDir} is not a component exporting ${HTTP_HANDLER}… (AP-143)`);
       }
       console.log(`${appDir} is a component exporting ${HTTP_HANDLER}…`);
+    } else if (command === "unstamped" && appDir) {
+      const stamped = stampedFiles(appDir);
+      if (stamped.length > 0) throw new Error(`the bundle carries the preview's data-jc-src in ${stamped.join(", ")} (SDK-46)`);
     } else if (command === "image" && appDir && outDir) {
       const image = ociImage(readFileSync(appDir));
       writeLayout(image, outDir);
@@ -832,7 +851,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | server-check <app-dir> | component-check <file.wasm> | upload <build-dir> | browser-checks <app-dir> <bundle-dir> <report-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | server-check <app-dir> | component-check <file.wasm> | upload <build-dir> | browser-checks <app-dir> <bundle-dir> <report-dir> | unstamped <bundle-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

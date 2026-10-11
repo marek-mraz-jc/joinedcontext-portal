@@ -100,6 +100,17 @@ pub fn writable(path: &str) -> bool {
         || (under("migrations/", &[".sql"]) && path.matches('/').count() == 1)
 }
 
+/// The position a person pointed at in the preview, `{file}:{line}` (SDK-46): an interface file
+/// under `src/` the model may write, ending in `.tsx`, and a line from 1.
+pub fn scope(src: &str) -> Option<(&str, u32)> {
+    let (file, line) = src.rsplit_once(':')?;
+    if line.is_empty() || !line.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let line = line.parse::<u32>().ok().filter(|line| *line >= 1)?;
+    (file.starts_with("src/") && file.ends_with(".tsx") && writable(file)).then_some((file, line))
+}
+
 /// Everything that keeps `files` from being a preview, one line each with its file and line:
 /// the limits of SDK-11, then every transpile error and refused import (SDK-12, SDK-14).
 pub fn problems(files: &BTreeMap<String, String>) -> Vec<String> {
@@ -516,6 +527,28 @@ mod tests {
         assert!(problems(&ui)
             .iter()
             .any(|problem| problem.starts_with("server/src/lib.rs: server code")));
+    }
+
+    #[test]
+    fn a_scope_is_an_interface_file_and_a_line() {
+        assert_eq!(
+            scope("src/pages/Card.tsx:12"),
+            Some(("src/pages/Card.tsx", 12))
+        );
+        for refused in [
+            "src/pages/Card.tsx",
+            "src/pages/Card.tsx:0",
+            "src/pages/Card.tsx:+3",
+            "src/pages/Card.tsx:",
+            "src/pages/Card.ts:3",
+            "src/main.tsx:1",
+            "src/../x.tsx:1",
+            "functions/a.tsx:1",
+            "package.json:1",
+            "src/pages/Card.tsx:99999999999",
+        ] {
+            assert_eq!(scope(refused), None, "{refused}");
+        }
     }
 
     #[test]

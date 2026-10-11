@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { api, readCsrfToken } from "../../api/client";
+import { pickElement } from "../../assistant/state";
 
 /**
  * The bridge of a sandboxed preview (SDK-18, AP-63, Architecture/20 §5). The frame has no origin
@@ -191,6 +192,18 @@ export function previewErrorOf(data: unknown): PreviewError | null {
   return error;
 }
 
+/** A position the transpiler stamps: an interface file under `src/` and a line (SDK-46). */
+const SELECTED = /^src\/(?:[A-Za-z0-9_-][A-Za-z0-9._-]*\/)*[A-Za-z0-9_-][A-Za-z0-9._-]*\.tsx:[1-9]\d{0,8}$/;
+
+/**
+ * The `src` of a `jc-select` message, or null when it is not one: a position, never more, so a
+ * page's text or rows cannot ride along as the scope of the next message.
+ */
+export function selectedSourceOf(data: unknown): string | null {
+  const m = (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
+  return m.kind === "jc-select" && typeof m.src === "string" && m.src.length <= 300 && SELECTED.test(m.src) ? m.src : null;
+}
+
 /** The `v` of a preview URL, or undefined. */
 export function previewVersionOf(previewUrl: string | undefined): number | undefined {
   const match = /[?&]v=(\d{1,9})(?:&|#|$)/.exec(previewUrl ?? "");
@@ -317,6 +330,8 @@ export interface Preview {
   live?: boolean;
   /** Whether this version may be asked for now; true once per version (see `firstAsk`). */
   ask?: (version: number) => boolean;
+  /** Where the position of a `jc-select` goes (SDK-46); without it a selection is refused. */
+  select?: (src: string) => void;
 }
 
 export type Outcome = "forwarded" | "refused" | "relayed" | "ignored";
@@ -391,6 +406,14 @@ export async function handleBridgeMessage(
   const m = (typeof event.data === "object" && event.data !== null ? event.data : {}) as Record<string, unknown>;
   if (m.kind === "jc-ready") {
     askToObserve(source, preview);
+    return "relayed";
+  }
+  if (m.kind === "jc-select") {
+    const src = selectedSourceOf(event.data);
+    if (src === null || !preview.select) {
+      return "refused";
+    }
+    preview.select(src);
     return "relayed";
   }
   if (m.kind === "jc-observation") {
@@ -498,7 +521,8 @@ export function usePreviewBridge(
     const version = previewVersionOf(previewUrl);
     const listener = (event: MessageEvent) => {
       const slugs = others === "" ? [] : others.split(",");
-      const preview = { slug, slugs, operations, functions, source: frame.current?.contentWindow, observe, version, live, ask };
+      const select = (src: string) => pickElement(id, src);
+      const preview = { slug, slugs, operations, functions, source: frame.current?.contentWindow, observe, version, live, ask, select };
       void handleBridgeMessage(event, preview, report).then((outcome) => {
         if (outcome === "refused") {
           refused += 1;

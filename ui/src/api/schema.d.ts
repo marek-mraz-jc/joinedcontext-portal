@@ -4162,7 +4162,7 @@ export interface components {
         /** @description What a person asks for when they start a run (AP-51). */
         CreateRunRequest: {
             /**
-             * @description `ui` or `ui-rust`, as the `App` kind spells them (AP-124); `static` and `fullstack` are
+             * @description `ui`, `ui-rust` or `wasm`, as the `App` kind spells them (AP-124, T-3575); `static` and `fullstack` are
              *     read as them for one release, and `ui-node` is refused until it is built.
              */
             appClass: string;
@@ -4805,6 +4805,11 @@ export interface components {
             /** @description On a conversation: the endpoints the assistant may query from this message on (AG-75). */
             endpointNames?: string[] | null;
             pageContext?: null | components["schemas"]["PageContextRequest"];
+            /**
+             * @description On an application run: the `src` of the preview's `jc-select`, `{file}:{line}`; the
+             *     editing agent changes that file only for this message (SDK-46).
+             */
+            scope?: string | null;
             text: string;
         };
         /**
@@ -9387,7 +9392,8 @@ export interface operations {
             content: {
                 /**
                  * @example {
-                 *       "text": "Show only stations with fewer than three bikes"
+                 *       "scope": "src/pages/Stations.tsx:14",
+                 *       "text": "Make this title red"
                  *     }
                  */
                 "application/json": components["schemas"]["MessageRequest"];

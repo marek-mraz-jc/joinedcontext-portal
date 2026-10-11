@@ -1185,6 +1185,80 @@ async fn the_published_manifest_is_an_app_the_platform_can_parse() {
     assert_eq!(spec.data_needs.len(), 1);
 }
 
+/// SDK-46: a message names the element the person pointed at as `scope`, a file and a line of
+/// the application's interface; anything else, and a scope on a conversation, is refused.
+#[tokio::test]
+async fn a_message_scoped_to_a_pointed_element_carries_it_and_a_bad_scope_is_refused() {
+    let config = config();
+    let (app, internal) = both(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    let messages = format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/messages");
+
+    for scope in [
+        "functions/sum.ts:3",
+        "src/main.tsx:1",
+        "src/pages/Card.tsx",
+        "src/../x.tsx:2",
+    ] {
+        let (status, body) = call(
+            &app,
+            &cookie,
+            Method::POST,
+            &messages,
+            Some(json!({ "text": "red", "scope": scope })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{scope}: {body}");
+    }
+    let (status, _) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &messages,
+        Some(json!({ "text": "Make this title red", "scope": "src/pages/Card.tsx:4" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, body) = internal_call(
+        &internal,
+        Some(proxy_bearer()),
+        Method::GET,
+        &format!("/internal/agent-runs/{id}/inbox?after=0&wait=0"),
+        None,
+    )
+    .await;
+    let items = body["items"].as_array().expect("items");
+    assert_eq!(
+        items.len(),
+        1,
+        "only the valid message is on the log: {body}"
+    );
+    assert_eq!(items[0]["payload"]["scope"], "src/pages/Card.tsx:4");
+
+    let (_, created) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/assistant/conversations"),
+        Some(json!({ "message": "Find datasets about bikes" })),
+    )
+    .await;
+    let conversation = created["id"].as_str().expect("id");
+    let (status, body) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{conversation}/messages"),
+        Some(json!({ "text": "red", "scope": "src/pages/Card.tsx:4" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+}
+
 #[tokio::test]
 async fn a_person_steers_a_live_run_and_the_workspace_reads_it() {
     let config = config();

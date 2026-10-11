@@ -1812,6 +1812,65 @@ async fn complete_login(
     )
 }
 
+/// PF-47, T-2868: a Portal whose `portal-api` client is `federated-jwt` trades the code with its
+/// projected ServiceAccount token, read when the code arrives, and sends neither its client id
+/// nor a secret, which Keycloak would refuse beside the assertion.
+#[tokio::test]
+async fn a_federated_portal_exchanges_the_code_with_its_projected_token_and_no_client_id() {
+    let realm = realm().await;
+    let dir = std::env::temp_dir().join(format!("jc-auth-federated-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("dir");
+    let token_file = dir.join("token");
+    std::fs::write(&token_file, "eyJ.projected.token\n").expect("token file");
+    let mut config = Config::from_vars(|k| match k {
+        "JC_OIDC_ISSUER" => Some(issuer_of(&realm)),
+        "JC_OIDC_CLIENT_ID" => Some("joinedcontext-portal".to_string()),
+        "JC_OIDC_CLIENT_ASSERTION_FILE" => Some(token_file.display().to_string()),
+        "JC_PORTAL_COOKIE_KEY" => Some("k".repeat(64)),
+        _ => None,
+    })
+    .expect("config");
+    config.public_base_url = "https://portal.test".parse().expect("url");
+    let app = server::app(AppState::from_config(config).await.expect("discovery"));
+
+    let (code, _, response) = complete_login(&realm, &app, "/").await;
+    assert_eq!(
+        response.status(),
+        StatusCode::SEE_OTHER,
+        "the login completes"
+    );
+
+    let exchange = realm
+        .received_requests()
+        .await
+        .expect("recorded")
+        .into_iter()
+        .find(|request| request.url.path().ends_with("/token"))
+        .expect("the code was exchanged");
+    assert!(exchange.headers.get(header::AUTHORIZATION).is_none());
+    let form: std::collections::HashMap<String, String> =
+        url::form_urlencoded::parse(&exchange.body)
+            .into_owned()
+            .collect();
+    assert_eq!(form["grant_type"], "authorization_code");
+    assert_eq!(form["code"], code);
+    assert_eq!(
+        form["redirect_uri"],
+        "https://portal.test/api/v1/auth/callback"
+    );
+    assert!(
+        !form["code_verifier"].is_empty(),
+        "the PKCE verifier goes along"
+    );
+    assert_eq!(form["client_assertion"], "eyJ.projected.token");
+    assert_eq!(
+        form["client_assertion_type"],
+        "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+    );
+    assert!(!form.contains_key("client_id"), "{form:?}");
+    assert!(!form.contains_key("client_secret"), "{form:?}");
+}
+
 /// PF-46: the place the browser lands after a login is the sanitized path, never the caller's.
 ///
 /// `safe_redirect` runs at the login door, so what the callback follows is whatever was parked.

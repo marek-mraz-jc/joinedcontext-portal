@@ -6,6 +6,7 @@
 //! left alone and reported; an `endpoint:` scope linked to the hub that is not ours is unlinked,
 //! and none stays a default scope; without the hub client nothing is written.
 
+use joinedcontext_portal::config::ClientAuth;
 use joinedcontext_portal::reconciler::hub_scopes::{desired, serving, HubEndpoint, HubScopeSync};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::store::Mirror;
@@ -115,7 +116,7 @@ fn sync(keycloak: &MockServer) -> HubScopeSync {
     HubScopeSync::new(
         &format!("{}/realms/bb", keycloak.uri()),
         "portal-api".to_owned(),
-        "portal-api-credential".to_owned(),
+        ClientAuth::Secret("portal-api-credential".into()),
     )
     .expect("a realm issuer")
 }

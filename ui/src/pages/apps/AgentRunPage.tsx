@@ -12,7 +12,7 @@ import { RunTimeSpent } from "./RunTimeSpent";
 import { RunCost } from "./RunCost";
 import { TERMINAL_STATES, testsHold, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
-import { rememberRun } from "../../assistant/state";
+import { onPickChange, pickedElement, rememberRun, requestOpen } from "../../assistant/state";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { Button, InlineError, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
@@ -48,6 +48,24 @@ export function AgentRunPage({
   // The preview's reads and writes reach the endpoint through this page, never from the frame (AP-63).
   const frame = useRef<HTMLIFrameElement>(null);
   usePreviewBridge(frame, run.data, run.data !== undefined && !TERMINAL_STATES.includes(run.data.status));
+  // Pointing at an element (SDK-46): on for one preview version, off once the frame names one,
+  // and the dock opens with it; a new version is a new frame, which starts with it off.
+  const [selectingIn, setSelectingIn] = useState<string | null>(null);
+  const selectMode = (on: boolean) => {
+    setSelectingIn(on ? (run.data?.previewUrl ?? null) : null);
+    frame.current?.contentWindow?.postMessage({ kind: "jc-select-mode", on }, "*");
+  };
+  useEffect(
+    () =>
+      onPickChange(() => {
+        if (pickedElement(runId) !== null) {
+          setSelectingIn(null);
+          frame.current?.contentWindow?.postMessage({ kind: "jc-select-mode", on: false }, "*");
+          requestOpen();
+        }
+      }),
+    [runId],
+  );
 
   // Each of the four states is a whole page: the way back, the shape of what is coming, and,
   // when the record cannot be read, the API's own reason rather than "not in this project" for
@@ -92,6 +110,7 @@ export function AgentRunPage({
   // this origin is never framed, and the person is told what arrived rather than shown a blank
   // panel or a page from somewhere else (UI-45).
   const preview = previewSrc(record.previewUrl);
+  const selecting = selectingIn !== null && selectingIn === record.previewUrl;
   const refused = preview === undefined && record.previewUrl !== undefined && record.previewUrl !== "";
   // A run with a preview publishes; an unattended one ends waiting for approval with its preview
   // built and publishes from there, once (AG-69, AP-71).
@@ -178,6 +197,17 @@ export function AgentRunPage({
                 referrerPolicy="no-referrer"
                 className="h-preview min-h-preview-min w-full rounded border border-border bg-surface"
               />
+              {!over ? (
+                <Button
+                  size="sm"
+                  aria-pressed={selecting}
+                  onClick={() => {
+                    selectMode(!selecting);
+                  }}
+                >
+                  {selecting ? t("agentRun.preview.selecting") : t("agentRun.preview.select")}
+                </Button>
+              ) : null}
               <a
                 href={preview}
                 target="_blank"

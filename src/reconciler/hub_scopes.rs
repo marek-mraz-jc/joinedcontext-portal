@@ -14,6 +14,7 @@
 //! is not one of ours is unlinked, because a stray one would widen what hub tokens reach, and none
 //! is ever a default scope, which every token would carry without the person asking.
 
+use crate::config::ClientAuth;
 use std::collections::BTreeMap;
 
 use serde_json::{json, Value};
@@ -102,9 +103,9 @@ pub struct HubScopeSync {
 
 impl HubScopeSync {
     /// `None` when the issuer is not a realm URL.
-    pub fn new(issuer: &str, client_id: String, client_secret: String) -> Option<Self> {
+    pub fn new(issuer: &str, client_id: String, auth: ClientAuth) -> Option<Self> {
         Some(Self {
-            admin: Admin::new(issuer, client_id, client_secret)?,
+            admin: Admin::new(issuer, client_id, auth)?,
         })
     }
 
