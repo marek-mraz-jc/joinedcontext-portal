@@ -174,6 +174,7 @@ function Panel({ project }: { project: string }): JSX.Element {
             value={chosenEndpoint}
             onChange={(e) => setEndpoint(e.target.value)}
             disabled={endpointNames.length === 0}
+            title={endpointNames.length === 0 ? t("policies.try.noEndpoint") : undefined}
           >
             {endpointNames.length === 0 ? (
               <option value="">{t("policies.try.noEndpoint")}</option>
@@ -316,6 +317,7 @@ function Panel({ project }: { project: string }): JSX.Element {
             type="submit"
             variant="secondary"
             disabled={missing}
+            disabledReason={t("policies.try.pickFirst")}
             loading={ask.isPending}
           >
             {t("policies.try.submit")}

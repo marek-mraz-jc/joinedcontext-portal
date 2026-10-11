@@ -322,7 +322,7 @@ function NewPersonForm({
           <Button variant="secondary" onClick={() => close(false)}>
             {t("app.cancel")}
           </Button>
-          <Button type="submit" form={formId} disabled={create.isPending}>
+          <Button type="submit" form={formId} disabled={create.isPending} disabledReason={t("app.busyReason")}>
             {t("organization.people.create")}
           </Button>
         </>
@@ -524,6 +524,7 @@ export function People(): JSX.Element {
                 variant="secondary"
                 size="sm"
                 disabled={first === 0}
+                disabledReason={t("app.firstPage")}
                 onClick={() => setFirst(Math.max(0, first - PAGE))}
               >
                 {t("organization.people.previous")}
@@ -532,6 +533,7 @@ export function People(): JSX.Element {
                 variant="secondary"
                 size="sm"
                 disabled={people.data?.next == null}
+                disabledReason={t("app.lastPage")}
                 onClick={() => setFirst(people.data?.next ?? first)}
               >
                 {t("organization.people.next")}
@@ -659,6 +661,7 @@ function PendingInvitations({ people, locale }: { people: Person[]; locale: stri
                       variant="secondary"
                       size="sm"
                       disabled={act.isPending}
+                      disabledReason={t("app.busyReason")}
                       aria-label={t("organization.people.pending.resendFor", { email: person.email })}
                       onClick={() => setAsking({ person, action: "resend-invitation" })}
                     >
@@ -670,6 +673,7 @@ function PendingInvitations({ people, locale }: { people: Person[]; locale: stri
                       variant="danger"
                       size="sm"
                       disabled={act.isPending}
+                      disabledReason={t("app.busyReason")}
                       aria-label={t("organization.people.pending.revokeFor", { email: person.email })}
                       onClick={() => setAsking({ person, action: "delete" })}
                     >
@@ -1122,7 +1126,7 @@ function EditPersonDialog({
           <Button variant="secondary" onClick={() => close(false)}>
             {t("app.cancel")}
           </Button>
-          <Button type="submit" form={formId} disabled={edit.isPending}>
+          <Button type="submit" form={formId} disabled={edit.isPending} disabledReason={t("app.busyReason")}>
             {t("organization.people.save")}
           </Button>
         </>

@@ -158,7 +158,7 @@ export function DebugSidebar({ log, nodes, edges, taps, nameOf, onClear }: Debug
         <h3 id="flow-debug-title" className="text-body font-semibold text-fg">
           {t("pipelines.debug.title")}
         </h3>
-        <Button size="sm" variant="ghost" disabled={log.length === 0} onClick={onClear}>
+        <Button size="sm" variant="ghost" disabled={log.length === 0} disabledReason={t("pipelines.debug.nothingToClear")} onClick={onClear}>
           {t("pipelines.debug.clear")}
         </Button>
       </div>

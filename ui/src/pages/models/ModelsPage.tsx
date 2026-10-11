@@ -452,7 +452,12 @@ export function ModelsPage({
             <>
               {/* Refused where they stand for a person who may not propose (UI-44, T-2848). */}
               <PermissionGuard project={project} kind="DataModel" verb="propose">
-                <Button size="sm" onClick={handleCheck} disabled={checking || saving || taken}>
+                <Button
+                  size="sm"
+                  onClick={handleCheck}
+                  disabled={checking || saving || taken}
+                  disabledReason={taken ? t("models.source.nameTaken") : t("app.busyReason")}
+                >
                   {t("models.source.saveCheck")}
                 </Button>
               </PermissionGuard>

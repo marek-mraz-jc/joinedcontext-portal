@@ -90,7 +90,7 @@ jobs:
       # 4 000-case suite that follows.
       - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
         name: every module, route, control and workflow step has a test (T-2136, T-2728)
-        run: cd ui && pnpm vitest run tests/gate_modules.test.ts tests/gate_routes.test.ts tests/gate_controls.test.ts tests/gate_workflows.test.ts
+        run: cd ui && pnpm vitest run tests/gate_modules.test.ts tests/gate_routes.test.ts tests/gate_controls.test.ts tests/gate_workflows.test.ts tests/gate_human_text.test.ts
       - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
         run: cd ui && pnpm lint
       - if: steps.has.outputs.ui == 'yes'

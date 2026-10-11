@@ -196,13 +196,17 @@ describe("editing on the drawing", () => {
     const user = userEvent.setup();
     renderPart(<Editable initial={SCHOOL} />);
     const undo = screen.getByRole("button", { name: en.models.graph.edit.undo });
-    expect(undo).toBeDisabled();
+    expect(undo).toHaveAttribute("aria-disabled", "true");
 
     await user.click(screen.getByRole("button", { name: en.models.graph.edit.addClass }));
     let dialog = await screen.findByRole("dialog", { name: en.models.graph.edit.addClassTitle });
     await user.type(within(dialog).getByLabelText(en.models.graph.edit.className), "Pupil");
-    expect(within(dialog).getByText(en.models.relationships.add.nameTaken.replace("{name}", "Pupil"))).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: en.models.graph.edit.add })).toBeDisabled();
+    const taken = en.models.relationships.add.nameTaken.replace("{name}", "Pupil");
+    // Said beside the field and as the refused button's own description (ui-writing rule 7).
+    expect(within(dialog).getAllByText(taken).length).toBeGreaterThan(0);
+    const add = within(dialog).getByRole("button", { name: en.models.graph.edit.add });
+    expect(add).toHaveAttribute("aria-disabled", "true");
+    expect(add).toHaveAccessibleDescription(taken);
     await user.clear(within(dialog).getByLabelText(en.models.graph.edit.className));
     await user.type(within(dialog).getByLabelText(en.models.graph.edit.className), "Teacher{Enter}");
     const withClass = expected(SCHOOL, [{ op: "addClass", name: "Teacher" }]);
@@ -219,7 +223,7 @@ describe("editing on the drawing", () => {
     expect(sourceNow()).toBe(withClass);
     await user.click(undo);
     expect(sourceNow()).toBe(SCHOOL);
-    expect(undo).toBeDisabled();
+    expect(undo).toHaveAttribute("aria-disabled", "true");
   });
 
   it("offers no edits without somewhere to write them", () => {

@@ -392,6 +392,7 @@ function SyncSourceCard({
           <Button
             size="sm"
             disabled={busy || paused}
+            disabledReason={busy ? t("app.busyReason") : t("syncSources.pausedReason")}
             onClick={() => syncNow.mutate()}
           >
             {t("syncSources.syncNow")}
@@ -401,6 +402,7 @@ function SyncSourceCard({
           <Button
             size="sm"
             disabled={busy}
+            disabledReason={t("app.busyReason")}
             onClick={() => pause.mutate(!paused)}
           >
             {paused ? t("syncSources.resume") : t("syncSources.pause")}
@@ -411,6 +413,7 @@ function SyncSourceCard({
             variant="danger"
             size="sm"
             disabled={busy}
+            disabledReason={t("app.busyReason")}
             onClick={() => {
               setDetaching(true);
             }}

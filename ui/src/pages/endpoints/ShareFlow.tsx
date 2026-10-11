@@ -207,6 +207,7 @@ export function ShareFlow({
                       variant="secondary"
                       className="ml-auto"
                       disabled={proposal.mutation.isPending}
+                      disabledReason={t("app.busyReason")}
                       aria-label={t("endpoints.shareFlow.revokeOf", { project: other })}
                       onClick={() => revoke(other)}
                     >

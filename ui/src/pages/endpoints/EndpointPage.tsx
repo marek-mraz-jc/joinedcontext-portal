@@ -871,7 +871,17 @@ function FilterForm({
           ))}
         </fieldset>
         <PermissionGuard project={project} kind="ModelProjection" verb="propose">
-          <Button type="submit" disabled={untouched || faulty || propose.isPending}>
+          <Button
+            type="submit"
+            disabled={untouched || faulty || propose.isPending}
+            disabledReason={
+              untouched
+                ? t("endpoints.page.filterUntouched")
+                : faulty
+                  ? t("endpoints.page.filterFaulty")
+                  : t("app.busyReason")
+            }
+          >
             {t("endpoints.page.filterPropose")}
           </Button>
         </PermissionGuard>
