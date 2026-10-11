@@ -260,6 +260,7 @@ export function AgentRunPage({
         <div className="flex flex-wrap gap-2">
           <Button
             disabled={over || cancel.isPending}
+            disabledReason={over ? t("agentRun.cancelOver") : t("app.busyReason")}
             onClick={() => {
               cancel.mutate();
             }}

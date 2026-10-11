@@ -37,77 +37,43 @@
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "agentRun.follow.stage.failed": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "agentRun.follow.test.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "agentRun.kpiPipeline.failed": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "agentRun.line.testsError": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "agentRun.line.testsFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "agentRun.proposal.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a heading over the list of what the test found, each item its own fix"
     },
     "agentRun.publication.mirror": {
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "agentRun.states.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "GitHub is where the copy lives; the link opens it"
     },
     "agentRun.step.error": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "agentRun.step.failed": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "agentRun.timeSpent.failed": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a word inside the time line of a run ('2 min, ended with an error'); the run shows the error"
     },
     "app.alert.danger": {
       "rules": [
@@ -175,55 +141,35 @@
       ],
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
-    "apps.build.run.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "apps.build.state.failed": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "apps.checklist.state.problem": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a checklist row's state; the row names what to change"
     },
     "apps.drafts.state.failed": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "apps.generate.kinds.wasm": {
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "an option for developers choosing an App's stack; React, Rust and WebAssembly are what they choose between"
     },
     "apps.jobs.outcomes.failed": {
       "rules": [
-        "generic",
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "apps.openDisabled.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "apps.openPage.fullscreenFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "assistant.empty.failed": {
       "rules": [
@@ -254,13 +200,7 @@
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "catalogue.publish.error.period": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the licence's own name, as CKAN and the data portals list it"
     },
     "choice.licence.CC_BYSA_4_0": {
       "rules": [
@@ -279,12 +219,6 @@
         "kind"
       ],
       "reason": "DataStore is CKAN's own name for the feature, the one the catalogue's administrator knows"
-    },
-    "dashboards.widget.historyFailed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
     "datasources.type.websocket": {
       "rules": [
@@ -327,7 +261,7 @@
       "rules": [
         "kind"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the language's and runtime's own names in a code-sample picker for developers"
     },
     "form.entityUrn": {
       "rules": [
@@ -383,29 +317,17 @@
       ],
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
-    "knowledge.emptyHint": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "knowledge.failed": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "knowledge.state.failed": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "knowledge.status.failed": {
       "rules": [
         "next-step"
       ],
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "a state label beside the item; the item's own page or row shows the error and the next step"
     },
     "models.sdm.origin": {
       "rules": [
@@ -614,63 +536,15 @@
       "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
-    "src/pages/apps/AgentRunPage.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/apps/ConversationPanel.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/apps/EntityWriteCard.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/apps/KpiCard.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/apps/KpiPipelineCard.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/apps/QuestionData.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/apps/QuestionOptions.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/apps/RolesAndMembers.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/apps/RunPublication.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "src/pages/assistant/AssistantPage.tsx": {
       "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },
-    "src/pages/explore/ChartFromView.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/explore/ExplorePage.tsx": {
-      "count": 2,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
     "src/pages/gallery/Gallery.tsx": {
       "count": 3,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
+      "reason": "the component gallery shows the disabled state on purpose"
     },
     "src/pages/inbox/InboxPage.tsx": {
-      "count": 1,
-      "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
-    },
-    "src/pages/knowledge/AssistantChat.tsx": {
       "count": 1,
       "reason": "baseline 2026-10-11; the walk of this area fixes it (T-3848…T-3852)"
     },

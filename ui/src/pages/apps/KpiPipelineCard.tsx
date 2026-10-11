@@ -185,6 +185,7 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
                 variant="primary"
                 size="sm"
                 disabled={proposal.kind === "proposing"}
+                disabledReason={t("app.busyReason")}
                 onClick={() => {
                   void proposeSpace();
                 }}

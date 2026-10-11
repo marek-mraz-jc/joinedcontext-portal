@@ -2174,7 +2174,7 @@
       "latest": "Letzter Wert {property}: {value} ({count} Messungen)",
       "chartLabel": "{property} von {entity} im Zeitverlauf",
       "badGrid": "Dieses Raster konnte nicht gezeichnet werden: {reason}",
-      "historyFailed": "Dieser Verlauf konnte nicht gelesen werden: {reason}",
+      "historyFailed": "Dieser Verlauf konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
       "barTitle": "{property} von {type}: Entitäten nach Wert",
       "histogramTitle": "{property} von {type}: Verteilung",
       "rest": "übrige Werte",
@@ -3139,7 +3139,7 @@
       "state": {
         "building": "Wird gebaut",
         "needsYou": "Wartet auf Sie",
-        "failed": "Fehlgeschlagen",
+        "failed": "Nicht erzeugt",
         "readyToPublish": "Bereit zur Veröffentlichung",
         "waitingApproval": "Wartet auf Freigabe"
       },
@@ -3197,7 +3197,7 @@
         "none": "Es lief noch kein Build.",
         "building": "{commit} wird gebaut …",
         "succeeded": "{commit} gebaut.",
-        "failed": "Der Build von {commit} ist fehlgeschlagen; der letzte Lauf sagt, warum.",
+        "failed": "Der Build von {commit} ist fehlgeschlagen; öffnen Sie den letzten Lauf, um den Grund zu sehen.",
         "cancelled": "Der Build von {commit} wurde abgebrochen."
       },
       "state": {
@@ -3232,7 +3232,7 @@
       "preview": "Eine Vorschau öffnet sich über das Menü",
       "retired": "Diese Anwendung ist außer Betrieb",
       "building": "Wird gebaut…",
-      "failed": "Build fehlgeschlagen",
+      "failed": "Der Build ist fehlgeschlagen. Beheben Sie ihn im Tab Build und öffnen Sie dann die App.",
       "notBuilt": "Noch wird kein Build ausgeliefert",
       "certificate": "Die Adresse der Anwendung wird gesichert, das dauert etwa eine Minute",
       "host": "Die Adresse der Anwendung ließ sich nicht einrichten; der Grund ist für Administratoren sichtbar"
@@ -3248,7 +3248,7 @@
       "fullscreen": "Vollbild",
       "fullscreenExit": "Vollbild verlassen",
       "fullscreenUnavailable": "Dieser Browser bietet hier kein Vollbild an.",
-      "fullscreenFailed": "Der Browser hat nicht in den Vollbildmodus gewechselt: {reason}",
+      "fullscreenFailed": "Der Browser hat nicht in den Vollbildmodus gewechselt: {reason}. Verwenden Sie die Vollbildtaste des Browsers (F11).",
       "signedOutTitle": "Ihre Anmeldung ist abgelaufen.",
       "signedOutBody": "Die App kann Sie im Portal nicht anmelden. Melden Sie sich erneut an, dann öffnet sie sich hier.",
       "signedOutDismiss": "Diese Meldung ausblenden"
@@ -3374,7 +3374,7 @@
       "notRun": "Noch nicht gelaufen",
       "outcomes": {
         "succeeded": "Erfolgreich",
-        "failed": "Fehlgeschlagen",
+        "failed": "Mit Fehler beendet",
         "timedOut": "Am Zeitlimit gestoppt",
         "skipped": "Übersprungen, der vorige Lauf lief noch"
       },
@@ -3870,8 +3870,10 @@
       "save": "Auf dem Dashboard speichern",
       "pickFirst": "Wählen Sie zuerst ein Attribut und ein Diagramm.",
       "badName": "Ein Dashboard-Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, höchstens 63, mit einem Buchstaben oder einer Ziffer am Anfang und Ende.",
-      "gone": "Dieses Dashboard ist nicht mehr im Projekt; wählen Sie ein anderes."
-    }
+      "gone": "Dieses Dashboard ist nicht mehr im Projekt; wählen Sie ein anderes.",
+      "pickEntity": "Wählen Sie die Entität für den zeitlichen Verlauf."
+    },
+    "pickSpaceFirst": "Wählen Sie zuerst einen Raum."
   },
   "agentRun": {
     "title": "Anwendungslauf",
@@ -3890,7 +3892,7 @@
       "previewing": "Vorschau ist fertig",
       "awaiting_approval": "Wartet auf Freigabe",
       "published": "Veröffentlicht",
-      "failed": "Der Lauf ist gescheitert.",
+      "failed": "Der Lauf ist gescheitert. Öffnen Sie seine Schritte, um zu sehen, wo.",
       "cancelled": "Der Lauf wurde gestoppt.",
       "expired": "Der Lauf ist beendet; die Vorschau bleibt, wie sie gebaut wurde."
     },
@@ -3906,7 +3908,7 @@
       "modelCall": "Modellaufruf",
       "modelCallOf": "Modellaufruf ({model})",
       "waitingStep": "Wartet auf Ihre Antwort",
-      "failed": "fehlgeschlagen",
+      "failed": "mit Fehler beendet",
       "slowest": "Langsamster Schritt: {step}, {took}.",
       "caption": "Alle gemessenen Schritte des Laufs der Reihe nach",
       "started": "Beginn",
@@ -3948,7 +3950,8 @@
       "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier.",
       "tryAgain": "Erneut versuchen",
       "unanswered": "Ihre letzte Nachricht wurde nicht beantwortet. Es wurde nichts geändert.",
-      "endedBecause": "Grund: {reason}."
+      "endedBecause": "Grund: {reason}.",
+      "writeFirst": "Schreiben Sie zuerst eine Nachricht."
     },
     "line": {
       "status": "Jetzt {status}.",
@@ -3970,8 +3973,8 @@
       "url": "Die Daten liegen unter {url}",
       "testsRunning": "Version {version} wird getestet …",
       "testsPassed": "Version {version}: alle {passed} Tests bestehen.",
-      "testsFailed": "Version {version}: {failed} Tests schlagen fehl. {names}",
-      "testsError": "Die Tests von Version {version} konnten nicht laufen: {reason}",
+      "testsFailed": "Version {version}: {failed} Tests schlagen fehl. {names} Öffnen Sie den Lauf, um den Grund zu sehen.",
+      "testsError": "Die Tests von Version {version} konnten nicht laufen: {reason}. Beheben Sie die Ursache und starten Sie sie erneut.",
       "testsSkipped": "Version {version} wurde hier nicht getestet: {reason}"
     },
     "preview": {
@@ -4018,11 +4021,11 @@
         "readAll": "{count} ({type}) aus {endpoint} gelesen"
       },
       "ok": "Erfolgreich",
-      "failed": "Fehlgeschlagen",
+      "failed": "Nicht abgeschlossen",
       "duration": "{ms} ms",
       "input": "Eingabe",
       "output": "Ausgabe",
-      "error": "Fehler",
+      "error": "Durch einen Fehler gestoppt",
       "refused": "Nicht angewendet",
       "refusedLine": "{count} Block/Blöcke nicht angewendet: {reason}",
       "diff": "Änderung",
@@ -4063,7 +4066,7 @@
       "copyPolicy": "Richtlinie als YAML kopieren",
       "copied": "Kopiert",
       "review": "Prüfen und vorschlagen",
-      "failed": "Der Vorschlag konnte nicht gerendert werden: {reason}",
+      "failed": "Der Vorschlag konnte nicht gerendert werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
       "projects": "geteilt mit {projects}"
     },
     "kpi": {
@@ -4090,7 +4093,8 @@
       "keepOnChangeMessage": "Halte den Indikator {name} aktuell: {over}, bei jeder Änderung, in den Raum {space}.",
       "overCount": "Anzahl von {type}",
       "overAgg": "{agg} von {attribute} über {type}",
-      "overWhere": "{over}, wobei {filter}"
+      "overWhere": "{over}, wobei {filter}",
+      "minutesUnused": "Minuten gelten, wenn der Indikator alle paar Minuten aktualisiert wird, nicht bei jeder Änderung."
     },
     "changeTest": {
       "title": "Test der Änderung",
@@ -4166,7 +4170,8 @@
         "label": "Oder die Adresse eines Feeds",
         "use": "Diese Adresse verwenden",
         "invalid": "Geben Sie eine vollständige Adresse an, die mit http:// oder https:// beginnt."
-      }
+      },
+      "enterAddress": "Geben Sie zuerst die Adresse ein."
     },
     "prose": {
       "copyId": "Ganze Kennung kopieren",
@@ -4192,7 +4197,7 @@
         "done": "Erledigt",
         "working": "Läuft",
         "waiting": "Wartet",
-        "failed": "Fehlgeschlagen",
+        "failed": "Nicht abgeschlossen",
         "later": "Noch nicht"
       },
       "test": {
@@ -4200,7 +4205,7 @@
         "reading": "Einige Zeilen von {name} werden als Sie gelesen…",
         "read": "{count, plural, one {# Zeile} other {# Zeilen}} von {total} {type} aus {name} gelesen",
         "empty": "{name} ist live und enthält noch keine Entitäten",
-        "failed": "Das Testlesen ist fehlgeschlagen",
+        "failed": "Das Testlesen ist fehlgeschlagen. Prüfen Sie den Schritt unten auf den Grund.",
         "again": "Erneut lesen",
         "explore": "Im Explorer öffnen"
       }
@@ -4208,7 +4213,8 @@
     "testsHold": {
       "running": "Veröffentlichen wartet, bis die Tests von Version {version} gelaufen sind.",
       "failed": "Version {version} wird nicht veröffentlicht, solange {failed} ihrer Tests fehlschlagen: {names}. Bitten Sie den Assistenten, sie zu beheben."
-    }
+    },
+    "cancelOver": "Der Lauf ist beendet; es gibt nichts abzubrechen."
   },
   "assistant": {
     "newConversation": "Ein neues Gespräch beginnen",
@@ -6113,7 +6119,7 @@
         "licence": "Eine Lizenz wählen.",
         "contactBoth": "Name und E-Mail des Kontakts gemeinsam angeben oder keines von beiden.",
         "email": "Eine E-Mail-Adresse wie opendata@example.org eingeben.",
-        "period": "Das Ende des Zeitraums darf nicht vor seinem Beginn liegen."
+        "period": "Das Ende des Zeitraums darf nicht vor seinem Beginn liegen. Wählen Sie ein Enddatum nach dem Beginn."
       }
     },
     "licence": {
@@ -6263,10 +6269,10 @@
   "knowledge": {
     "title": "Wissensquellen",
     "intro": "Was der Wissensassistent von den Websites und Katalogen dieses Projekts gelesen hat und woraus er antwortet.",
-    "failed": "Die Quellen konnten nicht gelesen werden: {reason}",
+    "failed": "Die Quellen konnten nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "queued": "Ein Durchlauf von {source} steht an. Er beginnt innerhalb einer Minute.",
     "empty": "Dieses Projekt hat keine Wissensquelle",
-    "emptyHint": "Eine KnowledgeSource nennt eine Website oder einen Katalog, den der Assistent lesen soll. Schlagen Sie sie vor wie jede andere Ressource des Projekts.",
+    "emptyHint": "Eine Wissensquelle nennt eine Website oder einen Katalog, den der Assistent lesen soll. Schlagen Sie sie vor wie jede andere Ressource des Projekts.",
     "sources": "Wissensquellen",
     "recrawl": "Jetzt durchlaufen",
     "recrawlOf": "{source} jetzt durchlaufen",
@@ -6444,7 +6450,8 @@
       "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben."
     },
     "everySpace": "jeder Raum des Projekts",
-    "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt"
+    "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt",
+    "askFirst": "Geben Sie zuerst eine Frage ein."
   },
   "mcp": {
     "title": "MCP-Server",

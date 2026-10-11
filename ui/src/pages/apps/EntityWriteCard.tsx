@@ -160,10 +160,10 @@ export function EntityWriteCard({ write, live }: { write: EntityWrite; live: boo
         </p>
       ) : live ? (
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="primary" disabled={state.kind === "applying"} onClick={() => void apply()}>
+          <Button size="sm" variant="primary" disabled={state.kind === "applying"} disabledReason={t("app.busyReason")} onClick={() => void apply()}>
             {t("agentRun.write.apply")}
           </Button>
-          <Button size="sm" disabled={state.kind === "applying"} onClick={() => setState({ kind: "cancelled" })}>
+          <Button size="sm" disabled={state.kind === "applying"} disabledReason={t("app.busyReason")} onClick={() => setState({ kind: "cancelled" })}>
             {t("agentRun.write.cancel")}
           </Button>
         </div>

@@ -137,12 +137,15 @@ export function QuestionData({
               placeholder="https://"
               value={address}
               disabled={disabled}
+              title={disabled ? t("app.busyReason") : undefined}
               onChange={(event) => {
                 setAddress(event.target.value);
               }}
             />
           </Field>
-          <Button type="submit" size="sm" className="self-start" disabled={disabled || address.trim() === ""}>
+          <Button type="submit" size="sm" className="self-start" disabled={disabled || address.trim() === ""}
+            disabledReason={disabled ? t("app.busyReason") : t("agentRun.question.enterAddress")}
+          >
             {t("agentRun.question.url.use")}
           </Button>
         </form>

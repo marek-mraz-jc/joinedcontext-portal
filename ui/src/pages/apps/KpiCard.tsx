@@ -216,6 +216,7 @@ export function KpiCard({
               variant="primary"
               size="sm"
               disabled={state.kind === "writing"}
+              disabledReason={t("app.busyReason")}
               onClick={() => {
                 void write();
               }}
@@ -281,6 +282,7 @@ export function KpiCard({
               min={1}
               value={minutes}
               disabled={onChange}
+              title={onChange ? t("agentRun.kpi.minutesUnused") : undefined}
               className="w-24"
               onChange={(event) => {
                 setMinutes(event.target.value);

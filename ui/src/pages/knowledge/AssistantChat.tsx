@@ -275,7 +275,12 @@ export function AssistantChat({
             onKeyDown={onKey}
           />
         </Field>
-        <Button type="submit" disabled={busy || question.trim() === ""} loading={busy}>
+        <Button
+          type="submit"
+          disabled={busy || question.trim() === ""}
+          disabledReason={busy ? t("app.busyReason") : t("knowledge.askFirst")}
+          loading={busy}
+        >
           {t("knowledge.chat.send")}
         </Button>
       </form>
