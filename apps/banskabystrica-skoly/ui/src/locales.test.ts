@@ -10,4 +10,14 @@ describe("locales", () => {
     expect(stringsFor("en").locale).toBe("en");
     expect(stringsFor("cs").locale).toBe("sk");
   });
+
+  it("put what they are given into every sentence they build, in both languages", () => {
+    for (const strings of [LOCALES.sk, LOCALES.en]) {
+      const built = Object.entries(strings).filter(([, v]) => typeof v === "function");
+      expect(built.map(([k]) => k)).toContain("shared");
+      for (const [key, sentence] of built) {
+        expect((sentence as (arg: number | string) => string)(37), key).toContain("37");
+      }
+    }
+  });
 });
