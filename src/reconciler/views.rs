@@ -2324,7 +2324,8 @@ mod tests {
 
     /// The broker this test writes to: the `-jc` image ci-full starts (views, linkml,
     /// `ANTARES_POLICY=joinedcontext`, `ANTARES_SCHEMA_MAX_BYTES`) and the file holding its
-    /// admin token. ci-full without them is a failure, never a pass; elsewhere the test returns.
+    /// admin token. ci-full's `test-all`, the job that starts it, without them is a failure,
+    /// never a pass; elsewhere the test returns, other ci-full jobs (the README's commands) too.
     fn jc_broker() -> Option<(String, PathBuf)> {
         let url = std::env::var("JC_PORTAL_TEST_BROKER_URL").ok();
         let token = std::env::var("JC_PORTAL_TEST_BROKER_TOKEN_FILE").ok();
@@ -2336,11 +2337,11 @@ mod tests {
                 ))
             }
             _ => {
-                assert_ne!(
-                    std::env::var("GITHUB_WORKFLOW").as_deref(),
-                    Ok("ci-full"),
-                    "ci-full starts the -jc broker and must set JC_PORTAL_TEST_BROKER_URL and \
-                     JC_PORTAL_TEST_BROKER_TOKEN_FILE"
+                assert!(
+                    !(std::env::var("GITHUB_WORKFLOW").as_deref() == Ok("ci-full")
+                        && std::env::var("GITHUB_JOB").as_deref() == Ok("test-all")),
+                    "ci-full test-all starts the -jc broker and must set \
+                     JC_PORTAL_TEST_BROKER_URL and JC_PORTAL_TEST_BROKER_TOKEN_FILE"
                 );
                 eprintln!(
                     "JC_PORTAL_TEST_BROKER_URL is not set: the -jc broker test runs in ci-full"
