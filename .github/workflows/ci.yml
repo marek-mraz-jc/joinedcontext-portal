@@ -16,6 +16,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: every action is a commit, and only a publishing job may publish (T-0851)
         run: python3 scripts/ci/check-workflow-pins.py
+      # The checker itself; the statements run on a full `cg build --fg` before every merge, since
+      # cg is not on the runner (T-3681, as Antares T-3587).
+      - name: cg security invariants self-test
+        run: python3 dev/cg-invariants.py --selftest
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with: { components: "rustfmt, clippy" }
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
