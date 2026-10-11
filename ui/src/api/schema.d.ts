@@ -4162,7 +4162,7 @@ export interface components {
         /** @description What a person asks for when they start a run (AP-51). */
         CreateRunRequest: {
             /**
-             * @description `ui` or `ui-rust`, as the `App` kind spells them (AP-124); `static` and `fullstack` are
+             * @description `ui`, `ui-rust` or `wasm`, as the `App` kind spells them (AP-124, T-3575); `static` and `fullstack` are
              *     read as them for one release, and `ui-node` is refused until it is built.
              */
             appClass: string;

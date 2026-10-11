@@ -16983,7 +16983,7 @@
         "properties": {
           "appClass": {
             "type": "string",
-            "description": "`ui` or `ui-rust`, as the `App` kind spells them (AP-124); `static` and `fullstack` are\nread as them for one release, and `ui-node` is refused until it is built."
+            "description": "`ui`, `ui-rust` or `wasm`, as the `App` kind spells them (AP-124, T-3575); `static` and `fullstack` are\nread as them for one release, and `ui-node` is refused until it is built."
           },
           "appName": {
             "type": "string",
