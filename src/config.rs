@@ -121,7 +121,7 @@ pub struct Config {
     /// Where the broker's admin token is mounted from its Secret
     /// (`JC_PORTAL_BROKER_ADMIN_TOKEN_FILE`), read on every run and sent only as the bearer of
     /// the `/q` calls that write every Endpoint's and Context Space's view and every space's
-    /// policy rule document (T-3640). With `JC_PORTAL_BROKER_URL` it turns the view writer on;
+    /// policy rule document (T-3640). With the broker's address set it turns the view writer on;
     /// `None` leaves the Endpoints on the gateway and writes no view.
     pub broker_admin_token_file: Option<std::path::PathBuf>,
     /// The organization's domain, the third segment of every URN this instance writes
