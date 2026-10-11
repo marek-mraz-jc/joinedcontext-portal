@@ -616,7 +616,12 @@ fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String>
         }
         None => granted(&permits, &sources.classes_of(&e.project, space))?,
     };
-    let mut rules = rules(shown, &hidden)?;
+    let model = sources
+        .models
+        .get(&(e.project.clone(), space.to_owned()))
+        .and_then(|model| model.as_ref().ok())
+        .map(parsed);
+    let mut rules = rules(listed(shown, model.as_deref())?, &hidden)?;
     let mut operations = rows(&permits)?;
     if let Some((ir, target, source)) = &mapping {
         // the broker judges a mapped view in the model it stores, as the gateway's
@@ -743,35 +748,103 @@ fn granted(
     Ok(shown)
 }
 
-/// One rule of a view: the Attributes it shows (none = the whole Entity) and its types.
+/// The space model's documents, its own source and every import, as YAML; one that does not
+/// parse is left out, as Model Tools would refuse it.
+fn parsed(model: &ModelSource) -> Vec<serde_yaml_ng::Value> {
+    std::iter::once(&model.source)
+        .chain(model.imports.values())
+        .filter_map(|text| serde_yaml_ng::from_str(text).ok())
+        .collect()
+}
+
+/// The Attributes of `class` in the model: its `slots` and inline `attributes` and those of
+/// every class it reaches through `is_a` and `mixins`, without the identifier slots (the
+/// Entity's `id` and `type` are no Attribute). `None` when the model has no such class.
+fn class_slots(model: &[serde_yaml_ng::Value], class: &str) -> Option<BTreeSet<String>> {
+    let find = |section: &str, name: &str| {
+        model
+            .iter()
+            .find_map(|doc| doc.get(section).and_then(|entries| entries.get(name)))
+    };
+    let names = |value: Option<&serde_yaml_ng::Value>| -> Vec<String> {
+        match value {
+            Some(serde_yaml_ng::Value::Sequence(items)) => items
+                .iter()
+                .filter_map(|item| item.as_str().map(str::to_owned))
+                .collect(),
+            Some(serde_yaml_ng::Value::Mapping(entries)) => entries
+                .keys()
+                .filter_map(|key| key.as_str().map(str::to_owned))
+                .collect(),
+            Some(serde_yaml_ng::Value::String(one)) => vec![one.clone()],
+            _ => Vec::new(),
+        }
+    };
+    find("classes", class)?;
+    let mut slots = BTreeSet::new();
+    let mut seen = BTreeSet::new();
+    let mut todo = vec![class.to_owned()];
+    while let Some(name) = todo.pop() {
+        if !seen.insert(name.clone()) {
+            continue;
+        }
+        let Some(definition) = find("classes", &name) else {
+            continue;
+        };
+        slots.extend(names(definition.get("slots")));
+        slots.extend(names(definition.get("attributes")));
+        todo.extend(names(definition.get("is_a")));
+        todo.extend(names(definition.get("mixins")));
+    }
+    slots.retain(|slot| {
+        let identifier = find("slots", slot)
+            .and_then(|definition| definition.get("identifier"))
+            .and_then(serde_yaml_ng::Value::as_bool)
+            .unwrap_or(false);
+        !identifier && slot != "id" && slot != "type"
+    });
+    Some(slots)
+}
+
+/// What each type shows as a list of Attributes: a type shown whole lists its class's slots
+/// from the space's data model, since Antares reads an empty list as no Attribute (ADR-0023
+/// rule 11). A type shown whole with no class in the model is refused, never written empty.
+fn listed(
+    shown: BTreeMap<String, Option<BTreeSet<String>>>,
+    model: Option<&[serde_yaml_ng::Value]>,
+) -> Result<BTreeMap<String, BTreeSet<String>>, String> {
+    shown
+        .into_iter()
+        .map(|(entity_type, attributes)| match attributes {
+            Some(attributes) => Ok((entity_type, attributes)),
+            None => model
+                .and_then(|model| class_slots(model, &entity_type))
+                .map(|slots| (entity_type.clone(), slots))
+                .ok_or_else(|| {
+                    format!(
+                        "{entity_type} is shown whole and the space's data model has no class \
+                         {entity_type}: list the Attributes it shows"
+                    )
+                }),
+        })
+        .collect()
+}
+
+/// One rule of a view: the Attributes it shows and its types.
 type Rule = (Vec<String>, Vec<String>);
 
 /// The rules of a view: the types that show the same Attributes share one. A type whose every
-/// Attribute is hidden shows nothing and is left out; one shown whole cannot have Attributes
-/// taken away, since an empty list is the whole Entity.
+/// Attribute is hidden shows nothing and is left out.
 fn rules(
-    shown: BTreeMap<String, Option<BTreeSet<String>>>,
+    shown: BTreeMap<String, BTreeSet<String>>,
     hidden: &BTreeSet<String>,
 ) -> Result<Vec<Rule>, String> {
     let mut by_attributes: BTreeMap<Vec<String>, Vec<String>> = BTreeMap::new();
     for (entity_type, attributes) in shown {
-        let attributes = match attributes {
-            None if hidden.is_empty() => Vec::new(),
-            None => {
-                return Err(format!(
-                    "{entity_type} is shown whole and the projection hides {}: list the \
-                     Attributes it shows",
-                    hidden.iter().cloned().collect::<Vec<_>>().join(", ")
-                ))
-            }
-            Some(attributes) => {
-                let left: Vec<String> = attributes.difference(hidden).cloned().collect();
-                if left.is_empty() {
-                    continue;
-                }
-                left
-            }
-        };
+        let attributes: Vec<String> = attributes.difference(hidden).cloned().collect();
+        if attributes.is_empty() {
+            continue;
+        }
         if attributes.len() > MAX_NAMES {
             return Err(format!(
                 "{entity_type} shows {} Attributes and a view rule at most {MAX_NAMES}",
@@ -842,8 +915,9 @@ fn geo(raw: &str) -> Result<Value, String> {
     Ok(Value::Object(out))
 }
 
-/// The view of the space surface `/cs/{space}` (plan 5.1): the space model's classes, whole,
-/// with every operation its Policies grant; the engine narrows it per subject.
+/// The view of the space surface `/cs/{space}` (plan 5.1): every type and Attribute (the `*`
+/// form, ADR-0023 rule 12) with every operation its Policies grant; the engine narrows it per
+/// subject. No Endpoint view takes this form.
 fn space_view(sources: &Sources, project: &str, name: &str, tenant: &str) -> Result<Value, String> {
     let id = format!("{SPACE_VIEW_PREFIX}{tenant}");
     if id.len() > MAX_ID {
@@ -858,29 +932,11 @@ fn space_view(sources: &Sources, project: &str, name: &str, tenant: &str) -> Res
         .map(|(_, policy)| policy)
         .filter(|policy| !policy.effect.is_prohibition())
         .collect();
-    let mut types = sources.classes_of(project, name);
-    if types.is_empty() {
-        types = permits
-            .iter()
-            .flat_map(|policy| &policy.information)
-            .flat_map(|info| &info.entities)
-            .map(|selector| selector.entity_type.clone())
-            .collect();
-    }
-    if types.is_empty() {
-        return Err("neither the space's data model nor a Policy names a type to select".into());
-    }
-    if types.len() > MAX_NAMES {
-        return Err(format!(
-            "it selects {} types and a view at most {MAX_NAMES}",
-            types.len()
-        ));
-    }
     Ok(json!({
         "id": id,
         "tenant": tenant,
-        "selector": types,
-        "rules": [{"types": types, "attributes": []}],
+        "selector": ["*"],
+        "rules": [{"types": ["*"], "attributes": ["*"]}],
         "operations": rows(&permits)?,
     }))
 }
@@ -1386,6 +1442,32 @@ mod tests {
         sources
     }
 
+    /// `s` with `fleet_model()` as its space's data model.
+    fn fleet(mut s: Sources) -> Sources {
+        s.models
+            .insert(("city".into(), "air".into()), Ok(fleet_model()));
+        s
+    }
+
+    /// The space's model: Car and Bus inherit `speed` from Vehicle, Car adds `ownedBy` past
+    /// its identifier slot, Stop takes `location` from a mixin, and an import holds Vehicle.
+    fn fleet_model() -> ModelSource {
+        ModelSource {
+            model: "fleet".into(),
+            source: "id: https://city.example/fleet\nname: fleet\nimports: [org.vehicles.v1]\n\
+                     classes:\n  Car: {is_a: Vehicle, slots: [id, ownedBy]}\n  Bus: {is_a: Vehicle}\n\
+                     \x20 Stop: {slots: [name], mixins: [Located]}\n  Located: {mixin: true, slots: [location]}\n\
+                     slots:\n  id: {identifier: true}\n  ownedBy: {}\n  name: {}\n  location: {}\n"
+                .into(),
+            imports: BTreeMap::from([(
+                "org.vehicles.v1".to_owned(),
+                "id: https://city.example/vehicles\nname: vehicles\n\
+                 classes:\n  Vehicle: {attributes: {speed: {range: float}}, is_a: Vehicle}\n"
+                    .to_owned(),
+            )]),
+        }
+    }
+
     fn cars() -> PolicySpec {
         policy(
             json!({"information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]}),
@@ -1480,7 +1562,7 @@ mod tests {
     }
 
     fn with_mapping(policies: Vec<(&str, PolicySpec)>, ir: Result<Value, String>) -> Sources {
-        let mut s = sources(policies);
+        let mut s = fleet(sources(policies));
         s.mappings.insert(
             ("city".into(), "to-vehicle".into()),
             MappingSource {
@@ -1597,7 +1679,7 @@ mod tests {
     /// classes; hidden Attributes on a whole type are refused rather than shown.
     #[test]
     fn policies_union_into_rules() {
-        let s = sources(vec![
+        let s = fleet(sources(vec![
             ("cars", cars()),
             (
                 "buses",
@@ -1610,21 +1692,100 @@ mod tests {
                 "stops",
                 policy(json!({"information": [{"entities": [{"type": "Stop"}]}]})),
             ),
-        ]);
+        ]));
         let view = view_of(&s, &endpoint(json!({}))).expect("a view");
         assert_eq!(
             view["rules"],
-            json!([{"types": ["Stop"], "attributes": []},
+            json!([{"types": ["Stop"], "attributes": ["location", "name"]},
                    {"types": ["Car"], "attributes": ["ownedBy", "speed"]},
                    {"types": ["Bus"], "attributes": ["speed"]}])
         );
+    }
 
-        let hidden = endpoint(json!({"projection": {"hiddenAttributes": ["note"]}}));
-        assert!(view_of(&s, &hidden)
-            .expect_err("refused")
-            .contains("Stop is shown whole"));
+    /// T-3788: a type shown whole lists its class's slots (Antares reads `[]` as no
+    /// Attribute), less the hidden ones; a whole type the model has no class for is refused,
+    /// and so is every whole type when the space's model does not read.
+    #[test]
+    fn a_type_shown_whole_lists_its_classes_slots() {
+        let whole = |types: &[&str]| {
+            let entities: Vec<Value> = types.iter().map(|t| json!({"type": t})).collect();
+            policy(json!({"information": [{"entities": entities}]}))
+        };
+        let s = fleet(sources(vec![("all", whole(&["Car", "Stop"]))]));
+        let view = view_of(&s, &endpoint(json!({}))).expect("a view");
+        assert_eq!(
+            view["rules"],
+            json!([{"types": ["Stop"], "attributes": ["location", "name"]},
+                   {"types": ["Car"], "attributes": ["ownedBy", "speed"]}])
+        );
+        let hidden = endpoint(json!({"projection": {"hiddenAttributes": ["name", "ownedBy"]}}));
+        assert_eq!(
+            view_of(&s, &hidden).expect("a view")["rules"],
+            json!([{"types": ["Stop"], "attributes": ["location"]},
+                   {"types": ["Car"], "attributes": ["speed"]}])
+        );
+        let tram = fleet(sources(vec![("trams", whole(&["Car", "Tram"]))]));
+        let reason = view_of(&tram, &endpoint(json!({}))).expect_err("refused");
+        assert!(
+            reason.contains("Tram is shown whole") && reason.contains("no class Tram"),
+            "{reason}"
+        );
+        for model in [None, Some(Err("does not read".to_owned()))] {
+            let mut s = fleet(sources(vec![("all", whole(&["Car"]))]));
+            s.models.remove(&("city".into(), "air".into()));
+            s.models
+                .extend(model.map(|m| (("city".into(), "air".into()), m)));
+            let reason = view_of(&s, &endpoint(json!({}))).expect_err("refused");
+            assert!(reason.contains("Car is shown whole"), "{reason}");
+        }
+        let projection = {
+            let mut s = fleet(sources(vec![("cars", cars())]));
+            s.projections.insert(
+                ("city".into(), "all".into()),
+                serde_json::from_value(json!({
+                    "contextSpaceRef": "air", "dataModelRef": {"name": "air", "version": "1.0.0"},
+                    "classes": [{"name": "Bus"}]
+                }))
+                .expect("a projection"),
+            );
+            s
+        };
+        let bus = endpoint(json!({"projectionRef": {"kind": "ModelProjection", "name": "all"}}));
+        assert_eq!(
+            view_of(&projection, &bus).expect("a view")["rules"],
+            json!([{"types": ["Bus"], "attributes": ["speed"]}]),
+            "a projection class without slots is the class whole"
+        );
+    }
 
-        let mut every = sources(vec![("all", policy(json!({})))]);
+    #[test]
+    fn a_classless_or_cyclic_model_reads_as_it_is() {
+        let model = parsed(&fleet_model());
+        assert_eq!(
+            class_slots(&model, "Vehicle"),
+            Some(["speed".to_owned()].into())
+        );
+        assert_eq!(
+            class_slots(&model, "Located"),
+            Some(["location".to_owned()].into())
+        );
+        assert_eq!(class_slots(&model, "Tram"), None);
+        let odd = parsed(&ModelSource {
+            model: "odd".into(),
+            source: "classes:\n  A: {is_a: B, mixins: Gone, slots: [x]}\n  B: {is_a: A, attributes: [y]}\n".into(),
+            imports: BTreeMap::from([("broken".to_owned(), "classes: [".to_owned())]),
+        });
+        assert_eq!(
+            class_slots(&odd, "A"),
+            Some(["x".to_owned(), "y".to_owned()].into()),
+            "a cycle ends, a missing mixin is skipped, a list of attributes reads"
+        );
+    }
+
+    /// A permission without `information` grants the space model's classes, each whole.
+    #[test]
+    fn a_policy_without_information_grants_the_models_classes() {
+        let mut every = fleet(sources(vec![("all", policy(json!({})))]));
         assert!(
             view_of(&every, &endpoint(json!({}))).is_err(),
             "no class to select"
@@ -1654,7 +1815,7 @@ mod tests {
     /// only what no view serves leaves nothing to write.
     #[test]
     fn operations_map_to_matrix_rows() {
-        let s = sources(vec![
+        let s = fleet(sources(vec![
             (
                 "write",
                 policy(
@@ -1670,7 +1831,7 @@ mod tests {
                               "information": [{"entities": [{"type": "Car"}]}]}),
                 ),
             ),
-        ]);
+        ]));
         let view = view_of(&s, &endpoint(json!({}))).expect("a view");
         assert_eq!(
             view["operations"],
@@ -1681,15 +1842,15 @@ mod tests {
                 "temporal_query_post"
             ])
         );
-        let only_maps = sources(vec![(
+        let only_maps = fleet(sources(vec![(
             "maps",
             policy(json!({"operations": ["retrieveEntityMap"],
                           "information": [{"entities": [{"type": "Car"}]}]})),
-        )]);
+        )]));
         assert!(view_of(&only_maps, &endpoint(json!({})))
             .expect_err("refused")
             .contains("no operation"));
-        let none = sources(vec![]);
+        let none = fleet(sources(vec![]));
         assert!(view_of(&none, &endpoint(json!({})))
             .expect_err("refused")
             .contains("no Policy"));
@@ -1715,7 +1876,7 @@ mod tests {
     fn policy_ref_and_app_endpoints_bind_as_the_gateway_does() {
         let own = jc_core::kinds::endpoint_role("city", "app-map", None);
         let s = {
-            let mut s = sources(vec![
+            let mut s = fleet(sources(vec![
                 ("cars", cars()),
                 (
                     "buses",
@@ -1726,7 +1887,7 @@ mod tests {
                     policy(json!({"assignee": {"kind": "role", "id": own},
                                   "information": [{"entities": [{"type": "Stop"}]}]})),
                 ),
-            ]);
+            ]));
             s.apps.insert(("city".into(), "map".into()));
             s
         };
@@ -1803,26 +1964,24 @@ mod tests {
         );
     }
 
-    /// Plan 5.1: the space surface's view selects the model's classes whole; without a model,
-    /// the Policies' types.
+    /// T-3788: the space view is the `*` form, every type and Attribute; the engine narrows
+    /// it per subject. Its operations are the space's grants.
     #[test]
-    fn a_space_view_selects_the_models_classes() {
-        let mut s = sources(vec![("cars", cars())]);
+    fn the_space_view_is_the_star_form() {
+        let s = sources(vec![("cars", cars())]);
         let view = space_view(&s, "city", "air", "city-air").expect("a view");
         assert_eq!(
             view,
-            json!({"id": "cs-city-air", "tenant": "city-air", "selector": ["Car"],
-                   "rules": [{"types": ["Car"], "attributes": []}],
+            json!({"id": "cs-city-air", "tenant": "city-air", "selector": ["*"],
+                   "rules": [{"types": ["*"], "attributes": ["*"]}],
                    "operations": ["query_entities", "retrieve_entity"]})
-        );
-        s.classes
-            .insert(("city".into(), "air".into()), ["Bus".to_owned()].into());
-        assert_eq!(
-            space_view(&s, "city", "air", "city-air").expect("a view")["selector"],
-            json!(["Bus"])
         );
         let long = "x".repeat(61);
         assert!(space_view(&s, "city", "air", &long).is_err());
+        assert!(
+            space_view(&sources(Vec::new()), "city", "air", "city-air").is_err(),
+            "no grant, no operation"
+        );
     }
 
     /// T-3767: a space with no Policy still admits the gateway's own hops, and only on the
@@ -1921,7 +2080,7 @@ mod tests {
         );
         write(
             "projects/city/spaces/air/policies/cars.yaml",
-            &format!("{}  contextSpaceRef: air\n  assigner: did:web:city.example\n  assignee: {{ kind: role, id: public }}\n  operations: [retrieveOps]\n  information:\n    - entities: [{{ type: Car }}]\n", head("Policy", "cars")),
+            &format!("{}  contextSpaceRef: air\n  assigner: did:web:city.example\n  assignee: {{ kind: role, id: public }}\n  operations: [retrieveOps]\n  information:\n    - entities: [{{ type: Car }}]\n      propertyNames: [speed]\n", head("Policy", "cars")),
         );
         let mapping = |name: &str, artifacts: &str| {
             format!("{}  contextSpaceRef: air\n  source: {{ kind: DataModel, name: cars, version: \"1\" }}\n  target: {{ kind: DataModel, name: vehicles, version: \"1\" }}\n  transformation: {{ id: https://city.example/m }}\n  tests: [{{ input: in.json, expect: out.json }}]\n{artifacts}", head("Mapping", name))
@@ -2308,6 +2467,59 @@ mod tests {
         s.models
             .insert(("city".into(), "air".into()), Ok(air_model()));
         s
+    }
+
+    /// T-3788 through the writer: a type a Policy grants whole reaches the broker as its
+    /// class's slots, never as `"attributes": []`.
+    #[tokio::test]
+    async fn the_writer_puts_a_whole_type_as_its_classes_slots() {
+        let mut s = fleet(sources(vec![(
+            "stops",
+            policy(json!({"information": [{"entities": [{"type": "Stop"}]}]})),
+        )]));
+        s.endpoints.push(endpoint(json!({})));
+        let tools = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/generate"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"brokerSchema": {"classes": {}}, "errors": []})),
+            )
+            .mount(&tools)
+            .await;
+        let server = broker_with_the_space_view(&s).await;
+        json_at("/q/schemas/city-air", 404, json!({}))
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/schemas/city-air"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&server)
+            .await;
+        json_at(&format!("/q/views/{SLUG}"), 404, json!({}))
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path(format!("/q/views/{SLUG}")))
+            .and(body_json(json!({
+                "id": SLUG, "tenant": "city-air", "selector": ["Stop"],
+                "rules": [{"types": ["Stop"], "attributes": ["location", "name"]}],
+                "operations": ["query_entities", "retrieve_entity"]
+            })))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file).with_model_tools(format!("{}/", tools.uri()));
+        let outcomes = sync.apply(desired(&s)).await;
+        let _ = std::fs::remove_file(&file);
+        let endpoint = outcomes
+            .iter()
+            .find(|(owner, _)| owner.kind == "Endpoint")
+            .map(|(_, outcome)| outcome.clone());
+        assert_eq!(endpoint, Some(ViewOutcome::Written), "{outcomes:?}");
     }
 
     /// The `brokerSchema` Model Tools answers for `air_model()`, as `POST /generate` takes it.
