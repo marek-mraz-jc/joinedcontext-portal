@@ -794,9 +794,11 @@ impl AppState {
                 state.config.broker_url.clone(),
                 state.config.broker_admin_token_file.clone(),
             ) {
-                syncer = syncer.with_views(Arc::new(crate::reconciler::views::ViewSync::new(
-                    broker, token_file,
-                )));
+                let mut views = crate::reconciler::views::ViewSync::new(broker, token_file);
+                if let Some(url) = state.config.model_tools_url.clone() {
+                    views = views.with_model_tools(url);
+                }
+                syncer = syncer.with_views(Arc::new(views));
             }
             // Drift (CC-21, UI-25, UI-26): the seed entities a space declares, against what it
             // holds. Configuration cannot drift under T-0421's option B — every component reads

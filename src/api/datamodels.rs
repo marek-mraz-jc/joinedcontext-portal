@@ -143,7 +143,7 @@ pub(crate) fn model_folder(namespace: &str, spec: &Value, name: &str) -> String 
 }
 
 /// Platform models one compile may import, transitively; Model Tools refuses more.
-const MAX_IMPORTS: usize = 32;
+pub(crate) const MAX_IMPORTS: usize = 32;
 
 /// The LinkML source of every platform model `document` imports, transitively, by its import
 /// name (DM-76): an organization model (`org.{name}.v{major}`), or a model of `project`

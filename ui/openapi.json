@@ -14974,6 +14974,9 @@
         "type": "object",
         "description": "What one Model Tools run rendered. Every artifact is optional: a version that does not\nrender one omits it, and a source that does not compile yet answers with `errors` filled in\nand the artifacts absent. A half-written model is the normal state of an editor.",
         "properties": {
+          "brokerSchema": {
+            "description": "The model with its imports merged, in the LinkML subset the broker reads: what the\nreconciler writes to a Context Space's broker tenant (`PUT /q/schemas/{tenant}`, T-3703)."
+          },
           "context": {},
           "docs": {
             "type": [

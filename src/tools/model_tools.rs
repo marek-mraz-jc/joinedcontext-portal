@@ -129,6 +129,10 @@ pub struct Artifacts {
     /// Structure Definition (DM-60).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qb: Option<String>,
+    /// The model with its imports merged, in the LinkML subset the broker reads: what the
+    /// reconciler writes to a Context Space's broker tenant (`PUT /q/schemas/{tenant}`, T-3703).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broker_schema: Option<serde_json::Value>,
     /// The generator version that produced these artifacts, so a preview and a committed
     /// artifact set can be compared (DM-19).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -552,6 +556,7 @@ mod tests {
             example: Some(serde_json::json!({})),
             typescript: Some("export interface Air { id: string }".into()),
             qb: Some("@prefix qb: <http://purl.org/linked-data/cube#> .".into()),
+            broker_schema: Some(serde_json::json!({"id": "https://x/air", "name": "air"})),
             generator_version: Some("linkml-1.11.1".into()),
             errors: Vec::new(),
         };
@@ -572,6 +577,7 @@ mod tests {
                 "example",
                 "typescript",
                 "qb",
+                "brokerSchema",
                 "generatorVersion",
                 "errors",
             ]
