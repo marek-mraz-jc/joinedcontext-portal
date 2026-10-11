@@ -26,7 +26,7 @@ the Portal repository's `sdk/` and add the tarball (`pnpm add ./joinedcontext-sd
 | `src/App.tsx`             | the pages: the overview and one page per entity type; add a page here   |
 | `src/components/AppShell.tsx` | the header and the routing between pages (`#/{page}`, `navigate(id)`) |
 | `src/pages/TypePage.tsx`  | one type: filters, tiles, map, charts, table, export, detail, edit form |
-| `src/components/`         | `EntityTable` (the grid), `EntityMap` (maplibre), `charts` (echarts), `EntityForm`, filters, states, `EmbeddedFrame` |
+| `src/components/`         | `EntityTable` (the grid), `EntityMap` (maplibre), `FeatureMap` (a type's map from the endpoint's OGC Features `/items`, the rows when the endpoint serves none), `charts` (echarts), `EntityForm`, filters, states, `EmbeddedFrame` |
 | `src/endpoints.ts`        | which endpoint each type is read through, when the app reads several    |
 | `src/i18n.ts`             | every text the app shows, in English, Slovak, German and Czech          |
 | `src/jc-types.ts`         | the row types of the endpoint, rendered from its model: never edit      |

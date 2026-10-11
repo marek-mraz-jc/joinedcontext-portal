@@ -1,4 +1,4 @@
-import type { Cell, Row } from "../ngsi";
+import type { Cell, Geo, Row } from "../ngsi";
 import { cell, isLanguageMap, isRelationshipObject, toRow } from "../ngsi";
 import type { WriteValue } from "../ngsi";
 import type { Schema } from "../write";
@@ -144,6 +144,49 @@ export interface TemporalRow {
   series: Record<string, TemporalPoint[]>;
 }
 
+/** One read of a collection's Features (OGC API - Features Parts 1 and 3, EP-29). */
+export interface FeatureQuery {
+  /** The endpoint to read, by name; only needed for a type more than one endpoint serves. */
+  endpoint?: string;
+  /** `[minLon, minLat, maxLon, maxLat]` in WGS 84. */
+  bbox?: [number, number, number, number];
+  /** An RFC 3339 instant or interval (`a/b`, either end `..`). */
+  datetime?: string;
+  /** A CQL2 text filter (Part 3), e.g. `speed > 50 AND name LIKE 'A%'`. */
+  filter?: string;
+  /** The properties each Feature keeps; all when absent. */
+  properties?: string[];
+  /** Sort keys, `-` before a name for descending (Part 5 `sortby`). */
+  sortby?: string[];
+  /** 1 to 1000, 100 when absent. */
+  limit?: number;
+}
+
+/** A GeoJSON Feature: the Entity's URN, its geometry, its other attributes as plain values. */
+export interface Feature {
+  type: "Feature";
+  id: string;
+  geometry: Geo | null;
+  properties: Record<string, unknown>;
+}
+
+/** A page of Features as `/items` answers it, ready for a MapLibre GeoJSON source. */
+export interface FeatureCollection {
+  type: "FeatureCollection";
+  features: Feature[];
+  numberMatched?: number;
+  numberReturned?: number;
+  links?: { href: string; rel: string; type?: string; title?: string }[];
+}
+
+/** One collection the endpoint serves: an Entity type. */
+export interface FeatureCollectionInfo {
+  id: string;
+  title?: string;
+  description?: string;
+  extent?: { spatial?: { bbox: number[][] }; temporal?: { interval: (string | null)[][] } };
+}
+
 export interface DataClient {
   readonly config: JcConfig;
   entities: {
@@ -162,6 +205,12 @@ export interface DataClient {
     remove(id: string, options?: EndpointOption): Promise<void>;
   };
   temporal: { list(type: string, query: TemporalQuery): Promise<TemporalRow[]> };
+  /** The endpoint's OGC API - Features surface: the same Entities its view and Policy admit (EP-29). */
+  features: {
+    collections(options?: EndpointOption): Promise<FeatureCollectionInfo[]>;
+    items(collection: string, query?: FeatureQuery): Promise<FeatureCollection>;
+    get(collection: string, id: string, options?: EndpointOption): Promise<Feature>;
+  };
   /** Every endpoint's schemas merged, or one endpoint's by name. */
   schema(endpoint?: string): Promise<Schema>;
   /** One endpoint's grant document, the primary's by default. */
@@ -220,7 +269,7 @@ function typeOfUrn(id: string): string | undefined {
 }
 
 export function isEndpointPath(slug: string, path: string): boolean {
-  if (path.includes("..") || path.includes("//") || path.includes("\\") || path.includes("#")) {
+  if (path.includes("#")) {
     return false;
   }
   const prefix = `/api/endpoint/${encodeURIComponent(slug)}/`;
@@ -230,9 +279,13 @@ export function isEndpointPath(slug: string, path: string): boolean {
   const rest = path.slice(prefix.length);
   const [pathname, ...query] = rest.split("?");
   if (query.length > 1) return false;
+  // Traversal is a matter of the path; a query value may hold `..`, as an open OGC interval does.
+  if (pathname.includes("..") || pathname.includes("//") || pathname.includes("\\")) {
+    return false;
+  }
 
   const valid =
-    /^(ngsi-ld\/v1\/entities(\/[^/]+(\/attrs)?)?|ngsi-ld\/v1\/temporal\/entities|schema\/index\.json|schema\/v\d+\/json-schema|access)$/;
+    /^(ngsi-ld\/v1\/entities(\/[^/]+(\/attrs)?)?|ngsi-ld\/v1\/temporal\/entities|ogc\/features\/collections(\/[^/]+\/items(\/[^/]+)?)?|schema\/index\.json|schema\/v\d+\/json-schema|access)$/;
   return valid.test(pathname);
 }
 
@@ -583,6 +636,86 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     },
   };
 
+  /** `/api/endpoint/{slug}/ogc/features/{rest}`, checked like every endpoint path. */
+  const ogcPath = (slug: string, rest: string): string => {
+    const path = `/api/endpoint/${encodeURIComponent(slug)}/ogc/features/${rest}`;
+    checkEndpointPath(slug, path);
+    return path;
+  };
+
+  const ogcGet = async (path: string, shape: "FeatureCollection" | "Feature" | "collections"): Promise<Record<string, unknown>> => {
+    const resp = await transport({ method: "GET", path });
+    if (resp.status < 200 || resp.status >= 300) {
+      throw new ProblemError(resp.status, resp.body);
+    }
+    const body = (typeof resp.body === "object" && resp.body !== null ? resp.body : {}) as Record<string, unknown>;
+    const fine =
+      shape === "collections" ? Array.isArray(body.collections) : body.type === shape && (shape === "Feature" || Array.isArray(body.features));
+    if (!fine) {
+      throw new ProblemError(resp.status, { title: `The endpoint did not answer ${shape === "collections" ? "a collection list" : `a ${shape}`}.` });
+    }
+    return body;
+  };
+
+  const collectionOf = (collection: string): string => {
+    if (!TYPE_RE.test(collection)) {
+      throw new ProblemError(0, { title: `Invalid collection: '${collection}'` });
+    }
+    return collection;
+  };
+
+  const features = {
+    async collections(options?: EndpointOption): Promise<FeatureCollectionInfo[]> {
+      const { slug } = resolveEndpoint(known, undefined, options?.endpoint);
+      const body = await ogcGet(ogcPath(slug, "collections"), "collections");
+      return body.collections as FeatureCollectionInfo[];
+    },
+
+    async items(collection: string, query?: FeatureQuery): Promise<FeatureCollection> {
+      collectionOf(collection);
+      const limit = query?.limit ?? 100;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 1000) {
+        throw new ProblemError(0, { title: `limit must be between 1 and 1000, got ${limit}` });
+      }
+      const params: Record<string, string | undefined> = { limit: String(limit) };
+      if (query?.bbox) {
+        const [minLon, minLat, maxLon, maxLat] = query.bbox;
+        const finite = query.bbox.length === 4 && query.bbox.every((n) => Number.isFinite(n));
+        if (!finite || minLon < -180 || maxLon > 180 || minLat < -90 || maxLat > 90 || minLat > maxLat) {
+          throw new ProblemError(0, { title: `bbox must be [minLon, minLat, maxLon, maxLat] in WGS 84, got ${JSON.stringify(query.bbox)}` });
+        }
+        params.bbox = query.bbox.join(",");
+      }
+      if (query?.datetime) params.datetime = query.datetime;
+      if (query?.filter) {
+        params.filter = query.filter;
+        params["filter-lang"] = "cql2-text";
+      }
+      if (query?.properties) {
+        for (const name of query.properties) {
+          if (!TYPE_RE.test(name)) throw new ProblemError(0, { title: `Invalid property: '${name}'` });
+        }
+        params.properties = query.properties.join(",");
+      }
+      if (query?.sortby && query.sortby.length > 0) {
+        for (const key of query.sortby) {
+          if (!TYPE_RE.test(key.replace(/^[+-]/, ""))) throw new ProblemError(0, { title: `Invalid sort key: '${key}'` });
+        }
+        params.sortby = query.sortby.join(",");
+      }
+      const { slug } = resolveEndpoint(known, collection, query?.endpoint);
+      const path = ogcPath(slug, `collections/${encodeURIComponent(collection)}/items?${queryString(params)}`);
+      return (await ogcGet(path, "FeatureCollection")) as unknown as FeatureCollection;
+    },
+
+    async get(collection: string, id: string, options?: EndpointOption): Promise<Feature> {
+      collectionOf(collection);
+      const { slug } = resolveEndpoint(known, collection, options?.endpoint);
+      const path = ogcPath(slug, `collections/${encodeURIComponent(collection)}/items/${encodeURIComponent(id)}`);
+      return (await ogcGet(path, "Feature")) as unknown as Feature;
+    },
+  };
+
   const schema = async (endpoint?: string): Promise<Schema> => {
     if (endpoint === undefined && known.length > 1) {
       // Every endpoint's schema, merged; a type two endpoints serve keeps the first one's.
@@ -741,6 +874,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
     config,
     entities,
     temporal,
+    features,
     schema,
     access,
     me: () => config.user ?? null,

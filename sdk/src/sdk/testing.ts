@@ -69,6 +69,22 @@ function decodeAttrs(body: unknown): Record<string, Cell> {
   return decoded;
 }
 
+/** A row as the OGC surface serves it: its `location` the geometry, every other attribute a property. */
+function featureOf(row: Row): { type: "Feature"; id: string; geometry: unknown; properties: Record<string, unknown> } {
+  const { id, type: _type, location, ...properties } = row;
+  return { type: "Feature", id, geometry: location ?? null, properties };
+}
+
+/** Whether a point geometry lies in `[minLon, minLat, maxLon, maxLat]`; other geometries are kept. */
+function inBox(geometry: unknown, box: number[]): boolean {
+  const g = geometry as { type?: string; coordinates?: unknown } | null;
+  if (g?.type !== "Point" || !Array.isArray(g.coordinates)) return g !== null;
+  const [lon, lat] = g.coordinates as number[];
+  return lon >= box[0] && lon <= box[2] && lat >= box[1] && lat <= box[3];
+}
+
+const OGC = /\/ogc\/features\/collections(?:\/([^/]+)\/items(?:\/([^/]+))?)?$/;
+
 export function stubTransport(fixture?: Fixture): StubTransport {
   let store: Row[] = (fixture?.entities ?? []).map((r) => ({ ...r }));
   const calls: JcRequest[] = [];
@@ -177,6 +193,32 @@ export function stubTransport(fixture?: Fixture): StubTransport {
         status: 200,
         body: (fixture?.temporal ?? []).filter((item) => (!type || item.type === type) && (!ids || ids.includes(item.id))),
       };
+    }
+
+    const ogc = method === "GET" ? OGC.exec(pathname) : null;
+    if (ogc) {
+      const [, collection, item] = ogc.map((part) => (part === undefined ? undefined : decodeURIComponent(part)));
+      if (collection === undefined) {
+        const types = [...new Set(store.map((r) => r.type))];
+        return { status: 200, body: { collections: types.map((t) => ({ id: t, title: t })), links: [] } };
+      }
+      const rows = store.filter((r) => r.type === collection);
+      if (item !== undefined) {
+        const row = rows.find((r) => r.id === item);
+        return row ? { status: 200, body: featureOf(row) } : { status: 404, body: { title: "Feature not found", status: 404 } };
+      }
+      if (params.has("filter")) {
+        // A filter the stub cannot evaluate is refused, never answered with every Feature.
+        return { status: 501, body: { title: "The stub does not evaluate CQL2; answer the request with `refuse`", status: 501 } };
+      }
+      const box = params.get("bbox")?.split(",").map(Number);
+      const picked = rows.map(featureOf).filter((f) => !box || inBox(f.geometry, box));
+      const keep = params.get("properties")?.split(",");
+      const limit = Number(params.get("limit")) || 100;
+      const page = picked.slice(0, limit).map((f) =>
+        keep ? { ...f, properties: Object.fromEntries(Object.entries(f.properties).filter(([k]) => keep.includes(k))) } : f,
+      );
+      return { status: 200, body: { type: "FeatureCollection", features: page, numberMatched: picked.length, numberReturned: page.length } };
     }
 
     if (pathname.endsWith("/schema/index.json") && method === "GET") {

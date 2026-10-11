@@ -3,7 +3,7 @@ import { Card, Grid, Page, useClient, useEntities, useFunction } from "@joinedco
 import type { Schema, TypeSchema } from "@joinedcontext/sdk";
 import { navigate } from "../components/AppShell";
 import { BarChartCard, TimeSeriesCard } from "../components/charts";
-import { EntityMap } from "../components/EntityMap";
+import { FeatureMap } from "../components/FeatureMap";
 import { Loading, Problem } from "../components/states";
 import { StatTiles } from "../components/StatTiles";
 import type { Summary } from "../../functions/summary";
@@ -33,7 +33,9 @@ function TypeCard({ source, schema }: { source: TypeSource; schema?: TypeSchema 
         loading={loading}
         tiles={[{ label: t("overview.entities"), agg: "count" }, ...(measure ? [{ label: t("stat.average", { attr: measure }), agg: "avg" as const, attr: measure }] : [])]}
       />
-      {shape.geo && <EntityMap rows={rows} location={shape.geo} label={shape.label} color={measure} height={240} onSelect={() => navigate(source.id)} />}
+      {shape.geo && (
+        <FeatureMap type={type} endpoint={endpoint} fallback={rows} location={shape.geo} label={shape.label} color={measure} height={240} onSelect={() => navigate(source.id)} />
+      )}
       {shape.categories[0] ? (
         <BarChartCard rows={rows} x={shape.categories[0]} y={measure} agg={measure ? "avg" : "count"} top={10} />
       ) : (

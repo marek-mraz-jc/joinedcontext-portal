@@ -63,11 +63,25 @@
         {
           "name": "ProblemError",
           "signature": "class ProblemError extends Error"
+        },
+        {
+          "name": "jc().features.collections",
+          "signature": "jc().features.collections(options?: { endpoint?: string }): Promise<FeatureCollectionInfo[]>"
+        },
+        {
+          "name": "jc().features.items",
+          "signature": "jc().features.items(collection: string, query?: FeatureQuery): Promise<FeatureCollection>"
+        },
+        {
+          "name": "jc().features.get",
+          "signature": "jc().features.get(collection: string, id: string, options?: { endpoint?: string }): Promise<Feature>"
         }
       ],
       "rust": [
         "jc_app_sdk::gateway::get(path: &str) -> Result<Vec<u8>, Error>",
-        "jc_app_sdk::gateway::get_json<T>(path: &str) -> Result<T, Error>"
+        "jc_app_sdk::gateway::get_json<T>(path: &str) -> Result<T, Error>",
+        "jc_app_sdk::gateway::features<T>(collection: &str, query: &[(&str, &str)]) -> Result<T, Error>",
+        "jc_app_sdk::gateway::feature<T>(collection: &str, id: &str) -> Result<T, Error>"
       ],
       "appYaml": [
         "dataNeeds: [{ contextSpaceRef, types, attrs, operations }]"
