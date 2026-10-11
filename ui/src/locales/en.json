@@ -6526,7 +6526,13 @@
     "upstream-unavailable": "A service behind the platform did not answer; try again in a minute.",
     "upstream-redirect": "The service behind the platform sent a redirect it may not follow; ask its owner for the final address.",
     "service-unavailable": "The platform is not ready for this yet; try again in a minute.",
-    "delivery-timeout": "The receiver did not answer in time; check that it is reachable and try again."
+    "delivery-timeout": "The receiver did not answer in time; check that it is reachable and try again.",
+    "service-off": "Turn the service on at the layer the detail names (organization, project or App), or leave the call out.",
+    "quota": "Wait until the quota resets at the time given, or ask an administrator for a larger quota; file space frees up when the App deletes files.",
+    "file-too-large": "Store a smaller object; one object is at most the limit given.",
+    "recipient-refused": "Send only to people of the organization whose e-mail address is verified.",
+    "no-model-key": "Ask an administrator of the organization to add or renew the model key, then try again.",
+    "no-json": "Ask again; the model's answer did not match the requested schema."
   },
   "jobs": {
     "title": "What you started",
