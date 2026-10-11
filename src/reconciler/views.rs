@@ -1011,12 +1011,16 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
 }
 
 /// The gateway's own account (context-gateway `GATEWAY_CLIENT`, T-3767): the hops it makes on
-/// nobody's behalf (a conditional write's probe, a held delete's unlink, a notification's read).
+/// nobody's behalf (a conditional write's probe, a held delete's unlink, a notification's read,
+/// a download's type list).
 const GATEWAY_CLIENT: &str = "context-gateway";
 
 /// The clauses those hops use: the unlinking's attribute patch, attribute delete and entity
-/// delete, the probes' retrieve and query, the stored subscription's retrieve.
-const GATEWAY_CLAUSES: &[&str] = &["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"];
+/// delete, the probes' retrieve and query, a download's type list (T-3790), the stored
+/// subscription's retrieve.
+const GATEWAY_CLAUSES: &[&str] = &[
+    "5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.3",
+];
 
 /// A rule document plus the one policy that admits the gateway's own hops; `@` keeps its id
 /// apart from every `{project}/{name}`.
@@ -1994,7 +1998,7 @@ mod tests {
             json!({"policies": [
                 {"id": "@context-gateway", "effect": "permit",
                  "assignee": {"kind": "serviceAccount", "id": "context-gateway"},
-                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"]}
+                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.3"]}
             ]})
         );
     }
@@ -2033,7 +2037,7 @@ mod tests {
                  "q": "weight>3", "scopeQ": "/city/#", "temporalQ": "timerel=after;timeAt=P-1D"},
                 {"id": "@context-gateway", "effect": "permit",
                  "assignee": {"kind": "serviceAccount", "id": "context-gateway"},
-                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"]}
+                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.3"]}
             ]})
         );
         assert!(desired.views.contains_key(SLUG) || desired.views.contains_key("cs-city-air"));
