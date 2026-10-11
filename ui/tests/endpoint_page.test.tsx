@@ -190,6 +190,10 @@ function renderPage({
     if (path.endsWith("/permissions/me")) {
       return json(permissions);
     }
+    // The filter proof's left side (T-3802): nothing under the draft, so the page shows no read error.
+    if (path.endsWith(`/endpoints/${NAME}/preview`)) {
+      return json({ entities: [], count: 0 });
+    }
     if (path.endsWith(`/endpoints/${NAME}`)) {
       return endpoint === null ? json({ title: "Not Found", detail: "no such endpoint" }, 404) : json(endpoint);
     }
