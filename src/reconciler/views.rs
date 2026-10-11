@@ -1309,6 +1309,14 @@ impl ViewSync {
         let projection = match &draft.projection {
             None => None,
             Some((classes, filter)) => {
+                // A window is the rule document's, which the preview does not replace: a
+                // draft's would be left out and the page read wider than the draft says.
+                if filter.as_ref().is_some_and(|f| f.temporal_q.is_some()) {
+                    return Err(
+                        "projection.filter.temporalQ: a draft's window is not previewed (G6)"
+                            .into(),
+                    );
+                }
                 // Only the classes, their slots and the filter reach the view; the references
                 // are the saved projection's, or neutral ones.
                 let data_model_ref = projection_of(&sources, saved).map_or_else(
@@ -2085,7 +2093,7 @@ mod tests {
             projection: Some((
                 vec![ProjectedClass {
                     name: "Car".into(),
-                    slots: Vec::new(),
+                    slots: vec!["speed".into()],
                 }],
                 Some(ProjectionFilter {
                     temporal_q: Some("timerel=after;timeAt=2026-01-01T00:00:00Z".into()),
@@ -2097,7 +2105,11 @@ mod tests {
         let reason = sync
             .draft_view("city", "air-public", &temporal)
             .expect_err("refused");
-        assert!(reason.contains("temporalQ"), "{reason}");
+        // the window would go to the rule document, which a preview does not replace
+        assert!(
+            reason.starts_with("projection.filter.temporalQ"),
+            "{reason}"
+        );
         assert_eq!(
             sync.draft_view("city", "elsewhere", &Draft::default()),
             Ok(None)
