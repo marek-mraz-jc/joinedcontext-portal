@@ -288,6 +288,7 @@ export function useAgentRun(project: string, runId: string | null) {
             endpointNames?: string[];
             pageContext?: { route: string };
             access?: components["schemas"]["Capabilities"];
+            scope?: string;
           },
     ) =>
       unwrap(

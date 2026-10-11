@@ -421,10 +421,28 @@ fn fits(files: &BTreeMap<String, String>, path: &str, bytes: usize) -> Result<()
     Ok(())
 }
 
-fn edit_file(files: &mut BTreeMap<String, String>, input: &Value) -> (String, bool) {
+/// Why `path` is refused in a turn scoped to one file (SDK-46), or None when it is that file or
+/// the turn has no scope.
+fn outside(scope: Option<&str>, path: &str) -> Option<String> {
+    scope.filter(|file| *file != path).map(|file| {
+        format!(
+            "this instruction may change {file} only, the file the person pointed at in the \
+             preview; finish and say what else would have to change"
+        )
+    })
+}
+
+fn edit_file(
+    files: &mut BTreeMap<String, String>,
+    input: &Value,
+    scope: Option<&str>,
+) -> (String, bool) {
     let Some(path) = clean_path(arg(input, "path")) else {
         return (code::REFUSAL.to_owned(), false);
     };
+    if let Some(refused) = outside(scope, &path) {
+        return (refused, false);
+    }
     let replace = arg(input, "replace");
     if let Err(reason) = fits(files, &path, replace.len()) {
         return (reason, false);
@@ -442,10 +460,17 @@ fn edit_file(files: &mut BTreeMap<String, String>, input: &Value) -> (String, bo
     }
 }
 
-fn write_file(files: &mut BTreeMap<String, String>, input: &Value) -> (String, bool) {
+fn write_file(
+    files: &mut BTreeMap<String, String>,
+    input: &Value,
+    scope: Option<&str>,
+) -> (String, bool) {
     let Some(path) = clean_path(arg(input, "path")).filter(|path| code::writable(path)) else {
         return (code::REFUSAL.to_owned(), false);
     };
+    if let Some(refused) = outside(scope, &path) {
+        return (refused, false);
+    }
     let content = arg(input, "content");
     if let Err(reason) = fits(files, &path, content.len()) {
         return (reason, false);
@@ -459,10 +484,17 @@ fn write_file(files: &mut BTreeMap<String, String>, input: &Value) -> (String, b
     (format!("{path}: {how}, {} bytes", content.len()), true)
 }
 
-fn delete_file(files: &mut BTreeMap<String, String>, input: &Value) -> (String, bool) {
+fn delete_file(
+    files: &mut BTreeMap<String, String>,
+    input: &Value,
+    scope: Option<&str>,
+) -> (String, bool) {
     let Some(path) = clean_path(arg(input, "path")).filter(|path| code::writable(path)) else {
         return (code::REFUSAL.to_owned(), false);
     };
+    if let Some(refused) = outside(scope, &path) {
+        return (refused, false);
+    }
     match files.remove(&path) {
         Some(_) => (format!("{path}: removed"), true),
         None => (format!("{path}: no such file"), false),
@@ -480,6 +512,20 @@ impl Driver {
         conversation: &mut Vec<(String, String)>,
         instruction: &str,
         on_screen: Option<&Shown>,
+    ) -> Result<Option<Shown>, String> {
+        self.scoped_edit_turn(files, committed, conversation, instruction, on_screen, None)
+            .await
+    }
+
+    /// `edit_turn` that may write `scope` only, the file a person pointed at (SDK-46).
+    pub(super) async fn scoped_edit_turn(
+        &self,
+        files: &mut BTreeMap<String, String>,
+        committed: &mut BTreeMap<String, String>,
+        conversation: &mut Vec<(String, String)>,
+        instruction: &str,
+        on_screen: Option<&Shown>,
+        scope: Option<&str>,
     ) -> Result<Option<Shown>, String> {
         let tools = tools();
         let (opening, whole) = self.edit_user_turn(files, conversation, instruction);
@@ -572,17 +618,17 @@ impl Driver {
                     "list_files" => (list_files(files), true),
                     "read_file" => read_again(files, &shown_whole, &call.input),
                     "edit_file" => {
-                        let done = edit_file(files, &call.input);
+                        let done = edit_file(files, &call.input, scope);
                         dirty |= done.1;
                         done
                     }
                     "write_file" => {
-                        let done = write_file(files, &call.input);
+                        let done = write_file(files, &call.input, scope);
                         dirty |= done.1;
                         done
                     }
                     "delete_file" => {
-                        let done = delete_file(files, &call.input);
+                        let done = delete_file(files, &call.input, scope);
                         dirty |= done.1;
                         done
                     }
@@ -1093,7 +1139,7 @@ mod tests {
     fn a_write_outside_the_sdk_paths_is_refused_and_writes_nothing() {
         let mut files = BTreeMap::new();
         for path in ["package.json", "../x.ts", "src/../../x.ts"] {
-            let (text, ok) = write_file(&mut files, &json!({ "path": path, "content": "x" }));
+            let (text, ok) = write_file(&mut files, &json!({ "path": path, "content": "x" }), None);
             assert!(!ok, "{path}");
             assert_eq!(text, code::REFUSAL);
         }
@@ -1101,6 +1147,7 @@ mod tests {
         let (_, ok) = write_file(
             &mut files,
             &json!({ "path": "src/pages/A.tsx", "content": "x" }),
+            None,
         );
         assert!(ok);
         assert_eq!(files.len(), 1);
@@ -1118,11 +1165,13 @@ mod tests {
         let (text, ok) = edit_file(
             &mut files,
             &json!({ "path": "src/A.ts", "search": "let q = 7;", "replace": "let a = 3;" }),
+            None,
         );
         assert!(!ok, "{text}");
         let (_, ok) = edit_file(
             &mut files,
             &json!({ "path": "src/A.ts", "search": "let a = 1;", "replace": "let a = 3;" }),
+            None,
         );
         assert!(ok);
         assert!(files["src/A.ts"].starts_with("let a = 3;\nlet b = 2;"));
@@ -1741,6 +1790,63 @@ mod tests {
                     .to_owned()
             })
             .collect()
+    }
+
+    /// SDK-46: a turn scoped to the file the person pointed at refuses a write, an edit or a
+    /// delete anywhere else as a tool error, and the model reads why.
+    #[tokio::test]
+    async fn a_scoped_turn_changes_the_pointed_file_only() {
+        let server = wiremock::MockServer::start().await;
+        let card = "export const Card = () => (\n  <h2 className=\"t\">Station</h2>\n);\n";
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [
+                    { "type": "tool_use", "id": "w", "name": "write_file", "input": { "path": "src/pages/Other.tsx", "content": "export const X = 1;" } },
+                    { "type": "tool_use", "id": "d", "name": "delete_file", "input": { "path": "src/App.tsx" } },
+                    { "type": "tool_use", "id": "e", "name": "edit_file", "input": { "path": "src/App.tsx", "search": "app", "replace": "changed" } },
+                    { "type": "tool_use", "id": "c", "name": "edit_file", "input": { "path": "src/pages/Card.tsx", "search": "  <h2 className=\"t\">Station</h2>", "replace": "  <h2 className=\"t red\">Station</h2>" } }
+                ],
+                "usage": { "input_tokens": 1_000, "output_tokens": 30 },
+            })))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "text", "text": "The title is red now." }],
+                "usage": { "input_tokens": 1_000, "output_tokens": 10 },
+            })))
+            .mount(&server)
+            .await;
+        let driver = edit_driver(&server).await;
+        let mut files = BTreeMap::from([
+            ("src/App.tsx".to_owned(), "app".to_owned()),
+            ("src/pages/Card.tsx".to_owned(), card.to_owned()),
+        ]);
+        driver
+            .scoped_edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut Vec::new(),
+                "make the title red",
+                None,
+                Some("src/pages/Card.tsx"),
+            )
+            .await
+            .expect("the turn ends");
+
+        assert_eq!(files["src/App.tsx"], "app");
+        assert!(!files.contains_key("src/pages/Other.tsx"));
+        assert!(files["src/pages/Card.tsx"].contains("className=\"t red\""));
+        let second = server.received_requests().await.expect("recorded")[1].clone();
+        let sent = String::from_utf8_lossy(&second.body).into_owned();
+        assert_eq!(
+            sent.matches("may change src/pages/Card.tsx only").count(),
+            3,
+            "{sent}"
+        );
     }
 
     /// T-2467: a model that makes one trivial call after another is cut off at the ceiling

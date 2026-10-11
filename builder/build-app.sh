@@ -155,6 +155,7 @@ else
   rm -rf "$OUT/functions" "$OUT/.gitea"
 fi
 [ -s "$OUT/index.html" ] || fail "the bundle has no index.html"
+node "$LANE/lane.mjs" unstamped "$OUT" || fail "the bundle carries the preview's source stamps (SDK-46)"
 # Every page of the bundle at 375, 768, 1440 and 2560 px, by the App's own e2e/ suite on the
 # image's Chromium (T-2827): a red width fails the build, the log names the width, the check and
 # the element, and the report with its screenshots goes up with the build.

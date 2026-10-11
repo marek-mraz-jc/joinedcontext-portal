@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import * as lane from "./lane.mjs";
-import { appOf, artifactScope, browserChecks, bundleFunctions, cratesOf, functionEntries, isHttpComponent, lockManifest, serverRefusals, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
+import { appOf, artifactScope, browserChecks, bundleFunctions, cratesOf, functionEntries, isHttpComponent, lockManifest, serverRefusals, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, stampedFiles, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -832,6 +832,24 @@ test("a component is told apart from a core module, by its own export section", 
   // A section that claims more bytes than the file has, and no file at all.
   assert.equal(isHttpComponent(component([11, 0x7f, ...name])), false);
   assert.equal(isHttpComponent(new Uint8Array(0)), false);
+});
+
+test("a bundle that carries the preview's data-jc-src stamp is named, a clean one passes (SDK-46)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "jc-unstamped-"));
+  try {
+    mkdirSync(join(dir, "assets"));
+    writeFileSync(join(dir, "index.html"), "<div id=root></div>");
+    writeFileSync(join(dir, "assets", "index-1.js"), 'jsx("h2", { children: n })');
+    writeFileSync(join(dir, "assets", "notes.txt"), "data-jc-src in prose is not code");
+    assert.deepEqual(stampedFiles(dir), []);
+    writeFileSync(join(dir, "assets", "index-2.js"), 'jsx("h2", { "data-jc-src": "src/App.tsx:4" })');
+    assert.deepEqual(stampedFiles(dir), [join("assets", "index-2.js")]);
+    const cli = spawnSync(process.execPath, [new URL("./lane.mjs", import.meta.url).pathname, "unstamped", dir], { encoding: "utf8" });
+    assert.equal(cli.status, 1);
+    assert.match(cli.stderr, /assets\/index-2\.js \(SDK-46\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // AP-147: server code that names a socket, the environment, the file system or a process is

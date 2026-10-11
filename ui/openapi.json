@@ -4148,7 +4148,8 @@
                 "$ref": "#/components/schemas/MessageRequest"
               },
               "example": {
-                "text": "Show only stations with fewer than three bikes"
+                "scope": "src/pages/Stations.tsx:14",
+                "text": "Make this title red"
               }
             }
           },
@@ -18679,6 +18680,13 @@
                 "description": "On a conversation: the page the person is on as they send it (T-2763)."
               }
             ]
+          },
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "On an application run: the `src` of the preview's `jc-select`, `{file}:{line}`; the\nediting agent changes that file only for this message (SDK-46)."
           },
           "text": {
             "type": "string"

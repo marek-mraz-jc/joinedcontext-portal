@@ -3957,7 +3957,9 @@
       "notBuilt": "The application could not be built yet",
       "retry": "Send a message to try again",
       "none": "This run ended before it showed anything.",
-      "elapsed": "{seconds} s since the run started"
+      "elapsed": "{seconds} s since the run started",
+      "select": "Point at an element",
+      "selecting": "Click an element in the preview…"
     },
     "chat": {
       "show": "Show the assistant",
@@ -4308,7 +4310,9 @@
       "data": "Data and capabilities",
       "showData": "Show the data and capabilities",
       "hideData": "Hide the data and capabilities"
-    }
+    },
+    "picked": "Editing {src} only",
+    "pickedClear": "Edit everything"
   },
   "permissions": {
     "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project"

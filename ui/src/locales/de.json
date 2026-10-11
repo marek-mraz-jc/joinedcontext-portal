@@ -3957,7 +3957,9 @@
       "notBuilt": "Die Anwendung konnte noch nicht erstellt werden",
       "retry": "Senden Sie eine Nachricht, um es erneut zu versuchen",
       "none": "Dieser Lauf endete, bevor er etwas gezeigt hat.",
-      "elapsed": "{seconds} s seit dem Start"
+      "elapsed": "{seconds} s seit dem Start",
+      "select": "Auf ein Element zeigen",
+      "selecting": "Klicken Sie auf ein Element in der Vorschau…"
     },
     "chat": {
       "show": "Assistenten einblenden",
@@ -4308,7 +4310,9 @@
       "data": "Daten und Fähigkeiten",
       "showData": "Daten und Fähigkeiten anzeigen",
       "hideData": "Daten und Fähigkeiten ausblenden"
-    }
+    },
+    "picked": "Nur {src} wird bearbeitet",
+    "pickedClear": "Alles bearbeiten"
   },
   "permissions": {
     "denied": "Deaktiviert: Ihre Rolle erlaubt ''{verb}'' auf ''{kind}'' in diesem Projekt nicht"

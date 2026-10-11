@@ -12,7 +12,7 @@
     "src/assistant/AssistantDock.tsx": {
       "controls": {
         "button": 1,
-        "Button": 11
+        "Button": 12
       },
       "tests": [
         "agent_run.test.tsx",
@@ -22,6 +22,7 @@
         "assistant_full_screen.test.tsx",
         "assistant_layout.test.tsx",
         "assistant_open.test.tsx",
+        "assistant_picked.test.tsx",
         "assistant_turns.test.tsx",
         "form_assistant_dock.test.tsx"
       ]
@@ -699,7 +700,7 @@
     },
     "src/pages/apps/AgentRunPage.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 6
       },
       "tests": [
         "agent_run.test.tsx",
