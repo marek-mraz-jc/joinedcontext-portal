@@ -689,7 +689,7 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 [[package]]
 name = "context-gateway"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=89b838c14dc43e456f93982294c4d64f5397c4e6#89b838c14dc43e456f93982294c4d64f5397c4e6"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=4db300485c75de7399be942ce0ea9ec6c75b3a46#4db300485c75de7399be942ce0ea9ec6c75b3a46"
 dependencies = [
  "antares-jsonld",
  "antares-ql",
@@ -2516,7 +2516,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=89b838c14dc43e456f93982294c4d64f5397c4e6#89b838c14dc43e456f93982294c4d64f5397c4e6"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=4db300485c75de7399be942ce0ea9ec6c75b3a46#4db300485c75de7399be942ce0ea9ec6c75b3a46"
 dependencies = [
  "axum",
  "chrono",
@@ -2535,7 +2535,7 @@ dependencies = [
 [[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=89b838c14dc43e456f93982294c4d64f5397c4e6#89b838c14dc43e456f93982294c4d64f5397c4e6"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=4db300485c75de7399be942ce0ea9ec6c75b3a46#4db300485c75de7399be942ce0ea9ec6c75b3a46"
 dependencies = [
  "aes-gcm",
  "age",
@@ -3236,7 +3236,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.21.7",
  "chrono",
  "getrandom 0.2.17",
  "http",

@@ -31,6 +31,8 @@ const MANAGED_BY: &str = "app.kubernetes.io/managed-by";
 const MANAGED_VALUE: &str = "joinedcontext-portal";
 const COMPONENT: &str = "app.kubernetes.io/component";
 const COMPONENT_VALUE: &str = "app-host";
+/// The component of the objects of a hostname on the Organization's own domain (AP-172).
+const HOSTNAME_COMPONENT: &str = "app-hostname";
 const APP_LABEL: &str = crate::apps::reconciler::APP_LABEL;
 const CERTIFICATE_API: &str = "cert-manager.io/v1";
 const INGRESS_API: &str = "networking.k8s.io/v1";
@@ -55,21 +57,58 @@ fn labels(app: &str) -> Value {
     json!({ MANAGED_BY: MANAGED_VALUE, COMPONENT: COMPONENT_VALUE, APP_LABEL: app })
 }
 
+/// The name of both objects of one hostname of an App (AP-172), as its edge route is named.
+fn hostname_object(app: &str, hostname: &str) -> String {
+    format!(
+        "app-{app}-at-{}",
+        crate::reconciler::edge_file::hostname_key(hostname)
+    )
+}
+
+fn hostname_labels(app: &str) -> Value {
+    json!({ MANAGED_BY: MANAGED_VALUE, COMPONENT: HOSTNAME_COMPONENT, APP_LABEL: app })
+}
+
 /// The App this wave created `object` for, or `None` when it is somebody else's.
 fn managed_app(object: &Value) -> Option<&str> {
+    managed_as(object, COMPONENT_VALUE)
+}
+
+fn managed_as<'a>(object: &'a Value, component: &str) -> Option<&'a str> {
     let labels = &object["metadata"]["labels"];
-    (labels[MANAGED_BY] == MANAGED_VALUE && labels[COMPONENT] == COMPONENT_VALUE)
+    (labels[MANAGED_BY] == MANAGED_VALUE && labels[COMPONENT] == component)
         .then(|| labels[APP_LABEL].as_str())
         .flatten()
 }
 
 /// The certificate of one App's host, from the edge certificate's issuer.
 pub fn certificate(namespace: &str, app: &str, host: &str, issuer_ref: &Value) -> Value {
-    let name = object_name(app);
+    named_certificate(namespace, &object_name(app), labels(app), host, issuer_ref)
+}
+
+/// The certificate of one hostname of an App on its Organization's domain, by HTTP-01 from the
+/// edge certificate's issuer: the wildcard names `*.apps.{domain}` only (AP-172).
+pub fn hostname_certificate(
+    namespace: &str,
+    app: &str,
+    hostname: &str,
+    issuer_ref: &Value,
+) -> Value {
+    let name = hostname_object(app, hostname);
+    named_certificate(namespace, &name, hostname_labels(app), hostname, issuer_ref)
+}
+
+fn named_certificate(
+    namespace: &str,
+    name: &str,
+    labels: Value,
+    host: &str,
+    issuer_ref: &Value,
+) -> Value {
     json!({
         "apiVersion": CERTIFICATE_API,
         "kind": "Certificate",
-        "metadata": { "name": name, "namespace": namespace, "labels": labels(app) },
+        "metadata": { "name": name, "namespace": namespace, "labels": labels },
         "spec": {
             "secretName": format!("{name}-tls"),
             "issuerRef": issuer_ref,
@@ -81,6 +120,27 @@ pub fn certificate(namespace: &str, app: &str, host: &str, issuer_ref: &Value) -
 /// The edge Ingress of one App's host: the chart's class, its TLS and listener annotations and
 /// its backend, for this host alone. `None` when the template has no backend to copy.
 pub fn ingress(template: &Value, namespace: &str, app: &str, host: &str) -> Option<Value> {
+    named_ingress(template, namespace, &object_name(app), labels(app), host)
+}
+
+/// The edge Ingress of one hostname of an App (AP-172), as [`ingress`] is of its host.
+pub fn hostname_ingress(
+    template: &Value,
+    namespace: &str,
+    app: &str,
+    hostname: &str,
+) -> Option<Value> {
+    let name = hostname_object(app, hostname);
+    named_ingress(template, namespace, &name, hostname_labels(app), hostname)
+}
+
+fn named_ingress(
+    template: &Value,
+    namespace: &str,
+    name: &str,
+    labels: Value,
+    host: &str,
+) -> Option<Value> {
     let path = template["spec"]["rules"][0]["http"]["paths"][0].clone();
     if !path["backend"].is_object() {
         return None;
@@ -94,7 +154,6 @@ pub fn ingress(template: &Value, namespace: &str, app: &str, host: &str) -> Opti
         .filter(|(key, _)| !key.starts_with("cert-manager.io/"))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
-    let name = object_name(app);
     let mut spec = json!({
         "tls": [{ "hosts": [host], "secretName": format!("{name}-tls") }],
         "rules": [{ "host": host, "http": { "paths": [path] } }],
@@ -108,7 +167,7 @@ pub fn ingress(template: &Value, namespace: &str, app: &str, host: &str) -> Opti
         "metadata": {
             "name": name,
             "namespace": namespace,
-            "labels": labels(app),
+            "labels": labels,
             "annotations": annotations,
         },
         "spec": spec,
@@ -155,6 +214,12 @@ pub fn wildcard_serves(wildcard: &Value, edge: &Value, apex: &str) -> bool {
             .into_iter()
             .flatten()
             .any(|tls| names(&tls["hosts"]) && &tls["secretName"] == secret)
+}
+
+fn no_backend() -> HostState {
+    HostState::Failed(format!(
+        "the edge Ingress {EDGE_INGRESS} routes no backend to copy"
+    ))
 }
 
 /// A kube error as a sentence that names the object and the status, never the body sent.
@@ -227,39 +292,141 @@ impl AppHosts {
                 "the wildcard certificate was not read; each App host keeps a certificate of its own"
             ),
         }
-        let issuer = match self
-            .kube
-            .get(CERTIFICATE_API, "Certificate", ns, EDGE_CERTIFICATE)
-            .await
-        {
-            Ok(Some(edge)) if edge["spec"]["issuerRef"].is_object() => {
-                edge["spec"]["issuerRef"].clone()
-            }
-            Ok(_) => {
-                return failed_all(format!(
-                    "the edge Certificate {EDGE_CERTIFICATE} in {ns} names no issuer to request an App's from"
-                ))
-            }
-            Err(err) => return failed_all(said(&format!("Certificate {EDGE_CERTIFICATE}"), &err)),
+        let issuer = match self.issuer().await {
+            Ok(issuer) => issuer,
+            Err(reason) => return failed_all(reason),
         };
 
         let mut states = BTreeMap::new();
         for app in published {
             let host = crate::reconciler::edge_file::app_host(app, apex);
-            let state = self.host(&template, &issuer, app, &host).await;
+            let state = match ingress(&template, ns, app, &host) {
+                Some(wanted) => {
+                    let wanted_certificate = certificate(ns, app, &host, &issuer);
+                    self.host(wanted, wanted_certificate, app, COMPONENT_VALUE)
+                        .await
+                }
+                None => no_backend(),
+            };
             states.insert(app.clone(), state);
         }
         states
     }
 
-    async fn host(&self, template: &Value, issuer: &Value, app: &str, host: &str) -> HostState {
+    /// The issuer of the edge's own certificate, which every App certificate is requested from.
+    async fn issuer(&self) -> Result<Value, String> {
         let ns = self.namespace.as_str();
-        let name = object_name(app);
-        let Some(wanted_ingress) = ingress(template, ns, app, host) else {
-            return HostState::Failed(format!(
-                "the edge Ingress {EDGE_INGRESS} routes no backend to copy"
-            ));
+        match self
+            .kube
+            .get(CERTIFICATE_API, "Certificate", ns, EDGE_CERTIFICATE)
+            .await
+        {
+            Ok(Some(edge)) if edge["spec"]["issuerRef"].is_object() => {
+                Ok(edge["spec"]["issuerRef"].clone())
+            }
+            Ok(_) => Err(format!(
+                "the edge Certificate {EDGE_CERTIFICATE} in {ns} names no issuer to request an App's from"
+            )),
+            Err(err) => Err(said(&format!("Certificate {EDGE_CERTIFICATE}"), &err)),
+        }
+    }
+
+    /// Brings the hostnames of the Organization's domain to `wanted`, App → its routed names
+    /// (AP-172): each gets an Ingress and a certificate of its own by HTTP-01, the wildcard or
+    /// not, created once. Returns each name's state.
+    pub async fn converge_hostnames(
+        &self,
+        wanted: &BTreeMap<String, Vec<String>>,
+    ) -> BTreeMap<String, HostState> {
+        let names = wanted.values().flatten();
+        if wanted.values().all(Vec::is_empty) {
+            return BTreeMap::new();
+        }
+        let ns = self.namespace.as_str();
+        let parts = match self
+            .kube
+            .get(INGRESS_API, "Ingress", ns, EDGE_INGRESS)
+            .await
+        {
+            Ok(Some(template)) => self.issuer().await.map(|issuer| (template, issuer)),
+            Ok(None) => Err(format!(
+                "the edge Ingress {EDGE_INGRESS} is not in {ns}; the apisix chart renders it"
+            )),
+            Err(err) => Err(said(&format!("Ingress {EDGE_INGRESS}"), &err)),
         };
+        let (template, issuer) = match parts {
+            Ok(parts) => parts,
+            Err(reason) => {
+                return names
+                    .map(|name| (name.clone(), HostState::Failed(reason.clone())))
+                    .collect()
+            }
+        };
+        let mut states = BTreeMap::new();
+        for (app, hostnames) in wanted {
+            for hostname in hostnames {
+                let state = match hostname_ingress(&template, ns, app, hostname) {
+                    Some(wanted) => {
+                        let wanted_certificate = hostname_certificate(ns, app, hostname, &issuer);
+                        self.host(wanted, wanted_certificate, app, HOSTNAME_COMPONENT)
+                            .await
+                    }
+                    None => no_backend(),
+                };
+                states.insert(hostname.clone(), state);
+            }
+        }
+        states
+    }
+
+    /// Deletes the objects of every hostname not in `wanted`: removed from its App, its domain
+    /// lapsed, or its App retired (AP-172). `wanted` must be complete, as for [`AppHosts::retire`].
+    pub async fn retire_hostnames(&self, wanted: &BTreeMap<String, Vec<String>>) {
+        let ns = self.namespace.as_str();
+        let keep: BTreeSet<String> = wanted
+            .iter()
+            .flat_map(|(app, names)| names.iter().map(|name| hostname_object(app, name)))
+            .collect();
+        let selector = format!("{MANAGED_BY}={MANAGED_VALUE},{COMPONENT}={HOSTNAME_COMPONENT}");
+        for (api, kind) in [(CERTIFICATE_API, "Certificate"), (INGRESS_API, "Ingress")] {
+            let held = match self.kube.list(api, kind, ns, &selector).await {
+                Ok(held) => held,
+                Err(err) => {
+                    tracing::warn!(error = %said(kind, &err), "app hostnames were not listed");
+                    continue;
+                }
+            };
+            for object in held {
+                let Some(name) = object["metadata"]["name"].as_str() else {
+                    continue;
+                };
+                if managed_as(&object, HOSTNAME_COMPONENT).is_none() || keep.contains(name) {
+                    continue;
+                }
+                match self.kube.delete(api, kind, ns, name).await {
+                    Ok(()) => tracing::info!(%name, kind, "App hostname no longer routed: removed"),
+                    Err(err) => {
+                        tracing::warn!(%name, error = %said(&format!("{kind} {name}"), &err), "App hostname not removed")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Creates `wanted_certificate` and `wanted_ingress` once, and reads the certificate's state;
+    /// an object of that name `component` did not make for `app` is never touched.
+    async fn host(
+        &self,
+        wanted_ingress: Value,
+        wanted_certificate: Value,
+        app: &str,
+        component: &str,
+    ) -> HostState {
+        let ns = self.namespace.as_str();
+        let name = wanted_certificate["metadata"]["name"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
         let held = match self
             .kube
             .get(CERTIFICATE_API, "Certificate", ns, &name)
@@ -271,16 +438,12 @@ impl AppHosts {
         let state = match held {
             None => {
                 // Requested once: from here on the Certificate exists and cert-manager renews it.
-                if let Err(err) = self
-                    .kube
-                    .create(&certificate(ns, app, host, issuer))
-                    .await
-                {
+                if let Err(err) = self.kube.create(&wanted_certificate).await {
                     return HostState::Failed(said(&format!("Certificate {name}"), &err));
                 }
                 HostState::Pending("the certificate is requested".to_owned())
             }
-            Some(held) if managed_app(&held) != Some(app) => {
+            Some(held) if managed_as(&held, component) != Some(app) => {
                 return HostState::Failed(format!(
                     "a Certificate {name} in {ns} exists that the Portal did not create; rename the App or remove it"
                 ))
@@ -292,7 +455,7 @@ impl AppHosts {
                 Ok(()) => state,
                 Err(err) => HostState::Failed(said(&format!("Ingress {name}"), &err)),
             },
-            Ok(Some(held)) if managed_app(&held) != Some(app) => HostState::Failed(format!(
+            Ok(Some(held)) if managed_as(&held, component) != Some(app) => HostState::Failed(format!(
                 "an Ingress {name} in {ns} exists that the Portal did not create; rename the App or remove it"
             )),
             Ok(Some(_)) => state,
@@ -414,6 +577,35 @@ mod tests {
         assert_eq!(made["spec"]["secretName"], "app-bikes-tls");
         assert_eq!(made["spec"]["issuerRef"], issuer);
         assert_eq!(managed_app(&made), Some("bikes"));
+    }
+
+    /// AP-172: a hostname of the Organization's domain gets its own Ingress and HTTP-01
+    /// certificate, named after its edge route and never taken for the App's host objects.
+    #[test]
+    fn a_hostname_gets_an_ingress_and_a_certificate_of_its_own() {
+        let issuer = json!({ "name": "letsencrypt-prod", "kind": "ClusterIssuer" });
+        let key = crate::reconciler::edge_file::hostname_key("bikes.hel.fi");
+        let made = hostname_certificate("apisix", "bikes", "bikes.hel.fi", &issuer);
+        assert_eq!(made["metadata"]["name"], format!("app-bikes-at-{key}"));
+        assert_eq!(made["spec"]["dnsNames"], json!(["bikes.hel.fi"]));
+        assert_eq!(
+            made["spec"]["secretName"],
+            format!("app-bikes-at-{key}-tls")
+        );
+        assert_eq!(made["spec"]["issuerRef"], issuer);
+        assert_eq!(managed_as(&made, HOSTNAME_COMPONENT), Some("bikes"));
+        assert_eq!(managed_app(&made), None, "not the App's host certificate");
+
+        let made =
+            hostname_ingress(&template(), "apisix", "bikes", "bikes.hel.fi").expect("an Ingress");
+        assert_eq!(made["metadata"]["name"], format!("app-bikes-at-{key}"));
+        assert_eq!(made["spec"]["rules"][0]["host"], "bikes.hel.fi");
+        assert_eq!(
+            made["spec"]["tls"],
+            json!([{ "hosts": ["bikes.hel.fi"], "secretName": format!("app-bikes-at-{key}-tls") }])
+        );
+        assert!(!made.to_string().contains("cert-manager.io/"));
+        assert_eq!(managed_as(&made, HOSTNAME_COMPONENT), Some("bikes"));
     }
 
     #[test]

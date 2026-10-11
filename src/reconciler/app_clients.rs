@@ -109,10 +109,12 @@ struct PublishedApp {
     title: String,
     /// `None` when the manifest does not parse: the client is still kept, its roles are not.
     spec: Option<AppSpec>,
+    /// The names of the Organization's verified domain the edge routes for it (AP-172).
+    hostnames: Vec<String>,
 }
 
 /// The published Apps of the mirror, sorted by name so a run is deterministic.
-fn published(mirror: &Mirror) -> Vec<PublishedApp> {
+fn published(mirror: &Mirror, apex: &str) -> Vec<PublishedApp> {
     let mut apps: Vec<PublishedApp> = mirror
         .matching(|envelope| {
             envelope.kind == "App"
@@ -120,11 +122,22 @@ fn published(mirror: &Mirror) -> Vec<PublishedApp> {
                     == Some(AppLifecycle::Published.as_str())
         })
         .into_iter()
-        .map(|envelope| PublishedApp {
-            project: envelope.metadata.namespace.clone().unwrap_or_default(),
-            title: title_of(&envelope),
-            name: envelope.metadata.name,
-            spec: serde_json::from_value(envelope.spec).ok(),
+        .map(|envelope| {
+            let project = envelope.metadata.namespace.clone().unwrap_or_default();
+            let hostnames = crate::apps::hostnames::routed(
+                mirror,
+                &project,
+                &envelope.metadata.name,
+                &envelope.spec,
+                apex,
+            );
+            PublishedApp {
+                project,
+                title: title_of(&envelope),
+                name: envelope.metadata.name,
+                spec: serde_json::from_value(envelope.spec).ok(),
+                hostnames,
+            }
         })
         .collect();
     apps.sort_by(|a, b| a.name.cmp(&b.name));
@@ -145,13 +158,14 @@ pub fn title_of(app: &ResourceEnvelope) -> String {
 }
 
 /// The client an App should have, as Keycloak's representation (AP-111). `host` is the apex
-/// the apps' hosts sit under, `city.example.com`; `title` is [`title_of`] the App.
-pub fn desired(project: &str, app: &str, title: &str, host: &str) -> Value {
-    let origin = format!(
-        "https://{}",
-        crate::reconciler::edge_file::app_host(app, host)
-    );
-    let base = format!("{origin}/");
+/// the apps' hosts sit under, `city.example.com`; `title` is [`title_of`] the App; `hostnames`
+/// the names of the Organization's domain the edge routes for it (AP-172).
+pub fn desired(project: &str, app: &str, title: &str, host: &str, hostnames: &[String]) -> Value {
+    let origins: Vec<String> = std::iter::once(crate::reconciler::edge_file::app_host(app, host))
+        .chain(hostnames.iter().cloned())
+        .map(|host| format!("https://{host}"))
+        .collect();
+    let redirects: Vec<String> = origins.iter().map(|origin| format!("{origin}/*")).collect();
     json!({
         "clientId": client_id(app),
         "name": title,
@@ -164,11 +178,12 @@ pub fn desired(project: &str, app: &str, title: &str, host: &str) -> Value {
         "directAccessGrantsEnabled": false,
         "serviceAccountsEnabled": false,
         "frontchannelLogout": true,
-        "redirectUris": [format!("{base}*")],
-        "webOrigins": [origin],
+        "redirectUris": redirects,
+        "webOrigins": origins,
         "attributes": {
             "pkce.code.challenge.method": "S256",
-            "post.logout.redirect.uris": format!("{base}*"),
+            // Keycloak reads several post-logout URIs from one attribute, `##` between them.
+            "post.logout.redirect.uris": redirects.join("##"),
             // The edge verifies RS256, as it does for the shared `edge` client (AP-27).
             "access.token.signed.response.alg": "RS256",
             "id.token.signed.response.alg": "RS256",
@@ -849,7 +864,7 @@ impl AppClientSync {
             None => Ok(token.clone()),
         };
 
-        let apps = published(mirror);
+        let apps = published(mirror, &self.host);
         let wanted: BTreeSet<String> = apps.iter().map(|app| client_id(&app.name)).collect();
         let mut index = RealmIndex::default();
         for app in &apps {
@@ -958,7 +973,13 @@ impl AppClientSync {
     ) -> (ClientOutcome, Option<ClientSecret>) {
         let mut outcome = ClientOutcome::of(&app.name);
         let id = client_id(&app.name);
-        let want = desired(&app.project, &app.name, &app.title, &self.host);
+        let want = desired(
+            &app.project,
+            &app.name,
+            &app.title,
+            &self.host,
+            &app.hostnames,
+        );
 
         let held = match self.admin.find(token, &id).await {
             Ok(held) => held,
@@ -1127,7 +1148,7 @@ mod tests {
         let untitled = envelope_of(json!({ "name": "bikes", "namespace": "helsinki" }));
         assert_eq!(title_of(&untitled), "bikes");
         assert_eq!(
-            desired("helsinki", "bikes", "City bikes", "city.example")["name"],
+            desired("helsinki", "bikes", "City bikes", "city.example", &[])["name"],
             "City bikes"
         );
     }
@@ -1146,9 +1167,38 @@ mod tests {
         assert_eq!(secret.expose(), "hunter2-value");
     }
 
+    /// AP-172: a routed hostname is one more redirect URI and web origin of the App's own
+    /// client, and nothing else changes.
+    #[test]
+    fn the_client_redirects_to_its_hostnames_too() {
+        let want = desired(
+            "helsinki",
+            "bikes",
+            "Bikes",
+            "city.example",
+            &["bikes.hel.fi".to_owned()],
+        );
+        assert_eq!(
+            want["redirectUris"],
+            json!([
+                "https://bikes.apps.city.example/*",
+                "https://bikes.hel.fi/*"
+            ])
+        );
+        assert_eq!(
+            want["webOrigins"],
+            json!(["https://bikes.apps.city.example", "https://bikes.hel.fi"])
+        );
+        assert_eq!(
+            want["attributes"]["post.logout.redirect.uris"],
+            "https://bikes.apps.city.example/*##https://bikes.hel.fi/*"
+        );
+        assert_eq!(want["clientId"], "app-bikes");
+    }
+
     #[test]
     fn the_client_redirects_only_to_its_own_host_and_has_no_other_flow() {
-        let want = desired("helsinki", "bikes", "Bikes", "city.example");
+        let want = desired("helsinki", "bikes", "Bikes", "city.example", &[]);
         assert_eq!(want["clientId"], "app-bikes");
         // Its own host alone (AP-133): not the apex, not another App's host.
         assert_eq!(
@@ -1174,7 +1224,7 @@ mod tests {
 
     #[test]
     fn drift_names_only_the_fields_the_app_sets() {
-        let want = desired("helsinki", "bikes", "Bikes", "city.example");
+        let want = desired("helsinki", "bikes", "Bikes", "city.example", &[]);
         let mut held = want.clone();
         held["id"] = json!("uuid-1");
         held["surrogateAuthRequired"] = json!(false);
