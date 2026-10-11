@@ -15,17 +15,17 @@
 //! - the writer owns the ids an Endpoint slug can be (`^[a-z2-7]{26,63}$`) and the ids starting
 //!   with `cs-`; a view written by hand under any other id is never deleted;
 //! - an Endpoint the view cannot express is not written and its status says why: a slug over 63
-//!   characters, over 256 types, a projection `temporalQ` (no view member, G6), a
-//!   `viewMappingRef` (a transform, G18), hidden Attributes on a type shown whole. It stays on
-//!   the gateway path;
+//!   characters, over 256 types, a projection `temporalQ` (no view member, G6), hidden
+//!   Attributes on a type shown whole, a `viewMappingRef` whose Mapping has no usable IR. It
+//!   stays on the gateway path;
 //! - the broker's admin token is read from the file its Secret is mounted at, on every run, and
 //!   travels only in the `Authorization` header: never in a log, a status or an outcome.
 
 use jc_core::envelope::ORG_NAMESPACE;
 use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
-    ContextSpaceSpec, DataModelLifecycle, DataModelSpec, EndpointSpec, ModelProjectionSpec,
-    Operation, OperationRef, PolicySpec, PrincipalKind,
+    ContextSpaceSpec, DataModelLifecycle, DataModelSpec, EndpointSpec, MappingSpec,
+    ModelProjectionSpec, Operation, OperationRef, PolicySpec, PrincipalKind,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
@@ -45,6 +45,23 @@ const MAX_NAMES: usize = 256;
 
 /// The most rules one view holds.
 const MAX_RULES: usize = 64;
+
+/// The rows a view of another model may list (Antares `mapping::READS`, view-mapping.md
+/// section 7): the reads the broker inverts and rebuilds. Any other row a Policy grants is left
+/// out of a mapped view.
+const MAPPED_READS: [&str; 11] = [
+    "retrieve_entity",
+    "query_entities",
+    "retrieve_attribute_value",
+    "temporal_retrieve",
+    "temporal_query",
+    "retrieve_entity_types",
+    "retrieve_entity_type_details",
+    "retrieve_entity_type_info",
+    "retrieve_attributes",
+    "retrieve_attribute_details",
+    "retrieve_attribute_info",
+];
 
 /// What the view of a Context Space's own surface (`/cs/{space}`) is called before its segment.
 pub const SPACE_VIEW_PREFIX: &str = "cs-";
@@ -139,10 +156,21 @@ pub struct Sources {
     /// Every App by `(project, name)`: its generated Endpoint `app-{name}` evaluates the App's
     /// own grants and the space's prohibitions alone (AP-139).
     pub apps: BTreeSet<(String, String)>,
+    /// Every Mapping by `(project, name)`.
+    pub mappings: BTreeMap<(String, String), MappingSource>,
     /// Each Context Space's data model by `(project, space)`: the source its `dataModelRef`
     /// names and every platform model that imports, or why they do not read. A space without
     /// `dataModelRef` has none, and its tenant no schema.
     pub models: BTreeMap<(String, String), Result<ModelSource, String>>,
+}
+
+/// One Mapping as a view of another model needs it (G18).
+#[derive(Debug, Clone)]
+pub struct MappingSource {
+    /// The Context Space it belongs to.
+    pub space: String,
+    /// Its `spec.artifacts.gatewayIr` document, or why there is none to embed.
+    pub ir: Result<Value, String>,
 }
 
 /// One space's data model as Model Tools compiles it (`POST /generate`, DM-76).
@@ -222,6 +250,36 @@ impl Sources {
                 }
                 "App" => {
                     sources.apps.insert((project, id.name.clone()));
+                }
+                "Mapping" => {
+                    let Ok(spec) = serde_json::from_value::<MappingSpec>(spec.clone()) else {
+                        continue;
+                    };
+                    let ir = match &spec.artifacts.gateway_ir {
+                        None => Err(format!(
+                            "the Mapping {} has no spec.artifacts.gatewayIr",
+                            id.name
+                        )),
+                        Some(relative) => crate::pipeline_validation::beside(
+                            repo.root(),
+                            &resource.path,
+                            relative,
+                        )
+                        .ok_or_else(|| {
+                            format!(
+                                "the gatewayIr {relative:?} of the Mapping {} is no JSON file \
+                                 in the repository",
+                                id.name
+                            )
+                        }),
+                    };
+                    sources.mappings.insert(
+                        (project, id.name.clone()),
+                        MappingSource {
+                            space: spec.context_space_ref,
+                            ir,
+                        },
+                    );
                 }
                 _ => {}
             }
@@ -492,13 +550,7 @@ pub fn desired(sources: &Sources) -> Desired {
 
 /// The view of one Endpoint (plan 2.1), or why it has none.
 fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String> {
-    if e.spec.view_mapping_ref.is_some() {
-        return Err(
-            "viewMappingRef serves another model, which a view cannot (G18): the \
-                    Endpoint stays on the gateway"
-                .into(),
-        );
-    }
+    let mapping = view_mapping(sources, e)?;
     let id = e.spec.slug.to_string();
     if id.len() > MAX_ID {
         return Err(format!(
@@ -564,7 +616,34 @@ fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String>
         }
         None => granted(&permits, &sources.classes_of(&e.project, space))?,
     };
-    let rules = rules(shown, &hidden)?;
+    let mut rules = rules(shown, &hidden)?;
+    let mut operations = rows(&permits)?;
+    if let Some((ir, target, source)) = &mapping {
+        // the broker judges a mapped view in the model it stores, as the gateway's
+        // `Constraints::in_source_model` does; Attribute names are the source's already
+        for (_, types) in &mut rules {
+            for t in types.iter_mut().filter(|t| *t == target) {
+                t.clone_from(source);
+            }
+            types.sort();
+            types.dedup();
+        }
+        if let Some(other) = rules
+            .iter()
+            .flat_map(|(_, types)| types)
+            .find(|t| *t != source)
+        {
+            return Err(format!(
+                "a view of another model selects its source class {source} alone, and the \
+                 Policies also name {other}"
+            ));
+        }
+        operations.retain(|row| MAPPED_READS.contains(row));
+        if operations.is_empty() {
+            return Err("its Policies grant no read a view of another model serves".into());
+        }
+        view.insert("mapping".into(), ir.clone());
+    }
     let selector: BTreeSet<&String> = rules.iter().flat_map(|(_, types)| types).collect();
     if selector.len() > MAX_NAMES {
         return Err(format!(
@@ -582,8 +661,39 @@ fn endpoint_view(sources: &Sources, e: &EndpointSource) -> Result<Value, String>
                 .collect(),
         ),
     );
-    view.insert("operations".into(), json!(rows(&permits)?));
+    view.insert("operations".into(), json!(operations));
     Ok(Value::Object(view))
+}
+
+/// The IR, target class and source class of an Endpoint's `viewMappingRef` (G18), or why it
+/// cannot be served as a view.
+fn view_mapping(
+    sources: &Sources,
+    e: &EndpointSource,
+) -> Result<Option<(Value, String, String)>, String> {
+    let Some(reference) = &e.spec.view_mapping_ref else {
+        return Ok(None);
+    };
+    let project = reference.namespace.as_deref().unwrap_or(&e.project);
+    let mapping = sources
+        .mappings
+        .get(&(project.to_owned(), reference.name.clone()))
+        .filter(|m| m.space == e.spec.context_space_ref.name())
+        .ok_or_else(|| {
+            format!(
+                "viewMappingRef names {}, which is no Mapping of this Context Space",
+                reference.name
+            )
+        })?;
+    let ir = mapping.ir.clone()?;
+    let class = |member: &str| {
+        ir.get(member)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("the IR of the Mapping {} names no {member}", reference.name))
+    };
+    let (target, source) = (class("targetClass")?, class("sourceClass")?);
+    Ok(Some((ir, target, source)))
 }
 
 /// What the Policies name, type by type: `None` is the whole Entity. A permission without
@@ -1364,14 +1474,122 @@ mod tests {
         assert!(view_of(&s, &e).expect_err("refused").contains("temporalQ"));
     }
 
-    /// Plan 2.1, fields that do not reach the view: `viewMappingRef` keeps the gateway.
+    fn vehicles_ir() -> Value {
+        json!({"version": 2, "sourceClass": "Car", "targetClass": "Vehicle",
+               "slots": [{"target": "velocity", "source": "speed", "kind": "rename"}]})
+    }
+
+    fn with_mapping(policies: Vec<(&str, PolicySpec)>, ir: Result<Value, String>) -> Sources {
+        let mut s = sources(policies);
+        s.mappings.insert(
+            ("city".into(), "to-vehicle".into()),
+            MappingSource {
+                space: "air".into(),
+                ir,
+            },
+        );
+        s
+    }
+
+    fn mapped_endpoint() -> EndpointSource {
+        endpoint(json!({"viewMappingRef": {"kind": "Mapping", "name": "to-vehicle"}}))
+    }
+
+    /// Plan 2.1 `mapping` (G18): the Mapping's IR as the view's `mapping`, the target class
+    /// swapped for the source class in `selector` and every rule, Attribute names kept, and
+    /// only the reads a mapped view serves: a write the Policies grant does not reach it.
     #[test]
-    fn a_view_mapping_is_refused() {
-        let s = sources(vec![("cars", cars())]);
-        let e = endpoint(json!({"viewMappingRef": {"kind": "Mapping", "name": "to-dcat"}}));
-        assert!(view_of(&s, &e)
+    fn an_endpoint_with_a_mapping_gets_the_view_with_its_ir_and_source_types() {
+        let vehicles = policy(json!({
+            "operations": ["retrieveOps", "createEntity", "updateAttrs", "queryTemporal", "queryBatch"],
+            "information": [{"entities": [{"type": "Vehicle"}], "propertyNames": ["speed"]}]
+        }));
+        let s = with_mapping(vec![("vehicles", vehicles)], Ok(vehicles_ir()));
+        let view = view_of(&s, &mapped_endpoint()).expect("a view");
+        assert_eq!(
+            view,
+            json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
+                   "rules": [{"types": ["Car"], "attributes": ["speed"]}],
+                   "operations": ["query_entities", "retrieve_entity", "temporal_query"],
+                   "mapping": vehicles_ir()})
+        );
+        for op in view["operations"].as_array().into_iter().flatten() {
+            assert!(
+                MAPPED_READS.contains(&op.as_str().unwrap_or_default()),
+                "{op}"
+            );
+        }
+    }
+
+    /// A Mapping the view cannot carry is the Endpoint's status, never a view.
+    #[test]
+    fn a_mapping_without_an_ir_is_a_status_not_a_view() {
+        let vehicles = || policy(json!({"information": [{"entities": [{"type": "Vehicle"}]}]}));
+        let cases = [
+            (
+                with_mapping(
+                    vec![("v", vehicles())],
+                    Err("the Mapping to-vehicle has no spec.artifacts.gatewayIr".into()),
+                ),
+                mapped_endpoint(),
+                "gatewayIr",
+            ),
+            (
+                with_mapping(vec![("v", vehicles())], Ok(json!({"version": 2}))),
+                mapped_endpoint(),
+                "names no targetClass",
+            ),
+            (
+                with_mapping(vec![("v", vehicles())], Ok(vehicles_ir())),
+                endpoint(json!({"viewMappingRef": {"kind": "Mapping", "name": "absent"}})),
+                "no Mapping of this Context Space",
+            ),
+            (
+                with_mapping(
+                    vec![
+                        ("v", vehicles()),
+                        (
+                            "buses",
+                            policy(json!({"information": [{"entities": [{"type": "Bus"}]}]})),
+                        ),
+                    ],
+                    Ok(vehicles_ir()),
+                ),
+                mapped_endpoint(),
+                "Policies also name Bus",
+            ),
+            (
+                with_mapping(
+                    vec![(
+                        "w",
+                        policy(json!({"operations": ["createEntity"],
+                                      "information": [{"entities": [{"type": "Vehicle"}]}]})),
+                    )],
+                    Ok(vehicles_ir()),
+                ),
+                mapped_endpoint(),
+                "no read",
+            ),
+        ];
+        for (s, e, reason) in cases {
+            let got = view_of(&s, &e).expect_err("refused");
+            assert!(got.contains(reason), "{reason}: {got}");
+        }
+        let mut elsewhere = with_mapping(vec![("v", vehicles())], Ok(vehicles_ir()));
+        for m in elsewhere.mappings.values_mut() {
+            m.space = "water".into();
+        }
+        assert!(view_of(&elsewhere, &mapped_endpoint())
             .expect_err("refused")
-            .contains("viewMappingRef"));
+            .contains("no Mapping of this Context Space"));
+        let mut unservable = with_mapping(vec![("v", vehicles())], Err("no IR".into()));
+        unservable.endpoints.push(mapped_endpoint());
+        let desired = desired(&unservable);
+        assert!(!desired.views.contains_key(SLUG));
+        assert!(desired
+            .refused
+            .iter()
+            .any(|(owner, reason)| owner.name == "air-public" && reason == "no IR"));
     }
 
     /// Plan 2.1 `rules`: types the Policies grant with the same Attributes share a rule; a
@@ -1705,6 +1923,28 @@ mod tests {
             "projects/city/spaces/air/policies/cars.yaml",
             &format!("{}  contextSpaceRef: air\n  assigner: did:web:city.example\n  assignee: {{ kind: role, id: public }}\n  operations: [retrieveOps]\n  information:\n    - entities: [{{ type: Car }}]\n", head("Policy", "cars")),
         );
+        let mapping = |name: &str, artifacts: &str| {
+            format!("{}  contextSpaceRef: air\n  source: {{ kind: DataModel, name: cars, version: \"1\" }}\n  target: {{ kind: DataModel, name: vehicles, version: \"1\" }}\n  transformation: {{ id: https://city.example/m }}\n  tests: [{{ input: in.json, expect: out.json }}]\n{artifacts}", head("Mapping", name))
+        };
+        write(
+            "projects/city/spaces/air/mappings/to-vehicle.yaml",
+            &mapping(
+                "to-vehicle",
+                "  artifacts: { gatewayIr: ir/to-vehicle.json }\n",
+            ),
+        );
+        write(
+            "projects/city/spaces/air/mappings/ir/to-vehicle.json",
+            &vehicles_ir().to_string(),
+        );
+        write(
+            "projects/city/spaces/air/mappings/bare.yaml",
+            &mapping("bare", ""),
+        );
+        write(
+            "projects/city/spaces/air/mappings/escapes.yaml",
+            &mapping("escapes", "  artifacts: { gatewayIr: ir/missing.json }\n"),
+        );
         let repo = Repository::load(&dir).expect("the repository loads");
         let read = Sources::read(&repo);
         let _ = std::fs::remove_dir_all(&dir);
@@ -1717,6 +1957,18 @@ mod tests {
         assert_eq!(
             desired.documents["luft"].1["policies"][0]["id"],
             json!("city/cars")
+        );
+        let ir = |name: &str| {
+            read.mappings[&("city".to_owned(), name.to_owned())]
+                .ir
+                .clone()
+        };
+        assert_eq!(ir("to-vehicle"), Ok(vehicles_ir()));
+        assert!(ir("bare").is_err_and(|e| e.contains("has no spec.artifacts.gatewayIr")));
+        assert!(ir("escapes").is_err_and(|e| e.contains("no JSON file")));
+        assert_eq!(
+            read.mappings[&("city".to_owned(), "bare".to_owned())].space,
+            "air"
         );
     }
 
