@@ -3412,6 +3412,11 @@ export interface components {
          *     and the artifacts absent. A half-written model is the normal state of an editor.
          */
         Artifacts: {
+            /**
+             * @description The model with its imports merged, in the LinkML subset the broker reads: what the
+             *     reconciler writes to a Context Space's broker tenant (`PUT /q/schemas/{tenant}`, T-3703).
+             */
+            brokerSchema?: unknown;
             context?: unknown;
             /**
              * @description The documentation page, one Markdown file for the whole model: the same page

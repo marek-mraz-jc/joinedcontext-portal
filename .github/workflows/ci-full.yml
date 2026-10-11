@@ -52,6 +52,27 @@ jobs:
           -e JC_CLIENT_ID=ci -e JC_CLIENT_SECRET=ci -e JC_TOKEN_URL=http://127.0.0.1:9/token
           ghcr.io/warpstreamlabs/bento@sha256:656c55de3f8deddd4ee743f3c76f3b497e67324e940f2bc1769693cd8b906364
           streams
+      # The Antares broker as the platform runs it, the `-jc` image at the digest T-3636 published
+      # (views, linkml, the joinedcontext engine), for the view writer's test against a real
+      # broker (T-3703). The admin token is made here and never leaves the runner; the schema
+      # bound is what a schema write needs (unset, every PUT /q/schemas answers 503).
+      - name: the -jc broker
+        run: |
+          set -eu
+          dir="${{ runner.temp }}/broker"
+          mkdir -p "$dir"
+          head -c 48 /dev/urandom | base64 | tr -d '/+=\n' > "$dir/token"
+          chmod 644 "$dir/token"
+          docker run -d --name broker -p 127.0.0.1:9090:9090 -v "$dir:/run/secrets/broker:ro" \
+            -e ANTARES_ADMIN_TOKEN_FILE=/run/secrets/broker/token -e ANTARES_POLICY=joinedcontext \
+            -e ANTARES_SCHEMA_MAX_BYTES=4194304 \
+            ghcr.io/marek-mraz-jc/antares-broker-jc@sha256:b83f08ce79bc62946d8d4609f9a5318fb3ca1a2fc41f6173956a400e519b66eb
+          for _ in $(seq 30); do
+            curl -sf -H "authorization: Bearer $(cat "$dir/token")" localhost:9090/q/views >/dev/null && exit 0
+            sleep 1
+          done
+          docker logs broker
+          exit 1
       # Every test binary runs: without --no-fail-fast the first failing one hid the rest
       # (resource_mutate_tests was red for hours behind kit_pass_tests, T-2859).
       - run: cargo test --workspace --all-targets --all-features --no-fail-fast
@@ -61,6 +82,8 @@ jobs:
           # The apps database's tests make a CREATEROLE login and a database each (AP-149).
           JC_APPS_DB_TEST_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
           JC_PORTAL_TEST_BENTO_URL: http://127.0.0.1:4195
+          JC_PORTAL_TEST_BROKER_URL: http://127.0.0.1:9090
+          JC_PORTAL_TEST_BROKER_TOKEN_FILE: "${{ runner.temp }}/broker/token"
       # The template's preview document, as the test above wrote it, rendered in a sandboxed
       # frame with its own policy (SDK-16, T-0678).
       - run: cd sdk && pnpm exec playwright install --with-deps chromium && pnpm e2e

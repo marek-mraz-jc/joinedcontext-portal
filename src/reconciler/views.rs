@@ -3,7 +3,9 @@
 //!
 //! Every Endpoint becomes the view `{slug}` and every Context Space the view `cs-{segment}`
 //! (`PUT /q/views/{id}`); every Context Space's Policies become the rule document of its tenant
-//! (`PUT /q/policy/{tenant}`), which the broker's `joinedcontext` engine decides with. A view is
+//! (`PUT /q/policy/{tenant}`), which the broker's `joinedcontext` engine decides with; every
+//! Context Space's data model becomes its tenant's schema (`PUT /q/schemas/{tenant}`, T-3703),
+//! the `brokerSchema` Model Tools compiles from it and its imports. A view is
 //! the widest an Endpoint ever shows: its projection's classes and slots, else what its Policies
 //! name, less its hidden Attributes, with the operations its Policies grant. Who sees how much
 //! of that is the engine's.
@@ -19,14 +21,16 @@
 //! - the broker's admin token is read from the file its Secret is mounted at, on every run, and
 //!   travels only in the `Authorization` header: never in a log, a status or an outcome.
 
+use jc_core::envelope::ORG_NAMESPACE;
+use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
-    DataModelLifecycle, DataModelSpec, EndpointSpec, MappingSpec, ModelProjectionSpec, Operation,
-    OperationRef, PolicySpec, PrincipalKind,
+    ContextSpaceSpec, DataModelLifecycle, DataModelSpec, EndpointSpec, MappingSpec,
+    ModelProjectionSpec, Operation, OperationRef, PolicySpec, PrincipalKind,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -154,6 +158,10 @@ pub struct Sources {
     pub apps: BTreeSet<(String, String)>,
     /// Every Mapping by `(project, name)`.
     pub mappings: BTreeMap<(String, String), MappingSource>,
+    /// Each Context Space's data model by `(project, space)`: the source its `dataModelRef`
+    /// names and every platform model that imports, or why they do not read. A space without
+    /// `dataModelRef` has none, and its tenant no schema.
+    pub models: BTreeMap<(String, String), Result<ModelSource, String>>,
 }
 
 /// One Mapping as a view of another model needs it (G18).
@@ -163,6 +171,18 @@ pub struct MappingSource {
     pub space: String,
     /// Its `spec.artifacts.gatewayIr` document, or why there is none to embed.
     pub ir: Result<Value, String>,
+}
+
+/// One space's data model as Model Tools compiles it (`POST /generate`, DM-76).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelSource {
+    /// The DataModel's name, for the messages.
+    pub model: String,
+    /// Its LinkML source.
+    pub source: String,
+    /// The source of every platform model it imports, directly or through another import, by
+    /// import name (`org.{name}.v{major}`, `project.{name}.v{major}`).
+    pub imports: BTreeMap<String, String>,
 }
 
 impl Sources {
@@ -175,6 +195,15 @@ impl Sources {
             let spec = &resource.manifest.spec;
             match id.kind.as_str() {
                 "ContextSpace" => {
+                    let model = serde_json::from_value::<ContextSpaceSpec>(spec.clone())
+                        .ok()
+                        .and_then(|spec| spec.data_model_ref);
+                    if let Some(model) = model {
+                        sources.models.insert(
+                            (project.clone(), id.name.clone()),
+                            model_source(repo, &project, model.name()),
+                        );
+                    }
                     let tenant = repo.space_segment(&project, &id.name);
                     sources.spaces.push((project, id.name.clone(), tenant));
                 }
@@ -307,6 +336,98 @@ impl Sources {
     }
 }
 
+/// The source of the DataModel `name` of `project` and of every platform model it imports, as
+/// the checkout holds them (DM-76), resolved the way `jcctl model generate` does: an import at
+/// the major it pins and published, an organization model importing organization models only.
+fn model_source(repo: &Repository, project: &str, name: &str) -> Result<ModelSource, String> {
+    let source = model_text(repo, project, name, None)?;
+    let mut imports = BTreeMap::new();
+    let mut todo = vec![(project.to_owned(), source.clone())];
+    while let Some((importer, text)) = todo.pop() {
+        // A source that does not parse is Model Tools' message to give.
+        let Ok(document) = serde_yaml_ng::from_str::<Value>(&text) else {
+            continue;
+        };
+        for import in ModelImport::all_in(&document).map_err(|err| err.to_string())? {
+            let key = import.to_string();
+            if imports.contains_key(&key) {
+                continue;
+            }
+            if imports.len() >= crate::api::datamodels::MAX_IMPORTS {
+                return Err(format!(
+                    "a model imports at most {} platform models, its imports' imports included",
+                    crate::api::datamodels::MAX_IMPORTS
+                ));
+            }
+            let home = match (import.organization, importer.as_str()) {
+                (true, _) => ORG_NAMESPACE,
+                (false, ORG_NAMESPACE) => {
+                    return Err(format!(
+                        "import '{key}': an organization model imports organization models only (DM-76)"
+                    ))
+                }
+                (false, own) => own,
+            };
+            let text = model_text(repo, home, &import.name, Some(import.major))
+                .map_err(|why| format!("import '{key}': {why}"))?;
+            todo.push((home.to_owned(), text.clone()));
+            imports.insert(key, text);
+        }
+    }
+    Ok(ModelSource {
+        model: name.to_owned(),
+        source,
+        imports,
+    })
+}
+
+/// One DataModel's LinkML source from the checkout; with `major`, only a published version of
+/// that major (DM-22, DM-26). The path stays inside the checkout, a symlink included.
+fn model_text(
+    repo: &Repository,
+    namespace: &str,
+    name: &str,
+    major: Option<u32>,
+) -> Result<String, String> {
+    let (_, resource) = repo
+        .iter()
+        .find(|(id, _)| {
+            id.kind == "DataModel" && id.name == name && id.namespace.as_deref() == Some(namespace)
+        })
+        .ok_or_else(|| format!("{namespace} has no DataModel {name}"))?;
+    let spec: DataModelSpec = serde_json::from_value(resource.manifest.spec.clone())
+        .map_err(|err| format!("the DataModel {name} does not read: {err}"))?;
+    if let Some(major) = major {
+        if spec.version.major() != major {
+            return Err(format!(
+                "'{name}' is at version {}, and the import pins major {major}",
+                spec.version
+            ));
+        }
+        if !matches!(
+            spec.lifecycle,
+            DataModelLifecycle::Published
+                | DataModelLifecycle::Deprecated
+                | DataModelLifecycle::Mirrored
+        ) {
+            return Err(format!(
+                "'{name}' is {}; only a published model is imported (DM-26)",
+                spec.lifecycle
+            ));
+        }
+    }
+    let linkml = crate::api::datamodels::confine_linkml_path(&spec.linkml)
+        .map_err(|err| format!("the DataModel {name}: {err}"))?;
+    let relative = resource.path.parent().unwrap_or(Path::new("")).join(linkml);
+    let unread = |err: std::io::Error| format!("{} does not read: {err}", relative.display());
+    let root = repo.root().canonicalize().map_err(unread)?;
+    let file = root.join(&relative).canonicalize().map_err(unread)?;
+    if !file.starts_with(&root) {
+        return Err(format!("{} leaves the repository", relative.display()));
+    }
+    std::fs::read_to_string(&file).map_err(unread)
+}
+
 /// Whether `policy` is assigned to a role the Endpoint hands out (AP-96, AP-139).
 fn own_grant(policy: &PolicySpec, project: &str, endpoint: &str) -> bool {
     let own = jc_core::kinds::endpoint_role(project, endpoint, None);
@@ -357,6 +478,8 @@ pub struct Desired {
     pub views: BTreeMap<String, (Owner, Value)>,
     /// The rule documents by tenant.
     pub documents: BTreeMap<String, (Owner, Value)>,
+    /// Each tenant's data model, which becomes its schema.
+    pub schemas: BTreeMap<String, (Owner, ModelSource)>,
     /// The objects the writer refused, and why.
     pub refused: Vec<(Owner, String)>,
 }
@@ -402,9 +525,20 @@ pub fn desired(sources: &Sources) -> Desired {
             out.refused.push((owner, reason));
             continue;
         }
+        match sources.models.get(&(project.clone(), name.clone())) {
+            Some(Ok(model)) => {
+                out.schemas
+                    .insert(tenant.clone(), (owner.clone(), model.clone()));
+            }
+            Some(Err(why)) => out.refused.push((
+                owner.clone(),
+                format!("its data model is not written to the broker: {why}"),
+            )),
+            None => {}
+        }
         out.documents.insert(
             tenant.clone(),
-            (owner, rule_document(sources, project, name)),
+            (owner, with_gateway(rule_document(sources, project, name))),
         );
     }
     out
@@ -797,6 +931,28 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
     json!({ "policies": policies })
 }
 
+/// The gateway's own account (context-gateway `GATEWAY_CLIENT`, T-3767): the hops it makes on
+/// nobody's behalf (a conditional write's probe, a held delete's unlink, a notification's read).
+const GATEWAY_CLIENT: &str = "context-gateway";
+
+/// The clauses those hops use: the unlinking's attribute patch, attribute delete and entity
+/// delete, the probes' retrieve and query, the stored subscription's retrieve.
+const GATEWAY_CLAUSES: &[&str] = &["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"];
+
+/// A rule document plus the one policy that admits the gateway's own hops; `@` keeps its id
+/// apart from every `{project}/{name}`.
+fn with_gateway(mut document: Value) -> Value {
+    if let Some(policies) = document["policies"].as_array_mut() {
+        policies.push(json!({
+            "id": format!("@{GATEWAY_CLIENT}"),
+            "effect": "permit",
+            "assignee": {"kind": "serviceAccount", "id": GATEWAY_CLIENT},
+            "operations": GATEWAY_CLAUSES,
+        }));
+    }
+    document
+}
+
 /// Whether the writer owns a view of this id: an Endpoint slug or a space surface.
 fn owned(id: &str) -> bool {
     id.starts_with(SPACE_VIEW_PREFIX)
@@ -826,6 +982,14 @@ pub struct ViewSync {
     // ponytail: in memory, so a space deleted while the Portal restarts keeps its document;
     // with no view left to route to it, nothing reads it.
     written_documents: Mutex<BTreeSet<String>>,
+    /// Model Tools, which compiles a space's data model into its tenant's schema.
+    model_tools: Option<String>,
+    /// The tenants whose schema this Portal wrote since it started, as `written_documents`.
+    written_schemas: Mutex<BTreeSet<String>>,
+    /// The last schema compiled per tenant and the model it came from: an unchanged model is
+    /// not compiled again on every run.
+    // ponytail: a Model Tools upgrade reaches an unchanged model when the Portal restarts.
+    compiled: Mutex<BTreeMap<String, (ModelSource, Value)>>,
 }
 
 impl ViewSync {
@@ -839,7 +1003,17 @@ impl ViewSync {
             broker: broker.into().trim_end_matches('/').to_owned(),
             token_file: token_file.into(),
             written_documents: Mutex::default(),
+            model_tools: None,
+            written_schemas: Mutex::default(),
+            compiled: Mutex::default(),
         }
+    }
+
+    /// Compiles each space's data model with the Model Tools at `url` and writes it as the
+    /// tenant's schema. Without it a space with a `dataModelRef` says its schema is not written.
+    pub fn with_model_tools(mut self, url: impl Into<String>) -> Self {
+        self.model_tools = Some(url.into().trim_end_matches('/').to_owned());
+        self
     }
 
     /// Brings the broker's views and rule documents to what the repository declares, and says
@@ -903,6 +1077,34 @@ impl ViewSync {
             }
         }
 
+        for (tenant, (owner, model)) in &desired.schemas {
+            let outcome = match self.broker_schema(tenant, model).await {
+                Ok(schema) => {
+                    self.put_if_changed(&token, &format!("/q/schemas/{tenant}"), &schema)
+                        .await
+                }
+                Err(outcome) => outcome,
+            };
+            if outcome == ViewOutcome::Written {
+                lock(&self.written_schemas).insert(tenant.clone());
+            }
+            note(owner, outcome);
+        }
+        let gone: Vec<String> = lock(&self.written_schemas)
+            .iter()
+            .filter(|tenant| !desired.schemas.contains_key(*tenant))
+            .cloned()
+            .collect();
+        for tenant in gone {
+            match self.delete(&token, &format!("/q/schemas/{tenant}")).await {
+                Ok(()) => {
+                    lock(&self.written_schemas).remove(&tenant);
+                    tracing::info!(%tenant, "schema removed with its space's data model");
+                }
+                Err(reason) => tracing::warn!(%tenant, %reason, "schema not removed"),
+            }
+        }
+
         // No engine that reads rule documents: `/q/policy` answers 404 and the views stand
         // under whatever engine the broker runs.
         match self.get(&token, "/q/policy").await {
@@ -951,9 +1153,63 @@ impl ViewSync {
     }
 
     fn written(&self) -> std::sync::MutexGuard<'_, BTreeSet<String>> {
-        self.written_documents
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        lock(&self.written_documents)
+    }
+
+    /// The `brokerSchema` Model Tools compiles from a space's data model, or what the space's
+    /// condition says instead: a model that does not compile is refused with its messages.
+    async fn broker_schema(&self, tenant: &str, model: &ModelSource) -> Result<Value, ViewOutcome> {
+        if let Some((held, schema)) = lock(&self.compiled).get(tenant) {
+            if held == model {
+                return Ok(schema.clone());
+            }
+        }
+        let name = &model.model;
+        let Some(base) = &self.model_tools else {
+            return Err(ViewOutcome::Failed(format!(
+                "no model tools service is configured (JC_PORTAL_MODEL_TOOLS_URL), so the data \
+                 model {name} is not compiled into the broker's schema"
+            )));
+        };
+        let mut body = json!({ "source": model.source });
+        if !model.imports.is_empty() {
+            body["imports"] = json!(model.imports);
+        }
+        let response = self
+            .http
+            .post(format!("{base}/generate"))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|err| {
+                ViewOutcome::Failed(format!(
+                    "model tools did not answer for the data model {name}: {err}"
+                ))
+            })?;
+        if !response.status().is_success() {
+            let what = format!("model tools refused the data model {name}");
+            return Err(ViewOutcome::Failed(refusal(&what, response).await));
+        }
+        let artifacts: crate::tools::model_tools::Artifacts =
+            response.json().await.map_err(|err| {
+                ViewOutcome::Failed(format!(
+                    "model tools answered the data model {name} unreadably: {err}"
+                ))
+            })?;
+        match artifacts.broker_schema {
+            Some(schema) => {
+                lock(&self.compiled).insert(tenant.to_owned(), (model.clone(), schema.clone()));
+                Ok(schema)
+            }
+            None if !artifacts.errors.is_empty() => Err(ViewOutcome::Refused(format!(
+                "the data model {name} does not compile: {}",
+                artifacts.errors.join("; ")
+            ))),
+            None => Err(ViewOutcome::Failed(format!(
+                "model tools rendered no brokerSchema for the data model {name}: its version \
+                 predates T-3703"
+            ))),
+        }
     }
 
     async fn put_if_changed(&self, token: &str, path: &str, doc: &Value) -> ViewOutcome {
@@ -1017,6 +1273,12 @@ impl ViewSync {
             false => Err(refusal(&format!("DELETE {path}"), response).await),
         }
     }
+}
+
+/// A lock a panicked holder left poisoned still holds a whole set.
+fn lock<T>(held: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    held.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// `what: status: detail`, the detail of a problem document when it is one, cut short.
@@ -1483,6 +1745,21 @@ mod tests {
         assert!(space_view(&s, "city", "air", &long).is_err());
     }
 
+    /// T-3767: a space with no Policy still admits the gateway's own hops, and only on the
+    /// clauses they use; nothing else in the document names the gateway.
+    #[test]
+    fn every_rule_document_admits_the_gateway_on_its_own_hops_alone() {
+        let desired = desired(&sources(Vec::new()));
+        assert_eq!(
+            desired.documents["city-air"].1,
+            json!({"policies": [
+                {"id": "@context-gateway", "effect": "permit",
+                 "assignee": {"kind": "serviceAccount", "id": "context-gateway"},
+                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"]}
+            ]})
+        );
+    }
+
     /// Plan 3.3: one document per tenant, every Policy with its clauses, effect, assignee,
     /// validity, information and conditions, in the engine's format.
     #[test]
@@ -1514,7 +1791,10 @@ mod tests {
                  "operations": ["5.6.2", "5.6.4", "5.6.18", "5.6.19"],
                  "validity": {"from": "2026-01-01T00:00:00Z"},
                  "information": [{"entities": [{"type": "Truck", "idPattern": "^urn:ngsi-ld:Truck:.*$"}]}],
-                 "q": "weight>3", "scopeQ": "/city/#", "temporalQ": "timerel=after;timeAt=P-1D"}
+                 "q": "weight>3", "scopeQ": "/city/#", "temporalQ": "timerel=after;timeAt=P-1D"},
+                {"id": "@context-gateway", "effect": "permit",
+                 "assignee": {"kind": "serviceAccount", "id": "context-gateway"},
+                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.8.3"]}
             ]})
         );
         assert!(desired.views.contains_key(SLUG) || desired.views.contains_key("cs-city-air"));
@@ -1931,5 +2211,450 @@ mod tests {
             matches!(&outcomes[..], [(_, ViewOutcome::Failed(r))] if r.contains("views feature")),
             "{outcomes:?}"
         );
+    }
+
+    fn air_model() -> ModelSource {
+        ModelSource {
+            model: "air-quality".into(),
+            source: "id: https://city.example/air\nname: air\nimports: [linkml:types, org.stations.v1]\n".into(),
+            imports: BTreeMap::from([(
+                "org.stations.v1".to_owned(),
+                "id: https://city.example/stations\nname: stations\n".to_owned(),
+            )]),
+        }
+    }
+
+    fn with_model(mut s: Sources) -> Sources {
+        s.models
+            .insert(("city".into(), "air".into()), Ok(air_model()));
+        s
+    }
+
+    /// The `brokerSchema` Model Tools answers for `air_model()`, as `POST /generate` takes it.
+    async fn model_tools(answer: Value, calls: u64) -> MockServer {
+        let tools = MockServer::start().await;
+        let model = air_model();
+        Mock::given(method("POST"))
+            .and(path("/generate"))
+            .and(body_json(
+                json!({"source": model.source, "imports": model.imports}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(answer))
+            .expect(calls)
+            .mount(&tools)
+            .await;
+        tools
+    }
+
+    /// A broker that holds the space's view and runs no rule-document engine, so a run is
+    /// views and schemas only.
+    async fn broker_with_the_space_view(s: &Sources) -> MockServer {
+        let server = broker().await;
+        json_at("/q/views", 200, json!({})).mount(&server).await;
+        json_at(
+            "/q/views/cs-city-air",
+            200,
+            desired(s).views["cs-city-air"].1.clone(),
+        )
+        .mount(&server)
+        .await;
+        json_at("/q/policy", 404, json!({})).mount(&server).await;
+        server
+    }
+
+    /// The space's model and its import are read from the checkout, an import at its pinned
+    /// major and published; a draft import, another major and a source outside the checkout
+    /// are the space's reason, not a read.
+    #[test]
+    fn a_spaces_model_and_its_imports_are_read_from_the_checkout() {
+        let dir = std::env::temp_dir().join(format!(
+            "portal-views-model-{}-{:?}",
+            std::process::id(),
+            std::time::SystemTime::now()
+        ));
+        let write = |rel: &str, body: &str| {
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().expect("a parent")).expect("mkdir");
+            std::fs::write(path, body).expect("write");
+        };
+        let manifest = |namespace: &str, space: &str, name: &str| {
+            jc_core::registry::by_kind("DataModel")
+                .expect("DataModel is a kind")
+                .repo_path(namespace, space, name)
+        };
+        let model = |namespace: &str, name: &str, extra: &str| {
+            format!("apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  name: {name}\n  namespace: {namespace}\nspec:\n  linkml: ./{name}.linkml.yaml\n{extra}")
+        };
+        write(
+            "projects/city/spaces/air/space.yaml",
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: air\n  namespace: city\nspec:\n  isSandbox: false\n  dataModelRef: air-quality\n",
+        );
+        let air = manifest("city", "air", "air-quality");
+        write(
+            &air,
+            &model(
+                "city",
+                "air-quality",
+                "  contextSpaceRef: air\n  version: 1.0.0\n  lifecycle: draft\n",
+            ),
+        );
+        let air_source =
+            "id: https://city.example/air\nname: air\nimports: [linkml:types, org.stations.v1]\n";
+        let folder = air
+            .rsplit_once('/')
+            .map(|(f, _)| f.to_owned())
+            .unwrap_or_default();
+        write(&format!("{folder}/air-quality.linkml.yaml"), air_source);
+        let stations = manifest(ORG_NAMESPACE, "", "stations");
+        let org_folder = stations
+            .rsplit_once('/')
+            .map(|(f, _)| f.to_owned())
+            .unwrap_or_default();
+        let stations_source = "id: https://city.example/stations\nname: stations\n";
+        write(
+            &format!("{org_folder}/stations.linkml.yaml"),
+            stations_source,
+        );
+        let read = |stations_spec: &str| {
+            write(&stations, &model(ORG_NAMESPACE, "stations", stations_spec));
+            let repo = Repository::load(&dir).expect("the repository loads");
+            Sources::read(&repo).models[&("city".to_owned(), "air".to_owned())].clone()
+        };
+
+        let draft = read("  version: 1.2.0\n  lifecycle: draft\n");
+        let next_major = read("  version: 2.0.0\n  lifecycle: published\n");
+        let published = read("  version: 1.2.0\n  lifecycle: published\n");
+        // The loader refuses a symlink out of the checkout; one that appears after the load is
+        // refused when the source is read.
+        let repo = Repository::load(&dir).expect("the repository loads");
+        let outside = dir.with_extension("outside.linkml.yaml");
+        std::fs::write(&outside, "id: https://elsewhere\n").expect("write");
+        let _ = std::fs::remove_file(dir.join(format!("{org_folder}/stations.linkml.yaml")));
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(
+            &outside,
+            dir.join(format!("{org_folder}/stations.linkml.yaml")),
+        )
+        .expect("symlink");
+        let escaped = Sources::read(&repo).models[&("city".to_owned(), "air".to_owned())].clone();
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_file(&outside);
+
+        assert_eq!(
+            published,
+            Ok(ModelSource {
+                model: "air-quality".into(),
+                source: air_source.into(),
+                imports: BTreeMap::from([("org.stations.v1".into(), stations_source.into())]),
+            })
+        );
+        assert!(
+            matches!(&draft, Err(r) if r.contains("org.stations.v1") && r.contains("only a published model")),
+            "{draft:?}"
+        );
+        assert!(
+            matches!(&next_major, Err(r) if r.contains("pins major 1")),
+            "{next_major:?}"
+        );
+        #[cfg(unix)]
+        assert!(
+            matches!(&escaped, Err(r) if r.contains("leaves the repository")),
+            "{escaped:?}"
+        );
+        let refused = desired(&Sources {
+            models: BTreeMap::from([(("city".into(), "air".into()), draft)]),
+            ..sources(vec![("cars", cars())])
+        })
+        .refused;
+        assert!(
+            matches!(&refused[..], [(owner, r)] if owner.name == "air" && r.starts_with("its data model is not written to the broker: import 'org.stations.v1'")),
+            "{refused:?}"
+        );
+    }
+
+    /// The space's model is compiled once and written as its tenant's schema; an unchanged one
+    /// is neither compiled nor sent again; a space that loses its model loses the schema.
+    #[tokio::test]
+    async fn a_spaces_schema_is_written_once_and_removed_with_its_model() {
+        let s = with_model(sources(vec![("cars", cars())]));
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/broker-schema-senzor.json"
+        ))
+        .expect("the fixture is JSON");
+        let tools = model_tools(json!({"brokerSchema": schema, "errors": []}), 1).await;
+        let server = broker_with_the_space_view(&s).await;
+        Mock::given(method("GET"))
+            .and(path("/q/schemas/city-air"))
+            .respond_with(ResponseTemplate::new(404))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        json_at("/q/schemas/city-air", 200, schema.clone())
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/schemas/city-air"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(&schema))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/q/schemas/city-air"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file).with_model_tools(format!("{}/", tools.uri()));
+        let first = sync.apply(desired(&s)).await;
+        let second = sync.apply(desired(&s)).await;
+        let held = lock(&sync.written_schemas).clone();
+        let third = sync.apply(desired(&sources(vec![("cars", cars())]))).await;
+        let _ = std::fs::remove_file(&file);
+
+        for outcomes in [&first, &second, &third] {
+            assert!(
+                matches!(&outcomes[..], [(owner, ViewOutcome::Written)] if owner.name == "air"),
+                "{outcomes:?}"
+            );
+        }
+        assert_eq!(held, BTreeSet::from(["city-air".to_owned()]));
+        assert!(lock(&sync.written_schemas).is_empty());
+    }
+
+    /// What keeps a schema out of the broker is the space's condition: a model that does not
+    /// compile (nothing sent), a broker with no schema bound (its 503 and detail), no Model
+    /// Tools configured.
+    #[tokio::test]
+    async fn a_schema_that_is_not_written_says_why_on_the_space() {
+        let s = with_model(sources(vec![("cars", cars())]));
+        let file = token_file();
+
+        let broken = model_tools(
+            json!({"errors": ["slot 'pm10': range 'Foo' is unknown"]}),
+            1,
+        )
+        .await;
+        let server = broker_with_the_space_view(&s).await;
+        Mock::given(method("PUT"))
+            .and(path("/q/schemas/city-air"))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let refused = ViewSync::new(server.uri(), &file)
+            .with_model_tools(broken.uri())
+            .apply(desired(&s))
+            .await;
+
+        let tools = model_tools(
+            json!({"brokerSchema": {"id": "https://city.example/air", "name": "air"}}),
+            1,
+        )
+        .await;
+        let unbound = broker_with_the_space_view(&s).await;
+        json_at("/q/schemas/city-air", 404, json!({}))
+            .mount(&unbound)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/schemas/city-air"))
+            .respond_with(ResponseTemplate::new(503).set_body_json(json!({
+                "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+                "detail": "ANTARES_SCHEMA_MAX_BYTES is unset"
+            })))
+            .expect(1)
+            .mount(&unbound)
+            .await;
+        let failed = ViewSync::new(unbound.uri(), &file)
+            .with_model_tools(tools.uri())
+            .apply(desired(&s))
+            .await;
+
+        let unconfigured = ViewSync::new(broker_with_the_space_view(&s).await.uri(), &file)
+            .apply(desired(&s))
+            .await;
+        let _ = std::fs::remove_file(&file);
+
+        assert!(
+            matches!(&refused[..], [(_, ViewOutcome::Refused(r))]
+                if r.contains("air-quality does not compile") && r.contains("range 'Foo'")),
+            "{refused:?}"
+        );
+        assert!(
+            matches!(&failed[..], [(_, ViewOutcome::Failed(r))]
+                if r.contains("PUT /q/schemas/city-air") && r.contains("503") && r.contains("ANTARES_SCHEMA_MAX_BYTES")),
+            "{failed:?}"
+        );
+        assert!(
+            matches!(&unconfigured[..], [(_, ViewOutcome::Failed(r))] if r.contains("JC_PORTAL_MODEL_TOOLS_URL")),
+            "{unconfigured:?}"
+        );
+    }
+
+    /// The broker this test writes to: the `-jc` image ci-full starts (views, linkml,
+    /// `ANTARES_POLICY=joinedcontext`, `ANTARES_SCHEMA_MAX_BYTES`) and the file holding its
+    /// admin token. ci-full without them is a failure, never a pass; elsewhere the test returns.
+    fn jc_broker() -> Option<(String, PathBuf)> {
+        let url = std::env::var("JC_PORTAL_TEST_BROKER_URL").ok();
+        let token = std::env::var("JC_PORTAL_TEST_BROKER_TOKEN_FILE").ok();
+        match (url, token) {
+            (Some(url), Some(token)) if !url.trim().is_empty() && !token.trim().is_empty() => {
+                Some((
+                    url.trim().trim_end_matches('/').to_owned(),
+                    PathBuf::from(token),
+                ))
+            }
+            _ => {
+                assert_ne!(
+                    std::env::var("GITHUB_WORKFLOW").as_deref(),
+                    Ok("ci-full"),
+                    "ci-full starts the -jc broker and must set JC_PORTAL_TEST_BROKER_URL and \
+                     JC_PORTAL_TEST_BROKER_TOKEN_FILE"
+                );
+                eprintln!(
+                    "JC_PORTAL_TEST_BROKER_URL is not set: the -jc broker test runs in ci-full"
+                );
+                None
+            }
+        }
+    }
+
+    /// The writer against the real `-jc` broker: create, change and delete; a view written by
+    /// hand is left alone; a refused Endpoint is reported and never sent; the rule document
+    /// and the schema are what the broker then holds. The schema is what Model Tools' `gen_broker_schema.py`
+    /// renders from the platform's `senzor.linkml.yaml` fixture.
+    #[tokio::test]
+    async fn the_writer_converges_the_jc_broker() {
+        let Some((broker, token_file)) = jc_broker() else {
+            return;
+        };
+        let token = std::fs::read_to_string(&token_file).expect("the token file reads");
+        let token = token.trim();
+        let http = reqwest::Client::new();
+        let get = |path: &str| {
+            let request = http.get(format!("{broker}{path}")).bearer_auth(token);
+            async move {
+                let response = request.send().await.expect("the broker answers");
+                let status = response.status().as_u16();
+                (
+                    status,
+                    response.json::<Value>().await.unwrap_or(Value::Null),
+                )
+            }
+        };
+        let hand_made = json!({"id": "my-view", "tenant": "city-air", "selector": ["Car"],
+                               "rules": [{"types": ["Car"], "attributes": []}],
+                               "operations": ["retrieve_entity"]});
+        let put = http
+            .put(format!("{broker}/q/views/my-view"))
+            .bearer_auth(token)
+            .json(&hand_made)
+            .send()
+            .await
+            .expect("the broker answers");
+        assert!(
+            put.status().is_success(),
+            "the hand-made view: {}",
+            put.status()
+        );
+
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/broker-schema-senzor.json"
+        ))
+        .expect("the fixture is JSON");
+        let tools = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/generate"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"brokerSchema": schema, "errors": []})),
+            )
+            .mount(&tools)
+            .await;
+        let sync = ViewSync::new(broker.clone(), &token_file).with_model_tools(tools.uri());
+        let mut s = with_model(sources(vec![("cars", cars())]));
+        s.endpoints.push(endpoint(json!({})));
+        s.endpoints.push(endpoint_named(
+            "mapped",
+            json!({"slug": "m3mqavzt5xkc2nhw7brj4gd6sy",
+                   "viewMappingRef": {"kind": "Mapping", "name": "m"}}),
+        ));
+
+        // Create.
+        let made = desired(&s);
+        let outcomes: BTreeMap<String, ViewOutcome> = sync
+            .apply(desired(&s))
+            .await
+            .into_iter()
+            .map(|(owner, outcome)| (owner.name, outcome))
+            .collect();
+        assert_eq!(outcomes["air-public"], ViewOutcome::Written, "{outcomes:?}");
+        assert_eq!(outcomes["air"], ViewOutcome::Written, "{outcomes:?}");
+        assert!(
+            matches!(&outcomes["mapped"], ViewOutcome::Refused(r) if r.contains("viewMappingRef"))
+        );
+        let (_, listed) = get("/q/views").await;
+        for id in [SLUG, "cs-city-air", "my-view"] {
+            assert!(listed.get(id).is_some(), "{id} is not listed: {listed}");
+        }
+        assert!(
+            listed.get("m3mqavzt5xkc2nhw7brj4gd6sy").is_none(),
+            "{listed}"
+        );
+        assert_eq!(
+            get(&format!("/q/views/{SLUG}")).await,
+            (200, made.views[SLUG].1.clone())
+        );
+        let (_, document) = get("/q/policy/city-air").await;
+        assert_eq!(document["document"], made.documents["city-air"].1);
+        assert_eq!(get("/q/schemas/city-air").await, (200, schema.clone()));
+        let (_, health) = get("/q/health").await;
+        assert!(
+            health["schemas"]["city-air"]["bytes"]
+                .as_u64()
+                .is_some_and(|b| b > 0),
+            "{health}"
+        );
+
+        // Change: a second Policy widens the Endpoint's view and the rule document.
+        let mut changed = with_model(sources(vec![
+            ("cars", cars()),
+            (
+                "bikes",
+                policy(json!({"information": [{"entities": [{"type": "Bike"}]}]})),
+            ),
+        ]));
+        changed.endpoints.push(endpoint(json!({})));
+        let wanted = desired(&changed);
+        assert_ne!(wanted.views[SLUG].1, made.views[SLUG].1);
+        let outcomes = sync.apply(desired(&changed)).await;
+        assert!(
+            outcomes.iter().all(|(_, o)| *o == ViewOutcome::Written),
+            "{outcomes:?}"
+        );
+        assert_eq!(
+            get(&format!("/q/views/{SLUG}")).await,
+            (200, wanted.views[SLUG].1.clone())
+        );
+        let (_, document) = get("/q/policy/city-air").await;
+        assert_eq!(document["document"], wanted.documents["city-air"].1);
+
+        // Delete: nothing declared, so every owned view, the document and the schema go.
+        let outcomes = sync.apply(Desired::default()).await;
+        assert!(outcomes.is_empty(), "{outcomes:?}");
+        let (_, listed) = get("/q/views").await;
+        assert!(
+            listed.get(SLUG).is_none() && listed.get("cs-city-air").is_none(),
+            "{listed}"
+        );
+        assert!(
+            listed.get("my-view").is_some(),
+            "the hand-made view was removed: {listed}"
+        );
+        assert_eq!(get("/q/policy/city-air").await.0, 404);
+        assert_eq!(get("/q/schemas/city-air").await.0, 404);
     }
 }
