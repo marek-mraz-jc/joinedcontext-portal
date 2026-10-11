@@ -1250,7 +1250,8 @@ impl Syncer {
         // 5d''. One `endpoint:{slug}` scope on the MCP hub's client per Endpoint that serves MCP
         //       (T-2490, EP-88): the connect-time allow-list a hub token carries.
         if let Some(scopes) = self.hub_scopes.as_ref() {
-            for outcome in scopes.converge(&fresh_mirror).await {
+            let outcomes = scopes.converge(&fresh_mirror).await;
+            for outcome in &outcomes {
                 if let Some(err) = &outcome.error {
                     tracing::warn!(scope = %outcome.app, error = %err, "hub scope did not converge");
                 } else if !outcome.drift.is_empty() {
@@ -1259,6 +1260,32 @@ impl Syncer {
                 for warning in &outcome.warnings {
                     tracing::info!(scope = %outcome.app, warning = %warning, "hub scopes wait for the realm");
                 }
+            }
+            // T-3324: each Endpoint that serves MCP says whether a hub token can name it yet; the
+            // deployment links its scope.
+            for endpoint in super::hub_scopes::serving(&fresh_mirror) {
+                let Some((state, reason, message)) =
+                    super::hub_scopes::linked(&outcomes, &endpoint.scope())
+                else {
+                    break;
+                };
+                let Some(mut envelope) =
+                    fresh_mirror.get(&endpoint.project, "Endpoint", &endpoint.name)
+                else {
+                    continue;
+                };
+                if let Some(status) = envelope.status.as_mut() {
+                    status
+                        .conditions
+                        .retain(|held| held.r#type != super::hub_scopes::CONDITION);
+                    status.conditions.push(make_condition(
+                        super::hub_scopes::CONDITION,
+                        state,
+                        reason,
+                        &message,
+                    ));
+                }
+                fresh_mirror.upsert(envelope);
             }
         }
 

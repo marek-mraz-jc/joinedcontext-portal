@@ -7,7 +7,9 @@
 //! and none stays a default scope; without the hub client nothing is written.
 
 use joinedcontext_portal::config::ClientAuth;
-use joinedcontext_portal::reconciler::hub_scopes::{desired, serving, HubEndpoint, HubScopeSync};
+use joinedcontext_portal::reconciler::hub_scopes::{
+    desired, linked, serving, HubEndpoint, HubScopeSync, PENDING,
+};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
@@ -170,9 +172,10 @@ fn a_slug_that_is_not_opaque_names_no_scope() {
     assert!(serving(&mirror).is_empty());
 }
 
-/// The first run: the scope is created and linked to the hub as optional, never as default.
+/// The first run: the scope is created, and waits for the deployment to link it to the hub
+/// (T-3324): this client writes nothing on `mcp-hub`, which the T-2725 deny refuses.
 #[tokio::test]
-async fn a_serving_endpoint_gets_its_scope_created_and_linked_as_optional() {
+async fn a_serving_endpoint_gets_its_scope_created_and_waits_for_the_link() {
     let keycloak = realm(Some(json!({ "id": "hub-1", "clientId": "mcp-hub" }))).await;
     scopes(&keycloak, json!([]), json!([held("s-1", desired(&air()))])).await;
     links(&keycloak, "default-client-scopes", json!([])).await;
@@ -182,10 +185,16 @@ async fn a_serving_endpoint_gets_its_scope_created_and_linked_as_optional() {
     assert!(outcomes.iter().all(|o| o.error.is_none()), "{outcomes:?}");
     assert_eq!(
         writes(&keycloak).await,
-        [
-            format!("POST {REALM}/client-scopes"),
-            format!("PUT {REALM}/clients/hub-1/optional-client-scopes/s-1"),
-        ]
+        [format!("POST {REALM}/client-scopes")]
+    );
+    let waiting = outcomes
+        .iter()
+        .find(|o| o.app == air().scope())
+        .unwrap_or_else(|| panic!("the unlinked scope was not reported: {outcomes:?}"));
+    assert_eq!(waiting.warnings, [PENDING.to_owned()]);
+    assert_eq!(
+        linked(&outcomes, &air().scope()),
+        Some(("False", "AwaitsDeploymentSync", PENDING.to_owned()))
     );
     let created = keycloak
         .received_requests()
@@ -212,10 +221,14 @@ async fn a_converged_realm_is_left_as_it_is() {
     let outcomes = sync(&keycloak).converge(&mirror()).await;
     assert!(outcomes.is_empty(), "{outcomes:?}");
     assert!(writes(&keycloak).await.is_empty());
+    assert_eq!(
+        linked(&outcomes, &air().scope()).map(|c| c.1),
+        Some("Linked")
+    );
 }
 
-/// Stale, foreign, stray and default: each is handled and reported, and the foreign scope of a
-/// wanted name is neither written nor linked.
+/// Stale, foreign, stray and default: the stale scope is deleted, the rest reported; the hub's
+/// links are the deployment's to fix (T-3324), so none is unlinked here.
 #[tokio::test]
 async fn the_hub_holds_our_scopes_only_and_none_as_a_default() {
     let keycloak = realm(Some(json!({ "id": "hub-1", "clientId": "mcp-hub" }))).await;
@@ -257,14 +270,25 @@ async fn the_hub_holds_our_scopes_only_and_none_as_a_default() {
         .contains("did not create"));
 
     let written = writes(&keycloak).await;
+    assert_eq!(written, [format!("DELETE {REALM}/client-scopes/s-old")]);
     assert_eq!(
-        written,
-        [
-            format!("DELETE {REALM}/client-scopes/s-old"),
-            format!("DELETE {REALM}/clients/hub-1/default-client-scopes/s-stray"),
-            format!("DELETE {REALM}/clients/hub-1/optional-client-scopes/s-foreign"),
-        ]
+        linked(&outcomes, &air().scope()).map(|c| c.1),
+        Some("RealmRefused")
     );
+    for (scope, kind) in [
+        ("endpoint:hand-made", "a default"),
+        (format!("endpoint:{AIR}").as_str(), "an optional"),
+    ] {
+        let reported = outcomes
+            .iter()
+            .filter(|o| o.app == scope)
+            .flat_map(|o| &o.warnings)
+            .any(|w| w.contains(&format!("as {kind} scope")) && w.contains("next deployment sync"));
+        assert!(
+            reported,
+            "{scope} as {kind} link was not reported: {outcomes:?}"
+        );
+    }
     assert!(
         !written.iter().any(|w| w.contains("s-email")),
         "a scope of another prefix was touched"
@@ -302,4 +326,9 @@ async fn without_the_hub_client_nothing_is_written() {
         "{outcomes:?}"
     );
     assert!(outcomes.iter().all(|o| o.error.is_none()));
+    assert_eq!(
+        linked(&outcomes, &air().scope()),
+        None,
+        "no hub, no condition"
+    );
 }

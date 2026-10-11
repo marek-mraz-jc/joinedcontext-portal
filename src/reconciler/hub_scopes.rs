@@ -10,9 +10,10 @@
 //! This wave is the only writer of such a scope. A managed scope carries `managed-by:
 //! joinedcontext` and the Endpoint it stands for; one whose Endpoint is gone or stopped serving
 //! MCP is deleted. A scope of that name this platform did not create is never written and is
-//! reported. On `mcp-hub` itself the links are the wave's: an `endpoint:` scope linked there that
-//! is not one of ours is unlinked, because a stray one would widen what hub tokens reach, and none
-//! is ever a default scope, which every token would carry without the person asking.
+//! reported. On `mcp-hub` itself the links are the deployment's (T-3324): the T-2725 deny keeps
+//! this client off the hub, and the admin-permissions Job links our scopes as optional and
+//! unlinks a stray `endpoint:` scope or a default one, which every token would carry without the
+//! person asking. This wave reads the links and reports a scope that waits for that run.
 
 use crate::config::ClientAuth;
 use std::collections::BTreeMap;
@@ -28,6 +29,13 @@ pub const HUB_CLIENT: &str = "mcp-hub";
 
 /// The scope attribute naming the Endpoint a managed scope stands for, `{project}/{name}`.
 pub const ENDPOINT_ATTRIBUTE: &str = "joinedcontext.endpoint";
+
+/// The Endpoint condition that says whether its scope is linked to the hub (T-3324).
+pub const CONDITION: &str = "HubLinked";
+
+/// What a scope not yet linked to the hub reports: the deployment links it (T-3324).
+pub const PENDING: &str =
+    "in the one-connector list after the next deployment sync, which links it to the hub";
 
 /// The prefix the gateway reads a hub token's Endpoints from (`Claims::endpoint_scopes`).
 pub const SCOPE_PREFIX: &str = "endpoint:";
@@ -109,8 +117,9 @@ impl HubScopeSync {
         })
     }
 
-    /// Brings the realm's `endpoint:` scopes and the hub client's links to [`serving`], and
-    /// answers one outcome per scope touched (`*` for the run as a whole).
+    /// Brings the realm's `endpoint:` scopes to [`serving`], reads the hub client's links (the
+    /// deployment writes them, T-3324), and answers one outcome per scope touched or waiting
+    /// (`*` for the run as a whole).
     pub async fn converge(&self, mirror: &Mirror) -> Vec<ClientOutcome> {
         match self.run(mirror).await {
             Ok(outcomes) => outcomes,
@@ -245,7 +254,9 @@ impl HubScopeSync {
             })
             .collect();
 
-        // The hub's links: ours optional, nothing else of the prefix, and never a default.
+        // The hub's links are the deployment's (T-3324): the T-2725 deny keeps this client off
+        // `mcp-hub`, and the admin-permissions Job links our scopes as optional and unlinks any
+        // other of the prefix on each run. They are read here and reported, never written.
         let client = format!("/clients/{hub}");
         for kind in ["default-client-scopes", "optional-client-scopes"] {
             let linked: Vec<Value> = self.admin.get(&token, &format!("{client}/{kind}")).await?;
@@ -256,37 +267,55 @@ impl HubScopeSync {
                 let stray = name.starts_with(SCOPE_PREFIX)
                     && (kind == "default-client-scopes" || !linkable.contains_key(id));
                 if stray {
-                    self.admin
-                        .send(
-                            &token,
-                            Method::DELETE,
-                            &format!("{client}/{kind}/{id}"),
-                            None,
-                        )
-                        .await?;
                     let mut outcome = ClientOutcome::of(name);
-                    outcome.drift.push(format!(
-                        "it was linked to {HUB_CLIENT} as a {} scope, which this platform does not \
-                         render; it was unlinked",
-                        kind.trim_end_matches("-client-scopes")
+                    let link = match kind {
+                        "default-client-scopes" => "a default",
+                        _ => "an optional",
+                    };
+                    outcome.warnings.push(format!(
+                        "it is linked to {HUB_CLIENT} as {link} scope, which this platform does \
+                         not render; the next deployment sync unlinks it"
                     ));
                     outcomes.push(outcome);
                 }
             }
             if kind == "optional-client-scopes" {
-                for (id, name) in &linkable {
-                    if linked.iter().any(|scope| scope["id"] == id.as_str()) {
-                        continue;
-                    }
-                    self.admin
-                        .send(&token, Method::PUT, &format!("{client}/{kind}/{id}"), None)
-                        .await
-                        .map_err(|err| format!("linking {name}: {err}"))?;
+                for name in linkable
+                    .iter()
+                    .filter(|(id, _)| !linked.iter().any(|scope| scope["id"] == id.as_str()))
+                    .map(|(_, name)| name)
+                {
+                    let mut outcome = ClientOutcome::of(name);
+                    outcome.warnings.push(PENDING.to_owned());
+                    outcomes.push(outcome);
                 }
             }
         }
         Ok(outcomes)
     }
+}
+
+/// The `HubLinked` condition of the Endpoint whose scope is `scope`, from one run's outcomes, as
+/// `(status, reason, message)`; `None` when the run stopped before the scopes (`*`).
+pub fn linked(
+    outcomes: &[ClientOutcome],
+    scope: &str,
+) -> Option<(&'static str, &'static str, String)> {
+    if outcomes.iter().any(|o| o.app == "*") {
+        return None;
+    }
+    let mine = outcomes.iter().filter(|o| o.app == scope);
+    if let Some(err) = mine.clone().find_map(|o| o.error.clone()) {
+        return Some(("False", "RealmRefused", err));
+    }
+    if mine.flat_map(|o| &o.warnings).any(|w| w == PENDING) {
+        return Some(("False", "AwaitsDeploymentSync", PENDING.to_owned()));
+    }
+    Some((
+        "True",
+        "Linked",
+        "a hub token that names this Endpoint reaches it".to_owned(),
+    ))
 }
 
 /// Whether this wave made `scope`: managed, and standing for an Endpoint. Which Endpoint is its
