@@ -64,20 +64,7 @@ export async function forgeSignIn(browser: Browser, who: { user: string; passwor
   }
   await expect(page, `${who.user} is back in the forge after the Keycloak login`).toHaveURL(ON_FORGE, { timeout: 60_000 });
 
-  await page.goto(forge("/user/settings/applications"), { waitUntil: "load" });
-  const csrfToken = await page.locator('meta[name="_csrf"]').getAttribute("content");
-  if (!csrfToken) {
-    throw new Error(`the forge's token page holds no _csrf for ${who.user}: the session did not complete`);
-  }
-  const made = await page.request.post(forge("/user/settings/applications"), {
-    form: { _csrf: csrfToken, name: tokenName, scope: "write:repository" },
-  });
-  const html = await made.text();
-  const token = /flash-info[^>]*>\s*<p>\s*([0-9a-f]{40})\s*<\/p>/.exec(html)?.[1];
-  if (!token) {
-    const said = /flash-(?:error|warning)[^>]*>\s*<p>([^<]+)</.exec(html)?.[1]?.trim();
-    throw new Error(`the forge made no token for ${who.user}: ${said ?? `HTTP ${made.status()}`}`);
-  }
+  const token = await makeToken(page, who.user, tokenName);
   const user = await page.request.get(forge("/api/v1/user"), { headers: { authorization: `token ${token}` } });
   expect(user.ok(), `the forge reads ${who.user}'s own account with the new token`).toBe(true);
   const login = ((await user.json()) as { login: string }).login;
@@ -88,17 +75,47 @@ export async function forgeSignIn(browser: Browser, who: { user: string; passwor
 export async function forgeSignOut(person: ForgePerson | null): Promise<void> {
   if (!person) return;
   try {
-    await person.page.goto(forge("/user/settings/applications"), { waitUntil: "load" });
-    const html = await person.page.content();
-    const csrfToken = await person.page.locator('meta[name="_csrf"]').getAttribute("content");
-    const escaped = person.tokenName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const id = new RegExp(`${escaped}[\\s\\S]*?data-id="(\\d+)"`).exec(html)?.[1];
-    if (id && csrfToken) {
-      await person.page.request.post(forge("/user/settings/applications/delete"), { form: { _csrf: csrfToken, id } });
-    }
+    await revokeToken(person.page, person.tokenName);
   } finally {
     await person.context.close();
   }
+}
+
+/**
+ * Makes a repository token on the signed-in person's own settings page by filling the form and
+ * pressing its button, as the person would. Gitea 1.25+ renders no `_csrf` and refuses a
+ * cross-origin form post by its Fetch Metadata instead, so the journey drives the page rather than
+ * replaying a form. The token is shown once, in the info flash; `read:user` lets the journey read
+ * the person's own login with it.
+ */
+export async function makeToken(page: Page, who: string, tokenName: string): Promise<string> {
+  await page.goto(forge("/user/settings/applications"), { waitUntil: "load" });
+  const name = page.locator("input#name");
+  if (!(await name.isVisible())) {
+    await page.getByText("Generate New Token", { exact: true }).click();
+  }
+  await name.fill(tokenName);
+  await page.locator('input[name="scope-repository"][value="write:repository"]').check();
+  await page.locator('input[name="scope-user"][value="read:user"]').check();
+  await page.getByRole("button", { name: "Generate Token" }).click();
+  const shown = await page.locator(".flash-info").first().textContent({ timeout: 15_000 }).catch(() => null);
+  const token = /\b([0-9a-f]{40})\b/.exec(shown ?? "")?.[1];
+  if (!token) {
+    const said = (await page.locator(".flash-error, .flash-warning").first().textContent({ timeout: 1_000 }).catch(() => null))?.trim();
+    throw new Error(`the forge made no token for ${who}: ${said || `no token on ${page.url()}`}`);
+  }
+  return token;
+}
+
+/** Deletes the person's token named `tokenName` through its Delete button and the confirmation. */
+export async function revokeToken(page: Page, tokenName: string): Promise<void> {
+  await page.goto(forge("/user/settings/applications"), { waitUntil: "load" });
+  const row = page.locator(".item").filter({ has: page.locator(".item-title").getByText(tokenName, { exact: true }) });
+  if (!(await row.count())) return;
+  await row.getByRole("button", { name: "Delete" }).click();
+  // Fomantic moves the modal into its dimmer, out of `#delete-token`; the open one is the only "Yes".
+  await page.getByRole("button", { name: "Yes", exact: true }).click();
+  await expect(row, `the forge no longer lists ${tokenName}`).toHaveCount(0);
 }
 
 /** The forge's own answer to a person reading a repository over git's HTTP protocol: 200 or 404. */
