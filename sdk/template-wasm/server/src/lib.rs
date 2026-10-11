@@ -2,11 +2,19 @@
 //! schema (`migrations/`). A component holds no socket, environment, file or credential
 //! (AP-147); the host answers `sql` as this App and no other, and asks the platform's `email` and
 //! `ai` in the caller's name when the App's services hold them (API/06 §5).
+//!
+//! The builder keeps each `jc:service <name>…` block only while the App's services hold one of
+//! the names, and takes the marker lines out either way (T-3709).
 
+// jc:service ai
 use jc_app_sdk::ai::{self, Completion, Message, Role};
+// jc:end
+// jc:service email
 use jc_app_sdk::email::{self, Email, Recipients};
+use jc_app_sdk::identity;
+// jc:end
 use jc_app_sdk::http::{Params, Request, Response, Router};
-use jc_app_sdk::{identity, sql};
+use jc_app_sdk::sql;
 use serde::Deserialize;
 
 /// The longest text an item keeps, as the table's check says.
@@ -30,6 +38,7 @@ pub fn checked(item: &NewItem) -> Result<String, String> {
     Ok(text.to_owned())
 }
 
+// jc:service email ai
 /// The newest items' texts, at most `limit`.
 fn latest(limit: i64) -> Result<Vec<String>, Response> {
     let rows = sql::query(
@@ -42,7 +51,9 @@ fn latest(limit: i64) -> Result<Vec<String>, Response> {
         .filter_map(|row| row.get("text")?.as_str().map(str::to_owned))
         .collect())
 }
+// jc:end
 
+// jc:service email
 /// The digest mail of these texts, to the person who asked for it.
 pub fn digest(texts: &[String]) -> Email {
     let text = if texts.is_empty() {
@@ -57,7 +68,9 @@ pub fn digest(texts: &[String]) -> Email {
         html: None,
     }
 }
+// jc:end
 
+// jc:service ai
 /// The completion that sums these texts up in one sentence.
 pub fn summary_request(texts: &[String]) -> Completion {
     Completion {
@@ -75,6 +88,7 @@ pub fn summary_request(texts: &[String]) -> Completion {
         schema: None,
     }
 }
+// jc:end
 
 fn list(_: &Request, _: &Params) -> Response {
     match sql::query(
@@ -86,6 +100,7 @@ fn list(_: &Request, _: &Params) -> Response {
     }
 }
 
+// jc:service email
 /// Mails the caller the ten newest items; a visitor who is not signed in has no address.
 fn mail_digest(_: &Request, _: &Params) -> Response {
     if identity::caller().is_none() {
@@ -100,7 +115,9 @@ fn mail_digest(_: &Request, _: &Params) -> Response {
         Err(err) => Response::from_service(err),
     }
 }
+// jc:end
 
+// jc:service ai
 /// One sentence over the ten newest items from the organization's model.
 fn summary(_: &Request, _: &Params) -> Response {
     let texts = match latest(10) {
@@ -115,6 +132,7 @@ fn summary(_: &Request, _: &Params) -> Response {
         Err(err) => Response::from_service(err),
     }
 }
+// jc:end
 
 fn create(request: &Request, _: &Params) -> Response {
     let item: NewItem = match request.json() {
@@ -138,12 +156,16 @@ fn create(request: &Request, _: &Params) -> Response {
 }
 
 pub fn handle(request: Request) -> Response {
-    Router::new()
+    let router = Router::new()
         .get("/api/items", list)
-        .post("/api/items", create)
-        .post("/api/items/digest", mail_digest)
-        .get("/api/items/summary", summary)
-        .handle(&request)
+        .post("/api/items", create);
+    // jc:service email
+    let router = router.post("/api/items/digest", mail_digest);
+    // jc:end
+    // jc:service ai
+    let router = router.get("/api/items/summary", summary);
+    // jc:end
+    router.handle(&request)
 }
 
 jc_app_sdk::app!(handle);
@@ -168,6 +190,7 @@ mod tests {
         assert!(checked(&item(&"é".repeat(MAX_TEXT + 1))).is_err());
     }
 
+    // jc:service email
     #[test]
     fn the_digest_goes_to_the_caller_and_lists_every_text() {
         let mail = digest(&["one".into(), "two".into()]);
@@ -176,7 +199,9 @@ mod tests {
         assert_eq!(mail.text, "- one\n- two\n");
         assert_eq!(digest(&[]).text, "No items yet.");
     }
+    // jc:end
 
+    // jc:service ai
     #[test]
     fn the_summary_asks_for_one_sentence_over_the_texts() {
         let request = summary_request(&["one".into(), "two".into()]);
@@ -184,6 +209,7 @@ mod tests {
         assert_eq!(request.messages[1].content, "one\ntwo");
         assert_eq!(request.max_tokens, Some(100));
     }
+    // jc:end
 
     #[test]
     fn an_unknown_route_is_not_found() {

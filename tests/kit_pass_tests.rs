@@ -2552,25 +2552,10 @@ async fn a_wasm_run_writes_the_server_half_and_commits_the_crate_with_its_workfl
         "[dependencies]\ntokio = \"1\"".to_owned(),
     ));
     let answer = code_answer("Stations, and a server that keeps notes.", &blocks);
-    // A new App holds no service beyond identity and data, and the template's example handlers
-    // call email and ai (T-3695): the first version goes back once to take them out (T-3623).
-    let repair = code_answer(
-        "Mail and the model are off for this App: the examples are out.",
-        &[
-            (
-                "server/src/lib.rs",
-                "    match email::send(&digest(&texts)) {\n        Ok(id) => Response::json(202, &serde_json::json!({ \"id\": id })),\n        Err(err) => Response::from_service(err),\n    }\n",
-                "    let _ = digest(&texts);\n    Response::problem(404, \"Not Found\", \"this App sends no mail\")\n".to_owned(),
-            ),
-            (
-                "server/src/lib.rs",
-                "    match ai::complete(&summary_request(&texts)) {\n        Ok(answer) => Response::json(200, &serde_json::json!({ \"summary\": answer.text })),\n        Err(err) => Response::from_service(err),\n    }\n",
-                "    let _ = summary_request(&texts);\n    Response::json(200, &serde_json::json!({ \"summary\": texts.join(\" \") }))\n".to_owned(),
-            ),
-        ],
-    );
+    // A new App holds no service beyond identity and data: the builder takes the template's
+    // email and ai examples out before the first call (T-3709), so one answer is the version.
     let (_state, app, cookie, proxy) =
-        portal_state_with("openai-compatible", &[answer, repair], Some(&forge)).await;
+        portal_state_with("openai-compatible", &[answer], Some(&forge)).await;
     mount_types(&proxy).await;
     let (status, body) = json(
         &app,
@@ -2605,20 +2590,17 @@ async fn a_wasm_run_writes_the_server_half_and_commits_the_crate_with_its_workfl
     assert!(!user.contains("\"kit\""));
     assert!(user.contains("### server/src/lib.rs"));
     assert!(!user.contains("[[package]]"), "the lock reached the model");
-    let fix = requests
+    // the template the model reads holds neither example handler
+    assert!(!user.contains("fn mail_digest(") && !user.contains("fn summary("));
+    // the call after the version completes it; it is never a repair of the template's calls
+    let next = requests
         .get(1)
         .and_then(|request| request["messages"][1]["content"].as_str())
         .unwrap_or_default();
-    for problem in [
-        "server/src/lib.rs: calls the email service",
-        "server/src/lib.rs: calls the ai service",
-        "server/Cargo.toml: not a path the application may write",
-    ] {
-        assert!(
-            fix.contains(problem),
-            "the repair does not name `{problem}`"
-        );
-    }
+    assert!(
+        !next.contains("keeps off"),
+        "the first version was sent back: {next}"
+    );
 
     let mut committed = std::collections::BTreeMap::new();
     for request in forge.received_requests().await.unwrap_or_default() {
@@ -2644,6 +2626,10 @@ async fn a_wasm_run_writes_the_server_half_and_commits_the_crate_with_its_workfl
         !file("server/src/lib.rs").contains("email::send(")
             && !file("server/src/lib.rs").contains("ai::complete("),
         "a call of a service the App keeps off was committed"
+    );
+    assert!(
+        !file("server/src/lib.rs").contains("// jc:"),
+        "the template's markers reached the App"
     );
     assert!(
         !file("server/Cargo.toml").contains("tokio"),

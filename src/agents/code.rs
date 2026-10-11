@@ -120,6 +120,26 @@ pub fn off_service_calls(
     problems
 }
 
+/// The template's service examples for one App (T-3709): a `// jc:service a b` … `// jc:end`
+/// block stays while `on` holds one of its names, and the marker lines go either way. A new App
+/// holds no service beyond identity and data, so its first version starts without calls
+/// [`off_service_calls`] would send back, at no model call.
+pub fn service_examples(text: &str, on: impl Fn(&str) -> bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut keep = true;
+    for line in text.split_inclusive('\n') {
+        let marker = line.trim();
+        if let Some(names) = marker.strip_prefix("// jc:service ") {
+            keep = names.split_whitespace().any(&on);
+        } else if marker == "// jc:end" {
+            keep = true;
+        } else if keep {
+            out.push_str(line);
+        }
+    }
+    out
+}
+
 /// What a `wasm` run's model reads beside the SDK: the server half and its rules (AP-147).
 pub const SERVER_SECTION: &str = include_str!("server_section.md");
 
@@ -602,6 +622,81 @@ mod tests {
             off_service_calls(crate::ops::runs::SERVICES_CATALOG, &unwritable, |s| s
                 == "email")
             .is_empty()
+        );
+    }
+
+    /// T-3709: the template's service examples stay only for the services an App holds, so a
+    /// new App's first version calls nothing `off_service_calls` sends back; the markers never
+    /// reach an App, and every block the template opens is closed before the next one.
+    #[test]
+    fn the_templates_service_examples_follow_the_apps_services() {
+        const LIB: &str = include_str!("../../sdk/template-wasm/server/src/lib.rs");
+        let mut open = false;
+        for line in LIB.lines().map(str::trim) {
+            if line.starts_with("// jc:service ") {
+                assert!(!open, "a block opens inside another: {line}");
+                open = true;
+            } else if line == "// jc:end" {
+                assert!(open, "a jc:end without its block");
+                open = false;
+            }
+        }
+        assert!(!open, "the last block is never closed");
+        let server = |on: &dyn Fn(&str) -> bool| {
+            BTreeMap::from([("server/src/lib.rs".to_owned(), service_examples(LIB, on))])
+        };
+        let calls = |files: &BTreeMap<String, String>, call: &str| {
+            files["server/src/lib.rs"].contains(call)
+        };
+
+        let none = server(&|_| false);
+        assert!(off_service_calls(crate::ops::runs::SERVICES_CATALOG, &none, |_| false).is_empty());
+        let text = &none["server/src/lib.rs"];
+        for gone in [
+            "// jc:",
+            "fn latest(",
+            "identity",
+            "/api/items/digest",
+            "/api/items/summary",
+        ] {
+            assert!(
+                !text.contains(gone),
+                "{gone} is left in an App without email and ai"
+            );
+        }
+        for kept in [
+            "fn checked(",
+            ".post(\"/api/items\", create)",
+            "router.handle(&request)",
+            "jc_app_sdk::app!(handle);",
+        ] {
+            assert!(text.contains(kept), "{kept} went with the examples");
+        }
+
+        let both = server(&|_| true);
+        assert!(calls(&both, "email::send(") && calls(&both, "ai::complete("));
+        assert!(
+            !both["server/src/lib.rs"].contains("// jc:service")
+                && !both["server/src/lib.rs"].contains("// jc:end")
+        );
+        let unmarked: String = LIB
+            .split_inclusive('\n')
+            .filter(|line| !matches!(line.trim(), l if l.starts_with("// jc:service ") || l == "// jc:end"))
+            .collect();
+        assert_eq!(
+            both["server/src/lib.rs"], unmarked,
+            "an App with both keeps the whole template"
+        );
+
+        let mail = server(&|s| s == "email");
+        assert!(calls(&mail, "email::send(") && !calls(&mail, "ai::complete("));
+        assert!(
+            calls(&mail, "fn latest("),
+            "the digest reads the newest items"
+        );
+        assert!(
+            off_service_calls(crate::ops::runs::SERVICES_CATALOG, &mail, |s| s == "email")
+                .is_empty()
         );
     }
 

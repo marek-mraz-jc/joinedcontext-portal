@@ -54,7 +54,13 @@ impl Driver {
     ) -> Result<(), String> {
         self.status(AgentRunStatus::Starting).await?;
         let mut files = if self.wasm {
-            preview::wasm_template_files()
+            let mut files = preview::wasm_template_files();
+            for (path, text) in files.iter_mut() {
+                if path.starts_with("server/src/") {
+                    *text = code::service_examples(text, |service| self.service_on(service));
+                }
+            }
+            files
         } else {
             preview::template_files()
         };
