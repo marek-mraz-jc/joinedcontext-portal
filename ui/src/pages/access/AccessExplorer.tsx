@@ -8,9 +8,8 @@ import { asManifests, ORG_NAMESPACE } from "../../api/manifest";
 import { administersOrganization, usePermissions } from "../../api/permissions";
 import { useBranding } from "../../branding";
 import { RecordLink } from "../../components/RecordLink";
-import { hubUrl, namedServerUrl, representationUrl } from "../../components/endpoints/links";
+import { CopyUrlButton, hubUrl, namedServerUrl, representationUrl } from "../../components/endpoints/links";
 import { Alert, Badge, Button, Card, CardHeader, ConfirmDialog, EmptyState, Field, Input, Select } from "../../components/ui";
-import { CopyUrlButton } from "../../routes/EndpointsPage";
 
 type Who = components["schemas"]["Who"];
 type Kind = Who["kind"];
