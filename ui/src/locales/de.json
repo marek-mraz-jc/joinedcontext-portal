@@ -5793,7 +5793,10 @@
       "read": "Lesen",
       "propose": "Änderungen vorschlagen",
       "approve": "Änderungen genehmigen",
-      "delete": "Löschen"
+      "delete": "Löschen",
+      "create": "Anlegen",
+      "update": "Ändern",
+      "disable": "Abschalten"
     },
     "notificationFormat": {
       "normalized": "Vollständiges NGSI-LD",

@@ -5793,7 +5793,10 @@
       "read": "Číst",
       "propose": "Navrhovat změny",
       "approve": "Schvalovat změny",
-      "delete": "Mazat"
+      "delete": "Mazat",
+      "create": "Vytvářet",
+      "update": "Měnit",
+      "disable": "Vypínat"
     },
     "notificationFormat": {
       "normalized": "Úplné NGSI-LD",

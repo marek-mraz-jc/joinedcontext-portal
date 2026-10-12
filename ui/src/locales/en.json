@@ -5793,7 +5793,10 @@
       "read": "Read",
       "propose": "Propose changes",
       "approve": "Approve changes",
-      "delete": "Delete"
+      "delete": "Delete",
+      "create": "Create",
+      "update": "Change",
+      "disable": "Switch off"
     },
     "notificationFormat": {
       "normalized": "Full NGSI-LD",
