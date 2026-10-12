@@ -36,6 +36,20 @@ spec:
     blob: { quotaMiB: 256 }
   visibility: public
   lifecycle: published
+  # Who keeps places and marks readings faulty (T-3827); the server decides from identity::caller()
+  # alone, and the city's data is only read.
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Keeps places of their own: an air quality station, a pollutant and the level above which the page alerts them; changes and deletes their own."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "What a viewer does, and marks a station's readings faulty for a period with a reason, shown to everyone and left out of every comparison. Reads the whole history."
+  access:
+    - role: viewer
+      subjects: [{ group: air-weather-explorer-viewer }]
+    - role: steward
+      subjects: [{ group: air-weather-explorer-steward }]
   dataNeeds:
     # The stations HSY's feed writes (helsinki-pipeline-air-quality), with a week of history: the
     # attributes the air-quality app reads on dev.

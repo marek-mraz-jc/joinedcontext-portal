@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { langOf, number } from "./i18n";
+import { langOf, localeOf, number } from "./i18n";
 import { t } from "./texts";
 
 describe("i18n", () => {
@@ -7,7 +7,8 @@ describe("i18n", () => {
     expect(langOf("?lang=en", "fi", "fi-FI")).toBe("en");
     expect(langOf("?lang=de", "en", "fi-FI")).toBe("en");
     expect(langOf("", undefined, "en-GB")).toBe("en");
-    expect(langOf("", "sv", "sv-SE")).toBe("fi");
+    expect(langOf("", "sv", "sv-SE")).toBe("sv");
+    expect(langOf("?lang=de", undefined, "de-DE")).toBe("fi");
   });
 
   it("writes numbers as Finland does, in either language", () => {
@@ -16,8 +17,13 @@ describe("i18n", () => {
     expect(number(-0.004, 2)).toBe("0,00");
   });
 
+  it("writes dates as Finland does in each language", () => {
+    expect(["fi", "en", "sv"].map((lang) => localeOf(lang as "fi"))).toEqual(["fi-FI", "en-FI", "sv-FI"]);
+  });
+
   it("fills a text's names and leaves an unknown one as it is", () => {
     expect(t("fi", "pick", { n: 3 })).toBe("Ota 3");
     expect(t("en", "pick")).toBe("Take {n}");
+    expect(t("sv", "pick", { n: 2 })).toBe("Ta 2");
   });
 });

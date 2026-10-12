@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
-import { BASE, serve } from "./serve";
+import { BASE, STEWARD, VIEWER, serve } from "./serve";
 
 for (const scheme of ["light", "dark"] as const) {
-  for (const lang of ["fi", "en"] as const) {
+  for (const lang of ["fi", "en", "sv"] as const) {
     for (const size of WIDTHS) {
       test(`${scheme} ${lang} at ${size.width} px: answers on arrival, map canvas, tiles, chart, heat table, axe clean`, async ({ page }, testInfo) => {
         await page.emulateMedia({ colorScheme: scheme });
@@ -15,7 +15,7 @@ for (const scheme of ["light", "dark"] as const) {
         await expect(page.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
 
         // The station selector is present
-        const combobox = page.getByRole("combobox", { name: lang === "fi" ? "Asema" : "Station" });
+        const combobox = page.getByRole("combobox", { name: lang === "fi" ? "Asema" : "Station", exact: true });
         await expect(combobox).toBeVisible();
 
         // Availability tiles are visible
@@ -45,7 +45,7 @@ test("changing the station in combobox updates URL hash and tiles", async ({ pag
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${BASE}?lang=en`);
 
-  const combobox = page.getByRole("combobox", { name: "Station" });
+  const combobox = page.getByRole("combobox", { name: "Station", exact: true });
   await expect(combobox).toBeVisible();
 
   await combobox.selectOption({ label: "Hakaniemi (10 / 20)" });
@@ -110,6 +110,52 @@ for (const scheme of ["light", "dark"] as const) {
       expect(await layoutProblems(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+
+// T-3827: a viewer reads a station's model inputs, every control closed with its reason; a steward
+// sets them and finds the change in History. At a phone and a laptop, light and dark.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a viewer reads the model inputs, closed with the reason, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, undefined, undefined, VIEWER);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en`);
+      await expect(page.getByLabel("Role: Viewer")).toBeVisible();
+      const form = page.getByRole("form", { name: "Model inputs" });
+      await expect(page.getByTestId("inputs-now")).toHaveText("The model reads the weather of the nearest within 10 km and trains on 7 days. The defaults.");
+      await expect(form.getByLabel("Days to train on (1–7)")).toBeDisabled();
+      await expect(form.getByLabel("Days to train on (1–7)")).toHaveAttribute("title", "Only a steward changes the model inputs.");
+      await expect(form.getByRole("button", { name: "Save inputs" })).toBeDisabled();
+      await form.scrollIntoViewIfNeeded();
+      await testInfo.attach(`viewer-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+
+    test(`${scheme} at ${width} px: a steward sets the model inputs and finds them in History, in Swedish, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, undefined, undefined, STEWARD);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=sv`);
+      await expect(page.getByLabel("Roll: Förvaltare")).toBeVisible();
+      const form = page.getByRole("form", { name: "Modellens indata" });
+      await form.getByLabel("Väderstation").selectOption({ label: "Kaisaniemi" });
+      await form.getByLabel("Dagar att träna på (1–7)").fill("3");
+      await form.getByLabel("Anteckning").fill("Närmare station");
+      await form.getByRole("button", { name: "Spara indata" }).click();
+      await expect(page.getByText("Sparat: dagens modell tränas på nytt.")).toBeVisible();
+      await expect(page.getByTestId("inputs-now")).toContainText("Modellen läser vädret från Kaisaniemi och tränar på 3 dagar. Satt av Sami Steward");
+      await expect(page.getByText(/Vald väderstation: Kaisaniemi/)).toBeVisible();
+      await form.scrollIntoViewIfNeeded();
+      await testInfo.attach(`steward-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "Historik" }).click();
+      await expect(page.getByRole("table", { name: "Ändringar" })).toContainText("Sami Steward");
+      expect(await layoutProblems(page)).toEqual([]);
       expect(served).toEqual({ outside: [], missing: [], problems: [] });
     });
   }

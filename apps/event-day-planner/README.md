@@ -1,8 +1,7 @@
 # My day of events
 
 For a visitor to Helsinki: which of the day's events to see, in which order, with the walk
-between them. One page, in Finnish or English (the events' own names in Finnish, Swedish or
-English as the Portal's language asks):
+between them, in Finnish, Swedish or English (the events' own names as the Portal's language asks):
 
 - the day (today, or a later one) and a search;
 - the plan on opening: with nothing picked, a suggested day of events that follow one another on
@@ -17,7 +16,8 @@ English as the Portal's language asks):
 
 An event's name in the plan or the list, or its stop on the map, opens it in the SDK shell's
 entity panel, in the page's language, with a link to the event in the Portal; the App writes
-nothing, so the panel offers no Edit. The language is the shell's switch, Suomi or English.
+never writes the city's data, so the panel offers no Edit. The language is the shell's switch,
+Suomi, English or Svenska.
 
 The day, the search, the hour and the picks are kept in the address (`?day=`, `?q=`, `?hour=`,
 `?pick=`, `?lang=`), so a reload or a shared link shows the same day.
@@ -57,12 +57,43 @@ cleared a week after its date, a few at each new share.
 | `GET /api/itineraries/{code}` | the shared day, its picks and its plan |
 | `GET /api/itineraries/{code}/ics` | a URL the calendar file downloads from |
 
+## Roles and history
+
+The server decides from the signed-in person the platform names (`identity::caller()`, API/07),
+never from anything the page sends:
+
+- anyone, signed in or not, plans and shares a day and sees the **featured events**;
+- a **viewer** finds the days they shared while signed in under **My days**, opens one again and
+  deletes it with its calendar file; a day of someone else's answers as if it did not exist;
+- a **steward** features an event of the day from the list (**Feature**), writes a note for it
+  and takes it back; every visitor sees the featured events above the list and picks them into
+  their day like any other.
+
+A feature, a note, a removal and a deleted day show at once and go back when the server refuses.
+Every change writes a row into the App's `app_audit` table in the same statement, so a refused or
+failed change leaves none; the **History** page reads it: a viewer their own rows, a steward
+everyone's.
+
+| Route | Who | What it does |
+|---|---|---|
+| `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+| `GET /api/days` | signed in | the latest 50 days the caller shared |
+| `DELETE /api/days/{id}` | the sharer | the day and its calendar file gone |
+| `GET /api/featured` | anyone | the featured events, at most 50 |
+| `POST /api/featured` `{eventId, note}` | steward | an event featured |
+| `PUT /api/featured/{id}` `{note}` | steward | its note changed |
+| `DELETE /api/featured/{id}` | steward | no longer featured |
+| `GET /api/history` | signed in | the newest 100 changes (a viewer: their own) |
+
+`server/host-test.json` plays every route on the real host as an anonymous visitor, a viewer,
+another viewer and a steward, and counts the rows after each refused write.
+
 ## Data
 
 One data need on the Context Space `helsinki`: `Event` with `name`, `description`, `startDate`,
 `endDate`, `eventStatus`, `address`, `location` and `source`, the Linked Events registers the
 events pipeline writes. Only events that have not ended are read. The app writes nothing to the
-Context Space: a shared day is kept in its own schema.
+Context Space: shared days, featured events and the history are kept in its own schema.
 
 ## Run the tests
 

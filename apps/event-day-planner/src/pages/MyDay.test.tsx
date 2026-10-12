@@ -6,6 +6,9 @@ import { stubClient } from "@joinedcontext/sdk/testing";
 import { EVENTS } from "../fixtures/events";
 import { ServerProblem } from "../share";
 import type { ShareApi } from "../share";
+import { AccessProvider } from "../access";
+import { memory, STEWARD, VIEWER } from "../fixtures/memory";
+import type { Me } from "../share";
 import { hourOf, MyDay } from "./MyDay";
 
 vi.mock("maplibre-gl", () => ({
@@ -38,14 +41,8 @@ vi.mock("@joinedcontext/sdk", async (original) => ({
   download: (blob: Blob, name: string) => downloads.push({ blob, name }),
 }));
 
-/** The App's server with nothing shared: most of these tests are about the planner on the page. */
-function shares(): ShareApi {
-  return {
-    share: vi.fn(async (day: string, ids: string[]) => ({ code: "abc123def456", day, lang: "en", picks: ids, items: [], conflicts: [], walkKm: 0, walkMinutes: 0 })),
-    get: vi.fn(async (code: string) => ({ code, day: "2030-10-20", lang: "en", picks: ["helsinki-agf2", "helsinki-agf3"], items: [], conflicts: [], walkKm: 0, walkMinutes: 0 })),
-    icsUrl: vi.fn(async () => "https://store.example/x.ics"),
-  };
-}
+/** The App's server with nothing shared and a viewer signed in: most of these tests are about the planner on the page. */
+const shares = (): ShareApi => memory();
 let api = shares();
 
 const READ = {
@@ -196,6 +193,7 @@ describe("MyDay", () => {
   for (const [language, words] of [
     ["en", { day: "Day", search: "Search", clear: "Clear choices", ics: "Download to calendar (.ics)", source: "Source", list: "Events of the day", monday: "Monday matinee" }],
     ["fi", { day: "Päivä", search: "Haku", clear: "Tyhjennä valinnat", ics: "Lataa kalenteriin (.ics)", source: "Lähde", list: "Päivän tapahtumat", monday: "Maanantain matinea" }],
+    ["sv", { day: "Dag", search: "Sök", clear: "Rensa valen", ics: "Ladda ner till kalendern (.ics)", source: "Källa", list: "Dagens evenemang", monday: "Monday matinee" }],
   ] as const) {
     it(`answers every control of the day in ${language}`, async () => {
       show(language);
@@ -304,6 +302,119 @@ describe("MyDay at the edges", () => {
       </JcProvider>,
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("The events could not be read. Check the connection and try again.");
+  });
+});
+
+/** The page for `me`, with the App's server deciding as the real one does. */
+function showAs(me: Me | null, server = memory(me), language = "en") {
+  const client = stubClient({ entities: EVENTS, access: READ }, { appName: "event-day-planner", language });
+  render(
+    <JcProvider client={client}>
+      <AccessProvider api={server}>
+        <MyDay shares={server} />
+      </AccessProvider>
+    </JcProvider>,
+  );
+  return server;
+}
+const ORGAN = "urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-agf2";
+const MONDAY = "urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-agf7";
+
+// T-3826: a steward features events every visitor sees, with a note; a viewer picks them.
+describe("MyDay featured events", () => {
+  it("lets a steward feature an event, note it and take it back, each shown at once", async () => {
+    const server = showAs(STEWARD);
+    const list = await screen.findByRole("list", { name: "Events of the day" });
+    expect(await screen.findByText("No event is featured.")).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "Feature: Organ concert" }));
+    const featured = await screen.findByRole("list", { name: "Featured events" });
+    expect(within(featured).getByText("Organ concert")).toBeInTheDocument();
+    expect(await screen.findByText("Featured: Organ concert.")).toBeInTheDocument();
+    expect(within(list).getByText("Featured")).toBeInTheDocument();
+    expect(server.feature).toHaveBeenCalledWith(ORGAN, "");
+
+    const note = await within(featured).findByRole("textbox", { name: "Note" });
+    const save = within(featured).getByRole("button", { name: "Save the note" });
+    expect(save).toBeDisabled();
+    fireEvent.change(note, { target: { value: "  Free entry  " } });
+    fireEvent.click(save);
+    expect(await screen.findByText("The note is saved.")).toBeInTheDocument();
+    expect(server.changeNote).toHaveBeenCalledWith(1, "Free entry");
+
+    // Picked from the card: the planner takes it like any other pick.
+    fireEvent.click(within(featured).getByRole("checkbox", { name: "Add to my day: Organ concert" }));
+    expect(new URLSearchParams(window.location.search).get("pick")).toBe("helsinki-agf2");
+
+    fireEvent.click(within(featured).getByRole("button", { name: "Remove from featured: Organ concert" }));
+    expect(await screen.findByText("No longer featured: Organ concert.")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Featured events" })).toBeNull();
+    expect(server.featured_).toEqual([]);
+
+    // Every event of the day can be featured from the list.
+    for (const button of within(list).getAllByRole("button", { name: /^Feature: / })) fireEvent.click(button);
+    await waitFor(() => expect(server.featured_.length).toBeGreaterThan(3));
+    expect(within(list).queryAllByRole("button", { name: /^Feature: / })).toEqual([]);
+    // Each one picked from the card and let go, then taken back.
+    const all = await screen.findByRole("list", { name: "Featured events" });
+    for (const box of within(all).getAllByRole("checkbox")) {
+      fireEvent.click(box);
+      fireEvent.click(box);
+    }
+    for (const button of within(all).getAllByRole("button", { name: /^Remove from featured: / })) {
+      await waitFor(() => expect(button).toBeEnabled());
+      fireEvent.click(button);
+    }
+    expect(await screen.findByText("No event is featured.")).toBeInTheDocument();
+  });
+
+  it("puts the list back and says why when the server refuses a steward's change", async () => {
+    const server = memory(STEWARD);
+    await server.feature(ORGAN, "Free entry");
+    server.unfeature = vi.fn(async () => {
+      throw new ServerProblem(404, "no such featured event");
+    });
+    server.feature = vi.fn(async () => {
+      throw new ServerProblem(403, "this needs the role steward");
+    });
+    showAs(STEWARD, server);
+    const featured = await screen.findByRole("list", { name: "Featured events" });
+    fireEvent.click(within(featured).getByRole("button", { name: "Remove from featured: Organ concert" }));
+    expect(await screen.findByText(/no longer there, or it is not yours/)).toBeInTheDocument();
+    const back = screen.getByRole("list", { name: "Featured events" });
+    expect(within(back).getByText("Organ concert")).toBeInTheDocument();
+
+    const list = screen.getByRole("list", { name: "Events of the day" });
+    fireEvent.click(within(list).getByRole("button", { name: "Feature: Poetry reading" }));
+    expect(await within(list).findByText(/Your account may not do this/)).toBeInTheDocument();
+    expect(within(back).queryByText("Poetry reading")).toBeNull();
+  });
+
+  it("shows a viewer the featured events and their notes, with nothing to change", async () => {
+    const server = memory(STEWARD);
+    await server.feature(ORGAN, "Free entry");
+    await server.feature(MONDAY, "");
+    await server.feature("urn:ngsi-ld:Event:hel.fi:helsinki:gone", "");
+    showAs(VIEWER, Object.assign(server, { me: vi.fn(async () => VIEWER) }));
+    const featured = await screen.findByRole("list", { name: "Featured events" });
+    expect(screen.getByText("A steward curates the featured events.")).toBeInTheDocument();
+    expect(within(featured).getByText("Free entry")).toBeInTheDocument();
+    // On another day it says so, with no pick; one the page never read goes by its id.
+    expect(within(featured).getAllByText(/not on this day/)).toHaveLength(2);
+    expect(within(featured).getByText("gone")).toBeInTheDocument();
+    expect(within(featured).getAllByRole("checkbox")).toHaveLength(1);
+    expect(within(featured).queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Feature:/ })).toBeNull();
+  });
+
+  it("says when the featured events cannot be read, and the day still plans", async () => {
+    const server = memory(null);
+    server.featured = vi.fn(async () => {
+      throw new ServerProblem(502, "");
+    });
+    showAs(null, server, "fi");
+    expect(await screen.findByText("Palvelin ei vastannut. Yritä hetken päästä uudelleen.")).toBeInTheDocument();
+    expect(screen.getByText("Suositeltuja tapahtumia ei ole.")).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "Suunnitelma" })).toBeInTheDocument();
   });
 });
 

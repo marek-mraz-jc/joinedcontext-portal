@@ -11,9 +11,9 @@ publish = false
 license = "Apache-2.0"
 
 [dependencies]
-# The host at the platform commit whose alias reaches the App's own Endpoint alone (AP-147), the
-# commit the Apps' SDK pins.
-wasm-host = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9d6378b2b21b45917b6fb1653ff6fbb8701d021f" }
+# The host at the platform commit the Apps' SDK pins: it asks the Portal for the caller and their
+# roles (T-3825) and reaches the App's own Endpoint alone (AP-147).
+wasm-host = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "ef03418872f29c10bf895fdf84aaf899e651f205" }
 bytes = "1"
 hex = "0.4"
 http = "1"

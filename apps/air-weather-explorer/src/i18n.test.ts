@@ -7,10 +7,11 @@ describe("i18n", () => {
     expect(langOf("?lang=en", "fi", "fi-FI")).toBe("en");
     expect(langOf("?lang=de", "en", "fi-FI")).toBe("en");
     expect(langOf("", undefined, "en-GB")).toBe("en");
-    expect(langOf("", "sv", "sv-SE")).toBe("fi");
+    expect(langOf("", "sv", "en-GB")).toBe("sv");
+    expect(langOf("?lang=de", "de", "de-DE")).toBe("fi");
   });
 
-  it("writes numbers as Finland does, in either language", () => {
+  it("writes numbers as Finland does, in any of its languages", () => {
     expect(number(1234.5, 1)).toBe("1\u00a0234,5");
     expect(number(-0.25, 1)).toBe("−0,3");
     expect(number(-0.004, 2)).toBe("0,00");

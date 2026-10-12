@@ -106,9 +106,10 @@ describe("langOf", () => {
 
   it("falls back to first recognized browser language when param is missing or invalid", () => {
     expect(langOf("", ["fi-FI", "en-US"])).toBe("fi");
-    expect(langOf("", ["sv-SE", "en-US"])).toBe("fi");
+    expect(langOf("", ["sv-SE", "en-US"])).toBe("sv");
+    expect(langOf("?lang=sv", ["fi-FI"])).toBe("sv");
     expect(langOf("", ["en-GB", "fi-FI"])).toBe("en");
-    expect(langOf("?lang=other", ["sv-FI"])).toBe("fi");
+    expect(langOf("?lang=other", ["sv-FI"])).toBe("sv");
     expect(langOf("", ["de-DE", "fi-FI"])).toBe("fi");
     expect(langOf("", ["de-DE", "en-US"])).toBe("en");
     expect(langOf("", ["fr-FR"])).toBe("en");

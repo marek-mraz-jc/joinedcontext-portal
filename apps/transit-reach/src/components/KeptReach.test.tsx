@@ -9,7 +9,7 @@ vi.mock("../go", () => ({ go: (url: string) => went.push(url) }));
 
 const STOP = { id: "urn:ngsi-ld:GtfsStop:HSL:1", label: "Rautatientori (H0019): lines M1" };
 
-function server(): ReachApi {
+function server(): Pick<ReachApi, "reach" | "refresh"> {
   return {
     reach: vi.fn(async () => ({
       version: "v1",
@@ -59,7 +59,7 @@ describe("KeptReach", () => {
   it("maps every refusal to words a person can act on", () => {
     expect(problemText("en", new ServerProblem(0, ""))).toMatch(/could not be reached/);
     expect(problemText("en", new ServerProblem(401, ""))).toMatch(/Sign in again/);
-    expect(problemText("en", new ServerProblem(403, ""))).toMatch(/may not read/);
+    expect(problemText("en", new ServerProblem(403, ""))).toMatch(/may not do this/);
     expect(problemText("en", new ServerProblem(409, ""))).toMatch(/holds no HSL stops/);
     expect(problemText("en", new ServerProblem(507, ""))).toMatch(/storage is full/);
     expect(problemText("en", new ServerProblem(422, "no band to reach within"))).toBe("No areas: no band to reach within");

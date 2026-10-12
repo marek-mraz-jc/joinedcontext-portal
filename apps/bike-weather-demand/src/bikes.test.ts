@@ -5,7 +5,7 @@ import {
   haversineKm,
   nearestWeatherStation,
   readHash,
-  sevenDaysAgoIso,
+  daysAgoIso,
   stationBikes,
   stationFreeSlots,
   stationName,
@@ -155,17 +155,18 @@ describe("readHash and writeHash", () => {
   });
 });
 
-describe("sevenDaysAgoIso", () => {
+describe("daysAgoIso", () => {
   it("returns the exact ISO string 7 days prior to given date", () => {
     const fixed = new Date("2026-10-15T12:00:00.000Z");
-    const result = sevenDaysAgoIso(fixed);
+    const result = daysAgoIso(7, fixed);
+    expect(daysAgoIso(3, fixed)).toBe("2026-10-12T12:00:00.000Z");
     expect(result).toBe("2026-10-08T12:00:00.000Z");
     expect(fixed.getTime() - new Date(result).getTime()).toBe(7 * 24 * 60 * 60 * 1000);
   });
 
   it("defaults to 7 days before current time when called without arguments", () => {
     const before = Date.now();
-    const result = sevenDaysAgoIso();
+    const result = daysAgoIso();
     const after = Date.now();
     const diff = before - new Date(result).getTime();
     expect(diff).toBeGreaterThanOrEqual(7 * 24 * 60 * 60 * 1000 - 50);

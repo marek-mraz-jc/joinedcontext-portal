@@ -20,9 +20,11 @@ import {
 } from "./fixtures/bikes";
 import { ServerContext } from "./server";
 import type { Server } from "./server";
+import { memory } from "./testing/server";
 
-/** The App's server with no model kept yet (T-3355); ModelHistory.test.tsx tests the card itself. */
-const NO_MODELS: Server = { models: async () => ({ models: [], stale: false }), snapshotUrl: async () => "" };
+/** The App's server with no model and no inputs kept yet, signed out (T-3355, T-3827);
+ * ModelHistory.test.tsx and roles.test.tsx test those parts themselves. */
+const NO_MODELS: Server = memory();
 
 /** What MapLibre would call on a click of a drawn station, kept by the double below. */
 const map = vi.hoisted(() => ({ click: null as ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null }));

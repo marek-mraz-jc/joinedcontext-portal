@@ -76,7 +76,7 @@ describe("the App in the SDK's shell", () => {
     window.history.replaceState(null, "", "/?station=kallio#/compare");
     const reload = vi.fn();
     chooseLanguage("en", "en", reload);
-    chooseLanguage("sv", "en", reload);
+    chooseLanguage("de", "en", reload);
     expect(reload).not.toHaveBeenCalled();
     chooseLanguage("fi", "en", reload);
     expect(reload).toHaveBeenCalledTimes(1);

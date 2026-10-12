@@ -1,7 +1,9 @@
 import { useClient } from "@joinedcontext/sdk";
 
 /** The languages the page is written in; the data keeps its own (fi, sv, en in the city's feeds). */
-export type Lang = "fi" | "en";
+export type Lang = "fi" | "en" | "sv";
+
+export const LANGS: readonly Lang[] = ["fi", "en", "sv"];
 
 /** Every date and time the page shows is Helsinki's, whatever the reader's clock says. */
 export const ZONE = "Europe/Helsinki";
@@ -10,14 +12,14 @@ export const ZONE = "Europe/Helsinki";
 export function langOf(search: string, configured?: string, browser?: string): Lang {
   const asked = new URLSearchParams(search).get("lang");
   for (const candidate of [asked, configured, browser?.slice(0, 2)]) {
-    if (candidate === "fi" || candidate === "en") return candidate;
+    if (LANGS.includes(candidate as Lang)) return candidate as Lang;
   }
   return "fi";
 }
 
-/** The locale dates are written in: Finnish, or English as Finland writes it (day before month). */
+/** The locale dates are written in: Finnish, Swedish as Finland writes it, or English as Finland writes it (day before month). */
 export function localeOf(lang: Lang): string {
-  return lang === "fi" ? "fi-FI" : "en-FI";
+  return `${lang}-FI`;
 }
 
 /**

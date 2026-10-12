@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, currentTokens, download, Empty, Loading, Page, ProblemError, Split, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
+import { useAccess } from "../access";
 import { ChartCard } from "../components/ChartCard";
+import { FeaturedCard } from "../components/FeaturedCard";
 import { MapView } from "../components/MapView";
 import { problemText, ShareDay } from "../components/ShareDay";
 import type { MapPoint } from "../components/MapView";
@@ -22,6 +24,8 @@ import {
 } from "../events";
 import { localeOf, number, useLang, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
+import { useFeatured } from "../featured";
+import type { Featured } from "../featured";
 import { computeDay } from "../planner";
 import type { Day, Fit } from "../planner";
 import { apiBase, isCode, shareApi } from "../share";
@@ -66,7 +70,8 @@ function hourChart(counts: number[], lang: Lang): Record<string, unknown> | null
  * between at 5 km/h, what clashes or is out of reach, and the day as a calendar file. The plan is
  * made by the WebAssembly planner in a worker; the day, the search, the hour and the picks are
  * kept in the address. An event in the plan, on the map or in the list opens in the shell's entity
- * panel (SDK-40), linked to the Portal: a public App writes nothing.
+ * panel (SDK-40), linked to the Portal. A steward features events every visitor sees, with a note
+ * (T-3826); a signed-in visitor keeps the days they share under My days.
  */
 export function MyDay({ shares }: { shares?: ShareApi } = {}) {
   const lang = useLang();
@@ -82,6 +87,8 @@ export function MyDay({ shares }: { shares?: ShareApi } = {}) {
   const hour = hourOf(hourText);
   const picks = useMemo(() => listOf(pickText), [pickText]);
   const { select } = useEntitySelection();
+  const { steward } = useAccess();
+  const featured = useFeatured(api);
 
   // A shared link, `?share=<code>`: its day and picks put into the address, then the code dropped,
   // so a reload keeps the day and the visitor's own changes stay theirs (T-3347).
@@ -121,6 +128,8 @@ export function MyDay({ shares }: { shares?: ShareApi } = {}) {
   const { rows, loading, error, reload } = useEntities(EVENT, query);
   const ofDay = useMemo(() => eventsOfDay(rows, bounds), [rows, bounds]);
   const byLocal = useMemo(() => new Map(rows.map((row) => [localOf(row.id), row])), [rows]);
+  const byId = useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows]);
+  const ofDayById = useMemo(() => new Map(ofDay.map((row) => [row.id, row])), [ofDay]);
   const listed = useMemo(() => eventsOfDay(ofDay, bounds, search, hour), [ofDay, bounds, search, hour]);
   const counts = useMemo(() => perHour(eventsOfDay(ofDay, bounds, search), bounds), [ofDay, bounds, search]);
   const chart = useMemo(() => hourChart(counts, lang), [counts, lang]);
@@ -290,6 +299,7 @@ export function MyDay({ shares }: { shares?: ShareApi } = {}) {
           <MapView points={points} line={line} label={t(lang, "mapLabel")} onPick={open} />
         </Card>
       </Split>
+      <FeaturedCard lang={lang} featured={featured} ofDay={ofDayById} known={byId} picks={picks} onToggle={toggle} />
       <Split ratio="2:1">
         <Card title={`${t(lang, "events")} · ${t(lang, "eventsOf", { n: number(listed.length), all: number(ofDay.length) })}`}>
           {hour !== null && (
@@ -314,6 +324,7 @@ export function MyDay({ shares }: { shares?: ShareApi } = {}) {
                   onToggle={() => toggle(localOf(row.id))}
                   onOpen={() => open(localOf(row.id))}
                   bounds={bounds}
+                  featured={steward ? featured : null}
                 />
               ))}
             </ul>
@@ -339,6 +350,7 @@ function EventEntry({
   onToggle,
   onOpen,
   bounds,
+  featured,
 }: {
   row: Row;
   lang: Lang;
@@ -346,8 +358,11 @@ function EventEntry({
   onToggle: () => void;
   onOpen: () => void;
   bounds: [number, number];
+  /** Given to a steward only: the event can be featured from here. */
+  featured: Featured | null;
 }) {
   const [event] = planEvents([row], bounds);
+  const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
   const isCancelled = cancelled(row);
   const source = sourceOf(row);
   const description = textOf(row, "description");
@@ -383,7 +398,13 @@ function EventEntry({
             {t(lang, "source")}
           </a>
         )}
+        {featured && <FeatureButton lang={lang} featured={featured} row={row} onDone={setNote} />}
       </p>
+      {note && (
+        <p role={note.error ? "alert" : "status"} className={note.error ? "app-error" : "app-lead"}>
+          {note.text}
+        </p>
+      )}
       {description && (
         <details>
           <summary>{t(lang, "about")}</summary>
@@ -391,5 +412,42 @@ function EventEntry({
         </details>
       )}
     </li>
+  );
+}
+
+/** A steward's "Feature" for one event; an event already featured says so instead. */
+function FeatureButton({
+  lang,
+  featured,
+  row,
+  onDone,
+}: {
+  lang: Lang;
+  featured: Featured;
+  row: Row;
+  onDone: (note: { text: string; error: boolean }) => void;
+}) {
+  const name = nameOf(row);
+  if (featured.list?.some((one) => one.eventId === row.id))
+    return (
+      <span className="app-chip" data-fit="ok">
+        {t(lang, "isFeatured")}
+      </span>
+    );
+  return (
+    <button
+      type="button"
+      className="jc-button"
+      disabled={featured.list === null}
+      aria-label={`${t(lang, "feature")}: ${name}`}
+      onClick={() =>
+        featured.add(row.id).then(
+          () => onDone({ text: t(lang, "featured", { name }), error: false }),
+          (error: unknown) => onDone({ text: problemText(lang, error, "featureFailed", "gone"), error: true }),
+        )
+      }
+    >
+      {t(lang, "feature")}
+    </button>
   );
 }

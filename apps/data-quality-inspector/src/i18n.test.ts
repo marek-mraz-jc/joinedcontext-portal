@@ -104,9 +104,10 @@ describe("langOf", () => {
     // Finnish first
     expect(langOf("", ["fi-FI", "en-GB"])).toBe("fi");
 
-    // Swedish first -> Finnish (per platform rule for Helsinki app)
-    expect(langOf("", ["sv-FI", "en-US"])).toBe("fi");
-    expect(langOf("", ["sv-SE", "en-GB"])).toBe("fi");
+    // Swedish first -> Swedish, which the App speaks (T-3827)
+    expect(langOf("", ["sv-FI", "en-US"])).toBe("sv");
+    expect(langOf("", ["sv-SE", "en-GB"])).toBe("sv");
+    expect(langOf("?lang=sv", ["fi-FI"])).toBe("sv");
 
     // Unsupported languages before supported language
     expect(langOf("", ["de-DE", "fi-FI", "en-US"])).toBe("fi");
