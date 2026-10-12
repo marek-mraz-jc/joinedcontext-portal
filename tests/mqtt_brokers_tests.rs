@@ -77,7 +77,7 @@ fn held(kind: &str, releases: &[&str]) -> Value {
 
 async fn cluster(template: Option<&str>, releases: &[&str]) -> MockServer {
     let server = MockServer::start().await;
-    let map = format!("/api/v1/namespaces/{NAMESPACE}/configmaps/mqtt-broker-template");
+    let map = format!("/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template");
     let response = match template {
         Some(text) => {
             ResponseTemplate::new(200).set_body_json(json!({ "data": { TEMPLATE_KEY: text } }))
@@ -262,7 +262,7 @@ async fn without_the_template_nothing_is_applied_or_removed_and_the_run_says_why
     let failed = reconciler(&server)
         .converge(&[broker("helsinki", "cameras", 10)], true)
         .await;
-    assert!(failed["*"].contains("mqtt-broker-template"), "{failed:?}");
+    assert!(failed["*"].contains("broker-template"), "{failed:?}");
     let received = server.received_requests().await.expect("recorded");
     assert!(calls(&received, "PATCH").is_empty());
     assert!(calls(&received, "DELETE").is_empty());
@@ -273,7 +273,7 @@ async fn an_apply_the_api_server_refuses_is_that_brokers_failure_alone() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path(format!(
-            "/api/v1/namespaces/{NAMESPACE}/configmaps/mqtt-broker-template"
+            "/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template"
         )))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(json!({ "data": { TEMPLATE_KEY: TEMPLATE } })),

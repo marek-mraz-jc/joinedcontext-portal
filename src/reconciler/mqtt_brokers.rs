@@ -26,8 +26,9 @@ use super::groups::{MANAGED_BY, MANAGED_VALUE};
 use crate::apps::kube::KubeClient;
 use crate::store::{ListOptions, Mirror};
 
-/// The ConfigMap the deployment renders the broker chart into, with [`SENTINELS`] for the values.
-pub const TEMPLATE: &str = "mqtt-broker-template";
+/// The ConfigMap the deployment renders the broker chart into, sentinels for the values. Not named
+/// `mqtt-…`, so the client's `*_mqtt` methods can never write or remove it.
+pub const TEMPLATE: &str = "broker-template";
 /// Its key.
 pub const TEMPLATE_KEY: &str = "objects.yaml";
 /// The labels every object of a broker the reconciler made carries, and the ones it retires by.

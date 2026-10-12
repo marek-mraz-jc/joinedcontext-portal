@@ -521,7 +521,7 @@ impl KubeClient {
         self.checked(response, path).await.map(Some)
     }
 
-    /// Applies one object of an MQTT broker's release (T-3994): one of [`MQTT_KINDS`], in
+    /// Applies one object of an MQTT broker's release (T-3994): one of `MQTT_KINDS`, in
     /// `namespace`, named `mqtt-…`; anything else is refused before a request is made.
     pub async fn apply_mqtt(&self, namespace: &str, object: &Value) -> Result<(), KubeError> {
         let field = |name: &str| object.get(name).and_then(Value::as_str).unwrap_or_default();
@@ -547,7 +547,7 @@ impl KubeClient {
         self.checked(response, path).await.map(|_| ())
     }
 
-    /// The objects of one of [`MQTT_KINDS`] in `namespace` that carry `label_selector`.
+    /// The objects of one of `MQTT_KINDS` in `namespace` that carry `label_selector`.
     pub async fn list_mqtt(
         &self,
         api_version: &str,
@@ -731,7 +731,7 @@ fn plural_of(api_version: &str, kind: &str) -> Result<&'static str, KubeError> {
         })
 }
 
-/// The path segment of one of [`MQTT_KINDS`], and the proof that a broker's release may hold it.
+/// The path segment of one of `MQTT_KINDS`, and the proof that a broker's release may hold it.
 fn mqtt_plural(api_version: &str, kind: &str) -> Result<&'static str, KubeError> {
     MQTT_KINDS
         .iter()
