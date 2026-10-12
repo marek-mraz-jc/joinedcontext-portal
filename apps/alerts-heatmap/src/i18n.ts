@@ -136,11 +136,11 @@ const SHORT_DAYS = {
   sv: ["mån", "tis", "ons", "tors", "fre", "lör", "sön"],
 };
 
+/** The Smart Data Models Alert codes the Helsinki feeds write (T-3950); an alert without one is "Other". */
 const SUB_CATEGORIES: Record<string, Record<Lang, string>> = {
-  ROAD_WORK: { fi: "Tietyö", en: "Road work", sv: "Vägarbete" },
-  TRAFFIC_ANNOUNCEMENT: { fi: "Liikennetiedote", en: "Traffic announcement", sv: "Trafikmeddelande" },
-  WEIGHT_RESTRICTION: { fi: "Painorajoitus", en: "Weight restriction", sv: "Viktbegränsning" },
-  EXEMPTED_TRANSPORT: { fi: "Erikoiskuljetus", en: "Exempted transport", sv: "Specialtransport" },
+  roadWorks: { fi: "Tietyö", en: "Road work", sv: "Vägarbete" },
+  roadClosed: { fi: "Tie suljettu", en: "Road closed", sv: "Vägen avstängd" },
+  carAccident: { fi: "Onnettomuus", en: "Accident", sv: "Olycka" },
 };
 
 /**
