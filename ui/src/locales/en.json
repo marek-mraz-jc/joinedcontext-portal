@@ -2528,7 +2528,11 @@
       "revokeLead": "The client loses its connection and offline sessions and must ask again. No grant changes.",
       "revokeFailed": "The consent could not be revoked. Try again; the reason is below.",
       "endpoints": "{count, plural, one {# Endpoint reached} other {# Endpoints reached}}",
-      "pickFirst": "Pick who to look up first."
+      "pickFirst": "Pick who to look up first.",
+      "kindHelp": "A person, a group, a role or a service account: whose access the page lists.",
+      "personHelp": "The people of the organization, by email; the search above narrows the list.",
+      "accountHelp": "The project's service accounts, the workloads that call endpoints.",
+      "nameHelp": "The name exactly as it is written in Keycloak."
     }
   },
   "flows": {

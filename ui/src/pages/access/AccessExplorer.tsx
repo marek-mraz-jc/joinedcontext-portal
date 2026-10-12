@@ -122,7 +122,7 @@ function Explorer({ project }: { project: string }): JSX.Element {
     <Card>
       <CardHeader titleId={`${id}-title`} title={t("access.explorer.title")} description={t("access.explorer.lead")} />
       <form className="mt-4 grid gap-4 sm:grid-cols-3" aria-labelledby={`${id}-title`} onSubmit={submit}>
-        <Field id={`${id}-kind`} label={t("access.explorer.kind")} required>
+        <Field id={`${id}-kind`} label={t("access.explorer.kind")} description={t("access.explorer.kindHelp")} required>
           <Select
             id={`${id}-kind`}
             value={kind}
@@ -144,7 +144,7 @@ function Explorer({ project }: { project: string }): JSX.Element {
             <Field id={`${id}-search`} label={t("access.explorer.search")}>
               <Input id={`${id}-search`} type="search" value={search} onChange={(e) => setSearch(e.target.value)} autoComplete="off" />
             </Field>
-            <Field id={`${id}-person`} label={t("policies.try.kinds.person")} required>
+            <Field id={`${id}-person`} label={t("policies.try.kinds.person")} description={t("access.explorer.personHelp")} required>
               <Select id={`${id}-person`} value={subject.kind === "person" ? subject.id : ""} onChange={(e) => setName(e.target.value)}>
                 {(people.data?.items ?? []).length === 0 ? <option value="">{t("policies.try.noPerson")}</option> : null}
                 {(people.data?.items ?? []).map((p) => (
@@ -157,7 +157,7 @@ function Explorer({ project }: { project: string }): JSX.Element {
           </>
         ) : null}
         {kind === "serviceAccount" ? (
-          <Field id={`${id}-account`} label={t("policies.try.kinds.serviceAccount")} required>
+          <Field id={`${id}-account`} label={t("policies.try.kinds.serviceAccount")} description={t("access.explorer.accountHelp")} required>
             <Select id={`${id}-account`} value={subject.kind === "serviceAccount" ? subject.name : ""} onChange={(e) => setName(e.target.value)}>
               {accountNames.length === 0 ? <option value="">{t("policies.try.noAccount")}</option> : null}
               {accountNames.map((n) => (
@@ -169,7 +169,7 @@ function Explorer({ project }: { project: string }): JSX.Element {
           </Field>
         ) : null}
         {kind === "group" || kind === "role" ? (
-          <Field id={`${id}-name`} label={t(`policies.try.kinds.${kind}`)} required>
+          <Field id={`${id}-name`} label={t(`policies.try.kinds.${kind}`)} description={t("access.explorer.nameHelp")} required>
             <Input id={`${id}-name`} value={name} onChange={(e) => setName(e.target.value)} maxLength={255} autoComplete="off" />
           </Field>
         ) : null}
@@ -222,7 +222,7 @@ function Result({
         <EmptyState bare title={t("access.explorer.nothing")} description={t("access.explorer.nothingLead")} />
       ) : (
         <section aria-labelledby="explorer-endpoints" className="space-y-2">
-          <h3 id="explorer-endpoints" className="text-heading font-semibold text-fg">
+          <h3 id="explorer-endpoints" className="text-title font-semibold text-fg">
             {t("access.explorer.endpoints", { count: explored.endpoints.length })}
           </h3>
           <ul className="space-y-2">
@@ -234,7 +234,7 @@ function Result({
       )}
       {explored.endpoints.length > 0 ? (
         <section aria-labelledby="explorer-mcp" className="space-y-2">
-          <h3 id="explorer-mcp" className="text-heading font-semibold text-fg">
+          <h3 id="explorer-mcp" className="text-title font-semibold text-fg">
             {t("access.explorer.mcp")}
           </h3>
           <p className="text-body text-fg-muted">{t("access.explorer.mcpLead")}</p>
@@ -362,9 +362,9 @@ function GeoPreview({ geoQ }: { geoQ: GeoQ }): JSX.Element {
     <figure className="mt-1 flex items-center gap-3 text-caption">
       <svg viewBox="0 0 100 100" className="size-16 rounded border border-border" role="img" aria-label={t("access.explorer.geoQ", { shape: text })} data-testid="geoq-preview">
         {pts.length === 1 ? (
-          <circle cx="50" cy="50" r="6" className="fill-accent" />
+          <circle cx="50" cy="50" r="6" className="fill-primary-soft-fg" />
         ) : (
-          <polygon points={pts.map(at).join(" ")} className="fill-accent/30 stroke-accent" strokeWidth="2" />
+          <polygon points={pts.map(at).join(" ")} className="fill-primary-soft-fg/30 stroke-primary-soft-fg" strokeWidth="2" />
         )}
       </svg>
       <figcaption>
@@ -391,7 +391,7 @@ function Consents({ personId, consents, onRevoked }: { personId: string; consent
   });
   return (
     <section aria-labelledby="explorer-consents" className="space-y-2">
-      <h3 id="explorer-consents" className="text-heading font-semibold text-fg">
+      <h3 id="explorer-consents" className="text-title font-semibold text-fg">
         {t("access.explorer.consents")}
       </h3>
       {consents.length === 0 ? (
@@ -401,7 +401,7 @@ function Consents({ personId, consents, onRevoked }: { personId: string; consent
           {consents.map((consent) => (
             <li key={consent.clientId} className="flex flex-wrap items-center gap-3">
               <span className="font-mono">{consent.clientId}</span>
-              <span className="text-caption text-fg-muted">{consent.grantedClientScopes.join(", ")}</span>
+              <span className="text-caption text-fg-muted">{(consent.grantedClientScopes ?? []).join(", ")}</span>
               {consent.lastUpdatedDate ? (
                 <span className="text-caption text-fg-muted">
                   {t("access.explorer.lastUsed", { when: new Date(consent.lastUpdatedDate).toLocaleString(i18n.language) })}

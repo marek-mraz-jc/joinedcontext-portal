@@ -2528,7 +2528,11 @@
       "revokeLead": "Der Client verliert seine Verbindung und Offline-Sitzungen und muss erneut fragen. Keine Berechtigung ändert sich.",
       "revokeFailed": "Die Zustimmung konnte nicht widerrufen werden. Versuchen Sie es erneut; der Grund steht unten.",
       "endpoints": "{count, plural, one {# Endpoint erreicht} other {# Endpoints erreicht}}",
-      "pickFirst": "Wählen Sie zuerst, wen Sie nachschlagen."
+      "pickFirst": "Wählen Sie zuerst, wen Sie nachschlagen.",
+      "kindHelp": "Eine Person, eine Gruppe, eine Rolle oder ein Dienstkonto: wessen Zugriff die Seite auflistet.",
+      "personHelp": "Die Personen der Organisation, nach E-Mail; die Suche darüber grenzt die Liste ein.",
+      "accountHelp": "Die Dienstkonten des Projekts, die Programme, die Endpoints aufrufen.",
+      "nameHelp": "Der Name genau so, wie er in Keycloak geschrieben ist."
     }
   },
   "flows": {

@@ -2528,7 +2528,11 @@
       "revokeLead": "Klient ztratí připojení a offline relace a musí požádat znovu. Žádné oprávnění se nemění.",
       "revokeFailed": "Souhlas se nepodařilo odvolat. Zkuste to znovu; důvod je níže.",
       "endpoints": "{count, plural, one {# dosažený Endpoint} few {# dosažené Endpointy} other {# dosažených Endpointů}}",
-      "pickFirst": "Nejprve vyberte, koho chcete vyhledat."
+      "pickFirst": "Nejprve vyberte, koho chcete vyhledat.",
+      "kindHelp": "Osoba, skupina, role nebo servisní účet: čí přístup stránka vypíše.",
+      "personHelp": "Lidé organizace podle e-mailu; vyhledávání výše seznam zúží.",
+      "accountHelp": "Servisní účty projektu, tedy programy, které volají endpointy.",
+      "nameHelp": "Název přesně tak, jak je zapsán v Keycloaku."
     }
   },
   "flows": {
