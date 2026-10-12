@@ -1,4 +1,5 @@
 import { RecipeGallery } from "./RecipeGallery";
+import { SaveAsTemplate, TemplateList } from "./PipelineTemplates";
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -636,7 +637,9 @@ export function PipelineEditorDialog({
           endpoints={endpointList}
           targets={endpointOptions}
           onUse={(form) => setDraft(completeOutput(form))}
-        />
+        >
+          <TemplateList project={project} onUse={(form) => setDraft(completeOutput(form))} />
+        </RecipeGallery>
       )}
       <PipelineWorkbench
         project={project}
@@ -675,6 +678,7 @@ export function PipelineEditorDialog({
           {t("pipelines.bloblangHint")}
         </Alert>
       ) : null}
+      <SaveAsTemplate project={project} manifest={() => toEnvelope(project, draft ?? {}, base)} />
     </ResourceFormDialog>
   );
 }

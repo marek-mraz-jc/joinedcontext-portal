@@ -2150,6 +2150,19 @@
     "canvasLoss": {
       "noSource": "Die Pipeline hat keine erste Quelle: Wähle zuerst, woraus sie liest, sonst können ihre weiteren Quellen, Schritte und Ausgaben nicht geschrieben werden.",
       "noTarget": "Die Pipeline hat keinen Ziel-Endpunkt: Wähle zuerst, wohin sie schreibt, sonst können ihre weiteren Ausgaben nicht geschrieben werden."
+    },
+    "templates": {
+      "title": "In diesem Projekt gespeichert",
+      "by": "Gespeichert von {name}",
+      "use": "Verwenden",
+      "delete": "Löschen",
+      "deleteOf": "Vorlage {title} löschen",
+      "save": "Als Vorlage speichern",
+      "saveIt": "Vorlage speichern",
+      "titleField": "Titel der Vorlage",
+      "titleHelp": "Was die Galerie zeigt. Die Vorlage behält die Schritte und das Mapping; Zugangsdaten, Quelle und Ziel bleiben weg.",
+      "titleNeeded": "Geben Sie der Vorlage zuerst einen Titel.",
+      "saved": "Als Vorlage „{title}“ gespeichert."
     }
   },
   "dashboards": {

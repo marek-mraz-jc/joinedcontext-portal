@@ -2150,6 +2150,19 @@
     "canvasLoss": {
       "noSource": "Pipeline nemá první zdroj: nejdřív zvolte, odkud čte, jinak nelze zapsat její další zdroje, kroky ani výstupy.",
       "noTarget": "Pipeline nemá cílový endpoint: nejdřív zvolte, kam zapisuje, jinak nelze zapsat její další výstupy."
+    },
+    "templates": {
+      "title": "Uloženo v tomto projektu",
+      "by": "Uložil(a) {name}",
+      "use": "Použít",
+      "delete": "Smazat",
+      "deleteOf": "Smazat šablonu {title}",
+      "save": "Uložit jako šablonu",
+      "saveIt": "Uložit šablonu",
+      "titleField": "Název šablony",
+      "titleHelp": "Co ukazuje galerie. Šablona si ponechá kroky a mapování; přístupové údaje, zdroj a cíl vynechá.",
+      "titleNeeded": "Nejprve šabloně dejte název.",
+      "saved": "Uloženo jako šablona „{title}“."
     }
   },
   "dashboards": {
