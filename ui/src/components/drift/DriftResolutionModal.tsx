@@ -123,14 +123,14 @@ export function DriftResolutionModal({
             {may("adopt") ? (
               <Button
                 variant="secondary"
-                disabled={resolve.isPending}
+                disabled={resolve.isPending} disabledReason={t("app.busyReason")}
                 onClick={() => resolve.mutate("adopt")}
               >
                 {t("drift.modal.adopt")}
               </Button>
             ) : null}
             {may("revert") ? (
-              <Button disabled={resolve.isPending} onClick={() => resolve.mutate("revert")}>
+              <Button disabled={resolve.isPending} disabledReason={t("app.busyReason")} onClick={() => resolve.mutate("revert")}>
                 {t("drift.modal.revert")}
               </Button>
             ) : null}

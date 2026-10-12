@@ -17,6 +17,9 @@ import { memory, STEWARD, VIEWER } from "./testing/server";
 import type { Memory } from "./testing/server";
 import { sweep } from "./testing/sweep";
 
+// A sweep presses every control: a slow CI runner takes several times a laptop's 4 s.
+const SWEEP = 30_000;
+
 vi.mock("maplibre-gl", () => ({
   Map: class {
     on = vi.fn();
@@ -212,7 +215,7 @@ describe("a steward", () => {
         await act(async () => new Promise((done) => setTimeout(done, 0)));
         await sweep(main());
       }
-    });
+    }, SWEEP);
   }
 });
 

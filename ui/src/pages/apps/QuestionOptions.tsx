@@ -193,6 +193,7 @@ export function QuestionOptions({
           placeholder={t("agentRun.question.search")}
           value={search}
           disabled={disabled}
+          title={disabled ? t("app.busyReason") : undefined}
           onChange={(event) => {
             setSearch(event.target.value);
             setFocus(0);
@@ -280,7 +281,7 @@ export function QuestionOptions({
           </>
         ) : null}
         {free && !found.multiple ? (
-          <Button size="sm" variant="ghost" disabled={disabled} onClick={() => setTyping(true)}>
+          <Button size="sm" variant="ghost" disabled={disabled} disabledReason={t("app.busyReason")} onClick={() => setTyping(true)}>
             {t("agentRun.conversation.somethingElse")}
           </Button>
         ) : null}

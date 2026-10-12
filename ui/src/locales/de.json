@@ -109,7 +109,7 @@
     "cs": "Čeština"
   },
   "form": {
-    "submit": "Absenden",
+    "submit": "Speichern",
     "cancel": "Abbrechen",
     "backToList": "Zurück zur Liste",
     "opening": "Das Formular wird geöffnet…",
@@ -121,7 +121,7 @@
     "useExample": "Beispiel übernehmen",
     "noResults": "Keine Ergebnisse",
     "entityPickerPending": "Wählen Sie zuerst den Raum und den Entitätstyp, dann listet dieses Feld deren Entitäten; eine Entitäts-ID können Sie auch einfügen.",
-    "listFailed": "Die Liste konnte nicht geladen werden: {reason}",
+    "listFailed": "Die Liste konnte nicht geladen werden, versuchen Sie es erneut: {reason}",
     "listRetry": "Erneut versuchen",
     "errors": "{count, plural, =0 {Keine Fehler} one {# Fehler} other {# Fehler}}",
     "type": "Ungültiger Typ",
@@ -138,7 +138,7 @@
       "yaml": "YAML"
     },
     "yamlHint": "Das ganze Manifest, wie es nach Git geschrieben wird. Zurück zum Formular liest es wieder ein; dasselbe Schema prüft beides.",
-    "yamlError": "Das YAML lässt sich nicht lesen: {message}",
+    "yamlError": "Korrigieren Sie das YAML: {message}",
     "yamlNotManifest": "das Dokument ist kein Manifest",
     "schemaErrors": "Das Manifest entspricht nicht dem Schema:",
     "exclusive": "Nur eines dieser Felder darf gesetzt sein",
@@ -226,8 +226,8 @@
       "label": "CI auf dem letzten Commit",
       "success": "Bestanden",
       "pending": "Läuft",
-      "failure": "Fehlgeschlagen",
-      "error": "Konnte nicht laufen"
+      "failure": "Prüfungen fehlgeschlagen",
+      "error": "Konnte nicht laufen; bitten Sie eine Projektverwaltung, den Runner zu prüfen"
     },
     "outside": {
       "title": "{count, plural, one {# Merge-Request in der Forge ist keine Änderung} other {# Merge-Requests in der Forge sind keine Änderungen}}",
@@ -287,7 +287,8 @@
         "update": "{author} schlug vor, {kind} {name} zu ändern",
         "delete": "{author} schlug vor, {kind} {name} zu entfernen"
       }
-    }
+    },
+    "reasonFirst": "Schreiben Sie zuerst, warum Sie die Änderung ablehnen."
   },
   "lane": {
     "green": "Grün",
@@ -824,7 +825,10 @@
       "groupsOf": "Gruppen nach {attr}",
       "allGroups": "Alle",
       "groupsCut": "Gezählt werden die ersten {shown} von {total} Werten.",
-      "toneLabel": "Markiert: {when}"
+      "toneLabel": "Markiert: {when}",
+      "titleFirst": "Geben Sie der Ansicht einen Titel mit höchstens 120 Zeichen.",
+      "modeLocked": "Wer die Ansicht sieht, ändert nur ihr Eigentümer oder eine Datenverwaltung.",
+      "coloursFull": "Eine Ansicht hat höchstens 20 Farbregeln; entfernen Sie zuerst eine."
     },
     "form": {
       "settings": "Felder des Formulars",
@@ -1103,7 +1107,8 @@
         "interval": "Spiegelintervall",
         "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
       },
-      "browse": "Ansehen, was andere Projekte veröffentlichen"
+      "browse": "Ansehen, was andere Projekte veröffentlichen",
+      "noAddress": "Dieser Endpoint hat noch keine Adresse; Sie können ihn nutzen, sobald er veröffentlicht ist."
     },
     "slugHint": "Die Adresse wird für Sie erzeugt und ändert sich nie, auch wenn der Endpunkt umbenannt wird.",
     "picker": {
@@ -2176,7 +2181,7 @@
       "latest": "Letzter Wert {property}: {value} ({count} Messungen)",
       "chartLabel": "{property} von {entity} im Zeitverlauf",
       "badGrid": "Dieses Raster konnte nicht gezeichnet werden: {reason}",
-      "historyFailed": "Dieser Verlauf konnte nicht gelesen werden: {reason}",
+      "historyFailed": "Dieser Verlauf konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
       "barTitle": "{property} von {type}: Entitäten nach Wert",
       "histogramTitle": "{property} von {type}: Verteilung",
       "rest": "übrige Werte",
@@ -3141,7 +3146,7 @@
       "state": {
         "building": "Wird gebaut",
         "needsYou": "Wartet auf Sie",
-        "failed": "Fehlgeschlagen",
+        "failed": "Nicht erzeugt",
         "readyToPublish": "Bereit zur Veröffentlichung",
         "waitingApproval": "Wartet auf Freigabe"
       },
@@ -3199,7 +3204,7 @@
         "none": "Es lief noch kein Build.",
         "building": "{commit} wird gebaut …",
         "succeeded": "{commit} gebaut.",
-        "failed": "Der Build von {commit} ist fehlgeschlagen; der letzte Lauf sagt, warum.",
+        "failed": "Der Build von {commit} ist fehlgeschlagen; öffnen Sie den letzten Lauf, um den Grund zu sehen.",
         "cancelled": "Der Build von {commit} wurde abgebrochen."
       },
       "state": {
@@ -3234,7 +3239,7 @@
       "preview": "Eine Vorschau öffnet sich über das Menü",
       "retired": "Diese Anwendung ist außer Betrieb",
       "building": "Wird gebaut…",
-      "failed": "Build fehlgeschlagen",
+      "failed": "Der Build ist fehlgeschlagen. Beheben Sie ihn im Tab Build und öffnen Sie dann die App.",
       "notBuilt": "Noch wird kein Build ausgeliefert",
       "certificate": "Die Adresse der Anwendung wird gesichert, das dauert etwa eine Minute",
       "host": "Die Adresse der Anwendung ließ sich nicht einrichten; der Grund ist für Administratoren sichtbar"
@@ -3250,7 +3255,7 @@
       "fullscreen": "Vollbild",
       "fullscreenExit": "Vollbild verlassen",
       "fullscreenUnavailable": "Dieser Browser bietet hier kein Vollbild an.",
-      "fullscreenFailed": "Der Browser hat nicht in den Vollbildmodus gewechselt: {reason}",
+      "fullscreenFailed": "Der Browser hat nicht in den Vollbildmodus gewechselt: {reason}. Verwenden Sie die Vollbildtaste des Browsers (F11).",
       "signedOutTitle": "Ihre Anmeldung ist abgelaufen.",
       "signedOutBody": "Die App kann Sie im Portal nicht anmelden. Melden Sie sich erneut an, dann öffnet sie sich hier.",
       "signedOutDismiss": "Diese Meldung ausblenden"
@@ -3376,7 +3381,7 @@
       "notRun": "Noch nicht gelaufen",
       "outcomes": {
         "succeeded": "Erfolgreich",
-        "failed": "Fehlgeschlagen",
+        "failed": "Mit Fehler beendet",
         "timedOut": "Am Zeitlimit gestoppt",
         "skipped": "Übersprungen, der vorige Lauf lief noch"
       },
@@ -3614,7 +3619,8 @@
     "displayNameLabel": "Anzeigename",
     "descriptionLabel": "Beschreibung",
     "notAllowed": "Diese Organisation lässt Sie kein Projekt eröffnen.",
-    "nameNeeded": "Für ein neues Projekt wird ein verwendbarer Name benötigt."
+    "nameNeeded": "Für ein neues Projekt wird ein verwendbarer Name benötigt.",
+    "planLocked": "Schließen Sie den Dialog und beginnen Sie neu, um das zu ändern; der Plan wurde dafür erstellt."
   },
   "entities": {
     "type": "Entitätstyp",
@@ -3647,7 +3653,7 @@
     "next": "Weiter",
     "page": "Seite",
     "showMetadata": "Metadaten anzeigen für",
-    "error": "Fehler",
+    "error": "Nicht geladen, versuchen Sie es erneut",
     "filter": "Filter",
     "ops": {
       "contains": "enthält",
@@ -3700,7 +3706,7 @@
     "relationSearch": "Suchen",
     "relationNone": "Nichts, was Sie lesen dürfen, passt",
     "relationRemove": "Entfernen",
-    "relationFailed": "Die Suche ist fehlgeschlagen",
+    "relationFailed": "Die Suche ist fehlgeschlagen; versuchen Sie es erneut",
     "relationMore": "und weitere",
     "map": {
       "panel": "Karte",
@@ -3872,8 +3878,10 @@
       "save": "Auf dem Dashboard speichern",
       "pickFirst": "Wählen Sie zuerst ein Attribut und ein Diagramm.",
       "badName": "Ein Dashboard-Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, höchstens 63, mit einem Buchstaben oder einer Ziffer am Anfang und Ende.",
-      "gone": "Dieses Dashboard ist nicht mehr im Projekt; wählen Sie ein anderes."
-    }
+      "gone": "Dieses Dashboard ist nicht mehr im Projekt; wählen Sie ein anderes.",
+      "pickEntity": "Wählen Sie die Entität für den zeitlichen Verlauf."
+    },
+    "pickSpaceFirst": "Wählen Sie zuerst einen Raum."
   },
   "agentRun": {
     "title": "Anwendungslauf",
@@ -3892,7 +3900,7 @@
       "previewing": "Vorschau ist fertig",
       "awaiting_approval": "Wartet auf Freigabe",
       "published": "Veröffentlicht",
-      "failed": "Der Lauf ist gescheitert.",
+      "failed": "Der Lauf ist gescheitert. Öffnen Sie seine Schritte, um zu sehen, wo.",
       "cancelled": "Der Lauf wurde gestoppt.",
       "expired": "Der Lauf ist beendet; die Vorschau bleibt, wie sie gebaut wurde."
     },
@@ -3908,7 +3916,7 @@
       "modelCall": "Modellaufruf",
       "modelCallOf": "Modellaufruf ({model})",
       "waitingStep": "Wartet auf Ihre Antwort",
-      "failed": "fehlgeschlagen",
+      "failed": "mit Fehler beendet",
       "slowest": "Langsamster Schritt: {step}, {took}.",
       "caption": "Alle gemessenen Schritte des Laufs der Reihe nach",
       "started": "Beginn",
@@ -3950,7 +3958,8 @@
       "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier.",
       "tryAgain": "Erneut versuchen",
       "unanswered": "Ihre letzte Nachricht wurde nicht beantwortet. Es wurde nichts geändert.",
-      "endedBecause": "Grund: {reason}."
+      "endedBecause": "Grund: {reason}.",
+      "writeFirst": "Schreiben Sie zuerst eine Nachricht."
     },
     "line": {
       "status": "Jetzt {status}.",
@@ -3972,8 +3981,8 @@
       "url": "Die Daten liegen unter {url}",
       "testsRunning": "Version {version} wird getestet …",
       "testsPassed": "Version {version}: alle {passed} Tests bestehen.",
-      "testsFailed": "Version {version}: {failed} Tests schlagen fehl. {names}",
-      "testsError": "Die Tests von Version {version} konnten nicht laufen: {reason}",
+      "testsFailed": "Version {version}: {failed} Tests schlagen fehl. {names} Öffnen Sie den Lauf, um den Grund zu sehen.",
+      "testsError": "Die Tests von Version {version} konnten nicht laufen: {reason}. Beheben Sie die Ursache und starten Sie sie erneut.",
       "testsSkipped": "Version {version} wurde hier nicht getestet: {reason}"
     },
     "preview": {
@@ -4020,11 +4029,11 @@
         "readAll": "{count} ({type}) aus {endpoint} gelesen"
       },
       "ok": "Erfolgreich",
-      "failed": "Fehlgeschlagen",
+      "failed": "Nicht abgeschlossen",
       "duration": "{ms} ms",
       "input": "Eingabe",
       "output": "Ausgabe",
-      "error": "Fehler",
+      "error": "Durch einen Fehler gestoppt",
       "refused": "Nicht angewendet",
       "refusedLine": "{count} Block/Blöcke nicht angewendet: {reason}",
       "diff": "Änderung",
@@ -4065,7 +4074,7 @@
       "copyPolicy": "Richtlinie als YAML kopieren",
       "copied": "Kopiert",
       "review": "Prüfen und vorschlagen",
-      "failed": "Der Vorschlag konnte nicht gerendert werden: {reason}",
+      "failed": "Der Vorschlag konnte nicht gerendert werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
       "projects": "geteilt mit {projects}"
     },
     "kpi": {
@@ -4092,7 +4101,8 @@
       "keepOnChangeMessage": "Halte den Indikator {name} aktuell: {over}, bei jeder Änderung, in den Raum {space}.",
       "overCount": "Anzahl von {type}",
       "overAgg": "{agg} von {attribute} über {type}",
-      "overWhere": "{over}, wobei {filter}"
+      "overWhere": "{over}, wobei {filter}",
+      "minutesUnused": "Minuten gelten, wenn der Indikator alle paar Minuten aktualisiert wird, nicht bei jeder Änderung."
     },
     "changeTest": {
       "title": "Test der Änderung",
@@ -4168,7 +4178,8 @@
         "label": "Oder die Adresse eines Feeds",
         "use": "Diese Adresse verwenden",
         "invalid": "Geben Sie eine vollständige Adresse an, die mit http:// oder https:// beginnt."
-      }
+      },
+      "enterAddress": "Geben Sie zuerst die Adresse ein."
     },
     "prose": {
       "copyId": "Ganze Kennung kopieren",
@@ -4194,7 +4205,7 @@
         "done": "Erledigt",
         "working": "Läuft",
         "waiting": "Wartet",
-        "failed": "Fehlgeschlagen",
+        "failed": "Nicht abgeschlossen",
         "later": "Noch nicht"
       },
       "test": {
@@ -4202,7 +4213,7 @@
         "reading": "Einige Zeilen von {name} werden als Sie gelesen…",
         "read": "{count, plural, one {# Zeile} other {# Zeilen}} von {total} {type} aus {name} gelesen",
         "empty": "{name} ist live und enthält noch keine Entitäten",
-        "failed": "Das Testlesen ist fehlgeschlagen",
+        "failed": "Das Testlesen ist fehlgeschlagen. Prüfen Sie den Schritt unten auf den Grund.",
         "again": "Erneut lesen",
         "explore": "Im Explorer öffnen"
       }
@@ -4210,7 +4221,8 @@
     "testsHold": {
       "running": "Veröffentlichen wartet, bis die Tests von Version {version} gelaufen sind.",
       "failed": "Version {version} wird nicht veröffentlicht, solange {failed} ihrer Tests fehlschlagen: {names}. Bitten Sie den Assistenten, sie zu beheben."
-    }
+    },
+    "cancelOver": "Der Lauf ist beendet; es gibt nichts abzubrechen."
   },
   "assistant": {
     "newConversation": "Ein neues Gespräch beginnen",
@@ -4232,7 +4244,7 @@
       "lead": "Wählen Sie, was Sie tun möchten, oder fragen Sie in eigenen Worten.",
       "composer": "Den Assistenten fragen",
       "send": "Senden",
-      "failed": "Die Unterhaltung hat nicht begonnen:"
+      "failed": "Die Unterhaltung hat nicht begonnen; versuchen Sie es erneut:"
     },
     "data": {
       "title": "Daten",
@@ -4421,11 +4433,11 @@
       "blockHint": "operations, kinds mit read oder propose, endpoints mit read oder write. Leer entfernt den Block. Die Änderung prüft eine freigebende Person.",
       "propose": "Änderung vorschlagen",
       "cancel": "Abbrechen",
-      "yamlError": "Kein gültiges YAML: {message}",
+      "yamlError": "Kein gültiges YAML, korrigieren Sie es: {message}",
       "showOperations": "Seine {count} Operationen zeigen"
     },
     "states": {
-      "failed": "Fehlgeschlagen",
+      "failed": "Nicht beendet",
       "cancelled": "Gestoppt",
       "expired": "Beendet"
     },
@@ -6115,7 +6127,7 @@
         "licence": "Eine Lizenz wählen.",
         "contactBoth": "Name und E-Mail des Kontakts gemeinsam angeben oder keines von beiden.",
         "email": "Eine E-Mail-Adresse wie opendata@example.org eingeben.",
-        "period": "Das Ende des Zeitraums darf nicht vor seinem Beginn liegen."
+        "period": "Das Ende des Zeitraums darf nicht vor seinem Beginn liegen. Wählen Sie ein Enddatum nach dem Beginn."
       }
     },
     "licence": {
@@ -6265,10 +6277,10 @@
   "knowledge": {
     "title": "Wissensquellen",
     "intro": "Was der Wissensassistent von den Websites und Katalogen dieses Projekts gelesen hat und woraus er antwortet.",
-    "failed": "Die Quellen konnten nicht gelesen werden: {reason}",
+    "failed": "Die Quellen konnten nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "queued": "Ein Durchlauf von {source} steht an. Er beginnt innerhalb einer Minute.",
     "empty": "Dieses Projekt hat keine Wissensquelle",
-    "emptyHint": "Eine KnowledgeSource nennt eine Website oder einen Katalog, den der Assistent lesen soll. Schlagen Sie sie vor wie jede andere Ressource des Projekts.",
+    "emptyHint": "Eine Wissensquelle nennt eine Website oder einen Katalog, den der Assistent lesen soll. Schlagen Sie sie vor wie jede andere Ressource des Projekts.",
     "sources": "Wissensquellen",
     "recrawl": "Jetzt durchlaufen",
     "recrawlOf": "{source} jetzt durchlaufen",
@@ -6446,7 +6458,8 @@
       "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben."
     },
     "everySpace": "jeder Raum des Projekts",
-    "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt"
+    "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt",
+    "askFirst": "Geben Sie zuerst eine Frage ein."
   },
   "mcp": {
     "title": "MCP-Server",
@@ -6586,12 +6599,12 @@
     "finished": {
       "appBuild": {
         "succeeded": "Der Build von {name} ist fertig.",
-        "failed": "Der Build von {name} ist fehlgeschlagen.",
+        "failed": "Der Build von {name} ist fehlgeschlagen. Öffnen Sie die App, um den Grund zu sehen.",
         "cancelled": "Der Build von {name} wurde abgebrochen."
       },
       "knowledgeCrawl": {
         "succeeded": "Das Durchsuchen von {name} ist fertig.",
-        "failed": "Das Durchsuchen von {name} ist fehlgeschlagen.",
+        "failed": "Das Durchsuchen von {name} ist fehlgeschlagen. Öffnen Sie die Quelle, um den Grund zu sehen.",
         "cancelled": "Das Durchsuchen von {name} wurde abgebrochen."
       }
     }

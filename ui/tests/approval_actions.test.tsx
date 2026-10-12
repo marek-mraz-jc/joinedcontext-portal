@@ -216,9 +216,9 @@ describe("approval actions", () => {
     await userEvent.click(await screen.findByRole("button", { name: en.approvals.reject }));
     const dialog = await screen.findByRole("dialog", { name: en.approvals.rejectTitle });
     const confirm = within(dialog).getByRole("button", { name: en.approvals.rejectConfirm });
-    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
     await userEvent.type(within(dialog).getByLabelText(en.approvals.rejectReason), "   ");
-    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
 

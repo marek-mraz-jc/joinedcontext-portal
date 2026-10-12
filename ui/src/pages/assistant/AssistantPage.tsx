@@ -335,7 +335,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                             loading={
                               continueMutation.isPending && continueMutation.variables === run.id
                             }
-                            disabled={continueMutation.isPending}
+                            disabled={continueMutation.isPending} disabledReason={t("app.busyReason")}
                             onClick={() => continueMutation.mutate(run.id)}
                           >
                             {t("assistantPage.continue")}

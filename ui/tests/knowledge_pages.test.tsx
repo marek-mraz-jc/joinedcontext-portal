@@ -396,9 +396,9 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
     const box = within(dialog).getByRole("textbox", { name: "Your question" });
     await userEvent.type(box, "Ahoj{Enter}");
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("an administrator sets budget.tokensPerDay");
-    expect(within(dialog).getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Send" })).toHaveAttribute("aria-disabled", "true");
     await userEvent.type(box, "Znova");
-    expect(within(dialog).getByRole("button", { name: "Send" })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: "Send" })).not.toHaveAttribute("aria-disabled");
   });
 
   it("gives the frame to paste for a public assistant", async () => {

@@ -333,6 +333,7 @@ export function ExplorePage({
             id="explore-endpoint"
             value={endpoint?.metadata.name ?? ""}
             disabled={!space}
+            title={!space ? t("explore.pickSpaceFirst") : undefined}
             onChange={(event) => {
               setEndpointChoice(event.target.value);
               setSelected(null);
@@ -565,6 +566,7 @@ export function ExplorePage({
             <Button
               variant="danger"
               disabled={remove.isPending}
+              disabledReason={t("app.busyReason")}
               onClick={() => remove.mutate()}
               data-testid="explore-delete-confirm"
             >

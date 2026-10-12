@@ -380,7 +380,7 @@ describe("the dialog's check", () => {
     fireEvent.change(await screen.findByRole("textbox", { name: "YAML" }), { target: { value: "metadata: [" } });
     await userEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(onCheck).not.toHaveBeenCalled();
-    expect(screen.getByText(/does not parse/)).toBeInTheDocument();
+    expect(screen.getByText(/Correct the YAML/)).toBeInTheDocument();
   });
 
   it("puts what the YAML answered after the editor and just before the buttons (T-1395)", async () => {
@@ -389,7 +389,7 @@ describe("the dialog's check", () => {
     const editor = await screen.findByRole("textbox", { name: "YAML" });
     fireEvent.change(editor, { target: { value: "metadata: [" } });
     await userEvent.click(screen.getByRole("button", { name: "Check" }));
-    const alert = screen.getByText(/does not parse/).closest('[role="alert"]') as HTMLElement;
+    const alert = screen.getByText(/Correct the YAML/).closest('[role="alert"]') as HTMLElement;
     const check = screen.getByRole("button", { name: "Check" });
     // DOCUMENT_POSITION_FOLLOWING: the alert comes after the editor, the button after the alert.
     expect(editor.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

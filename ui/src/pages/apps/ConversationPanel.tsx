@@ -700,7 +700,7 @@ export function ConversationPanel({
             tone="warning"
             className="mt-2"
             actions={
-              <Button variant="primary" size="xs" disabled={sending} onClick={() => sendAgain(unanswered)}>
+              <Button variant="primary" size="xs" disabled={sending} disabledReason={t("app.busyReason")} onClick={() => sendAgain(unanswered)}>
                 {t("agentRun.conversation.tryAgain")}
               </Button>
             }
@@ -779,6 +779,7 @@ export function ConversationPanel({
               type="submit"
               variant="primary"
               disabled={draft.trim() === "" || sending}
+              disabledReason={sending ? t("app.busyReason") : t("agentRun.conversation.writeFirst")}
             >
               {t("agentRun.conversation.send")}
             </Button>
