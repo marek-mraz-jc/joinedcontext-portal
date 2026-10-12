@@ -261,6 +261,9 @@ pub fn classify(kind: &str, op: Operation, spec: &serde_json::Value) -> Lane {
         | "Role"
         | "RoleBinding"
         | "Group"
+        // A broker brings its own database, client and share of the node, and is where every
+        // space without a `brokerRef` lives (PF-110, ADR-N-047).
+        | "ContextBroker"
         | "Environment"
         | "Policy"
         | "ScopeDefinition"

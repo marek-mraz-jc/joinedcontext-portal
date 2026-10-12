@@ -122,6 +122,10 @@ pub struct Config {
     /// on the same broker (PF-48; `JC_PORTAL_BROKER_URL`). `None` leaves registrations read
     /// from the repository and written nowhere.
     pub broker_url: Option<String>,
+    /// The address of every broker but `main` (`JC_PORTAL_BROKER_URL_TEMPLATE`, PF-111), with
+    /// `{broker}` in the authority replaced by the `ContextBroker`'s name. `None` leaves a space
+    /// on another broker unwritten and uncounted, never sent to `main`.
+    pub broker_url_template: Option<String>,
     /// Where the broker's admin token is mounted from its Secret
     /// (`JC_PORTAL_BROKER_ADMIN_TOKEN_FILE`), read on every run and sent only as the bearer of
     /// the `/q` calls that write every Endpoint's and Context Space's view and every space's
@@ -310,6 +314,7 @@ impl std::fmt::Debug for Config {
             .field("pipeline_runner_client_id", &self.pipeline_runner_client_id)
             .field("invitation_client_id", &self.invitation_client_id)
             .field("broker_url", &self.broker_url)
+            .field("broker_url_template", &self.broker_url_template)
             .field("broker_admin_token_file", &self.broker_admin_token_file)
             .field("org_domain", &self.org_domain)
             .field("pipeline_test_capture_url", &self.pipeline_test_capture_url)
@@ -1309,6 +1314,13 @@ impl Config {
             None => None,
         };
 
+        let broker_url_template = match lookup("JC_PORTAL_BROKER_URL_TEMPLATE")
+            .filter(|value| !value.trim().is_empty())
+        {
+            Some(value) => Some(broker_url_template(&value)?),
+            None => None,
+        };
+
         let broker_admin_token_file = lookup("JC_PORTAL_BROKER_ADMIN_TOKEN_FILE")
             .filter(|path| !path.trim().is_empty())
             .map(std::path::PathBuf::from);
@@ -1609,6 +1621,7 @@ impl Config {
                 .map(|v| v.trim().to_owned())
                 .filter(|v| !v.is_empty()),
             broker_url,
+            broker_url_template,
             broker_admin_token_file,
             org_domain: lookup("JC_PORTAL_ORG_DOMAIN").filter(|v| !v.trim().is_empty()),
             pipeline_test_capture_url,
@@ -1668,6 +1681,7 @@ impl Config {
             pipeline_runner_client_id: None,
             invitation_client_id: None,
             broker_url: None,
+            broker_url_template: None,
             broker_admin_token_file: None,
             org_domain: None,
             pipeline_test_capture_url: None,
@@ -1711,6 +1725,31 @@ impl Config {
 #[cfg(test)]
 #[path = "config_documentation_tests.rs"]
 mod config_documentation_tests;
+
+/// `JC_PORTAL_BROKER_URL_TEMPLATE`: an http(s) scheme and an authority holding `{broker}`, no path.
+fn broker_url_template(raw: &str) -> Result<String, ConfigError> {
+    let invalid = |reason: &str| ConfigError::Invalid {
+        var: "JC_PORTAL_BROKER_URL_TEMPLATE",
+        reason: reason.to_owned(),
+    };
+    let raw = raw.trim().trim_end_matches('/');
+    let sample: Url = raw
+        .replace("{broker}", "b")
+        .parse()
+        .map_err(|_| invalid("is not a URL"))?;
+    if !raw.contains("{broker}")
+        || raw
+            .split("://")
+            .nth(1)
+            .is_some_and(|rest| rest.contains('/'))
+    {
+        return Err(invalid("must name {broker} in the authority, with no path"));
+    }
+    if sample.scheme() != "http" && sample.scheme() != "https" {
+        return Err(invalid("must be http or https"));
+    }
+    Ok(raw.to_owned())
+}
 
 #[cfg(test)]
 mod tests {
@@ -1791,6 +1830,30 @@ mod tests {
         let missing = dir.join("absent.yaml").to_string_lossy().into_owned();
         assert!(with(Some(missing)).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_broker_template_names_the_broker_in_its_authority_and_nothing_else() {
+        let with = |value: &'static str| {
+            Config::from_vars(move |name| {
+                (name == "JC_PORTAL_BROKER_URL_TEMPLATE").then(|| value.to_owned())
+            })
+        };
+        assert_eq!(
+            with("http://broker-{broker}.ns.svc:8080/")
+                .unwrap()
+                .broker_url_template,
+            Some("http://broker-{broker}.ns.svc:8080".to_owned())
+        );
+        assert_eq!(with(" ").unwrap().broker_url_template, None);
+        for refused in [
+            "http://broker.ns.svc",
+            "http://broker.ns.svc/{broker}",
+            "ftp://{broker}.ns.svc",
+            "{broker}",
+        ] {
+            assert!(with(refused).is_err(), "{refused} was accepted");
+        }
     }
 
     #[test]

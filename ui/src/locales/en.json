@@ -518,7 +518,8 @@
       "modelCreate": "Create a data model",
       "modelImport": "Import a Smart Data Model",
       "tooMany": "The endpoint is busy (too many reads at once).",
-      "lead": "Its data model, its entities, who reads them and what happened to it."
+      "lead": "Its data model, its entities, who reads them and what happened to it.",
+      "broker": "It lives on the context broker {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -5149,7 +5150,8 @@
       "environments": "Environments",
       "health": "Health",
       "endpoints": "All endpoints",
-      "mcp-servers": "Organization MCP servers"
+      "mcp-servers": "Organization MCP servers",
+      "brokers": "Brokers"
     },
     "settings": {
       "title": "Settings",
@@ -5679,6 +5681,27 @@
       "models": "Models the assistant may use",
       "modelsHint": "Leave empty to allow every model the installation offers.",
       "everyModel": "Every model of the installation"
+    },
+    "brokers": {
+      "title": "Context brokers",
+      "lead": "Every broker of the organization with the spaces it holds. The Portal asks each broker for its health; counts are at most five minutes old.",
+      "hidden": "Only an administrator of the organization can see the brokers.",
+      "caption": "Context brokers",
+      "name": "Broker",
+      "health": "Health",
+      "version": "Version",
+      "spaces": "Spaces",
+      "entities": "Entities",
+      "default": "Default",
+      "size": "Size: {size}",
+      "noSpaces": "No space yet",
+      "implicit": "The organization declares no broker, so every space lives on the built-in main broker. To run another, declare it in the organization repository.",
+      "down": "{count, plural, one {# broker is not answering. Check its pod and the reason in its row.} other {# brokers are not answering. Check their pods and the reasons in their rows.}}",
+      "states": {
+        "up": "Up",
+        "down": "Down",
+        "unknown": "No address"
+      }
     }
   },
   "projectDelete": {

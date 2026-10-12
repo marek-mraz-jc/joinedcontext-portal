@@ -46,7 +46,10 @@ pub async fn get_usage(
     }
     state
         .space_usage
-        .usage(&crate::spaces::segment(&state.mirror, &project, &space))
+        .usage(
+            &crate::spaces::broker(&state.mirror, &project, &space),
+            &crate::spaces::segment(&state.mirror, &project, &space),
+        )
         .await
         .map(Json)
         .map_err(ApiError::Unavailable)

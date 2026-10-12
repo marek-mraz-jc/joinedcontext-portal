@@ -61,6 +61,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/live-notify/{key}", "the gateway's delivery of the Portal's own live-update notifications: a broker calls it, nobody else (API/01 §32)"),
 ("GET", "/openapi.json", "the API document"),
 ("GET", "/organization/health", "the validation checks' published results, about the installation and not a project's data (OPS-53)"),
+("GET", "/organization/brokers", "a summary for the Brokers page: each broker's health and the counts of the spaces jc_resource_get already reaches; it writes nothing (T-3990, API/01 §43)"),
 ("GET", "/organization/limits", "a summary for the settings page: the catalog and the operator's bounds beside the values the Organization and Project manifests hold, which jc_resource_get reaches; it writes nothing (T-2715, API/01 §28)"),
 ("GET", "/organization/setup", "a summary for the setup page, read from manifests the operations registry already reaches and from the deployment; it writes nothing (T-2748, API/01 §25)"),
 ("POST", "/projects/{project}/endpoints/{name}/preview", "the filter editor's proof, one page through a draft a person is typing; the assistant proposes a filter and reads the saved Endpoint (EP-85)"),
