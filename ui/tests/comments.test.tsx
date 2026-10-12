@@ -113,7 +113,7 @@ describe("comments on an entity", () => {
     wrap(<CommentsPanel project="helsinki" space="air" urn={URN} />);
     expect(await screen.findByText("No comments yet.")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Add a comment"), "   ");
-    expect(screen.getByRole("button", { name: "Comment" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Comment" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("is what every view's row adds under the attributes", async () => {

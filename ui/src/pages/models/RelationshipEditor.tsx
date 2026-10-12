@@ -410,7 +410,9 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run }
           {t("models.refused", { reason: refusal })}
         </Alert>
       ) : null}
-      <Button type="submit" variant="primary" className="w-fit" disabled={!ready || refusal !== null}>
+      <Button type="submit" variant="primary" className="w-fit" disabled={!ready || refusal !== null}
+        disabledReason={refusal ?? t("models.relationships.add.pickFirst")}
+      >
         {t("models.relationships.add.submit")}
       </Button>
     </form>

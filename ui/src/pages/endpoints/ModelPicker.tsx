@@ -173,6 +173,8 @@ export function ModelPicker({
   }, [endpointsQuery.data, endpointName, value.selectedProjectionRef]);
 
   const isReadOnly = Boolean(value.selectedProjectionRef && !isDetached);
+  // Why a control is closed (ui-writing rule 7): a proposal on its way, or a shared projection.
+  const locked = disabled ? t("app.busyReason") : isReadOnly ? t("endpoints.picker.readOnly") : undefined;
 
   /** The first class of the model, which is the one an example ticks (T-2258). */
   const firstClass = parsedModel?.classes?.[0];
@@ -305,6 +307,7 @@ export function ModelPicker({
           <Select
             id="projection-reuse"
             disabled={disabled}
+            title={disabled ? t("app.busyReason") : undefined}
             value={value.selectedProjectionRef ?? ""}
             onChange={(e) => handleSelectProjection(e.target.value)}
           >
@@ -339,6 +342,7 @@ export function ModelPicker({
             <Input
               id="projection-name"
               disabled={disabled || isReadOnly}
+              title={locked}
               value={value.projectionName}
               onChange={(e) => onChange({ ...value, projectionName: e.target.value })}
               className="font-mono"
@@ -364,6 +368,7 @@ export function ModelPicker({
             size="sm"
             variant="secondary"
             disabled={disabled || isReadOnly}
+            title={locked}
             onClick={() =>
               toggleClass(
                 firstClass.name,
@@ -395,6 +400,7 @@ export function ModelPicker({
                   label={<span className="font-mono">{cls.name}</span>}
                   hint={isIdentityOnly ? `(${t("endpoints.picker.identityOnly")})` : undefined}
                   disabled={disabled || isReadOnly}
+                  title={locked}
                   checked={isTicked}
                   onChange={() => toggleClass(cls.name, nonIdSlots)}
                 />
@@ -409,6 +415,7 @@ export function ModelPicker({
                       aria-label={`${cls.name} ${t("endpoints.picker.writable")}`}
                       label={t("endpoints.picker.writable")}
                       disabled={disabled || isReadOnly}
+                      title={locked}
                       checked={Boolean(cfg.writable)}
                       onChange={(e) => updateClassConfig(cls.name, { writable: e.target.checked })}
                     />
@@ -418,6 +425,7 @@ export function ModelPicker({
                         aria-label={`${cls.name} ${t("endpoints.picker.readQ")}`}
                         placeholder={t("endpoints.picker.readQ")}
                         disabled={disabled || isReadOnly}
+                        title={locked}
                         value={cfg.readQ ?? ""}
                         onChange={(e) => updateClassConfig(cls.name, { readQ: e.target.value })}
                         className="font-mono"
@@ -434,6 +442,7 @@ export function ModelPicker({
                       aria-label={`${cls.name} ${t("endpoints.picker.idPattern")}`}
                       placeholder={t("endpoints.picker.idPattern")}
                       disabled={disabled || isReadOnly}
+                      title={locked}
                       value={cfg.idPattern ?? ""}
                       onChange={(e) => updateClassConfig(cls.name, { idPattern: e.target.value })}
                       className="font-mono"
@@ -444,6 +453,7 @@ export function ModelPicker({
                       aria-label={`${cls.name} ${t("endpoints.picker.scope")}`}
                       placeholder={t("endpoints.picker.scope")}
                       disabled={disabled || isReadOnly}
+                      title={locked}
                       value={cfg.scope ?? ""}
                       onChange={(e) => updateClassConfig(cls.name, { scope: e.target.value })}
                       className="font-mono"
@@ -454,6 +464,7 @@ export function ModelPicker({
                       aria-label={`${cls.name} ${t("endpoints.picker.q")}`}
                       placeholder={t("endpoints.picker.q")}
                       disabled={disabled || isReadOnly}
+                      title={locked}
                       value={cfg.writeQ ?? ""}
                       onChange={(e) => updateClassConfig(cls.name, { writeQ: e.target.value })}
                       className="font-mono"
@@ -490,6 +501,7 @@ export function ModelPicker({
                         aria-label={`${cls.name}.${slot}`}
                         label={<span className="font-mono">{slot}</span>}
                         disabled={disabled || isReadOnly}
+                        title={locked}
                         checked={slotTicked}
                         onChange={() => toggleSlot(cls.name, slot)}
                       />

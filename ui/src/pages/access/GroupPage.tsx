@@ -296,6 +296,7 @@ function Members({
                   size="sm"
                   variant="secondary"
                   disabled={busy}
+                  disabledReason={t("app.busyReason")}
                   aria-label={t("access.groupPage.removeMember", { member: member.user })}
                   onClick={() => onRemove(member.user)}
                 >
@@ -439,6 +440,7 @@ function PlatformRoles({
                       size="sm"
                       variant="secondary"
                       disabled={busy}
+                      disabledReason={t("app.busyReason")}
                       aria-label={t("access.groupPage.removeRole", { role: label })}
                       onClick={() => onEdit(without)}
                     >
@@ -583,6 +585,7 @@ function ApplicationRoles({
                     size="sm"
                     variant="secondary"
                     disabled={busy || !manifest}
+                    disabledReason={busy ? t("app.busyReason") : t("access.groupPage.appNotLoaded")}
                     aria-label={t("access.groupPage.removeAppRole", { role: label })}
                     onClick={() => manifest && onRemove(entry.project, manifest, entry.role)}
                   >

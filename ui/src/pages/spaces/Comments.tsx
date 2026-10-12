@@ -109,6 +109,7 @@ export function CommentsPanel({ project, space, urn }: { project: string; space:
                     variant="ghost"
                     aria-label={t("spaces.comments.removeOne", { when: when(comment.createdAt, i18n.language) })}
                     disabled={remove.isPending}
+                    disabledReason={t("app.busyReason")}
                     onClick={() => remove.mutate(comment.id)}
                   >
                     {t("spaces.comments.remove")}
@@ -156,7 +157,7 @@ export function CommentsPanel({ project, space, urn }: { project: string; space:
             {t("spaces.comments.unknown", { names: unknown.map((name) => `@${name}`).join(", ") })}
           </Alert>
         ) : null}
-        <Button type="submit" className="w-fit" disabled={!trimmed || post.isPending}>
+        <Button type="submit" className="w-fit" disabled={!trimmed || post.isPending} disabledReason={post.isPending ? t("app.busyReason") : t("spaces.comments.writeFirst")}>
           {t("spaces.comments.post")}
         </Button>
       </form>

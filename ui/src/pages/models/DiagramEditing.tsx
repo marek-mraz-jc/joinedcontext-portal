@@ -207,7 +207,7 @@ function NameDialog({
           <Button variant="secondary" onClick={onClose}>
             {t("app.cancel")}
           </Button>
-          <Button variant="primary" disabled={error !== undefined} onClick={submit}>
+          <Button variant="primary" disabled={error !== undefined} disabledReason={error} onClick={submit}>
             {t("models.graph.edit.add")}
           </Button>
         </>
@@ -299,6 +299,7 @@ function EditRelationship({
           <Button
             variant="primary"
             disabled={operations.length === 0 || nameProblem !== undefined || inverseProblem !== undefined}
+            disabledReason={nameProblem ?? inverseProblem ?? t("models.graph.edit.nothingToApply")}
             onClick={() => finish(run(operations))}
           >
             {t("models.graph.edit.apply")}
