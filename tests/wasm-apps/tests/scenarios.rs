@@ -16,20 +16,25 @@
 //! ```
 //!
 //! `gateway[].path` is below the Endpoint (`/api/endpoint/<slug>`), a `file` relative to
-//! `server/`. A step's `{name}` is what an earlier step's `save` took; `upload` puts bytes to the
+//! `server/`. A step's `{name}`, in its call and in a text it expects, is what an earlier step's
+//! `save` took; `upload` puts bytes to the
 //! URL at that pointer and `download` reads them back, or with `downloaded` checks that what the
 //! App wrote holds that text; `as: "second"` calls as the second App, which every scenario must
-//! do at least once. Needs the variables of src/lib.rs.
+//! do at least once. `caller` names who calls ([`wasm_apps_harness::token`]): `anonymous`, a role
+//! such as `viewer`, roles such as `steward+viewer`, or `viewer@u-2` for another person with that
+//! role; without it the step runs as one person holding every role of the App's `app.yaml`.
+//! `rows` counts a table of the called App after the step (`{"plans": 1}`), so a refused write is
+//! shown to have changed nothing.
+//! Needs the variables of src/lib.rs.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
 use serde_json::Value;
 use wasm_apps_harness::{fetch, Harness};
-use wiremock::matchers::{header, method, path, query_param};
+use wiremock::matchers::{header_regex, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const TOKEN: &str = "tok-scenario";
 const BYTES: &str = "jc-host-test";
 
 fn apps() -> Vec<String> {
@@ -72,7 +77,7 @@ async fn play(app: &str) {
                 "/api/endpoint/{slug}{}",
                 text(&answer["path"], "gateway[].path")
             )))
-            .and(header("authorization", format!("Bearer {TOKEN}").as_str()));
+            .and(header_regex("authorization", "^Bearer tok-"));
         for (key, value) in answer["query"].as_object().into_iter().flatten() {
             mock = mock.and(query_param(key.as_str(), text(value, key).as_str()));
         }
@@ -83,6 +88,10 @@ async fn play(app: &str) {
     }
 
     let harness = Harness::new(app, gateway).await;
+    let everyone = wasm_apps_harness::token(&format!(
+        "{}@u-scenario",
+        wasm_apps_harness::roles(app).join("+")
+    ));
     let http = reqwest::Client::new();
     let mut saved: BTreeMap<String, String> = BTreeMap::new();
     let mut second_acted = false;
@@ -109,8 +118,12 @@ async fn play(app: &str) {
             Some(other) => panic!("{app} step {n}: unknown caller {other}"),
         };
         let body = step.get("body").map(Value::to_string).unwrap_or_default();
+        let token = match step["caller"].as_str() {
+            None => everyone.clone(),
+            Some(named) => wasm_apps_harness::token(named),
+        };
         let (status, answer) = harness
-            .call(caller, verb, &target, &body, Some(TOKEN))
+            .call(caller, verb, &target, &body, token.as_deref())
             .await;
         let at = format!("{app} step {n} ({verb} {target})");
         assert_eq!(
@@ -119,9 +132,17 @@ async fn play(app: &str) {
             "{at}: {answer}"
         );
         for (pointer, want) in step["expect"].as_object().into_iter().flatten() {
+            let want = match want {
+                Value::String(text) => Value::String(
+                    saved
+                        .iter()
+                        .fold(text.clone(), |t, (k, v)| t.replace(&format!("{{{k}}}"), v)),
+                ),
+                other => other.clone(),
+            };
             assert_eq!(
                 answer.pointer(pointer),
-                Some(want),
+                Some(&want),
                 "{at} {pointer}: {answer}"
             );
         }
@@ -134,6 +155,13 @@ async fn play(app: &str) {
                 got.map(|n| n as u64),
                 want.as_u64(),
                 "{at} length of {pointer}: {answer}"
+            );
+        }
+        for (table, want) in step["rows"].as_object().into_iter().flatten() {
+            assert_eq!(
+                Some(harness.count(caller, table).await as u64),
+                want.as_u64(),
+                "{at}: rows of {table}"
             );
         }
         for (key, pointer) in step["save"].as_object().into_iter().flatten() {
