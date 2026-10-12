@@ -518,8 +518,8 @@
       "modelCreate": "Create a data model",
       "modelImport": "Import a Smart Data Model",
       "tooMany": "The endpoint is busy (too many reads at once).",
-      "broker": "It lives on the context broker {broker}.",
-      "lead": "Its data model, its entities, who reads them and what happened to it."
+      "lead": "Its data model, its entities, who reads them and what happened to it.",
+      "broker": "It lives on the context broker {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

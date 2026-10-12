@@ -518,8 +518,8 @@
       "modelCreate": "Vytvořit datový model",
       "modelImport": "Importovat Smart Data Model",
       "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou).",
-      "broker": "Běží na kontextovém brokeru {broker}.",
-      "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo."
+      "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo.",
+      "broker": "Běží na kontextovém brokeru {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

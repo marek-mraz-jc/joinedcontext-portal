@@ -518,8 +518,8 @@
       "modelCreate": "Datenmodell anlegen",
       "modelImport": "Smart Data Model importieren",
       "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal).",
-      "broker": "Er liegt auf dem Context-Broker {broker}.",
-      "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah."
+      "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah.",
+      "broker": "Er liegt auf dem Context-Broker {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
