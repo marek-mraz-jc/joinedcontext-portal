@@ -2021,9 +2021,10 @@ pub fn sidecar_client(project: &str, pipeline: &str) -> String {
 /// Turns every credential of `project`'s `pipelines` account in a rendered stream into its own
 /// pipeline's (PL-19): the stream names `{project}/{pipeline}` to the runner's token sidecar at
 /// `${JC_PIPELINE_TOKEN_URL}`, which presents that pipeline's own Kubernetes token to Keycloak.
-/// No secret is named: the sidecar ignores the one Bento's client must send. The sinks to the
-/// Portal present the project's client too (T-4038), so they become the pipeline's as well,
-/// which the internal listener admits (T-3193).
+/// No secret is named, not even a placeholder: the sidecar reads the client id from Basic and
+/// wants none, and a stream without the key has none for the runner's API to serve (T-4044).
+/// The sinks to the Portal present the project's client too (T-4038), so they become the
+/// pipeline's as well, which the internal listener admits (T-3193).
 pub fn with_pipeline_identity(stream: &mut Value, project: &str, pipeline: &str) {
     let account = jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT);
     match stream {
@@ -2033,7 +2034,6 @@ pub fn with_pipeline_identity(stream: &mut Value, project: &str, pipeline: &str)
                     *oauth2 = serde_json::json!({
                         "enabled": true,
                         "client_key": sidecar_client(project, pipeline),
-                        "client_secret": "none",
                         "token_url": "${JC_PIPELINE_TOKEN_URL}"
                     });
                 }
@@ -2766,6 +2766,7 @@ output:
         ] {
             assert_eq!(oauth2["client_key"], "zilina/drepo");
             assert_eq!(oauth2["token_url"], "${JC_PIPELINE_TOKEN_URL}");
+            assert!(oauth2.get("client_secret").is_none(), "{oauth2}");
         }
         assert_eq!(
             stream["pipeline"]["processors"][0]["http"]["oauth2"]["client_key"], "${JC_CLIENT_ID}",
@@ -3104,6 +3105,60 @@ output:
             assert!(url.contains("/api/endpoint/abc123/"), "{url}");
             assert!(!rendered.to_string().contains("sync_response"), "{output}");
             assert!(!rendered.to_string().contains("/answer"), "{output}");
+        }
+    }
+
+    /// T-4044: with pipeline identity nothing the reconciler sends the runner names a client
+    /// secret, not the pipeline's stream, its reports, an author's own credential step or its
+    /// sweep: the runner's `GET /streams/{id}` serves a stream back with its variables resolved.
+    #[tokio::test]
+    async fn with_pipeline_identity_no_stream_sent_to_the_runner_names_a_client_secret() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        let deployer = StreamDeployer::new(server.uri())
+            .with_pipeline_identity(true)
+            .with_validation(
+                "http://portal-internal:8081/",
+                Arc::new(crate::pipeline_validation::ModelSchemas::default()),
+            );
+        let mirror = helsinki_test_mirror();
+        let mut pipeline = mirror
+            .get("helsinki", "Pipeline", "citybikes-free")
+            .expect("pipeline");
+        pipeline.spec["expiry"] = serde_json::json!({ "after": "14d", "types": ["Vehicle"] });
+        mirror.upsert(pipeline);
+        let mut bentos = Bentos::new();
+        bentos.insert(
+            ("helsinki".to_owned(), "citybikes-free".to_owned()),
+            "pipeline:\n  processors:\n    - http:\n        url: ${JC_GATEWAY_URL}/api/endpoint/x/ngsi-ld/v1/entityOperations/delete\n        oauth2: { enabled: true, client_key: '${JC_CLIENT_ID}', client_secret: '${JC_CLIENT_SECRET}', token_url: '${JC_TOKEN_URL}' }\n".to_owned(),
+        );
+
+        let outcomes = deployer
+            .converge(&mirror, &bentos, &Default::default())
+            .await;
+        assert!(
+            outcomes.iter().all(|(_, _, o)| *o == StreamOutcome::Live),
+            "{outcomes:?}"
+        );
+        let sent: Vec<Value> = server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .iter()
+            .filter(|r| r.method.as_str() == "PUT")
+            .map(|r| serde_json::from_slice(&r.body).expect("json"))
+            .collect();
+        assert_eq!(sent.len(), 2, "the stream and its sweep");
+        for body in &sent {
+            let text = body.to_string();
+            assert!(
+                !text.contains("client_secret") && !text.contains("JC_CLIENT_SECRET"),
+                "{text}"
+            );
+            assert!(text.contains("\"helsinki/citybikes-free\""), "{text}");
         }
     }
 

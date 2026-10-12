@@ -841,8 +841,12 @@ pub async fn retry_rejected(
         );
         *output = crate::pipeline_log::with_outcomes(output.take(), &outcomes);
     }
-    // The internal listener admits the project's own client only (T-3193, T-4038).
+    // The internal listener admits the project's own client only (T-3193, T-4038), or with
+    // pipeline identity the pipeline's own, which the replay then presents everywhere (T-4044).
     crate::reconciler::streams::own_credential(&mut config, &project);
+    if state.config.pipeline_identity {
+        crate::reconciler::streams::with_pipeline_identity(&mut config, &project, &name);
+    }
     jcctl::bento::inject_space(
         &mut config,
         &[crate::spaces::segment(&state.mirror, &project, &space)],
