@@ -21,6 +21,9 @@ import type { Me } from "./server";
 import { sweep } from "./testing/sweep";
 import { Map as FakeMap, Popup } from "./testing/maplibre";
 
+// A sweep presses every control: a slow CI runner takes several times a laptop's 4 s.
+const SWEEP = 30_000;
+
 vi.mock("maplibre-gl", () => import("./testing/maplibre"));
 vi.mock("echarts", () => ({ init: () => ({ setOption: () => undefined, resize: () => undefined, dispose: () => undefined, on: () => undefined }) }));
 
@@ -176,7 +179,7 @@ describe("a viewer", () => {
     expect(screen.queryByText(/Crew/)).toBeNull();
     await page("Häiriöt");
     expect(await screen.findByText("Omat rajaukset")).toBeInTheDocument();
-  });
+  }, SWEEP);
 });
 
 describe("a steward", () => {
@@ -209,7 +212,7 @@ describe("a steward", () => {
     // The sweep typed nothing into a comment it kept, so every acknowledgement it asked for was refused before the server.
     expect(server.given).toHaveLength(0);
     expect(await said("Write a comment (at most 300 characters).")).toBeInTheDocument();
-  });
+  }, SWEEP);
 
   it("sees a refused acknowledgement taken back with its comment kept, and a refused take-back put back", async () => {
     const server = show(STEWARD);
@@ -245,5 +248,5 @@ describe("a steward", () => {
     expect(await said("Ändringarna kunde inte läsas: store down")).toBeInTheDocument();
     await page("Störningar");
     expect(await screen.findByText("Mina filter")).toBeInTheDocument();
-  });
+  }, SWEEP);
 });
