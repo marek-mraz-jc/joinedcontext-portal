@@ -23,9 +23,9 @@
 use jc_core::envelope::ORG_NAMESPACE;
 use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
-    ContextSpaceSpec, DataModelLifecycle, DataModelRef, DataModelSpec, EndpointSpec, MappingSpec,
-    ModelProjectionSpec, Operation, OperationRef, PolicySpec, PrincipalKind, ProjectedClass,
-    Projection, ProjectionFilter, RetentionRule,
+    ContextSpaceSpec, DataAgreementSpec, DataModelLifecycle, DataModelRef, DataModelSpec,
+    DataOfferSpec, EndpointSpec, MappingSpec, ModelProjectionSpec, Operation, OperationRef,
+    PolicySpec, PrincipalKind, ProjectedClass, Projection, ProjectionFilter, RetentionRule,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
@@ -199,6 +199,10 @@ impl Sources {
     /// out: the load already reported it.
     pub fn read(repo: &Repository) -> Self {
         let mut sources = Self::default();
+        // Data-space agreements and the offers they were made on, compiled once every Policy
+        // they narrow is read (DS-10, T-3927).
+        let mut offers = BTreeMap::new();
+        let mut agreements = Vec::new();
         let declared: Vec<(String, jc_core::kinds::ContextBrokerSpec)> = repo
             .iter()
             .filter(|(id, _)| id.kind == "ContextBroker")
@@ -286,6 +290,16 @@ impl Sources {
                 "App" => {
                     sources.apps.insert((project, id.name.clone()));
                 }
+                "DataOffer" => {
+                    if let Ok(spec) = serde_json::from_value::<DataOfferSpec>(spec.clone()) {
+                        offers.insert((project, id.name.clone()), spec);
+                    }
+                }
+                "DataAgreement" => {
+                    if let Ok(spec) = serde_json::from_value::<DataAgreementSpec>(spec.clone()) {
+                        agreements.push((project, id.name.clone(), spec));
+                    }
+                }
                 "Mapping" => {
                     let Ok(spec) = serde_json::from_value::<MappingSpec>(spec.clone()) else {
                         continue;
@@ -328,6 +342,26 @@ impl Sources {
                     .or_default()
                     .push((name, spec));
             }
+        }
+        // An accepted agreement is its offer's Policies for the participant's DID, narrowed
+        // (DS-10, DS-03): compiled from the Endpoints' bound Policies read above.
+        let bound = |project: &str, endpoint: &str| -> Vec<(String, PolicySpec)> {
+            sources
+                .endpoints
+                .iter()
+                .find(|e| e.project == project && e.name == endpoint)
+                .map(|e| {
+                    sources
+                        .bound(e)
+                        .into_iter()
+                        .map(|(name, policy)| (name.to_owned(), policy.clone()))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let compiled = super::agreements::compile_all(&agreements, &offers, bound);
+        for (space, policies) in compiled {
+            sources.policies.entry(space).or_default().extend(policies);
         }
         sources
     }
