@@ -19,6 +19,23 @@ use crate::store::Mirror;
 /// Timeout for requests sent to the runner's streams API.
 const RUNNER_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Timeout for a PUT, POST or DELETE of one stream. Bento stops the old stream under the
+/// request's own context, which has no deadline: it waits for the writes in flight, and a
+/// gateway write may take its 30 s timeout four times over with Bento's default retries. A client
+/// that hangs up first cancels that context, the forced stop then fails at once, and the runner
+/// logs "Streams CRUD Error: context canceled" with the replace undone (T-4060).
+/// ponytail: one fixed bound; a slower stop still ends in the backoff below.
+const REPLACE_TIMEOUT: Duration = Duration::from_secs(180);
+
+/// How many streams one pass sends to the runner at once. A render that changed every stream
+/// (a new sink, T-4036) replaced 102 streams one after another, each waiting for its old
+/// stream's writes, and the runner took half an hour to converge (T-4060).
+const SENDS_AT_ONCE: usize = 8;
+
+/// What the runner holds for one project, asked at most once per pass and only when a stream
+/// needs it.
+type Running = tokio::sync::OnceCell<Option<HashMap<String, bool>>>;
+
 /// The first wait after a PUT the runner did not answer, doubled on each further miss up to
 /// [`BACKOFF_CEILING`] (T-2891).
 const BACKOFF_START: Duration = Duration::from_secs(60);
@@ -96,6 +113,8 @@ pub struct StreamDeployer {
     /// Whether each stream presents its own pipeline's identity through the runner's token
     /// sidecar rather than its project's `pipelines` account (PL-19, Architecture/12 §3).
     pipeline_identity: bool,
+    /// [`REPLACE_TIMEOUT`], shorter in tests.
+    replace_timeout: Duration,
 }
 
 /// The runner's id of one project's stream. One runner may serve every project, and two
@@ -181,7 +200,19 @@ impl StreamDeployer {
             validation: None,
             unqualified_retired: Mutex::new(HashSet::new()),
             pipeline_identity: false,
+            replace_timeout: REPLACE_TIMEOUT,
         }
+    }
+
+    /// The same deployer with other timeouts, so a test need not wait out the real ones.
+    #[cfg(test)]
+    fn with_timeouts(mut self, request: Duration, replace: Duration) -> Self {
+        self.http = reqwest::Client::builder()
+            .timeout(request)
+            .build()
+            .unwrap_or_default();
+        self.replace_timeout = replace;
+        self
     }
 
     /// Renders every stream with its own pipeline's identity (PL-19): set once the runner carries
@@ -325,10 +356,11 @@ impl StreamDeployer {
     ) -> Vec<(String, String, StreamOutcome)> {
         let mut outcomes = Vec::new();
         let mut current_live = HashSet::new();
+        // The streams to send, each with its place in `outcomes`: sent after the loop, a few at
+        // once (T-4060).
+        let mut sends: Vec<(usize, String, String, Value)> = Vec::new();
 
         for ns in mirror.namespaces() {
-            // What the runner holds, asked once per project and only when a render is unchanged.
-            let mut running: Option<Option<HashMap<String, bool>>> = None;
             // What the project may keep resident (PF-74): the ones beyond its quota are not
             // scheduled at all, and the condition on each says why.
             let beyond = crate::quotas::beyond(mirror, &ns, "residentPipelines");
@@ -501,10 +533,8 @@ impl StreamDeployer {
                             self.identified(&mut stream_json, &ns, &name);
                             jcctl::bento::inject_space(&mut stream_json, &segments);
                             inject_source_space(&mut stream_json, &source_segments);
-                            let outcome = self
-                                .apply(&ns, &name, stream_json, &mut running, &mut current_live)
-                                .await;
-                            outcomes.push((ns.clone(), name, outcome));
+                            sends.push((outcomes.len(), ns.clone(), name.clone(), stream_json));
+                            outcomes.push((ns.clone(), name, StreamOutcome::Live));
                         }
                         Err(reason) => {
                             outcomes.push((ns.clone(), name, StreamOutcome::Error(reason)))
@@ -617,17 +647,16 @@ impl StreamDeployer {
                 self.identified(&mut stream_json, &ns, &name);
                 jcctl::bento::inject_space(&mut stream_json, &segments);
                 inject_source_space(&mut stream_json, &source_segments);
-                let outcome = self
-                    .apply(&ns, &name, stream_json, &mut running, &mut current_live)
-                    .await;
-                outcomes.push((ns.clone(), name, outcome));
+                sends.push((outcomes.len(), ns.clone(), name.clone(), stream_json));
+                outcomes.push((ns.clone(), name, StreamOutcome::Live));
             }
         }
+        self.send_all(sends, &mut outcomes, &mut current_live).await;
+        let mut sends: Vec<(usize, String, String, Value)> = Vec::new();
 
         // The sweeps of the pipelines that remove stale entities (PL-64), after every pipeline's
         // own stream, so a sweep's outcome lands on its pipeline after the pipeline's own.
         for ns in mirror.namespaces() {
-            let mut running: Option<Option<HashMap<String, bool>>> = None;
             let page = mirror.list(&ns, "Pipeline", &crate::store::ListOptions::default());
             for envelope in page.items {
                 let name = envelope.metadata.name;
@@ -658,8 +687,8 @@ impl StreamDeployer {
                     Some(Some(mut stream)) => {
                         // The sweep deletes as the pipeline it sweeps for (PL-20).
                         self.identified(&mut stream, &ns, &name);
-                        self.apply(&ns, &sweep, stream, &mut running, &mut current_live)
-                            .await
+                        sends.push((outcomes.len(), ns.clone(), sweep.clone(), stream));
+                        StreamOutcome::Live
                     }
                     // Never read as a window of zero, which deletes everything (PL-64).
                     Some(None) => StreamOutcome::Error(format!(
@@ -678,6 +707,7 @@ impl StreamDeployer {
                 outcomes.push((ns.clone(), sweep, outcome));
             }
         }
+        self.send_all(sends, &mut outcomes, &mut current_live).await;
 
         // Retire streams that were deployed previously but are no longer active or eligible.
         let to_retire: Vec<(String, String)> = {
@@ -700,6 +730,39 @@ impl StreamDeployer {
         outcomes
     }
 
+    /// Applies each stream, [`SENDS_AT_ONCE`] at a time, writing each outcome into its place:
+    /// one stream whose old copy is slow to stop no longer holds every stream after it (T-4060).
+    async fn send_all(
+        &self,
+        sends: Vec<(usize, String, String, Value)>,
+        outcomes: &mut [(String, String, StreamOutcome)],
+        current_live: &mut HashSet<(String, String)>,
+    ) {
+        use futures_util::StreamExt;
+        let running: HashMap<String, Running> = sends
+            .iter()
+            .map(|(_, ns, _, _)| (ns.clone(), Running::new()))
+            .collect();
+        let running = &running;
+        let mut applied = futures_util::stream::iter(sends)
+            .map(|(at, ns, name, stream)| async move {
+                let outcome = match running.get(&ns) {
+                    Some(running) => self.apply(&ns, &name, stream, running).await,
+                    None => StreamOutcome::Error("no runner list for the project".to_owned()),
+                };
+                (at, ns, name, outcome)
+            })
+            .buffer_unordered(SENDS_AT_ONCE);
+        while let Some((at, ns, name, outcome)) = applied.next().await {
+            if outcome == StreamOutcome::Live {
+                current_live.insert((ns, name));
+            }
+            if let Some(slot) = outcomes.get_mut(at) {
+                slot.2 = outcome;
+            }
+        }
+    }
+
     /// Sends one rendered stream to the runner unless it already runs this exact render, and
     /// records it as live when the runner has it.
     async fn apply(
@@ -707,8 +770,7 @@ impl StreamDeployer {
         ns: &str,
         name: &str,
         mut stream_json: Value,
-        running: &mut Option<Option<HashMap<String, bool>>>,
-        current_live: &mut HashSet<(String, String)>,
+        running: &Running,
     ) -> StreamOutcome {
         own_credential(&mut stream_json, ns);
         let key = (ns.to_owned(), name.to_owned());
@@ -735,10 +797,7 @@ impl StreamDeployer {
         // applies while its render was unchanged (T-2336, PL-18, OPS-27). Sending it again
         // restarts it on the runner, and its output fetches a fresh token as it starts.
         if unchanged {
-            if running.is_none() {
-                *running = Some(self.running(ns).await);
-            }
-            unchanged = match running.as_ref().and_then(Option::as_ref) {
+            unchanged = match running.get_or_init(|| self.running(ns)).await {
                 None => true,
                 Some(streams) => match streams.get(&stream_id(ns, name)) {
                     None => {
@@ -786,7 +845,6 @@ impl StreamDeployer {
             }
         };
         if outcome == StreamOutcome::Live {
-            current_live.insert(key.clone());
             if let Ok(mut rendered) = self.rendered.lock() {
                 rendered.insert(key.clone(), hash);
             }
@@ -900,7 +958,13 @@ impl StreamDeployer {
                 pipeline = %name,
                 "removing the stream from the runner: it was live on the last pass and is not now"
             );
-            match self.http.delete(&url).send().await {
+            match self
+                .http
+                .delete(&url)
+                .timeout(self.replace_timeout)
+                .send()
+                .await
+            {
                 Ok(resp) => {
                     if !resp.status().is_success()
                         && resp.status() != reqwest::StatusCode::NOT_FOUND
@@ -960,6 +1024,7 @@ impl StreamDeployer {
                 match self
                     .http
                     .delete(format!("{runner}/streams/{old}"))
+                    .timeout(self.replace_timeout)
                     .send()
                     .await
                 {
@@ -1027,6 +1092,7 @@ impl StreamDeployer {
         let mut response = self
             .http
             .put(&url)
+            .timeout(self.replace_timeout)
             .json(stream_json)
             .send()
             .await
@@ -1036,6 +1102,7 @@ impl StreamDeployer {
             response = self
                 .http
                 .post(&url)
+                .timeout(self.replace_timeout)
                 .json(stream_json)
                 .send()
                 .await
@@ -3883,6 +3950,78 @@ output:
             2,
             "a changed render waits for nothing: {:?}",
             verbs()
+        );
+    }
+
+    /// A runner whose PUT answers after `delay`, holding none of the streams.
+    async fn slow_runner(delay: Duration) -> wiremock::MockServer {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_delay(delay))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// T-4060: Bento stops the old stream under the PUT's own context, so a replace answers only
+    /// once the old stream's writes are done. A replace that outlasts the timeout of every other
+    /// request is still waited for and is Live, where it used to be cancelled into an error.
+    #[tokio::test]
+    async fn a_replace_slower_than_a_plain_request_is_waited_for() {
+        let runner = slow_runner(Duration::from_millis(1500)).await;
+        let outcomes = StreamDeployer::new(runner.uri())
+            .with_timeouts(Duration::from_secs(1), Duration::from_secs(10))
+            .converge(&helsinki_test_mirror(), &Bentos::new(), &Default::default())
+            .await;
+        assert_eq!(outcomes[0].2, StreamOutcome::Live, "{outcomes:?}");
+
+        let impatient = StreamDeployer::new(runner.uri())
+            .with_timeouts(Duration::from_secs(1), Duration::from_secs(1))
+            .converge(&helsinki_test_mirror(), &Bentos::new(), &Default::default())
+            .await;
+        assert!(
+            matches!(&impatient[0].2, StreamOutcome::Error(said) if said.contains("did not answer")),
+            "a replace past its own timeout still backs off: {impatient:?}"
+        );
+    }
+
+    /// T-4060: a render that changes every stream sends them a few at once, each in its own
+    /// place among the outcomes, so one slow stop does not hold every stream after it.
+    #[tokio::test]
+    async fn a_pass_sends_its_streams_a_few_at_once_and_keeps_their_order() {
+        let mirror = helsinki_test_mirror();
+        let pipeline = mirror
+            .get("helsinki", "Pipeline", "citybikes-free")
+            .expect("the pipeline");
+        let names: Vec<String> = (1..=SENDS_AT_ONCE).map(|n| format!("copy-{n}")).collect();
+        for name in &names {
+            let mut copy = pipeline.clone();
+            copy.metadata.name = name.clone();
+            mirror.upsert(copy);
+        }
+        let runner = slow_runner(Duration::from_millis(800)).await;
+        let started = Instant::now();
+        let outcomes = StreamDeployer::new(runner.uri())
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        let took = started.elapsed();
+        assert_eq!(outcomes.len(), SENDS_AT_ONCE + 1, "{outcomes:?}");
+        assert!(
+            outcomes.iter().all(|o| o.2 == StreamOutcome::Live),
+            "{outcomes:?}"
+        );
+        let mut listed: Vec<&str> = outcomes.iter().map(|o| o.1.as_str()).collect();
+        let order = listed.clone();
+        listed.sort_unstable();
+        assert_eq!(order, listed, "the outcomes keep the mirror's order");
+        assert!(
+            took < Duration::from_millis(800 * 3),
+            "{} streams of 0.8 s each took {took:?}",
+            SENDS_AT_ONCE + 1
         );
     }
 
