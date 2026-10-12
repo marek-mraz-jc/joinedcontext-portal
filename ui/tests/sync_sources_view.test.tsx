@@ -210,7 +210,10 @@ describe("sync sources view", () => {
     await screen.findByText("regional-datamodels");
 
     expect(await screen.findByRole("button", { name: en.syncSources.resume })).toBeEnabled();
-    expect(screen.getByRole("button", { name: en.syncSources.syncNow })).toBeDisabled();
+    // Disabled with its reason (T-3850): aria-disabled, so the reason stays reachable.
+    const syncNow = screen.getByRole("button", { name: en.syncSources.syncNow });
+    expect(syncNow).toHaveAttribute("aria-disabled", "true");
+    expect(syncNow).toHaveAccessibleDescription(en.syncSources.pausedReason);
   });
 
   it("asks before detaching, and answers with the merge request that removes it", async () => {
