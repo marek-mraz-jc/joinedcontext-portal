@@ -1175,6 +1175,8 @@
       "xlsx": "Excel (xlsx)",
       "zip": "ZIP na stiahnutie",
       "ogc-features": "OGC API Features",
+      "odata": "OData v4",
+      "websocket": "Notifikácie cez WebSocket",
       "sta": "SensorThings API",
       "mcp": "MCP pre AI asistentov"
     },

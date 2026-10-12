@@ -1175,6 +1175,8 @@
       "xlsx": "Excel (xlsx)",
       "zip": "ZIP-Download",
       "ogc-features": "OGC API Features",
+      "odata": "OData v4",
+      "websocket": "Benachrichtigungen über WebSocket",
       "sta": "SensorThings API",
       "mcp": "MCP für KI-Assistenten"
     },
