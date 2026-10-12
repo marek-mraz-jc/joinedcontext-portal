@@ -4594,13 +4594,22 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
-        /** @description A broker's digest of one tenant (Antares ADR-0030). */
+        /** @description What `scripts/publish-health.py` writes for one check. */
         Digest: {
-            /** Format: int64 */
-            attrInstances: number;
-            /** Format: int64 */
-            entities: number;
-            sha256: string;
+            /** Format: date-time */
+            at: string;
+            check: string;
+            counts: components["schemas"]["Counts"];
+            /** Format: int32 */
+            everyHours: number;
+            failures?: components["schemas"]["Failure"][];
+            history?: components["schemas"]["Point"][];
+            /**
+             * @description The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for
+             *     every other check.
+             */
+            passed?: string[];
+            run?: string | null;
         };
         /** @description `status.domainVerification` of an Organization (PF-41, Architecture/03 §3). */
         DomainVerification: {
@@ -5239,13 +5248,13 @@ export interface components {
             endedAt?: string | null;
             from: string;
             reason?: string | null;
-            source?: null | components["schemas"]["Digest"];
+            source?: null | components["schemas"]["TenantDigest"];
             /** @description `project/space`. */
             space: string;
             /** Format: date-time */
             startedAt: string;
             state: components["schemas"]["MoveState"];
-            target?: null | components["schemas"]["Digest"];
+            target?: null | components["schemas"]["TenantDigest"];
             to: string;
         };
         /** @description Where the space goes. */
@@ -6538,6 +6547,14 @@ export interface components {
         TemplateList: {
             /** @description The project's templates, newest first. */
             items: components["schemas"]["PipelineTemplate"][];
+        };
+        /** @description A broker's digest of one tenant (Antares ADR-0030). */
+        TenantDigest: {
+            /** Format: int64 */
+            attrInstances: number;
+            /** Format: int64 */
+            entities: number;
+            sha256: string;
         };
         /** @description The request of API/01 §7a. */
         TestRequest: {

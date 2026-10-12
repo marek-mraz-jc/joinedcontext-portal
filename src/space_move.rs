@@ -38,6 +38,8 @@ pub enum MoveState {
 /// A broker's digest of one tenant (Antares ADR-0030).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+// `TenantDigest`: the validation health already publishes a `Digest` schema.
+#[schema(as = TenantDigest)]
 pub struct Digest {
     pub entities: u64,
     pub attr_instances: u64,

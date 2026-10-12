@@ -18629,27 +18629,56 @@
       },
       "Digest": {
         "type": "object",
-        "description": "A broker's digest of one tenant (Antares ADR-0030).",
+        "description": "What `scripts/publish-health.py` writes for one check.",
         "required": [
-          "entities",
-          "attrInstances",
-          "sha256"
+          "check",
+          "at",
+          "everyHours",
+          "counts"
         ],
         "properties": {
-          "attrInstances": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
+          "at": {
+            "type": "string",
+            "format": "date-time"
           },
-          "entities": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "sha256": {
+          "check": {
             "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "everyHours": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Failure"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          },
+          "passed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for\nevery other check."
+          },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
-        }
+        },
+        "additionalProperties": false
       },
       "DomainVerification": {
         "type": "object",
@@ -20357,7 +20386,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/Digest"
+                "$ref": "#/components/schemas/TenantDigest"
               }
             ]
           },
@@ -20378,7 +20407,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/Digest"
+                "$ref": "#/components/schemas/TenantDigest"
               }
             ]
           },
@@ -24071,6 +24100,30 @@
               "$ref": "#/components/schemas/PipelineTemplate"
             },
             "description": "The project's templates, newest first."
+          }
+        }
+      },
+      "TenantDigest": {
+        "type": "object",
+        "description": "A broker's digest of one tenant (Antares ADR-0030).",
+        "required": [
+          "entities",
+          "attrInstances",
+          "sha256"
+        ],
+        "properties": {
+          "attrInstances": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "entities": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string"
           }
         }
       },
