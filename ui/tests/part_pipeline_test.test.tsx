@@ -97,6 +97,28 @@ describe("the pipeline sample test against the UI contract", () => {
     expect(sentTo(fetchMock, "/pipelines/test")).toHaveLength(1);
   });
 
+  it("keeps a typed mapping when a sample lands, and replaces it only when asked (T-3971)", async () => {
+    const { onChange } = show(MAPPED);
+    await userEvent.upload(screen.getByLabelText(en.pipelines.test.chooseFile), csv());
+    await screen.findByText(/air\.csv/);
+    const kept = onChange.mock.lastCall?.[0] as PipelineForm;
+    expect(kept.compute).toEqual(MAPPED.compute);
+    expect(kept.output?.type).toBe("AirQualityObserved");
+    await userEvent.click(screen.getByRole("button", { name: en.pipelines.test.replaceDrafted }));
+    const replaced = onChange.mock.lastCall?.[0] as PipelineForm;
+    expect(replaced.compute?.bloblang).toContain("# drafted from air.csv");
+    expect(replaced.output?.type).toBe("Air");
+    expect(screen.queryByRole("button", { name: en.pipelines.test.replaceDrafted })).toBeNull();
+  });
+
+  it("offers no replacement when the compute node was empty and took the draft", async () => {
+    const { onChange } = show(UNMAPPED);
+    await userEvent.upload(screen.getByLabelText(en.pipelines.test.chooseFile), csv());
+    await screen.findByText(/air\.csv/);
+    expect((onChange.mock.lastCall?.[0] as PipelineForm).compute?.bloblang).toContain("# drafted from air.csv");
+    expect(screen.queryByRole("button", { name: en.pipelines.test.replaceDrafted })).toBeNull();
+  });
+
   it("puts the file input in the tab order with its own name and the shared ring", () => {
     show(MAPPED);
     const input = screen.getByLabelText(en.pipelines.test.chooseFile);

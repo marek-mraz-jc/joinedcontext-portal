@@ -139,6 +139,10 @@
     },
     "yamlHint": "Celý manifest tak, ako sa zapíše do Gitu. Prepnutie späť na formulár ho znova načíta; obe podoby kontroluje tá istá schéma.",
     "yamlError": "Opravte YAML: {message}",
+    "yamlDownload": "Stiahnuť YAML",
+    "yamlUpload": "Nahrať YAML",
+    "yamlUploadSecret": "Súbor obsahuje vypísané tajomstvo ({keys}). Odkážte naň cez secretRef a nahrajte znova; nič sa nenačítalo.",
+    "yamlUploadMoved": "Súbor pochádza z projektu {from}; načíta sa do {to} a pred navrhnutím na ňom prebehne kontrola.",
     "yamlNotManifest": "dokument nie je manifest",
     "schemaErrors": "Manifest nezodpovedá schéme:",
     "exclusive": "Vyplniť možno len jedno z týchto polí",
@@ -170,7 +174,8 @@
     "language": "Dvojpísmenový kód jazyka malými písmenami, ako sk alebo en.",
     "sitePath": "Cesta webu, ktorá začína lomkou, ako /news/**.",
     "color": "Farba ako # a šesť šestnástkových číslic, ako #0b5394.",
-    "notAnAttribute": "{name} nie je atribút typu {types} v modeloch projektu; skontrolujte pravopis."
+    "notAnAttribute": "{name} nie je atribút typu {types} v modeloch projektu; skontrolujte pravopis.",
+    "missing": "{field} je povinné"
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",
@@ -1719,7 +1724,8 @@
       "ready": "Všetkých {count} správ sa mapuje na entity. Navrhnite pipeline nižšie.",
       "useUrl": "Otestovať na URL zdroja",
       "urlSample": "{url} · json · stiahne runner",
-      "gate": "Najprv otestujte mapovanie: Navrhnúť sa otvorí, keď je test pre toto mapovanie zelený."
+      "gate": "Najprv otestujte mapovanie: Navrhnúť sa otvorí, keď je test pre toto mapovanie zelený.",
+      "replaceDrafted": "Nahradiť navrhnutým mapovaním"
     },
     "flow": {
       "palette": "Paleta výpočtov",
@@ -1736,7 +1742,6 @@
       "eventsIn": "dnu",
       "eventsOut": "von",
       "remove": "Odstrániť krok",
-      "selectedHint": "Tento krok nastavíte vo formulári nižšie.",
       "view": {
         "flow": "Tok",
         "yaml": "YAML",
@@ -1823,7 +1828,10 @@
       "routeWhen": "Berie záznamy, kde",
       "routeWhenHint": "Podmienka v Bloblangu, napríklad this.temperature.value > 30. Záznam ide do prvej vetvy, ktorej podmienka platí; ostatné idú do výstupov hlavnej linky.",
       "routeAddOutput": "+ Výstup tejto vetvy",
-      "routeNoCondition": "zatiaľ bez podmienky"
+      "routeNoCondition": "zatiaľ bez podmienky",
+      "queueShort": "{count} v rade",
+      "queue": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom",
+      "queueHigh": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom, viac než {limit}: výstup nestíha"
     },
     "emptyHint": "Pridajte zdroj údajov a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj údajov {name}",
@@ -2137,6 +2145,10 @@
         "type": "Zadajte typ entity na agregáciu.",
         "attribute": "Zadajte názov číselného atribútu: písmená, číslice a podčiarkovníky."
       }
+    },
+    "canvasLoss": {
+      "noSource": "Pipeline nemá prvý zdroj: najprv zvoľte, odkiaľ číta, inak nemožno zapísať jej ďalšie zdroje, kroky ani výstupy.",
+      "noTarget": "Pipeline nemá cieľový endpoint: najprv zvoľte, kam zapisuje, inak nemožno zapísať jej ďalšie výstupy."
     }
   },
   "dashboards": {

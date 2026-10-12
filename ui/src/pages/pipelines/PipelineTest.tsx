@@ -54,6 +54,52 @@ export function typeOf(name: string): string {
   return /^[A-Z]/.test(type) ? type : `Sample${type}`;
 }
 
+/** The NGSI-LD attribute kinds an object literal names as its `"type"`: no entity type. */
+const ATTRIBUTE_KINDS = new Set([
+  "Property",
+  "Relationship",
+  "GeoProperty",
+  "LanguageProperty",
+  "VocabProperty",
+  "JsonProperty",
+  "ListProperty",
+  "ListRelationship",
+]);
+
+/**
+ * The entity type a mapping writes when it says it as a literal, `root.type = "Vehicle"` or
+ * `"type": "Vehicle"` in the object it builds (T-3971); `undefined` when it does not.
+ */
+export function literalTypeOf(bloblang: string): string | undefined {
+  const assigned = /^\s*root\.type\s*=\s*"([A-Za-z][A-Za-z0-9_]*)"/m.exec(bloblang);
+  if (assigned) {
+    return assigned[1];
+  }
+  for (const match of bloblang.matchAll(/"type"\s*:\s*"([A-Za-z][A-Za-z0-9_]*)"/g)) {
+    if (!ATTRIBUTE_KINDS.has(match[1])) {
+      return match[1];
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The form a dropped sample leaves (T-3971): an empty compute node takes the drafted mapping,
+ * a typed one is kept; the output type follows the mapping's literal type, then the draft's,
+ * and a type the form already holds is kept beside a kept mapping.
+ */
+export function withSample(form: PipelineForm, drafted: Draft): PipelineForm {
+  const typed = form.compute?.bloblang ?? "";
+  const keep = typed.trim() !== "";
+  const bloblang = keep ? typed : drafted.bloblang;
+  const type = literalTypeOf(bloblang) ?? (keep ? form.output?.type : undefined) ?? drafted.type;
+  return {
+    ...form,
+    compute: keep ? form.compute : { kind: "bloblang", bloblang },
+    output: { ...form.output, type, mode: form.output?.mode ?? "upsert" },
+  };
+}
+
 /** The column a local id comes from (PL-44): `id`, `identifier`, one ending in `_id`/`Id`, or the first. */
 export function idColumnOf(columns: string[]): string {
   const lower = columns.map((c) => c.toLowerCase());
@@ -192,6 +238,9 @@ type SampleSource = { name: string; format: SampleFormat } & ({ text: string; ur
 export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, onVerdict, onTrace, onDebug }: PipelineTestProps): JSX.Element {
   const { t } = useTranslation();
   const [sample, setSample] = useState<SampleSource | null>(null);
+  // The mapping a sample drafted while the compute node already held one: offered, never applied
+  // unasked (T-3971).
+  const [offered, setOffered] = useState<Draft | null>(null);
   const [trace, setTrace] = useState<Trace | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -219,13 +268,9 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
     const space = spaceOfTarget(draft?.targetEndpoint, project);
     const drafted = draftFromSample(file.name, text, space);
     setSample({ name: file.name, text, format: drafted?.format ?? formatOf(file.name, text) });
+    setOffered(drafted && bloblang.trim() !== "" ? drafted : null);
     if (drafted) {
-      const form = draft ?? { class: "auto" };
-      onChange({
-        ...form,
-        compute: { kind: "bloblang", bloblang: drafted.bloblang },
-        output: { type: drafted.type, mode: form.output?.mode ?? "upsert" },
-      });
+      onChange(withSample(draft ?? { class: "auto" }, drafted));
     }
   }
 
@@ -297,6 +342,19 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         >
           <span className="rounded-md border border-dashed border-border px-3 py-2">{t("pipelines.test.drop")}</span>
         </FilePicker>
+        {offered ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="replace-drafted"
+            onClick={() => {
+              onChange(withSample({ ...(draft ?? { class: "auto" }), compute: undefined }, offered));
+              setOffered(null);
+            }}
+          >
+            {t("pipelines.test.replaceDrafted")}
+          </Button>
+        ) : null}
         {sampleUrl ? (
           <Button
             size="sm"

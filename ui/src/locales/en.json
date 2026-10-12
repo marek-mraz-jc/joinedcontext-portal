@@ -139,6 +139,10 @@
     },
     "yamlHint": "The whole manifest as it is written to Git. Switching back to the form reads it again; the same schema checks both.",
     "yamlError": "Correct the YAML: {message}",
+    "yamlDownload": "Download YAML",
+    "yamlUpload": "Upload YAML",
+    "yamlUploadSecret": "The file holds a secret written out ({keys}). Reference it with a secretRef and upload again; nothing was read.",
+    "yamlUploadMoved": "The file came from project {from}; it is read into {to}, and Check runs on it before you propose it.",
     "yamlNotManifest": "the document is not a manifest",
     "schemaErrors": "The manifest does not match the schema:",
     "exclusive": "Only one of these fields may be set",
@@ -170,7 +174,8 @@
     "language": "A two-letter language code in lower case, such as sk or en.",
     "sitePath": "A path of the site starting with a slash, such as /news/**.",
     "color": "A colour as # and six hexadecimal digits, such as #0b5394.",
-    "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling."
+    "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling.",
+    "missing": "{field} is required"
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -1719,7 +1724,8 @@
       "ready": "All {count} messages map to entities. Propose the pipeline below.",
       "useUrl": "Test on the source's URL",
       "urlSample": "{url} · json · fetched by the runner",
-      "gate": "Test the mapping first: Propose opens when the test is green for this mapping."
+      "gate": "Test the mapping first: Propose opens when the test is green for this mapping.",
+      "replaceDrafted": "Replace with a drafted mapping"
     },
     "flow": {
       "palette": "Compute palette",
@@ -1736,7 +1742,6 @@
       "eventsIn": "in",
       "eventsOut": "out",
       "remove": "Remove stage",
-      "selectedHint": "Configure this stage in the form below.",
       "view": {
         "flow": "Flow",
         "yaml": "YAML",
@@ -1823,7 +1828,10 @@
       "routeWhen": "Takes the records where",
       "routeWhenHint": "A Bloblang condition, such as this.temperature.value > 30. A record takes the first route whose condition holds; the rest go to the outputs of the lane.",
       "routeAddOutput": "+ Output on this route",
-      "routeNoCondition": "no condition yet"
+      "routeNoCondition": "no condition yet",
+      "queueShort": "{count} queued",
+      "queue": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output",
+      "queueHigh": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output, more than {limit}: the output is not keeping up"
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
@@ -2137,6 +2145,10 @@
         "type": "Name the entity type to aggregate.",
         "attribute": "Enter a numeric attribute name: letters, digits and underscores."
       }
+    },
+    "canvasLoss": {
+      "noSource": "The pipeline has no first source: choose where it reads from before its extra sources, steps or outputs can be written.",
+      "noTarget": "The pipeline has no target endpoint: choose where it writes before its extra outputs can be written."
     }
   },
   "dashboards": {

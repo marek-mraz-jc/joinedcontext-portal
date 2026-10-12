@@ -585,12 +585,25 @@ export function paintOfCounters(
   );
 }
 
+/**
+ * The messages a running stream holds before its output, amber once past this many (T-3973).
+ * ponytail: one default for every pipeline; a per-pipeline threshold when a manifest declares one.
+ */
+export const QUEUE_WARN = 100;
+
+/** The buffer depth the metrics route answers, as the wire into the output shows it (T-3973). */
+export function queueOf(depth: number | null | undefined): { depth: number; high: boolean } | undefined {
+  return typeof depth === "number" && depth >= 0 ? { depth, high: depth > QUEUE_WARN } : undefined;
+}
+
 export interface PipelineFlowProps {
   form: PipelineForm | undefined;
   onChange: (f: PipelineForm) => void;
   trace: Trace | null;
   /** The running stream's counters per node; painted whenever no test result is on screen. */
   live?: NodeCounters;
+  /** The running stream's buffer depth (`bufferDepth`), drawn on the wire into the output. */
+  bufferDepth?: number | null;
   selected: FlowNodeId | null;
   onSelect: (id: FlowNodeId | null) => void;
   /** Opens a node's form: a double-click or Enter on the node, Open in the list (PL-68). */
@@ -607,6 +620,7 @@ export function PipelineFlow({
   onChange,
   trace,
   live,
+  bufferDepth,
   selected,
   onSelect,
   onOpen,
@@ -616,6 +630,7 @@ export function PipelineFlow({
   const { t } = useTranslation();
   const { nodes, edges } = toFlow(form);
   const open = onOpen ?? onSelect;
+  const queue = queueOf(bufferDepth);
   // Undo and redo of the graph's own edits (PL-68). An edit made elsewhere (a node's form, the
   // YAML view) is not the graph's to take back, so it ends the history instead of being undone.
   const [history, setHistory] = useState<{ past: PipelineForm[]; future: PipelineForm[]; at: string }>({
@@ -1140,6 +1155,20 @@ export function PipelineFlow({
                     {count}
                   </text>
                 ) : null}
+                {queue && edge.to === "output" ? (
+                  // The queue NiFi shows on a connection: what waits before the output, live.
+                  <text
+                    x={mx}
+                    y={my - 20}
+                    textAnchor="middle"
+                    data-testid="flow-queue"
+                    data-high={queue.high ? "true" : undefined}
+                    className={`pointer-events-none select-none font-mono text-caption ${queue.high ? "fill-warning" : "fill-fg-muted"}`}
+                  >
+                    <title>{t(queue.high ? "pipelines.flow.queueHigh" : "pipelines.flow.queue", { count: queue.depth, limit: QUEUE_WARN })}</title>
+                    {t("pipelines.flow.queueShort", { count: queue.depth })}
+                  </text>
+                ) : null}
                 {tapped ? (
                   <g
                     role="button"
@@ -1640,14 +1669,15 @@ export interface SourceBlockProps {
   endpoints: Manifest[];
   locale: string;
   onChange: (source: SourceForm) => void;
-  onRemove: () => void;
+  /** Absent for the first source: a pipeline always reads one (T-3978). */
+  onRemove?: () => void;
 }
 
 /**
- * A source after the first (PL-52): one DataSource, or one Endpoint read through. The runner
- * merges it with the others through a `broker` input, so it needs nothing but what it reads;
- * the query, the sample and the access panel stay with the first source, which is the one the
- * studio's own section below edits.
+ * One source (PL-52): one DataSource, or one Endpoint read through. A source after the first is
+ * merged with the others through a `broker` input, so it needs nothing but what it reads; the
+ * first source's node opens the same block (T-3978), its sample and access panel stay in the
+ * studio's own section below.
  */
 export function SourceBlock({
   project,
@@ -1673,9 +1703,11 @@ export function SourceBlock({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-caption font-semibold text-fg">{t("pipelines.flow.node.source")}</span>
-        <Button size="sm" variant="ghost" data-testid="flow-source-remove" onClick={onRemove}>
-          {t("pipelines.flow.removeSource")}
-        </Button>
+        {onRemove ? (
+          <Button size="sm" variant="ghost" data-testid="flow-source-remove" onClick={onRemove}>
+            {t("pipelines.flow.removeSource")}
+          </Button>
+        ) : null}
       </div>
       <Field
         id={id}
@@ -1802,13 +1834,14 @@ export interface OutputBlockProps {
   targets: { manifest: Manifest; urn: string | undefined }[];
   locale: string;
   onChange: (output: OutputForm) => void;
-  onRemove: () => void;
+  /** Absent for the first output: a pipeline always writes through one (T-3978). */
+  onRemove?: () => void;
 }
 
 /**
- * An output after the first (PL-55): the Endpoint it writes through, the type and the write mode.
- * The runner fans every message out to all outputs, so each is a target the pipeline writes as
- * well, not a route a message takes.
+ * One output (PL-55), the first one's node included (T-3978): the Endpoint it writes through,
+ * the type and the write mode. The runner fans every message out to all outputs, so each is a
+ * target the pipeline writes as well, not a route a message takes.
  */
 export function OutputBlock({ project, output, targets, locale, onChange, onRemove }: OutputBlockProps): JSX.Element {
   const { t } = useTranslation();
@@ -1820,9 +1853,11 @@ export function OutputBlock({ project, output, targets, locale, onChange, onRemo
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-caption font-semibold text-fg">{t("pipelines.flow.node.output")}</span>
-        <Button size="sm" variant="ghost" data-testid="flow-output-remove" onClick={onRemove}>
-          {t("pipelines.flow.removeOutput")}
-        </Button>
+        {onRemove ? (
+          <Button size="sm" variant="ghost" data-testid="flow-output-remove" onClick={onRemove}>
+            {t("pipelines.flow.removeOutput")}
+          </Button>
+        ) : null}
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <Field id="flow-output-target" label={t("pipelines.flow.outputWrites")} help={t("pipelines.flow.outputWritesHint")} required>
