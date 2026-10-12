@@ -19,17 +19,20 @@ pub const SINK_LABEL: &str = SINK_LABELS[0];
 
 /// The labels of the sink and each of its parts; an unlabelled part would count its reports as
 /// the stream's own writes.
-pub const SINK_LABELS: [&str; 9] = [
+pub const SINK_LABELS: [&str; 8] = [
     "outcome",
     "outcome_post",
     "outcome_runs",
-    "outcome_chunks",
     "outcome_join",
-    "outcome_report",
-    "outcome_drop",
-    "outcome_records",
+    "outcome_chunks",
     "outcome_split",
+    "outcome_drop",
+    "outcome_report",
 ];
+
+/// How many writes' reports the sink gathers before it sends them, at most: each carries the
+/// ids and hashes of one write, never its records.
+pub const REPORTS_GATHERED: usize = 100;
 
 /// The most ids one outcome report carries: the outcome route's own limit.
 pub const BATCH_LINES: usize = 1000;
@@ -201,8 +204,10 @@ pub const TICK: &str = r#"meta jc_run = now().ts_format("2006-01-02T15:04:05Z", 
 /// The sink reports in batches, not one POST per write: one report per write held a
 /// connection-pool slot and the run's row of `pipeline_runs` for each HFP position, the route
 /// answered in 1.4 s on dev, and 64 reports in flight capped the stream at 45 writes a second
-/// (T-4036, again). The sink splits each write into its records, gathers them for half a
-/// second, groups them by run and sends at most [`BATCH_LINES`] ids per report.
+/// (T-4036, again). Each write is first reduced to its report (run, ids, hashes); the sink
+/// gathers those for half a second, merges them per run and sends at most [`BATCH_LINES`] ids
+/// per report. Gathering the records themselves held every body of the last half second, and
+/// the runner was OOMKilled (T-4062).
 ///
 /// Every part carries a label from [`SINK_LABELS`], so the stream's counters leave the sink out.
 ///
@@ -227,25 +232,33 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
                     "token_url": "${JC_TOKEN_URL}",
                 },
                 "batching": {
-                    "count": BATCH_LINES,
+                    "count": REPORTS_GATHERED,
                     "period": "500ms",
                     "processors": [
-                        { "label": SINK_LABELS[2], "group_by_value": { "value": "${! meta(\"jc_run\") }" } },
-                        { "label": SINK_LABELS[3], "split": { "size": BATCH_LINES } },
-                        { "label": SINK_LABELS[4], "archive": { "format": "json_array" } },
-                        { "label": SINK_LABELS[5], "mapping": format!(
-                            "root = {{ \"run\": {RUN}, \"sent\": this.map_each(record -> record.id.or(\"\")), \
-                             \"hashes\": this.map_each(record -> record.format_json().hash(\"xxhash64\").string()) }}"
+                        { "label": SINK_LABELS[2], "group_by_value": { "value": "${! json(\"run\") }" } },
+                        { "label": SINK_LABELS[3], "archive": { "format": "json_array" } },
+                        { "label": SINK_LABELS[4], "mapping": format!(
+                            "let sent = this.map_each(report -> report.sent).flatten()\n\
+                             let hashes = this.map_each(report -> report.hashes).flatten()\n\
+                             let run = this.index(0).run\n\
+                             let n = $sent.length()\n\
+                             root = range(0, [(($n + {last}) / {BATCH_LINES}).floor(), 1].max()).map_each(i -> {{ \
+                             \"run\": $run, \
+                             \"sent\": $sent.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $n].min()), \
+                             \"hashes\": $hashes.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $n].min()) }})",
+                            last = BATCH_LINES - 1,
                         ) },
+                        { "label": SINK_LABELS[5], "unarchive": { "format": "json_array" } },
                     ],
                 },
             }},
             { "label": SINK_LABELS[6], "drop": {} },
         ],
-        "processors": [
-            { "label": SINK_LABELS[7], "mapping": "root = if this.type() == \"array\" { this } else { [this] }" },
-            { "label": SINK_LABELS[8], "unarchive": { "format": "json_array" } },
-        ],
+        "processors": [{ "label": SINK_LABELS[7], "mapping": format!(
+            "let records = if this.type() == \"array\" {{ this }} else {{ [this] }}\n\
+             root = {{ \"run\": {RUN}, \"sent\": $records.map_each(record -> record.id.or(\"\")), \
+             \"hashes\": $records.map_each(record -> record.format_json().hash(\"xxhash64\").string()) }}"
+        ) }],
     });
     serde_json::json!({ "broker": {
         "pattern": "fan_out_sequential_fail_fast",
@@ -791,13 +804,23 @@ mod tests {
     }
 
     /// T-4036: one report per write held the Portal's route to 1.4 s and the stream to 45 writes
-    /// a second; the sink gathers records into reports of one run and at most the route's limit.
+    /// a second; the sink gathers reports, merges them per run and cuts them at the route's
+    /// limit. T-4062: what it gathers is each write's report, never the write's records.
     #[test]
-    fn the_sink_reports_in_batches_of_one_run_within_the_route_s_limit() {
+    fn the_sink_gathers_each_write_s_report_and_merges_them_per_run() {
         let stream = with_outcomes(serde_json::json!({ "drop": {} }), "http://portal/outcomes");
         let sink = &stream["broker"]["outputs"][1];
+        let before = sink["processors"].as_array().expect("the sink's own steps");
+        assert_eq!(
+            before.len(),
+            1,
+            "one report per write, nothing split: {sink}"
+        );
+        assert!(before[0]["mapping"]
+            .as_str()
+            .is_some_and(|m| m.contains(r#""sent": $records.map_each"#)));
         let batching = &sink["fallback"][0]["http_client"]["batching"];
-        assert_eq!(batching["count"], BATCH_LINES);
+        assert_eq!(batching["count"], REPORTS_GATHERED);
         assert_eq!(batching["period"], "500ms");
         let steps: Vec<&str> = batching["processors"]
             .as_array()
@@ -806,14 +829,21 @@ mod tests {
             .filter_map(|step| step.as_object()?.keys().find(|key| *key != "label"))
             .map(String::as_str)
             .collect();
-        assert_eq!(steps, ["group_by_value", "split", "archive", "mapping"]);
+        assert_eq!(steps, ["group_by_value", "archive", "mapping", "unarchive"]);
         assert_eq!(
             batching["processors"][0]["group_by_value"]["value"],
-            r#"${! meta("jc_run") }"#
+            r#"${! json("run") }"#
         );
-        assert_eq!(batching["processors"][1]["split"]["size"], BATCH_LINES);
-        // A write of many records is split into them first, so a chunk counts records.
-        assert_eq!(sink["processors"][1]["unarchive"]["format"], "json_array");
+        let chunks = batching["processors"][2]["mapping"]
+            .as_str()
+            .expect("the merge");
+        assert!(
+            chunks.contains(&format!("$sent.slice(i * {BATCH_LINES}")),
+            "{chunks}"
+        );
+        // Bento's `range` with a step drops a last partial step (1.22.0: range(0, 5, 2) is
+        // [0, 2]), so the chunks are counted with a step of one.
+        assert!(!chunks.contains(&format!(", {BATCH_LINES})")), "{chunks}");
     }
 
     /// T-4036: every part of the sink is labelled, so none of its counters is the stream's.
@@ -848,16 +878,16 @@ mod tests {
     fn the_outcome_sink_sends_a_hash_beside_each_id() {
         let stream = with_outcomes(serde_json::json!({ "drop": {} }), "http://portal/outcomes");
         let mapping = stream
-            .pointer("/broker/outputs/1/fallback/0/http_client/batching/processors/3/mapping")
+            .pointer("/broker/outputs/1/processors/0/mapping")
             .and_then(serde_json::Value::as_str)
             .expect("the sink's mapping");
         println!("{mapping}");
         assert!(
-            mapping.contains(r#""sent": this.map_each(record -> record.id.or(""))"#),
+            mapping.contains(r#""sent": $records.map_each(record -> record.id.or(""))"#),
             "{mapping}"
         );
         assert!(
-            mapping.contains(r#""hashes": this.map_each(record -> record.format_json().hash("xxhash64").string())"#),
+            mapping.contains(r#""hashes": $records.map_each(record -> record.format_json().hash("xxhash64").string())"#),
             "{mapping}"
         );
     }
