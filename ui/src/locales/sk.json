@@ -518,7 +518,8 @@
       "modelCreate": "Vytvoriť dátový model",
       "modelImport": "Importovať Smart Data Model",
       "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz).",
-      "lead": "Jeho dátový model, entity, kto ich číta a čo sa s ním stalo."
+      "lead": "Jeho dátový model, entity, kto ich číta a čo sa s ním stalo.",
+      "broker": "Beží na kontextovom brokeri {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -5149,7 +5150,8 @@
       "environments": "Prostredia",
       "health": "Stav overenia",
       "endpoints": "Všetky endpointy",
-      "mcp-servers": "MCP servery organizácie"
+      "mcp-servers": "MCP servery organizácie",
+      "brokers": "Brokery"
     },
     "settings": {
       "title": "Nastavenia",
@@ -5679,6 +5681,27 @@
       "models": "Modely, ktoré môže asistent používať",
       "modelsHint": "Nechajte prázdne, aby boli povolené všetky modely inštalácie.",
       "everyModel": "Všetky modely inštalácie"
+    },
+    "brokers": {
+      "title": "Kontextové brokery",
+      "lead": "Všetky brokery organizácie s priestormi, ktoré držia. Portál sa každého brokera pýta na jeho stav; počty sú staré najviac päť minút.",
+      "hidden": "Brokery vidí iba administrátor organizácie.",
+      "caption": "Kontextové brokery",
+      "name": "Broker",
+      "health": "Stav",
+      "version": "Verzia",
+      "spaces": "Priestory",
+      "entities": "Entity",
+      "default": "Predvolený",
+      "size": "Veľkosť: {size}",
+      "noSpaces": "Zatiaľ žiadny priestor",
+      "implicit": "Organizácia nedeklaruje žiadny broker, preto všetky priestory bežia na vstavanom brokeri main. Ak chcete spustiť ďalší, deklarujte ho v repozitári organizácie.",
+      "down": "{count, plural, one {# broker neodpovedá. Skontrolujte jeho pod a dôvod v jeho riadku.} few {# brokery neodpovedajú. Skontrolujte ich pody a dôvody v ich riadkoch.} other {# brokerov neodpovedá. Skontrolujte ich pody a dôvody v ich riadkoch.}}",
+      "states": {
+        "up": "Beží",
+        "down": "Nedostupný",
+        "unknown": "Bez adresy"
+      }
     }
   },
   "projectDelete": {
