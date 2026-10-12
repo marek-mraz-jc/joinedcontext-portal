@@ -4,16 +4,31 @@
 //! anonymous visitor reads what the public role may), so what a link opens is what the city's
 //! data said and not what a browser sent.
 //!
-//! | Route | What it does |
-//! |---|---|
-//! | `POST /api/itineraries` `{day, ids, lang}` | the day planned and kept; its code and its plan |
-//! | `GET /api/itineraries/{code}` | the shared day: its date, its picks and its plan |
-//! | `GET /api/itineraries/{code}/ics` | a URL the calendar file downloads from |
+//! Roles (T-3826, API/07), from `identity::caller()` alone: a day shared while signed in is the
+//! sharer's own, listed under "My days" and deleted by them alone; a day shared signed out is
+//! nobody's. A steward curates the featured events every visitor sees. Every write leaves a row in
+//! `app_audit` in the same statement.
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `POST /api/itineraries` `{day, ids, lang}` | anyone | the day planned and kept; its code and its plan |
+//! | `GET /api/itineraries/{code}` | anyone with the link | the shared day: its date, its picks and its plan |
+//! | `GET /api/itineraries/{code}/ics` | anyone with the link | a URL the calendar file downloads from |
+//! | `GET /api/days` | signed in | the days the caller shared, newest first |
+//! | `DELETE /api/days/{id}` | the sharer | the day and its calendar file gone |
+//! | `GET /api/featured` | anyone | the featured events, in the order added |
+//! | `POST /api/featured` `{eventId, note}` | steward | an event featured |
+//! | `PUT /api/featured/{id}` `{note}` | steward | its note changed |
+//! | `DELETE /api/featured/{id}` | steward | no longer featured |
+//! | `GET /api/history` | signed in | the newest changes (a viewer: their own) |
 
 use event_day_planner::{run, Day, Event, Input, Settings};
+use jc_app_sdk::access::Owned;
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
 use serde::Deserialize;
 use serde_json::Value as Json;
@@ -28,6 +43,54 @@ const CLEAR_AT_ONCE: i64 = 20;
 const MINUTE: i64 = 60_000;
 const HOUR: i64 = 60 * MINUTE;
 const DAY: i64 = 24 * HOUR;
+/// The App role that curates the featured events.
+const STEWARD: &str = "steward";
+/// A day is its sharer's alone: no role edits another person's day.
+const DAYS: Owned = Owned::new("itineraries", "");
+const FEATURED: Owned = Owned::new("featured", STEWARD);
+/// Featured events at most, and the longest note.
+const MOST_FEATURED: usize = 50;
+const NOTE_CHARS: usize = 200;
+/// History rows one read answers.
+const HISTORY: i64 = 100;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Feature {
+    pub event_id: String,
+    #[serde(default)]
+    pub note: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Note {
+    pub note: String,
+}
+
+/// A featured event's id: an Event's NGSI-LD id, one line, at most 256 characters.
+pub fn event_id(id: &str) -> Result<String, String> {
+    let id = id.trim();
+    if id.is_empty() || id.len() > 256 || id.chars().any(char::is_control) {
+        return Err("name the event by its id, at most 256 characters".into());
+    }
+    if !id.starts_with("urn:ngsi-ld:Event:") {
+        return Err("only an event can be featured".into());
+    }
+    Ok(id.to_owned())
+}
+
+/// A note on a featured event: trimmed, one line, at most [`NOTE_CHARS`] characters.
+pub fn note(text: &str) -> Result<String, String> {
+    let text = text.trim();
+    if text.chars().count() > NOTE_CHARS {
+        return Err(format!("a note has at most {NOTE_CHARS} characters"));
+    }
+    if text.chars().any(char::is_control) {
+        return Err("a note is one line of text".into());
+    }
+    Ok(text.to_owned())
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -364,10 +427,21 @@ fn share(request: &Request, _: &Params) -> Response {
     ) {
         return Response::from_blob(err);
     }
+    // Who shared it: the signed-in caller, or nobody (an empty owner no caller has). The `day`
+    // column is a date, so the statement is written here with its cast rather than by `Owned`.
+    let caller = identity::caller();
+    let (owner, name) = caller.as_ref().map_or(("", "anonymous visitor"), |c| {
+        (c.id.as_str(), c.name.as_str())
+    });
     let saved = sql::execute(
-        "insert into itineraries (code, day, lang, picks, items, conflicts, walk_km, walk_minutes) \
-         values ($1, $2::date, $3, $4, $5, $6, $7, $8)",
+        "with changed as (insert into itineraries (owner_id, code, day, lang, picks, items, conflicts, walk_km, walk_minutes) \
+         values ($1, $4, $5::date, $6, $7, $8, $9, $10, $11) returning id) \
+         insert into app_audit (actor_id, actor_name, action, target, summary) \
+         select $1, $2, 'insert', 'itineraries/' || changed.id::text, $3 from changed",
         &[
+            Value::from(owner),
+            Value::from(name),
+            Value::from(format!("shared a day of {} events on {}", picks.len(), wanted.day.trim())),
             Value::from(code.as_str()),
             Value::from(wanted.day.trim()),
             Value::from(lang),
@@ -386,6 +460,7 @@ fn share(request: &Request, _: &Params) -> Response {
         201,
         &serde_json::json!({
             "code": code,
+            "mine": caller.is_some(),
             "day": wanted.day.trim(),
             "lang": lang,
             "picks": picks,
@@ -460,11 +535,211 @@ fn calendar(_: &Request, params: &Params) -> Response {
     }
 }
 
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &serde_json::json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+fn id(params: &Params, what: &str) -> Result<i64, Response> {
+    params["id"]
+        .parse()
+        .map_err(|_| Response::problem(404, "Not Found", &format!("no such {what}")))
+}
+
+/// The days the caller shared, newest first.
+fn my_days(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, code, day::text as day, jsonb_array_length(picks) as events, \
+         created_at as \"createdAt\" from itineraries where owner_id = $1 order by id desc limit 50",
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn forget_day(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params, "day") {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    let rows = match sql::query(
+        "select code from itineraries where id = $1 and owner_id = $2",
+        &[Value::from(id), Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => rows,
+        Err(err) => return Response::from_sql(err),
+    };
+    let Some(Value::Text(code)) = rows.values.first().and_then(|r| r.first()) else {
+        return Response::problem(404, "Not Found", "no such record, or not yours to change");
+    };
+    match blob::delete(&format!("shares/{code}.ics")) {
+        Ok(()) | Err(blob::Error::NotFound) => {}
+        Err(err) => return Response::from_blob(err),
+    }
+    match DAYS.delete(&caller, id, "deleted a shared day") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn featured(_: &Request, _: &Params) -> Response {
+    match sql::query(
+        "select id, event_id as \"eventId\", note from featured order by id limit 50",
+        &[],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+/// A steward, checked before the body is read, so nothing in the body stands in for the role.
+fn steward() -> Result<Caller, Response> {
+    let caller = Caller::require()?;
+    caller.require_role(&[STEWARD])?;
+    Ok(caller)
+}
+
+fn feature(request: &Request, _: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let wanted: Feature = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let (event, note) = match (event_id(&wanted.event_id), note(&wanted.note)) {
+        (Ok(event), Ok(note)) => (event, note),
+        (Err(why), _) | (_, Err(why)) => return bad(&why),
+    };
+    match sql::query(
+        "select count(*) as n, count(*) filter (where event_id = $1) as same from featured",
+        &[Value::from(event.as_str())],
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            let read = |k: &str| row.get(k).and_then(Json::as_i64).unwrap_or(0);
+            if read("same") > 0 {
+                return Response::problem(409, "Conflict", "that event is featured already");
+            }
+            if read("n") >= MOST_FEATURED as i64 {
+                return Response::problem(
+                    409,
+                    "Conflict",
+                    &format!("at most {MOST_FEATURED} events are featured; remove one first"),
+                );
+            }
+        }
+        Err(err) => return Response::from_sql(err),
+    }
+    match FEATURED.insert(
+        &caller,
+        &["event_id", "note"],
+        vec![Value::from(event.as_str()), Value::from(note.as_str())],
+        &format!("featured {}", local(&event)),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &serde_json::json!({"id": row.get("id"), "eventId": event, "note": note}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn change_note(request: &Request, params: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params, "featured event") {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    let wanted: Note = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let note = match note(&wanted.note) {
+        Ok(note) => note,
+        Err(why) => return bad(&why),
+    };
+    match FEATURED.update(
+        &caller,
+        id,
+        &["note"],
+        vec![Value::from(note)],
+        "changed a featured event's note",
+    ) {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn unfeature(_: &Request, params: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params, "featured event") {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    match FEATURED.delete(&caller, id, "no longer features an event") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// The newest changes: a steward's every one, anyone else's their own.
+fn history(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 pub fn handle(request: Request) -> Response {
     Router::new()
         .post("/api/itineraries", share)
         .get("/api/itineraries/{code}", show)
         .get("/api/itineraries/{code}/ics", calendar)
+        .get("/api/me", me)
+        .get("/api/days", my_days)
+        .delete("/api/days/{id}", forget_day)
+        .get("/api/featured", featured)
+        .post("/api/featured", feature)
+        .put("/api/featured/{id}", change_note)
+        .delete("/api/featured/{id}", unfeature)
+        .get("/api/history", history)
         .handle(&request)
 }
 
@@ -474,6 +749,27 @@ jc_app_sdk::app!(handle);
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn a_featured_event_is_an_event_and_its_note_one_short_line() {
+        assert_eq!(
+            event_id(" urn:ngsi-ld:Event:helsinki:fair "),
+            Ok("urn:ngsi-ld:Event:helsinki:fair".into())
+        );
+        assert!(event_id("").is_err());
+        assert!(event_id("urn:ngsi-ld:Place:x").is_err());
+        assert!(event_id(&format!("urn:ngsi-ld:Event:{}", "x".repeat(250))).is_err());
+        assert!(event_id("urn:ngsi-ld:Event:a\nb").is_err());
+        assert_eq!(note("  free entry "), Ok("free entry".into()));
+        assert_eq!(note(""), Ok(String::new()));
+        assert_eq!(note(&"ä".repeat(200)).map(|n| n.chars().count()), Ok(200));
+        assert!(note(&"x".repeat(201)).is_err());
+        assert!(note("two\nlines").is_err());
+        assert!(serde_json::from_value::<Feature>(
+            json!({"eventId": "urn:ngsi-ld:Event:a", "roles": ["steward"]})
+        )
+        .is_err());
+    }
 
     #[test]
     fn helsinki_keeps_summer_time_from_the_last_sunday_of_march_to_that_of_october() {

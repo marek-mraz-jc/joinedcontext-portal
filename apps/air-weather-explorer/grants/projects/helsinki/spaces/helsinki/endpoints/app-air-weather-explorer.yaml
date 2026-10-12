@@ -16,4 +16,11 @@ spec:
     name: helsinki
   enabledRepresentations:
   - ngsi-ld
+  roles:
+  - name: viewer
+    subjects:
+    - group: air-weather-explorer-viewer
+  - name: steward
+    subjects:
+    - group: air-weather-explorer-steward
   slug: pdqvdmqvit32on6sswimb7w7a5

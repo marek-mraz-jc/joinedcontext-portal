@@ -1428,6 +1428,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                             variant="primary"
                             aria-label={`${t("endpoints.shared.use")}: ${source}/${endpoint.metadata.name}`}
                             disabled={!slug || reference.isPending}
+                            disabledReason={reference.isPending ? t("app.busyReason") : t("endpoints.shared.noAddress")}
                             icon={<Icon name="plus" className="size-4" />}
                             onClick={() => reference.mutate({ source, endpoint })}
                           >

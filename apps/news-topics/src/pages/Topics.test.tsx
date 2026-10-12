@@ -7,8 +7,9 @@ import App from "../App";
 import type { AnalysisOutput as TopicsOutput, TopicsHookResult as UseTopicsResult } from "../topics";
 import { ServerContext } from "../server";
 import type { Server } from "../server";
+import { memory } from "../testing/server";
 
-const NO_WEEKS: Server = { weeks: async () => ({ weeks: [], stale: false }), corpusUrl: async () => "" };
+const NO_WEEKS: Server = memory();
 
 type Click = (params: { name?: string }) => void;
 const charts: Array<{ element: HTMLElement; setOption: ReturnType<typeof vi.fn>; click?: Click }> = [];
@@ -175,7 +176,7 @@ describe("the topics page", () => {
   it("topic selection updates the hash and displays articles of the selected topic", async () => {
     renderTopics(ARTICLES);
 
-    const topic2Card = await screen.findByRole("button", { name: /traffic/i });
+    const topic2Card = await screen.findByRole("button", { name: /^Topic 2: traffic/i });
     fireEvent.click(topic2Card);
 
     expect(window.location.hash).toContain("topic=1");
@@ -267,7 +268,7 @@ describe("the topics page", () => {
 
     expect(screen.getByRole("search", { name: /filter/i })).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: /search/i })).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: /topics/i })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: /topics of the period/i })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: /topic share/i })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: /articles of topic/i })).toBeInTheDocument();
 
@@ -386,7 +387,12 @@ describe("the topics page", () => {
     const titles = within(articles).getAllByRole("heading").map((heading) => heading.textContent);
     expect(titles).toEqual(["New school opens in Kalasatama", undated.id]);
     expect(within(articles).getByText(/no date/i)).toBeInTheDocument();
-    const option = charts.at(-1)?.setOption.mock.calls.at(-1)?.[0] as { series: Array<{ name: string; data: number[] }>; tooltip: { valueFormatter: (value: unknown) => string } };
+    // The topic names arrive from the App's server after the first draw, and the chart draws again.
+    const option = await waitFor(() => {
+      const last = charts.at(-1)?.setOption.mock.calls.at(-1)?.[0];
+      expect(last).toBeDefined();
+      return last as { series: Array<{ name: string; data: number[] }>; tooltip: { valueFormatter: (value: unknown) => string } };
+    });
     expect(option.series.map((series) => series.name)).toEqual(["Topic 1", "Topic 2: tram"]);
     expect(option.series[1].data).toEqual([0]);
     expect(option.tooltip.valueFormatter(12.345)).toBe("12.3%");

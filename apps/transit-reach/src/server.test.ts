@@ -34,8 +34,35 @@ describe("reachApi", () => {
   });
 });
 
+// T-3826: who is signed in, the origins and the history.
+describe("reachApi, origins", () => {
+  it("calls each of the server's paths with its method and body, and reads a 204 as nothing", async () => {
+    const fetch = vi.fn(async (_url: string, init?: RequestInit) => (["PUT", "DELETE"].includes(init?.method ?? "") ? new Response(null, { status: 204 }) : answer(200, null)));
+    vi.stubGlobal("fetch", fetch);
+    const api = reachApi("/a");
+    expect(await api.me()).toBeNull();
+    await api.origins();
+    await api.keep({ name: "Kamppi", lon: 24.93, lat: 60.17, source: "network", bands: [] });
+    expect(await api.rename(3, "Home")).toBeUndefined();
+    await api.forget(3);
+    await api.publish(3, true);
+    await api.history();
+    expect(fetch.mock.calls.map(([url, init]) => `${init?.method} ${url} ${init?.body ?? ""}`)).toEqual([
+      "GET /a/me ",
+      "GET /a/origins ",
+      'POST /a/origins {"name":"Kamppi","lon":24.93,"lat":60.17,"source":"network","bands":[]}',
+      'PUT /a/origins/3 {"name":"Home"}',
+      "DELETE /a/origins/3 ",
+      'PUT /a/origins/3/published {"published":true}',
+      "GET /a/history ",
+    ]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>", { status: 403 })));
+    await expect(api.publish(3, false)).rejects.toMatchObject({ status: 403, message: "" });
+  });
+});
+
 describe("keptReach", () => {
-  const api = (reach: ReachApi["reach"], refresh: ReachApi["refresh"] = vi.fn(async () => ({ version: "v1", stops: 3, routes: 2, changed: true }))): ReachApi => ({ reach, refresh });
+  const api = (reach: ReachApi["reach"], refresh: ReachApi["refresh"] = vi.fn(async () => ({ version: "v1", stops: 3, routes: 2, changed: true }))): Pick<ReachApi, "reach" | "refresh"> => ({ reach, refresh });
 
   it("asks the server to read HSL's network once when it has none, then asks again", async () => {
     const reach = vi.fn<ReachApi["reach"]>().mockRejectedValueOnce(new ServerProblem(409, "not read yet")).mockResolvedValueOnce(KEPT);

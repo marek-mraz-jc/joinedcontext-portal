@@ -176,7 +176,7 @@ export function FeedbackButton({
         closeLabel={t("feedback.close")}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setOpen(false)} disabled={send.isPending}>
+            <Button variant="secondary" onClick={() => setOpen(false)} disabled={send.isPending} disabledReason={t("app.busyReason")}>
               {t("form.cancel")}
             </Button>
             <Button

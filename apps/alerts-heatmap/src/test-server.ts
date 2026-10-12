@@ -1,11 +1,13 @@
 /**
  * The App's server in memory, for the page's tests (T-3351): it keeps what is saved, says which
- * reports got a picture, and fails where a test asks it to.
+ * reports got a picture, and fails where a test asks it to; the roles' half is `memory` (T-3828).
  */
 import type { NewReport, Report, Server, Weeks } from "./server";
 import { Problem } from "./server";
+import { memory } from "./testing/server";
+import type { Memory } from "./testing/server";
 
-export interface FakeServer extends Server {
+export interface FakeServer extends Server, Memory {
   saved: Report[];
   pictures: Map<number, Blob>;
   opened: string[];
@@ -14,8 +16,10 @@ export interface FakeServer extends Server {
 export function fakeServer(
   weeks: Weeks = { weeks: [], stale: false },
   fail: { weeks?: string; reports?: string; save?: string; attach?: string; picture?: string } = {},
+  roles: Memory = memory(),
 ): FakeServer {
-  const fake: FakeServer = {
+  // The roles' half keeps its state on itself, so it is extended, never copied.
+  const fake = Object.assign(roles, {
     saved: [],
     pictures: new Map(),
     opened: [],
@@ -45,6 +49,6 @@ export function fakeServer(
       fake.opened.push(url);
       return url;
     },
-  };
+  }) as FakeServer;
   return fake;
 }

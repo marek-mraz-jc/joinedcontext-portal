@@ -16,4 +16,11 @@ spec:
     name: helsinki
   enabledRepresentations:
   - ngsi-ld
+  roles:
+  - name: viewer
+    subjects:
+    - group: event-day-planner-viewer
+  - name: steward
+    subjects:
+    - group: event-day-planner-steward
   slug: fxqtz5wpwqicquej2ocrixp3cp

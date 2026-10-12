@@ -74,7 +74,8 @@ fn a_hand_written_app_claims_no_agent_attribution() {
 /// list of apps that can write is worth stating out loud rather than discovering later.
 ///
 /// Two apps write the steward's note alone, the one attribute of their model that no pipeline
-/// overwrites (AP-62, T-2434); two carry a steward's record form (T-2598, T-2617). Any other app
+/// overwrites (AP-62, T-2434); two carry a steward's record form (T-2598, T-2617); one lets a steward
+/// correct an attribute a finding names (T-3827). Any other app
 /// declaring a write fails this test until somebody adds it here on purpose.
 #[test]
 fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
@@ -147,6 +148,24 @@ fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
                         assert!(
                             !need.attrs.iter().any(|attr| attr == "source"),
                             "{name} writes source"
+                        );
+                    }
+                }
+            }
+            // T-3827: a steward corrects one attribute of an entity a finding names; never a
+            // create or a delete, never `source`, and no other role.
+            "data-quality-inspector" => {
+                assert_eq!(writing, vec!["updateAttrs"], "{name} only corrects");
+                for need in &app.spec.data_needs {
+                    if need
+                        .operations
+                        .iter()
+                        .any(|operation| writes.contains(&operation.as_str()))
+                    {
+                        assert_eq!(
+                            need.roles,
+                            vec!["steward"],
+                            "{name}: a write not gated to steward"
                         );
                     }
                 }

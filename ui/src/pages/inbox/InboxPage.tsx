@@ -97,7 +97,7 @@ function Decision({ project, change }: { project: string; change: ChangeProposal
             >
               {t("approvals.approve")}
             </Button>
-            <Button size="sm" variant="secondary" disabled={decision.pending} onClick={() => setRejecting(!rejecting)}>
+            <Button size="sm" variant="secondary" disabled={decision.pending} disabledReason={t("app.busyReason")} onClick={() => setRejecting(!rejecting)}>
               {t("approvals.reject")}
             </Button>
           </div>

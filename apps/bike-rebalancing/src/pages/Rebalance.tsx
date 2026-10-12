@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, currentTokens, Empty, Loading, Page, Problem, ProblemError, Split, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
+import { useAccess } from "../access";
 import { SavedPlans } from "../components/SavedPlans";
 import { MapView } from "../components/MapView";
 import type { MapPoint } from "../components/MapView";
@@ -114,6 +115,7 @@ export function Rebalance({ plans }: { plans?: PlansApi } = {}) {
   const [planning, setPlanning] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const { select } = useEntitySelection();
+  const { levels } = useAccess();
   const open = (id: string) => select({ id, type: STATION });
 
   useEffect(() => {
@@ -124,6 +126,7 @@ export function Rebalance({ plans }: { plans?: PlansApi } = {}) {
     let current = true;
     setPlanning(true);
     const settings = {
+      ...levels,
       vanCapacity: van,
       include: add,
       exclude: skip,
@@ -144,7 +147,7 @@ export function Rebalance({ plans }: { plans?: PlansApi } = {}) {
     return () => {
       current = false;
     };
-  }, [stations, van, add, skip, startAt]);
+  }, [stations, van, add, skip, startAt, levels]);
 
   // Read once: the tokens are set when the app starts and never change under it.
   const tokens = useMemo(() => currentTokens(), []);

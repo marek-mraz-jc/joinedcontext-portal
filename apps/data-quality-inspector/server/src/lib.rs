@@ -9,14 +9,29 @@
 //! | `GET /api/runs` | the kept runs, newest first, each with its scores per type; a new run first when the newest is a day old |
 //! | `POST /api/runs` | a run now, at most one every ten minutes |
 //! | `GET /api/runs/{id}/report` | a URL to download the run's full per-entity report from |
+//!
+//! Roles and edits (T-3827, API/07), decided from `identity::caller()` alone; the Endpoint's
+//! Policy grants `updateAttrs` to the steward role only, the second check of a correction:
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `GET /api/resolutions` | anyone | the findings stewards resolved, newest first |
+//! | `POST /api/resolutions` `{entity, attribute, note}` | steward | a finding marked resolved |
+//! | `DELETE /api/resolutions/{id}` | steward | the finding open again |
+//! | `POST /api/corrections` `{entity, attribute, value, note}` | steward | one attribute of the entity corrected through the Endpoint, the finding resolved |
+//! | `GET /api/history` | signed in | the newest 100 changes (a viewer: their own) |
 
 use std::collections::BTreeMap;
 
 use data_quality_inspector::{inspect_type_with, TypeInput, TypeOutput};
+use jc_app_sdk::access::{self, Owned};
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
+use serde::Deserialize;
 use serde_json::{json, Map, Value as Json};
 
 /// How long a presigned URL lives; the host allows at most 300 seconds.
@@ -42,6 +57,67 @@ const KNOWN_TYPES: [&str; 13] = [
     "WaterQualityObserved",
     "WeatherObserved",
 ];
+
+/// The App role that resolves findings and corrects attributes (app.yaml).
+const STEWARD: &str = "steward";
+/// A resolution any steward may take back.
+const RESOLUTIONS: Owned = Owned::new("resolutions", STEWARD);
+/// Resolutions answered at most, and the history read.
+const RESOLUTIONS_LISTED: i64 = 500;
+const HISTORY: i64 = 100;
+/// Attributes a correction never writes: the entity's identity and its geometry, which is no
+/// plain Property.
+const NOT_CORRECTED: [&str; 4] = ["id", "type", "location", "@context"];
+
+/// A finding's entity and attribute: an NGSI-LD URN of a type the App reads, and an attribute name
+/// a correction may write; or why not.
+pub fn finding_target(entity: &str, attribute: &str) -> Result<(), String> {
+    let kind = entity
+        .strip_prefix("urn:ngsi-ld:")
+        .and_then(|rest| rest.split_once(':'))
+        .filter(|(kind, nss)| KNOWN_TYPES.contains(kind) && !nss.is_empty())
+        .map(|(kind, _)| kind);
+    if kind.is_none() || entity.len() > 256 || entity.chars().any(char::is_control) {
+        return Err(format!("{entity} is not an entity this App reads"));
+    }
+    let mut chars = attribute.chars();
+    let named = chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && attribute.len() <= 64;
+    if !named || NOT_CORRECTED.contains(&attribute) {
+        return Err(format!(
+            "{attribute} is not an attribute a steward corrects"
+        ));
+    }
+    Ok(())
+}
+
+/// A note, trimmed, of 1 to 200 characters on one line; or why not.
+pub fn note(text: &str) -> Result<String, String> {
+    let text = text.trim();
+    if text.is_empty() || text.chars().count() > 200 || text.chars().any(char::is_control) {
+        return Err("a note is 1 to 200 characters, on one line".to_owned());
+    }
+    Ok(text.to_owned())
+}
+
+/// A corrected value: a text of 1 to 500 characters on one line (trimmed), a finite number or a
+/// yes/no; or why not. A list, an object or nothing is no correction of one attribute.
+pub fn corrected_value(value: &Json) -> Result<Json, String> {
+    match value {
+        Json::Bool(_) => Ok(value.clone()),
+        Json::Number(n) if n.as_f64().is_some_and(f64::is_finite) => Ok(value.clone()),
+        Json::String(text) => {
+            let text = text.trim();
+            if text.is_empty() || text.chars().count() > 500 || text.chars().any(char::is_control) {
+                Err("a text value is 1 to 500 characters, on one line".to_owned())
+            } else {
+                Ok(Json::String(text.to_owned()))
+            }
+        }
+        _ => Err("a value is a text, a number or true or false".to_owned()),
+    }
+}
 
 /// A keyValues attribute as the browser's SDK reads it (`cell`): a DateTime's `@value`, a
 /// language map's English or first text, a geometry as itself, a list as joined text.
@@ -398,11 +474,201 @@ fn refused(kind: &str, err: gateway::Error) -> Response {
     }
 }
 
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+fn bad(why: &str) -> Response {
+    Response::problem(400, "Bad Request", why)
+}
+
+/// The signed-in steward, or the `401`/`403` that says why not.
+fn steward() -> Result<Caller, Response> {
+    let caller = Caller::require()?;
+    caller.require_role(&[STEWARD])?;
+    Ok(caller)
+}
+
+fn resolutions(_: &Request, _: &Params) -> Response {
+    match sql::query(
+        "select id, entity, attribute, note, corrected, resolver_name as \"resolverName\", \
+         created_at as \"resolvedAt\" from resolutions order by id desc limit $1",
+        &[Value::Int(RESOLUTIONS_LISTED)],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+/// Whether the finding is resolved already.
+fn resolved(entity: &str, attribute: &str) -> Result<bool, Response> {
+    sql::query(
+        "select 1 as one from resolutions where entity = $1 and attribute = $2 limit 1",
+        &[Value::from(entity), Value::from(attribute)],
+    )
+    .map(|rows| !rows.values.is_empty())
+    .map_err(Response::from_sql)
+}
+
+/// The finding marked resolved by `caller`; the new row as the page reads it.
+fn resolve(
+    caller: &Caller,
+    entity: &str,
+    attribute: &str,
+    note: &str,
+    corrected: bool,
+) -> Response {
+    match RESOLUTIONS.insert(
+        caller,
+        &["entity", "attribute", "note", "corrected", "resolver_name"],
+        vec![
+            Value::from(entity),
+            Value::from(attribute),
+            Value::from(note),
+            Value::Boolean(corrected),
+            Value::from(caller.name.as_str()),
+        ],
+        &format!("resolved {attribute} of {entity}: {note}"),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &json!({"id": row.get("id"), "entity": entity, "attribute": attribute, "note": note, "corrected": corrected, "resolverName": caller.name, "resolvedAt": row.get("created_at")}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Resolve {
+    entity: String,
+    attribute: String,
+    note: String,
+}
+
+fn mark_resolved(request: &Request, _: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let wanted: Resolve = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let checked =
+        finding_target(&wanted.entity, &wanted.attribute).and_then(|()| note(&wanted.note));
+    let note = match checked {
+        Ok(note) => note,
+        Err(why) => return bad(&why),
+    };
+    match resolved(&wanted.entity, &wanted.attribute) {
+        Ok(true) => Response::problem(409, "Conflict", "this finding is resolved already"),
+        Ok(false) => resolve(&caller, &wanted.entity, &wanted.attribute, &note, false),
+        Err(answer) => answer,
+    }
+}
+
+fn reopen(_: &Request, params: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let Ok(id) = params["id"].parse::<i64>() else {
+        return Response::problem(404, "Not Found", "no such resolution");
+    };
+    match RESOLUTIONS.delete(&caller, id, "reopened a finding") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Correct {
+    entity: String,
+    attribute: String,
+    value: Json,
+    note: String,
+}
+
+fn correct(request: &Request, _: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let wanted: Correct = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let checked = finding_target(&wanted.entity, &wanted.attribute)
+        .and_then(|()| corrected_value(&wanted.value))
+        .and_then(|value| note(&wanted.note).map(|note| (value, note)));
+    let (value, note) = match checked {
+        Ok(checked) => checked,
+        Err(why) => return bad(&why),
+    };
+    // The Endpoint's Policy is the second check: a person it does not let write is refused there.
+    let attrs = json!({ wanted.attribute.as_str(): {"type": "Property", "value": value} });
+    if let Err(err) = gateway::patch_entity(&wanted.entity, &attrs) {
+        return Response::from(err);
+    }
+    if let Err(answer) = access::record(
+        &caller,
+        "edit",
+        &wanted.entity,
+        &format!("corrected {}: {note}", wanted.attribute),
+    ) {
+        return answer;
+    }
+    match resolved(&wanted.entity, &wanted.attribute) {
+        Ok(true) => Response::json(
+            200,
+            &json!({"entity": wanted.entity, "attribute": wanted.attribute, "corrected": true}),
+        ),
+        Ok(false) => resolve(&caller, &wanted.entity, &wanted.attribute, &note, true),
+        Err(answer) => answer,
+    }
+}
+
+fn changes(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 pub fn handle(request: Request) -> Response {
     Router::new()
         .get("/api/runs", runs)
         .post("/api/runs", run_now)
         .get("/api/runs/{id}/report", download)
+        .get("/api/me", me)
+        .get("/api/resolutions", resolutions)
+        .post("/api/resolutions", mark_resolved)
+        .delete("/api/resolutions/{id}", reopen)
+        .post("/api/corrections", correct)
+        .get("/api/history", changes)
         .handle(&request)
 }
 
@@ -412,6 +678,58 @@ jc_app_sdk::app!(handle);
 mod tests {
     use super::*;
     use data_quality_inspector::Finding;
+
+    /// T-3827: a correction names an entity of a type the App reads and an attribute a steward may
+    /// write, never the identity or the geometry.
+    #[test]
+    fn a_correction_names_an_entity_the_app_reads_and_a_plain_attribute() {
+        let alert = "urn:ngsi-ld:Alert:hel.fi:helsinki:a-1";
+        assert_eq!(finding_target(alert, "description"), Ok(()));
+        assert_eq!(finding_target(alert, "valid_to2"), Ok(()));
+        for attribute in [
+            "id",
+            "type",
+            "location",
+            "@context",
+            "",
+            "2name",
+            "a-b",
+            &"a".repeat(65),
+        ] {
+            assert!(finding_target(alert, attribute).is_err(), "{attribute}");
+        }
+        for entity in [
+            "urn:ngsi-ld:Building:x",
+            "urn:ngsi-ld:Alert:",
+            "Alert:x",
+            "urn:ngsi-ld:Alert:a\nb",
+            &format!("urn:ngsi-ld:Alert:{}", "x".repeat(250)),
+        ] {
+            assert!(finding_target(entity, "name").is_err(), "{entity}");
+        }
+    }
+
+    #[test]
+    fn a_corrected_value_is_a_text_a_number_or_a_yes_no() {
+        assert_eq!(corrected_value(&json!("  Kallio ")), Ok(json!("Kallio")));
+        assert_eq!(corrected_value(&json!(12.5)), Ok(json!(12.5)));
+        assert_eq!(corrected_value(&json!(false)), Ok(json!(false)));
+        for value in [
+            json!(""),
+            json!("   "),
+            json!("a\nb"),
+            json!("x".repeat(501)),
+            json!(null),
+            json!([1]),
+            json!({"a": 1}),
+        ] {
+            assert!(corrected_value(&value).is_err(), "{value}");
+        }
+        assert_eq!(note("  checked on site "), Ok("checked on site".to_owned()));
+        assert!(note("").is_err());
+        assert!(note("two\nlines").is_err());
+        assert!(note(&"x".repeat(201)).is_err());
+    }
 
     #[test]
     fn a_cell_is_read_as_the_browser_reads_it() {

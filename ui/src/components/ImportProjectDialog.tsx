@@ -287,6 +287,7 @@ export function ImportProjectDialog({
               autoComplete="off"
               spellCheck={false}
               disabled={plan !== null}
+              title={plan !== null ? t("projects.planLocked") : undefined}
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
@@ -295,6 +296,7 @@ export function ImportProjectDialog({
               id={`${ids}-display`}
               value={displayName}
               disabled={plan !== null}
+              title={plan !== null ? t("projects.planLocked") : undefined}
               onChange={(event) => setDisplayName(event.target.value)}
             />
           </Field>

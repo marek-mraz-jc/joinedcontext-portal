@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
-import { BASE, serve } from "./serve";
+import { BASE, STEWARD, VIEWER, serve } from "./serve";
 
 // T-3332: the page at a phone, a tablet, a laptop and a wall, light and dark, in Finnish and
 // English: the answer on arrival (computed by the WebAssembly module under the static host's CSP),
@@ -71,3 +71,49 @@ test("no indicators says so instead of an empty page", async ({ page }) => {
   await page.goto(`${BASE}?lang=en`);
   await expect(page.getByText("No indicators.")).toBeVisible();
 });
+
+// T-3827: a viewer follows an indicator and finds it under Followed; a steward publishes a forecast
+// every reader then sees. At a phone and a laptop, light and dark, in English and Swedish.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a viewer follows an indicator, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, undefined, undefined, VIEWER);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en`);
+      await expect(page.getByLabel("Your role: Viewer")).toBeVisible();
+      await expect(page.getByText("No forecast of this indicator is published.")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Publish the forecast" })).toBeDisabled();
+      await page.getByRole("button", { name: "Follow", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Stop following", exact: true })).toBeVisible();
+      await testInfo.attach(`viewer-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "Followed" }).click();
+      await expect(page.getByRole("link", { name: "Open: Bikes available in the city bike network" })).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "History" }).click();
+      await expect(page.getByText(/followed an indicator/)).toBeVisible();
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+
+    test(`${scheme} at ${width} px: a steward publishes a forecast, in Swedish, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, undefined, undefined, STEWARD);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=sv`);
+      await expect(page.getByLabel("Din roll: Förvaltare")).toBeVisible();
+      const form = page.getByRole("form", { name: "Publicera prognosen" });
+      await form.getByRole("textbox", { name: "Steg framåt (1–48)" }).fill("6");
+      await form.getByRole("textbox", { name: "Anteckning" }).fill("Till styrelsen");
+      await form.getByRole("button", { name: "Publicera prognosen" }).click();
+      await expect(page.getByText("Prognosen är publicerad.")).toBeVisible();
+      await expect(page.locator(".app-quote")).toHaveText("Till styrelsen");
+      await expect(page.locator(".app-points tbody tr")).toHaveCount(6);
+      await testInfo.attach(`steward-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "Historik" }).click();
+      await expect(page.getByText(/published a forecast: Till styrelsen/)).toBeVisible();
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}

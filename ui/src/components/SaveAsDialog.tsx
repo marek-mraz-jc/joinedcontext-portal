@@ -438,6 +438,7 @@ export function SaveAsDialog({
                     id="save-as-map-to"
                     value={mapTo}
                     disabled={targetSpaces.isPending}
+                title={targetSpaces.isPending ? t("app.busyReason") : undefined}
                     onChange={(event) => {
                       setMapTo(event.target.value);
                       setReport(null);

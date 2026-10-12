@@ -173,8 +173,8 @@ describe("ConfirmDialog", () => {
 
   it("while_it_runs_neither_button_can_be_pressed_again", () => {
     open({ pending: true });
-    expect(screen.getByTestId("confirm-accept")).toBeDisabled();
-    expect(screen.getByTestId("confirm-cancel")).toBeDisabled();
+    expect(screen.getByTestId("confirm-accept")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("confirm-cancel")).toHaveAttribute("aria-disabled", "true");
   });
 });
 

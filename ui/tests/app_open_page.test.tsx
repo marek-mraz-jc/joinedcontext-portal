@@ -281,7 +281,7 @@ describe("AppOpenPage", () => {
       build: null,
       run: { status: "completed", conclusion: "failure", commit: COMMIT, url: "https://git.example/run/1" },
     });
-    expect(await screen.findByText("Build failed")).toBeTruthy();
+    expect(await screen.findByText(/The build failed/)).toBeTruthy();
     expect(document.querySelector("iframe")).toBeNull();
   });
 

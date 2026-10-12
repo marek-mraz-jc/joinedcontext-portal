@@ -9,11 +9,27 @@
 //! | `GET /api/network` | the version of the network kept, and whether it is due to be read again |
 //! | `POST /api/network` | HSL's registers read again; a new version when they changed |
 //! | `GET /api/reach?stop=` | the area reached from a stop in each band; a URL its GeoJSON downloads from |
+//!
+//! Roles and edits (T-3826, API/07), decided from `identity::caller()` alone:
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `GET /api/origins` | anyone | the published origins, the caller's own, a steward's every one |
+//! | `POST /api/origins` | signed in | an origin kept with its areas, the caller's own |
+//! | `PUT /api/origins/{id}` | owner, steward | renamed |
+//! | `DELETE /api/origins/{id}` | owner, steward | gone |
+//! | `PUT /api/origins/{id}/published` | steward | in or out of the shared set every visitor sees |
+//! | `GET /api/history` | signed in | the newest changes (a viewer: their own) |
+
+use jc_app_sdk::access::Owned;
 
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
+use serde::Deserialize;
 use serde_json::{json, Value as Json};
 use transit_reach::network::Network;
 use transit_reach::{run, Input, LonLat, Output};
@@ -32,6 +48,274 @@ const STALE_HOURS: i64 = 6;
 const DELETE_AT_ONCE: usize = 200;
 /// How long a download URL lives; the host allows at most 300 seconds.
 const URL_SECONDS: u32 = 120;
+
+/// The App role that publishes the shared set and changes any origin (app.yaml).
+const STEWARD: &str = "steward";
+const ORIGINS: Owned = Owned::new("origins", STEWARD);
+/// The most origins one person keeps, and the most history rows one read returns.
+const MOST_ORIGINS: i64 = 50;
+const HISTORY: i64 = 100;
+/// Where an origin may be: Helsinki and around, the area the page's map shows.
+const LON: (f64, f64) = (24.4, 25.6);
+const LAT: (f64, f64) = (59.9, 60.5);
+
+/// An origin as the page sends it: a name, the point, and the areas the browser reached from it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewOrigin {
+    pub name: String,
+    pub lon: f64,
+    pub lat: f64,
+    pub source: String,
+    pub bands: Vec<Band>,
+}
+
+/// The area reached in one band, as the page's analysis gives it.
+#[derive(Debug, Clone, Deserialize, serde::Serialize, PartialEq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Band {
+    pub minutes: f64,
+    pub area_km2: f64,
+    pub stops: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rename {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Published {
+    pub published: bool,
+}
+
+/// A name trimmed, 1 to 80 characters, no control character.
+pub fn origin_name(name: &str) -> Result<String, String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 80 || name.chars().any(char::is_control) {
+        return Err("a name is 1 to 80 characters, on one line".into());
+    }
+    Ok(name.to_owned())
+}
+
+/// An origin the server keeps: its name checked, the point in the map's area, the source one of
+/// the page's two, and one band for each of 10, 20 and 30 minutes with a plausible area.
+pub fn checked_origin(new: &NewOrigin) -> Result<String, String> {
+    let name = origin_name(&new.name)?;
+    let inside = |v: f64, (low, high): (f64, f64)| v.is_finite() && v >= low && v <= high;
+    if !inside(new.lon, LON) || !inside(new.lat, LAT) {
+        return Err("the point is outside the area the map shows".into());
+    }
+    if !matches!(new.source.as_str(), "network" | "derived") {
+        return Err("the source is network or derived".into());
+    }
+    let minutes: Vec<f64> = new.bands.iter().map(|b| b.minutes).collect();
+    if minutes != BANDS {
+        return Err("the bands are 10, 20 and 30 minutes, in that order".into());
+    }
+    if new
+        .bands
+        .iter()
+        .any(|b| !b.area_km2.is_finite() || !(0.0..=5000.0).contains(&b.area_km2))
+    {
+        return Err("an area is between 0 and 5000 km²".into());
+    }
+    Ok(name)
+}
+
+fn bad(why: &str) -> Response {
+    Response::problem(400, "Bad Request", why)
+}
+
+fn id(params: &Params) -> Result<i64, Response> {
+    params["id"]
+        .parse()
+        .map_err(|_| Response::problem(404, "Not Found", "no such origin"))
+}
+
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+/// The published origins, and the caller's own (a steward's: every one), newest first.
+fn origins(_: &Request, _: &Params) -> Response {
+    let caller = identity::caller();
+    let (who, all) = match &caller {
+        Some(caller) => (caller.id.as_str(), caller.has_role(STEWARD)),
+        None => ("", false),
+    };
+    match sql::query(
+        "select id, name, lon, lat, source, bands, published, owner_id = $1 and $1 <> '' as mine, \
+         created_at as \"createdAt\" from origins \
+         where published or (owner_id = $1 and $1 <> '') or $2::boolean order by id desc limit 200",
+        &[Value::from(who), Value::Boolean(all)],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn keep_origin(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewOrigin = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let name = match checked_origin(&new) {
+        Ok(name) => name,
+        Err(why) => return bad(&why),
+    };
+    match sql::query(
+        "select count(*) as n from origins where owner_id = $1",
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => {
+            let n = sql::objects(&rows)
+                .first()
+                .and_then(|row| row.get("n").and_then(Json::as_i64))
+                .unwrap_or(0);
+            if n >= MOST_ORIGINS {
+                return Response::problem(
+                    409,
+                    "Conflict",
+                    &format!("at most {MOST_ORIGINS} origins are kept; delete one first"),
+                );
+            }
+        }
+        Err(err) => return Response::from_sql(err),
+    }
+    let bands = json!(new.bands);
+    match ORIGINS.insert(
+        &caller,
+        &["name", "lon", "lat", "source", "bands"],
+        vec![
+            Value::from(name.as_str()),
+            Value::Float(new.lon),
+            Value::Float(new.lat),
+            Value::from(new.source.as_str()),
+            Value::Json(bands.to_string()),
+        ],
+        &format!("kept the origin {name}"),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &json!({"id": row.get("id"), "name": name, "lon": new.lon, "lat": new.lat, "source": new.source, "bands": bands, "published": false, "mine": true, "createdAt": row.get("created_at")}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn rename_origin(request: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params) {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    let wanted: Rename = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let name = match origin_name(&wanted.name) {
+        Ok(name) => name,
+        Err(why) => return bad(&why),
+    };
+    match ORIGINS.update(
+        &caller,
+        id,
+        &["name"],
+        vec![Value::from(name.as_str())],
+        &format!("renamed an origin to {name}"),
+    ) {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn forget_origin(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params) {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    match ORIGINS.delete(&caller, id, "deleted an origin") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// In or out of the shared set: a steward's, checked before the body is read.
+fn publish(request: &Request, params: &Params) -> Response {
+    let caller = match Caller::require().and_then(|caller| {
+        caller.require_role(&[STEWARD])?;
+        Ok(caller)
+    }) {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params) {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    let wanted: Published = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let summary = if wanted.published {
+        "published an origin"
+    } else {
+        "withdrew an origin from the shared set"
+    };
+    match ORIGINS.update(
+        &caller,
+        id,
+        &["published"],
+        vec![Value::Boolean(wanted.published)],
+        summary,
+    ) {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// The newest changes: a steward's every one, anyone else's their own.
+fn history(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
 
 /// A GtfsStop's id: its URN, of letters, digits and `._~:-`, at most 256 long.
 pub fn stop_urn(id: &str) -> Result<&str, String> {
@@ -421,6 +705,13 @@ pub fn handle(request: Request) -> Response {
         .get("/api/network", show_network)
         .post("/api/network", refresh)
         .get("/api/reach", reach)
+        .get("/api/me", me)
+        .get("/api/origins", origins)
+        .post("/api/origins", keep_origin)
+        .put("/api/origins/{id}", rename_origin)
+        .delete("/api/origins/{id}", forget_origin)
+        .put("/api/origins/{id}/published", publish)
+        .get("/api/history", history)
         .handle(&request)
 }
 
@@ -429,6 +720,61 @@ jc_app_sdk::app!(handle);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn origin(name: &str, lon: f64, minutes: [f64; 3], area: f64) -> NewOrigin {
+        NewOrigin {
+            name: name.into(),
+            lon,
+            lat: 60.17,
+            source: "network".into(),
+            bands: minutes
+                .iter()
+                .map(|&m| Band {
+                    minutes: m,
+                    area_km2: area,
+                    stops: 3,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn an_origin_is_kept_only_named_inside_the_map_with_the_three_bands() {
+        assert_eq!(
+            checked_origin(&origin("  Kamppi  ", 24.93, BANDS, 2.5)),
+            Ok("Kamppi".into())
+        );
+        for (wrong, why) in [
+            (origin("", 24.93, BANDS, 1.0), "a name"),
+            (origin(&"x".repeat(81), 24.93, BANDS, 1.0), "a name"),
+            (origin("a\nb", 24.93, BANDS, 1.0), "a name"),
+            (origin("Tallinn", 24.75, BANDS, 1.0), "outside"),
+            (origin("Far", f64::NAN, BANDS, 1.0), "outside"),
+            (origin("Order", 24.93, [30.0, 20.0, 10.0], 1.0), "bands"),
+            (origin("Huge", 24.93, BANDS, 9000.0), "area"),
+            (origin("Odd", 24.93, BANDS, f64::INFINITY), "area"),
+        ] {
+            let lat = if wrong.name == "Tallinn" {
+                59.44
+            } else {
+                60.17
+            };
+            let wrong = NewOrigin { lat, ..wrong };
+            let err = checked_origin(&wrong).expect_err(&wrong.name);
+            assert!(err.contains(why), "{err}");
+        }
+        let mut unknown = origin("Kamppi", 24.93, BANDS, 1.0);
+        unknown.source = "guess".into();
+        assert!(checked_origin(&unknown).is_err());
+        assert!(serde_json::from_value::<NewOrigin>(
+            json!({"name": "x", "lon": 24.9, "lat": 60.1, "source": "network", "bands": [], "owner_id": "u-2"})
+        )
+        .is_err(), "no owner is taken from the body");
+        assert!(
+            serde_json::from_value::<Published>(json!({"published": true, "role": "steward"}))
+                .is_err()
+        );
+    }
 
     #[test]
     fn a_stop_is_a_gtfs_stop_urn() {

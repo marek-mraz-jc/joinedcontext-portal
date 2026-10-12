@@ -22,7 +22,7 @@ function cell(
     indicator: { type: "Property", value: indicator },
     refArea: { type: "Property", value: extra.refArea ?? "SK0321508438" },
     refPeriod: { type: "Property", value: refPeriod },
-    value: { type: "Property", value, unitCode: "C62" },
+    observationValue: { type: "Property", value, unitCode: "C62" },
     unitText: { type: "Property", value: extra.unitText ?? "počet" },
   };
   if (extra.dimensionKey) entity.dimensionKey = { type: "Property", value: extra.dimensionKey };

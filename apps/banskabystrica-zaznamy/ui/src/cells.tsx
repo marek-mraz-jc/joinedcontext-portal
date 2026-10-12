@@ -47,7 +47,7 @@ export function recordRenderers(
       const code = String(valueOf(cell) ?? "");
       return coded(named(AREAS[code], language, code), code);
     },
-    value: (cell, row) => {
+    observationValue: (cell, row) => {
       const value = valueOf(cell);
       if (typeof value !== "number") return <span>{String(value ?? "")}</span>;
       const unit = text(row, "unitText");

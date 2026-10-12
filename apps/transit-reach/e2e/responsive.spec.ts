@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
 import { NETWORK_ROWS } from "../src/fixtures/network";
-import { BASE, serve } from "./serve";
+import { BASE, STEWARD, VIEWER, serve } from "./serve";
 
 // T-3331: the page at a phone, a tablet, a laptop and a wall, light and dark, in Finnish and
 // English: the answer on arrival (computed by the WebAssembly module under the static host's CSP),
@@ -81,6 +81,49 @@ for (const scheme of ["light", "dark"] as const) {
       await panel.getByRole("button", { name: "Close" }).click();
       await expect(panel).toHaveCount(0);
       expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+
+// T-3826: a viewer keeps an origin and compares it with the published one; a steward publishes
+// one for everyone; at a phone and a laptop, light and dark.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a viewer keeps an origin and compares, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, [], NETWORK_ROWS, VIEWER);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en`);
+      await expect(page.getByLabel("Your role: Viewer")).toBeVisible();
+      await page.getByRole("button", { name: "Kaisaniemi (H0012): lines 550, M1: start from here" }).click();
+      await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("Kaisaniemi");
+      await page.getByRole("button", { name: "Keep", exact: true }).click();
+      await expect(page.getByText("Kept: Kaisaniemi. Compare it on the Origins page.")).toBeVisible();
+      await page.getByRole("button", { name: "Origins" }).click();
+      const table = page.getByRole("table", { name: "Origins side by side" });
+      await expect(table.getByRole("rowheader")).toHaveText(["Kaisaniemi", "Pasila", "Kamppi"]);
+      await expect(table.getByRole("button", { name: "Publish: Kaisaniemi" })).toBeDisabled();
+      await testInfo.attach(`origins-viewer-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "History" }).click();
+      await expect(page.getByText("added: kept the origin Kaisaniemi")).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+
+    test(`${scheme} at ${width} px: a steward publishes an origin, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, [], NETWORK_ROWS, STEWARD);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en#origins`);
+      await expect(page.getByLabel("Your role: Steward")).toBeVisible();
+      const table = page.getByRole("table", { name: "Origins side by side" });
+      await table.getByRole("button", { name: "Publish: Kamppi" }).click();
+      await expect(page.getByText("Published for everyone: Kamppi.")).toBeVisible();
+      await expect(table.getByRole("button", { name: "Withdraw: Kamppi" })).toBeVisible();
+      await testInfo.attach(`origins-steward-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
     });
   }
 }

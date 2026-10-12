@@ -16,6 +16,41 @@ export interface SharedDay {
   conflicts: [string, string][];
   walkKm: number;
   walkMinutes: number;
+  /** Shared while signed in: kept under My days. */
+  mine?: boolean;
+}
+
+/** The signed-in person as the App's server knows them, `null` when signed out. */
+export interface Me {
+  id: string;
+  name: string;
+  roles: string[];
+}
+
+/** A day the caller shared while signed in. */
+export interface KeptDay {
+  id: number;
+  code: string;
+  day: string;
+  events: number;
+  createdAt: string;
+}
+
+/** An event a steward recommends, by its full id. */
+export interface FeaturedEvent {
+  id: number;
+  eventId: string;
+  note: string;
+}
+
+/** One change as the history keeps it. */
+export interface HistoryRow {
+  id: number;
+  at: string;
+  actorName: string;
+  action: "insert" | "update" | "delete" | "edit";
+  target: string;
+  summary: string;
 }
 
 /** A problem+json answer as an error whose message is its `detail`. */
@@ -61,7 +96,7 @@ async function call<T>(base: string, method: string, path: string, body?: unknow
     const problem = (await answer.json().catch(() => ({}))) as { detail?: unknown };
     throw new ServerProblem(answer.status, typeof problem.detail === "string" ? problem.detail : "");
   }
-  return (await answer.json()) as T;
+  return (answer.status === 204 ? undefined : await answer.json()) as T;
 }
 
 export function shareApi(base: string) {
@@ -69,6 +104,14 @@ export function shareApi(base: string) {
     share: (day: string, ids: string[], lang: Lang) => call<SharedDay>(base, "POST", "/itineraries", { day, ids, lang }),
     get: (code: string) => call<SharedDay>(base, "GET", `/itineraries/${encodeURIComponent(code)}`),
     icsUrl: async (code: string) => (await call<{ url: string }>(base, "GET", `/itineraries/${encodeURIComponent(code)}/ics`)).url,
+    me: () => call<Me | null>(base, "GET", "/me"),
+    days: () => call<KeptDay[]>(base, "GET", "/days"),
+    forgetDay: (id: number) => call<void>(base, "DELETE", `/days/${id}`),
+    featured: () => call<FeaturedEvent[]>(base, "GET", "/featured"),
+    feature: (eventId: string, note: string) => call<FeaturedEvent>(base, "POST", "/featured", { eventId, note }),
+    changeNote: (id: number, note: string) => call<void>(base, "PUT", `/featured/${id}`, { note }),
+    unfeature: (id: number) => call<void>(base, "DELETE", `/featured/${id}`),
+    history: () => call<HistoryRow[]>(base, "GET", "/history"),
   };
 }
 

@@ -61,6 +61,6 @@ spec:
         kind: ContextSpace
         name: bbsk-kraj
       types: [StatisticalObservation]
-      attrs: [dataSet, indicator, refArea, refPeriod, dimensionKey, value]
+      attrs: [dataSet, indicator, refArea, refPeriod, dimensionKey, observationValue]
       operations: [queryEntity]
       representations: [ngsi-ld]
