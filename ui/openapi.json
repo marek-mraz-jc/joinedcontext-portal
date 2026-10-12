@@ -9951,6 +9951,78 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/stats": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read Pipeline Rates",
+        "description": "What each node of the pipeline received, sent and failed over the last 1, 5 and 15 minutes, from the runner's counters read at most every two seconds and kept 15 minutes (PL-68).",
+        "operationId": "get_stats",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts per node and window",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No runner configured, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/registry": {
       "get": {
         "tags": [
@@ -19095,6 +19167,26 @@
           "unknown"
         ]
       },
+      "NodeWindows": {
+        "type": "object",
+        "description": "What one node counted in each window.",
+        "required": [
+          "1m",
+          "5m",
+          "15m"
+        ],
+        "properties": {
+          "15m": {
+            "$ref": "#/components/schemas/NodeCounters"
+          },
+          "1m": {
+            "$ref": "#/components/schemas/NodeCounters"
+          },
+          "5m": {
+            "$ref": "#/components/schemas/NodeCounters"
+          }
+        }
+      },
       "Notification": {
         "type": "object",
         "description": "One notification of a mention.",
@@ -20061,6 +20153,39 @@
               "$ref": "#/components/schemas/PipelineRun"
             },
             "description": "The run with the latest line first, at most 200."
+          }
+        }
+      },
+      "PipelineStats": {
+        "type": "object",
+        "required": [
+          "pipeline",
+          "scrapedAt",
+          "coveredSeconds",
+          "nodes"
+        ],
+        "properties": {
+          "coveredSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The age of the oldest reading kept, at most 900: a window longer than this holds what\nwas seen so far, not the whole window.",
+            "minimum": 0
+          },
+          "nodes": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NodeWindows"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "scrapedAt": {
+            "type": "string",
+            "description": "When the newest reading was taken, RFC 3339."
           }
         }
       },
