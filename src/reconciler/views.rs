@@ -25,7 +25,7 @@ use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
     ContextSpaceSpec, DataModelLifecycle, DataModelRef, DataModelSpec, EndpointSpec, MappingSpec,
     ModelProjectionSpec, Operation, OperationRef, PolicySpec, PrincipalKind, ProjectedClass,
-    Projection, ProjectionFilter, RetentionRule,
+    Projection, ProjectionFilter, QualityKind, QualityRule, RetentionRule,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
@@ -165,6 +165,8 @@ pub struct Sources {
     /// Each Context Space's retention rules by `(project, space)`, empty for keep-forever
     /// (DM-82).
     pub retention: BTreeMap<(String, String), Vec<RetentionRule>>,
+    /// Each Context Space's quality rules by `(project, space)` (DM-87).
+    pub quality: BTreeMap<(String, String), Vec<QualityRule>>,
 }
 
 /// One Mapping as a view of another model needs it (G18).
@@ -204,6 +206,9 @@ impl Sources {
                         sources
                             .retention
                             .insert((project.clone(), id.name.clone()), spec.retention);
+                        sources
+                            .quality
+                            .insert((project.clone(), id.name.clone()), spec.quality);
                     }
                     if let Some(model) = model {
                         sources.models.insert(
@@ -493,6 +498,9 @@ pub struct Desired {
     pub schemas: BTreeMap<String, (Owner, ModelSource)>,
     /// Each tenant's retention rules, empty to remove its document (DM-82).
     pub retention: BTreeMap<String, (Owner, Vec<RetentionRule>)>,
+    /// Each tenant's `maxAge` freshness rules, which the broker's sweep runs; empty to remove
+    /// its document (DM-91).
+    pub quality: BTreeMap<String, (Owner, Vec<QualityRule>)>,
     /// The objects the writer refused, and why.
     pub refused: Vec<(Owner, String)>,
 }
@@ -555,6 +563,15 @@ pub fn desired(sources: &Sources) -> Desired {
             .cloned()
             .unwrap_or_default();
         out.retention.insert(tenant.clone(), (owner.clone(), rules));
+        let swept: Vec<QualityRule> = sources
+            .quality
+            .get(&(project.clone(), name.clone()))
+            .into_iter()
+            .flatten()
+            .filter(|rule| rule.kind == QualityKind::Freshness && rule.max_age.is_some())
+            .cloned()
+            .collect();
+        out.quality.insert(tenant.clone(), (owner.clone(), swept));
         out.documents.insert(
             tenant.clone(),
             (owner, with_gateway(rule_document(sources, project, name))),
@@ -1499,6 +1516,23 @@ impl ViewSync {
             note(owner, outcome);
         }
 
+        for (tenant, (owner, rules)) in &desired.quality {
+            let path = format!("/q/quality/{tenant}");
+            let outcome = if rules.is_empty() {
+                match self.delete(&token, &path).await {
+                    Ok(()) => ViewOutcome::Written,
+                    Err(reason) => ViewOutcome::Failed(reason),
+                }
+            } else {
+                let context = lock(&self.compiled)
+                    .get(tenant)
+                    .and_then(|(_, _, context)| context.clone());
+                let document = quality_document(rules, context.as_ref());
+                self.put_if_changed(&token, &path, &document).await
+            };
+            note(owner, outcome);
+        }
+
         // No engine that reads rule documents: `/q/policy` answers 404 and the views stand
         // under whatever engine the broker runs.
         match self.get(&token, "/q/policy").await {
@@ -1769,6 +1803,29 @@ fn retention_document(rules: &[RetentionRule], context: Option<&Value>) -> Value
                     one["history"] = json!(history);
                 }
                 out.push(one);
+            }
+        }
+    }
+    json!({ "rules": out })
+}
+
+/// The broker's quality document of one space (DM-91, ADR-N-046 2.5): each `maxAge` rule
+/// under every IRI its type and attribute are written as, the core context's and the model's;
+/// the broker judges a rule's attributes of one type together, so an entity written under one
+/// IRI is never lifted by the other.
+fn quality_document(rules: &[QualityRule], context: Option<&Value>) -> Value {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for rule in rules {
+        let Some(max_age) = &rule.max_age else {
+            continue;
+        };
+        for type_iri in type_iris(&rule.entity_type, context) {
+            for attribute in type_iris(&rule.attribute, context) {
+                if seen.insert((rule.name.clone(), type_iri.clone(), attribute.clone())) {
+                    out.push(json!({ "name": rule.name, "type": type_iri,
+                                     "attribute": attribute, "maxAge": max_age }));
+                }
             }
         }
     }
@@ -3688,6 +3745,85 @@ mod tests {
             "{refused:?}"
         );
         assert!(unreadable.is_err());
+    }
+
+    /// DM-91: a space's `maxAge` rules reach the broker's sweep under the core context's IRIs
+    /// and the model's, each name with its type and attribute; a range rule and a `maxAhead` one
+    /// stay on the write path; a space whose rules are gone has its document removed.
+    #[tokio::test]
+    async fn a_spaces_max_age_rules_are_written_and_removed_with_them() {
+        let mut s = with_model(sources(vec![("cars", cars())]));
+        let rule = |value: Value| -> QualityRule {
+            serde_json::from_value(value).expect("a quality rule")
+        };
+        s.quality.insert(
+            ("city".into(), "air".into()),
+            vec![
+                rule(json!({"name": "stale-position", "entityType": "Vehicle",
+                            "kind": "freshness", "attribute": "location", "maxAge": "PT10M"})),
+                rule(
+                    json!({"name": "ahead", "entityType": "Vehicle", "kind": "freshness",
+                            "attribute": "location", "maxAhead": "PT1M"}),
+                ),
+                rule(
+                    json!({"name": "speed", "entityType": "Vehicle", "kind": "range",
+                            "attribute": "speed", "max": 200}),
+                ),
+            ],
+        );
+        let context = json!({"@context": {"sdm": "https://smartdatamodels.org/",
+                                          "Vehicle": {"@id": "sdm:Vehicle"}}});
+        let tools = model_tools(
+            json!({"brokerSchema": {"classes": {}}, "context": context, "errors": []}),
+            1,
+        )
+        .await;
+        let server = broker_with_the_space_view(&s).await;
+        Mock::given(method("PUT"))
+            .and(path("/q/schemas/city-air"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&server)
+            .await;
+        let core = "https://uri.etsi.org/ngsi-ld/default-context/";
+        let document = json!({"rules": [
+            {"name": "stale-position", "type": format!("{core}Vehicle"),
+             "attribute": format!("{core}location"), "maxAge": "PT10M"},
+            {"name": "stale-position", "type": "https://smartdatamodels.org/Vehicle",
+             "attribute": format!("{core}location"), "maxAge": "PT10M"}]});
+        Mock::given(method("PUT"))
+            .and(path("/q/quality/city-air"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(&document))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/q/quality/city-air"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/q/retention/city-air"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file).with_model_tools(tools.uri());
+        let first = sync.apply(desired(&s)).await;
+        s.quality.insert(("city".into(), "air".into()), Vec::new());
+        let second = sync.apply(desired(&s)).await;
+        let _ = std::fs::remove_file(&file);
+        for outcomes in [&first, &second] {
+            assert!(
+                outcomes
+                    .iter()
+                    .all(|(owner, outcome)| owner.name == "air" && *outcome == ViewOutcome::Written),
+                "{outcomes:?}"
+            );
+        }
     }
 
     #[test]
