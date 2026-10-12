@@ -692,7 +692,7 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 [[package]]
 name = "context-gateway"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=86fcd3d134dd27d06708ba189a9be4fbf7d3c5cb#86fcd3d134dd27d06708ba189a9be4fbf7d3c5cb"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=d94aad8cf4b38031a24c1024baf22a41e7cbecb3#d94aad8cf4b38031a24c1024baf22a41e7cbecb3"
 dependencies = [
  "antares-jsonld",
  "antares-ql",
@@ -2521,7 +2521,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=86fcd3d134dd27d06708ba189a9be4fbf7d3c5cb#86fcd3d134dd27d06708ba189a9be4fbf7d3c5cb"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=d94aad8cf4b38031a24c1024baf22a41e7cbecb3#d94aad8cf4b38031a24c1024baf22a41e7cbecb3"
 dependencies = [
  "axum",
  "chrono",
@@ -2540,7 +2540,7 @@ dependencies = [
 [[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=86fcd3d134dd27d06708ba189a9be4fbf7d3c5cb#86fcd3d134dd27d06708ba189a9be4fbf7d3c5cb"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=d94aad8cf4b38031a24c1024baf22a41e7cbecb3#d94aad8cf4b38031a24c1024baf22a41e7cbecb3"
 dependencies = [
  "aes-gcm",
  "age",
