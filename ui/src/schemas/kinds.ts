@@ -84,6 +84,7 @@ export function contextSpaceSchema(t: (key: string) => string): JsonSchema {
   };
 }
 
+/** The standards the Endpoint form offers, in the order it shows them (EP-05, EP-104). */
 export const REPRESENTATIONS = [
   "ngsi-ld",
   "geojson",
@@ -92,6 +93,8 @@ export const REPRESENTATIONS = [
   "xlsx",
   "zip",
   "ogc-features",
+  "odata",
+  "websocket",
   "sta",
   "mcp",
 ] as const;
@@ -142,7 +145,7 @@ export function endpointSchema(
       : [];
   return {
     type: "object",
-    required: ["name", "contextSpaceRef", "audience", "enabledRepresentations"],
+    required: ["name", "contextSpaceRef", "audience"],
     properties: {
       name: {
         type: "string",
@@ -166,6 +169,8 @@ export function endpointSchema(
         })),
         default: "project-list",
       },
+      // The standards checked, the always-on ones included; the page writes the unchecked
+      // ones as `disabledRepresentations` (EP-104), see `representationSpec`.
       enabledRepresentations: {
         type: "array",
         title: t("endpoints.field.representations"),
@@ -177,7 +182,6 @@ export function endpointSchema(
           })),
         },
         uniqueItems: true,
-        minItems: 1,
       },
       // Required by the manifest when the audience is `project-list` and refused for the
       // other two (EP-14, EP-15). The page drops the property for the other two audiences and
@@ -388,9 +392,15 @@ export const DATASTORE_REFRESH = ["onChange", "onReconcile"] as const;
 /** A CKAN organization slug: lowercase letters, digits and hyphens, as CKAN itself accepts. */
 export const CKAN_ORGANIZATION = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
 
-/** Checkboxes for the representation set, a slider for the cache TTL; the rest is default. */
+/**
+ * Checkboxes for the representation set, the always-on ones shown checked and locked (EP-10,
+ * EP-24), a slider for the cache TTL; the rest is default.
+ */
 export const endpointUiSchema: UiSchema = {
-  enabledRepresentations: { "ui:widget": "checkboxes" },
+  enabledRepresentations: {
+    "ui:widget": "checkboxes",
+    "ui:enumDisabled": ["ngsi-ld", "geojson", "mcp"],
+  },
   caching: { maxAgeSeconds: { "ui:widget": "range" } },
 };
 

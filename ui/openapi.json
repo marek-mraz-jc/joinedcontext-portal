@@ -14842,6 +14842,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "description": "Comma-separated subjects, at most 8, whose model attribute names are filled first",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {

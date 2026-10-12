@@ -14,7 +14,12 @@ import { putDraft } from "../../api/drafts";
 import { asManifests } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useBranding } from "../../branding";
-import { endpointUrl, representationUrl, servedRepresentations } from "../../components/endpoints/links";
+import {
+  endpointUrl,
+  REPRESENTATION_PATHS,
+  representationUrl,
+  servedRepresentations,
+} from "../../components/endpoints/links";
 import { Alert, Button, Card, ExternalLink } from "../../components/ui";
 
 /** The calls one Endpoint answers for one type, as a program writes them. */
@@ -31,7 +36,8 @@ export function callsOf(
     { key: "one", url: endpointUrl(slug, `/ngsi-ld/v1/entities/{id}`) },
     { key: "history", url: endpointUrl(slug, `/ngsi-ld/v1/temporal/entities?type=${t}&lastN=10`) },
   ];
-  for (const representation of served.filter((rep) => rep !== "ngsi-ld")) {
+  // Only the ones with a path of their own: an OData or WebSocket client is not a link.
+  for (const representation of served.filter((rep) => rep !== "ngsi-ld" && REPRESENTATION_PATHS[rep])) {
     calls.push({ key: representation, url: representationUrl(slug, representation, domain) });
   }
   return calls;

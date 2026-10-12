@@ -47,13 +47,14 @@ async function routesOf(page: Page, project: string): Promise<string[]> {
     links.map((link) => (link as HTMLAnchorElement).getAttribute("href") ?? ""),
   );
   const details = await page
-    .locator("main a[href*='/spaces/']:not([href*='/spaces/complete'])")
+    .locator("main a[href*='/spaces/']:not([href*='/spaces/complete']):not([href*='/spaces/upload'])")
     .evaluateAll((links) => links.slice(0, 1).map((link) => (link as HTMLAnchorElement).getAttribute("href") ?? ""));
   return [
     ...new Set([
       ...hrefs.map((href) => href.replace(/\/projects\/[^/]+\//, `/projects/${project}/`)),
       ...details,
       `/projects/${project}/spaces/complete`,
+      `/projects/${project}/spaces/upload`,
       `/projects/${project}/assistant`,
       `/projects/${project}/explore`,
       `/projects/${project}/models`,
