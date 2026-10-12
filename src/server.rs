@@ -58,6 +58,8 @@ pub fn app(state: AppState) -> Router {
     let portal = Router::new()
         .nest("/api/v1", api::router())
         .merge(openapi::router())
+        // The API and User Guide pages, public like the SPA shell; the edge decides who reaches them.
+        .merge(crate::public_docs::router())
         .fallback(assets::static_handler)
         // Every portal request, API or page, keeps the cookie session alive against the realm;
         // outermost of the portal's own layers so a rotated cookie reaches every response.
