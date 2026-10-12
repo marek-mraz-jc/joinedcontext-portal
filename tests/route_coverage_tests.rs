@@ -159,6 +159,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/permissions/me", "what this caller may do; the listing answers it per operation"),
 ("POST", "/projects/{project}/pipelines/test", "jc_pipeline_test"),
 ("GET", "/projects/{project}/pipelines/{name}/metrics", "jc_pipeline_metrics"),
+("GET", "/projects/{project}/pipelines/{name}/stats", "the canvas' live counts per node (PL-68); an agent reads the same counters with jc_pipeline_metrics"),
 ("GET", "/projects/{project}/pipelines/{name}/rejected", "the pipeline page's rejected list (PL-61, ADR-N-034); an agent asks why a record fails with jc_pipeline_validate on the record itself"),
 ("POST", "/projects/{project}/pipelines/{name}/rejected/retry", "a person replays the records they picked on the pipeline page once the fix merged (PL-61); an agent changes the mapping with jc_pipeline_propose and lets the next run bring them"),
 ("GET", "/projects/{project}/pipelines/{name}/runs", "the pipeline page's runs (PL-62); an agent reads how a pipeline is doing with jc_pipeline_metrics"),

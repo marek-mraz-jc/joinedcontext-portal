@@ -89,6 +89,8 @@ pub struct AppState {
     pub alerts: Arc<crate::alerts::AlertStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
     pub live: Arc<crate::live::LiveHub>,
+    /// The runner readings behind each pipeline's stats, kept 15 minutes (PL-68).
+    pub pipeline_stats: Arc<crate::pipeline_stats::Samples>,
     /// Each pipeline's runs and their log (PL-62), durable with a database.
     pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
@@ -195,6 +197,7 @@ impl AppState {
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
+            pipeline_stats: Arc::default(),
             drift_watch: None,
             views: None,
             foreign_names: Arc::default(),
@@ -475,6 +478,25 @@ impl AppState {
                     (_, Ok(None)) => tracing::info!("no cluster: no WASM shard placement is written"),
                 }
             }
+            // Each MqttBroker's release, in the brokers' namespace, from the deployment's template
+            // (ADR-N-048, T-3994).
+            match (
+                state.config.mqtt_namespace.clone(),
+                crate::apps::kube::KubeClient::in_cluster(),
+            ) {
+                (Some(namespace), Ok(Some(kube))) => {
+                    syncer = syncer.with_mqtt_brokers(Arc::new(
+                        crate::reconciler::mqtt_brokers::MqttBrokers::new(kube, namespace),
+                    ));
+                }
+                (None, _) => tracing::info!(
+                    "JC_PORTAL_MQTT_NAMESPACE is not set: no MqttBroker gets a release"
+                ),
+                (_, Err(err)) => {
+                    tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no MqttBroker gets a release")
+                }
+                (_, Ok(None)) => tracing::info!("no cluster: no MqttBroker release is applied"),
+            }
             // The Secrets this reconciler writes into its own namespace: an organization's
             // artifact-store reader (T-0925) and the pipeline runner's environment (T-0927).
             // Outside a cluster there is nowhere to write one, which is not an error.
@@ -667,6 +689,14 @@ impl AppState {
                     oidc.auth.clone(),
                 ) {
                     syncer = syncer.with_hub_scopes(Arc::new(scopes));
+                }
+                // Each MQTT broker's bearer-only client, its devices' audience (T-3994).
+                if let Some(clients) = crate::reconciler::mqtt_brokers::MqttClientSync::new(
+                    oidc.issuer.as_str(),
+                    oidc.client_id.clone(),
+                    oidc.auth.clone(),
+                ) {
+                    syncer = syncer.with_mqtt_clients(Arc::new(clients));
                 }
                 // Each named MCP server's sign-in client (EP-96, T-3156), by the same identity.
                 if let Some(clients) = crate::reconciler::mcp_clients::McpClientSync::new(

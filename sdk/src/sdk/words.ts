@@ -1,10 +1,11 @@
 /**
  * The SDK's own words, for the shell and the entity panel every App shares (SDK-39, SDK-40): the
- * same sentences in every App, in the four languages the Portal speaks. English is the reference;
+ * same sentences in every App, in the Portal's four languages and the Swedish the Helsinki Apps
+ * offer (T-4008). English is the reference;
  * every other catalog carries exactly its keys and `{placeholders}`, which the tests hold.
  */
 
-export type SdkLanguage = "en" | "fi" | "sk" | "cs";
+export type SdkLanguage = "en" | "fi" | "sv" | "sk" | "cs";
 
 const en = {
   "nav.label": "Pages",
@@ -156,7 +157,44 @@ const cs: Record<SdkWord, string> = {
   "form.required": "Povinné.",
 };
 
-export const SDK_WORDS: Record<SdkLanguage, Record<SdkWord, string>> = { en, fi, sk, cs };
+const sv: Record<SdkWord, string> = {
+  "nav.label": "Sidor",
+  "nav.none": "Inga sidor.",
+  "state.loading": "Läser in…",
+  "state.empty": "Inget att visa.",
+  "state.retry": "Försök igen",
+  "language.label": "Språk",
+  "panel.close": "Stäng",
+  "panel.reading": "Läser objektet…",
+  "panel.gone": "Objektet finns inte längre.",
+  "panel.edit": "Redigera",
+  "panel.cancel": "Avbryt",
+  "panel.review": "Granska ändringen",
+  "panel.confirm": "Spara ändringen",
+  "panel.back": "Tillbaka till redigeringen",
+  "panel.saving": "Sparar…",
+  "panel.saved": "Sparat.",
+  "panel.noChange": "Inget ändrades.",
+  "panel.changes": "Du håller på att ändra:",
+  "panel.change": "{attr}: {from} → {to}",
+  "panel.portal": "Öppna i Portalen",
+  "panel.portalHint": "Ändringar görs i Portalen, med dina egna rättigheter.",
+  "panel.inPortal": "redigeras i Portalen",
+  "panel.conflict": "Någon ändrade objektet under tiden. Det lästes in på nytt; kontrollera det och försök igen.",
+  "panel.forbidden": "Du får inte ändra objektet: {reason}",
+  "panel.failed": "Ändringen sparades inte: {reason}",
+  "panel.empty": "—",
+  "panel.yes": "ja",
+  "panel.no": "nej",
+  "form.number": "Ange ett tal.",
+  "form.atLeast": "Minst {min}.",
+  "form.atMost": "Högst {max}.",
+  "form.oneOf": "Ett av: {options}.",
+  "form.pattern": "Inte i förväntad form.",
+  "form.required": "Obligatoriskt.",
+};
+
+export const SDK_WORDS: Record<SdkLanguage, Record<SdkWord, string>> = { en, fi, sv, sk, cs };
 
 /** The language the SDK speaks: the App's configured one, else the page's, else English. */
 export function sdkLanguage(configured?: string): SdkLanguage {

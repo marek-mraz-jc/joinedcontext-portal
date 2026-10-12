@@ -257,7 +257,12 @@ impl FromRequestParts<AppState> for CurrentUser {
             .filter(|t| !t.is_empty())
             .ok_or(ApiError::Unauthorized)?;
             let verifier = state.bearer.as_ref().ok_or(ApiError::Unauthorized)?;
-            let (session, client) = verifier.verify_with_client(token).await?;
+            let (mut session, client) = verifier.verify_with_client(token).await?;
+            // The edge's token is the person the APISIX plugin logged in through its own
+            // `edge` client: its `azp` names that login, not a workload (PF-46).
+            if front == Front::Edge {
+                session.identity.client = None;
+            }
             if state.is_revoked(&session) {
                 return Err(ApiError::Unauthorized);
             }

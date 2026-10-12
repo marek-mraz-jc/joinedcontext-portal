@@ -517,7 +517,8 @@
       "modelEmptyLead": "A data model names the space's entity types and their attributes. Create one or import a Smart Data Model for this space.",
       "modelCreate": "Create a data model",
       "modelImport": "Import a Smart Data Model",
-      "tooMany": "The endpoint is busy (too many reads at once)."
+      "tooMany": "The endpoint is busy (too many reads at once).",
+      "lead": "Its data model, its entities, who reads them and what happened to it."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1020,7 +1021,9 @@
       "projectionName": "Projection name",
       "preview": "Generated manifests",
       "identityAlways": "Every entity has an id and a type, so this is always exposed.",
-      "readOnly": "This projection is shared. Detach and copy it to change it here."
+      "readOnly": "This projection is shared. Detach and copy it to change it here.",
+      "reuseHelp": "Reuse a projection another endpoint already publishes, or draw a new one for this endpoint.",
+      "projectionNameHelp": "The name the new projection is saved under; lowercase letters, digits and hyphens."
     },
     "audience": {
       "project-list": "Selected projects",
@@ -1110,6 +1113,7 @@
       "title": "Published attributes",
       "hint": "An endpoint can narrow what the policy grants, never widen it. A hidden attribute is absent from every representation and from the published schema.",
       "formalism": "Schema formalism",
+      "formalismHelp": "The schema language the published schema is written in; the address below serves it.",
       "hide": "Hide",
       "unhide": "Show again",
       "effective": "Published here",
@@ -1331,6 +1335,7 @@
     "filterEditor": {
       "label": "Filter of this endpoint",
       "types": "Entity types it serves",
+      "typesHelp": "Tick the types a caller reads here; an unticked type is not served at all.",
       "noType": "Keep at least one type: an endpoint that serves no type serves nothing.",
       "hidden": "Hidden attributes",
       "hiddenHelp": "A ticked attribute is never served, in any format. A name is hidden in every type that has it.",
@@ -1416,6 +1421,7 @@
       "title": "Share with a project",
       "project": "Project",
       "types": "What it reads",
+      "typesHelp": "Tick the types the other project reads; nothing else of this endpoint is shared.",
       "until": "Until",
       "untilHint": "Optional. After this day the project reads nothing through it; empty keeps the share until it is stopped.",
       "preview": "What {project} will see",
@@ -1801,8 +1807,8 @@
       "moduleHint": "The path or package of the module the step runs.",
       "functionHint": "The module's entry point the step calls for each record.",
       "computeNotRun": "The platform does not run a step of this kind yet ({kind}): the pipeline is accepted and stays Pending until it does. A Bloblang step runs today.",
-      "live": "Live counts of the running stream since its runner started; run a test to see a sample instead.",
-      "liveErrors": "{count, plural, one {# error} other {# errors}} since the runner started",
+      "live": "Live counts of the running stream per minute, errors over the last five minutes; run a test to see a sample instead.",
+      "liveErrors": "{count, plural, one {# error} other {# errors}} in the last 5 minutes",
       "tools": "Graph tools",
       "undo": "Undo",
       "redo": "Redo",
@@ -1853,6 +1859,9 @@
       "routeWhenHint": "A Bloblang condition, such as this.temperature.value > 30. A record takes the first route whose condition holds; the rest go to the outputs of the lane.",
       "routeAddOutput": "+ Output on this route",
       "routeNoCondition": "no condition yet",
+      "perMinute": "/min",
+      "liveUnavailable": "Live counts unavailable: the pipeline runner does not answer. The pipeline itself may still be running.",
+      "lastError": "Last error at {at}: {message}. Fix the step, then retry the record from the pipeline's rejected records.",
       "queueShort": "{count} queued",
       "queue": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output",
       "queueHigh": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output, more than {limit}: the output is not keeping up"
@@ -1967,7 +1976,7 @@
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
-        "example": "Example: {example}",
+        "example": "Example:",
         "measuredIn": "Measured in {symbol} ({code}); the gateway writes this unitCode when a record leaves it out.",
         "sourceUnit": "Source in another unit?",
         "sourceUnitOf": "Source unit of {slot}",
@@ -2300,7 +2309,8 @@
       "discardConfirm": "What you typed is lost and nothing is proposed. The roles already held are not touched.",
       "discard": "Discard the grant",
       "grants": "This role may: {rights}.",
-      "grantsNothing": "This role grants nothing yet: its rules are empty."
+      "grantsNothing": "This role grants nothing yet: its rules are empty.",
+      "hidden": "Your role does not show who holds which role here. Whoever manages the project can grant it."
     },
     "projectRoles": {
       "title": "Roles",
@@ -2322,7 +2332,8 @@
       },
       "beyondRights": "A role may not grant more than you hold here: missing {missing}.",
       "propose": "Propose change",
-      "emptyHint": "A role is a set of verbs on a set of kinds — propose an endpoint, approve a change, read a space. The platform's own roles work everywhere; a role declared here works in this project."
+      "emptyHint": "A role is a set of verbs on a set of kinds — propose an endpoint, approve a change, read a space. The platform's own roles work everywhere; a role declared here works in this project.",
+      "hidden": "Your role does not show the roles written here. Whoever manages the project can grant it."
     },
     "accounts": {
       "title": "Service accounts",
@@ -3570,7 +3581,10 @@
         "absent": "They do not manage {instance} through this catalogue's role.",
         "badEmail": "Type a whole e-mail address, such as jana@example.org."
       },
-      "hidden": "Who manages this catalogue is visible to the organization's administrators."
+      "hidden": "Who manages this catalogue is visible to the organization's administrators.",
+      "kindHelp": "A whole group, or one person by their e-mail.",
+      "whichGroupHelp": "Everyone in the group manages this catalogue while they are in it.",
+      "emailHelp": "The e-mail the person signs in with, such as jana@example.org."
     }
   },
   "mappings": {
@@ -4570,6 +4584,7 @@
     "more": "Show older",
     "panelTitle": "Recent activity",
     "panelEmpty": "Nothing has happened to this one yet.",
+    "panelEmptyHint": "A change, an import or an error here appears in this list as it happens.",
     "announce": "{count, plural, one {# new error} other {# new errors}}",
     "lastHour": "What happened in the last hour",
     "bucket": {
@@ -5892,7 +5907,10 @@
       "read": "Read",
       "propose": "Propose changes",
       "approve": "Approve changes",
-      "delete": "Delete"
+      "delete": "Delete",
+      "create": "Create",
+      "update": "Change",
+      "disable": "Switch off"
     },
     "notificationFormat": {
       "normalized": "Full NGSI-LD",

@@ -517,7 +517,8 @@
       "modelEmptyLead": "Datový model pojmenovává typy entit prostoru a jejich atributy. Vytvořte ho nebo importujte Smart Data Model pro tento prostor.",
       "modelCreate": "Vytvořit datový model",
       "modelImport": "Importovat Smart Data Model",
-      "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou)."
+      "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou).",
+      "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1020,7 +1021,9 @@
       "projectionName": "Název projekce",
       "preview": "Vytvořené manifesty",
       "identityAlways": "Každý záznam má id a typ, proto je toto vždy zveřejněno.",
-      "readOnly": "Tato projekce je sdílená. Chcete-li ji změnit zde, oddělte ji a zkopírujte."
+      "readOnly": "Tato projekce je sdílená. Chcete-li ji změnit zde, oddělte ji a zkopírujte.",
+      "reuseHelp": "Použijte projekci, kterou už publikuje jiný endpoint, nebo nakreslete novou pro tento endpoint.",
+      "projectionNameHelp": "Název, pod kterým se nová projekce uloží; malá písmena, číslice a pomlčky."
     },
     "audience": {
       "project-list": "Vybrané projekty",
@@ -1110,6 +1113,7 @@
       "title": "Zveřejněné atributy",
       "hint": "Endpoint může to, co povoluje politika, jen zúžit, nikdy rozšířit. Skrytý atribut chybí v každé reprezentaci i ve zveřejněném schématu.",
       "formalism": "Formalismus schématu",
+      "formalismHelp": "Jazyk schématu, ve kterém je zveřejněné schéma; adresa níže ho poskytuje.",
       "hide": "Skrýt",
       "unhide": "Znovu zobrazit",
       "effective": "Zveřejněno zde",
@@ -1331,6 +1335,7 @@
     "filterEditor": {
       "label": "Filtr tohoto rozhraní",
       "types": "Typy entit, které obsluhuje",
+      "typesHelp": "Zaškrtněte typy, které tu volající čte; nezaškrtnutý typ se vůbec neposkytuje.",
       "noType": "Ponechte alespoň jeden typ: rozhraní bez typu neobsluhuje nic.",
       "hidden": "Skryté atributy",
       "hiddenHelp": "Zaškrtnutý atribut se nikdy neposkytne v žádném formátu. Název se skryje v každém typu, který ho má.",
@@ -1416,6 +1421,7 @@
       "title": "Sdílet s projektem",
       "project": "Projekt",
       "types": "Co čte",
+      "typesHelp": "Zaškrtněte typy, které bude druhý projekt číst; nic jiného z tohoto koncového bodu se nesdílí.",
       "until": "Do",
       "untilHint": "Nepovinné. Po tomto dni přes něj projekt nic nepřečte; prázdné ponechá sdílení, dokud jej nezastavíte.",
       "preview": "Co uvidí {project}",
@@ -1801,8 +1807,8 @@
       "moduleHint": "Cesta nebo balík modulu, který krok spouští.",
       "functionHint": "Vstupní bod modulu, který krok volá pro každý záznam.",
       "computeNotRun": "Platforma krok tohoto druhu zatím nespouští ({kind}): pipeline se přijme a zůstane ve stavu Pending, dokud to nepůjde. Krok Bloblang běží už dnes.",
-      "live": "Živé počty běžícího proudu od spuštění jeho runneru; ukázku uvidíte po spuštění testu.",
-      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chyb}} od spuštění runneru",
+      "live": "Živé počty běžícího proudu za minutu, chyby za posledních pět minut; pro ukázku spusťte test.",
+      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chyb}} za posledních 5 minut",
       "tools": "Nástroje grafu",
       "undo": "Zpět",
       "redo": "Znovu",
@@ -1853,6 +1859,9 @@
       "routeWhenHint": "Podmínka v Bloblangu, například this.temperature.value > 30. Záznam jde do první větve, jejíž podmínka platí; ostatní jdou do výstupů hlavní linky.",
       "routeAddOutput": "+ Výstup této větve",
       "routeNoCondition": "zatím bez podmínky",
+      "perMinute": "/min",
+      "liveUnavailable": "Živé počty nejsou dostupné: spouštěč pipeline neodpovídá. Pipeline může stále běžet.",
+      "lastError": "Poslední chyba v {at}: {message}. Opravte krok a pak záznam znovu spusťte z odmítnutých záznamů pipeliny.",
       "queueShort": "{count} ve frontě",
       "queue": "{count, plural, one {# zpráva čeká} few {# zprávy čekají} other {# zpráv čeká}} v bufferu před výstupem",
       "queueHigh": "{count, plural, one {# zpráva čeká} few {# zprávy čekají} other {# zpráv čeká}} v bufferu před výstupem, víc než {limit}: výstup nestíhá"
@@ -1967,7 +1976,7 @@
         "required": "povinné",
         "many": "více hodnot",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a další (#)}}",
-        "example": "Příklad: {example}",
+        "example": "Příklad:",
         "measuredIn": "Měří se v {symbol} ({code}); pokud záznam unitCode nemá, brána ho doplní.",
         "sourceUnit": "Zdroj v jiné jednotce?",
         "sourceUnitOf": "Jednotka zdroje pro {slot}",
@@ -2300,7 +2309,8 @@
       "discardConfirm": "To, co jste napsali, se ztratí a nic se nenavrhne. Již přidělené role se nemění.",
       "discard": "Zahodit přidělení",
       "grants": "Tato role smí: {rights}.",
-      "grantsNothing": "Tato role zatím nic neuděluje: nemá pravidla."
+      "grantsNothing": "Tato role zatím nic neuděluje: nemá pravidla.",
+      "hidden": "Vaše role neukazuje, kdo zde má jakou roli. Může vám ji přidělit ten, kdo spravuje projekt."
     },
     "projectRoles": {
       "title": "Role",
@@ -2322,7 +2332,8 @@
       },
       "beyondRights": "Role nesmí udělit více, než zde držíte sami: chybí {missing}.",
       "propose": "Navrhnout změnu",
-      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu."
+      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu.",
+      "hidden": "Vaše role neukazuje role, které jsou zde napsané. Může vám ji přidělit ten, kdo spravuje projekt."
     },
     "accounts": {
       "title": "Servisní účty",
@@ -3570,7 +3581,10 @@
         "absent": "Katalog {instance} nespravují přes jeho roli.",
         "badEmail": "Napište celou e-mailovou adresu, například jana@example.org."
       },
-      "hidden": "Kdo spravuje tento katalog, vidí administrátoři organizace."
+      "hidden": "Kdo spravuje tento katalog, vidí administrátoři organizace.",
+      "kindHelp": "Celá skupina, nebo jedna osoba podle e-mailu.",
+      "whichGroupHelp": "Každý ve skupině spravuje tento katalog, dokud je v ní.",
+      "emailHelp": "E-mail, kterým se osoba přihlašuje, například jana@example.org."
     }
   },
   "mappings": {
@@ -4570,6 +4584,7 @@
     "more": "Zobrazit starší",
     "panelTitle": "Nedávná aktivita",
     "panelEmpty": "S tímto se zatím nic nestalo.",
+    "panelEmptyHint": "Změna, import nebo chyba zde se v tomto seznamu objeví hned, jak nastane.",
     "announce": "{count, plural, one {# nová chyba} few {# nové chyby} other {# nových chyb}}",
     "lastHour": "Co se stalo za poslední hodinu",
     "bucket": {
@@ -5892,7 +5907,10 @@
       "read": "Číst",
       "propose": "Navrhovat změny",
       "approve": "Schvalovat změny",
-      "delete": "Mazat"
+      "delete": "Mazat",
+      "create": "Vytvářet",
+      "update": "Měnit",
+      "disable": "Vypínat"
     },
     "notificationFormat": {
       "normalized": "Úplné NGSI-LD",
