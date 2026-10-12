@@ -1730,7 +1730,9 @@
         "source": "Source",
         "compute": "Compute",
         "output": "Output",
-        "step": "Step"
+        "step": "Step",
+        "routeStep": "Step of {name}",
+        "routeOutput": "Route {name}"
       },
       "passThrough": "Pass-through",
       "eventsIn": "in",
@@ -1797,7 +1799,8 @@
         "self": "A node cannot feed itself.",
         "middleIntoOutput": "Only the last step feeds the outputs. Move this step to the end, or put a branch or switch step before the output to send part of the messages elsewhere.",
         "moved": "Step moved: the wire set the order the steps run in.",
-        "already": "These two are already wired."
+        "already": "These two are already wired.",
+        "route": "A route's steps and outputs follow its condition; edit them on the route."
       },
       "state": {
         "configured": "Configured",
@@ -1806,7 +1809,8 @@
           "output": "Needs an endpoint",
           "mapping": "Needs a mapping",
           "mappingRef": "Needs a mapping name",
-          "module": "Needs a module"
+          "module": "Needs a module",
+          "condition": "Needs a condition"
         }
       },
       "nothingToUndo": "Nothing to undo yet.",
@@ -1814,6 +1818,14 @@
       "zoomClosed": "Zoom works on the canvas view, from 50 % to 200 %.",
       "atTop": "Already the first step.",
       "atBottom": "Already the last step.",
+      "addRoute": "+ Route",
+      "removeRoute": "Remove route",
+      "routeName": "Route name",
+      "routeNameHint": "Lowercase letters, digits and hyphens, unique in this pipeline.",
+      "routeWhen": "Takes the records where",
+      "routeWhenHint": "A Bloblang condition, such as this.temperature.value > 30. A record takes the first route whose condition holds; the rest go to the outputs of the lane.",
+      "routeAddOutput": "+ Output on this route",
+      "routeNoCondition": "no condition yet",
       "queueShort": "{count} queued",
       "queue": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output",
       "queueHigh": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output, more than {limit}: the output is not keeping up"

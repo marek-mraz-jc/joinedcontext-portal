@@ -1730,7 +1730,9 @@
         "source": "Zdroj",
         "compute": "Výpočet",
         "output": "Výstup",
-        "step": "Krok"
+        "step": "Krok",
+        "routeStep": "Krok vetvy {name}",
+        "routeOutput": "Vetva {name}"
       },
       "passThrough": "Bez výpočtu",
       "eventsIn": "dnu",
@@ -1797,7 +1799,8 @@
         "self": "Uzol nemôže napájať sám seba.",
         "middleIntoOutput": "Výstupy napája iba posledný krok. Presuňte tento krok na koniec, alebo pred výstup dajte krok branch či switch, ktorý pošle časť správ inam.",
         "moved": "Krok presunutý: drôt určil poradie, v akom kroky bežia.",
-        "already": "Tieto dva uzly už sú prepojené."
+        "already": "Tieto dva uzly už sú prepojené.",
+        "route": "Kroky a výstupy vetvy idú za jej podmienkou; upravte ich vo vetve."
       },
       "state": {
         "configured": "Nastavený",
@@ -1806,7 +1809,8 @@
           "output": "Chýba endpoint",
           "mapping": "Chýba mapovanie",
           "mappingRef": "Chýba názov mapovania",
-          "module": "Chýba modul"
+          "module": "Chýba modul",
+          "condition": "Chýba podmienka"
         }
       },
       "nothingToUndo": "Zatiaľ nie je čo vrátiť.",
@@ -1814,6 +1818,14 @@
       "zoomClosed": "Priblíženie funguje v zobrazení plátna, od 50 % do 200 %.",
       "atTop": "Už je to prvý krok.",
       "atBottom": "Už je to posledný krok.",
+      "addRoute": "+ Vetva",
+      "removeRoute": "Odstrániť vetvu",
+      "routeName": "Názov vetvy",
+      "routeNameHint": "Malé písmená, číslice a pomlčky, jedinečný v tejto pipeline.",
+      "routeWhen": "Berie záznamy, kde",
+      "routeWhenHint": "Podmienka v Bloblangu, napríklad this.temperature.value > 30. Záznam ide do prvej vetvy, ktorej podmienka platí; ostatné idú do výstupov hlavnej linky.",
+      "routeAddOutput": "+ Výstup tejto vetvy",
+      "routeNoCondition": "zatiaľ bez podmienky",
       "queueShort": "{count} v rade",
       "queue": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom",
       "queueHigh": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom, viac než {limit}: výstup nestíha"
