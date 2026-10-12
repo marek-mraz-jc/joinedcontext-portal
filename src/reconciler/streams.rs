@@ -1452,7 +1452,7 @@ fn datasource_input(
         (input_json, Vec::new())
     };
 
-    for p in jcctl::bento::prepended_processors(source) {
+    for p in jcctl::bento::prepended_processors(source, &context) {
         processors.push(serde_json::to_value(&p)?);
     }
     Ok((input, processors))
@@ -3927,6 +3927,55 @@ output:
             stream_id("helsinki", &crate::pipeline_expiry::sweep_name("reaper")),
             "helsinki.reaper.expiry"
         );
+    }
+
+    /// T-3952, PL-72: an `http` DataSource with an archive reads its directory by range, then
+    /// each named member, after the clock's poll and before the author's steps.
+    #[test]
+    fn an_archive_datasource_reads_its_directory_then_its_members() {
+        let ds: DataSourceSpec = serde_json::from_value(serde_json::json!({
+            "type": "http",
+            "http": {
+                "url": "https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip",
+                "archive": { "format": "zip", "members": ["stops.txt"], "maxBytes": 4194304 }
+            }
+        }))
+        .expect("valid archive DataSourceSpec");
+        let rendered = render_stream(
+            &helsinki_pipeline_spec(),
+            "stops",
+            "helsinki",
+            &ds,
+            "hsl-gtfs",
+            "abc123456789",
+            None,
+        )
+        .expect("renders an archive stream");
+        let processors = rendered["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        assert!(rendered["input"]["generate"].is_object());
+        assert_eq!(
+            processors[0]["try"][0]["http"]["headers"]["Range"],
+            "bytes=-65557"
+        );
+        assert_eq!(
+            processors[1]["mutation"],
+            "root = if errored() { deleted() }"
+        );
+        let read: Vec<&str> = processors[2]["try"]
+            .as_array()
+            .expect("the member read")
+            .iter()
+            .filter_map(|step| step.as_object()?.keys().next().map(String::as_str))
+            .collect();
+        assert_eq!(read, ["mapping", "unarchive", "mapping", "http", "mapping"]);
+        assert_eq!(
+            processors[2]["try"][3]["http"]["headers"]["Range"],
+            "${! @range }"
+        );
+        assert!(processors[3]["catch"].is_array());
+        assert_eq!(processors[4]["label"], COMPUTE_LABEL);
     }
 
     #[test]
