@@ -11,7 +11,7 @@ Helsinki-region traffic alerts, the whole history the city's feed holds, on one 
 - the repeat places by name, the most alerts first; a name, or a place's circle on the map, opens
   its alert in the entity panel;
 - a From and To date and the kinds (road works, traffic announcements), all in the address, so a
-  view is a link (`?from=2026-09-01&kind=ROAD_WORK&day=0&hour=7&lang=en`).
+  view is a link (`?from=2026-09-01&kind=roadWorks&day=0&hour=7&lang=en`).
 
 Finnish, English or Swedish (`?lang=fi|en|sv`, else the browser's language); the alerts' own texts are Finnish,
 as the feed publishes them. Light and dark follow the reader's system.

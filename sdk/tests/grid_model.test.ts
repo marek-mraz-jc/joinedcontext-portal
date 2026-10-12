@@ -281,6 +281,16 @@ describe("cellText", () => {
     expect(cellText(cell)).toBe("42");
   });
 
+  it("returns a PostalAddress as its line and any other object as JSON (T-3949)", () => {
+    const address: import("../src/grid/model").RichCell = {
+      kind: "property",
+      value: { streetAddress: "Siltakatu 11", postalCode: "00580", addressLocality: "Helsinki", addressCountry: "FI" },
+    };
+    expect(cellText(address)).toBe("Siltakatu 11, 00580 Helsinki");
+    const other: import("../src/grid/model").RichCell = { kind: "property", value: { a: 1 } };
+    expect(cellText(other)).toBe('{"a":1}');
+  });
+
   it("returns relationship object", () => {
     const cell: import("../src/grid/model").RichCell = { kind: "relationship", value: "urn:x", object: "urn:x" };
     expect(cellText(cell)).toBe("urn:x");
