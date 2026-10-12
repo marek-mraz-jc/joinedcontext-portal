@@ -8,9 +8,8 @@ import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import type { EntityQuery } from "../../components/entities/filters";
-import { endpointUrl } from "../../components/endpoints/links";
+import { CopyUrlButton, endpointUrl } from "../../components/endpoints/links";
 import { Button, Dialog } from "../../components/ui";
-import { CopyUrlButton } from "../../routes/EndpointsPage";
 import { SNIPPET_LANGUAGES, TOKEN_VARIABLE, snippet, viewPath } from "./snippets";
 
 export function UseThisData({
