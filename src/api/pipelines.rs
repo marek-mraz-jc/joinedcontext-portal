@@ -192,7 +192,7 @@ pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMe
         // The outcome sink and the pass report say what the stream did; their own sends and
         // errors are not the stream's (PL-62, T-3001).
         if label(sample.labels, "label").is_some_and(|node| {
-            node == crate::pipeline_log::SINK_LABEL
+            crate::pipeline_log::SINK_LABELS.contains(&node)
                 || crate::pipeline_log::PASS_LABELS.contains(&node)
                 || node.starts_with(crate::pipeline_samples::TAP_PREFIX)
         }) {
@@ -1007,6 +1007,11 @@ uptime_seconds 900
             // PL-62: the outcome sink's own sends and failures are not the stream's.
             "output_sent{label=\"outcome\",stream=\"aq\"} 90\n",
             "output_error{label=\"outcome\",stream=\"aq\"} 5\n",
+            // T-4036: and neither are its parts' (the report, its batching steps, the drop).
+            "output_sent{label=\"outcome_post\",stream=\"aq\"} 2\n",
+            "output_error{label=\"outcome_post\",stream=\"aq\"} 1\n",
+            "processor_error{label=\"outcome_report\",stream=\"aq\"} 1\n",
+            "output_sent{label=\"outcome_drop\",stream=\"aq\"} 1\n",
         );
         let metrics = scrape(body, "aq", "2026-09-25T10:00:00Z".into());
         assert_eq!(metrics.sent, Some(90), "written");
