@@ -18,4 +18,5 @@ spec:
     name: helsinki
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   slug: ed22hwvdlgbhrpawv72rgfoyi4

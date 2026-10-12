@@ -16,4 +16,5 @@ spec:
     name: praha-mesto
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   slug: qb3wx7nc5ztk2pmyr6hjd4vae2

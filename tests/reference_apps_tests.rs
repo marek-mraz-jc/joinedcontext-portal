@@ -52,6 +52,21 @@ fn every_reference_app_manifest_parses_as_the_kind_the_reconciler_reads() {
     }
 }
 
+/// AP-124. A sample App is copied, so it spells its shape the current way: `static` and
+/// `fullstack` still parse, and a copy of one carried the old name into the seed (T-4076).
+#[test]
+fn no_sample_app_spells_its_shape_with_a_renamed_kind() {
+    for (name, yaml) in reference_apps() {
+        let manifest: serde_norway::Value = serde_norway::from_str(&yaml).expect("a manifest");
+        let kind = manifest["spec"]["kind"].as_str().unwrap_or_default();
+        assert_eq!(
+            jc_core::kinds::AppClass::renamed(kind),
+            None,
+            "apps/{name}/app.yaml says spec.kind {kind}"
+        );
+    }
+}
+
 /// AP-35. The annotations are an agent's attribution; hand-written source claiming them would
 /// make the provenance trail say something untrue.
 #[test]
@@ -827,4 +842,28 @@ fn the_wasm_templates_lock_is_in_the_runners_store() {
         manifest.contains(r#"crate-type = ["cdylib", "rlib"]"#),
         "{manifest}"
     );
+}
+
+/// T-4073, T-4074, EP-104: every sample App's Endpoint serves OGC API Features beside its own
+/// representations, read only. WebSocket stays a need's own choice: a subscription is a write for
+/// an App (AP-09), so an App that follows live data subscribes on its space's public Endpoint.
+#[test]
+fn every_sample_app_endpoint_serves_ogc_features() {
+    for (name, _) in reference_apps() {
+        let endpoints: Vec<RawManifest> = held_grants(&name)
+            .into_iter()
+            .filter_map(|(_, text)| serde_norway::from_str::<RawManifest>(&text).ok())
+            .filter(|raw| raw.kind == "Endpoint")
+            .collect();
+        for endpoint in endpoints {
+            let representations = endpoint.spec["enabledRepresentations"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            assert!(
+                representations.contains(&serde_json::json!("ogc-features")),
+                "apps/{name}: its Endpoint serves no ogc-features"
+            );
+        }
+    }
 }

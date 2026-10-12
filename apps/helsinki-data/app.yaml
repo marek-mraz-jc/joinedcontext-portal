@@ -37,4 +37,4 @@ spec:
       types: [PointOfInterest, PublicAreaPermit, Event, Alert, ParkingZone, CityDistrict, WaterQualityObserved, AirQualityObserved, WeatherObserved]
       attrs: [name, serviceCategory, address, openingHours, url, dateModified, permitKind, permitStatus, permitNumber, permitStart, permitEnd, startDate, endDate, eventStatus, category, subCategory, dateIssued, validFrom, validTo, zoneKind, zoneCode, districtCode, divisionLevel, temperature, dateObserved, pm10, pm25, airQualityIndex, roadSurfaceTemperature, relativeHumidity, windSpeed, windDirection, precipitation]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld, csv, geojson]
+      representations: [ngsi-ld, csv, geojson, ogc-features]

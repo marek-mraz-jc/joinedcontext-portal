@@ -18,6 +18,7 @@ spec:
     name: banskabystrica-verejne
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   roles:
   - name: viewer
     subjects:

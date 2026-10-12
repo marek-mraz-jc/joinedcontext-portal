@@ -17,4 +17,5 @@ spec:
   enabledRepresentations:
   - ngsi-ld
   - geojson
+  - ogc-features
   slug: jbbdk2657lsp3mp7bt76ukc4ac

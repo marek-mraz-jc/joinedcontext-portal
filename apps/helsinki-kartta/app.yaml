@@ -37,4 +37,4 @@ spec:
       types: [PointOfInterest, WaterQualityObserved]
       attrs: [name, location, address, url, serviceCategory, openingHours, temperature, dateObserved, refPointOfInterest]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

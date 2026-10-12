@@ -37,4 +37,4 @@ spec:
       types: [PointOfInterest, WasteContainerIsle]
       attrs: [name, location, address, url, serviceCategory, facilityType, openingHours, wheelchairAccessible, capacity, pupilCount, stationCode, accessRestriction]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

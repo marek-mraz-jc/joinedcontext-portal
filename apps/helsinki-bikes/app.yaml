@@ -32,4 +32,4 @@ spec:
       types: [BikeHireDockingStation]
       attrs: [name, location, availableBikeNumber, freeSlotNumber, totalSlotNumber, status, dateModified]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld, geojson]
+      representations: [ngsi-ld, geojson, ogc-features]

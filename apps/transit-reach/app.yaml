@@ -62,7 +62,7 @@ spec:
       operations: [retrieveTemporal]
       temporalQ:
         window: PT6H
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]
     # HSL's stops and lines (T-3356): where each stop is, its name and sign code; each line's
     # number, mode and stops in order.
     - contextSpaceRef:

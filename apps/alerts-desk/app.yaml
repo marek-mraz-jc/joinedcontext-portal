@@ -36,4 +36,4 @@ spec:
       types: [Alert]
       attrs: [name, description, category, subCategory, address, dateIssued, validFrom, validTo, source]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

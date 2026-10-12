@@ -39,7 +39,7 @@ spec:
       operations: [queryEntity, retrieveEntity]
       # The positions arrive over the Endpoint's WebSocket (T-3581); REST reads the whole fleet
       # after a new subscription or a gap.
-      representations: [ngsi-ld, geojson, websocket]
+      representations: [ngsi-ld, geojson, websocket, ogc-features]
     - contextSpaceRef:
         kind: ContextSpace
         name: helsinki

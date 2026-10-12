@@ -43,5 +43,5 @@ spec:
       types: [School]
       attrs: [name, address, pupilCount, teachingStaff, nonTeachingStaff, annualBudget, budgetYear]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]
       roles: [viewer]
