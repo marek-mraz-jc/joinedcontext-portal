@@ -8,9 +8,13 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import axe from "axe-core";
 import { describe, expect, it, vi } from "vitest";
 import type { AccessDocument, Row } from "../src/sdk";
+import type { SdkLanguage } from "../src/sdk/words";
 import { AppShell, JcProvider, Loading, ProblemError, SDK_WORDS, parseValue, portalLinkOf, selectable, useEntitySelection } from "../src/sdk";
 import { parseConfig } from "../src/sdk/config";
-import { stubClient } from "../src/sdk/testing";
+import { recordControls, stubClient } from "../src/sdk/testing";
+import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Field } from "../src/write";
 
 const STATION: Row = {
@@ -183,6 +187,62 @@ describe("the shell (SDK-39)", () => {
     expect(onLanguage).toHaveBeenCalledWith("en");
     fireEvent.click(within(screen.getByRole("navigation", { name: "Sivut" })).getByRole("button", { name: "B" }));
     expect(screen.getByText("second")).toBeInTheDocument();
+  });
+});
+
+// T-4113: the language list and the panel's close button are the SDK's controls (`data-jc-sdk`):
+// pressed here in every language the SDK speaks, and left out of each App's coverage record.
+describe("the shell's own controls, in every language (T-4113)", () => {
+  const LANGUAGES = Object.keys(SDK_WORDS) as SdkLanguage[];
+
+  function shell(language: SdkLanguage, onLanguage = vi.fn()) {
+    const client = stubClient({ entities: [STATION], schema: SCHEMA, access: READ }, { user: PERSON, portal: PORTAL });
+    render(
+      <JcProvider client={client}>
+        <AppShell
+          title="Bikes"
+          language={language}
+          languages={[
+            { code: language, label: language },
+            { code: "other", label: "Other" },
+          ]}
+          onLanguage={onLanguage}
+          pages={[{ id: "stations", label: "Stations", render: () => <Openers /> }]}
+        />
+      </JcProvider>,
+    );
+    return onLanguage;
+  }
+
+  it.each(LANGUAGES)("in %s, the language list says its name and hands the choice to the App", (language) => {
+    const onLanguage = shell(language);
+    fireEvent.change(screen.getByRole("combobox", { name: SDK_WORDS[language]["language.label"] }), { target: { value: "other" } });
+    expect(onLanguage).toHaveBeenCalledWith("other");
+  });
+
+  it.each(LANGUAGES)("in %s, the close button says its name and closes the panel", async (language) => {
+    shell(language);
+    const panel = await openFromTable();
+    fireEvent.click(within(panel).getByRole("button", { name: SDK_WORDS[language]["panel.close"] }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("leaves both out of an App's controls record, and an App's own control unpressed still shows", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "controls-"));
+    let done: (() => Promise<void>) | undefined;
+    recordControls((callback) => {
+      done = callback;
+    }, dir);
+    shell("sv");
+    await openFromTable();
+    await done?.();
+    const [file] = readdirSync(dir);
+    const record = JSON.parse(readFileSync(join(dir, file), "utf8")) as { rendered: string[]; exercised: string[] };
+    expect(record.rendered).not.toContain("combobox: Språk");
+    expect(record.rendered).not.toContain("button: Stäng");
+    // The page's own buttons are still the App's: one never pressed is what fails its gate.
+    expect(record.rendered).toContain("button: Kaivopuisto row");
+    expect(record.rendered.filter((control) => !record.exercised.includes(control))).not.toEqual([]);
   });
 });
 
