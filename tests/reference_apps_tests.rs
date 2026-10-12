@@ -837,7 +837,7 @@ fn every_sample_app_endpoint_serves_ogc_features() {
     for (name, _) in reference_apps() {
         let endpoints: Vec<RawManifest> = held_grants(&name)
             .into_iter()
-            .filter_map(|(_, text)| serde_yaml_ng::from_str::<RawManifest>(&text).ok())
+            .filter_map(|(_, text)| serde_norway::from_str::<RawManifest>(&text).ok())
             .filter(|raw| raw.kind == "Endpoint")
             .collect();
         for endpoint in endpoints {
