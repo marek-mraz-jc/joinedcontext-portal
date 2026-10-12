@@ -2281,6 +2281,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What an MQTT Broker Measures
+         * @description Connected clients per ServiceAccount and messages per second, read from the broker's own HTTP API (API/01 §44, ADR-N-048 §2.8). Whoever may read the project's MqttBrokers.
+         */
+        get: operations["get_measured"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops": {
         parameters: {
             query?: never;
@@ -3402,6 +3422,17 @@ export interface components {
             reason: string;
             /** @description `allowed` or `restricted`. */
             verdict: string;
+        };
+        /** @description One ServiceAccount of the broker's roles and its connected clients. */
+        AccountSeen: {
+            /** Format: int32 */
+            connected: number;
+            serviceAccount: string;
+            /**
+             * Format: date-time
+             * @description The newest `connected_at` of its connected clients; `null` when none is connected.
+             */
+            since?: string | null;
         };
         ActivityEvent: {
             correlationId?: string | null;
@@ -5118,6 +5149,26 @@ export interface components {
              *     session, `bearer` for a token a service sent (ADR-N-019).
              */
             front: components["schemas"]["Front"];
+        };
+        /** @description What one broker measures now. */
+        Measured: {
+            /** @description Every ServiceAccount the broker's roles name, in name order. */
+            accounts: components["schemas"]["AccountSeen"][];
+            /** @description `false` when the broker did not answer; `reason` says why and no number is given. */
+            measured: boolean;
+            /**
+             * Format: double
+             * @description `messages.publish` of the two newest samples, per second; `null` with fewer than two.
+             */
+            messagesPerSecond?: number | null;
+            /** Format: date-time */
+            observedAt: string;
+            /**
+             * Format: int32
+             * @description Connected clients of the accounts whose roles may publish.
+             */
+            publishers?: number | null;
+            reason?: string | null;
         };
         /** @description What a person says to a run that is already going (AG-45). */
         MessageRequest: {
@@ -13808,6 +13859,49 @@ export interface operations {
             };
             /** @description The knowledge assistant is not reachable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_measured: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the broker measures, or why it is not measured */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Measured"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

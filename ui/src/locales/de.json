@@ -7300,6 +7300,14 @@
       "pipeline": "Pipelines",
       "brokerRef": "{broker} als Plattform-Broker einer MQTT-Datenquelle wählen."
     },
+    "measured": {
+      "title": "Gemessen",
+      "connected": "Jetzt verbunden",
+      "not": "Nicht gemessen",
+      "summary": "{publishers, plural, one {# Publisher verbunden} other {# Publisher verbunden}}, {rate} Nachrichten pro Sekunde",
+      "count": "{account}: {count}",
+      "since": "{account}: {count}, neueste seit {since}"
+    },
     "connections": {
       "title": "Verbindungen",
       "lead": "Wer mit wem spricht, vom Gerät bis zur Policy, die den Schreibzugriff schützt, und was jeden Schritt erlaubt.",
