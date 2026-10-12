@@ -37,7 +37,7 @@ const PERSON: Record<string, JcUser> = {
 /** How the stub endpoint refuses a request, as the gateway would. */
 type Refuse = NonNullable<Parameters<typeof stubClient>[0]>["refuse"];
 
-const SUMMARY = { byCategory: { traffic: 4, event: 1 }, bySubCategory: { ROAD_WORK: 3 }, oldestOpen: null };
+const SUMMARY = { byCategory: { traffic: 4, event: 1 }, bySubCategory: { roadWorks: 3 }, oldestOpen: null };
 
 function app(access: AccessDocument, user: JcUser, entities = ALERTS, summary: Record<string, unknown> | null = SUMMARY, refuse?: Refuse) {
   const client = stubClient(
@@ -95,15 +95,15 @@ describe("helsinki-alerts", () => {
   it("shows the summary's date and codes in words a person reads", async () => {
     app(VIEWER, PERSON.viewer, ALERTS, {
       byCategory: { traffic: 2 },
-      bySubCategory: { ROAD_WORK: 3, TRAFFIC_ANNOUNCEMENT: 1 },
+      bySubCategory: { roadWorks: 3, carAccident: 1 },
       oldestOpen: { id: "urn:ngsi-ld:Alert:hel.fi:helsinki:1", name: "Tie 40927, Espoo", dateIssued: "2025-06-11T07:53:43.647Z" },
     });
     const overview = await screen.findByRole("region", { name: "Overview" });
     expect(await within(overview).findByText("Oldest open alert: Tie 40927, Espoo, issued Jun 11, 2025")).toBeInTheDocument();
     expect(within(overview).getByRole("heading", { name: "By kind" })).toBeInTheDocument();
-    expect(within(overview).getByText("Road work: 3")).toBeInTheDocument();
-    expect(within(overview).getByText("Traffic announcement: 1")).toBeInTheDocument();
-    expect(within(overview).queryByText(/subCategory|ROAD_WORK|T07:53/)).not.toBeInTheDocument();
+    expect(within(overview).getByText("Road works: 3")).toBeInTheDocument();
+    expect(within(overview).getByText("Car accident: 1")).toBeInTheDocument();
+    expect(within(overview).queryByText(/subCategory|roadWorks|carAccident|T07:53/)).not.toBeInTheDocument();
   });
 
   // AP-07: category and subCategory filter the table (the model has no severity).
@@ -114,7 +114,7 @@ describe("helsinki-alerts", () => {
     const table = await within(page).findByRole("table");
     expect(await within(table).findByText("Accident on Itäväylä")).toBeInTheDocument();
 
-    fireEvent.change(within(page).getByRole("combobox", { name: "Subcategory" }), { target: { value: "TRAFFIC_ANNOUNCEMENT" } });
+    fireEvent.change(within(page).getByRole("combobox", { name: "Subcategory" }), { target: { value: "carAccident" } });
     await waitFor(() => expect(within(table).queryByText("Mannerheimintie resurfacing")).not.toBeInTheDocument());
     expect(within(table).getByText("Accident on Itäväylä")).toBeInTheDocument();
   });

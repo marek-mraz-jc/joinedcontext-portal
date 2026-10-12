@@ -29,7 +29,7 @@ describe("summary", () => {
     expect(res.body).toEqual({
       total: 5,
       byCategory: { traffic: 4, event: 1 },
-      bySubCategory: { ROAD_WORK: 3, TRAFFIC_ANNOUNCEMENT: 1, MARKET: 1 },
+      bySubCategory: { roadWorks: 3, carAccident: 1, MARKET: 1 },
       // GUID50002 ends at 12:00 today and is still open; GUID50004 ended on the 14th.
       oldestOpen: { id: "urn:ngsi-ld:Alert:hel.fi:helsinki:GUID50002", name: "Ring I lane closure", dateIssued: "2026-09-18T08:00:00Z" },
     });
