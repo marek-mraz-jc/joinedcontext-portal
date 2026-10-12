@@ -16,6 +16,7 @@ export const ACTIVITY_KINDS = [
   "endpoint.traffic",
   "access.denied",
   "access.simulated",
+  "access.explored",
   "mcp.tool",
   "agent.answer",
   "federation.forward",

@@ -16,7 +16,7 @@ use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use jc_core::kinds::{Verb, PERSON};
 use serde::{Deserialize, Serialize};
@@ -1050,6 +1050,41 @@ pub async fn sign_out_person(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/organization/people/{id}/consents/{client}",
+    summary = "Revoke A Consent",
+    description = "Revokes a person's consent to one client, the hub, an Endpoint's MCP client or an App, which also ends that client's offline sessions of theirs. No grant changes (API/01 §41, T-3792).",
+    tag = "people",
+    params(
+        ("id" = String, Path, description = "The Keycloak user id"),
+        ("client" = String, Path, description = "The client id the person consented to"),
+    ),
+    responses(
+        (status = 204, description = "Revoked"),
+        (status = 403, description = "The caller lacks disable on Person, or a right the person holds", body = ProblemDetails),
+        (status = 404, description = "No such person or consent", body = ProblemDetails),
+        (status = 503, description = "No Keycloak admin client", body = ProblemDetails),
+    )
+)]
+pub async fn revoke_consent(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((id, client)): Path<(String, String)>,
+) -> Result<StatusCode, ApiError> {
+    let identity = &user.0.identity;
+    let (admin, found) = target(&state, identity, Verb::Disable, &id).await?;
+    admin.revoke_consent(&found.id, &client).await?;
+    record(
+        &state,
+        identity,
+        &format!("revoked the {client} consent of"),
+        &found.id,
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// What a person's removal writes: every Group and RoleBinding naming them, without them.
 #[derive(Default)]
 struct Removal {
@@ -1365,6 +1400,10 @@ pub fn router() -> Router<AppState> {
             post(remove_second_factor),
         )
         .route("/organization/people/{id}/sign-out", post(sign_out_person))
+        .route(
+            "/organization/people/{id}/consents/{client}",
+            delete(revoke_consent),
+        )
 }
 
 #[cfg(test)]
