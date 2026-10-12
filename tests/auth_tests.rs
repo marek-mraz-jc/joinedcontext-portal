@@ -56,6 +56,10 @@ async fn app_with_realm(server: &MockServer) -> axum::Router {
 
 /// `edge` is what the deployment sets behind APISIX: `JC_TRUST_EDGE_TOKEN=true` (ADR-N-019).
 async fn app_behind(server: &MockServer, edge: bool) -> axum::Router {
+    server::app(state_behind(server, edge).await)
+}
+
+async fn state_behind(server: &MockServer, edge: bool) -> AppState {
     let mut config = Config::from_vars(|k| match k {
         "JC_OIDC_ISSUER" => Some(issuer_of(server)),
         "JC_OIDC_CLIENT_ID" => Some("joinedcontext-portal".to_string()),
@@ -66,8 +70,7 @@ async fn app_behind(server: &MockServer, edge: bool) -> axum::Router {
     })
     .expect("config");
     config.public_base_url = "https://portal.test".parse().expect("url");
-    let state = AppState::from_config(config).await.expect("discovery");
-    server::app(state)
+    AppState::from_config(config).await.expect("discovery")
 }
 
 /// The realm's two signing keys, generated once per test binary: ES256 for every client and
@@ -128,6 +131,17 @@ mod keys {
 
     /// An access token of `issuer` for the Portal, as Keycloak would mint it for `username`.
     pub fn token(algorithm: Algorithm, issuer: &str, username: &str, expires_in: i64) -> String {
+        token_of_client(algorithm, issuer, username, expires_in, None)
+    }
+
+    /// [`token`] obtained by the Keycloak client `azp`, the way every real login names one.
+    pub fn token_of_client(
+        algorithm: Algorithm,
+        issuer: &str,
+        username: &str,
+        expires_in: i64,
+        azp: Option<&str>,
+    ) -> String {
         let (kid, key) = match algorithm {
             Algorithm::ES256 => ("realm-es256", &realm().es256),
             Algorithm::RS256 => ("realm-rs256", &realm().rs256),
@@ -135,20 +149,19 @@ mod keys {
         };
         let mut header = Header::new(algorithm);
         header.kid = Some(kid.into());
-        encode(
-            &header,
-            &json!({
-                "iss": issuer,
-                "aud": "joinedcontext-portal",
-                "sub": format!("f:1:{username}"),
-                "preferred_username": username,
-                "exp": now() + expires_in,
-                "iat": now(),
-                "realm_access": { "roles": ["portal-viewer"] },
-            }),
-            key,
-        )
-        .expect("a signed token")
+        let mut claims = json!({
+            "iss": issuer,
+            "aud": "joinedcontext-portal",
+            "sub": format!("f:1:{username}"),
+            "preferred_username": username,
+            "exp": now() + expires_in,
+            "iat": now(),
+            "realm_access": { "roles": ["portal-viewer"] },
+        });
+        if let Some(azp) = azp {
+            claims["azp"] = json!(azp);
+        }
+        encode(&header, &claims, key).expect("a signed token")
     }
 
     /// The ID token the realm returns from the token endpoint after an authorization code, with
@@ -832,6 +845,50 @@ async fn the_edge_token_is_verified_like_a_bearer_when_the_deployment_trusts_the
         response.status(),
         StatusCode::UNAUTHORIZED,
         "the edge token authenticates every protected route, not only /me"
+    );
+}
+
+/// The edge's token is the person the APISIX plugin logged in: its `azp` is that login, not a
+/// workload, so a route that refuses workload tokens (the filter preview) serves the person. The
+/// same token as a bearer keeps its client.
+#[tokio::test]
+async fn an_edge_session_is_a_person_and_a_bearer_keeps_its_client() {
+    use axum::extract::FromRequestParts;
+    use joinedcontext_portal::auth::session::CurrentUser;
+
+    let realm = realm().await;
+    let state = state_behind(&realm, true).await;
+    let token = keys::token_of_client(
+        jsonwebtoken::Algorithm::RS256,
+        &issuer_of(&realm),
+        "demo.steward",
+        300,
+        Some("edge"),
+    );
+    let client_of = |name: &'static str, value: String| {
+        let state = state.clone();
+        async move {
+            let (mut parts, _) = Request::builder()
+                .uri("/api/v1/me")
+                .header(name, value)
+                .body(())
+                .unwrap()
+                .into_parts();
+            CurrentUser::from_request_parts(&mut parts, &state)
+                .await
+                .unwrap_or_else(|_| panic!("{name} authenticates"))
+                .0
+                .identity
+                .client
+        }
+    };
+
+    assert_eq!(client_of("x-access-token", token.clone()).await, None);
+    assert_eq!(
+        client_of("authorization", format!("Bearer {token}"))
+            .await
+            .as_deref(),
+        Some("edge")
     );
 }
 
