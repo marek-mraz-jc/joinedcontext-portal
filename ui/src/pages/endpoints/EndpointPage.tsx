@@ -22,6 +22,7 @@ import { RowActions } from "../../components/ui/RowActions";
 import type { RowAction } from "../../components/ui/RowActions";
 import { usePermissions } from "../../api/permissions";
 import {
+  CopyUrlButton,
   ENDPOINT_LINKS,
   EndpointLink,
   REPRESENTATION_PATHS,
@@ -35,7 +36,6 @@ import { spaceOf } from "../../components/endpoints/sharing";
 import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
 import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
-import { CopyUrlButton } from "../../routes/EndpointsPage";
 import { CatalogSection } from "./CatalogSection";
 import { FilterProof, classesWithSlots } from "./FilterProof";
 import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
@@ -1363,6 +1363,7 @@ interface EndpointSpec {
   allowedProjects?: string[];
   policyRef?: string;
   enabledRepresentations?: string[];
+  disabledRepresentations?: string[];
   rateLimits?: { requestsPerMinute?: number; burst?: number };
   fileLimits?: { maxFileRows?: number; maxFileBytes?: number };
   caching?: { maxAgeSeconds?: number };

@@ -26,11 +26,12 @@ describe("the App's language", () => {
   });
 
   it("names the known kinds and keeps an unknown code readable", () => {
-    expect(subCategory("fi", "ROAD_WORK")).toBe("Tietyö");
+    expect(subCategory("fi", "roadWorks")).toBe("Tietyö");
+    expect(subCategory("sv", "carAccident")).toBe("Olycka");
     expect(subCategory("en", "NEW_KIND")).toBe("NEW_KIND");
     expect(subCategory("en", "")).toBe("Other");
     expect(subCategory("sv", "")).toBe("Övrigt");
-    expect(subCategory("sv", "ROAD_WORK")).toBe("Vägarbete");
+    expect(subCategory("sv", "roadWorks")).toBe("Vägarbete");
     expect(t("sv", "unlocated", { n: "1" })).toBe("1 meddelande saknar plats och syns inte på kartan.");
     expect(t("en", "unlocated", { n: 3 })).toBe("3 alerts have no location and are not on the map.");
   });

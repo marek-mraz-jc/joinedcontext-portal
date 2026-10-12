@@ -4,7 +4,8 @@
  * `serviceCategory`) and the beach water-temperature sensors (`WaterQualityObserved`), all from the
  * public space `helsinki`. A value the entity does not carry stays `null` and is said as missing.
  */
-import type { RichCell, RichRow } from "@joinedcontext/sdk";
+import { format } from "@joinedcontext/sdk";
+import type { Cell, RichCell, RichRow } from "@joinedcontext/sdk";
 
 export const KINDS = ["library", "healthStation", "swimmingHall", "beach", "school", "water"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -46,6 +47,8 @@ function text(row: RichRow, attr: string): string | null {
   const value = first(row.cells[attr])?.value;
   if (typeof value === "string") return value.trim() === "" ? null : value.trim();
   if (typeof value === "number") return String(value);
+  // A PostalAddress (T-3949) as its one line.
+  if (value && typeof value === "object") return format(value as Cell) || null;
   return null;
 }
 

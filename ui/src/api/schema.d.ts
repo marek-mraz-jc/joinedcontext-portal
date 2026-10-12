@@ -17469,6 +17469,8 @@ export interface operations {
             query?: {
                 /** @description Refresh the cached index now instead of waiting for the daily run */
                 refresh?: boolean;
+                /** @description Comma-separated subjects, at most 8, whose model attribute names are filled first */
+                subject?: string;
             };
             header?: never;
             path?: never;

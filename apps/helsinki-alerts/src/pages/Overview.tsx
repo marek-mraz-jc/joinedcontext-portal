@@ -3,9 +3,9 @@ import { StatTiles } from "../components/StatTiles";
 import { ALERT } from "../alerts";
 import type { Summary } from "../../functions/summary";
 
-/** A code of the feed in words: `ROAD_WORK` reads "Road work", `traffic` reads "Traffic". */
+/** A code of the feed in words: `roadWorks` reads "Road works", `ROAD_WORK` "Road work", `traffic` "Traffic". */
 export function inWords(code: string): string {
-  const words = code.replace(/_/g, " ").trim().toLowerCase();
+  const words = code.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").trim().toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 

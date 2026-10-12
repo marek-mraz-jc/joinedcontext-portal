@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import {
+  ALL_REPRESENTATIONS,
   catalogueLinkOf,
   catalogueUrl,
   endpointUrl,
@@ -176,7 +177,12 @@ describe("what an endpoint serves", () => {
   it("adds_ngsi_ld_geojson_and_mcp_to_every_endpoint", () => {
     expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", "csv"] })).toEqual(["ngsi-ld", "csv", "geojson", "mcp"]);
     expect(servedRepresentations({ enabledRepresentations: ["mcp", "geojson", "ngsi-ld"] })).toEqual(["mcp", "geojson", "ngsi-ld"]);
-    expect(servedRepresentations({})).toEqual(["ngsi-ld", "geojson", "mcp"]);
+    // No list (EP-104): every standard but sta, less the disabled ones.
+    const everyButSta = ALL_REPRESENTATIONS.filter((rep) => rep !== "sta");
+    expect(servedRepresentations({})).toEqual(everyButSta);
+    expect(servedRepresentations({ disabledRepresentations: ["csv"] })).toEqual(
+      everyButSta.filter((rep) => rep !== "csv"),
+    );
   });
 
   it("leaves_mcp_out_only_when_the_manifest_says_mcp_false", () => {
@@ -187,7 +193,10 @@ describe("what an endpoint serves", () => {
 
   it("drops_a_list_entry_that_is_not_a_name", () => {
     expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", 7, null], mcp: false })).toEqual(["ngsi-ld", "geojson"]);
-    expect(servedRepresentations({ enabledRepresentations: "ngsi-ld" })).toEqual(["ngsi-ld", "geojson", "mcp"]);
+    // Not a list at all reads as no list: every standard but sta.
+    expect(servedRepresentations({ enabledRepresentations: "ngsi-ld" })).toEqual(
+      ALL_REPRESENTATIONS.filter((rep) => rep !== "sta"),
+    );
   });
 });
 
