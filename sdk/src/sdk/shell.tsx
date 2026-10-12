@@ -104,7 +104,8 @@ export function AppShell({
             </nav>
           )}
           {languages && languages.length > 1 && onLanguage && (
-            <label className="jc-language">
+            // `data-jc-sdk`: the language list is the SDK's to test in every language, not each App's (T-4113).
+            <label className="jc-language" data-jc-sdk="language">
               <span>{sdkWord(words, "language.label")}</span>
               <select value={language} onChange={(event) => onLanguage(event.target.value)}>
                 {languages.map((candidate) => (

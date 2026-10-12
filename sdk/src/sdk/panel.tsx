@@ -377,7 +377,8 @@ function PanelView({ entity, backing }: { entity: SelectedEntity; backing: Backi
         <h2 id={headingId} ref={heading} tabIndex={-1}>
           {title}
         </h2>
-        <button type="button" className="jc-panel-close" onClick={clear} aria-label={word("panel.close")}>
+        {/* `data-jc-sdk`: the close button is the SDK's to test in every language, not each App's (T-4113). */}
+        <button type="button" className="jc-panel-close" onClick={clear} aria-label={word("panel.close")} data-jc-sdk="panel">
           ×
         </button>
       </div>
