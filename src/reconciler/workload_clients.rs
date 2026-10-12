@@ -127,6 +127,9 @@ struct BoundAccount {
     name: String,
     reach: Reach,
     binding: KubernetesBinding,
+    /// A pipeline identity (the project's `pipelines` account or a Pipeline's own), whose
+    /// streams report their outcomes to the Portal's internal listener (T-4038).
+    reports: bool,
 }
 
 impl BoundAccount {
@@ -151,6 +154,8 @@ fn bound(mirror: &Mirror) -> Vec<BoundAccount> {
                     let binding = spec.workload.as_ref()?.kubernetes.clone();
                     Some(BoundAccount {
                         project: project.clone(),
+                        reports: envelope.metadata.name
+                            == crate::reconciler::streams::PIPELINE_ACCOUNT,
                         name: envelope.metadata.name,
                         reach: Reach::Roles(spec),
                         binding,
@@ -209,6 +214,7 @@ fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
                 name: derived.name,
                 reach: Reach::Roles(derived.account),
                 binding,
+                reports: true,
             });
         }
     }
@@ -238,6 +244,7 @@ fn app_job_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
             name: app_identity::account_name(&app.name),
             project: app.project,
             reach: Reach::Endpoint(slug),
+            reports: false,
             binding,
         })
     })
@@ -522,6 +529,11 @@ impl WorkloadClientSync {
                         &account.project,
                         &account.name,
                     ));
+                    // Its streams' outcome, rejected and samples sinks (T-4038); the listener
+                    // still admits it only for its own project's pipelines (T-3193).
+                    if account.reports {
+                        found.push(crate::auth::internal::INTERNAL_AUDIENCE.to_owned());
+                    }
                     found.sort();
                     found.dedup();
                     found

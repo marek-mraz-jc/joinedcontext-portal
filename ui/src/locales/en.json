@@ -93,7 +93,8 @@
     "knowledge": "Knowledge sources",
     "mcp": "MCP servers",
     "home": "Home",
-    "inbox": "Inbox"
+    "inbox": "Inbox",
+    "mqttbrokers": "MQTT brokers"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -596,6 +597,17 @@
         "stale": "Stale",
         "empty": "Empty",
         "untargeted": "No target"
+      },
+      "checks": {
+        "caption": "Checks on write by rule",
+        "unknown": "Checks on write unknown: the gateway's counters were not read yet.",
+        "noRules": "The space declares no quality rules.",
+        "passDay": "Passed, 24 h",
+        "passWeek": "Passed, 7 days",
+        "rejected": "Rejected, 7 days",
+        "quarantined": "Quarantined, 7 days",
+        "lastRejected": "Last rejected",
+        "since": "Counted from {day} (24 h) and from {week} (7 days)."
       }
     },
     "fields": {
@@ -968,6 +980,44 @@
       "removeOne": "Remove your comment of {when}",
       "unknown": "Not notified, because they may not read this space: {names}",
       "writeFirst": "Write a comment first."
+    },
+    "retention": {
+      "title": "Retention",
+      "lead": "How long this space keeps each type's data. A type without a rule is kept forever; a shorter rule deletes data for good.",
+      "noTypes": "The space's model names no types yet.",
+      "caption": "How long each type's data is kept",
+      "type": "Type",
+      "current": "Current values",
+      "history": "History",
+      "deleted": "Deleted so far",
+      "deletedUnknown": "Not known: the broker did not answer",
+      "forever": "Keep forever",
+      "amount": {
+        "minutes": "{count, plural, one {# minute} other {# minutes}}",
+        "hours": "{count, plural, one {# hour} other {# hours}}",
+        "days": "{count, plural, one {# day} other {# days}}"
+      },
+      "unit": {
+        "minutes": "minutes",
+        "hours": "hours",
+        "days": "days"
+      },
+      "amountOf": "{what} of {type}: how many",
+      "unitOf": "{what} of {type}: unit",
+      "removed": "{current} values, {history} history records",
+      "edit": "Change retention",
+      "save": "Propose",
+      "cancel": "Cancel",
+      "invalid": "Each duration is a whole number from one minute to 3650 days.",
+      "proposed": "Proposed as a change: it applies once it is approved.",
+      "confirmTitle": "Delete data of {space} for good?",
+      "confirmLead": "The shorter rules delete this much now, and the rest as it ages. Nothing brings it back.",
+      "confirm": "Propose and delete",
+      "nothingNow": "Nothing is old enough to go now; data goes as it ages past the new rules.",
+      "wouldDelete": {
+        "entity": "{type}: {count, plural, one {# current value} other {# current values}}",
+        "history": "{type}: {count, plural, one {# history record} other {# history records}}"
+      }
     },
     "upload": {
       "open": "Upload CSV",
@@ -1503,7 +1553,11 @@
       "secretKey": "Key in the secret",
       "input": "Input configuration",
       "typeHint": "How the platform reaches the source; the fields below follow it, and a saved source keeps its type.",
-      "typeFixed": "The type is fixed once the data source exists. Add a new data source for another type."
+      "typeFixed": "The type is fixed once the data source exists. Add a new data source for another type.",
+      "brokerRef": "Platform broker",
+      "brokerRefHelp": "An MQTT broker of this project. The pipeline reads it on the platform's internal listener, so it needs no URL and no credential. Leave it empty to read an external broker.",
+      "broker": "Broker",
+      "externalBroker": "External broker (URL and secret below)"
     },
     "probe": {
       "title": "One fetch of the feed",
@@ -1865,7 +1919,11 @@
       "lastError": "Last error at {at}: {message}. Fix the step, then retry the record from the pipeline's rejected records.",
       "queueShort": "{count} queued",
       "queue": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output",
-      "queueHigh": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output, more than {limit}: the output is not keeping up"
+      "queueHigh": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output, more than {limit}: the output is not keeping up",
+      "lastSamples": "Last messages through this step",
+      "lastSamplesNone": "Nothing has passed through this step yet.",
+      "lastSamplesUnavailable": "The last messages are not available.",
+      "lastSamplesWithheld": "Withheld: the target endpoint hides attributes, and before the mapping they carry the source's own names. Select the output to see what was written."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
@@ -7210,5 +7268,75 @@
     "when": "{at} · {lane} lane · {id}",
     "notWritten": "That change wrote no {kind} {name}, so there is no version of it to restore.",
     "loaded": "The version change {id} wrote is in the form. Check it and propose it to restore it; nothing is changed until it is approved."
+  },
+  "mqttbrokers": {
+    "field": {
+      "name": "Name",
+      "roles": "Roles",
+      "roleName": "Role",
+      "serviceAccounts": "Service accounts (devices)",
+      "publish": "May publish to",
+      "subscribe": "May subscribe to",
+      "limits": "Limits",
+      "maxMessageBytes": "Largest message (bytes)",
+      "messagesPerSecond": "Messages per second per device",
+      "maxConnections": "Connections at most",
+      "port": "Dedicated port"
+    },
+    "acl": {
+      "caption": "Topic access of {broker} by role",
+      "role": "Role",
+      "accounts": "Service accounts",
+      "publish": "Publish",
+      "subscribe": "Subscribe"
+    },
+    "connect": {
+      "address": "Address",
+      "copy": "Copy address",
+      "noAddress": "Shown when the Portal is opened at its own address (portal.<domain>).",
+      "client": "Client id and user name",
+      "password": "Password",
+      "token": "An access token of the device's own client, fetched with its key; never a stored password.",
+      "pipeline": "Pipelines",
+      "brokerRef": "Pick {broker} as the platform broker of an MQTT data source."
+    },
+    "measured": {
+      "title": "Measured",
+      "connected": "Connected now",
+      "not": "Not measured",
+      "summary": "{publishers, plural, one {# publisher connected} other {# publishers connected}}, {rate} messages per second",
+      "count": "{account}: {count}",
+      "since": "{account}: {count}, newest since {since}"
+    },
+    "connections": {
+      "title": "Connections",
+      "lead": "Who talks to whom, from a device to the Policy that guards the write, and what allows each step.",
+      "partial": "Kinds you may not read are left out.",
+      "edge": "Step",
+      "from": "From",
+      "to": "To",
+      "allowedBy": "Allowed by",
+      "state": "State",
+      "ok": "Allowed",
+      "fix": "Fix it",
+      "kind": {
+        "device": "Device publishes to broker",
+        "broker": "Broker feeds data source",
+        "pipeline": "Pipeline reads data source",
+        "endpoint": "Pipeline writes to Endpoint",
+        "policy": "Policy guards Endpoint"
+      },
+      "byRole": "role {role}, client {client}",
+      "byListener": "the internal listener, runner identity",
+      "byRunner": "the pipeline runner",
+      "byPipelineAccount": "the service account of {pipeline}",
+      "byPolicy": "the Endpoint's Policy",
+      "unknownAccount": "No service account {account} in this project",
+      "noBroker": "No broker {broker} in this project",
+      "brokerError": "Broker {broker} is in error; open it to read why",
+      "unread": "No pipeline reads it",
+      "noEndpoint": "No Endpoint {endpoint} in this project",
+      "noPolicy": "No Policy {policy} in this project"
+    }
   }
 }

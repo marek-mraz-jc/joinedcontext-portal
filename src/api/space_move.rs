@@ -1,5 +1,5 @@
 //! `POST|GET /api/v1/projects/{project}/spaces/{space}/move`: moving a space to another broker
-//! (API/01 §44, PF-115, ADR-N-047 §2.6), for organization administrators.
+//! (API/01 §45, PF-115, ADR-N-047 §2.6), for organization administrators.
 
 use std::sync::Arc;
 
@@ -28,7 +28,7 @@ pub struct MoveRequest {
     post,
     path = "/api/v1/projects/{project}/spaces/{space}/move",
     summary = "Move a Space to Another Broker",
-    description = "Holds the space read-only, copies it with its history to the broker `to`, compares both digests and switches its brokerRef (API/01 §44, PF-115). Organization administrators only.",
+    description = "Holds the space read-only, copies it with its history to the broker `to`, compares both digests and switches its brokerRef (API/01 §45, PF-115). Organization administrators only.",
     tag = "spaces",
     params(("project" = String, Path), ("space" = String, Path)),
     request_body(
@@ -130,7 +130,7 @@ pub async fn start_move(
     get,
     path = "/api/v1/projects/{project}/spaces/{space}/move",
     summary = "Read a Space's Move",
-    description = "The last move of the space since the Portal started (API/01 §44). Organization administrators only.",
+    description = "The last move of the space since the Portal started (API/01 §45). Organization administrators only.",
     tag = "spaces",
     params(("project" = String, Path), ("space" = String, Path)),
     responses(

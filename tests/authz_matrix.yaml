@@ -123,6 +123,9 @@ routes:
   - route: POST /internal/pipelines/{project}/{name}/outcomes
     rule: "workload:pipeline-runner"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/pipelines/{project}/{name}/samples
+    rule: "workload:pipeline-runner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: POST /internal/pipelines/{project}/{name}/rejected
     rule: "workload:pipeline-runner"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
@@ -330,12 +333,24 @@ routes:
   - route: GET /projects/{project}/spaces/{space}/move
     rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
-    note: "the last move of the space; an administrator who started none is answered 404 (API/01 §44)"
+    note: "the last move of the space; an administrator who started none is answered 404 (API/01 §45)"
   - route: POST /projects/{project}/spaces/{space}/move
     rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
     body: {"to": "canary"}
-    note: "the job commits to the repository as the Portal and holds the space for everyone (API/01 §44, PF-115)"
+    note: "the job commits to the repository as the Portal and holds the space for everyone (API/01 §45, PF-115)"
+  - route: GET /projects/{project}/spaces/{space}/quality/checks
+    rule: "space-read (DM-94)"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/spaces/{space}/retention/preview
+    rule: "space-read, then approve on ContextSpace in the space (DM-85)"
+    expect: [403, 403, allow, allow, allow, allow, 404, 403]
+    body: {"retention": [{"entityType": "Station", "history": "PT8H"}]}
+    note: "an owner's 503 is the fixture's: it has no broker"
+  - route: GET /projects/{project}/spaces/{space}/retention/deleted
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "a reader's 503 is the fixture's: it has no broker"
   - route: GET /projects/{project}/spaces/{space}/usage
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
@@ -660,7 +675,14 @@ routes:
     rule: "project-verb:propose:Pipeline"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
     body: {"pipeline": {"apiVersion": "joinedcontext.com/v1alpha1", "kind": "Pipeline", "metadata": {"name": "existing"}, "spec": {"class": "auto", "source": {"endpointRef": "existing"}, "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:existing"}}, "sample": {}}
+  - route: GET /projects/{project}/mqttbrokers/{name}/measured
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "what the broker measures, read by the Portal from the broker's own HTTP API; the browser never reaches a broker (API/01 §44, T-4043)"
   - route: GET /projects/{project}/pipelines/{name}/metrics
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/pipelines/{name}/samples
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/pipelines/{name}/stats

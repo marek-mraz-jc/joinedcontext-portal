@@ -132,7 +132,16 @@ async fn a_caller_without_read_on_the_pipeline_is_told_it_is_not_there() {
 /// A state whose pipeline writes through an Endpoint into a space with a compiled model, and a
 /// runner at `runner`; `jana` reads pipelines, `eeva` also proposes them.
 async fn retry_world(runner: &MockServer) -> AppState {
+    retry_world_as(runner, false).await
+}
+
+/// The same, with every stream on its own pipeline's identity (PL-19) when `pipeline_identity`.
+async fn retry_world_as(runner: &MockServer, pipeline_identity: bool) -> AppState {
     let mut config = Config::for_tests();
+    if pipeline_identity {
+        config.pipeline_identity = true;
+        config.pipeline_namespace = Some("dev-pipeline-identities".into());
+    }
     config.pipeline_runner_url = Some(format!("{}/{{project}}", runner.uri()));
     config.pipeline_test_capture_url = Some("http://portal-internal:9090".into());
     let state = AppState::new(config, None);
@@ -256,6 +265,43 @@ async fn a_retry_replays_the_unmasked_records_through_the_stage_and_keeps_the_ma
         text.contains("k7r2m4xq9vbn3tdw6hcy5pajfe"),
         "the pipeline's own write"
     );
+}
+
+/// T-4044: with pipeline identity the replay presents the pipeline's own token from the
+/// runner's token service, so the stream names no client secret for the runner's API to serve.
+#[tokio::test]
+async fn with_pipeline_identity_a_replay_names_no_client_secret() {
+    let runner = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path_regex(r"^/helsinki/streams/rejected-replay-[a-z0-9]+$"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&runner)
+        .await;
+    let state = retry_world_as(&runner, true).await;
+    let clean = ids(&state).await[0];
+
+    let answer = send(
+        &state,
+        person("eeva"),
+        "POST",
+        RETRY,
+        Some(json!({ "ids": [clean] })),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
+
+    let sent = runner.received_requests().await.expect("recorded");
+    let text = String::from_utf8_lossy(&sent[0].body).into_owned();
+    assert!(
+        !text.contains("client_secret") && !text.contains("JC_CLIENT_SECRET"),
+        "{text}"
+    );
+    assert!(
+        text.contains("\"helsinki/stations\""),
+        "the pipeline's own client: {text}"
+    );
+    assert!(text.contains("${JC_PIPELINE_TOKEN_URL}"), "{text}");
 }
 
 #[tokio::test]

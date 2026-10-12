@@ -1,4 +1,4 @@
-//! T-4000 (PF-115, API/01 §44): a space moves to another broker by one job. It holds the space
+//! T-4000 (PF-115, API/01 §45): a space moves to another broker by one job. It holds the space
 //! by an annotation, copies once the gateway holds it, compares both digests and switches
 //! `brokerRef`; a mismatch leaves the space where it was and purges the target.
 

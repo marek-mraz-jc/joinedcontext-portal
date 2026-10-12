@@ -16,6 +16,8 @@ export const NAV_SECTIONS = [
   { plural: "subscriptions", labelKey: "nav.subscriptions", icon: "inbox" },
   // A source is what a pipeline reads, so it sits in front of the pipelines (MF-35).
   { plural: "datasources", labelKey: "nav.datasources", icon: "datasources" },
+  // The project's MQTT brokers, which a data source reads and a device publishes to (MF-54, T-3839).
+  { plural: "mqttbrokers", labelKey: "nav.mqttbrokers", icon: "datasources" },
   { plural: "pipelines", labelKey: "nav.pipelines", icon: "pipelines" },
   { plural: "dashboards", labelKey: "nav.dashboards", icon: "dashboards" },
   { plural: "apps", labelKey: "nav.apps", icon: "apps" },

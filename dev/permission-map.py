@@ -49,7 +49,8 @@ def tables(output: str) -> list[list[list[str]]]:
             found.append(rows)
         elif rows is None or not line.strip() or re.match(r"\d+ rows", line):
             continue
-        elif line.startswith("hint:") or "output stops at" in line or "truncated" in line:
+        # cg's own words, never a substring a row may hold (T-4021)
+        elif line.startswith(("hint:", "... truncated at ")) or "output stops at" in line:
             sys.exit(f"cg: {line}")
         elif header:
             header = False

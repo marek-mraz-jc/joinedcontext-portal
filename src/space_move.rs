@@ -1,4 +1,4 @@
-//! Moving a space to another broker (API/01 §44, PF-115, ADR-N-047 §2.6).
+//! Moving a space to another broker (API/01 §45, PF-115, ADR-N-047 §2.6).
 //!
 //! One job per space: hold it read-only by the `moving-to` annotation, wait until the gateway's
 //! scrape says the hold is in force, stream the source broker's tenant export into the target's

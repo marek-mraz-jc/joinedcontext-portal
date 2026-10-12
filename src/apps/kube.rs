@@ -68,7 +68,7 @@ const CREATED_ONLY: (&str, &str, &str) = ("v1", "ConfigMap", "configmaps");
 /// What one MQTT edge broker's release is made of (ADR-N-048 §2.6, T-3994), reachable only through
 /// the `*_mqtt` methods: in the brokers' namespace, by a name that starts `mqtt-`, so a template
 /// that asked for anything else is refused before a request is made.
-const MQTT_KINDS: [(&str, &str, &str); 9] = [
+const MQTT_KINDS: [(&str, &str, &str); 10] = [
     ("v1", "ServiceAccount", "serviceaccounts"),
     ("v1", "ConfigMap", "configmaps"),
     ("v1", "Service", "services"),
@@ -76,6 +76,7 @@ const MQTT_KINDS: [(&str, &str, &str); 9] = [
     ("cert-manager.io/v1", "Certificate", "certificates"),
     ("traefik.io/v1alpha1", "IngressRouteTCP", "ingressroutetcps"),
     ("policy.linkerd.io/v1beta3", "Server", "servers"),
+    ("policy.linkerd.io/v1beta3", "HTTPRoute", "httproutes"),
     (
         "policy.linkerd.io/v1alpha1",
         "MeshTLSAuthentication",

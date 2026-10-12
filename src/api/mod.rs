@@ -38,6 +38,7 @@ pub mod import_git;
 pub mod internal;
 pub mod knowledge;
 pub mod live;
+pub mod mqtt_measured;
 pub mod mutate;
 pub mod ops;
 pub mod organization_limits;
@@ -54,6 +55,7 @@ pub mod restore;
 pub mod service_accounts;
 pub mod setup;
 pub mod space_move;
+pub mod space_retention;
 pub mod space_usage;
 pub mod sync;
 pub mod sync_sources;
@@ -112,6 +114,7 @@ pub fn router() -> Router<AppState> {
         .merge(projects::router())
         .merge(quality::router())
         .merge(space_usage::router())
+        .merge(space_retention::router())
         .merge(data_views::router())
         .merge(pipeline_templates::router())
         .merge(type_attributes::router())
@@ -127,6 +130,7 @@ pub fn router() -> Router<AppState> {
         .merge(organization_limits::router())
         .merge(brokers::router())
         .merge(space_move::router())
+        .merge(mqtt_measured::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
         .layer(axum::middleware::from_fn(auth::csrf::require_csrf));
