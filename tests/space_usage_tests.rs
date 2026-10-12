@@ -72,8 +72,12 @@ fn cookie(config: &Config, email: &str) -> String {
 const TOKEN: &str = "admin-token-of-the-broker-0123456789abcdef";
 
 /// The broker's admin token, mounted as the deployment mounts it.
+/// One file per call: tests run in parallel, and a shared file rewritten by one test reads empty
+/// to another mid-write (T-4072).
 fn token_file() -> std::path::PathBuf {
-    let file = std::env::temp_dir().join(format!("space-usage-token-{}", std::process::id()));
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let file = std::env::temp_dir().join(format!("space-usage-token-{}-{n}", std::process::id()));
     std::fs::write(&file, format!("{TOKEN}\n")).expect("write the token file");
     file
 }
