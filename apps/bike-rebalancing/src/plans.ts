@@ -14,6 +14,8 @@ export interface PlanSummary {
   stopCount: number;
   createdAt: string;
   drives: number;
+  /** The caller saved it; a steward also sees everyone else's. */
+  mine: boolean;
 }
 
 export interface DriveRecord {
@@ -36,6 +38,30 @@ export interface SavedPlan {
   moved: number;
   createdAt: string;
   drives: DriveRecord[];
+}
+
+/** The signed-in person as the App's server knows them, `null` when signed out. */
+export interface Me {
+  id: string;
+  name: string;
+  roles: string[];
+}
+
+/** The planner's shares of a station's places, one set for every plan. */
+export interface Levels {
+  low: number;
+  high: number;
+  target: number;
+}
+
+/** One change as the history keeps it. */
+export interface HistoryRow {
+  id: number;
+  at: string;
+  actorName: string;
+  action: "insert" | "update" | "delete" | "edit";
+  target: string;
+  summary: string;
 }
 
 export interface NewPlan {
@@ -95,6 +121,11 @@ export function plansApi(base: string) {
     remove: (id: number) => call<void>(base, "DELETE", `/plans/${id}`),
     drive: (id: number, stops: string[]) => call<DriveRecord>(base, "POST", `/plans/${id}/drives`, { stops }),
     sheetUrl: async (id: number) => (await call<{ url: string }>(base, "GET", `/plans/${id}/sheet`)).url,
+    handOver: (id: number, operator: string) => call<void>(base, "PUT", `/plans/${id}/operator`, { operator }),
+    me: () => call<Me | null>(base, "GET", "/me"),
+    levels: () => call<Levels>(base, "GET", "/levels"),
+    setLevels: (levels: Levels) => call<Levels>(base, "PUT", "/levels", levels),
+    history: () => call<HistoryRow[]>(base, "GET", "/history"),
   };
 }
 

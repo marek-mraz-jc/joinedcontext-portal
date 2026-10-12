@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { Card, Empty, Loading } from "@joinedcontext/sdk";
+import { useAccess } from "../access";
 import { localeOf, number, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
 import { go } from "../go";
@@ -32,7 +33,8 @@ interface Props {
 
 /**
  * The plans kept on the server, of one operator (a van or a crew): save the plan on screen, open
- * one again, download its route sheet, record that it was driven, delete it.
+ * one again, download its route sheet, record that it was driven, delete it. A viewer sees their
+ * own plans; a steward sees everyone's and hands a plan to another van or crew.
  */
 export function SavedPlans({ lang, api, current, onOpen }: Props) {
   const [operator, setOperator] = useParam("op");
@@ -40,7 +42,10 @@ export function SavedPlans({ lang, api, current, onOpen }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
+  const [handing, setHanding] = useState<{ id: number; to: string } | null>(null);
+  const { me, steward } = useAccess();
   const operatorId = useId();
+  const handId = useId();
 
   const load = useCallback(async () => {
     try {
@@ -108,6 +113,24 @@ export function SavedPlans({ lang, api, current, onOpen }: Props) {
       },
       "driveFailed",
     );
+  /** Shown at once; the list goes back as it was when the server refuses. */
+  const handOver = (id: number, to: string) =>
+    run(
+      `hand-${id}`,
+      async () => {
+        const before = plans;
+        setPlans((list) => list?.map((plan) => (plan.id === id ? { ...plan, operator: to.trim() } : plan)) ?? list);
+        try {
+          await api.handOver(id, to.trim());
+        } catch (error) {
+          setPlans(before);
+          throw error;
+        }
+        setHanding(null);
+        return t(lang, "handedOver", { op: to.trim() });
+      },
+      "handOverFailed",
+    );
   const remove = (id: number) =>
     run(
       `delete-${id}`,
@@ -121,6 +144,7 @@ export function SavedPlans({ lang, api, current, onOpen }: Props) {
     );
 
   const named = operator.trim().length > 0;
+  const signedOut = me === null;
   const when = (iso: string) => {
     const at = new Date(iso);
     return Number.isNaN(at.getTime()) ? iso : at.toLocaleString(localeOf(lang), { dateStyle: "medium", timeStyle: "short", timeZone: ZONE });
@@ -133,19 +157,25 @@ export function SavedPlans({ lang, api, current, onOpen }: Props) {
         aria-label={t(lang, "savedPlans")}
         onSubmit={(event) => {
           event.preventDefault();
-          if (named && busy === null) void save();
+          if (named && !signedOut && busy === null) void save();
         }}
       >
         <label htmlFor={operatorId}>
           <span>{t(lang, "operator")}</span>
         </label>
         <input id={operatorId} value={operator} maxLength={60} placeholder={t(lang, "operatorHint")} onChange={(event) => setOperator(event.target.value)} />
-        <button type="submit" className="jc-button" disabled={!named || busy !== null} aria-describedby={named ? undefined : `${operatorId}-why`}>
+        <button
+          type="submit"
+          className="jc-button"
+          disabled={!named || signedOut || busy !== null}
+          aria-describedby={named && !signedOut ? undefined : `${operatorId}-why`}
+          title={signedOut ? t(lang, "signInToSave") : undefined}
+        >
           {busy === "save" ? t(lang, "saving") : t(lang, "savePlan")}
         </button>
-        {!named && (
+        {(signedOut || !named) && (
           <span id={`${operatorId}-why`} className="app-updated">
-            {t(lang, "operatorFirst")}
+            {t(lang, signedOut ? "signInToSave" : "operatorFirst")}
           </span>
         )}
       </form>
@@ -157,12 +187,19 @@ export function SavedPlans({ lang, api, current, onOpen }: Props) {
       ) : plans.length === 0 ? (
         <Empty>{named ? t(lang, "noPlansOf", { op: operator.trim() }) : t(lang, "noPlans")}</Empty>
       ) : (
+        <>
+        {!steward && (
+          <p id={handId} className="app-updated">
+            {t(lang, "stewardHandsOver")}
+          </p>
+        )}
         <ul className="app-plans" aria-label={t(lang, "savedPlans")}>
           {plans.map((plan) => (
             <li key={plan.id} className="app-plan">
               <div>
                 <strong>
                   {plan.operator} · {when(plan.createdAt)}
+                  {!plan.mine && <span className="app-updated"> · {t(lang, "someoneElses")}</span>}
                 </strong>
                 <p>{t(lang, "planLine", { moved: number(plan.moved), km: number(plan.km, 1), stops: number(plan.stopCount), drives: number(plan.drives) })}</p>
               </div>
@@ -176,6 +213,39 @@ export function SavedPlans({ lang, api, current, onOpen }: Props) {
                 <button type="button" className="jc-button" disabled={busy !== null || plan.stopCount === 0} onClick={() => void driven(plan.id)} aria-label={`${t(lang, "markDriven")}: ${plan.operator}, ${when(plan.createdAt)}`}>
                   {t(lang, "markDriven")}
                 </button>
+                {handing?.id === plan.id ? (
+                  <form
+                    className="app-filters"
+                    aria-label={`${t(lang, "handOver")}: ${plan.operator}`}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (handing.to.trim()) void handOver(plan.id, handing.to);
+                    }}
+                  >
+                    <label>
+                      <span>{t(lang, "handOverTo")}</span>
+                      <input value={handing.to} maxLength={60} autoFocus onChange={(event) => setHanding({ id: plan.id, to: event.target.value })} />
+                    </label>
+                    <button type="submit" className="jc-button" disabled={busy !== null || !handing.to.trim()}>
+                      {t(lang, "handOverSave")}
+                    </button>
+                    <button type="button" className="jc-button" onClick={() => setHanding(null)}>
+                      {t(lang, "cancel")}
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="jc-button"
+                    disabled={busy !== null || !steward}
+                    title={steward ? undefined : t(lang, "stewardHandsOver")}
+                    aria-describedby={steward ? undefined : handId}
+                    onClick={() => setHanding({ id: plan.id, to: plan.operator })}
+                    aria-label={`${t(lang, "handOver")}: ${plan.operator}, ${when(plan.createdAt)}`}
+                  >
+                    {t(lang, "handOver")}
+                  </button>
+                )}
                 {confirming === plan.id ? (
                   <>
                     <button type="button" className="jc-button app-danger" disabled={busy !== null} onClick={() => void remove(plan.id)}>
@@ -194,6 +264,7 @@ export function SavedPlans({ lang, api, current, onOpen }: Props) {
             </li>
           ))}
         </ul>
+        </>
       )}
     </Card>
   );

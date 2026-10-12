@@ -28,6 +28,11 @@ const NO_PLANS: PlansApi = {
   remove: vi.fn(),
   drive: vi.fn(),
   sheetUrl: vi.fn(),
+  handOver: vi.fn(),
+  me: vi.fn(async () => null),
+  levels: vi.fn(),
+  setLevels: vi.fn(),
+  history: vi.fn(),
 };
 
 const READ = {

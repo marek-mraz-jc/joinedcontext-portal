@@ -1,42 +1,13 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AccessProvider } from "../access";
+import { memory, STEWARD, STOP } from "../fixtures/memory";
 import { ServerProblem } from "../plans";
-import type { NewPlan, PlanSummary, PlansApi, SavedPlan } from "../plans";
+import type { Me } from "../plans";
 import { problemText, SavedPlans } from "./SavedPlans";
 
 const went: string[] = [];
 vi.mock("../go", () => ({ go: (url: string) => went.push(url) }));
-
-const STOP = { id: "urn:ngsi-ld:BikeHireDockingStation:001", name: "Kamppi", at: [24.93, 60.17] as [number, number], action: "pick" as const, bikes: 5, load: 5, legKm: 0 };
-
-/** A server in memory, as the component sees the real one. */
-function memory(): PlansApi & { saved: SavedPlan[] } {
-  const saved: SavedPlan[] = [];
-  const summary = (p: SavedPlan): PlanSummary => ({ id: p.id, operator: p.operator, vanCapacity: p.vanCapacity, km: p.km, moved: p.moved, stopCount: p.stops.length, createdAt: p.createdAt, drives: p.drives.length });
-  return {
-    saved,
-    list: vi.fn(async (operator: string) => saved.filter((p) => !operator.trim() || p.operator === operator.trim()).map(summary)),
-    save: vi.fn(async (plan: NewPlan) => {
-      const made: SavedPlan = { ...plan, id: saved.length + 1, stops: [STOP], km: 1.5, moved: 5, createdAt: "2026-10-10T08:00:00Z", drives: [] };
-      saved.push(made);
-      return made;
-    }),
-    get: vi.fn(async (id: number) => {
-      const plan = saved.find((p) => p.id === id);
-      if (!plan) throw new ServerProblem(404, "no such plan");
-      return plan;
-    }),
-    remove: vi.fn(async (id: number) => {
-      saved.splice(saved.findIndex((p) => p.id === id), 1);
-    }),
-    drive: vi.fn(async (id: number, stops: string[]) => {
-      const record = { id: 1, stops, km: null, note: null, drivenAt: "2026-10-10T09:00:00Z" };
-      saved.find((p) => p.id === id)?.drives.push(record);
-      return record;
-    }),
-    sheetUrl: vi.fn(async () => "https://store.example/apps/s1/x/sheets/1.csv?X-Amz-Signature=x"),
-  };
-}
 
 const CURRENT = { vanCapacity: 12, start: null, include: ["a"], exclude: ["b"] };
 
@@ -122,10 +93,82 @@ describe("SavedPlans", () => {
   it("maps every refusal to words a person can act on", () => {
     expect(problemText("en", new ServerProblem(0, ""), "saveFailed")).toMatch(/could not be reached/);
     expect(problemText("en", new ServerProblem(401, ""), "saveFailed")).toMatch(/Sign in again/);
-    expect(problemText("en", new ServerProblem(403, ""), "saveFailed")).toMatch(/may not read/);
+    expect(problemText("en", new ServerProblem(403, ""), "saveFailed")).toMatch(/may not do this/);
     expect(problemText("en", new ServerProblem(404, ""), "openFailed")).toMatch(/no longer there/);
     expect(problemText("en", new ServerProblem(507, ""), "saveFailed")).toMatch(/storage is full/);
     expect(problemText("en", new ServerProblem(502, ""), "saveFailed")).toMatch(/did not answer/);
     expect(problemText("en", new Error("x"), "saveFailed")).toMatch(/did not answer/);
   });
+
+  it("hands a plan to another van at once for a steward, and says who now has it", async () => {
+    const api = memory(STEWARD);
+    await api.save({ ...CURRENT, operator: "Van 2" });
+    renderAs(STEWARD, api);
+    const row = (await screen.findByText(/^Van 2 ·/)).closest("li") as HTMLElement;
+    fireEvent.click(await within(row).findByRole("button", { name: /^Hand over:/ }));
+    const form = screen.getByRole("form", { name: "Hand over: Van 2" });
+    fireEvent.change(within(form).getByLabelText("New van or crew"), { target: { value: " Van 7 " } });
+    fireEvent.click(within(form).getByRole("button", { name: "Hand over" }));
+    expect(await screen.findByText(/^Van 7 ·/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("The plan is handed to Van 7."));
+    expect(api.handOver).toHaveBeenCalledWith(1, "Van 7");
+    expect(api.saved[0].operator).toBe("Van 7");
+  });
+
+  it("puts the van back and says why when the server refuses the hand-over", async () => {
+    const api = memory(STEWARD);
+    await api.save({ ...CURRENT, operator: "Van 2" });
+    api.handOver = vi.fn(async () => {
+      throw new ServerProblem(403, "this needs the role steward");
+    });
+    renderAs(STEWARD, api);
+    const row = (await screen.findByText(/^Van 2 ·/)).closest("li") as HTMLElement;
+    fireEvent.click(await within(row).findByRole("button", { name: /^Hand over:/ }));
+    fireEvent.change(screen.getByLabelText("New van or crew"), { target: { value: "Van 7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hand over" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Your account may not do this."));
+    expect(screen.getByText(/^Van 2 ·/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Van 7 ·/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("New van or crew")).toBeNull();
+  });
+
+  it("marks a plan someone else saved, which a steward sees beside their own", async () => {
+    const api = memory(STEWARD);
+    await api.save({ ...CURRENT, operator: "Van 2" });
+    api.saved[0].owner = "u-other";
+    renderAs(STEWARD, api);
+    expect(await screen.findByText(/saved by someone else/)).toBeInTheDocument();
+  });
+
+  it("closes the hand-over to a viewer and says who may", async () => {
+    const api = memory();
+    await api.save({ ...CURRENT, operator: "Van 2" });
+    renderAs({ id: "u-viewer", name: "V", roles: ["viewer"] }, api);
+    const row = (await screen.findByText(/^Van 2 ·/)).closest("li") as HTMLElement;
+    const hand = within(row).getByRole("button", { name: /^Hand over:/ });
+    expect(hand).toBeDisabled();
+    expect(hand).toHaveAttribute("title", "Only a steward hands a plan to another van or crew.");
+    expect(hand).toHaveAccessibleDescription("Only a steward hands a plan to another van or crew.");
+  });
+
+  it("offers no save to a reader who is signed out, and says why", async () => {
+    const api = memory(null);
+    renderAs(null, api);
+    fireEvent.change(await screen.findByLabelText("Van or crew"), { target: { value: "Van 2" } });
+    const save = screen.getByRole("button", { name: "Save this plan" });
+    await waitFor(() => expect(save).toHaveAccessibleDescription("Sign in to save plans."));
+    expect(save).toBeDisabled();
+    fireEvent.submit(save.closest("form") as HTMLFormElement);
+    expect(api.save).not.toHaveBeenCalled();
+  });
 });
+
+function renderAs(me: Me | null, api: ReturnType<typeof memory>) {
+  api.me = vi.fn(async () => me);
+  render(
+    <AccessProvider api={api}>
+      <SavedPlans lang="en" api={api} current={CURRENT} onOpen={vi.fn()} />
+    </AccessProvider>,
+  );
+}

@@ -39,10 +39,10 @@ spec:
   roles:
     - name: viewer
       title: { en: "Viewer", fi: "Katselija" }
-      description: "Reads the stations, plans the van's route, saves plans and records drives."
+      description: "Reads the stations and the levels, plans the van's route, saves plans of their own, records drives on them and reads their own history."
     - name: steward
       title: { en: "Steward", fi: "Ylläpitäjä" }
-      description: "What a viewer does: the server sees no role, so it gives a steward nothing more; the city's data is only read."
+      description: "What a viewer does, on every plan: hands a plan to another van or crew, deletes any plan, sets the planner's levels for everyone and reads the whole history. The city's data is only read."
   access:
     - role: viewer
       subjects: [{ group: bike-rebalancing-viewer }]
