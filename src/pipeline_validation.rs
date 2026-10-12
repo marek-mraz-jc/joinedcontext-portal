@@ -26,7 +26,12 @@ use std::sync::{Arc, RwLock};
 
 /// The labels the stage's processors carry: their error counter is the pipeline's rejected
 /// count, not its errors (PL-61).
-pub const STAGE_LABELS: [&str; 3] = ["validation", "validation_id", "rejected"];
+pub const STAGE_LABELS: [&str; 4] = [
+    "validation",
+    "validation_id",
+    "validation_quality",
+    "rejected",
+];
 
 /// The compiled model of every space that names one, by `(project, space)`: what the reconciler
 /// renders the stage from and what the rejected route names a record's rule by. Replaced whole on
@@ -108,17 +113,16 @@ pub fn load(
             .as_deref()
             .and_then(|relative| beside(root, &manifest, relative))
             .unwrap_or(Value::Null);
-        compiled.insert(
-            (project, id.name.clone()),
-            Arc::new(ModelSchema::compile_for_space(
-                named.name(),
-                spec.version.as_str(),
-                &json_schema,
-                &spec.classes,
-                spec.open_world,
-                space.missing_unit_code,
-            )),
+        let mut schema = ModelSchema::compile_for_space(
+            named.name(),
+            spec.version.as_str(),
+            &json_schema,
+            &spec.classes,
+            spec.open_world,
+            space.missing_unit_code,
         );
+        schema.quality = space.quality;
+        compiled.insert((project, id.name.clone()), Arc::new(schema));
     }
     compiled
 }
@@ -189,7 +193,12 @@ pub fn insert_stage(stream: &mut Value, schema: &ModelSchema, sink_url: &str) ->
     };
     let mut checks = stage(schema);
     checks.push(rejected_sink(sink_url));
-    for (processor, label) in checks.iter_mut().zip(STAGE_LABELS) {
+    // The quality mapping is there only when a rule rejects on write (DM-88).
+    let whole = checks.len() == STAGE_LABELS.len();
+    let labels = STAGE_LABELS
+        .iter()
+        .filter(|label| whole || **label != "validation_quality");
+    for (processor, label) in checks.iter_mut().zip(labels) {
         if let Some(fields) = processor.as_object_mut() {
             fields.insert("label".into(), json!(label));
         }
@@ -218,7 +227,7 @@ pub fn stage(schema: &ModelSchema) -> Vec<Value> {
             schema.model
         )}]
     }));
-    vec![
+    let mut stage = vec![
         json!({ "switch": cases }),
         json!({ "mapping": concat!(
             "root = this\n",
@@ -227,7 +236,67 @@ pub fn stage(schema: &ModelSchema) -> Vec<Value> {
             "  root = throw(\"the id is not an NGSI-LD URN of its type, urn:ngsi-ld:{type}:{id} (PF-43)\")\n",
             "}"
         )}),
-    ]
+    ];
+    stage.extend(quality_mapping(schema));
+    stage
+}
+
+/// The stage's mapping for the space's rejecting rules (DM-88): it fails a record that
+/// breaks one, with the rule's name, so the rejected sink lists it. `None` when no rule
+/// rejects on write. `ModelSchema::check` stays the verdict the rejected route records.
+fn quality_mapping(schema: &ModelSchema) -> Option<Value> {
+    use jc_core::kinds::{duration_seconds, QualityKind, QualityOutcome};
+    let tests: Vec<String> = schema
+        .quality
+        .iter()
+        .filter(|rule| rule.write_outcome() == QualityOutcome::Reject)
+        .filter_map(|rule| {
+            let instance = format!("this.get({}).or(null)", bloblang_string(&rule.attribute));
+            let value = format!(
+                "{instance}.(a -> if a.type() == \"object\" {{ a.value.or(null) }} else {{ a }})"
+            );
+            let broken = match rule.kind {
+                QualityKind::Range => {
+                    let mut out = Vec::new();
+                    if let Some(min) = &rule.min {
+                        out.push(format!("$v < {min}"));
+                    }
+                    if let Some(max) = &rule.max {
+                        out.push(format!("$v > {max}"));
+                    }
+                    format!(
+                        "let v = {value}\nlet broken = $v.type() == \"number\" && ({})",
+                        out.join(" || ")
+                    )
+                }
+                QualityKind::Area => {
+                    let [w, s, e, n] = rule.bbox.as_ref()?;
+                    format!(
+                        "let g = {value}\n\
+                         let c = $g.coordinates.or([])\n\
+                         let points = match $g.type.or(\"\") {{\n  \"Point\" => [$c]\n  \"MultiPoint\" => $c\n  \"LineString\" => $c\n  \"MultiLineString\" => $c.flatten()\n  \"Polygon\" => $c.flatten()\n  \"MultiPolygon\" => $c.flatten().flatten()\n  _ => []\n}}\n\
+                         let broken = $points.any(p -> p.index(0).number().catch(0) < {w} || p.index(0).number().catch(0) > {e} || p.index(1).number().catch(0) < {s} || p.index(1).number().catch(0) > {n})"
+                    )
+                }
+                QualityKind::Freshness => {
+                    let ahead = duration_seconds(rule.max_ahead.as_deref()?)?;
+                    format!(
+                        "let at = {instance}.(a -> if a.type() == \"object\" {{ a.observedAt.or(null) }} else {{ null }})\n\
+                         let broken = $at.type() == \"string\" && $at.ts_unix().catch(0) > now().ts_unix() + {ahead}"
+                    )
+                }
+            };
+            Some(format!(
+                "if this.type == {} {{\n{broken}\nif $broken {{ root = throw({}) }}\n}}",
+                bloblang_string(&rule.entity_type),
+                bloblang_string(&format!(
+                    "{} breaks the space's quality rule {} (DM-88)",
+                    rule.attribute, rule.name
+                ))
+            ))
+        })
+        .collect();
+    (!tests.is_empty()).then(|| json!({ "mapping": format!("root = this\n{}", tests.join("\n")) }))
 }
 
 /// What catches a record the stage refused (PL-61): it is posted once, with the reason, to the
@@ -606,5 +675,53 @@ mod tests {
         assert_eq!(steps[1]["http"]["oauth2"]["client_key"], "${JC_CLIENT_ID}");
         assert_eq!(steps[1]["http"]["retries"], 0);
         assert_eq!(steps[2]["mapping"], "root = deleted()");
+    }
+
+    fn ruled() -> ModelSchema {
+        let mut ruled = model(false);
+        ruled.quality = serde_json::from_value(json!([
+            {"name": "pm10-plausible", "entityType": "AirQualityObserved", "kind": "range", "attribute": "pm10", "max": 500},
+            {"name": "pm10-positive", "entityType": "AirQualityObserved", "kind": "range", "attribute": "pm10", "min": 0, "outcome": "reject"},
+            {"name": "in-region", "entityType": "AirQualityObserved", "kind": "area", "attribute": "location", "bbox": [16.8, 47.7, 22.6, 49.7], "outcome": "reject"},
+            {"name": "not-ahead", "entityType": "AirQualityObserved", "kind": "freshness", "attribute": "pm10", "maxAhead": "PT30S"}
+        ]))
+        .expect("rules");
+        ruled
+    }
+
+    /// DM-88: the stage carries one mapping for the rejecting rules, labelled so its failures
+    /// count as rejected; a space without one keeps the stage it had.
+    #[test]
+    fn the_stage_fails_a_record_a_rule_rejects_and_counts_it_rejected() {
+        let mut stream = json!({ "pipeline": { "processors": [{ "split": { "size": 1000 } }] } });
+        assert!(insert_stage(&mut stream, &ruled(), "http://p/x"));
+        let processors = stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        let labels: Vec<&str> = processors
+            .iter()
+            .filter_map(|p| p["label"].as_str())
+            .collect();
+        assert_eq!(labels, STAGE_LABELS);
+        let mapping = processors[2]["mapping"]
+            .as_str()
+            .expect("the quality mapping");
+        assert!(
+            mapping.contains("pm10-positive")
+                && mapping.contains("in-region")
+                && mapping.contains("not-ahead")
+        );
+        assert!(
+            !mapping.contains("pm10-plausible"),
+            "a flag is the gateway's: {mapping}"
+        );
+        if let Ok(out) = std::env::var("JC_QUALITY_MAPPING_OUT") {
+            std::fs::write(out, mapping).expect("write the mapping");
+        }
+        assert_eq!(
+            stage(&model(false)).len(),
+            2,
+            "no rejecting rule, no mapping"
+        );
     }
 }

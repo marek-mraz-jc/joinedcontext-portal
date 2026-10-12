@@ -464,6 +464,77 @@ function secretRef(t: (key: string) => string, title: string, secrets: string[])
   };
 }
 
+/** An `MqttBroker` of the project, as the DataSource form offers it (MF-54, PL-76). */
+export interface BrokerOption {
+  name: string;
+  /** `status.phase`, absent before the reconciler has seen it. */
+  phase?: string;
+  /** Every topic filter its roles let a device publish to. */
+  publish: string[];
+}
+
+/** The brokers of a project's `MqttBroker` list, by name. */
+export function brokerOptions(items: Array<{ metadata: { name: string }; spec?: unknown; status?: unknown }>): BrokerOption[] {
+  return items
+    .map((item) => {
+      const spec = (item.spec ?? {}) as { roles?: Array<{ publish?: unknown }> };
+      const status = (item.status ?? {}) as { phase?: unknown };
+      const publish = (spec.roles ?? []).flatMap((role) =>
+        Array.isArray(role.publish) ? role.publish.filter((f): f is string => typeof f === "string") : [],
+      );
+      return {
+        name: item.metadata.name,
+        ...(typeof status.phase === "string" ? { phase: status.phase } : {}),
+        publish: [...new Set(publish)],
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function publishFilters(brokers: BrokerOption[]): string[] {
+  return [...new Set(brokers.flatMap((broker) => broker.publish))];
+}
+
+/**
+ * A broker of the platform, picked by name with its state beside it; the empty choice keeps an
+ * external broker with its URLs and its secretRef. The runner reads a picked broker with no
+ * credential (PL-76), so nothing about one is typed.
+ */
+function brokerRefSchema(t: (key: string) => string, brokers: BrokerOption[]): JsonSchema {
+  return {
+    type: "object",
+    title: t("datasources.field.brokerRef"),
+    description: t("datasources.field.brokerRefHelp"),
+    properties: {
+      name: {
+        type: "string",
+        title: t("datasources.field.broker"),
+        oneOf: [
+          { const: "", title: t("datasources.field.externalBroker") },
+          ...brokers.map((broker) => ({
+            const: broker.name,
+            title: `${broker.name} · ${t(`phase.${phaseLabel(broker.phase)}`)}`,
+          })),
+        ],
+        default: "",
+      },
+    },
+  };
+}
+
+/** The `phase.` label of a broker's state; one the reconciler has not reported is not deployed. */
+function phaseLabel(phase?: string): string {
+  switch (phase?.toLowerCase()) {
+    case "live":
+    case "applied":
+      return "live";
+    case "error":
+      return "error";
+    default:
+      return "notDeployed";
+  }
+}
+
 /**
  * The form of one connection type (MF-35, UI-04).
  *
@@ -475,6 +546,7 @@ export function dataSourceSchema(
   t: (key: string) => string,
   type: TypedDataSourceType,
   secrets: string[] = [],
+  brokers: BrokerOption[] = [],
 ): JsonSchema {
   const name: JsonSchema = {
     type: "string",
@@ -495,8 +567,11 @@ export function dataSourceSchema(
     mqtt: {
       type: "object",
       title: t("datasources.type.mqtt"),
-      required: ["urls", "topics"],
+      // A broker of the platform takes the place of the URLs (PL-76): with one to pick, the URLs
+      // are needed only for an external broker, which the API checks.
+      required: brokers.length > 0 ? ["topics"] : ["urls", "topics"],
       properties: {
+        ...(brokers.length > 0 ? { brokerRef: brokerRefSchema(t, brokers) } : {}),
         urls: {
           type: "array",
           title: t("datasources.field.urls"),
@@ -507,7 +582,12 @@ export function dataSourceSchema(
           type: "array",
           title: t("datasources.field.topics"),
           minItems: 1,
-          items: { type: "string", minLength: 1 },
+          items: {
+            type: "string",
+            minLength: 1,
+            // What the brokers' roles let a device publish is what a pipeline can read there.
+            ...(publishFilters(brokers).length > 0 ? { examples: publishFilters(brokers) } : {}),
+          },
         },
         // Three levels, each named for what it guarantees, never a number a newcomer has to look up.
         qos: {

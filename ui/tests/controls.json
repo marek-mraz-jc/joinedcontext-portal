@@ -1002,6 +1002,7 @@
       },
       "tests": [
         "datasources_view.test.tsx",
+        "mqtt_broker_picker.test.tsx",
         "page_data_sources_page.test.tsx",
         "raw_values_on_pages.test.tsx",
         "runner_input_schema.test.ts"
@@ -1602,6 +1603,14 @@
       "tests": [
         "part_space_inside.test.tsx",
         "space_inside.test.tsx"
+      ]
+    },
+    "src/pages/spaces/SpaceRetention.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "space_retention_panel.test.tsx"
       ]
     },
     "src/pages/spaces/TypeApi.tsx": {

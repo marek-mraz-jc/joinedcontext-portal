@@ -93,7 +93,8 @@
     "knowledge": "Zdroje znalostí",
     "mcp": "MCP servery",
     "home": "Domov",
-    "inbox": "Doručené"
+    "inbox": "Doručené",
+    "mqttbrokers": "MQTT brokery"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -596,6 +597,17 @@
         "stale": "Neaktuálne",
         "empty": "Prázdne",
         "untargeted": "Bez cieľa"
+      },
+      "checks": {
+        "caption": "Kontroly pri zápise podľa pravidla",
+        "unknown": "Kontroly pri zápise nie sú známe: počítadlá brány ešte neboli prečítané.",
+        "noRules": "Priestor nedeklaruje žiadne pravidlá kvality.",
+        "passDay": "Prešlo, 24 h",
+        "passWeek": "Prešlo, 7 dní",
+        "rejected": "Odmietnuté, 7 dní",
+        "quarantined": "V karanténe, 7 dní",
+        "lastRejected": "Naposledy odmietnuté",
+        "since": "Počítané od {day} (24 h) a od {week} (7 dní)."
       }
     },
     "fields": {
@@ -968,6 +980,44 @@
       "removeOne": "Odstrániť váš komentár z {when}",
       "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}",
       "writeFirst": "Najprv napíšte komentár."
+    },
+    "retention": {
+      "title": "Uchovávanie",
+      "lead": "Ako dlho tento priestor uchováva údaje každého typu. Typ bez pravidla sa uchováva navždy; kratšie pravidlo údaje natrvalo vymaže.",
+      "noTypes": "Model priestoru zatiaľ nemenuje žiadne typy.",
+      "caption": "Ako dlho sa uchovávajú údaje každého typu",
+      "type": "Typ",
+      "current": "Aktuálne hodnoty",
+      "history": "História",
+      "deleted": "Doteraz vymazané",
+      "deletedUnknown": "Neznáme: broker neodpovedal",
+      "forever": "Uchovávať navždy",
+      "amount": {
+        "minutes": "{count, plural, one {# minúta} few {# minúty} other {# minút}}",
+        "hours": "{count, plural, one {# hodina} few {# hodiny} other {# hodín}}",
+        "days": "{count, plural, one {# deň} few {# dni} other {# dní}}"
+      },
+      "unit": {
+        "minutes": "minúty",
+        "hours": "hodiny",
+        "days": "dni"
+      },
+      "amountOf": "{what} pre {type}: koľko",
+      "unitOf": "{what} pre {type}: jednotka",
+      "removed": "{current} hodnôt, {history} záznamov histórie",
+      "edit": "Zmeniť uchovávanie",
+      "save": "Navrhnúť",
+      "cancel": "Zrušiť",
+      "invalid": "Každé trvanie je celé číslo od jednej minúty do 3650 dní.",
+      "proposed": "Navrhnuté ako zmena: platí po schválení.",
+      "confirmTitle": "Natrvalo vymazať údaje priestoru {space}?",
+      "confirmLead": "Kratšie pravidlá teraz vymažú toľkoto a zvyšok, keď zostarne. Nič ich nevráti.",
+      "confirm": "Navrhnúť a vymazať",
+      "nothingNow": "Teraz nie je nič dosť staré; údaje odídu, keď prekročia nové pravidlá.",
+      "wouldDelete": {
+        "entity": "{type}: {count, plural, one {# aktuálna hodnota} few {# aktuálne hodnoty} other {# aktuálnych hodnôt}}",
+        "history": "{type}: {count, plural, one {# záznam histórie} few {# záznamy histórie} other {# záznamov histórie}}"
+      }
     },
     "upload": {
       "open": "Nahrať CSV",
@@ -1484,7 +1534,11 @@
       "secretKey": "Kľúč v tajomstve",
       "input": "Konfigurácia vstupu",
       "typeHint": "Ako sa platforma k zdroju dostane; polia nižšie sa podľa toho menia a uložený zdroj si typ ponechá.",
-      "typeFixed": "Typ je pevný, keď zdroj údajov existuje. Pre iný typ pridajte nový zdroj údajov."
+      "typeFixed": "Typ je pevný, keď zdroj údajov existuje. Pre iný typ pridajte nový zdroj údajov.",
+      "brokerRef": "Broker platformy",
+      "brokerRefHelp": "MQTT broker tohto projektu. Pipeline ho číta cez interný listener platformy, takže nepotrebuje URL ani prihlasovacie údaje. Nechajte prázdne pre externý broker.",
+      "broker": "Broker",
+      "externalBroker": "Externý broker (URL a secret nižšie)"
     },
     "probe": {
       "title": "Jedno stiahnutie feedu",
@@ -7214,5 +7268,67 @@
     "when": "{at} · pruh {lane} · {id}",
     "notWritten": "Táto zmena nezapísala {kind} {name}, takže nie je čo obnoviť.",
     "loaded": "Verzia, ktorú zapísala zmena {id}, je vo formulári. Skontrolujte ju a navrhnite, aby ste ju obnovili; kým nie je schválená, nič sa nemení."
+  },
+  "mqttbrokers": {
+    "field": {
+      "name": "Názov",
+      "roles": "Roly",
+      "roleName": "Rola",
+      "serviceAccounts": "Servisné účty (zariadenia)",
+      "publish": "Smie publikovať do",
+      "subscribe": "Smie odoberať",
+      "limits": "Limity",
+      "maxMessageBytes": "Najväčšia správa (bajty)",
+      "messagesPerSecond": "Správ za sekundu na zariadenie",
+      "maxConnections": "Najviac spojení",
+      "port": "Vlastný port"
+    },
+    "acl": {
+      "caption": "Prístup k témam brokera {broker} podľa roly",
+      "role": "Rola",
+      "accounts": "Servisné účty",
+      "publish": "Publikovať",
+      "subscribe": "Odoberať"
+    },
+    "connect": {
+      "address": "Adresa",
+      "copy": "Kopírovať adresu",
+      "noAddress": "Zobrazí sa, keď je Portál otvorený na vlastnej adrese (portal.<doména>).",
+      "client": "ID klienta a používateľské meno",
+      "password": "Heslo",
+      "token": "Prístupový token vlastného klienta zariadenia, získaný jeho kľúčom; nikdy uložené heslo.",
+      "pipeline": "Pipeline",
+      "brokerRef": "Vyberte {broker} ako broker platformy MQTT zdroja údajov."
+    },
+    "connections": {
+      "title": "Spojenia",
+      "lead": "Kto s kým hovorí, od zariadenia po Policy, ktorá chráni zápis, a čo každý krok povoľuje.",
+      "partial": "Druhy, ktoré nesmiete čítať, sú vynechané.",
+      "edge": "Krok",
+      "from": "Od",
+      "to": "Do",
+      "allowedBy": "Povolené",
+      "state": "Stav",
+      "ok": "Povolené",
+      "fix": "Opraviť",
+      "kind": {
+        "device": "Zariadenie publikuje do brokera",
+        "broker": "Broker plní zdroj údajov",
+        "pipeline": "Pipeline číta zdroj údajov",
+        "endpoint": "Pipeline zapisuje do Endpointu",
+        "policy": "Policy chráni Endpoint"
+      },
+      "byRole": "rola {role}, klient {client}",
+      "byListener": "interný listener, identita runnera",
+      "byRunner": "runner pipeline",
+      "byPipelineAccount": "servisný účet pipeline {pipeline}",
+      "byPolicy": "Policy Endpointu",
+      "unknownAccount": "V projekte nie je servisný účet {account}",
+      "noBroker": "V projekte nie je broker {broker}",
+      "brokerError": "Broker {broker} je v chybe; otvorte ho a prečítajte si prečo",
+      "unread": "Žiadna pipeline ho nečíta",
+      "noEndpoint": "V projekte nie je Endpoint {endpoint}",
+      "noPolicy": "V projekte nie je Policy {policy}"
+    }
   }
 }

@@ -52,6 +52,8 @@ import { fromScopeDefinitionManifest, scopeDefinitionSchema, toScopeDefinitionMa
 import type { ScopeDefinitionForm } from "../schemas/scopedefinition";
 import type { DataAgreementForm } from "../schemas/dataagreement";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
+import { fromMqttBrokerManifest, mqttBrokerSchema, toMqttBrokerManifest } from "../schemas/mqttbroker";
+import type { MqttBrokerForm } from "../schemas/mqttbroker";
 import {
   Button,
   EmptyState,
@@ -75,6 +77,7 @@ const RegistrationsPage = lazy(() => import("./RegistrationsPage").then((module)
 const DataSourcesPage = lazy(() => import("../pages/datasources/DataSourcesPage").then((module) => ({ default: module.DataSourcesPage })));
 const FlowGallery = lazy(() => import("../pages/flows/Gallery").then((module) => ({ default: module.FlowGallery })));
 const AppsCatalog = lazy(() => import("../pages/apps/AppsCatalog").then((module) => ({ default: module.AppsCatalog })));
+const MqttBrokersPage = lazy(() => import("../pages/mqttbrokers/MqttBrokersPage").then((module) => ({ default: module.MqttBrokersPage })));
 const SyncSourcesPage = lazy(() => import("../pages/sync/SyncSourcesPage").then((module) => ({ default: module.SyncSourcesPage })));
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../schemas/knowledge";
 
@@ -89,6 +92,8 @@ const VIEWS: Record<string, ComponentType<{ project: string; edit?: string }>> =
   // A ContextSourceRegistration too: which space's broker answers with whose data (T-2345, MF-36).
   csrs: RegistrationsPage,
   datasources: DataSourcesPage,
+  // The list with the kind's form, then each broker's topic access and who talks to whom (T-3839).
+  mqttbrokers: MqttBrokersPage,
   dashboards: DashboardsPage,
   // "flows" is a section too: the gallery reads organization-level Blueprints, not a project
   // collection, and the wizard writes through /flows rather than a resource route (CC-30).
@@ -106,6 +111,11 @@ const VIEWS: Record<string, ComponentType<{ project: string; edit?: string }>> =
  * read, so it keeps what it does not show (T-2354). A kind not listed here opens as YAML.
  */
 const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) => EditableForm> = {
+  mqttbrokers: (t, project) => ({
+    schema: mqttBrokerSchema(t),
+    fromManifest: (manifest) => fromMqttBrokerManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toMqttBrokerManifest(project, form as MqttBrokerForm, stored),
+  }),
   mappings: (t) => ({
     schema: mappingSchema(t),
     uiSchema: mappingUiSchema,
@@ -181,6 +191,7 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
  * tests; a DataModel in the LinkML editor. Neither is offered here.
  */
 const CREATE_KINDS: Record<string, string> = {
+  mqttbrokers: "MqttBroker",
   dataagreements: "DataAgreement",
   dataoffers: "DataOffer",
   projections: "ModelProjection",

@@ -11879,6 +11879,251 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/quality/checks": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Quality Checks",
+        "description": "The space's quality rules as the gateway checked writes against them, per type and rule over 24 hours and 7 days: passed, rejected, flagged, quarantined, the pass rate, and when a write was last rejected. Names and counts, never a value; `at` is null while no reading of the gateway's counters exists (DM-94).",
+        "operationId": "get_checks",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The checks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceChecks"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/retention/deleted": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Space Retention Deletions",
+        "description": "What the broker's retention sweeps deleted of the space since the broker started, per class and kind (`entity`, `history`). The same numbers for everyone who reads the space.",
+        "operationId": "retention_deleted",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What retention deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionCounts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No broker, or the broker did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/retention/preview": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Preview Space Retention",
+        "description": "What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-85).",
+        "operationId": "preview_retention",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionDraft"
+              },
+              "example": {
+                "retention": [
+                  {
+                    "current": "PT5M",
+                    "entityType": "Vehicle",
+                    "history": "PT8H"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "What the draft would delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionCounts"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A rule the space manifest would refuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads the space but does not own it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No broker, or the broker did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/trash": {
       "get": {
         "tags": [
@@ -17845,36 +18090,43 @@
       },
       "Counts": {
         "type": "object",
-        "description": "How many results of one run ended in each verdict.",
+        "description": "The checks of one rule in one window.",
         "required": [
           "pass",
-          "fail",
-          "error",
-          "skip"
+          "reject",
+          "flag",
+          "quarantine"
         ],
         "properties": {
-          "error": {
+          "flag": {
             "type": "integer",
-            "format": "int32",
-            "minimum": 0
-          },
-          "fail": {
-            "type": "integer",
-            "format": "int32",
+            "format": "int64",
             "minimum": 0
           },
           "pass": {
             "type": "integer",
-            "format": "int32",
+            "format": "int64",
             "minimum": 0
           },
-          "skip": {
+          "passRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`pass` over all four; `null` when nothing was checked in the window."
+          },
+          "quarantine": {
             "type": "integer",
-            "format": "int32",
+            "format": "int64",
+            "minimum": 0
+          },
+          "reject": {
+            "type": "integer",
+            "format": "int64",
             "minimum": 0
           }
-        },
-        "additionalProperties": false
+        }
       },
       "CreatePerson": {
         "type": "object",
@@ -22367,6 +22619,67 @@
           }
         }
       },
+      "RetentionCount": {
+        "type": "object",
+        "description": "How many rows of one class retention deletes, or would (DM-85).",
+        "required": [
+          "entityType",
+          "kind",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many.",
+            "minimum": 0
+          },
+          "entityType": {
+            "type": "string",
+            "description": "The class of the space's model."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`entity` for current state, `history` for temporal instances."
+          }
+        }
+      },
+      "RetentionCounts": {
+        "type": "object",
+        "description": "Rows per class and kind.",
+        "required": [
+          "counts"
+        ],
+        "properties": {
+          "counts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetentionCount"
+            }
+          }
+        }
+      },
+      "RetentionDraft": {
+        "type": "object",
+        "description": "A draft of a space's retention rules.",
+        "required": [
+          "retention"
+        ],
+        "properties": {
+          "retention": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {},
+              "propertyNames": {
+                "type": "string"
+              }
+            },
+            "description": "The rules as `spec.retention` would hold them."
+          }
+        },
+        "additionalProperties": false
+      },
       "RetryAnswer": {
         "type": "object",
         "description": "What a replay sent to the runner, and what it could not send.",
@@ -22458,6 +22771,43 @@
           }
         },
         "additionalProperties": false
+      },
+      "RuleChecks": {
+        "type": "object",
+        "description": "One rule of one type.",
+        "required": [
+          "type",
+          "rule",
+          "attribute",
+          "24h",
+          "7d"
+        ],
+        "properties": {
+          "24h": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "7d": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "attribute": {
+            "type": "string",
+            "description": "The attribute the manifest's rule reads; empty for a rule no longer declared."
+          },
+          "lastRejected": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The reading at which the rule's `reject` counter last grew, inside seven days."
+          },
+          "rule": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
       },
       "RuleCount": {
         "type": "object",
@@ -22899,6 +23249,39 @@
           },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "SpaceChecks": {
+        "type": "object",
+        "description": "The answer of `GET …/spaces/{space}/quality/checks`.",
+        "required": [
+          "rules"
+        ],
+        "properties": {
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The newest reading; `null` while there is none."
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleChecks"
+            }
+          },
+          "windows": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Windows"
+              }
+            ]
           }
         }
       },
@@ -23778,6 +24161,24 @@
           }
         ],
         "description": "Who is tried: one person, a member of a group or of a realm role with no person of their own,\none of the project's ServiceAccounts, or the public."
+      },
+      "Windows": {
+        "type": "object",
+        "description": "Where each window starts: its oldest reading.",
+        "required": [
+          "24h",
+          "7d"
+        ],
+        "properties": {
+          "24h": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "7d": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "WorkflowRun": {
         "type": "object",

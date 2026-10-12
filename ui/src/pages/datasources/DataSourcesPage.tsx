@@ -9,7 +9,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { handPrefill, takeEditRequest, takePrefill } from "../../assistant/state";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { EditResourceDialog } from "../../components/EditResourceDialog";
-import { usePermissions } from "../../api/permissions";
+import { usePermissions, useReadableList } from "../../api/permissions";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, plainTitle, prune } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
@@ -34,6 +34,7 @@ import { stringify as stringifyYaml } from "yaml";
 import {
   CONNECTION_BLOCK,
   DATA_SOURCE_TYPES,
+  brokerOptions,
   dataSourceSchema,
   dataSourceUiSchema,
   findEnvVars,
@@ -91,7 +92,7 @@ export function toEnvelope(
         namespace: project,
         ...(title?.trim() ? { title } : {}),
       },
-      spec: { type, ...prune(connection) },
+      spec: { type, ...prune(type === "mqtt" ? withBroker(connection) : connection) },
     };
   }
 
@@ -133,6 +134,25 @@ export function toEnvelope(
       input: cleanedInput,
       ...(dedupedSecrets.length > 0 ? { secrets: dedupedSecrets } : {}),
     },
+  };
+}
+
+/**
+ * An MQTT connection with a broker of the platform picked reads it on its internal listener with
+ * no credential, so the URLs, user and password an external broker needed are dropped (PL-76); the
+ * empty choice is an external broker and leaves no `brokerRef` behind.
+ */
+function withBroker(connection: Record<string, unknown>): Record<string, unknown> {
+  const mqtt = connection.mqtt;
+  if (!mqtt || typeof mqtt !== "object") return connection;
+  const { brokerRef, urls, username, passwordRef, ...rest } = mqtt as Record<string, unknown>;
+  const name = (brokerRef as { name?: unknown } | undefined)?.name;
+  return {
+    ...connection,
+    mqtt:
+      typeof name === "string" && name !== ""
+        ? { ...rest, brokerRef: { kind: "MqttBroker", name } }
+        : { ...rest, urls, username, passwordRef },
   };
 }
 
@@ -303,6 +323,10 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
     openEdit(requested);
   }
   const secrets = useMemo(() => knownSecretNames(sources), [sources]);
+  // The project's brokers for the MQTT form's picker (T-3839); a caller who may not read them
+  // keeps the external broker alone.
+  const brokerList = useReadableList(project, "mqttbrokers", "MqttBroker");
+  const brokers = useMemo(() => brokerOptions(asManifests(brokerList.data?.items ?? [])), [brokerList.data]);
 
   const runnerCatalogInput = catalog?.inputs.find((i) => i.name === type);
   const selectedSummary = runnerCatalogInput?.summary;
@@ -680,7 +704,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           }
           schema={
             isTypedDataSource(type)
-              ? dataSourceSchema(t, type as TypedDataSourceType, secrets)
+              ? dataSourceSchema(t, type as TypedDataSourceType, secrets, brokers)
               : runnerCatalogInput
                 ? runnerDataSourceSchema(t, runnerCatalogInput).schema
                 : {

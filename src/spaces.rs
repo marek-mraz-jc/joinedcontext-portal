@@ -154,6 +154,44 @@ pub fn check(
     )))
 }
 
+/// Only the space's owner sets or changes its retention, which deletes data (DM-85): the grant
+/// that approves a Context Space there, beyond the one that proposes it. An unchanged
+/// `spec.retention`, absent and empty alike, asks nothing more.
+pub fn check_retention(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    kind: &str,
+    name: &str,
+    spec: &Value,
+) -> Result<(), ApiError> {
+    if kind != "ContextSpace" {
+        return Ok(());
+    }
+    let rules = |spec: &Value| match spec.get("retention") {
+        Some(Value::Array(rules)) => rules.clone(),
+        _ => Vec::new(),
+    };
+    let held = state
+        .mirror
+        .get(project, "ContextSpace", name)
+        .map(|env| rules(&env.spec))
+        .unwrap_or_default();
+    if held == rules(spec)
+        || crate::permissions::for_request(state, identity, project).may_in(
+            "ContextSpace",
+            jc_core::kinds::Verb::Approve,
+            Some(name),
+        )
+    {
+        return Ok(());
+    }
+    Err(ApiError::Denied(format!(
+        "only an owner of context space '{name}', who may approve it, sets or changes its \
+         retention: it deletes data (DM-85)"
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,5 +354,90 @@ mod tests {
         .expect_err("ovzdusie-mhd is ovzdusie/mhd's");
         // Every other kind is named inside its project and is none of this gate's business.
         check(&state, &jana, "doprava", "Pipeline", "mhd", &json!({})).expect("not a space");
+    }
+
+    /// DM-85: a proposer who may not approve the space changes anything but its retention; an
+    /// owner, bound to that space or the project, sets and removes it.
+    #[test]
+    fn only_an_owner_sets_or_changes_a_spaces_retention() {
+        let role = |name: &str, verbs: Value| {
+            manifest(
+                "Role",
+                name,
+                ORG_NAMESPACE,
+                json!({ "rules": [{ "kinds": ["ContextSpace"], "verbs": verbs }] }),
+            )
+        };
+        let binding = |name: &str, user: &str, role: &str, scope: Value| {
+            manifest(
+                "RoleBinding",
+                name,
+                ORG_NAMESPACE,
+                json!({ "subjects": [{ "user": user }], "role": role, "scope": scope }),
+            )
+        };
+        let state = world(vec![
+            role("proposer", json!(["read", "propose"])),
+            role("owner", json!(["read", "propose", "approve"])),
+            binding(
+                "jana",
+                "jana@hel.fi",
+                "proposer",
+                json!({ "project": "ovzdusie" }),
+            ),
+            binding(
+                "eero",
+                "eero@hel.fi",
+                "owner",
+                json!({ "contextSpace": "mhd" }),
+            ),
+            binding(
+                "aino",
+                "aino@hel.fi",
+                "owner",
+                json!({ "contextSpace": "other" }),
+            ),
+        ]);
+        let ruled = json!({ "retention": [{ "entityType": "Vehicle", "history": "PT8H" }] });
+        let ask = |user: &str, spec: &Value| {
+            check_retention(&state, &who(user), "ovzdusie", "ContextSpace", "mhd", spec)
+        };
+        assert!(
+            ask("jana@hel.fi", &json!({ "isSandbox": true })).is_ok(),
+            "retention untouched"
+        );
+        assert!(
+            ask("jana@hel.fi", &json!({ "retention": [] })).is_ok(),
+            "empty is absent"
+        );
+        let said = format!("{:?}", ask("jana@hel.fi", &ruled).expect_err("a proposer"));
+        assert!(said.contains("DM-85"), "{said}");
+        assert!(
+            ask("aino@hel.fi", &ruled).is_err(),
+            "an owner of another space"
+        );
+        assert!(ask("eero@hel.fi", &ruled).is_ok(), "the space's owner");
+        assert!(
+            check_retention(
+                &state,
+                &who("jana@hel.fi"),
+                "ovzdusie",
+                "Endpoint",
+                "mhd",
+                &ruled
+            )
+            .is_ok(),
+            "another kind"
+        );
+
+        state
+            .mirror
+            .upsert(manifest("ContextSpace", "mhd", "ovzdusie", ruled.clone()));
+        assert!(ask("jana@hel.fi", &ruled).is_ok(), "unchanged");
+        assert!(
+            ask("jana@hel.fi", &json!({})).is_err(),
+            "removing it is a change too"
+        );
+        assert!(ask("eero@hel.fi", &json!({})).is_ok());
     }
 }

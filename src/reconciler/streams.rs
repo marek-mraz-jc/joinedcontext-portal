@@ -213,6 +213,17 @@ impl StreamDeployer {
         self.validation.as_ref().map(|(_, schemas)| schemas)
     }
 
+    /// The stream's sinks to the Portal's internal listener: the validation stage's rejected
+    /// sink, the outcome sink and the samples taps, each presenting the stream's own project's
+    /// `pipelines` client (T-4038). The listener admits only a client of the pipeline's own
+    /// project (T-3193); the runner-wide `${JC_CLIENT_ID}` is one project's, so every other
+    /// project's reports answered 401 and were dropped.
+    fn reporting(&self, stream: &mut Value, project: &str, pipeline: &str, spaces: &[String]) {
+        self.validated(stream, project, pipeline, spaces);
+        self.logged(stream, project, pipeline);
+        own_credential(stream, project);
+    }
+
     /// Puts the validation stage into one rendered stream when every output writes into the
     /// same space and that space names a model (PL-60). A stream that fans out into spaces of
     /// different models is left without it and says so.
@@ -486,8 +497,7 @@ impl StreamDeployer {
                     });
                     match rendered {
                         Ok(mut stream_json) => {
-                            self.validated(&mut stream_json, &ns, &name, &spaces);
-                            self.logged(&mut stream_json, &ns, &name);
+                            self.reporting(&mut stream_json, &ns, &name, &spaces);
                             self.identified(&mut stream_json, &ns, &name);
                             jcctl::bento::inject_space(&mut stream_json, &segments);
                             inject_source_space(&mut stream_json, &source_segments);
@@ -603,8 +613,7 @@ impl StreamDeployer {
                 };
 
                 let mut stream_json = stream_json;
-                self.validated(&mut stream_json, &ns, &name, &spaces);
-                self.logged(&mut stream_json, &ns, &name);
+                self.reporting(&mut stream_json, &ns, &name, &spaces);
                 self.identified(&mut stream_json, &ns, &name);
                 jcctl::bento::inject_space(&mut stream_json, &segments);
                 inject_source_space(&mut stream_json, &source_segments);
@@ -2012,9 +2021,9 @@ pub fn sidecar_client(project: &str, pipeline: &str) -> String {
 /// Turns every credential of `project`'s `pipelines` account in a rendered stream into its own
 /// pipeline's (PL-19): the stream names `{project}/{pipeline}` to the runner's token sidecar at
 /// `${JC_PIPELINE_TOKEN_URL}`, which presents that pipeline's own Kubernetes token to Keycloak.
-/// No secret is named: the sidecar ignores the one Bento's client must send. The runner's own
-/// credential (`${JC_CLIENT_ID}`, on the outcome and rejection sinks to the Portal) is not a
-/// pipeline's and is left alone.
+/// No secret is named: the sidecar ignores the one Bento's client must send. The sinks to the
+/// Portal present the project's client too (T-4038), so they become the pipeline's as well,
+/// which the internal listener admits (T-3193).
 pub fn with_pipeline_identity(stream: &mut Value, project: &str, pipeline: &str) {
     let account = jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT);
     match stream {
@@ -2731,8 +2740,8 @@ output:
 
     /// PL-19 (T-1508): with the switch on, every credential of the project's `pipelines` account
     /// in a stream, its write and its source read, becomes its own pipeline's at the runner's
-    /// sidecar, and no secret variable is named; the runner's own sink credential is not a
-    /// pipeline's and stays.
+    /// sidecar, and no secret variable is named; a `${JC_CLIENT_ID}` still in the stream is not
+    /// the project's client and stays (the sinks lose theirs before, T-4038).
     #[test]
     fn a_stream_presents_its_own_pipeline_and_names_no_secret() {
         let mut stream = serde_json::json!({
@@ -2760,7 +2769,7 @@ output:
         }
         assert_eq!(
             stream["pipeline"]["processors"][0]["http"]["oauth2"]["client_key"], "${JC_CLIENT_ID}",
-            "the runner's own credential is not a pipeline's"
+            "a credential that is not the project's client is not a pipeline's"
         );
 
         // Another project's credential in the stream is not this pipeline's to take.
@@ -2770,6 +2779,63 @@ output:
             other["output"]["http_client"]["oauth2"]["client_key"],
             "bbsk-pipelines"
         );
+    }
+
+    /// T-4038: every sink a stream reports to the Portal's internal listener through (the
+    /// outcome sink, the pass report, the samples taps) presents a client the listener admits for
+    /// that pipeline (T-3193): its project's `pipelines` client, or with pipeline identity its own.
+    /// The runner-wide `${JC_CLIENT_ID}` is one project's, and zilina's reports answered 401.
+    #[test]
+    fn a_streams_reports_present_a_client_of_its_own_pipeline() {
+        fn sinks(value: &Value, out: &mut Vec<Value>) {
+            match value {
+                Value::Object(map) => {
+                    let internal = map
+                        .get("url")
+                        .and_then(Value::as_str)
+                        .is_some_and(|url| url.contains("/internal/pipelines/zilina/drepo/"));
+                    if let (true, Some(oauth2)) = (internal, map.get("oauth2")) {
+                        out.push(oauth2.clone());
+                    }
+                    map.values().for_each(|v| sinks(v, out));
+                }
+                Value::Array(items) => items.iter().for_each(|v| sinks(v, out)),
+                _ => {}
+            }
+        }
+        let deployer = StreamDeployer::new("http://runner").with_validation(
+            "http://portal-internal:8081/",
+            Arc::new(crate::pipeline_validation::ModelSchemas::default()),
+        );
+        let mut stream = serde_json::json!({
+            "input": { "label": "input", "generate": { "interval": "1s", "mapping": "root = {}" } },
+            "pipeline": { "processors": [{ "label": "step", "mapping": "root = this" }] },
+            "output": gateway_output("zilina", "slug")
+        });
+        deployer.reporting(&mut stream, "zilina", "drepo", &["air".to_owned()]);
+        let mut found = Vec::new();
+        sinks(&stream, &mut found);
+        // The outcome sink, the pass report and at least one tap.
+        assert!(found.len() >= 3, "{stream}");
+        let admitted = crate::auth::internal::pipeline_clients("zilina", "drepo");
+        for oauth2 in &found {
+            assert_eq!(oauth2, &pipeline_oauth2("zilina"), "{stream}");
+            assert!(admitted.iter().any(|c| oauth2["client_key"] == c.as_str()));
+        }
+        let text = stream.to_string();
+        assert!(
+            !text.contains("${JC_CLIENT_ID}") && !text.contains("${JC_CLIENT_SECRET}"),
+            "{text}"
+        );
+
+        // With pipeline identity the reports are the pipeline's own, as its write is.
+        with_pipeline_identity(&mut stream, "zilina", "drepo");
+        let mut found = Vec::new();
+        sinks(&stream, &mut found);
+        for oauth2 in &found {
+            assert_eq!(oauth2["client_key"], sidecar_client("zilina", "drepo"));
+            assert_eq!(oauth2["token_url"], "${JC_PIPELINE_TOKEN_URL}");
+        }
     }
 
     #[test]
@@ -3341,10 +3407,10 @@ output:
         );
         assert_eq!(outputs[0]["label"], "output");
         assert_eq!(outputs[1]["label"], crate::pipeline_log::SINK_LABEL);
-        assert_eq!(outputs[1]["drop_on"]["error"], true);
-        assert_eq!(outputs[1]["drop_on"]["output"]["http_client"]["retries"], 0);
+        assert_eq!(outputs[1]["fallback"][0]["http_client"]["retries"], 0);
+        assert_eq!(outputs[1]["fallback"][1], serde_json::json!({ "drop": {} }));
         assert_eq!(
-            outputs[1]["drop_on"]["output"]["http_client"]["url"],
+            outputs[1]["fallback"][0]["http_client"]["url"],
             "http://portal-internal:8081/internal/pipelines/helsinki/citybikes-free/outcomes"
         );
         assert!(
@@ -4064,6 +4130,7 @@ output:
             .iter()
             .filter_map(|step| step.as_object()?.keys().next().map(String::as_str))
             .collect();
+        // A deflated member is inflated by the runner's bounded module (T-3953, PL-72).
         assert_eq!(
             read,
             [
@@ -4075,6 +4142,10 @@ output:
                 "wasm",
                 "mapping"
             ]
+        );
+        assert_eq!(
+            processors[2]["try"][5]["wasm"]["module_path"],
+            "/streams/inflate.wasm"
         );
         assert_eq!(
             processors[2]["try"][3]["http"]["headers"]["Range"],

@@ -93,7 +93,8 @@
     "knowledge": "Wissensquellen",
     "mcp": "MCP-Server",
     "home": "Start",
-    "inbox": "Eingang"
+    "inbox": "Eingang",
+    "mqttbrokers": "MQTT-Broker"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -596,6 +597,17 @@
         "stale": "Veraltet",
         "empty": "Leer",
         "untargeted": "Ohne Ziel"
+      },
+      "checks": {
+        "caption": "Prüfungen beim Schreiben nach Regel",
+        "unknown": "Prüfungen beim Schreiben unbekannt: Die Zähler des Gateways wurden noch nicht gelesen.",
+        "noRules": "Der Bereich legt keine Qualitätsregeln fest.",
+        "passDay": "Bestanden, 24 h",
+        "passWeek": "Bestanden, 7 Tage",
+        "rejected": "Abgelehnt, 7 Tage",
+        "quarantined": "In Quarantäne, 7 Tage",
+        "lastRejected": "Zuletzt abgelehnt",
+        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage)."
       }
     },
     "fields": {
@@ -968,6 +980,44 @@
       "removeOne": "Ihren Kommentar vom {when} entfernen",
       "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}",
       "writeFirst": "Schreiben Sie zuerst einen Kommentar."
+    },
+    "retention": {
+      "title": "Aufbewahrung",
+      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ ohne Regel wird für immer aufbewahrt; eine kürzere Regel löscht Daten endgültig.",
+      "noTypes": "Das Modell des Raums nennt noch keine Typen.",
+      "caption": "Wie lange die Daten jedes Typs aufbewahrt werden",
+      "type": "Typ",
+      "current": "Aktuelle Werte",
+      "history": "Verlauf",
+      "deleted": "Bisher gelöscht",
+      "deletedUnknown": "Unbekannt: der Broker hat nicht geantwortet",
+      "forever": "Für immer behalten",
+      "amount": {
+        "minutes": "{count, plural, one {# Minute} other {# Minuten}}",
+        "hours": "{count, plural, one {# Stunde} other {# Stunden}}",
+        "days": "{count, plural, one {# Tag} other {# Tage}}"
+      },
+      "unit": {
+        "minutes": "Minuten",
+        "hours": "Stunden",
+        "days": "Tage"
+      },
+      "amountOf": "{what} von {type}: wie viele",
+      "unitOf": "{what} von {type}: Einheit",
+      "removed": "{current} Werte, {history} Verlaufseinträge",
+      "edit": "Aufbewahrung ändern",
+      "save": "Vorschlagen",
+      "cancel": "Abbrechen",
+      "invalid": "Jede Dauer ist eine ganze Zahl von einer Minute bis 3650 Tage.",
+      "proposed": "Als Änderung vorgeschlagen: sie gilt nach der Freigabe.",
+      "confirmTitle": "Daten von {space} endgültig löschen?",
+      "confirmLead": "Die kürzeren Regeln löschen jetzt so viel und den Rest, sobald er altert. Nichts bringt ihn zurück.",
+      "confirm": "Vorschlagen und löschen",
+      "nothingNow": "Jetzt ist nichts alt genug; Daten gehen, sobald sie die neuen Regeln überschreiten.",
+      "wouldDelete": {
+        "entity": "{type}: {count, plural, one {# aktueller Wert} other {# aktuelle Werte}}",
+        "history": "{type}: {count, plural, one {# Verlaufseintrag} other {# Verlaufseinträge}}"
+      }
     },
     "upload": {
       "open": "CSV hochladen",
@@ -1484,7 +1534,11 @@
       "secretKey": "Schlüssel im Secret",
       "input": "Eingabekonfiguration",
       "typeHint": "Wie die Plattform die Quelle erreicht; die Felder darunter richten sich danach, und eine gespeicherte Quelle behält ihren Typ.",
-      "typeFixed": "Der Typ steht fest, sobald die Datenquelle existiert. Legen Sie für einen anderen Typ eine neue Datenquelle an."
+      "typeFixed": "Der Typ steht fest, sobald die Datenquelle existiert. Legen Sie für einen anderen Typ eine neue Datenquelle an.",
+      "brokerRef": "Plattform-Broker",
+      "brokerRefHelp": "Ein MQTT-Broker dieses Projekts. Die Pipeline liest ihn über den internen Listener der Plattform, ohne URL und ohne Zugangsdaten. Leer lassen, um einen externen Broker zu lesen.",
+      "broker": "Broker",
+      "externalBroker": "Externer Broker (URL und Secret unten)"
     },
     "probe": {
       "title": "Ein Abruf des Feeds",
@@ -7214,5 +7268,67 @@
     "when": "{at} · Spur {lane} · {id}",
     "notWritten": "Diese Änderung schrieb kein {kind} {name}, es gibt also keine Version davon zum Wiederherstellen.",
     "loaded": "Die Version, die Änderung {id} schrieb, steht im Formular. Prüfen und vorschlagen, um sie wiederherzustellen; bis zur Genehmigung ändert sich nichts."
+  },
+  "mqttbrokers": {
+    "field": {
+      "name": "Name",
+      "roles": "Rollen",
+      "roleName": "Rolle",
+      "serviceAccounts": "Service-Accounts (Geräte)",
+      "publish": "Darf veröffentlichen in",
+      "subscribe": "Darf abonnieren",
+      "limits": "Grenzen",
+      "maxMessageBytes": "Größte Nachricht (Bytes)",
+      "messagesPerSecond": "Nachrichten pro Sekunde je Gerät",
+      "maxConnections": "Höchstens Verbindungen",
+      "port": "Eigener Port"
+    },
+    "acl": {
+      "caption": "Topic-Zugriff von {broker} nach Rolle",
+      "role": "Rolle",
+      "accounts": "Service-Accounts",
+      "publish": "Veröffentlichen",
+      "subscribe": "Abonnieren"
+    },
+    "connect": {
+      "address": "Adresse",
+      "copy": "Adresse kopieren",
+      "noAddress": "Wird angezeigt, wenn das Portal unter seiner eigenen Adresse (portal.<domain>) geöffnet ist.",
+      "client": "Client-ID und Benutzername",
+      "password": "Passwort",
+      "token": "Ein Access-Token des eigenen Clients des Geräts, mit seinem Schlüssel geholt; nie ein gespeichertes Passwort.",
+      "pipeline": "Pipelines",
+      "brokerRef": "{broker} als Plattform-Broker einer MQTT-Datenquelle wählen."
+    },
+    "connections": {
+      "title": "Verbindungen",
+      "lead": "Wer mit wem spricht, vom Gerät bis zur Policy, die den Schreibzugriff schützt, und was jeden Schritt erlaubt.",
+      "partial": "Arten, die Sie nicht lesen dürfen, fehlen.",
+      "edge": "Schritt",
+      "from": "Von",
+      "to": "Nach",
+      "allowedBy": "Erlaubt durch",
+      "state": "Zustand",
+      "ok": "Erlaubt",
+      "fix": "Beheben",
+      "kind": {
+        "device": "Gerät veröffentlicht beim Broker",
+        "broker": "Broker speist Datenquelle",
+        "pipeline": "Pipeline liest Datenquelle",
+        "endpoint": "Pipeline schreibt in Endpoint",
+        "policy": "Policy schützt Endpoint"
+      },
+      "byRole": "Rolle {role}, Client {client}",
+      "byListener": "der interne Listener, Runner-Identität",
+      "byRunner": "der Pipeline-Runner",
+      "byPipelineAccount": "der Service-Account von {pipeline}",
+      "byPolicy": "die Policy des Endpoints",
+      "unknownAccount": "Kein Service-Account {account} in diesem Projekt",
+      "noBroker": "Kein Broker {broker} in diesem Projekt",
+      "brokerError": "Broker {broker} ist im Fehlerzustand; öffnen Sie ihn, um den Grund zu lesen",
+      "unread": "Keine Pipeline liest sie",
+      "noEndpoint": "Kein Endpoint {endpoint} in diesem Projekt",
+      "noPolicy": "Keine Policy {policy} in diesem Projekt"
+    }
   }
 }

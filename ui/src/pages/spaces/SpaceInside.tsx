@@ -66,7 +66,9 @@ import { useOrgDomain } from "../../api/projects";
 import { FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
 import type { FormSettings } from "./formView";
 import { AiFieldPanel } from "./AiField";
+import { SpaceChecks } from "./SpaceChecks";
 import { SpaceQuality } from "./SpaceQuality";
+import { SpaceRetention } from "./SpaceRetention";
 import {
   Alert,
   Badge,
@@ -1107,7 +1109,14 @@ export function SpaceInside({ project, name }: { project: string; name: string }
       </Section>
 
       <Section title={t("spaces.quality.title")}>
-        <SpaceQuality project={project} space={name} />
+        <div className="space-y-4">
+          <SpaceQuality project={project} space={name} />
+          <SpaceChecks project={project} space={name} />
+        </div>
+      </Section>
+
+      <Section title={t("spaces.retention.title")}>
+        <SpaceRetention project={project} space={name} manifest={manifest} types={types} />
       </Section>
 
       <Section title={t("drift.section.title")}>

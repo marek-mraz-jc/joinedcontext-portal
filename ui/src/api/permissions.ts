@@ -181,7 +181,8 @@ export function readsOnceKnown(permissions: { data: Effective | undefined; isLoa
 /**
  * A list of `kind` in `project`, asked for only once the permissions say the caller reads it: the
  * API answers a list nobody granted with the 404 of an unknown one, which a page then showed as a
- * failure (T-3852). `hidden` is that answer known in advance; an unasked query stays idle.
+ * failure (T-3852). `hidden` is that answer known in advance; an unasked query stays idle and is
+ * not pending.
  */
 export function useReadableList(project: string, plural: string, kind: string, enabled = true) {
   const permissions = usePermissions(project);
@@ -196,5 +197,7 @@ export function useReadableList(project: string, plural: string, kind: string, e
         }),
       ),
   });
-  return { ...query, hidden: reads === false };
+  // A list that is never asked for is not pending: a disabled query stays `isPending` for good,
+  // which kept a page that waits on it at "Loading" (T-4027).
+  return { ...query, isPending: query.isPending && enabled && reads !== false, hidden: reads === false };
 }

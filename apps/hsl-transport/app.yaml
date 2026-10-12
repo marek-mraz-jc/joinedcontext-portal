@@ -37,7 +37,9 @@ spec:
       types: [Vehicle]
       attrs: [location, heading, speed, route, transportMode]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld, geojson]
+      # The positions arrive over the Endpoint's WebSocket (T-3581); REST reads the whole fleet
+      # after a new subscription or a gap.
+      representations: [ngsi-ld, geojson, websocket]
     - contextSpaceRef:
         kind: ContextSpace
         name: helsinki

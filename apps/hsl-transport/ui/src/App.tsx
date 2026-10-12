@@ -89,13 +89,29 @@ export function arrowImage(size = ARROW_SIZE): { width: number; height: number; 
 }
 
 /**
+ * How live the map is: updating while the backend's feed is live, and since when it is lost when
+ * it is not (T-3581), so a map that stopped moving says so instead of looking calm.
+ */
+export function feedState(live: boolean, lostSince: string | null): string {
+  if (lostSince) {
+    const at = new Date(lostSince);
+    const time = Number.isNaN(at.getTime())
+      ? lostSince
+      : at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" });
+    return `, live feed lost since ${time}`;
+  }
+  return live ? ", updating live" : "";
+}
+
+/**
  * The fleet, seeded from the backend's snapshot and kept current by the stream. A message
  * carries only what moved, so it is merged into what is already on the map rather than
  * replacing it (AP-41).
  */
-export function useVehicles(): { vehicles: Vehicle[]; live: boolean } {
+export function useVehicles(): { vehicles: Vehicle[]; live: boolean; lostSince: string | null } {
   const [byId, setById] = useState<Map<string, Vehicle>>(new Map());
   const [live, setLive] = useState(false);
+  const [lostSince, setLostSince] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,17 +128,20 @@ export function useVehicles(): { vehicles: Vehicle[]; live: boolean } {
       });
     };
     void getVehicles().then(merge);
-    const close = subscribe((batch) => {
-      setLive(true);
-      merge(batch);
-    });
+    const close = subscribe(
+      (batch) => {
+        setLive(true);
+        merge(batch);
+      },
+      (since) => !cancelled && setLostSince(since),
+    );
     return () => {
       cancelled = true;
       close();
     };
   }, []);
 
-  return { vehicles: [...byId.values()], live };
+  return { vehicles: [...byId.values()], live, lostSince };
 }
 
 /**
@@ -433,7 +452,7 @@ export function Alerts({ alerts }: { alerts: AlertView[] }) {
 }
 
 function BusesLive() {
-  const { vehicles: fleet, live } = useVehicles();
+  const { vehicles: fleet, live, lostSince } = useVehicles();
   const { stops, alerts } = useBoard();
   const [modes, setModes] = useState<Set<string>>(() => new Set(MODES));
   const vehicles = useMemo(() => ofModes(fleet, modes), [fleet, modes]);
@@ -461,7 +480,7 @@ function BusesLive() {
             ? fleet.length === 0
               ? "Waiting for the first positions"
               : "No vehicles of the chosen modes"
-            : `${vehicles.length} vehicles${live ? ", updating live" : ""}${bounds && shown.length !== vehicles.length ? `, ${shown.length} in view` : ""}`}
+            : `${vehicles.length} vehicles${feedState(live, lostSince)}${bounds && shown.length !== vehicles.length ? `, ${shown.length} in view` : ""}`}
         </p>
         <Split ratio="2:1">
           <div className="map-pane">

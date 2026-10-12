@@ -78,6 +78,12 @@ spec:
         sk: Názov tohto zdroja, ako ho ľudia čítajú v zoznamoch a pri stavbe pipeline.
         cs: Název tohoto zdroje, jak jej lidé čtou v seznamech a při stavbě pipeline.
         de: Der Name dieses Feeds in Listen und beim Bauen einer Pipeline.
+    mqtt.brokerRef.name:
+      help:
+        en: An MQTT broker of this project; the pipeline reads it inside the platform with no URL or password. Empty reads an external broker.
+        sk: MQTT broker tohto projektu; pipeline ho číta vnútri platformy bez URL a hesla. Prázdne číta externý broker.
+        cs: MQTT broker tohoto projektu; pipeline ho čte uvnitř platformy bez URL a hesla. Prázdné čte externí broker.
+        de: Ein MQTT-Broker dieses Projekts; die Pipeline liest ihn innerhalb der Plattform ohne URL und Passwort. Leer liest einen externen Broker.
     mqtt.urls:
       help:
         en: Network addresses of the message brokers; each starts with tcp://, tls://, ws:// or wss:// and names the host and port.
