@@ -138,8 +138,8 @@
         },
         "assistant": "jc_person_sign_out",
         "routes": [
-          "POST /api/v1/organization/people/{id}/sign-out",
-          "DELETE /api/v1/organization/people/{id}/consents/{client}"
+          "DELETE /api/v1/organization/people/{id}/consents/{client}",
+          "POST /api/v1/organization/people/{id}/sign-out"
         ]
       },
       "remove": {
@@ -408,9 +408,9 @@
         },
         "personOnly": "a person's note on an entity and the colleagues it names; mentioning someone is a person speaking to a person, so no assistant comments, mentions or reads another's notifications on their behalf (API/01 §35, ADR-N-042 §3.1)",
         "routes": [
-          "POST /api/v1/projects/{project}/spaces/{space}/comments",
           "DELETE /api/v1/projects/{project}/spaces/{space}/comments/{id}",
-          "POST /api/v1/notifications/{id}/read"
+          "POST /api/v1/notifications/{id}/read",
+          "POST /api/v1/projects/{project}/spaces/{space}/comments"
         ]
       }
     },
@@ -648,6 +648,19 @@
           "POST /api/v1/projects/{project}/pipelines/{name}/rejected/retry"
         ]
       },
+      "alerts": {
+        "live": {
+          "spec": "pipeline-alerts.spec.ts",
+          "test": "a person subscribes to a pipeline's alerts, mutes them for a day and stops them"
+        },
+        "personOnly": "what a person wants to be told and how loudly is their own choice, so no assistant subscribes, mutes or reads a person's alerts on their behalf (API/01 §37, PL-71)",
+        "routes": [
+          "PUT /api/v1/alerts",
+          "DELETE /api/v1/alerts/{id}",
+          "POST /api/v1/alerts/{id}/mute",
+          "POST /api/v1/alerts/notices/{id}/read"
+        ]
+      },
       "edit": {
         "live": {
           "spec": "parity.spec.ts",
@@ -688,19 +701,6 @@
           "test": "no form offers a field for a secret's value, on any data source type"
         },
         "assistant": "jc_pipeline_propose"
-      },
-      "alerts": {
-        "live": {
-          "spec": "pipeline-alerts.spec.ts",
-          "test": "a person subscribes to a pipeline's alerts, mutes them for a day and stops them"
-        },
-        "personOnly": "what a person wants to be told and how loudly is their own choice, so no assistant subscribes, mutes or reads a person's alerts on their behalf (API/01 §37, PL-71)",
-        "routes": [
-          "PUT /api/v1/alerts",
-          "DELETE /api/v1/alerts/{id}",
-          "POST /api/v1/alerts/{id}/mute",
-          "POST /api/v1/alerts/notices/{id}/read"
-        ]
       }
     },
     "endpoint": {
@@ -735,9 +735,9 @@
         },
         "assistant": "jc_endpoint_propose",
         "routes": [
+          "POST /api/v1/projects/{project}/endpoints/{name}/preview",
           "PUT /api/v1/projects/{project}/{plural}/{name}",
-          "PATCH /api/v1/projects/{project}/{plural}/{name}",
-          "POST /api/v1/projects/{project}/endpoints/{name}/preview"
+          "PATCH /api/v1/projects/{project}/{plural}/{name}"
         ]
       },
       "retire": {
@@ -817,8 +817,8 @@
         },
         "personOnly": "weighing another person's rights is an organization administrator's own question, recorded with both subjects (EP-103); no assistant tool reveals another person's access",
         "routes": [
-          "POST /api/v1/projects/{project}/endpoints/{name}/access/simulate",
-          "POST /api/v1/projects/{project}/access/explore"
+          "POST /api/v1/projects/{project}/access/explore",
+          "POST /api/v1/projects/{project}/endpoints/{name}/access/simulate"
         ]
       }
     },
