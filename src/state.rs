@@ -93,12 +93,17 @@ pub struct AppState {
     pub pipeline_stats: Arc<crate::pipeline_stats::Samples>,
     /// Each pipeline's runs and their log (PL-62), durable with a database.
     pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
+    /// The last messages through each node of a running stream, in memory (T-3974).
+    pub pipeline_samples: Arc<crate::pipeline_samples::SampleStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
     /// What the last data-quality run found, by space (DM-74). Empty until the leader has run
     /// one, which the API answers as "not checked yet".
     pub quality: Arc<crate::quality::Store>,
+    /// The gateway's quality counters as this replica read them, for the 24-hour and 7-day
+    /// windows of a space's checks on write (DM-94).
+    pub quality_checks: Arc<crate::quality_checks::Readings>,
     /// How much each space holds, as the broker counts it (API/01 §29).
     pub space_usage: Arc<crate::space_usage::Counter>,
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
@@ -163,6 +168,9 @@ impl AppState {
             )
             .with_broker_template(config.broker_url_template.clone()),
         );
+        let quality_checks = Arc::new(crate::quality_checks::Readings::new(
+            config.gateway_url.clone(),
+        ));
         let activity_events = crate::activity::ActivityHub::new();
         let activity = crate::activity::ActivityStore::new(None).with_hub(activity_events.clone());
         Self {
@@ -188,6 +196,7 @@ impl AppState {
             webhook_secrets: Arc::new(crate::sync::webhook_secrets::Accepted::new()),
             drift: Arc::new(crate::reconciler::drift::Store::default()),
             quality: Arc::new(crate::quality::Store::default()),
+            quality_checks,
             space_usage,
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
@@ -197,6 +206,7 @@ impl AppState {
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
+            pipeline_samples: Arc::default(),
             pipeline_stats: Arc::default(),
             drift_watch: None,
             views: None,
@@ -815,6 +825,11 @@ impl AppState {
                 if !branding.documentation_base_url.is_empty() {
                     catalogue = catalogue.documented_at(branding.documentation_base_url);
                 }
+                // Each dataset carries the pass rate and the freshness of its space (DM-95).
+                catalogue = catalogue.with_quality(
+                    Arc::clone(&state.quality),
+                    Arc::clone(&state.quality_checks),
+                );
                 syncer = syncer.with_ckan(Arc::new(catalogue));
             }
 
@@ -826,7 +841,8 @@ impl AppState {
                 Some(broker) => {
                     syncer = syncer.with_registrations(Arc::new(
                         crate::reconciler::registrations::RegistrationSync::new(broker)
-                            .with_broker_template(state.config.broker_url_template.clone()),
+                            .with_broker_template(state.config.broker_url_template.clone())
+                            .with_gateway(state.config.gateway_url.clone()),
                     ));
                 }
                 None => tracing::info!(
@@ -919,6 +935,8 @@ impl AppState {
             ),
             (None, _) => {}
         }
+        // The 24-hour and 7-day windows need a reading an hour, page or no page (DM-94).
+        state.quality_checks.start_hourly();
         Ok(state)
     }
 

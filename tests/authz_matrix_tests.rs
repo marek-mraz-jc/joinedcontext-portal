@@ -456,6 +456,12 @@ async fn fixture() -> AppState {
             .upsert(envelope(kind, EXISTING, PROJECT, json!({})));
     }
     state.mirror.upsert(envelope(
+        "MqttBroker",
+        EXISTING,
+        PROJECT,
+        json!({ "roles": [{ "name": "camera", "serviceAccounts": [EXISTING], "publish": ["cameras/#"] }] }),
+    ));
+    state.mirror.upsert(envelope(
         "ContextSpace",
         PROJECT,
         PROJECT,

@@ -9430,6 +9430,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "What an MQTT Broker Measures",
+        "description": "Connected clients per ServiceAccount and messages per second, read from the broker's own HTTP API (API/01 §44, ADR-N-048 §2.8). Whoever may read the project's MqttBrokers.",
+        "operationId": "get_measured",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the broker measures, or why it is not measured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Measured"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops": {
       "get": {
         "tags": [
@@ -10239,6 +10301,68 @@
           },
           "503": {
             "description": "The log could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/pipelines/{name}/samples": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read the Last Messages per Step",
+        "description": "The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked. When a target hides attributes only the mapped output node is served, and `withheld` says so (T-3974).",
+        "operationId": "get_samples",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The samples per node; empty before the stream ran",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineSamples"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -11790,6 +11914,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SpaceQuality"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/quality/checks": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Quality Checks",
+        "description": "The space's quality rules as the gateway checked writes against them, per type and rule over 24 hours and 7 days: passed, rejected, flagged, quarantined, the pass rate, and when a write was last rejected. Names and counts, never a value; `at` is null while no reading of the gateway's counters exists (DM-94).",
+        "operationId": "get_checks",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The checks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceChecks"
                 }
               }
             }
@@ -15173,6 +15359,32 @@
           }
         }
       },
+      "AccountSeen": {
+        "type": "object",
+        "description": "One ServiceAccount of the broker's roles and its connected clients.",
+        "required": [
+          "serviceAccount",
+          "connected"
+        ],
+        "properties": {
+          "connected": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "serviceAccount": {
+            "type": "string"
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The newest `connected_at` of its connected clients; `null` when none is connected."
+          }
+        }
+      },
       "ActivityEvent": {
         "type": "object",
         "required": [
@@ -17963,36 +18175,43 @@
       },
       "Counts": {
         "type": "object",
-        "description": "How many results of one run ended in each verdict.",
+        "description": "The checks of one rule in one window.",
         "required": [
           "pass",
-          "fail",
-          "error",
-          "skip"
+          "reject",
+          "flag",
+          "quarantine"
         ],
         "properties": {
-          "error": {
+          "flag": {
             "type": "integer",
-            "format": "int32",
-            "minimum": 0
-          },
-          "fail": {
-            "type": "integer",
-            "format": "int32",
+            "format": "int64",
             "minimum": 0
           },
           "pass": {
             "type": "integer",
-            "format": "int32",
+            "format": "int64",
             "minimum": 0
           },
-          "skip": {
+          "passRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`pass` over all four; `null` when nothing was checked in the window."
+          },
+          "quarantine": {
             "type": "integer",
-            "format": "int32",
+            "format": "int64",
+            "minimum": 0
+          },
+          "reject": {
+            "type": "integer",
+            "format": "int64",
             "minimum": 0
           }
-        },
-        "additionalProperties": false
+        }
       },
       "CreatePerson": {
         "type": "object",
@@ -19785,6 +20004,55 @@
         ],
         "description": "Who is signed in and through which front, so the UI knows whose logout to call."
       },
+      "Measured": {
+        "type": "object",
+        "description": "What one broker measures now.",
+        "required": [
+          "measured",
+          "observedAt",
+          "accounts"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountSeen"
+            },
+            "description": "Every ServiceAccount the broker's roles name, in name order."
+          },
+          "measured": {
+            "type": "boolean",
+            "description": "`false` when the broker did not answer; `reason` says why and no number is given."
+          },
+          "messagesPerSecond": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`messages.publish` of the two newest samples, per second; `null` with fewer than two."
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Connected clients of the accounts whose roles may publish.",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "MessageRequest": {
         "type": "object",
         "description": "What a person says to a run that is already going (AG-45).",
@@ -21061,6 +21329,37 @@
               "$ref": "#/components/schemas/PipelineRun"
             },
             "description": "The run with the latest line first, at most 200."
+          }
+        }
+      },
+      "PipelineSamples": {
+        "type": "object",
+        "description": "What last crossed each node of a running stream (T-3974, API/01 §7b).",
+        "required": [
+          "pipeline",
+          "nodes",
+          "withheld"
+        ],
+        "properties": {
+          "nodes": {
+            "type": "object",
+            "description": "The newest samples per node label (`input`, `step_{j}`, `compute`, `output`), newest first.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Sample"
+              }
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "withheld": {
+            "type": "boolean",
+            "description": "True when a target Endpoint hides attributes (or cannot be read): the nodes before the\nmapping carry the source's own field names, so only `output` is served."
           }
         }
       },
@@ -22605,6 +22904,43 @@
         },
         "additionalProperties": false
       },
+      "RuleChecks": {
+        "type": "object",
+        "description": "One rule of one type.",
+        "required": [
+          "type",
+          "rule",
+          "attribute",
+          "24h",
+          "7d"
+        ],
+        "properties": {
+          "24h": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "7d": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "attribute": {
+            "type": "string",
+            "description": "The attribute the manifest's rule reads; empty for a rule no longer declared."
+          },
+          "lastRejected": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The reading at which the rule's `reject` counter last grew, inside seven days."
+          },
+          "rule": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
       "RuleCount": {
         "type": "object",
         "description": "One failing rule of a space: a SHACL component and the path it is about.",
@@ -22766,6 +23102,22 @@
             "items": {
               "$ref": "#/components/schemas/AgentRun"
             }
+          }
+        }
+      },
+      "Sample": {
+        "type": "object",
+        "required": [
+          "at",
+          "record"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "record": {
+            "type": "object"
           }
         }
       },
@@ -23029,6 +23381,39 @@
           },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "SpaceChecks": {
+        "type": "object",
+        "description": "The answer of `GET …/spaces/{space}/quality/checks`.",
+        "required": [
+          "rules"
+        ],
+        "properties": {
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The newest reading; `null` while there is none."
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleChecks"
+            }
+          },
+          "windows": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Windows"
+              }
+            ]
           }
         }
       },
@@ -23906,6 +24291,24 @@
           }
         ],
         "description": "Who is tried: one person, a member of a group or of a realm role with no person of their own,\none of the project's ServiceAccounts, or the public."
+      },
+      "Windows": {
+        "type": "object",
+        "description": "Where each window starts: its oldest reading.",
+        "required": [
+          "24h",
+          "7d"
+        ],
+        "properties": {
+          "24h": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "7d": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "WorkflowRun": {
         "type": "object",

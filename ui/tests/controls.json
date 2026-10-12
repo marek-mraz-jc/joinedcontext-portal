@@ -1002,6 +1002,7 @@
       },
       "tests": [
         "datasources_view.test.tsx",
+        "mqtt_broker_picker.test.tsx",
         "page_data_sources_page.test.tsx",
         "raw_values_on_pages.test.tsx",
         "runner_input_schema.test.ts"
@@ -1419,6 +1420,7 @@
         "pipeline_flow_stats.test.tsx",
         "pipeline_flow_steps.test.tsx",
         "pipeline_graph.test.ts",
+        "pipeline_last_samples.test.tsx",
         "pipeline_step_form.test.tsx"
       ]
     },

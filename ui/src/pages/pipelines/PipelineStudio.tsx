@@ -54,6 +54,7 @@ import { PipelineTest } from "./PipelineTest";
 import type { Trace } from "./PipelineTest";
 import { testPipeline } from "../../api/pipelineTest";
 import { DebugSidebar, NodeDebug } from "./DebugPanel";
+import { LastSamples } from "./LastSamples";
 import type { DebugEntry } from "./DebugPanel";
 import { FormHeading } from "../../components/forms/FormRoute";
 import { TypePicker } from "../../components/pickers/TypePicker";
@@ -1241,6 +1242,9 @@ export function PipelineStudio({
                   />
                 ) : null}
 
+                {!flowTrace && selectedNode && pipelineName ? (
+                  <LastSamples project={project} pipeline={pipelineName} node={selectedNode} />
+                ) : null}
                 {flowTrace && selectedNode ? (
                   <div className="grid gap-2 sm:grid-cols-2" data-testid="flow-sample-drawer">
                     <div className="flex flex-col gap-1 rounded-md border border-border bg-surface p-2">

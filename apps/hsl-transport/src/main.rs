@@ -1,4 +1,4 @@
-//! The app process: read the variables the reconciler sets, bind, poll, serve.
+//! The app process: read the variables the reconciler sets, bind, follow the socket, serve.
 //!
 //! In the pod the reconciler sets `JC_BIND_ADDRESS` to `0.0.0.0:8080`, the port the APISIX edge
 //! upstreams to and the NetworkPolicy opens to nobody else (AP-26). The loopback default is for
@@ -19,11 +19,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::from_env()?;
     let bind = std::env::var("JC_BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1:8080".to_owned());
-    tracing::info!(%bind, base = %config.base_path, poll = config.poll_seconds, "hsl-transport starting");
+    tracing::info!(%bind, base = %config.base_path, "hsl-transport starting");
 
     let app = Arc::new(App::new(config));
-    // One poll loop for the whole process, however many browsers are watching.
-    tokio::spawn(Arc::clone(&app).run());
+    // One socket for the whole process, however many browsers are watching.
+    tokio::spawn(Arc::clone(&app).follow());
+    tokio::spawn(Arc::clone(&app).read_board());
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     axum::serve(listener, router(app))

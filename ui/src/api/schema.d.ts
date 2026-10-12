@@ -2281,6 +2281,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What an MQTT Broker Measures
+         * @description Connected clients per ServiceAccount and messages per second, read from the broker's own HTTP API (API/01 §44, ADR-N-048 §2.8). Whoever may read the project's MqttBrokers.
+         */
+        get: operations["get_measured"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops": {
         parameters: {
             query?: never;
@@ -2453,6 +2473,26 @@ export interface paths {
          * @description One line per record of the run, newest first: the record's id, the step it failed at, its outcome (sent, rejected, failed) and what happened (PL-62). Record ids and messages are masked where they look like a credential.
          */
         get: operations["get_run_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Last Messages per Step
+         * @description The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked. When a target hides attributes only the mapped output node is served, and `withheld` says so (T-3974).
+         */
+        get: operations["get_samples"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2733,6 +2773,26 @@ export interface paths {
          * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-74).
          */
         get: operations["get_quality"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/quality/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Quality Checks
+         * @description The space's quality rules as the gateway checked writes against them, per type and rule over 24 hours and 7 days: passed, rejected, flagged, quarantined, the pass rate, and when a write was last rejected. Names and counts, never a value; `at` is null while no reading of the gateway's counters exists (DM-94).
+         */
+        get: operations["get_checks"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3362,6 +3422,17 @@ export interface components {
             reason: string;
             /** @description `allowed` or `restricted`. */
             verdict: string;
+        };
+        /** @description One ServiceAccount of the broker's roles and its connected clients. */
+        AccountSeen: {
+            /** Format: int32 */
+            connected: number;
+            serviceAccount: string;
+            /**
+             * Format: date-time
+             * @description The newest `connected_at` of its connected clients; `null` when none is connected.
+             */
+            since?: string | null;
         };
         ActivityEvent: {
             correlationId?: string | null;
@@ -4384,16 +4455,21 @@ export interface components {
             /** @description `entities`, `rejectedRecords`, `runs`, `grants` or `bindings`. */
             what: string;
         };
-        /** @description How many results of one run ended in each verdict. */
+        /** @description The checks of one rule in one window. */
         Counts: {
-            /** Format: int32 */
-            error: number;
-            /** Format: int32 */
-            fail: number;
-            /** Format: int32 */
+            /** Format: int64 */
+            flag: number;
+            /** Format: int64 */
             pass: number;
-            /** Format: int32 */
-            skip: number;
+            /**
+             * Format: double
+             * @description `pass` over all four; `null` when nothing was checked in the window.
+             */
+            passRate?: number | null;
+            /** Format: int64 */
+            quarantine: number;
+            /** Format: int64 */
+            reject: number;
         };
         CreatePerson: {
             email: string;
@@ -5074,6 +5150,26 @@ export interface components {
              */
             front: components["schemas"]["Front"];
         };
+        /** @description What one broker measures now. */
+        Measured: {
+            /** @description Every ServiceAccount the broker's roles name, in name order. */
+            accounts: components["schemas"]["AccountSeen"][];
+            /** @description `false` when the broker did not answer; `reason` says why and no number is given. */
+            measured: boolean;
+            /**
+             * Format: double
+             * @description `messages.publish` of the two newest samples, per second; `null` with fewer than two.
+             */
+            messagesPerSecond?: number | null;
+            /** Format: date-time */
+            observedAt: string;
+            /**
+             * Format: int32
+             * @description Connected clients of the accounts whose roles may publish.
+             */
+            publishers?: number | null;
+            reason?: string | null;
+        };
         /** @description What a person says to a run that is already going (AG-45). */
         MessageRequest: {
             access?: null | components["schemas"]["Capabilities"];
@@ -5485,6 +5581,19 @@ export interface components {
         PipelineRunList: {
             /** @description The run with the latest line first, at most 200. */
             items: components["schemas"]["PipelineRun"][];
+        };
+        /** @description What last crossed each node of a running stream (T-3974, API/01 §7b). */
+        PipelineSamples: {
+            /** @description The newest samples per node label (`input`, `step_{j}`, `compute`, `output`), newest first. */
+            nodes: {
+                [key: string]: components["schemas"]["Sample"][];
+            };
+            pipeline: string;
+            /**
+             * @description True when a target Endpoint hides attributes (or cannot be read): the nodes before the
+             *     mapping carry the source's own field names, so only `output` is served.
+             */
+            withheld: boolean;
         };
         PipelineStats: {
             /**
@@ -6045,6 +6154,20 @@ export interface components {
              */
             overlapHours?: number | null;
         };
+        /** @description One rule of one type. */
+        RuleChecks: {
+            "24h": components["schemas"]["Counts"];
+            "7d": components["schemas"]["Counts"];
+            /** @description The attribute the manifest's rule reads; empty for a rule no longer declared. */
+            attribute: string;
+            /**
+             * Format: date-time
+             * @description The reading at which the rule's `reject` counter last grew, inside seven days.
+             */
+            lastRejected?: string | null;
+            rule: string;
+            type: string;
+        };
         /** @description One failing rule of a space: a SHACL component and the path it is about. */
         RuleCount: {
             /** Format: int64 */
@@ -6112,6 +6235,11 @@ export interface components {
         /** @description One page of runs, newest first. */
         RunList: {
             items: components["schemas"]["AgentRun"][];
+        };
+        Sample: {
+            /** Format: date-time */
+            at: string;
+            record: Record<string, never>;
         };
         /**
          * @description What a workspace covers (CC-76, API/01 §22): the whole project, one space and what it
@@ -6193,6 +6321,16 @@ export interface components {
             changes: components["schemas"]["ModelChange"][];
             severity: string;
             version: string;
+        };
+        /** @description The answer of `GET …/spaces/{space}/quality/checks`. */
+        SpaceChecks: {
+            /**
+             * Format: date-time
+             * @description The newest reading; `null` while there is none.
+             */
+            at?: string | null;
+            rules: components["schemas"]["RuleChecks"][];
+            windows?: null | components["schemas"]["Windows"];
         };
         /** @description One space of the origin mapped onto a space of the target project (T-1441). */
         SpaceMapping: {
@@ -6493,6 +6631,13 @@ export interface components {
         } | {
             /** @enum {string} */
             kind: "public";
+        };
+        /** @description Where each window starts: its oldest reading. */
+        Windows: {
+            /** Format: date-time */
+            "24h": string;
+            /** Format: date-time */
+            "7d": string;
         };
         /** @description A workflow run of an application's repository, as the App page links it (AP-86, AP-103). */
         WorkflowRun: {
@@ -13723,6 +13868,49 @@ export interface operations {
             };
         };
     };
+    get_measured: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the broker measures, or why it is not measured */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Measured"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     list_ops: {
         parameters: {
             query?: never;
@@ -14307,6 +14495,49 @@ export interface operations {
             };
             /** @description The log could not be read */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_samples: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The samples per node; empty before the stream ran */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineSamples"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15470,6 +15701,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SpaceQuality"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_checks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The checks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceChecks"];
                 };
             };
             /** @description Not signed in */
