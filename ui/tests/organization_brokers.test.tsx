@@ -1,5 +1,5 @@
 /**
- * T-3990: Organization → Brokers (PF-116, API/01 §42). Every broker with its health, version,
+ * T-3990: Organization → Brokers (PF-116, API/01 §43). Every broker with its health, version,
  * spaces and load; a broker that does not answer says so with its reason; an organization that
  * declares none shows the built-in main; only an administrator gets it.
  */

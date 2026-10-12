@@ -1,4 +1,4 @@
-//! T-3990 (PF-116, API/01 §42): the Brokers page lists every broker with its spaces, version,
+//! T-3990 (PF-116, API/01 §43): the Brokers page lists every broker with its spaces, version,
 //! health and load, asked by the Portal, for organization administrators only.
 
 mod common;

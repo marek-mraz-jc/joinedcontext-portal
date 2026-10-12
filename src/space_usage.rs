@@ -161,7 +161,7 @@ impl Counter {
     }
 
     /// The version broker `broker_name` reports on `GET /q/health`, or why it is not up
-    /// (API/01 §42). Asked on every call: a health answer kept for minutes would hide an outage.
+    /// (API/01 §43). Asked on every call: a health answer kept for minutes would hide an outage.
     pub async fn health(&self, broker_name: &str) -> Result<String, String> {
         let broker = crate::spaces::broker_address(
             broker_name,

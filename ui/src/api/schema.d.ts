@@ -605,7 +605,7 @@ export interface paths {
         };
         /**
          * List Context Brokers
-         * @description Every context broker of the organization with its spaces, version, health and load (API/01 §42, PF-116). Organization administrators only.
+         * @description Every context broker of the organization with its spaces, version, health and load (API/01 §43, PF-116). Organization administrators only.
          */
         get: operations["list_brokers"];
         put?: never;

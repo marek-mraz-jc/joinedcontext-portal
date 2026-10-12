@@ -1,5 +1,5 @@
 //! `GET /api/v1/organization/brokers`: every context broker of the organization with its spaces,
-//! version, health and load (API/01 §42, PF-116, ADR-N-046). The Portal asks each broker; the
+//! version, health and load (API/01 §43, PF-116, ADR-N-046). The Portal asks each broker; the
 //! browser never reaches one.
 
 use axum::extract::State;
@@ -59,7 +59,7 @@ pub enum Health {
     get,
     path = "/api/v1/organization/brokers",
     summary = "List Context Brokers",
-    description = "Every context broker of the organization with its spaces, version, health and load (API/01 §42, PF-116). Organization administrators only.",
+    description = "Every context broker of the organization with its spaces, version, health and load (API/01 §43, PF-116). Organization administrators only.",
     tag = "system",
     responses(
         (status = 200, description = "The brokers", body = Brokers),

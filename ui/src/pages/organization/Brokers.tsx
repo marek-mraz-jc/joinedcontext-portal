@@ -24,7 +24,7 @@ type Health = components["schemas"]["Health"];
 const TONE: Record<Health, BadgeTone> = { up: "success", down: "danger", unknown: "neutral" };
 
 /**
- * Organization → Brokers (PF-116, ADR-N-046, API/01 §42): every context broker with its version,
+ * Organization → Brokers (PF-116, ADR-N-046, API/01 §43): every context broker with its version,
  * health, spaces and load. The Portal asks the brokers; the browser never reaches one. Only an
  * administrator of the organization reads it; anyone else is told so and nothing is fetched.
  */
