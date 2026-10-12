@@ -1,6 +1,6 @@
 /**
  * The app's own backend, and nothing else. The Endpoint URL never reaches the browser: the
- * server holds it, polls it once for every viewer and pushes what moved down this stream
+ * server holds it, follows its WebSocket once for every viewer and pushes what moved down this stream
  * (AP-04, AP-41). There is no login anywhere in this file, because the Endpoint behind the
  * app is public and the app never sees a user (AP-28).
  */
@@ -31,7 +31,7 @@ export interface VehicleCollection {
   features: VehicleFeature[];
 }
 
-/** The fleet as the backend last saw it. A 503 means no poll has produced one yet. */
+/** The fleet as the backend last saw it. A 503 means no read has produced one yet. */
 export async function getVehicles(): Promise<Vehicle[]> {
   const response = await fetch(`${BASE}api/vehicles`);
   if (!response.ok) {
@@ -42,15 +42,28 @@ export async function getVehicles(): Promise<Vehicle[]> {
 
 /**
  * Every bus that moves. The first message carries the whole fleet, so a browser that opens
- * the stream alone is already drawing; returns the function that closes it.
+ * the stream alone is already drawing. `onFeed` hears since when the backend's live feed is
+ * lost (an ISO time), or `null` once it is live again (T-3581). Returns the function that
+ * closes the stream.
  */
-export function subscribe(onVehicles: (vehicles: Vehicle[]) => void): () => void {
+export function subscribe(
+  onVehicles: (vehicles: Vehicle[]) => void,
+  onFeed: (lostSince: string | null) => void = () => {},
+): () => void {
   const source = new EventSource(`${BASE}api/stream`);
   source.addEventListener("vehicles", (event) => {
     try {
       onVehicles(JSON.parse((event as MessageEvent<string>).data) as Vehicle[]);
     } catch {
       // A malformed frame is one lost update, not a reason to tear the map down.
+    }
+  });
+  source.addEventListener("feed", (event) => {
+    try {
+      const { lostSince } = JSON.parse((event as MessageEvent<string>).data) as { lostSince?: unknown };
+      onFeed(typeof lostSince === "string" ? lostSince : null);
+    } catch {
+      // As above: one lost status, the next one comes with the next change.
     }
   });
   return () => source.close();
@@ -193,7 +206,7 @@ export function featureCollection(vehicles: Vehicle[]): VehicleCollection {
 
 /**
  * Where the shell's entity panel reads a bus (SDK-40): from this app's own backend, which holds
- * the endpoint, the bus as the last poll saw it. The app writes nothing, so the panel never offers
+ * the endpoint, the bus as the last notification left it. The app writes nothing, so the panel never offers
  * Edit; it links the bus to the Portal when the page names the project's page there.
  */
 export function panelSource(page: { portal?: string; space?: string }): PanelSource {
