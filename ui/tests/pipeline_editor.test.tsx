@@ -771,8 +771,9 @@ it("tells a feed from a space and reads the attributes of a class from an inline
   // in 9 s here and in 20.5 s under `--coverage`, which is the file's own `testTimeout` to the
   // millisecond, so `ci-full` failed on the instrumentation and nothing else (T-2449). Raised
   // for this case alone: the 20 s ceiling is what catches a test that really has hung, and it
-  // stays where it is for the other 31.
-  45_000);
+  // stays where it is for the other 31. T-4027: the dialog grew, and each dialog-wide role query
+  // now costs up to 3.5 s in jsdom: 23 s plain, 40 s under coverage here, past 45 s on ci-full.
+  90_000);
 
   it("shows only the fields of the chosen source, compute and execution (T-2754)", async () => {
     renderPipelines();

@@ -91,7 +91,8 @@ test.describe("Project settings", () => {
   test("a new role of the project offers project kinds only", async ({ page }) => {
     await stubApi(page);
     await page.goto("/projects/helsinki/settings/roles?lang=en");
-    await page.getByRole("button", { name: "New role" }).click();
+    // the header action and, on an empty list, the empty state's own: either opens the form
+    await page.getByRole("button", { name: "New role" }).first().click();
     const form = page.getByTestId("form-page").or(page.getByRole("dialog")).first();
     await expect(form.locator("option", { hasText: /^Pipeline$/ }).first()).toBeAttached();
     for (const kind of ["Role", "RoleBinding", "Project"]) {
