@@ -25,7 +25,7 @@ use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
     ContextSpaceSpec, DataModelLifecycle, DataModelRef, DataModelSpec, EndpointSpec, MappingSpec,
     ModelProjectionSpec, Operation, OperationRef, PolicySpec, PrincipalKind, ProjectedClass,
-    Projection, ProjectionFilter,
+    Projection, ProjectionFilter, RetentionRule,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
@@ -162,6 +162,9 @@ pub struct Sources {
     /// names and every platform model that imports, or why they do not read. A space without
     /// `dataModelRef` has none, and its tenant no schema.
     pub models: BTreeMap<(String, String), Result<ModelSource, String>>,
+    /// Each Context Space's retention rules by `(project, space)`, empty for keep-forever
+    /// (DM-81).
+    pub retention: BTreeMap<(String, String), Vec<RetentionRule>>,
 }
 
 /// One Mapping as a view of another model needs it (G18).
@@ -195,9 +198,13 @@ impl Sources {
             let spec = &resource.manifest.spec;
             match id.kind.as_str() {
                 "ContextSpace" => {
-                    let model = serde_json::from_value::<ContextSpaceSpec>(spec.clone())
-                        .ok()
-                        .and_then(|spec| spec.data_model_ref);
+                    let parsed = serde_json::from_value::<ContextSpaceSpec>(spec.clone()).ok();
+                    let model = parsed.as_ref().and_then(|spec| spec.data_model_ref.clone());
+                    if let Some(spec) = parsed {
+                        sources
+                            .retention
+                            .insert((project.clone(), id.name.clone()), spec.retention);
+                    }
                     if let Some(model) = model {
                         sources.models.insert(
                             (project.clone(), id.name.clone()),
@@ -484,6 +491,8 @@ pub struct Desired {
     pub documents: BTreeMap<String, (Owner, Value)>,
     /// Each tenant's data model, which becomes its schema.
     pub schemas: BTreeMap<String, (Owner, ModelSource)>,
+    /// Each tenant's retention rules, empty to remove its document (DM-81).
+    pub retention: BTreeMap<String, (Owner, Vec<RetentionRule>)>,
     /// The objects the writer refused, and why.
     pub refused: Vec<(Owner, String)>,
 }
@@ -540,6 +549,12 @@ pub fn desired(sources: &Sources) -> Desired {
             )),
             None => {}
         }
+        let rules = sources
+            .retention
+            .get(&(project.clone(), name.clone()))
+            .cloned()
+            .unwrap_or_default();
+        out.retention.insert(tenant.clone(), (owner.clone(), rules));
         out.documents.insert(
             tenant.clone(),
             (owner, with_gateway(rule_document(sources, project, name))),
@@ -1213,6 +1228,9 @@ pub enum ViewOutcome {
     Failed(String),
 }
 
+/// A model as Model Tools compiled it: the source, its `brokerSchema` and its JSON-LD `context`.
+type Compiled = (ModelSource, Value, Option<Value>);
+
 /// One HTTP client, the broker's address and where its admin token is mounted.
 pub struct ViewSync {
     http: reqwest::Client,
@@ -1231,7 +1249,7 @@ pub struct ViewSync {
     /// The last schema compiled per tenant and the model it came from: an unchanged model is
     /// not compiled again on every run.
     // ponytail: a Model Tools upgrade reaches an unchanged model when the Portal restarts.
-    compiled: Mutex<BTreeMap<String, (ModelSource, Value)>>,
+    compiled: Mutex<BTreeMap<String, Compiled>>,
     /// What the last run read, which a preview compiles its draft against (T-3802): the
     /// leader's converge and every follower's sync record it, so any replica previews (T-3820).
     last: Mutex<Option<Arc<Sources>>>,
@@ -1464,6 +1482,23 @@ impl ViewSync {
             }
         }
 
+        for (tenant, (owner, rules)) in &desired.retention {
+            let path = format!("/q/retention/{tenant}");
+            let outcome = if rules.is_empty() {
+                match self.delete(&token, &path).await {
+                    Ok(()) => ViewOutcome::Written,
+                    Err(reason) => ViewOutcome::Failed(reason),
+                }
+            } else {
+                let context = lock(&self.compiled)
+                    .get(tenant)
+                    .and_then(|(_, _, context)| context.clone());
+                let document = retention_document(rules, context.as_ref());
+                self.put_if_changed(&token, &path, &document).await
+            };
+            note(owner, outcome);
+        }
+
         // No engine that reads rule documents: `/q/policy` answers 404 and the views stand
         // under whatever engine the broker runs.
         match self.get(&token, "/q/policy").await {
@@ -1518,7 +1553,7 @@ impl ViewSync {
     /// The `brokerSchema` Model Tools compiles from a space's data model, or what the space's
     /// condition says instead: a model that does not compile is refused with its messages.
     async fn broker_schema(&self, tenant: &str, model: &ModelSource) -> Result<Value, ViewOutcome> {
-        if let Some((held, schema)) = lock(&self.compiled).get(tenant) {
+        if let Some((held, schema, _)) = lock(&self.compiled).get(tenant) {
             if held == model {
                 return Ok(schema.clone());
             }
@@ -1557,7 +1592,10 @@ impl ViewSync {
             })?;
         match artifacts.broker_schema {
             Some(schema) => {
-                lock(&self.compiled).insert(tenant.to_owned(), (model.clone(), schema.clone()));
+                lock(&self.compiled).insert(
+                    tenant.to_owned(),
+                    (model.clone(), schema.clone(), artifacts.context),
+                );
                 Ok(schema)
             }
             None if !artifacts.errors.is_empty() => Err(ViewOutcome::Refused(format!(
@@ -1632,6 +1670,73 @@ impl ViewSync {
             false => Err(refusal(&format!("DELETE {path}"), response).await),
         }
     }
+}
+
+/// The broker's retention document of one space (DM-81, ADR-N-046): each rule under every IRI
+/// its type is written as, the NGSI-LD core context's and the space's model's, once.
+fn retention_document(rules: &[RetentionRule], context: Option<&Value>) -> Value {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for rule in rules {
+        for iri in type_iris(&rule.entity_type, context) {
+            if seen.insert(iri.clone()) {
+                let mut one = json!({ "type": iri });
+                if let Some(current) = &rule.current {
+                    one["current"] = json!(current);
+                }
+                if let Some(history) = &rule.history {
+                    one["history"] = json!(history);
+                }
+                out.push(one);
+            }
+        }
+    }
+    json!({ "rules": out })
+}
+
+/// The IRIs a class name is written as: under the NGSI-LD core context, and under the model's
+/// JSON-LD `@context` (its term, a CURIE expanded by the context's prefix, else `@vocab`).
+fn type_iris(name: &str, context: Option<&Value>) -> Vec<String> {
+    let absolute = |iri: &str| iri.contains("://") || iri.starts_with("urn:");
+    let mut out = vec![format!(
+        "https://uri.etsi.org/ngsi-ld/default-context/{name}"
+    )];
+    let inner = context.map(|c| c.get("@context").unwrap_or(c));
+    let objects: Vec<&Map<String, Value>> = match inner {
+        Some(Value::Object(one)) => vec![one],
+        Some(Value::Array(many)) => many.iter().filter_map(Value::as_object).collect(),
+        _ => Vec::new(),
+    };
+    let id = |definition: &Value| -> Option<String> {
+        definition
+            .as_str()
+            .or_else(|| definition.get("@id").and_then(Value::as_str))
+            .map(str::to_owned)
+    };
+    for terms in objects {
+        let defined = terms
+            .get(name)
+            .and_then(id)
+            .and_then(|iri| match iri.split_once(':') {
+                _ if absolute(&iri) => Some(iri),
+                Some((prefix, local)) => terms
+                    .get(prefix)
+                    .and_then(id)
+                    .filter(|base| absolute(base))
+                    .map(|base| format!("{base}{local}")),
+                None => None,
+            });
+        let vocab = terms
+            .get("@vocab")
+            .and_then(Value::as_str)
+            .filter(|v| absolute(v));
+        match (defined, vocab) {
+            (Some(iri), _) => out.push(iri),
+            (None, Some(vocab)) if !terms.contains_key(name) => out.push(format!("{vocab}{name}")),
+            _ => {}
+        }
+    }
+    out
 }
 
 /// A lock a panicked holder left poisoned still holds a whole set.
@@ -3374,6 +3479,113 @@ mod tests {
         }
         assert_eq!(held, BTreeSet::from(["city-air".to_owned()]));
         assert!(lock(&sync.written_schemas).is_empty());
+    }
+
+    /// DM-81: a space's retention rules reach the broker under the core context's IRI and the
+    /// model's; a space whose rules are gone has its document removed, which keeps forever.
+    #[tokio::test]
+    async fn a_spaces_retention_is_written_and_removed_with_its_rules() {
+        let mut s = with_model(sources(vec![("cars", cars())]));
+        s.retention.insert(
+            ("city".into(), "air".into()),
+            vec![RetentionRule {
+                entity_type: "Vehicle".into(),
+                current: Some("PT5M".into()),
+                history: None,
+            }],
+        );
+        let context = json!({"@context": {"sdm": "https://smartdatamodels.org/",
+                                          "Vehicle": {"@id": "sdm:Vehicle"}}});
+        let tools = model_tools(
+            json!({"brokerSchema": {"classes": {}}, "context": context, "errors": []}),
+            1,
+        )
+        .await;
+        let server = broker_with_the_space_view(&s).await;
+        Mock::given(method("PUT"))
+            .and(path("/q/schemas/city-air"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&server)
+            .await;
+        let document = json!({"rules": [
+            {"type": "https://uri.etsi.org/ngsi-ld/default-context/Vehicle", "current": "PT5M"},
+            {"type": "https://smartdatamodels.org/Vehicle", "current": "PT5M"}]});
+        Mock::given(method("PUT"))
+            .and(path("/q/retention/city-air"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(&document))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/q/retention/city-air"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file).with_model_tools(tools.uri());
+        let first = sync.apply(desired(&s)).await;
+        s.retention
+            .insert(("city".into(), "air".into()), Vec::new());
+        let second = sync.apply(desired(&s)).await;
+        let _ = std::fs::remove_file(&file);
+        for outcomes in [&first, &second] {
+            assert!(
+                matches!(&outcomes[..], [(owner, ViewOutcome::Written)] if owner.name == "air"),
+                "{outcomes:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_class_is_named_by_the_core_context_and_by_the_models() {
+        let core = "https://uri.etsi.org/ngsi-ld/default-context/Bus";
+        assert_eq!(type_iris("Bus", None), [core]);
+        for (context, model) in [
+            (
+                json!({"@context": {"Bus": "https://e.org/Bus"}}),
+                Some("https://e.org/Bus"),
+            ),
+            (
+                json!({"@context": {"x": {"@id": "https://e.org/x/", "@prefix": true},
+                                 "Bus": {"@id": "x:Bus"}}}),
+                Some("https://e.org/x/Bus"),
+            ),
+            (
+                json!({"@context": [core, {"@vocab": "https://e.org/v/"}]}),
+                Some("https://e.org/v/Bus"),
+            ),
+            (
+                json!({"@context": {"Bus": {"@id": "nope:Bus"}, "@vocab": "https://e.org/v/"}}),
+                None,
+            ),
+            (json!({"@context": {"Bus": {"@id": "Bus"}}}), None),
+            (json!({"@context": "https://e.org/ctx.jsonld"}), None),
+        ] {
+            let mut want = vec![core.to_owned()];
+            want.extend(model.map(str::to_owned));
+            assert_eq!(type_iris("Bus", Some(&context)), want, "{context}");
+        }
+        let rules = [
+            RetentionRule {
+                entity_type: "Bus".into(),
+                current: None,
+                history: Some("PT8H".into()),
+            },
+            RetentionRule {
+                entity_type: "Bus".into(),
+                current: Some("PT1M".into()),
+                history: None,
+            },
+        ];
+        assert_eq!(
+            retention_document(&rules, None),
+            json!({"rules": [{"type": core, "history": "PT8H"}]}),
+            "one rule per IRI, the first wins"
+        );
     }
 
     /// What keeps a schema out of the broker is the space's condition: a model that does not
