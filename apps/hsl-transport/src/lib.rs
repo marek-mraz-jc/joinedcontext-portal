@@ -8,10 +8,10 @@
 //! connection, holds no credential and contains no authorization logic. The Endpoint it is
 //! bound to is public, so the app never sees a user and asks nobody to sign in (AP-28).
 //!
-//! An Endpoint has no subscription or streaming surface and this app does not add one. One
-//! poll loop reads the Endpoint's GeoJSON, keeps the last known position of each bus in
-//! memory and pushes what moved to every connected browser as Server-Sent Events. A hundred
-//! open maps are still one query per interval, and the browser never learns the Endpoint URL.
+//! The fleet comes from the Endpoint's WebSocket ([`live`], API/07): one socket for the
+//! process, the last known position of each bus in memory, and what moved pushed to every
+//! connected browser as Server-Sent Events. A hundred open maps are still one socket, and the
+//! browser never learns the Endpoint URL.
 
 use std::collections::BTreeMap;
 use std::convert::Infallible;
@@ -30,6 +30,8 @@ use tokio_stream::{Stream, StreamExt};
 
 pub mod assets;
 pub mod board;
+pub mod live;
+pub mod metrics;
 
 /// The entity type this app was built for; it is also what the grant names.
 const TYPE: &str = "Vehicle";
@@ -39,11 +41,8 @@ const FLEET: usize = 90;
 /// The headsigns are read again after this many board reads (an hour at 30 s): lines change
 /// with the timetable, not by the minute.
 const HEADSIGN_READS: u64 = 120;
-/// How often the poll loop asks the Endpoint. The manifest allows 1200 requests a minute, so
-/// two seconds leaves the budget almost untouched however many browsers are watching.
-const POLL_SECONDS: u64 = 2;
-/// A slow browser must not hold the poll loop back, so the channel drops the oldest batch
-/// instead of blocking. A viewer that falls this far behind gets the next full poll anyway.
+/// A slow browser must not hold the socket back, so the channel drops the oldest batch
+/// instead of blocking. A viewer that falls this far behind still has the fleet route.
 const BROADCAST_DEPTH: usize = 16;
 
 /// What the reconciler hands the container (Architecture/16 §5).
@@ -53,8 +52,6 @@ pub struct Config {
     pub base_path: String,
     /// `https://{host}/api/endpoint/{slug}/`, the only data surface it may call (AP-04).
     pub endpoint_url: String,
-    /// Seconds between two polls of the Endpoint.
-    pub poll_seconds: u64,
     /// `JC_APP_CONFIG`, the `#jc-config` object the reconciler hands a pod App (endpoints, and the
     /// project's `basemap` style URL when one is configured, AP-67), already escaped for the
     /// `<script>` element the page carries it in. `None`: the page is served as built.
@@ -71,11 +68,6 @@ impl Config {
         Ok(Self {
             base_path: std::env::var("JC_BASE_PATH").unwrap_or_else(|_| "/".to_owned()),
             endpoint_url: with_trailing_slash(&endpoint_url),
-            poll_seconds: std::env::var("JC_POLL_SECONDS")
-                .ok()
-                .and_then(|value| value.parse().ok())
-                .filter(|seconds| *seconds > 0)
-                .unwrap_or(POLL_SECONDS),
             page_config: match std::env::var("JC_APP_CONFIG") {
                 Ok(raw) if !raw.trim().is_empty() => Some(page_config(&raw)?),
                 _ => None,
@@ -127,12 +119,16 @@ pub struct Vehicle {
 }
 
 /// The application state: its configuration, the one client it makes requests with, the last
-/// known fleet and the channel every open map listens on.
+/// known fleet, the channel every open map listens on and since when the live feed is lost.
 pub struct App {
     pub config: Config,
     http: reqwest::Client,
     fleet: RwLock<BTreeMap<String, Vehicle>>,
     changes: tokio::sync::broadcast::Sender<Vec<Vehicle>>,
+    /// `Some(time)` while the socket is down or the map may have missed a move; `None` live.
+    /// Before the first socket the feed is lost since the start.
+    feed: tokio::sync::watch::Sender<Option<String>>,
+    pub metrics: metrics::Metrics,
     board: RwLock<Option<board::Board>>,
     headsigns: tokio::sync::Mutex<(u64, board::Headsigns)>,
 }
@@ -144,6 +140,11 @@ impl App {
             http: reqwest::Client::new(),
             fleet: RwLock::new(BTreeMap::new()),
             changes: tokio::sync::broadcast::channel(BROADCAST_DEPTH).0,
+            feed: tokio::sync::watch::channel(Some(
+                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            ))
+            .0,
+            metrics: metrics::Metrics::default(),
             board: RwLock::new(None),
             headsigns: tokio::sync::Mutex::new((0, BTreeMap::new())),
         }
@@ -177,11 +178,17 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// One poll of the Endpoint: read the fleet, keep what moved, tell the browsers.
+    /// Since when the live feed is lost; `None` while it is live.
+    pub fn feed_lost_since(&self) -> Option<String> {
+        self.feed.borrow().clone()
+    }
+
+    /// One full read of the Endpoint: read the fleet, keep what moved, tell the browsers. The
+    /// socket asks for it when the stream alone cannot be trusted to be complete.
     ///
     /// Returns the buses that changed, which is what the tests assert on and what goes out
-    /// over SSE. A bus that has not moved since the last poll is not sent again.
-    pub async fn poll_once(&self) -> Result<Vec<Vehicle>, PollError> {
+    /// over SSE. A bus that has not moved since the last read is not sent again.
+    pub async fn reload(&self) -> Result<Vec<Vehicle>, PollError> {
         let fetched = self.fetch().await?;
         let mut changed = Vec::new();
         {
@@ -200,30 +207,20 @@ impl App {
         Ok(changed)
     }
 
-    /// The poll loop, for the process. Nothing else in the app makes an outbound call.
-    pub async fn run(self: Arc<Self>) {
-        let interval = Duration::from_secs(self.config.poll_seconds);
-        let every = (board::BOARD_SECONDS / self.config.poll_seconds).max(1);
-        let mut tick: u64 = 0;
+    /// The departures and alerts, read every [`board::BOARD_SECONDS`]: timetables, not
+    /// positions, so they are not on the socket.
+    pub async fn read_board(self: Arc<Self>) {
         loop {
-            if tick.is_multiple_of(every) {
-                if let Err(error) = self.poll_board().await {
-                    tracing::warn!(%error, "board read failed, keeping the last departures and alerts");
-                }
+            if let Err(error) = self.poll_board().await {
+                tracing::warn!(%error, "board read failed, keeping the last departures and alerts");
             }
-            tick += 1;
-            if let Err(error) = self.poll_once().await {
-                // A poll that fails leaves the last known fleet on every open map, which is
-                // the honest thing to show: the buses stop moving rather than disappearing.
-                tracing::warn!(%error, "poll failed, keeping the last known fleet");
-            }
-            tokio::time::sleep(interval).await;
+            tokio::time::sleep(Duration::from_secs(board::BOARD_SECONDS)).await;
         }
     }
 
     /// The Endpoint's GeoJSON representation of the fleet (EP-05), capped at the fleet size.
     ///
-    /// Anonymous on purpose: the Endpoint is public, one poll loop serves every viewer, and a
+    /// Anonymous on purpose: the Endpoint is public, one reader serves every viewer, and a
     /// per-viewer token could not be used for a shared read anyway (AP-28).
     async fn fetch(&self) -> Result<Vec<Vehicle>, PollError> {
         let response = self
@@ -316,7 +313,7 @@ fn vehicle(feature: &Value) -> Option<Vehicle> {
 
 /// An attribute is a bare value in the simplified representation and `{"value": …}` in the
 /// normalized one; the Endpoint may serve either, so both are read.
-fn simple_value(attribute: &Value) -> Option<&Value> {
+pub(crate) fn simple_value(attribute: &Value) -> Option<&Value> {
     match attribute {
         Value::Object(fields) => fields.get("value"),
         other => Some(other),
@@ -337,6 +334,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/healthz", get(|| async { "ok" }))
         .route(&at("/api/vehicles"), get(fleet))
         .route(&at("/api/stream"), get(stream))
+        .route(&at("/metrics"), get(metrics_text))
         .route(&at("/api/departures"), get(departures))
         .route(&at("/api/alerts"), get(alerts))
         // Both spellings of the front page: the edge routes the prefix, and a person who
@@ -408,18 +406,36 @@ async fn fleet(State(app): State<Arc<App>>) -> Response {
     Json(fleet).into_response()
 }
 
-/// Every bus that moves, as Server-Sent Events.
+/// The app's counters and the update latency (T-3581).
+async fn metrics_text(State(app): State<Arc<App>>) -> Response {
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
+        app.metrics.text(app.snapshot().len()),
+    )
+        .into_response()
+}
+
+/// Every bus that moves, as Server-Sent Events, and whether the feed is live.
 ///
 /// The first event is the whole fleet, so a browser that connects here alone is drawing
-/// immediately and every later event is a difference.
+/// immediately and every later event is a difference. A `feed` event carries
+/// `{"lostSince": time}` while the socket is down and `{"lostSince": null}` once it is live.
 async fn stream(State(app): State<Arc<App>>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let receiver = app.changes.subscribe();
     let first = tokio_stream::iter([app.snapshot()]);
     let rest = tokio_stream::wrappers::BroadcastStream::new(receiver).filter_map(Result::ok);
-    let events = first.chain(rest).map(|vehicles| {
-        Ok(Event::default()
+    let vehicles = first.chain(rest).map(|vehicles| {
+        Event::default()
             .event("vehicles")
-            .data(serde_json::to_string(&vehicles).unwrap_or_else(|_| "[]".to_owned())))
+            .data(serde_json::to_string(&vehicles).unwrap_or_else(|_| "[]".to_owned()))
     });
-    Sse::new(events).keep_alive(KeepAlive::default())
+    let feed = tokio_stream::wrappers::WatchStream::new(app.feed.subscribe()).map(|lost| {
+        Event::default()
+            .event("feed")
+            .data(json!({ "lostSince": lost }).to_string())
+    });
+    Sse::new(vehicles.merge(feed).map(Ok)).keep_alive(KeepAlive::default())
 }
