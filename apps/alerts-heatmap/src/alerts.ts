@@ -1,6 +1,6 @@
 /**
  * The alerts as the analysis reads them, and the filters as the address carries them, so a view
- * is a link a person can send (`?from=2026-09-01&kind=ROAD_WORK&day=0&hour=7&lang=en`).
+ * is a link a person can send (`?from=2026-09-01&kind=roadWorks&day=0&hour=7&lang=en`).
  */
 import type { Row } from "@joinedcontext/sdk";
 import type { AlertInput, Filter } from "./analysis";
@@ -63,7 +63,7 @@ export function readView(search: string): ViewState {
   return {
     from: DAY.test(from) ? from : "",
     to: DAY.test(to) ? to : "",
-    kinds: (params.get("kind") ?? "").split(",").filter((kind) => /^[A-Z_]{1,40}$/.test(kind)),
+    kinds: (params.get("kind") ?? "").split(",").filter((kind) => /^[A-Za-z_/]{1,40}$/.test(kind)),
     // An hour of the week is a pair: one half alone picks nothing.
     weekday: weekday !== null && hour !== null ? weekday : null,
     hour: weekday !== null && hour !== null ? hour : null,
