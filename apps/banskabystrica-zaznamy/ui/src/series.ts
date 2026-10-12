@@ -54,7 +54,7 @@ function property(entity: Record<string, unknown>, attr: string): unknown {
 
 /** One record as a cell, or `null` for one without a number or an indicator. */
 function cellOf(entity: Record<string, unknown>): Cell | null {
-  const value = property(entity, "value");
+  const value = property(entity, "observationValue");
   const indicator = property(entity, "indicator");
   if (typeof value !== "number" || !Number.isFinite(value) || typeof indicator !== "string") return null;
   let period = String(property(entity, "refPeriod") ?? "");
