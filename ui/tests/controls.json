@@ -1419,6 +1419,7 @@
         "pipeline_flow_stats.test.tsx",
         "pipeline_flow_steps.test.tsx",
         "pipeline_graph.test.ts",
+        "pipeline_last_samples.test.tsx",
         "pipeline_step_form.test.tsx"
       ]
     },

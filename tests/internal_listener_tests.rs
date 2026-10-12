@@ -435,7 +435,12 @@ async fn a_pipeline_sink_is_admitted_for_its_own_project_and_refused_for_any_oth
     let (app, signer, issuer) = listener(Some(GATEWAY_CLIENT)).await;
     let outcome = r#"{"sent":["urn:ngsi-ld:Thing:1"]}"#;
     let rejected = r#"{"record":{"id":"urn:ngsi-ld:Thing:1"},"error":"no"}"#;
-    for (route, body) in [("outcomes", outcome), ("rejected", rejected)] {
+    let sampled = r#"{"node":"input","record":{"id":"urn:ngsi-ld:Thing:1"}}"#;
+    for (route, body) in [
+        ("outcomes", outcome),
+        ("rejected", rejected),
+        ("samples", sampled),
+    ] {
         let uri = format!("/internal/pipelines/praha/odpad/{route}");
         for client in ["praha-pipelines", "praha-pl-odpad"] {
             let own = token(&signer, &issuer, INTERNAL_AUDIENCE, client);
@@ -467,5 +472,18 @@ async fn a_pipeline_sink_is_admitted_for_its_own_project_and_refused_for_any_oth
             call(&app, "POST", &uri, body, None).await,
             StatusCode::UNAUTHORIZED
         );
-    }
+    } // A tap names one node of the drawn flow; anything else is refused before it is kept.
+    let own = token(&signer, &issuer, INTERNAL_AUDIENCE, "praha-pipelines");
+    let stray = r#"{"node":"../etc","record":{}}"#;
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            "/internal/pipelines/praha/odpad/samples",
+            stray,
+            Some(&own)
+        )
+        .await,
+        StatusCode::BAD_REQUEST
+    );
 }
