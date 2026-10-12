@@ -54,7 +54,7 @@ const ROLES: [&str; 8] = [
 ];
 
 /// What every person reads (deployment's helsinki-role-viewer.yaml, verbatim).
-const READ_KINDS: [&str; 30] = [
+const READ_KINDS: [&str; 32] = [
     "Organization",
     "Project",
     "ContextSpace",
@@ -69,10 +69,12 @@ const READ_KINDS: [&str; 30] = [
     "ServiceAccount",
     "Pipeline",
     "DataSource",
+    "MqttBroker",
     "App",
     "CkanInstance",
     "KnowledgeSource",
     "AssistantDeployment",
+    "McpServer",
     "Blueprint",
     "AgentProfile",
     "DataSpaceParticipant",
@@ -88,7 +90,7 @@ const READ_KINDS: [&str; 30] = [
 ];
 /// What the steward proposes and approves and the approver approves (helsinki-role-steward.yaml):
 /// every project kind but `CkanInstance`, which the administrator hands out per instance (PF-107).
-const STEWARD_KINDS: [&str; 24] = [
+const STEWARD_KINDS: [&str; 25] = [
     "ContextSpace",
     "DataModel",
     "Mapping",
@@ -101,6 +103,7 @@ const STEWARD_KINDS: [&str; 24] = [
     "ServiceAccount",
     "Pipeline",
     "DataSource",
+    "MqttBroker",
     "App",
     "Blueprint",
     "DataSpaceParticipant",
@@ -126,7 +129,7 @@ const EDITOR_KINDS: [&str; 8] = [
     "DataSource",
 ];
 /// What the org-admin proposes, approves and deletes (helsinki-role-org-admin.yaml).
-const ADMIN_KINDS: [&str; 32] = [
+const ADMIN_KINDS: [&str; 34] = [
     "Organization",
     "Project",
     "ContextSpace",
@@ -141,10 +144,12 @@ const ADMIN_KINDS: [&str; 32] = [
     "ServiceAccount",
     "Pipeline",
     "DataSource",
+    "MqttBroker",
     "App",
     "CkanInstance",
     "KnowledgeSource",
     "AssistantDeployment",
+    "McpServer",
     "Blueprint",
     "DataSpaceParticipant",
     "DataOffer",
@@ -395,7 +400,7 @@ async fn fixture() -> AppState {
         ));
     };
     let here = json!({ "project": PROJECT });
-    let read = json!({ "kinds": READ_KINDS, "verbs": ["read"] });
+    let read = json!({ "kinds": READ_KINDS.as_slice(), "verbs": ["read"] });
     let user = |who: &str| json!({ "user": format!("{who}@hel.fi") });
     bind("viewer", json!([read]), user("viewer"), here.clone());
     bind(
@@ -424,7 +429,7 @@ async fn fixture() -> AppState {
         "org-admin",
         json!([
             read,
-            { "kinds": ADMIN_KINDS, "verbs": ["propose", "approve", "delete"] },
+            { "kinds": ADMIN_KINDS.as_slice(), "verbs": ["propose", "approve", "delete"] },
             { "kinds": ["Person"], "verbs": ["read", "create", "update", "disable", "delete"] }
         ]),
         user("org-admin"),
