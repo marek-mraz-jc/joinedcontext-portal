@@ -1,5 +1,5 @@
 //! `POST|GET /api/v1/projects/{project}/spaces/{space}/move`: moving a space to another broker
-//! (API/01 §44, PF-115, ADR-N-046 §2.6), for organization administrators.
+//! (API/01 §44, PF-115, ADR-N-047 §2.6), for organization administrators.
 
 use std::sync::Arc;
 

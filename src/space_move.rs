@@ -1,4 +1,4 @@
-//! Moving a space to another broker (API/01 §44, PF-115, ADR-N-046 §2.6).
+//! Moving a space to another broker (API/01 §44, PF-115, ADR-N-047 §2.6).
 //!
 //! One job per space: hold it read-only by the `moving-to` annotation, wait until the gateway's
 //! scrape says the hold is in force, stream the source broker's tenant export into the target's
@@ -18,7 +18,7 @@ use utoipa::ToSchema;
 
 use crate::git::{Author, FileWrite, GiteaClient};
 
-/// The annotation that holds a space read-only while it moves (ADR-N-046 §2.6).
+/// The annotation that holds a space read-only while it moves (ADR-N-047 §2.6).
 pub const MOVING_TO: &str = "joinedcontext.com/moving-to";
 /// The gateway's series of held spaces, one per tenant.
 const HELD: &str = "jc_gateway_space_held";
