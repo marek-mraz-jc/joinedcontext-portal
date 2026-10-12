@@ -81,7 +81,10 @@ test.describe("importing a bundle", () => {
     await page.getByLabel("Archive or manifests").setInputFiles(file(BUNDLE));
     const propose = page.getByRole("button", { name: "Propose the import" });
     await expect(propose, "nothing is proposed from an unchecked bundle (MF-33)").toBeDisabled();
-    await expect(page.getByText("Check the bundle to see what it would do.")).toBeVisible();
+    // The reason is said twice on purpose: as the disabled button's description and as the
+    // status beside it, which is the one a sighted person reads.
+    await expect(propose).toHaveAccessibleDescription("Check the bundle to see what it would do.");
+    await expect(page.getByRole("status").filter({ hasText: "Check the bundle to see what it would do." })).toBeVisible();
 
     await page.getByRole("button", { name: "Check the bundle" }).click();
     const report = page.getByRole("heading", { name: "What this import would do" }).locator("xpath=ancestor::section[1]");
