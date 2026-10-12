@@ -54,6 +54,7 @@ pub mod resources;
 pub mod restore;
 pub mod service_accounts;
 pub mod setup;
+pub mod space_move;
 pub mod space_retention;
 pub mod space_usage;
 pub mod sync;
@@ -128,6 +129,7 @@ pub fn router() -> Router<AppState> {
         .merge(validation::router())
         .merge(organization_limits::router())
         .merge(brokers::router())
+        .merge(space_move::router())
         .merge(mqtt_measured::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())

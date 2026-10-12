@@ -103,17 +103,7 @@ impl Counter {
         {
             return Ok(kept.clone());
         }
-        // Read on every ask, like the view writer: a rotated Secret needs no restart.
-        let token = self
-            .token_file
-            .as_ref()
-            .and_then(|file| std::fs::read_to_string(file).ok())
-            .map(|token| token.trim().to_owned())
-            .filter(|token| !token.is_empty())
-            .ok_or_else(|| {
-                "the broker's admin token is not readable (JC_PORTAL_BROKER_ADMIN_TOKEN_FILE)"
-                    .to_owned()
-            })?;
+        let token = self.token()?;
         let response = self
             .http
             .get(format!("{broker}/q/tenants/{tenant}"))
@@ -152,12 +142,29 @@ impl Counter {
 
     /// Whether the Portal has an address for broker `broker_name`.
     pub fn reaches(&self, broker_name: &str) -> bool {
+        self.address(broker_name).is_some()
+    }
+
+    /// The address of broker `broker_name` (PF-111), `None` when the Portal has none.
+    pub fn address(&self, broker_name: &str) -> Option<String> {
         crate::spaces::broker_address(
             broker_name,
             self.broker.as_deref(),
             self.template.as_deref(),
         )
-        .is_some()
+    }
+
+    /// The brokers' admin token, read on every ask: a rotated Secret needs no restart.
+    pub fn token(&self) -> Result<String, String> {
+        self.token_file
+            .as_ref()
+            .and_then(|file| std::fs::read_to_string(file).ok())
+            .map(|token| token.trim().to_owned())
+            .filter(|token| !token.is_empty())
+            .ok_or_else(|| {
+                "the broker's admin token is not readable (JC_PORTAL_BROKER_ADMIN_TOKEN_FILE)"
+                    .to_owned()
+            })
     }
 
     /// The version broker `broker_name` reports on `GET /q/health`, or why it is not up

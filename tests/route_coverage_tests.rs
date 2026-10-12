@@ -196,6 +196,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/alerts/{id}/mute", "the signed-in person mutes or unmutes one of their alerts (API/01 §37)"),
 ("GET", "/alerts/notices", "the signed-in person's alert notices (API/01 §37)"),
 ("POST", "/alerts/notices/{id}/read", "the signed-in person marks an alert notice read (API/01 §37)"),
+("GET", "/projects/{project}/spaces/{space}/move", "the state of a move an administrator started; reading it writes nothing (T-4000, API/01 §45)"),
+("POST", "/projects/{project}/spaces/{space}/move", "an administrator's operation on the broker that holds a space, not a manifest write: the job commits the hold and the switch itself, and jc_resource_apply of a brokerRef is refused for a space with entities (T-4000, PF-115)"),
 ("POST", "/projects/{project}/spaces/{space}/retention/preview", "what a draft of the space's retention would delete now, counted by the broker for the space's owner before saving: a reading about the data, the rules themselves are the manifest's (T-3901, DM-85)"),
 ("GET", "/projects/{project}/spaces/{space}/retention/deleted", "what the broker's retention sweeps deleted of the space, read with the space's own read rule (T-3901, DM-85)"),
 ("GET", "/projects/{project}/spaces/{space}/usage", "how many entities the space holds, the broker's count read with the space's own read rule: a reading about the data and not a manifest (T-2889)"),
