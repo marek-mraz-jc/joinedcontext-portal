@@ -23,6 +23,7 @@ import { ago } from "../pages/apps/CatalogCards";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
 import { askAbout, standingIn } from "../assistant/state";
+import { usePermissions } from "../api/permissions";
 import type { Effective } from "../api/permissions";
 import { proposeStanding } from "../api/approval";
 import type { Draft, Verdict } from "../api/drafts";
@@ -190,9 +191,14 @@ export function ResourceFormDialogBody<T>({
   const viewsId = useId();
   const advancedHintId = useId();
   const kind = ownKind ?? draftKind;
+  // A role that may not propose the kind reads the form and is told why it cannot send it, as
+  // `PermissionGuard` says it of a button (UI-44, PF-51); the API refuses the same proposal anyway.
+  const { can } = usePermissions(project ?? "");
+  const deniedReason =
+    kind && project && !can(kind, "propose") ? t("permissions.denied", { verb: "propose", kind }) : undefined;
   // A proposal in flight closes the form as surely as a caller's own `disabled` does; what it
   // adds is that the button says which of the two it is (T-0962).
-  const disabled = closed || submitting === true;
+  const disabled = closed || submitting === true || deniedReason !== undefined;
 
   // One fetch for the whole of `portal/forms/`, shared by every dialog through the query cache.
   const forms = useQuery({
@@ -569,9 +575,8 @@ export function ResourceFormDialogBody<T>({
     return undefined;
   }, [canCheck, draftKind, activeName, verdictState, t]);
 
-  const effectiveSubmitDisabledReason = isLax
-    ? submitDisabledReason
-    : submitDisabledReason || proposeReason;
+  const effectiveSubmitDisabledReason =
+    deniedReason ?? (isLax ? submitDisabledReason : submitDisabledReason || proposeReason);
 
   /** The server's own sentence for a refused save, else what the request failed with. */
   function refusalOf(err: unknown): string {
@@ -821,7 +826,7 @@ export function ResourceFormDialogBody<T>({
     <Button
       size="sm"
       disabled={disabled || ownCheck.isPending}
-      disabledReason={submitDisabledReason || t("app.busyReason")}
+      disabledReason={deniedReason ?? (submitDisabledReason || t("app.busyReason"))}
       onClick={runCheck}
     >
       {t("form.check")}
