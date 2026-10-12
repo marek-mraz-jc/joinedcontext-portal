@@ -49,13 +49,15 @@ function refName(value: unknown): string | undefined {
   return typeof name === "string" && name !== "" ? name : undefined;
 }
 
-/** `urn:ngsi-ld:{Type}:{org}:{project}:{name}` → its project and name. */
-export function urnParts(urn: unknown): { project?: string; name: string } | undefined {
+/**
+ * The resource name an Endpoint or Policy URN ends in. Nothing else is read out of it: a URN's
+ * other segments name no space, organization or project (ADR-N-041).
+ */
+export function urnName(urn: unknown): string | undefined {
   if (typeof urn !== "string") return undefined;
   const parts = urn.split(":");
   if (parts.length < 4 || parts[0] !== "urn" || parts[1] !== "ngsi-ld") return undefined;
-  const name = parts[parts.length - 1];
-  return name ? { project: parts.length >= 6 ? parts[parts.length - 2] : undefined, name } : undefined;
+  return parts[parts.length - 1] || undefined;
 }
 
 function readsOf(spec: Spec): string[] {
@@ -153,35 +155,34 @@ export function connectionsOf(resources: Resources): Edge[] {
       });
       const pipeline = resources.pipelines.find((item) => item.metadata.name === pipelineName);
       for (const urn of writesOf((pipeline?.spec ?? {}) as Spec)) {
-        const target = urnParts(urn);
-        const endpoint = target && (target.project === undefined || target.project === project) ? endpoints.get(target.name) : undefined;
-        const elsewhere = target?.project !== undefined && target.project !== project;
+        const target = urnName(urn) ?? String(urn);
+        const endpoint = endpoints.get(target);
         edges.push({
           kind: "endpoint",
           from: pipelineName,
-          to: target?.name ?? String(urn),
+          to: target,
           allowedBy: { key: "mqttbrokers.connections.byPipelineAccount", values: { pipeline: pipelineName } },
-          ...(endpoint || elsewhere
+          ...(endpoint
             ? {}
             : {
-                problem: { key: "mqttbrokers.connections.noEndpoint", values: { endpoint: target?.name ?? String(urn) } },
+                problem: { key: "mqttbrokers.connections.noEndpoint", values: { endpoint: target } },
                 fix: { plural: "pipelines", name: pipelineName },
               }),
         });
         if (!endpoint) continue;
         // An Endpoint without a policyRef is guarded by its space's grants, which this table does
         // not judge; one naming a Policy the project lacks is red.
-        const policy = urnParts((endpoint.spec as Spec | undefined)?.policyRef);
+        const policy = urnName((endpoint.spec as Spec | undefined)?.policyRef);
         if (!policy) continue;
         edges.push({
           kind: "policy",
           from: endpoint.metadata.name,
-          to: policy.name,
+          to: policy,
           allowedBy: { key: "mqttbrokers.connections.byPolicy" },
-          ...(policies.has(policy.name)
+          ...(policies.has(policy)
             ? {}
             : {
-                problem: { key: "mqttbrokers.connections.noPolicy", values: { policy: policy.name } },
+                problem: { key: "mqttbrokers.connections.noPolicy", values: { policy } },
                 fix: { plural: "endpoints", name: endpoint.metadata.name },
               }),
         });
