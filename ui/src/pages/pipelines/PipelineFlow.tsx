@@ -557,18 +557,21 @@ export type NodeCounters = Record<
  * `output`. A node with errors since the runner started is failing; one the runner reports
  * nothing for is idle. `errorsSentence` says the count in the page's language.
  */
+/** The runner's label of a node, for its counters and its samples (PL-66, T-3974). */
+export function runnerLabelOf(id: FlowNodeId): string {
+  if (isSource(id)) return "input";
+  // The fan-out is one broker labelled `output`; its outputs are not counted one by one.
+  if (isOutput(id)) return "output";
+  const step = stepIndexOf(id);
+  return step !== undefined ? `step_${step}` : id;
+}
+
 export function paintOfCounters(
   counters: NodeCounters,
   nodes: FlowNode[],
   errorsSentence: (count: number) => string,
 ): Record<string, NodePaint> {
-  const labelOf = (id: FlowNodeId): string => {
-    if (isSource(id)) return "input";
-    // The fan-out is one broker labelled `output`; its outputs are not counted one by one.
-    if (isOutput(id)) return "output";
-    const step = stepIndexOf(id);
-    return step !== undefined ? `step_${step}` : id;
-  };
+  const labelOf = runnerLabelOf;
   return Object.fromEntries(
     nodes.map((node) => {
       const counted = counters[labelOf(node.id)];

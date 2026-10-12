@@ -1832,7 +1832,10 @@
       "routeNoCondition": "zatiaľ bez podmienky",
       "queueShort": "{count} v rade",
       "queue": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom",
-      "queueHigh": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom, viac než {limit}: výstup nestíha"
+      "queueHigh": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom, viac než {limit}: výstup nestíha",
+      "lastSamples": "Posledné správy týmto krokom",
+      "lastSamplesNone": "Týmto krokom zatiaľ nič neprešlo.",
+      "lastSamplesUnavailable": "Posledné správy nie sú k dispozícii."
     },
     "emptyHint": "Pridajte zdroj údajov a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj údajov {name}",

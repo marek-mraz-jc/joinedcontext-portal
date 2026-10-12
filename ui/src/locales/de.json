@@ -1832,7 +1832,10 @@
       "routeNoCondition": "noch keine Bedingung",
       "queueShort": "{count} wartend",
       "queue": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe",
-      "queueHigh": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe, mehr als {limit}: die Ausgabe kommt nicht nach"
+      "queueHigh": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe, mehr als {limit}: die Ausgabe kommt nicht nach",
+      "lastSamples": "Letzte Nachrichten durch diesen Schritt",
+      "lastSamplesNone": "Durch diesen Schritt ist noch nichts gelaufen.",
+      "lastSamplesUnavailable": "Die letzten Nachrichten sind nicht verfügbar."
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
