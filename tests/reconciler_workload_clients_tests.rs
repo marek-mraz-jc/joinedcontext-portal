@@ -637,11 +637,19 @@ async fn a_pipeline_gets_its_own_federated_client_only_when_the_namespace_is_set
         .with_pipelines(PIPELINES.to_owned())
         .converge(&mirror)
         .await;
-    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
-    assert_eq!(outcomes[0].app, "zilina/pl-drepo");
+    // The pipeline's, and the project's harness principal beside it (T-4050).
+    let apps: Vec<&str> = outcomes.iter().map(|o| o.app.as_str()).collect();
+    assert_eq!(
+        apps,
+        ["zilina/pl-drepo", "zilina/pl-pipeline-test"],
+        "{outcomes:?}"
+    );
     assert_eq!(outcomes[0].error, None, "{outcomes:?}");
-    let created = &bodies(&keycloak, "POST", &format!("{REALM}/clients")).await[0];
-    assert_eq!(created["clientId"], "zilina-pl-drepo");
+    let created = bodies(&keycloak, "POST", &format!("{REALM}/clients")).await;
+    let created = created
+        .iter()
+        .find(|c| c["clientId"] == "zilina-pl-drepo")
+        .expect("the pipeline's client");
     assert_eq!(
         created["attributes"]["jwt.credential.sub"],
         format!("system:serviceaccount:{PIPELINES}:pl-zilina-drepo")
@@ -660,6 +668,74 @@ async fn a_pipeline_gets_its_own_federated_client_only_when_the_namespace_is_set
     let mut want = vec![json!(SLUG), json!("portal-internal")];
     want.sort_by_key(Value::to_string);
     assert_eq!(audiences, want);
+}
+
+/// T-4050: each project gets its pipeline-test harness principal `{project}-pl-pipeline-test`,
+/// federated to `pl-{project}-pipeline-test` in the pipelines' namespace, with the Portal's
+/// internal listener as its one audience: no Endpoint, even beside a Pipeline that writes one.
+/// A Pipeline that takes the reserved name anyway gets no client of its own.
+#[tokio::test]
+async fn each_project_gets_a_harness_principal_for_the_internal_listener_alone() {
+    let mut taken = drepo();
+    taken.metadata.name = "pipeline-test".to_owned();
+    let mirror = mirror_with(vec![
+        taken,
+        endpoint("zilina", "zilina-uniza", "zilina-uniza", SLUG),
+    ]);
+    let keycloak = realm(json!([])).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", "zilina-pl-pipeline-test"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .up_to_n_times(1)
+        .mount(&keycloak)
+        .await;
+    client_lookup(
+        &keycloak,
+        "zilina-pl-pipeline-test",
+        json!([managed_client(
+            "uuid-harness",
+            "zilina",
+            "pl-pipeline-test",
+            PIPELINES,
+            "pl-zilina-pipeline-test"
+        )]),
+    )
+    .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/clients")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&keycloak)
+        .await;
+    mappers(&keycloak, "uuid-harness", json!([])).await;
+
+    let outcomes = sync(&keycloak)
+        .with_pipelines(PIPELINES.to_owned())
+        .converge(&mirror)
+        .await;
+    let apps: Vec<&str> = outcomes.iter().map(|o| o.app.as_str()).collect();
+    assert_eq!(apps, ["zilina/pl-pipeline-test"], "{outcomes:?}");
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let created = bodies(&keycloak, "POST", &format!("{REALM}/clients")).await;
+    let [created] = created.as_slice() else {
+        panic!("one client created");
+    };
+    assert_eq!(created["clientId"], "zilina-pl-pipeline-test");
+    assert_eq!(
+        created["attributes"]["jwt.credential.sub"],
+        format!("system:serviceaccount:{PIPELINES}:pl-zilina-pipeline-test")
+    );
+    assert!(created.get("secret").is_none(), "{created}");
+    let audiences: Vec<Value> = bodies(
+        &keycloak,
+        "POST",
+        &format!("{REALM}/clients/uuid-harness/protocol-mappers/models"),
+    )
+    .await
+    .into_iter()
+    .map(|m| m["config"]["included.custom.audience"].clone())
+    .collect();
+    assert_eq!(audiences, vec![json!("portal-internal")]);
 }
 
 /// PL-19 (T-1508): each Pipeline's Kubernetes ServiceAccount is applied in the pipelines'
@@ -707,10 +783,13 @@ async fn the_pipelines_kubernetes_accounts_follow_the_pipelines() {
         .filter(|r| r.method.as_str() == "PATCH")
         .map(|r| serde_json::from_slice(&r.body).expect("json"))
         .collect();
-    let [account] = applied.as_slice() else {
-        panic!("one applied: {applied:?}");
+    // The pipeline's, and the project's harness principal's (T-4050).
+    let [account, harness] = applied.as_slice() else {
+        panic!("two applied: {applied:?}");
     };
     assert_eq!(account["metadata"]["name"], "pl-zilina-drepo");
+    assert_eq!(harness["metadata"]["name"], "pl-zilina-pipeline-test");
+    assert_eq!(harness["automountServiceAccountToken"], false);
     assert_eq!(account["metadata"]["namespace"], PIPELINES);
     assert_eq!(
         account["metadata"]["labels"]["joinedcontext.com/pipeline-identity"],

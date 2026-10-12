@@ -118,6 +118,9 @@ enum Reach {
     Roles(ServiceAccountSpec),
     /// One Endpoint and nothing else: an App's job principal (AP-159).
     Endpoint(String),
+    /// The Portal's internal listener and nothing else: a project's pipeline-test harness
+    /// (PL-43, T-4050), whose one call is its own capture route.
+    Internal,
 }
 
 /// One account bound to a workload, as this wave needs it.
@@ -169,7 +172,8 @@ fn bound(mirror: &Mirror) -> Vec<BoundAccount> {
 
 /// Every Pipeline's own account, derived as the gateway derives it (PL-19): bound to its own
 /// Kubernetes ServiceAccount in the runner's `namespace`, its roles the spaces its outputs and
-/// Endpoint source touch, so its client's audiences are those spaces' Endpoints.
+/// Endpoint source touch, so its client's audiences are those spaces' Endpoints; and each
+/// project's harness principal beside them (T-4050).
 fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
     let mut accounts = Vec::new();
     for project in mirror.namespaces() {
@@ -188,6 +192,10 @@ fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
             .list(&project, "Pipeline", &ListOptions::default())
             .items
         {
+            // jc-core refuses the name; one in the mirror anyway must not share the harness's client.
+            if envelope.metadata.name == jc_core::kinds::pipeline_identity::HARNESS {
+                continue;
+            }
             let Ok(spec) = serde_json::from_value::<jc_core::kinds::PipelineSpec>(envelope.spec)
             else {
                 continue;
@@ -217,9 +225,28 @@ fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
                 reports: true,
             });
         }
+        accounts.push(harness_account(&project, namespace));
     }
     accounts.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
     accounts
+}
+
+/// A project's pipeline-test harness principal (PL-43, T-4050): `pl-pipeline-test`, bound like a
+/// pipeline's account to `pl-{project}-pipeline-test` in the runner's `namespace`, so the token
+/// service mints its token and the harness and the DataSource probes present no secret. It
+/// reaches the Portal's internal listener alone and holds no Policy.
+fn harness_account(project: &str, namespace: &str) -> BoundAccount {
+    use jc_core::kinds::pipeline_identity::{account_name, kubernetes_service_account, HARNESS};
+    BoundAccount {
+        project: project.to_owned(),
+        name: account_name(HARNESS),
+        reach: Reach::Internal,
+        binding: KubernetesBinding {
+            namespace: namespace.to_owned(),
+            service_account: kubernetes_service_account(project, HARNESS),
+        },
+        reports: false,
+    }
 }
 
 /// The job principal of every published `wasm` App with `spec.server.jobs` and its own Endpoint
@@ -539,6 +566,7 @@ impl WorkloadClientSync {
                     found
                 }
                 Reach::Endpoint(slug) => vec![slug.clone()],
+                Reach::Internal => vec![crate::auth::internal::INTERNAL_AUDIENCE.to_owned()],
             };
             outcomes.push(self.converge_one(&token, account, &audiences).await);
         }
