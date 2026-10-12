@@ -12,7 +12,8 @@ import { RouterProvider, createRootRoute, createRoute, createRouter } from "@tan
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import en from "../src/locales/en.json";
-import { ImportPage, importForm, pastedSecrets } from "../src/pages/import/ImportPage";
+import { ImportPage, importForm } from "../src/pages/import/ImportPage";
+import { pastedSecrets } from "../src/api/pastedSecrets";
 import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 
 const REPORT = {

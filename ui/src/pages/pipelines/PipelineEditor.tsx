@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
-import { asManifests, overlay, plainTitle, prune, refName } from "../../api/manifest";
+import { asManifests, knownSecretNames, overlay, plainTitle, prune, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useBranding } from "../../branding";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
@@ -306,6 +306,26 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
 }
 
 /**
+ * What the canvas holds that the manifest cannot carry, as the key of the sentence saying so and
+ * the field that fixes it (T-3969). Extra sources, processor steps and extra outputs exist only
+ * in `v1alpha2`, which needs a first source and a target: without them `toEnvelope` writes
+ * `v1alpha1` and they would be dropped from the proposal without a word.
+ */
+export function canvasLoss(
+  form: PipelineForm | undefined,
+): { key: "noSource" | "noTarget"; field: "source" | "targetEndpoint" } | undefined {
+  const drawn = (list: unknown[] | undefined) => (list?.length ?? 0) > 0;
+  const source = form?.source?.dataSourceRef !== undefined || form?.source?.endpointRef !== undefined;
+  if (!source && (drawn(form?.moreSources) || drawn(form?.processors) || drawn(form?.moreOutputs))) {
+    return { key: "noSource", field: "source" };
+  }
+  if (!form?.targetEndpoint && (drawn(form?.moreOutputs) || drawn(form?.processors))) {
+    return { key: "noTarget", field: "targetEndpoint" };
+  }
+  return undefined;
+}
+
+/**
  * The expiry window in words of the person's language, `14d` as "14 days" (PL-65); a window
  * that does not parse is shown as written.
  */
@@ -463,6 +483,10 @@ export function PipelineEditorDialog({
     hasSource && bloblang.trim() !== "" && !(verdict?.ok && verdict.bloblang === bloblang)
       ? t("pipelines.test.gate")
       : undefined;
+  // Nothing drawn on the canvas is dropped between it and the proposal: Check and Propose both
+  // stop and say what is missing (T-3969).
+  const loss = canvasLoss(draft);
+  const lossRefusal = loss ? { message: t(`pipelines.canvasLoss.${loss.key}`), field: loss.field } : undefined;
 
   const dataSources = useQuery({
     queryKey: queryKeys.list(project, "datasources"),
@@ -512,9 +536,10 @@ export function PipelineEditorDialog({
     ];
   }, [endpointList, orgDomain, draft?.source?.endpointRef, draft?.targetEndpoint]);
 
+  const secretNames = useMemo(() => knownSecretNames(dataSourceList), [dataSourceList]);
   const schema = useMemo(
-    () => pipelineSchema(t, dataSourceNames, endpointOptions),
-    [t, dataSourceNames, endpointOptions],
+    () => pipelineSchema(t, dataSourceNames, endpointOptions, secretNames),
+    [t, dataSourceNames, endpointOptions, secretNames],
   );
   // Keyed on what decides it, not on the draft: a new arrangement on every keystroke would make
   // RJSF rebuild the input being typed into.
@@ -571,7 +596,8 @@ export function PipelineEditorDialog({
       plural="pipelines"
       submitLabel={t("pipelines.propose")}
       disabled={pending}
-      submitDisabledReason={gate}
+      submitDisabledReason={lossRefusal?.message ?? gate}
+      checkRefusal={lossRefusal}
       error={error}
       source={source}
       onChange={(form) => setDraft(completeOutput(form))}

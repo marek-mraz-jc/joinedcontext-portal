@@ -139,6 +139,10 @@
     },
     "yamlHint": "Celý manifest tak, jak se zapíše do Gitu. Přepnutí zpět na formulář jej znovu načte; obě podoby kontroluje totéž schéma.",
     "yamlError": "Opravte YAML: {message}",
+    "yamlDownload": "Stáhnout YAML",
+    "yamlUpload": "Nahrát YAML",
+    "yamlUploadSecret": "Soubor obsahuje vypsané tajemství ({keys}). Odkažte na něj přes secretRef a nahrajte znovu; nic nebylo načteno.",
+    "yamlUploadMoved": "Soubor pochází z projektu {from}; načte se do {to} a před navržením na něm proběhne kontrola.",
     "yamlNotManifest": "dokument není manifest",
     "schemaErrors": "Manifest neodpovídá schématu:",
     "exclusive": "Vyplnit lze jen jedno z těchto polí",
@@ -170,7 +174,8 @@
     "language": "Dvoupísmenný kód jazyka malými písmeny, jako sk nebo en.",
     "sitePath": "Cesta webu začínající lomítkem, jako /news/**.",
     "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394.",
-    "notAnAttribute": "{name} není atribut typu {types} v modelech projektu; zkontrolujte pravopis."
+    "notAnAttribute": "{name} není atribut typu {types} v modelech projektu; zkontrolujte pravopis.",
+    "missing": "{field} je povinné"
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -1740,7 +1745,8 @@
       "ready": "Všech {count} zpráv se mapuje na entity. Navrhněte pipeline níže.",
       "useUrl": "Otestovat na URL zdroje",
       "urlSample": "{url} · json · stáhne runner",
-      "gate": "Nejprve otestujte mapování: Navrhnout se otevře, když je test pro toto mapování zelený."
+      "gate": "Nejprve otestujte mapování: Navrhnout se otevře, když je test pro toto mapování zelený.",
+      "replaceDrafted": "Nahradit navrženým mapováním"
     },
     "flow": {
       "palette": "Paleta výpočtů",
@@ -1757,7 +1763,6 @@
       "eventsIn": "dovnitř",
       "eventsOut": "ven",
       "remove": "Odebrat krok",
-      "selectedHint": "Tento krok nastavíte ve formuláři níže.",
       "view": {
         "flow": "Tok",
         "yaml": "YAML",
@@ -1844,7 +1849,10 @@
       "routeWhen": "Bere záznamy, kde",
       "routeWhenHint": "Podmínka v Bloblangu, například this.temperature.value > 30. Záznam jde do první větve, jejíž podmínka platí; ostatní jdou do výstupů hlavní linky.",
       "routeAddOutput": "+ Výstup této větve",
-      "routeNoCondition": "zatím bez podmínky"
+      "routeNoCondition": "zatím bez podmínky",
+      "queueShort": "{count} ve frontě",
+      "queue": "{count, plural, one {# zpráva čeká} few {# zprávy čekají} other {# zpráv čeká}} v bufferu před výstupem",
+      "queueHigh": "{count, plural, one {# zpráva čeká} few {# zprávy čekají} other {# zpráv čeká}} v bufferu před výstupem, víc než {limit}: výstup nestíhá"
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
@@ -2158,6 +2166,10 @@
         "type": "Zadejte typ entity k agregaci.",
         "attribute": "Zadejte název číselného atributu: písmena, číslice a podtržítka."
       }
+    },
+    "canvasLoss": {
+      "noSource": "Pipeline nemá první zdroj: nejdřív zvolte, odkud čte, jinak nelze zapsat její další zdroje, kroky ani výstupy.",
+      "noTarget": "Pipeline nemá cílový endpoint: nejdřív zvolte, kam zapisuje, jinak nelze zapsat její další výstupy."
     }
   },
   "dashboards": {

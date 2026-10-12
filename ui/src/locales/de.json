@@ -139,6 +139,10 @@
     },
     "yamlHint": "Das ganze Manifest, wie es nach Git geschrieben wird. Zurück zum Formular liest es wieder ein; dasselbe Schema prüft beides.",
     "yamlError": "Korrigieren Sie das YAML: {message}",
+    "yamlDownload": "YAML herunterladen",
+    "yamlUpload": "YAML hochladen",
+    "yamlUploadSecret": "Die Datei enthält ein ausgeschriebenes Geheimnis ({keys}). Verweisen Sie mit einer secretRef darauf und laden Sie erneut hoch; nichts wurde übernommen.",
+    "yamlUploadMoved": "Die Datei stammt aus dem Projekt {from}; sie wird in {to} übernommen, und vor dem Vorschlagen läuft die Prüfung.",
     "yamlNotManifest": "das Dokument ist kein Manifest",
     "schemaErrors": "Das Manifest entspricht nicht dem Schema:",
     "exclusive": "Nur eines dieser Felder darf gesetzt sein",
@@ -170,7 +174,8 @@
     "language": "Ein zweibuchstabiger Sprachcode in Kleinbuchstaben, wie sk oder en.",
     "sitePath": "Ein Pfad der Website, der mit einem Schrägstrich beginnt, wie /news/**.",
     "color": "Eine Farbe als # und sechs Hexadezimalziffern, wie #0b5394.",
-    "notAnAttribute": "{name} ist kein Attribut von {types} in den Modellen des Projekts; prüfen Sie die Schreibweise."
+    "notAnAttribute": "{name} ist kein Attribut von {types} in den Modellen des Projekts; prüfen Sie die Schreibweise.",
+    "missing": "{field} ist erforderlich"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -1740,7 +1745,8 @@
       "ready": "Alle {count} Nachrichten ergeben Entitäten. Pipeline unten vorschlagen.",
       "useUrl": "Mit der URL der Quelle testen",
       "urlSample": "{url} · json · vom Runner geholt",
-      "gate": "Erst das Mapping testen: Vorschlagen öffnet sich, wenn der Test für dieses Mapping grün ist."
+      "gate": "Erst das Mapping testen: Vorschlagen öffnet sich, wenn der Test für dieses Mapping grün ist.",
+      "replaceDrafted": "Durch eine entworfene Zuordnung ersetzen"
     },
     "flow": {
       "palette": "Rechenpalette",
@@ -1757,7 +1763,6 @@
       "eventsIn": "rein",
       "eventsOut": "raus",
       "remove": "Schritt entfernen",
-      "selectedHint": "Diesen Schritt im Formular unten einstellen.",
       "view": {
         "flow": "Fluss",
         "yaml": "YAML",
@@ -1844,7 +1849,10 @@
       "routeWhen": "Nimmt die Datensätze, bei denen",
       "routeWhenHint": "Eine Bloblang-Bedingung, etwa this.temperature.value > 30. Ein Datensatz nimmt den ersten Zweig, dessen Bedingung gilt; die übrigen gehen an die Ausgaben der Hauptlinie.",
       "routeAddOutput": "+ Ausgabe dieses Zweigs",
-      "routeNoCondition": "noch keine Bedingung"
+      "routeNoCondition": "noch keine Bedingung",
+      "queueShort": "{count} wartend",
+      "queue": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe",
+      "queueHigh": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe, mehr als {limit}: die Ausgabe kommt nicht nach"
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
@@ -2158,6 +2166,10 @@
         "type": "Nennen Sie den zu aggregierenden Entitätstyp.",
         "attribute": "Geben Sie den Namen eines numerischen Attributs ein: Buchstaben, Ziffern und Unterstriche."
       }
+    },
+    "canvasLoss": {
+      "noSource": "Die Pipeline hat keine erste Quelle: Wähle zuerst, woraus sie liest, sonst können ihre weiteren Quellen, Schritte und Ausgaben nicht geschrieben werden.",
+      "noTarget": "Die Pipeline hat keinen Ziel-Endpunkt: Wähle zuerst, wohin sie schreibt, sonst können ihre weiteren Ausgaben nicht geschrieben werden."
     }
   },
   "dashboards": {
