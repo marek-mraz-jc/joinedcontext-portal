@@ -167,6 +167,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/pipelines/{name}/runs/{run}/log", "the pipeline page's log of one run (PL-62); an agent reads why one record fails with jc_pipeline_validate on the record itself"),
 ("GET", "/projects/{project}/revisions", "jc_project_revisions"),
 ("GET", "/projects/{project}/spaces/{space}/quality", "the daily data-quality report, a reading about the data and not a manifest (DM-74)"),
+("GET", "/projects/{project}/spaces/{space}/quality/checks", "the checks on write by rule over 24 hours and 7 days, counters and not a manifest (DM-94)"),
 ("GET", "/projects/{project}/spaces/{space}/live", "which entities of a type changed, by name, as server-sent events for an open data view: a stream of hints read with the space's read rule, not a manifest (API/01 §32, T-3105)"),
 ("GET", "/projects/{project}/knowledge/sources", "what the knowledge assistant holds of the project's sources: jc-assistant's store beside the KnowledgeSource manifests (API/01 §34, T-3057)"),
 ("GET", "/projects/{project}/knowledge/sources/{source}/pages", "one level of a crawled source's page tree, from jc-assistant's store (API/01 §34)"),

@@ -596,6 +596,17 @@
         "stale": "Stale",
         "empty": "Empty",
         "untargeted": "No target"
+      },
+      "checks": {
+        "caption": "Checks on write by rule",
+        "unknown": "Checks on write unknown: the gateway's counters were not read yet.",
+        "noRules": "The space declares no quality rules.",
+        "passDay": "Passed, 24 h",
+        "passWeek": "Passed, 7 days",
+        "rejected": "Rejected, 7 days",
+        "quarantined": "Quarantined, 7 days",
+        "lastRejected": "Last rejected",
+        "since": "Counted from {day} (24 h) and from {week} (7 days)."
       }
     },
     "fields": {

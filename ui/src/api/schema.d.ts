@@ -2741,6 +2741,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/quality/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Quality Checks
+         * @description The space's quality rules as the gateway checked writes against them, per type and rule over 24 hours and 7 days: passed, rejected, flagged, quarantined, the pass rate, and when a write was last rejected. Names and counts, never a value; `at` is null while no reading of the gateway's counters exists (DM-94).
+         */
+        get: operations["get_checks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/retention/deleted": {
         parameters: {
             query?: never;
@@ -4384,16 +4404,21 @@ export interface components {
             /** @description `entities`, `rejectedRecords`, `runs`, `grants` or `bindings`. */
             what: string;
         };
-        /** @description How many results of one run ended in each verdict. */
+        /** @description The checks of one rule in one window. */
         Counts: {
-            /** Format: int32 */
-            error: number;
-            /** Format: int32 */
-            fail: number;
-            /** Format: int32 */
+            /** Format: int64 */
+            flag: number;
+            /** Format: int64 */
             pass: number;
-            /** Format: int32 */
-            skip: number;
+            /**
+             * Format: double
+             * @description `pass` over all four; `null` when nothing was checked in the window.
+             */
+            passRate?: number | null;
+            /** Format: int64 */
+            quarantine: number;
+            /** Format: int64 */
+            reject: number;
         };
         CreatePerson: {
             email: string;
@@ -6045,6 +6070,20 @@ export interface components {
              */
             overlapHours?: number | null;
         };
+        /** @description One rule of one type. */
+        RuleChecks: {
+            "24h": components["schemas"]["Counts"];
+            "7d": components["schemas"]["Counts"];
+            /** @description The attribute the manifest's rule reads; empty for a rule no longer declared. */
+            attribute: string;
+            /**
+             * Format: date-time
+             * @description The reading at which the rule's `reject` counter last grew, inside seven days.
+             */
+            lastRejected?: string | null;
+            rule: string;
+            type: string;
+        };
         /** @description One failing rule of a space: a SHACL component and the path it is about. */
         RuleCount: {
             /** Format: int64 */
@@ -6193,6 +6232,16 @@ export interface components {
             changes: components["schemas"]["ModelChange"][];
             severity: string;
             version: string;
+        };
+        /** @description The answer of `GET …/spaces/{space}/quality/checks`. */
+        SpaceChecks: {
+            /**
+             * Format: date-time
+             * @description The newest reading; `null` while there is none.
+             */
+            at?: string | null;
+            rules: components["schemas"]["RuleChecks"][];
+            windows?: null | components["schemas"]["Windows"];
         };
         /** @description One space of the origin mapped onto a space of the target project (T-1441). */
         SpaceMapping: {
@@ -6493,6 +6542,13 @@ export interface components {
         } | {
             /** @enum {string} */
             kind: "public";
+        };
+        /** @description Where each window starts: its oldest reading. */
+        Windows: {
+            /** Format: date-time */
+            "24h": string;
+            /** Format: date-time */
+            "7d": string;
         };
         /** @description A workflow run of an application's repository, as the App page links it (AP-86, AP-103). */
         WorkflowRun: {
@@ -15470,6 +15526,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SpaceQuality"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_checks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The checks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceChecks"];
                 };
             };
             /** @description Not signed in */

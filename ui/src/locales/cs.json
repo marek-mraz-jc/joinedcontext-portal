@@ -596,6 +596,17 @@
         "stale": "Neaktuální",
         "empty": "Prázdné",
         "untargeted": "Bez cíle"
+      },
+      "checks": {
+        "caption": "Kontroly při zápisu podle pravidla",
+        "unknown": "Kontroly při zápisu nejsou známé: čítače brány ještě nebyly přečteny.",
+        "noRules": "Prostor nedeklaruje žádná pravidla kvality.",
+        "passDay": "Prošlo, 24 h",
+        "passWeek": "Prošlo, 7 dní",
+        "rejected": "Odmítnuto, 7 dní",
+        "quarantined": "V karanténě, 7 dní",
+        "lastRejected": "Naposledy odmítnuto",
+        "since": "Počítáno od {day} (24 h) a od {week} (7 dní)."
       }
     },
     "fields": {

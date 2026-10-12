@@ -596,6 +596,17 @@
         "stale": "Veraltet",
         "empty": "Leer",
         "untargeted": "Ohne Ziel"
+      },
+      "checks": {
+        "caption": "Prüfungen beim Schreiben nach Regel",
+        "unknown": "Prüfungen beim Schreiben unbekannt: Die Zähler des Gateways wurden noch nicht gelesen.",
+        "noRules": "Der Bereich legt keine Qualitätsregeln fest.",
+        "passDay": "Bestanden, 24 h",
+        "passWeek": "Bestanden, 7 Tage",
+        "rejected": "Abgelehnt, 7 Tage",
+        "quarantined": "In Quarantäne, 7 Tage",
+        "lastRejected": "Zuletzt abgelehnt",
+        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage)."
       }
     },
     "fields": {

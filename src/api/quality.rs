@@ -1,14 +1,17 @@
 //! `GET /api/v1/projects/{project}/spaces/{space}/quality`: the last data-quality run's report
-//! of one space (DM-74, API/01 §27).
+//! of one space (DM-74, API/01 §27), and `…/quality/checks`: its checks on write over 24 hours
+//! and 7 days (DM-94, §27.1).
 
 use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
+use jc_core::kinds::ContextSpaceSpec;
 use serde_json::{json, Value};
 
 use crate::auth::CurrentUser;
 use crate::error::ApiError;
 use crate::quality::SpaceQuality;
+use crate::quality_checks::SpaceChecks;
 use crate::resource::is_dns1123;
 use crate::state::AppState;
 
@@ -33,16 +36,8 @@ pub async fn get_quality(
     State(state): State<AppState>,
     Path((project, space)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
+    readable_space(&state, &user, &project, &space)?;
     let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    let readable = is_dns1123(&project)
-        && effective.may_read_project()
-        && effective.may_read_in("ContextSpace", Some(&space))
-        && state.mirror.get(&project, "ContextSpace", &space).is_some();
-    if !readable {
-        return Err(ApiError::NotFound(format!(
-            "context space '{space}' not found in project '{project}'"
-        )));
-    }
     let Some(quality) = state.quality.get(&project, &space) else {
         return Ok(Json(json!({})));
     };
@@ -50,6 +45,57 @@ pub async fn get_quality(
     serde_json::to_value(for_caller(quality, reads_entities))
         .map(Json)
         .map_err(|err| ApiError::Internal(err.to_string()))
+}
+
+/// The space's manifest spec when the caller may read the space, else the 404 every unreadable
+/// space gets.
+fn readable_space(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    space: &str,
+) -> Result<Value, ApiError> {
+    let effective = crate::permissions::for_request(state, &user.0.identity, project);
+    (is_dns1123(project)
+        && effective.may_read_project()
+        && effective.may_read_in("ContextSpace", Some(space)))
+    .then(|| state.mirror.get(project, "ContextSpace", space))
+    .flatten()
+    .map(|held| held.spec)
+    .ok_or_else(|| {
+        ApiError::NotFound(format!(
+            "context space '{space}' not found in project '{project}'"
+        ))
+    })
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/spaces/{space}/quality/checks",
+    summary = "Read Quality Checks",
+    description = "The space's quality rules as the gateway checked writes against them, per type and rule over 24 hours and 7 days: passed, rejected, flagged, quarantined, the pass rate, and when a write was last rejected. Names and counts, never a value; `at` is null while no reading of the gateway's counters exists (DM-94).",
+    tag = "spaces",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("space" = String, Path, description = "Context Space name"),
+    ),
+    responses(
+        (status = 200, description = "The checks", body = SpaceChecks),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn get_checks(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, space)): Path<(String, String)>,
+) -> Result<Json<SpaceChecks>, ApiError> {
+    let spec = readable_space(&state, &user, &project, &space)?;
+    let rules = serde_json::from_value::<ContextSpaceSpec>(spec)
+        .map(|spec| spec.quality)
+        .unwrap_or_default();
+    state.quality_checks.refresh().await;
+    Ok(Json(state.quality_checks.report(&space, &rules)))
 }
 
 /// The counts are the space's; which entities they are, and the values they hold (a range, an
@@ -73,10 +119,15 @@ fn for_caller(mut quality: SpaceQuality, reads_entities: bool) -> SpaceQuality {
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new().route(
-        "/projects/{project}/spaces/{space}/quality",
-        get(get_quality),
-    )
+    Router::new()
+        .route(
+            "/projects/{project}/spaces/{space}/quality",
+            get(get_quality),
+        )
+        .route(
+            "/projects/{project}/spaces/{space}/quality/checks",
+            get(get_checks),
+        )
 }
 
 #[cfg(test)]
