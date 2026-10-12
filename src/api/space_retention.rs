@@ -24,7 +24,7 @@ use crate::state::AppState;
 #[serde(deny_unknown_fields)]
 pub struct RetentionDraft {
     /// The rules as `spec.retention` would hold them.
-    #[schema(value_type = Vec<Object>)]
+    #[schema(value_type = Vec<std::collections::HashMap<String, serde_json::Value>>)]
     pub retention: Vec<RetentionRule>,
 }
 

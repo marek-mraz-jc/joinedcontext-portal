@@ -67,6 +67,7 @@ import { FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
 import type { FormSettings } from "./formView";
 import { AiFieldPanel } from "./AiField";
 import { SpaceQuality } from "./SpaceQuality";
+import { SpaceRetention } from "./SpaceRetention";
 import {
   Alert,
   Badge,
@@ -1084,6 +1085,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
       <Section title={t("spaces.quality.title")}>
         <SpaceQuality project={project} space={name} />
+      </Section>
+
+      <Section title={t("spaces.retention.title")}>
+        <SpaceRetention project={project} space={name} manifest={manifest} types={types} />
       </Section>
 
       <Section title={t("drift.section.title")}>

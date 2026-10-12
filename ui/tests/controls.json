@@ -1589,6 +1589,14 @@
         "space_inside.test.tsx"
       ]
     },
+    "src/pages/spaces/SpaceRetention.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "space_retention_panel.test.tsx"
+      ]
+    },
     "src/pages/spaces/TypeApi.tsx": {
       "controls": {
         "Button": 2

@@ -5921,7 +5921,9 @@ export interface components {
         /** @description A draft of a space's retention rules. */
         RetentionDraft: {
             /** @description The rules as `spec.retention` would hold them. */
-            retention: Record<string, never>[];
+            retention: {
+                [key: string]: unknown;
+            }[];
         };
         /** @description What a replay sent to the runner, and what it could not send. */
         RetryAnswer: {
