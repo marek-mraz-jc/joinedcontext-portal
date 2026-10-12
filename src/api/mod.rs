@@ -53,6 +53,7 @@ pub mod resources;
 pub mod restore;
 pub mod service_accounts;
 pub mod setup;
+pub mod space_move;
 pub mod space_usage;
 pub mod sync;
 pub mod sync_sources;
@@ -125,6 +126,7 @@ pub fn router() -> Router<AppState> {
         .merge(validation::router())
         .merge(organization_limits::router())
         .merge(brokers::router())
+        .merge(space_move::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
         .layer(axum::middleware::from_fn(auth::csrf::require_csrf));

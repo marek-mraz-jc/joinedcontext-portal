@@ -11683,6 +11683,168 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/move": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read a Space's Move",
+        "description": "The last move of the space since the Portal started (API/01 §44). Organization administrators only.",
+        "operationId": "get_move",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The move",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Move"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No move of this space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Move a Space to Another Broker",
+        "description": "Holds the space read-only, copies it with its history to the broker `to`, compares both digests and switches its brokerRef (API/01 §44, PF-115). Organization administrators only.",
+        "operationId": "start_move",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The broker the space goes to.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveRequest"
+              },
+              "example": {
+                "to": "canary"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The move started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Move"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No such broker, or the one the space lives on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The space is already moving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A broker, the gateway or the forge is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/quality": {
       "get": {
         "tags": [
@@ -17981,56 +18143,27 @@
       },
       "Digest": {
         "type": "object",
-        "description": "What `scripts/publish-health.py` writes for one check.",
+        "description": "A broker's digest of one tenant (Antares ADR-0030).",
         "required": [
-          "check",
-          "at",
-          "everyHours",
-          "counts"
+          "entities",
+          "attrInstances",
+          "sha256"
         ],
         "properties": {
-          "at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "check": {
-            "type": "string"
-          },
-          "counts": {
-            "$ref": "#/components/schemas/Counts"
-          },
-          "everyHours": {
+          "attrInstances": {
             "type": "integer",
-            "format": "int32",
+            "format": "int64",
             "minimum": 0
           },
-          "failures": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Failure"
-            }
+          "entities": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           },
-          "history": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Point"
-            }
-          },
-          "passed": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for\nevery other check."
-          },
-          "run": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "sha256": {
+            "type": "string"
           }
-        },
-        "additionalProperties": false
+        }
       },
       "DomainVerification": {
         "type": "object",
@@ -19654,6 +19787,95 @@
         "enum": [
           "organization",
           "project"
+        ]
+      },
+      "Move": {
+        "type": "object",
+        "description": "One move, as `GET …/move` answers it.",
+        "required": [
+          "space",
+          "from",
+          "to",
+          "state",
+          "startedAt"
+        ],
+        "properties": {
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "from": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
+          },
+          "space": {
+            "type": "string",
+            "description": "`project/space`."
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MoveState"
+          },
+          "target": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
+      "MoveRequest": {
+        "type": "object",
+        "description": "Where the space goes.",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "to": {
+            "type": "string",
+            "description": "A `ContextBroker` of the organization other than the one the space lives on."
+          }
+        },
+        "additionalProperties": false
+      },
+      "MoveState": {
+        "type": "string",
+        "description": "Where a move is.",
+        "enum": [
+          "holding",
+          "copying",
+          "comparing",
+          "switching",
+          "done",
+          "failed"
         ]
       },
       "Need": {

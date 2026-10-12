@@ -190,6 +190,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/alerts/{id}/mute", "the signed-in person mutes or unmutes one of their alerts (API/01 §37)"),
 ("GET", "/alerts/notices", "the signed-in person's alert notices (API/01 §37)"),
 ("POST", "/alerts/notices/{id}/read", "the signed-in person marks an alert notice read (API/01 §37)"),
+("GET", "/projects/{project}/spaces/{space}/move", "the state of a move an administrator started; reading it writes nothing (T-4000, API/01 §44)"),
+("POST", "/projects/{project}/spaces/{space}/move", "an administrator's operation on the broker that holds a space, not a manifest write: the job commits the hold and the switch itself, and jc_resource_apply of a brokerRef is refused for a space with entities (T-4000, PF-115)"),
 ("GET", "/projects/{project}/spaces/{space}/usage", "how many entities the space holds, the broker's count read with the space's own read rule: a reading about the data and not a manifest (T-2889)"),
 ("GET", "/projects/{project}/spaces/{space}/types/{type}/attributes", "the pipeline editor's reading of a type's attributes in the space's data model (API/01): a person mapping a record onto a type, which an MCP client does with the model's own JSON Schema on the endpoint"),
 ("GET", "/projects/{project}/spaces/{space}/views", "the Portal UI's own saved views of a space (API/01 §30): a person's way of looking at entities, not data and not a manifest; MCP clients read the entities through endpoints"),

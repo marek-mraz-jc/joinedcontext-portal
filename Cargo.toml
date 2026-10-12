@@ -102,7 +102,7 @@ jsonwebtoken = "9"
 # App mail and alerts through the relay a secretRef names (T-3583, AP-168): SMTP over rustls on
 # ring, the stack reqwest and sqlx already use.
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking", "stream"] }
 # The preferences and API-key tiers (UI-09, PF-36). rustls over ring, the TLS stack reqwest
 # already brought in; `time` because the key rows carry timestamps and the crate is here anyway.
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "json", "macros", "time"] }

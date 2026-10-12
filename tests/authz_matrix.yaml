@@ -327,6 +327,15 @@ routes:
   - route: GET /projects/{project}/spaces/{space}/quality
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/spaces/{space}/move
+    rule: "org-admin (approve and delete on RoleBinding, PF-03)"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+    note: "the last move of the space; an administrator who started none is answered 404 (API/01 §44)"
+  - route: POST /projects/{project}/spaces/{space}/move
+    rule: "org-admin (approve and delete on RoleBinding, PF-03)"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+    body: {"to": "canary"}
+    note: "the job commits to the repository as the Portal and holds the space for everyone (API/01 §44, PF-115)"
   - route: GET /projects/{project}/spaces/{space}/usage
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
