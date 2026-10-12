@@ -335,7 +335,11 @@ describe("the endpoint's own settings page", () => {
 
     const q = await screen.findByLabelText(en.endpoints.filter.q);
     // Untouched, there is nothing to propose.
-    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toBeDisabled();
+    // Disabled with its reason (T-3852): aria-disabled, so the reason stays reachable.
+    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     await user.clear(q);
     await user.type(q, "pm10>50");
@@ -401,7 +405,11 @@ describe("the endpoint's own settings page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(en.endpoints.condition.needsValue);
     expect(screen.getByLabelText(en.endpoints.filter.q)).toHaveValue("pm10>30");
     // Nothing to propose either: the query is what it was.
-    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toBeDisabled();
+    // Disabled with its reason (T-3852): aria-disabled, so the reason stays reachable.
+    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("quotes a value that is not a number, so a typed word cannot break the query", async () => {
@@ -468,7 +476,11 @@ describe("the endpoint's own settings page", () => {
     await user.type(scope, "Kamppi");
     expect(await screen.findByText(en.endpoints.filter.fault.scopePath)).toBeInTheDocument();
     expect(scope).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toBeDisabled();
+    // Disabled with its reason (T-3852): aria-disabled, so the reason stays reachable.
+    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     await user.clear(scope);
     await user.type(scope, "/Helsinki/Kamppi");
@@ -478,7 +490,11 @@ describe("the endpoint's own settings page", () => {
     // An area without its three parts cannot be read by the gateway, so it is not sent either.
     await user.type(await screen.findByLabelText(en.endpoints.filter.geoQ), "georel=near");
     expect(await screen.findByText(en.endpoints.filter.fault.geoParts)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toBeDisabled();
+    // Disabled with its reason (T-3852): aria-disabled, so the reason stays reachable.
+    expect(screen.getByRole("button", { name: en.endpoints.page.filterPropose })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(await sentTo(fetchMock, "/projections/ovzdusie-open")).toHaveLength(0);
   });
 

@@ -104,3 +104,61 @@ body {
   margin: 0 0 var(--jc-space-1, 0.25rem);
   color: #0f172a;
 }
+
+/* Roles and edits (T-3826): the reader's role, the kept origins side by side, the history. */
+.app-filters input {
+  font: inherit;
+  font-size: var(--jc-font-size-md, 0.875rem);
+  padding: var(--jc-space-2, 0.5rem);
+  border: 1px solid var(--jc-color-line, #e2e8f0);
+  border-radius: var(--jc-radius-md, 6px);
+  background: var(--jc-color-card, #fff);
+  color: var(--jc-color-ink, #0f172a);
+  max-width: 100%;
+}
+.app-error {
+  color: var(--jc-color-danger, #b91c1c);
+  font-weight: 600;
+}
+.app-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.app-role {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: 999px;
+  font-size: var(--jc-font-size-sm, 0.75rem);
+}
+.app-danger {
+  border-color: var(--jc-color-danger, #b91c1c);
+}
+.app-table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.app-table table,
+.app-history {
+  width: 100%;
+  border-collapse: collapse;
+}
+.app-table th,
+.app-table td,
+.app-history th,
+.app-history td {
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--jc-color-line, #e2e8f0);
+  overflow-wrap: anywhere;
+}
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-1, 0.25rem);
+}

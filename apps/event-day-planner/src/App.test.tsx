@@ -2,8 +2,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
-import App from "./App";
+import App, { chooseLanguage } from "./App";
 import { EVENTS } from "./fixtures/events";
+import { memory, STEWARD, VIEWER } from "./fixtures/memory";
 
 /** What a click on a stop of the map hands the page, as MapLibre would; the last map built's. */
 let clickStop: (event: { features?: Array<{ properties?: { id?: string } }> }) => void = () => undefined;
@@ -31,12 +32,12 @@ const READ = {
   prohibitions: [],
 };
 
-function app(language = "en") {
+function app(language = "en", shares = memory()) {
   // `portal`: where the entity panel links an event (SDK-40); shown, never followed.
   const client = stubClient({ entities: EVENTS, access: READ }, { appName: "event-day-planner", language, portal: "https://portal.test/projects/helsinki" });
   render(
     <JcProvider client={client}>
-      <App />
+      <App shares={shares} />
     </JcProvider>,
   );
   return client;
@@ -89,4 +90,60 @@ describe("event-day-planner", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Kieli" }), { target: { value: "en" } });
     expect(await screen.findByRole("heading", { level: 1, name: "My day of events" })).toBeInTheDocument();
   });
+
+  // T-3826: who reads the page stands beside their name; My days and History are a page each.
+  it("names the reader's role and opens My days and the history", async () => {
+    const server = memory(STEWARD);
+    app("en", server);
+    expect(await screen.findByLabelText("Your role: Steward")).toBeInTheDocument();
+    expect(screen.getByText("Sami Steward")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "My days" }));
+    expect(await screen.findByText("You have shared no day while signed in.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(await screen.findByText("Everyone's changes, newest first.")).toBeInTheDocument();
+  });
+
+  it("says a viewer is a viewer", async () => {
+    app("en", memory(VIEWER));
+    expect(await screen.findByLabelText("Your role: Viewer")).toBeInTheDocument();
+  });
+
+  it("says when nobody is signed in, in Swedish too", async () => {
+    app("sv", memory(null));
+    expect(await screen.findByLabelText("Din roll: Inte inloggad")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Min evenemangsdag" })).toBeInTheDocument();
+  });
+
+  it("reads a server that cannot say who is signed in as nobody", async () => {
+    const server = memory(VIEWER);
+    server.me = vi.fn(async () => {
+      throw new Error("offline");
+    });
+    app("en", server);
+    expect(await screen.findByLabelText("Your role: Not signed in")).toBeInTheDocument();
+  });
+
+  it("takes only a language it has, and never one already shown", () => {
+    const redraw = vi.fn();
+    chooseLanguage("de", "en", redraw);
+    chooseLanguage("en", "en", redraw);
+    expect(redraw).not.toHaveBeenCalled();
+    chooseLanguage("sv", "en", redraw);
+    expect(redraw).toHaveBeenCalledOnce();
+    expect(new URLSearchParams(window.location.search).get("lang")).toBe("sv");
+  });
+
+  for (const [language, pages] of [
+    ["en", ["My days", "History", "My day"]],
+    ["fi", ["Tallennetut päivät", "Historia", "Päiväni"]],
+    ["sv", ["Mina dagar", "Historik", "Min dag"]],
+  ] as const) {
+    it(`opens every page in ${language}`, async () => {
+      app(language, memory(VIEWER));
+      for (const page of pages) {
+        fireEvent.click(await screen.findByRole("button", { name: page }));
+        expect(screen.getByRole("button", { name: page })).toHaveAttribute("aria-current", "page");
+      }
+    });
+  }
 });

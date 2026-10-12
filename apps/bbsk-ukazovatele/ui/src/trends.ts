@@ -77,7 +77,7 @@ export function seriesOf(rows: RichRow[]): Map<string, Point[]> {
     const area = text(row, "refArea");
     const territory = area === null ? undefined : TERRITORY_OF_AREA[area];
     const period = text(row, "refPeriod");
-    const value = one(row, "value")?.value;
+    const value = one(row, "observationValue")?.value;
     if (!entry || !territory || period === null || !/^\d{4}$/.test(period) || typeof value !== "number" || !Number.isFinite(value)) continue;
     const id = seriesKey(entry[0], territory);
     const points = out.get(id) ?? [];

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
-import { BASE, serve } from "./serve";
+import { BASE, STEWARD, VIEWER, serve } from "./serve";
 
 // T-3328, UI-84, SDK-12: the plan at a phone, a tablet, a laptop and a wall, light and dark, with
 // the WebAssembly planner run in its worker under the static host's policy: no sideways scroll, no
@@ -57,5 +57,44 @@ for (const scheme of ["light", "dark"] as const) {
       await expect(page.getByRole("dialog")).toHaveCount(0);
       expect(served).toEqual({ outside: [], missing: [], problems: [] });
     });
+  }
+}
+
+// T-3826: the levels and the history as a viewer reads them and a steward changes them, at a phone
+// and a laptop, light and dark: the viewer's form closed with its reason, the steward's save shown
+// and then in the history.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    for (const [who, me] of [
+      ["viewer", VIEWER],
+      ["steward", STEWARD],
+    ] as const) {
+      test(`${scheme} at ${width} px: the levels and the history as a ${who}, axe clean`, async ({ page }, testInfo) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        const served = await serve(page, me);
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(BASE);
+        await expect(page.getByLabel(`Your role: ${who === "steward" ? "Steward" : "Viewer"}`)).toBeVisible();
+        await page.getByRole("button", { name: "Levels" }).click();
+        const low = page.getByRole("spinbutton", { name: "About to run empty below (%)" });
+        await expect(low).toHaveValue("15");
+        if (who === "viewer") {
+          await expect(low).toBeDisabled();
+          await expect(page.getByText("Only a steward changes the levels.")).toBeVisible();
+        } else {
+          await expect(low).toBeEnabled();
+          await low.fill("20");
+          await page.getByRole("button", { name: "Save the levels" }).click();
+          await expect(page.getByRole("status")).toHaveText("The levels are saved. The next plans use them.");
+        }
+        await testInfo.attach(`levels-${who}-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+        expect(await layoutProblems(page)).toEqual([]);
+        await page.getByRole("button", { name: "History" }).click();
+        await expect(page.getByText(who === "steward" ? "changed: levels changed" : "No change yet.")).toBeVisible();
+        await testInfo.attach(`history-${who}-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+        expect(await layoutProblems(page)).toEqual([]);
+        expect(served).toEqual({ outside: [], missing: [], problems: [] });
+      });
+    }
   }
 }

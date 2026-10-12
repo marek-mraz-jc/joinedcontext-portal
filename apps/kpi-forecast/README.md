@@ -15,7 +15,7 @@ Every indicator of Helsinki's `helsinki-kpi` space on one page:
 The page sits in the SDK's shell (SDK-39), and "All details" opens the chosen indicator in the
 SDK's entity panel (SDK-40), which links it to the Portal: a public App writes nothing.
 
-Finnish or English (`?lang=fi|en`, else the browser's language, switched in the shell); the indicators' names are the
+Finnish, English or Swedish (`?lang=fi|en|sv`, else the browser's language, switched in the shell); the indicators' names are the
 pipelines' own, in English. Light and dark follow the reader's system. Times are Helsinki's.
 
 ## How it is built
@@ -59,6 +59,42 @@ The App's server is a WebAssembly component on the platform's shared host (`serv
 | `POST /api/forecasts` `{days}` | the day's forecasts of the period recorded, once a day |
 | `GET /api/forecasts?kpi=&days=` | an indicator's kept forecasts, newest first |
 | `POST /api/reports` `{month}` | a month's forecasts against the readings as CSV; a URL it downloads from |
+
+## Roles and history
+
+The server decides from the signed-in person the platform names (`identity::caller()`, API/07),
+never from anything the page sends:
+
+- anyone, signed in or not, reads every indicator and the **published forecast** under the chosen
+  one: who published it and when, the period and the horizon it was made with, the steward's note
+  and its points with their 95 % band, and the earlier publications;
+- a **viewer** follows indicators (**Follow** beside "All details") and finds them under
+  **Followed**, each opened on the indicators page or let go; a follow of someone else's answers
+  as if it did not exist;
+- a **steward** publishes the chosen indicator's forecast: the server reads its history over the
+  period on screen, forecasts it with the page's own crate over the horizon the steward chose (1 to
+  48 steps) and keeps it with the note; any steward withdraws one. An indicator with too little
+  history is refused with the reason.
+
+Signed out, Follow and the publish form stay in sight, closed, with the reason as their tooltip. A
+follow let go and a forecast withdrawn go at once and come back when the server refuses. Every
+change writes a row into the App's `app_audit` table in the same statement, so a refused or failed
+change leaves none; the **History** page reads it: a viewer their own rows, a steward everyone's.
+Finnish, English and Swedish.
+
+| Route | Who | What it does |
+|---|---|---|
+| `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+| `GET /api/published?kpi=` | anyone | the indicator's published forecasts, newest first, at most 10 |
+| `POST /api/published` `{kpi, days, horizon, note}` | steward | a forecast made with these parameters and published |
+| `DELETE /api/published/{id}` | steward | the forecast withdrawn |
+| `GET /api/follows` | signed in | the indicators the caller follows |
+| `POST /api/follows` `{kpi}` | signed in | an indicator followed, at most 50 |
+| `DELETE /api/follows/{id}` | the follower | no longer followed |
+| `GET /api/history` | signed in | the newest 100 changes (a viewer: their own) |
+
+`server/host-test.json` plays every route on the real host as an anonymous visitor, a viewer,
+another viewer and a steward, and counts the rows after each refused write.
 
 ## Run the tests
 

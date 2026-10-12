@@ -41,4 +41,30 @@ describe("kpiApi", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
     await expect(kpiApi("/a").record(7)).rejects.toMatchObject({ status: 0 });
   });
+
+  // T-3827: who calls, a steward's published forecasts, the reader's follows and the history.
+  it("calls each route of the roles with its method and body, and reads a 204 as nothing", async () => {
+    const fetch = vi.fn(async (_url: string, init?: RequestInit) => (init?.method === "DELETE" ? new Response(null, { status: 204 }) : answer(200, [])));
+    vi.stubGlobal("fetch", fetch);
+    const api = kpiApi("/a");
+    await api.me();
+    await api.published("urn:ngsi-ld:KeyPerformanceIndicator:a&b");
+    await api.publish("k", 30, 6, "note");
+    await expect(api.withdraw(3)).resolves.toBeUndefined();
+    await api.follows();
+    await api.follow("k");
+    await api.unfollow(4);
+    await api.history();
+    expect(fetch.mock.calls.map(([url, init]) => `${init?.method} ${url}`)).toEqual([
+      "GET /a/me",
+      "GET /a/published?kpi=urn%3Angsi-ld%3AKeyPerformanceIndicator%3Aa%26b",
+      "POST /a/published",
+      "DELETE /a/published/3",
+      "GET /a/follows",
+      "POST /a/follows",
+      "DELETE /a/follows/4",
+      "GET /a/history",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[2][1]?.body as string)).toEqual({ kpi: "k", days: 30, horizon: 6, note: "note" });
+  });
 });

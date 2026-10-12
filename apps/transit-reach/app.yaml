@@ -6,7 +6,8 @@
 # from the Rust crate in wasm/ (AP-142), answering a click anywhere at once. A server WASM App
 # (`kind: wasm`, ADR-N-044): its component on the shared host (server/) keeps HSL's network by
 # version and, from a stop, the area reached in each band with its GeoJSON, computed once per
-# version and kept in the App's own schema (migrations/) and prefix. Hand written, so no
+# version and kept in the App's own schema (migrations/) and prefix. A signed-in visitor keeps
+# origins to compare; a steward publishes a shared set (T-3826). Hand written, so no
 # generated-by annotation (AP-35).
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
@@ -35,6 +36,20 @@ spec:
     blob: { quotaMiB: 2048 }
   visibility: public
   lifecycle: published
+  # Who keeps and publishes origins (T-3826); the server decides from identity::caller() alone,
+  # and the city's data is only read.
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Keeps origins of their own with the areas reached from them, compares them side by side, renames and deletes their own."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "What a viewer does, and publishes origins into the shared set every visitor sees; changes any origin. Reads the whole history."
+  access:
+    - role: viewer
+      subjects: [{ group: transit-reach-viewer }]
+    - role: steward
+      subjects: [{ group: transit-reach-steward }]
   dataNeeds:
     - contextSpaceRef:
         kind: ContextSpace

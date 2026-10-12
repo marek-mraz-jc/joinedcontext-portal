@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServerProblem } from "../share";
 import type { ShareApi, SharedDay } from "../share";
+import { memory } from "../fixtures/memory";
 import { problemText, ShareDay } from "./ShareDay";
 
 const went: string[] = [];
@@ -11,6 +12,7 @@ const SHARED: SharedDay = { code: "abc123def456", day: "2030-10-20", lang: "en",
 
 function stub(): ShareApi {
   return {
+    ...memory(),
     share: vi.fn(async () => ({ ...SHARED, items: [{ id: "a" }, { id: "b" }] as SharedDay["items"] })),
     get: vi.fn(async () => SHARED),
     icsUrl: vi.fn(async () => "https://store.example/apps/s1/x/shares/abc123def456.ics?X-Amz-Signature=x"),
@@ -82,6 +84,7 @@ describe("ShareDay", () => {
     expect(problemText("en", new ServerProblem(404, ""), "openShareFailed")).toMatch(/cleared a week after/);
     expect(problemText("en", new ServerProblem(507, ""), "shareFailed")).toMatch(/storage is full/);
     expect(problemText("en", new ServerProblem(502, ""), "shareFailed")).toMatch(/did not answer/);
-    expect(problemText("en", new ServerProblem(403, ""), "shareFailed")).toMatch(/may not read/);
+    expect(problemText("en", new ServerProblem(403, ""), "shareFailed")).toMatch(/may not do this/);
+    expect(problemText("en", new ServerProblem(404, ""), "deleteFailed", "gone")).toMatch(/no longer there/);
   });
 });

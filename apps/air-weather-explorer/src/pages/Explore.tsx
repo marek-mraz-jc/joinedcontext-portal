@@ -3,9 +3,11 @@ import { Card, currentTokens, Empty, Loading, Page, ProblemError, Split, useEnti
 import { computeAnalysis, strength, strongest } from "../analysis";
 import type { Analysis, Pair } from "../analysis";
 import { ChartCard } from "../components/ChartCard";
+import { FaultsCard } from "../components/FaultsCard";
 import { Keep, problemText } from "../components/Keep";
 import { MapView } from "../components/MapView";
 import type { MapPoint } from "../components/MapView";
+import { useFaults, withoutFaults } from "../faults";
 import { localeOf, number, useLang, ZONE } from "../i18n";
 import type { Lang } from "../i18n";
 import { airApi, apiBase, isCode, ServerProblem } from "../server";
@@ -129,6 +131,7 @@ function unreadable(error: Error, lang: Lang): string {
  * the strongest relation in a sentence, every pollutant against every weather variable, and the
  * pair's hours on one chart with its outliers. The statistics run in the WebAssembly module in a
  * worker, again on every change of station, period or smoothing; every choice is in the address.
+ * The hours a steward marked faulty are left out, and the marks are shown (T-3827).
  */
 export function Explore({ server }: { server?: AirApi } = {}) {
   const lang = useLang();
@@ -211,15 +214,19 @@ export function Explore({ server }: { server?: AirApi } = {}) {
     };
   }, [api, stationId, weatherId, days, attempt]);
 
+  // The air station's hours a steward marked faulty are left out of every statistic.
+  const faults = useFaults(api, stationId);
+  const cleaned = useMemo(() => (history ? withoutFaults(history.air, faults.list ?? []) : null), [history, faults.list]);
+
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => {
-    if (!history) {
+    if (!history || !cleaned) {
       setAnalysis(null);
       return;
     }
     let current = true;
-    computeAnalysis({ air: history.air, weather: history.weather, settings: { window: smoothing } })
+    computeAnalysis({ air: cleaned.hourly, weather: history.weather, settings: { window: smoothing } })
       .then((result) => {
         if (!current) return;
         setAnalysis(result);
@@ -231,7 +238,7 @@ export function Explore({ server }: { server?: AirApi } = {}) {
     return () => {
       current = false;
     };
-  }, [history, smoothing]);
+  }, [history, cleaned, smoothing]);
 
   const best = analysis ? strongest(analysis.pairs) : null;
   const air = isPollutant(airText) && analysis?.air.some((s) => s.name === airText) ? airText : (best?.air ?? analysis?.air[0]?.name ?? "");
@@ -418,6 +425,7 @@ export function Explore({ server }: { server?: AirApi } = {}) {
             : null
         }
       />
+      <FaultsCard lang={lang} faults={faults} station={station ? { id: station.id, name: station.name } : null} leftOut={cleaned?.leftOut ?? 0} />
       <ChartCard
         title={t(lang, "series", { air: air ? t(lang, air as Pollutant) : "–", weather: variable ? t(lang, variable as Variable) : "–" })}
         option={error ? null : series}

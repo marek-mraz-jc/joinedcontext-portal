@@ -43,8 +43,12 @@ const MODELS = {
   stale: false,
 };
 
+/** Who the App's server says is signed in (T-3827): a viewer unless a test names a steward. */
+export const VIEWER = { id: "u-1", name: "Vilja Viewer", roles: ["viewer"] };
+export const STEWARD = { id: "u-2", name: "Sami Steward", roles: ["viewer", "steward"] };
+
 /** Serves the built bundle at the root of the App's own host, with the SDK stub answering the endpoint. */
-export async function serve(page: Page, entities = ENTITIES, temporal = TEMPORAL): Promise<Served> {
+export async function serve(page: Page, entities = ENTITIES, temporal = TEMPORAL, me: { id: string; name: string; roles: string[] } = VIEWER): Promise<Served> {
   await page.clock.setFixedTime(new Date(NOW * 1000));
   const transport = stubTransport({
     entities,
@@ -58,6 +62,10 @@ export async function serve(page: Page, entities = ENTITIES, temporal = TEMPORAL
     },
   });
   const served: Served = { outside: [], missing: [], problems: [] };
+  // The App's server's inputs and history (T-3827), deciding by `me` as the real one does.
+  const kept = new Map<string, Record<string, unknown>>();
+  const history: unknown[] = [];
+  const defaults = (station: string) => ({ station, weatherStation: null, radiusKm: 10, days: 7, note: "", custom: false, updatedBy: null, updatedAt: null });
   page.on("pageerror", (error) => served.problems.push(error.message));
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -77,6 +85,24 @@ export async function serve(page: Page, entities = ENTITIES, temporal = TEMPORAL
         contentType: "application/json",
         body: JSON.stringify(answer.body ?? null),
       });
+    }
+    const api = "/apps/bike-weather-demand/api";
+    const method = route.request().method();
+    const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (url.pathname === `${api}/me`) return json(200, me);
+    if (url.pathname === `${api}/history`) return json(200, history);
+    const station = url.searchParams.get("station") ?? "";
+    if (url.pathname === `${api}/inputs` && station.startsWith("urn:")) {
+      if (method === "GET") return json(200, kept.get(station) ?? defaults(station));
+      if (!me.roles.includes("steward")) return json(403, { detail: "this needs the role steward" });
+      if (method === "PUT") {
+        const set = { ...defaults(station), ...JSON.parse(route.request().postData() ?? "{}"), custom: true, updatedBy: me.name, updatedAt: "2030-10-21T06:00:00Z" };
+        kept.set(station, set);
+        history.unshift({ id: history.length + 1, at: "2030-10-21T06:00:00Z", actorName: me.name, action: "update", target: "inputs/station-1", summary: `${set.days} days` });
+        return json(200, set);
+      }
+      kept.delete(station);
+      return route.fulfill({ status: 204, body: "" });
     }
     if (url.pathname === "/apps/bike-weather-demand/api/models" && url.searchParams.get("station")?.startsWith("urn:")) {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MODELS) });

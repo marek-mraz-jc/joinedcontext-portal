@@ -118,7 +118,7 @@ describe("Explore", () => {
       { id: WEATHER_STATIONS[0].id, type: "WeatherObserved", windSpeed: { type: "Property", values: [[3, at(3)], [4, at(2)]] }, temperature: { type: "Property", values: [[5, at(50)]] } },
     ];
     window.history.replaceState(null, "", "/?air=pm10&w=temperature");
-    server.history = short;
+    server.readings = short;
     show();
     expect(await screen.findByText("Too few common hours to say anything. Pick a longer period or another station.", { selector: ".app-answer *" })).toBeInTheDocument();
     const table = screen.getByRole("table", { name: "Every pair" });

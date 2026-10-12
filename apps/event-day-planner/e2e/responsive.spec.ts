@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
-import { BASE, serve } from "./serve";
+import { BASE, STEWARD, VIEWER, serve } from "./serve";
 
 // T-3329, UI-84, SDK-12: the day at a phone, a tablet, a laptop and a wall, light and dark, with the
 // WebAssembly planner run in its worker under the static host's policy: no sideways scroll, no two
@@ -70,3 +70,47 @@ test("switches to Finnish, and the panel speaks it", async ({ page }) => {
   await page.reload();
   await expect(page.getByRole("heading", { level: 1, name: "Tapahtumapäiväni" })).toBeVisible();
 });
+
+// T-3826: a steward features an event and notes it; a viewer finds it, keeps their days and reads
+// their history, at a phone and a laptop, light and dark.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a steward features an event, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, STEWARD);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await expect(page.getByLabel("Your role: Steward")).toBeVisible();
+      await page.getByRole("list", { name: "Events of the day" }).getByRole("button", { name: "Feature: Organ concert" }).click();
+      const featured = page.getByRole("list", { name: "Featured events" });
+      await expect(featured.getByText("Organ concert", { exact: true })).toBeVisible();
+      await featured.getByRole("textbox", { name: "Note" }).fill("Free entry, come early");
+      await featured.getByRole("button", { name: "Save the note" }).click();
+      await expect(page.getByText("The note is saved.")).toBeVisible();
+      await testInfo.attach(`featured-steward-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "History" }).click();
+      await expect(page.getByText("changed: changed the note")).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+
+    test(`${scheme} at ${width} px: a viewer's days and history, nothing to feature, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, VIEWER);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await expect(page.getByLabel("Your role: Viewer")).toBeVisible();
+      await expect(page.getByText("A steward curates the featured events.")).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Feature:/ })).toHaveCount(0);
+      await page.getByRole("button", { name: "My days" }).click();
+      await expect(page.getByRole("link", { name: /^Open: .*2030 · 2 events/ })).toBeVisible();
+      await testInfo.attach(`days-viewer-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "History" }).click();
+      await expect(page.getByText("No change yet.")).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}

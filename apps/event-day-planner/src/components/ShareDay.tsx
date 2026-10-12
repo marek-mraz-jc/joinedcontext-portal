@@ -6,14 +6,14 @@ import type { ShareApi } from "../share";
 import { t } from "../texts";
 import type { Key } from "../texts";
 
-/** What the server's refusal means to the visitor, in their language. */
-export function problemText(lang: Lang, error: unknown, action: Key): string {
+/** What the server's refusal means to the visitor, in their language; a `404` reads as `gone`. */
+export function problemText(lang: Lang, error: unknown, action: Key, gone: Key = "shareGone"): string {
   if (!(error instanceof ServerProblem)) return t(lang, "serverDown");
   if (error.status === 0) return t(lang, "serverOffline");
   if (error.status === 401) return t(lang, "signInAgain");
   if (error.status === 403) return t(lang, "noRight");
   if (error.status === 400 || error.status === 409) return `${t(lang, action)}: ${error.message}`;
-  if (error.status === 404) return t(lang, "shareGone");
+  if (error.status === 404) return t(lang, gone);
   if (error.status === 507) return t(lang, "storageFull");
   return t(lang, "serverDown");
 }

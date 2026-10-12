@@ -4,6 +4,7 @@ import { useAnalysis } from "../analysis";
 import type { AnalysisOutput, StopOut } from "../analysis";
 import { KeptReach } from "../components/KeptReach";
 import { ReachMap } from "../components/ReachMap";
+import { SaveOrigin } from "../components/SaveOrigin";
 import { useHistory } from "../history";
 import { pointKey, STOP, useNetwork } from "../network";
 import { decimal, moment, number, t } from "../i18n";
@@ -59,8 +60,9 @@ export function stopLabel(lang: Lang, stop: StopOut, index: number): string {
  * reached in 10, 20 and 30 minutes, the map of it (a click starts from there), the stops reached in
  * time, and what the answer rests on: HSL's stops and lines when the space holds them, else stops
  * derived from where the vehicles stood still. The point and the history's hours are in the
- * address. An HSL stop reached opens in the SDK's entity panel, which links to it in the Portal: a
- * public App writes nothing (SDK-40, AP-140).
+ * address. An HSL stop reached opens in the SDK's entity panel, which links to it in the Portal
+ * (SDK-40, AP-140); the city's data is only read. A signed-in visitor keeps the point with its
+ * areas, to compare on the Origins page (T-3826).
  */
 export function Reach({ lang, server }: { lang: Lang; server?: ReachApi }) {
   const api = useMemo(() => server ?? reachApi(apiBase()), [server]);
@@ -166,6 +168,14 @@ export function Reach({ lang, server }: { lang: Lang; server?: ReachApi }) {
       )}
 
       {onNetwork && <KeptReach lang={lang} api={api} stop={keptStop} />}
+
+      <SaveOrigin
+        lang={lang}
+        api={api}
+        at={view.at}
+        stopName={output && pickedStop >= 0 ? output.stops[pickedStop].name || null : null}
+        reach={output ? { source: output.source === "network" ? "network" : "derived", bands: output.bands } : null}
+      />
 
       <form className="app-filters" aria-label={t(lang, "controls")} onSubmit={(event) => event.preventDefault()}>
         {output?.source !== "network" && (

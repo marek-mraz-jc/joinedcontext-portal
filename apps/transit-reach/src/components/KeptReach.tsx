@@ -17,7 +17,7 @@ export function problemText(lang: Lang, error: unknown): string {
 
 interface Props {
   lang: Lang;
-  api: ReachApi;
+  api: Pick<ReachApi, "reach" | "refresh">;
   /** The stop the view starts from, its entity id and its label; `null` from any other point. */
   stop: { id: string; label: string } | null;
 }

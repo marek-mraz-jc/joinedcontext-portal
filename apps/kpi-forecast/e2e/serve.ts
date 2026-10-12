@@ -28,8 +28,12 @@ export interface Served {
   problems: string[];
 }
 
+/** Who the App's server says is signed in (T-3827): a viewer unless a test names a steward. */
+export const VIEWER = { id: "u-1", name: "Vilja Viewer", roles: ["viewer"] };
+export const STEWARD = { id: "u-2", name: "Sami Steward", roles: ["viewer", "steward"] };
+
 /** Serves the built bundle at the root of the App's own host, with the SDK's stub answering its endpoint. */
-export async function serve(page: Page, entities = KPIS, temporal = HISTORY): Promise<Served> {
+export async function serve(page: Page, entities = KPIS, temporal = HISTORY, me: { id: string; name: string; roles: string[] } = VIEWER): Promise<Served> {
   const transport = stubTransport({
     entities,
     temporal,
@@ -39,6 +43,9 @@ export async function serve(page: Page, entities = KPIS, temporal = HISTORY): Pr
     },
   });
   const served: Served = { outside: [], missing: [], problems: [] };
+  const published: { id: number; kpi: string; days: number; horizon: number; note: string; step: number; points: unknown[]; publisherName: string; publishedAt: string }[] = [];
+  const follows: { id: number; kpi: string }[] = [];
+  const history: unknown[] = [];
   page.on("pageerror", (error) => served.problems.push(error.message));
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -50,6 +57,38 @@ export async function serve(page: Page, entities = KPIS, temporal = HISTORY): Pr
     if (url.pathname === "/apps/kpi-forecast/api/forecasts") {
       const body = route.request().method() === "POST" ? { recorded: 0, already: true } : [];
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    }
+    // The roles (T-3827): a steward's published forecasts, the reader's follows and the history,
+    // deciding by `me` as the real server does.
+    const api = "/apps/kpi-forecast/api";
+    const method = route.request().method();
+    const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    const sent = () => JSON.parse(route.request().postData() ?? "{}");
+    const at = "2030-10-20T06:00:00Z";
+    const log = (action: string, target: string, summary: string) => history.unshift({ id: history.length + 1, at, actorName: me.name, action, target, summary });
+    if (url.pathname === `${api}/me`) return json(200, me);
+    if (url.pathname === `${api}/history`) return json(200, history);
+    if (url.pathname === `${api}/published` && method === "GET") return json(200, published.filter((p) => p.kpi === url.searchParams.get("kpi")));
+    if (url.pathname === `${api}/published` && method === "POST") {
+      if (!me.roles.includes("steward")) return json(403, { detail: "this needs the role steward" });
+      const { kpi, days, horizon, note } = sent();
+      const start = Date.parse(at);
+      const points = Array.from({ length: horizon }, (_, i) => ({ t: start + (i + 1) * 86_400_000, v: 100 + i, lo: 90 + i, hi: 110 + i }));
+      const made = { id: published.length + 1, kpi, days, horizon, note, step: 86_400_000, points, publisherName: me.name, publishedAt: at };
+      published.unshift(made);
+      log("insert", `published/${made.id}`, `published a forecast: ${note}`);
+      return json(201, made);
+    }
+    if (url.pathname === `${api}/follows` && method === "GET") return json(200, follows);
+    if (url.pathname === `${api}/follows` && method === "POST") {
+      const made = { id: follows.length + 1, kpi: sent().kpi };
+      follows.unshift(made);
+      log("insert", `follows/${made.id}`, "followed an indicator");
+      return json(201, made);
+    }
+    if (url.pathname.startsWith(`${api}/`) && url.pathname !== `${api}/forecasts`) {
+      served.missing.push(`${method} ${url.pathname}`);
+      return json(404, { detail: "no such route" });
     }
     if (url.pathname.startsWith(`/api/endpoint/${SLUG}/`)) {
       const body = route.request().postData();

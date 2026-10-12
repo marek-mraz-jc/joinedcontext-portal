@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, Empty } from "@joinedcontext/sdk";
-import { number, t } from "../i18n";
+import { locale, number, t } from "../i18n";
 import type { Lang } from "../i18n";
 import type { Run, Server } from "../server";
 
@@ -11,7 +11,7 @@ const percent = (lang: Lang, share: number | null) => (share === null ? "–" : 
 
 /** A run's time on Helsinki's clock. */
 function when(lang: Lang, iso: string): string {
-  return new Intl.DateTimeFormat(lang === "fi" ? "fi-FI" : "en-GB", { timeZone: "Europe/Helsinki", dateStyle: "medium", timeStyle: "short" }).format(Date.parse(iso));
+  return new Intl.DateTimeFormat(locale(lang), { timeZone: "Europe/Helsinki", dateStyle: "medium", timeStyle: "short" }).format(Date.parse(iso));
 }
 
 /**

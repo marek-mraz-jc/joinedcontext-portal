@@ -4,7 +4,9 @@ import { dayShort, duration, langOf, moment, percent, t, value } from "./i18n";
 describe("words and numbers", () => {
   it("takes the language from the address, else the browser", () => {
     expect(langOf("?lang=en", ["fi-FI"])).toBe("en");
-    expect(langOf("", ["sv-FI"])).toBe("fi");
+    expect(langOf("", ["sv-FI"])).toBe("sv");
+    expect(langOf("?lang=sv", ["fi-FI"])).toBe("sv");
+    expect(langOf("", ["de-DE", "fi-FI", "en-GB"])).toBe("fi");
     expect(langOf("?lang=de", ["de-DE"])).toBe("en");
   });
 
@@ -16,6 +18,8 @@ describe("words and numbers", () => {
     expect(percent("fi", -0.5)).toMatch(/^[−-]50\s?%$/);
     expect(moment("fi", Date.UTC(2030, 9, 3, 9, 0))).toBe("3.10.2030 klo 12.00");
     expect(moment("en", Date.UTC(2030, 9, 3, 9, 0))).toBe("3 Oct 2030, 12:00");
+    expect(value("sv", 3848)).toMatch(/^3\s848$/);
+    expect(t("sv", "days", { n: 7 })).toBe("7 dagar");
   });
 
   it("names a step in the unit that reads well", () => {

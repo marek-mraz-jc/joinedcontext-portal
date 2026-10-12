@@ -11,10 +11,25 @@
 //! | `POST /api/reports` `{month}` | a month's forecasts (this month's by default) against the readings as CSV; a URL it downloads from |
 //!
 //! The job `record-forecasts` records every period's forecasts once a day at 03:20 UTC (app.yaml).
+//!
+//! Roles and edits (T-3827, API/07), decided from `identity::caller()` alone:
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `GET /api/published?kpi=` | anyone | an indicator's published forecasts, newest first |
+//! | `POST /api/published` `{kpi, days, horizon, note}` | steward | a forecast made with these parameters and published |
+//! | `DELETE /api/published/{id}` | steward | a published forecast withdrawn |
+//! | `GET /api/follows` | signed in | the indicators the caller follows |
+//! | `POST /api/follows` `{kpi}` | signed in | an indicator followed, at most 50 |
+//! | `DELETE /api/follows/{id}` | the follower | no longer followed |
+//! | `GET /api/history` | signed in | the newest 100 changes (a viewer: their own) |
 
+use jc_app_sdk::access::Owned;
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
 use kpi_forecast::{analyse_series, Direction, Point, Series, Status};
 use serde::Deserialize;
@@ -31,6 +46,18 @@ const LAST_N: usize = 2000;
 const LISTED: i64 = 60;
 /// How long a report's download URL lives; the host allows at most 300 seconds.
 const URL_SECONDS: u32 = 120;
+
+/// The App role that publishes forecasts (app.yaml).
+const STEWARD: &str = "steward";
+/// A published forecast any steward may withdraw; a follow is its follower's alone.
+const PUBLISHED: Owned = Owned::new("published", STEWARD);
+const FOLLOWS: Owned = Owned::new("follows", "");
+/// The most indicators one person follows, the published forecasts listed, the history read.
+const MOST_FOLLOWS: i64 = 50;
+const PUBLISHED_LISTED: i64 = 10;
+const HISTORY: i64 = 100;
+/// The longest forecast a steward publishes, in the model's steps.
+pub const MOST_HORIZON: i64 = 48;
 
 /// An indicator's id: its URN, of letters, digits and `._~:-`, at most 256 long.
 pub fn kpi_urn(id: &str) -> Result<&str, String> {
@@ -512,11 +539,266 @@ fn monthly(request: &Request, _: &Params) -> Response {
     }
 }
 
+/// A forecast to publish, as the page sends it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Publish {
+    pub kpi: String,
+    pub days: i64,
+    pub horizon: i64,
+    pub note: String,
+}
+
+/// The note, trimmed, of 1 to 200 characters on one line, and the horizon in steps: or why not.
+pub fn checked_publish(publish: &Publish) -> Result<(String, usize), String> {
+    kpi_urn(&publish.kpi)?;
+    period(publish.days)?;
+    if !(1..=MOST_HORIZON).contains(&publish.horizon) {
+        return Err(format!("the horizon is 1 to {MOST_HORIZON} steps"));
+    }
+    let note = publish.note.trim();
+    if note.is_empty() || note.chars().count() > 200 || note.chars().any(char::is_control) {
+        return Err("a note is 1 to 200 characters, on one line".to_owned());
+    }
+    Ok((
+        note.to_owned(),
+        usize::try_from(publish.horizon).unwrap_or(1),
+    ))
+}
+
+/// The forecast of `kpi` over `horizon` steps from its readings in `series`; `None` when it has
+/// too little history to forecast.
+pub fn forecast_of(series: &[Series], kpi: &str, horizon: usize) -> Option<(f64, Json)> {
+    let found = series.iter().find(|s| s.id == kpi)?;
+    let result = analyse_series(found, Some(horizon));
+    if result.status != Status::Ok || result.forecast.is_empty() {
+        return None;
+    }
+    Some((result.step?, json!(result.forecast)))
+}
+
+fn id(params: &Params, what: &str) -> Result<i64, Response> {
+    params["id"]
+        .parse()
+        .map_err(|_| Response::problem(404, "Not Found", &format!("no such {what}")))
+}
+
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+fn published(request: &Request, _: &Params) -> Response {
+    let kpi = match kpi_urn(request.param("kpi").unwrap_or_default()) {
+        Ok(kpi) => kpi,
+        Err(why) => return bad(&why),
+    };
+    match sql::query(
+        "select id, days, horizon, note, step, points, publisher_name as \"publisherName\", \
+         created_at as \"publishedAt\" from published where kpi = $1 order by id desc limit $2",
+        &[Value::from(kpi), Value::Int(PUBLISHED_LISTED)],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn publish(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    if let Err(answer) = caller.require_role(&[STEWARD]) {
+        return answer;
+    }
+    let wanted: Publish = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let (note, horizon) = match checked_publish(&wanted) {
+        Ok(checked) => checked,
+        Err(why) => return bad(&why),
+    };
+    let series = match history(now() - wanted.days * DAY, None) {
+        Ok(series) => series,
+        Err(answer) => return answer,
+    };
+    let Some((step, points)) = forecast_of(&series, &wanted.kpi, horizon) else {
+        return Response::problem(
+            409,
+            "Conflict",
+            "this indicator has too little history over the period to forecast",
+        );
+    };
+    match PUBLISHED.insert(
+        &caller,
+        &[
+            "kpi",
+            "days",
+            "horizon",
+            "note",
+            "step",
+            "points",
+            "publisher_name",
+        ],
+        vec![
+            Value::from(wanted.kpi.as_str()),
+            Value::from(wanted.days),
+            Value::from(wanted.horizon),
+            Value::from(note.as_str()),
+            Value::Float(step),
+            Value::Json(points.to_string()),
+            Value::from(caller.name.as_str()),
+        ],
+        &format!("published a forecast: {note}"),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &json!({"id": row.get("id"), "days": wanted.days, "horizon": wanted.horizon, "note": note, "step": step, "points": points, "publisherName": caller.name, "publishedAt": row.get("created_at")}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn withdraw(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    if let Err(answer) = caller.require_role(&[STEWARD]) {
+        return answer;
+    }
+    let id = match id(params, "published forecast") {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    match PUBLISHED.delete(&caller, id, "withdrew a published forecast") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn follows(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, kpi from follows where owner_id = $1 order by id desc",
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Follow {
+    kpi: String,
+}
+
+fn follow(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let wanted: Follow = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    if let Err(why) = kpi_urn(&wanted.kpi) {
+        return bad(&why);
+    }
+    match sql::query(
+        "select count(*) as n, count(*) filter (where kpi = $2) as same from follows where owner_id = $1",
+        &[Value::from(caller.id.as_str()), Value::from(wanted.kpi.as_str())],
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            let count = |key: &str| row.get(key).and_then(Json::as_i64).unwrap_or(0);
+            if count("same") > 0 {
+                return Response::problem(409, "Conflict", "you follow this indicator already");
+            }
+            if count("n") >= MOST_FOLLOWS {
+                return Response::problem(
+                    409,
+                    "Conflict",
+                    &format!("at most {MOST_FOLLOWS} indicators are followed; stop following one first"),
+                );
+            }
+        }
+        Err(err) => return Response::from_sql(err),
+    }
+    match FOLLOWS.insert(
+        &caller,
+        &["kpi"],
+        vec![Value::from(wanted.kpi.as_str())],
+        "followed an indicator",
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(201, &json!({"id": row.get("id"), "kpi": wanted.kpi}))
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn unfollow(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params, "follow") {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    match FOLLOWS.delete(&caller, id, "stopped following an indicator") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn changes(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 pub fn handle(request: Request) -> Response {
     Router::new()
         .post("/api/forecasts", record)
         .get("/api/forecasts", list)
         .post("/api/reports", monthly)
+        .get("/api/me", me)
+        .get("/api/published", published)
+        .post("/api/published", publish)
+        .delete("/api/published/{id}", withdraw)
+        .get("/api/follows", follows)
+        .post("/api/follows", follow)
+        .delete("/api/follows/{id}", unfollow)
+        .get("/api/history", changes)
         .handle(&request)
 }
 
@@ -542,6 +824,80 @@ mod job {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn wanted(horizon: i64, note: &str) -> Publish {
+        Publish {
+            kpi: "urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use".into(),
+            days: 30,
+            horizon,
+            note: note.into(),
+        }
+    }
+
+    /// T-3827: a steward publishes a forecast of 1 to 48 steps with a note on one line, of an
+    /// indicator and a period the page offers.
+    #[test]
+    fn a_publication_has_a_horizon_and_a_note_on_one_line() {
+        assert_eq!(
+            checked_publish(&wanted(12, "  for the board  ")),
+            Ok(("for the board".to_owned(), 12))
+        );
+        assert_eq!(
+            checked_publish(&wanted(MOST_HORIZON, "x")).map(|c| c.1),
+            Ok(48)
+        );
+        for horizon in [0, -1, MOST_HORIZON + 1] {
+            assert_eq!(
+                checked_publish(&wanted(horizon, "x")),
+                Err("the horizon is 1 to 48 steps".to_owned())
+            );
+        }
+        for note in ["", "   ", "two\nlines", &"x".repeat(201)] {
+            assert_eq!(
+                checked_publish(&wanted(6, note)),
+                Err("a note is 1 to 200 characters, on one line".to_owned())
+            );
+        }
+        assert!(checked_publish(&Publish {
+            days: 14,
+            ..wanted(6, "x")
+        })
+        .is_err());
+        assert!(checked_publish(&Publish {
+            kpi: "urn:ngsi-ld:Building:x".into(),
+            ..wanted(6, "x")
+        })
+        .is_err());
+    }
+
+    /// The published forecast has the horizon asked for; an indicator with too little history,
+    /// or one not read, has none.
+    #[test]
+    fn a_published_forecast_has_the_horizon_asked_for() {
+        let day = DAY as f64;
+        let points: Vec<Point> = (0..30)
+            .map(|i| Point {
+                t: f64::from(i) * day,
+                v: 100.0 + f64::from(i),
+            })
+            .collect();
+        let series = vec![
+            Series {
+                id: "urn:ngsi-ld:KeyPerformanceIndicator:a".into(),
+                points,
+            },
+            Series {
+                id: "urn:ngsi-ld:KeyPerformanceIndicator:b".into(),
+                points: vec![Point { t: 0.0, v: 1.0 }],
+            },
+        ];
+        let (step, forecast) =
+            forecast_of(&series, "urn:ngsi-ld:KeyPerformanceIndicator:a", 5).unwrap();
+        assert!((step - day).abs() < 1.0);
+        assert_eq!(forecast.as_array().map(Vec::len), Some(5));
+        assert!(forecast_of(&series, "urn:ngsi-ld:KeyPerformanceIndicator:b", 5).is_none());
+        assert!(forecast_of(&series, "urn:ngsi-ld:KeyPerformanceIndicator:c", 5).is_none());
+    }
 
     /// AP-155 (T-3372): a failed job run ends with a sentence naming the period and what said no,
     /// never a statement's text or a body.

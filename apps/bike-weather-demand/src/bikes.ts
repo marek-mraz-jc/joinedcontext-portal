@@ -139,9 +139,9 @@ export function writeHash(stationId: string, page = "station"): string {
   return `#${page}?id=${encodeURIComponent(stationId)}`;
 }
 
-/** Returns the ISO 8601 string for exactly 7 days before `now`. */
-export function sevenDaysAgoIso(now: Date = new Date()): string {
-  return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+/** The ISO 8601 instant exactly `days` days before `now`. */
+export function daysAgoIso(days = 7, now: Date = new Date()): string {
+  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export interface ToInputParams {

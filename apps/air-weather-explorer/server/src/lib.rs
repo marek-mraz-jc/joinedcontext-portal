@@ -11,13 +11,29 @@
 //! | `POST /api/comparisons` `{name, station, weather, days, smoothing, air, variable}` | a comparison kept; its code |
 //! | `GET /api/comparisons/{code}` | the comparison's choices |
 //! | `POST /api/exports` `{air, weather, days}` | the hours as CSV; a URL it downloads from |
+//!
+//! Roles and edits (T-3827, API/07), decided from `identity::caller()` alone:
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `GET /api/places` | signed in | the caller's places, each with its station's latest kept hour |
+//! | `POST /api/places` `{station, name, attr, threshold}` | signed in | a place kept |
+//! | `PUT /api/places/{id}` `{name, threshold}` | owner | changed |
+//! | `DELETE /api/places/{id}` | owner | gone |
+//! | `GET /api/faults?station=` | anyone | the periods a steward marked the station's readings faulty |
+//! | `POST /api/faults` `{station, from, to, note}` | steward | a period marked |
+//! | `DELETE /api/faults/{id}` | steward | the mark taken back |
+//! | `GET /api/history` | signed in | the newest changes (a viewer: their own) |
 
 use std::collections::BTreeMap;
 
 use air_weather_explorer::{hourly, Point};
+use jc_app_sdk::access::Owned;
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
 use serde::Deserialize;
 use serde_json::Value as Json;
@@ -40,6 +56,87 @@ pub const VARIABLES: [&str; 4] = [
 const URL_SECONDS: u32 = 120;
 /// Old comparisons and exports cleared per write, so one write never does unbounded work.
 const CLEAR_AT_ONCE: i64 = 20;
+
+/// The App role that marks readings faulty (app.yaml).
+const STEWARD: &str = "steward";
+/// A place is its keeper's alone: no role changes another's.
+const PLACES: Owned = Owned::new("places", "");
+const FAULTS: Owned = Owned::new("faults", STEWARD);
+/// The most places one person keeps, the longest period one mark covers, and the history read.
+const MOST_PLACES: i64 = 20;
+const LONGEST_FAULT: i64 = 31 * DAY;
+const HISTORY: i64 = 100;
+
+/// A place as the page sends it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewPlace {
+    pub station: String,
+    pub name: String,
+    pub attr: String,
+    pub threshold: f64,
+}
+
+/// A place's name and level changed.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlaceChange {
+    pub name: String,
+    pub threshold: f64,
+}
+
+/// A period of a station's readings marked faulty, in epoch milliseconds.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewFault {
+    pub station: String,
+    pub from: i64,
+    pub to: i64,
+    pub note: String,
+}
+
+/// A name or note trimmed, `1..=most` characters, on one line.
+pub fn line(text: &str, most: usize, what: &str) -> Result<String, String> {
+    let text = text.trim();
+    if text.is_empty() || text.chars().count() > most || text.chars().any(char::is_control) {
+        return Err(format!("a {what} is 1 to {most} characters, on one line"));
+    }
+    Ok(text.to_owned())
+}
+
+/// A level an alert is set at: a number from 0 to 1000.
+pub fn threshold(value: f64) -> Result<f64, String> {
+    if value.is_finite() && (0.0..=1000.0).contains(&value) {
+        Ok(value)
+    } else {
+        Err("a level is a number from 0 to 1000".into())
+    }
+}
+
+/// A place kept: an air quality station, its name, one of its pollutants and a level.
+pub fn checked_place(new: &NewPlace) -> Result<String, String> {
+    station(&new.station, Kind::Air)?;
+    if !POLLUTANTS.contains(&new.attr.as_str()) {
+        return Err(format!(
+            "{} is not a pollutant: pm10, pm25 or airQualityIndex",
+            new.attr
+        ));
+    }
+    threshold(new.threshold)?;
+    line(&new.name, 80, "name")
+}
+
+/// A period marked: its station, a start before its end, at most 31 days, a note on why.
+pub fn checked_fault(new: &NewFault) -> Result<String, String> {
+    station(&new.station, Kind::Air)?;
+    if new.from >= new.to {
+        return Err("a period starts before it ends".into());
+    }
+    if new.to - new.from > LONGEST_FAULT {
+        return Err("a period is at most 31 days".into());
+    }
+    line(&new.note, 200, "note")
+}
 
 /// Which of the two kinds of station.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -339,6 +436,235 @@ fn bad(why: &str) -> Response {
     Response::problem(400, "Bad Request", why)
 }
 
+fn id(params: &Params, what: &str) -> Result<i64, Response> {
+    params["id"]
+        .parse()
+        .map_err(|_| Response::problem(404, "Not Found", &format!("no such {what}")))
+}
+
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &serde_json::json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+/// The caller's places, newest first, each with the latest hour kept for its station and pollutant.
+fn places(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select p.id, p.station, p.name, p.attr, p.threshold, h.value as latest, \
+         h.hour as \"latestHour\" from places p left join lateral (select value, hour from hourly \
+         where station = p.station and attr = p.attr order by hour desc limit 1) h on true \
+         where p.owner_id = $1 order by p.id desc limit 50",
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn keep_place(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewPlace = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let name = match checked_place(&new) {
+        Ok(name) => name,
+        Err(why) => return bad(&why),
+    };
+    match sql::query(
+        "select count(*) as n from places where owner_id = $1",
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => {
+            let n = sql::objects(&rows)
+                .first()
+                .and_then(|row| row.get("n").and_then(Json::as_i64))
+                .unwrap_or(0);
+            if n >= MOST_PLACES {
+                return Response::problem(
+                    409,
+                    "Conflict",
+                    &format!("at most {MOST_PLACES} places are kept; delete one first"),
+                );
+            }
+        }
+        Err(err) => return Response::from_sql(err),
+    }
+    match PLACES.insert(
+        &caller,
+        &["station", "name", "attr", "threshold"],
+        vec![
+            Value::from(new.station.as_str()),
+            Value::from(name.as_str()),
+            Value::from(new.attr.as_str()),
+            Value::Float(new.threshold),
+        ],
+        &format!("kept the place {name}"),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &serde_json::json!({"id": row.get("id"), "station": new.station, "name": name, "attr": new.attr, "threshold": new.threshold, "latest": null, "latestHour": null}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn change_place(request: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params, "place") {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    let wanted: PlaceChange = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let (name, level) = match (line(&wanted.name, 80, "name"), threshold(wanted.threshold)) {
+        (Ok(name), Ok(level)) => (name, level),
+        (Err(why), _) | (_, Err(why)) => return bad(&why),
+    };
+    match PLACES.update(
+        &caller,
+        id,
+        &["name", "threshold"],
+        vec![Value::from(name.as_str()), Value::Float(level)],
+        &format!("changed the place {name}"),
+    ) {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn forget_place(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params, "place") {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    match PLACES.delete(&caller, id, "deleted a place") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn faults(request: &Request, _: &Params) -> Response {
+    let station = match station(request.param("station").unwrap_or_default(), Kind::Air) {
+        Ok(station) => station,
+        Err(why) => return bad(&why),
+    };
+    match sql::query(
+        "select id, station, from_ms as \"from\", to_ms as \"to\", note from faults \
+         where station = $1 order by from_ms desc limit 50",
+        &[Value::from(station)],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+/// A steward, checked before the body is read, so nothing in the body stands in for the role.
+fn steward() -> Result<Caller, Response> {
+    let caller = Caller::require()?;
+    caller.require_role(&[STEWARD])?;
+    Ok(caller)
+}
+
+fn mark_fault(request: &Request, _: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewFault = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let note = match checked_fault(&new) {
+        Ok(note) => note,
+        Err(why) => return bad(&why),
+    };
+    match FAULTS.insert(
+        &caller,
+        &["station", "from_ms", "to_ms", "note"],
+        vec![
+            Value::from(new.station.as_str()),
+            Value::Int(new.from),
+            Value::Int(new.to),
+            Value::from(note.as_str()),
+        ],
+        &format!("marked {} faulty: {note}", local(&new.station)),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &serde_json::json!({"id": row.get("id"), "station": new.station, "from": new.from, "to": new.to, "note": note}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn unmark_fault(_: &Request, params: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params, "mark") {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    match FAULTS.delete(&caller, id, "took back a faulty mark") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// The end of a station's id, for a history line.
+fn local(id: &str) -> &str {
+    id.rsplit(':').next().unwrap_or(id)
+}
+
+/// The newest changes: a steward's every one, anyone else's their own.
+fn history(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 fn series(request: &Request, _: &Params) -> Response {
     let (air, weather) = match (
         station(request.param("air").unwrap_or_default(), Kind::Air),
@@ -591,6 +917,15 @@ pub fn handle(request: Request) -> Response {
         .post("/api/comparisons", save)
         .get("/api/comparisons/{code}", open)
         .post("/api/exports", export)
+        .get("/api/me", me)
+        .get("/api/places", places)
+        .post("/api/places", keep_place)
+        .put("/api/places/{id}", change_place)
+        .delete("/api/places/{id}", forget_place)
+        .get("/api/faults", faults)
+        .post("/api/faults", mark_fault)
+        .delete("/api/faults/{id}", unmark_fault)
+        .get("/api/history", history)
         .handle(&request)
 }
 
@@ -599,6 +934,71 @@ jc_app_sdk::app!(handle);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const KALLIO: &str = "urn:ngsi-ld:AirQualityObserved:kallio-2";
+
+    #[test]
+    fn a_place_is_an_air_station_a_pollutant_a_level_and_a_name() {
+        let place = |station: &str, name: &str, attr: &str, threshold: f64| NewPlace {
+            station: station.into(),
+            name: name.into(),
+            attr: attr.into(),
+            threshold,
+        };
+        assert_eq!(
+            checked_place(&place(KALLIO, "  Home ", "pm25", 25.0)),
+            Ok("Home".into())
+        );
+        for (wrong, why) in [
+            (
+                place("urn:ngsi-ld:WeatherObserved:x", "Home", "pm25", 25.0),
+                "air quality",
+            ),
+            (place(KALLIO, "Home", "temperature", 25.0), "pollutant"),
+            (place(KALLIO, "Home", "pm25", -1.0), "level"),
+            (place(KALLIO, "Home", "pm25", f64::NAN), "level"),
+            (place(KALLIO, "Home", "pm25", 1000.5), "level"),
+            (place(KALLIO, " ", "pm25", 25.0), "name"),
+            (place(KALLIO, &"x".repeat(81), "pm25", 25.0), "name"),
+        ] {
+            let err = checked_place(&wrong).expect_err(&wrong.name);
+            assert!(err.contains(why), "{err}");
+        }
+        assert!(serde_json::from_value::<NewPlace>(
+            serde_json::json!({"station": KALLIO, "name": "x", "attr": "pm25", "threshold": 1, "owner_id": "u-2"})
+        )
+        .is_err(), "no owner is taken from the body");
+    }
+
+    #[test]
+    fn a_fault_is_a_period_of_at_most_a_month_with_a_reason() {
+        let fault = |from: i64, to: i64, note: &str| NewFault {
+            station: KALLIO.into(),
+            from,
+            to,
+            note: note.into(),
+        };
+        assert_eq!(
+            checked_fault(&fault(0, HOUR, " sensor iced ")),
+            Ok("sensor iced".into())
+        );
+        assert_eq!(
+            checked_fault(&fault(0, 31 * DAY, "long")),
+            Ok("long".into())
+        );
+        for (wrong, why) in [
+            (fault(HOUR, HOUR, "x"), "starts before"),
+            (fault(HOUR, 0, "x"), "starts before"),
+            (fault(0, 31 * DAY + 1, "x"), "31 days"),
+            (fault(0, HOUR, ""), "note"),
+            (fault(0, HOUR, &"x".repeat(201)), "note"),
+            (fault(0, HOUR, "a\nb"), "note"),
+        ] {
+            let err = checked_fault(&wrong).expect_err(&wrong.note);
+            assert!(err.contains(why), "{err}");
+        }
+        assert_eq!(local(KALLIO), "kallio-2");
+    }
     use serde_json::json;
 
     const AIR: &str = "urn:ngsi-ld:AirQualityObserved:hsy:kallio-2";
