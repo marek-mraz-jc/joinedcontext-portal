@@ -25,6 +25,7 @@
     "src/components/LanguageSwitcher.tsx": null,
     "src/components/ProjectRelease.tsx": null,
     "src/components/ResourceFormDialogBody.tsx": null,
+    "src/components/ResourceHistory.tsx": null,
     "src/components/SaveAsDialog.tsx": null,
     "src/components/SessionEndedDialog.tsx": null,
     "src/components/WorkOnCopyDialog.tsx": null,

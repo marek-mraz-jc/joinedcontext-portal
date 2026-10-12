@@ -135,7 +135,8 @@
     "uischemaProblems": "Das Anordnungsmanifest dieses Formulars verlangt etwas, das das Formular nicht kann",
     "view": {
       "form": "Formular",
-      "yaml": "YAML"
+      "yaml": "YAML",
+      "history": "Verlauf"
     },
     "yamlHint": "Das ganze Manifest, wie es nach Git geschrieben wird. Zurück zum Formular liest es wieder ein; dasselbe Schema prüft beides.",
     "yamlError": "Korrigieren Sie das YAML: {message}",
@@ -7086,5 +7087,13 @@
         "hint": "Antworten der Modelle der Organisation"
       }
     }
+  },
+  "resourceHistory": {
+    "restore": "Diese Version wiederherstellen",
+    "empty": "Noch keine abgeschlossene Änderung betraf {kind} {name}.",
+    "noneOnPage": "Keine dieser Änderungen betraf diese Ressource. Ältere vielleicht.",
+    "when": "{at} · Spur {lane} · {id}",
+    "notWritten": "Diese Änderung schrieb kein {kind} {name}, es gibt also keine Version davon zum Wiederherstellen.",
+    "loaded": "Die Version, die Änderung {id} schrieb, steht im Formular. Prüfen und vorschlagen, um sie wiederherzustellen; bis zur Genehmigung ändert sich nichts."
   }
 }
