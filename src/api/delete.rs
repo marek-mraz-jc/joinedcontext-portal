@@ -327,7 +327,10 @@ async fn goes_with(
     match kind {
         "ContextSpace" => match state
             .space_usage
-            .usage(&crate::spaces::segment(&state.mirror, project, name))
+            .usage(
+                &crate::spaces::broker(&state.mirror, project, name),
+                &crate::spaces::segment(&state.mirror, project, name),
+            )
             .await
         {
             Ok(usage) if usage.entities > 0 => {
@@ -463,6 +466,9 @@ pub async fn delete_with_identity(
             elsewhere: foreign.len(),
         });
     }
+
+    // 2-broker. A broker a space lives on stays; the refusal lists the spaces (PF-115).
+    crate::brokers::check_delete(&mirror, kind_info.kind, name)?;
 
     // 2a. An organization model a model imports stays; retiring it is the way out (DM-76, DM-26).
     if kind_info.kind == "DataModel" && project == crate::permissions::ORG_NAMESPACE {

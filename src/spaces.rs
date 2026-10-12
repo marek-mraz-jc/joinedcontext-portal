@@ -45,6 +45,37 @@ pub fn segment(mirror: &Mirror, project: &str, name: &str) -> String {
     )
 }
 
+/// The broker the Context Space `name` of `project` lives on (PF-111): its `brokerRef`, else the
+/// organization's default, else the implicit `main`. Empty when its `brokerRef` names no
+/// `ContextBroker`: such a space is never served from another broker.
+pub fn broker(mirror: &Mirror, project: &str, name: &str) -> String {
+    let declared: Vec<(String, jc_core::kinds::ContextBrokerSpec)> = mirror
+        .matching(|env| env.kind == "ContextBroker")
+        .into_iter()
+        .filter_map(|env| Some((env.metadata.name, serde_json::from_value(env.spec).ok()?)))
+        .collect();
+    let space = mirror.get(project, "ContextSpace", name);
+    let broker_ref = space
+        .as_ref()
+        .and_then(|env| env.spec.get("brokerRef"))
+        .and_then(Value::as_str);
+    let named = declared.iter().map(|(name, spec)| (name.as_str(), spec));
+    jc_core::kinds::broker_of(broker_ref, named)
+        .map(str::to_owned)
+        .unwrap_or_default()
+}
+
+/// The address of broker `name` (PF-111): `main` is `JC_PORTAL_BROKER_URL`, any other broker
+/// `JC_PORTAL_BROKER_URL_TEMPLATE` with `{broker}` replaced. `None` for a broker this Portal
+/// cannot reach, whose spaces are never sent to `main` instead.
+pub fn broker_address(name: &str, main: Option<&str>, template: Option<&str>) -> Option<String> {
+    match name {
+        jc_core::kinds::IMPLICIT_BROKER => main.map(str::to_owned),
+        "" => None,
+        name => template.map(|template| template.replace("{broker}", name)),
+    }
+}
+
 fn segment_of(env: &ResourceEnvelope) -> String {
     let project = env.metadata.namespace.as_deref().unwrap_or_default();
     jc_core::kinds::urn_segment(project, &env.metadata.name, pin_of(&env.spec))

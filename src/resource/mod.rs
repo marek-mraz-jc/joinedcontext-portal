@@ -320,6 +320,7 @@ mod tests {
                 "KnowledgeSource",
                 "AssistantDeployment",
                 "McpServer",
+                "MqttBroker",
                 "Blueprint",
                 // Arrived with jc-core-v0.7.8 (T-0537, T-0540): the builder profile every
                 // agent run loads.
@@ -338,6 +339,8 @@ mod tests {
                 // Arrived with jc-core-v0.7.21 (T-0865): a named set of people a RoleBinding
                 // may name instead of one user (PF-62).
                 "Group",
+                // One broker instance a space lives on (PF-110, ADR-N-047).
+                "ContextBroker",
                 // Arrived with jc-core-v0.7.24 (T-0882): the environment overlay the loader
                 // merges before validation, one file per environment (CC-73).
                 "Environment",

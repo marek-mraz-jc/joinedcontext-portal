@@ -180,9 +180,9 @@ export function SchemaProjectionPanel({
       <FormHeading id="projection-heading" className="text-base font-semibold">
         {t("endpoints.projection.title")}
       </FormHeading>
-      <p className="text-sm text-fg-muted">{t("endpoints.projection.hint")}</p>
+      <p id="projection-hint" className="text-sm text-fg-muted">{t("endpoints.projection.hint")}</p>
 
-      <Field id="projection-formalism" label={t("endpoints.projection.formalism")}>
+      <Field id="projection-formalism" label={t("endpoints.projection.formalism")} description={t("endpoints.projection.formalismHelp")}>
         <Select
           id="projection-formalism"
           value={formalism}
@@ -275,6 +275,8 @@ export function SchemaProjectionPanel({
                         label={
                           <span className="sr-only">{`${t("endpoints.projection.hide")} ${attribute}`}</span>
                         }
+                        // a refused box is described by its reason instead
+                        aria-describedby={refused ? undefined : "projection-hint"}
                         checked={hidden.includes(attribute)}
                         disabled={refused}
                         disabledReason={disabledReason}

@@ -143,7 +143,7 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
   const snippets = url ? snippetsOf(url, open) : undefined;
   return (
     <div className="flex flex-col gap-3" data-testid="endpoint-playground">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field id={`${id}-operation`} label={t("endpoints.playground.operation")}>
           <Select id={`${id}-operation`} value={operation} onChange={(event) => setChosen(event.target.value as Operation)}>
             {allowed.map((key) => (
@@ -207,7 +207,7 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
           <p className="text-caption text-fg-muted" role="status">
             {t("endpoints.playground.answered", { status: answer.status })}
           </p>
-          <pre className="max-h-80 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="playground-answer">
+          <pre tabIndex={0} className="focus-ring max-h-80 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="playground-answer">
             {answer.text}
           </pre>
         </div>
@@ -221,7 +221,7 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
             value={language}
             onChange={setLanguage}
           />
-          <pre {...tabPanelProps(`${id}-code`, language)} className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+          <pre {...tabPanelProps(`${id}-code`, language)} tabIndex={0} className="focus-ring overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
             {snippets[language]}
           </pre>
           {!open ? <p className="text-caption text-fg-muted">{t("endpoints.page.firstCallToken")}</p> : null}

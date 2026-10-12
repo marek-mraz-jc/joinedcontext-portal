@@ -12,6 +12,7 @@ pub mod assistant;
 pub mod basemap;
 pub mod blueprints;
 pub mod branding;
+pub mod brokers;
 pub mod bundle_models;
 pub mod catalogue;
 pub mod catalogue_draft;
@@ -125,6 +126,7 @@ pub fn router() -> Router<AppState> {
         .merge(sync_sources::router())
         .merge(validation::router())
         .merge(organization_limits::router())
+        .merge(brokers::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
         .layer(axum::middleware::from_fn(auth::csrf::require_csrf));
