@@ -996,7 +996,7 @@ fn organization_bounds(
         return Ok(jc_core::kinds::OrganizationBounds::default());
     }
     let bounds: jc_core::kinds::OrganizationBounds =
-        serde_yaml_ng::from_str(&text).map_err(|e| {
+        serde_norway::from_str(&text).map_err(|e| {
             invalid(format!(
                 "'{path}' is no map of catalog paths to {{min, max}}: {e}"
             ))

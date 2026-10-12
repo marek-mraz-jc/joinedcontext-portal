@@ -51,7 +51,7 @@ pub(crate) async fn carry(
     let mut carried: BTreeMap<String, (jc_core::kinds::SemVer, String, String)> = BTreeMap::new();
     while let Some(text) = todo.pop() {
         // A source that does not parse imports nothing a check would not have refused already.
-        let Ok(document) = serde_yaml_ng::from_str::<Value>(&text) else {
+        let Ok(document) = serde_norway::from_str::<Value>(&text) else {
             continue;
         };
         let imports = ModelImport::all_in(&document)
@@ -321,7 +321,7 @@ pub(crate) async fn land(
         let Some(file) = mounted.get_file(&path, "main").await? else {
             continue;
         };
-        let Ok(envelope) = serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content) else {
+        let Ok(envelope) = serde_norway::from_str::<ResourceEnvelope>(&file.content) else {
             continue;
         };
         if envelope.kind == "DataModel" {
@@ -350,7 +350,7 @@ pub(crate) async fn land(
     for model in &landing {
         let manifest = files
             .get(&model.manifest)
-            .and_then(|bytes| serde_yaml_ng::from_slice::<ResourceEnvelope>(bytes).ok())
+            .and_then(|bytes| serde_norway::from_slice::<ResourceEnvelope>(bytes).ok())
             .filter(|envelope| envelope.kind == "DataModel")
             .ok_or_else(|| {
                 ApiError::BadRequest(format!(
@@ -391,7 +391,7 @@ pub(crate) async fn land(
         spec.validate()
             .map_err(|err| ApiError::BadRequest(format!("{}: {err}", model.manifest)))?;
         let folder = format!("projects/{project}/datamodels/{}", model.name);
-        let text = serde_yaml_ng::to_string(&manifest)
+        let text = serde_norway::to_string(&manifest)
             .map_err(|err| ApiError::Internal(format!("the landed manifest: {err}")))?;
         uploads.push((format!("{folder}/{}.yaml", model.name), text));
         let source = String::from_utf8(files[&model.file].clone())

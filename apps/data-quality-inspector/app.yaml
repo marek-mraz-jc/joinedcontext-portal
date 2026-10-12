@@ -65,7 +65,7 @@ spec:
         - WaterQualityObserved
         - WeatherObserved
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]
     # A steward corrects one attribute of an entity a finding names (T-3827, API/07 §4): the server
     # checks the role first and this Policy, held by the steward role alone, is the second check.
     # Never createEntity or deleteEntity, and no other role.

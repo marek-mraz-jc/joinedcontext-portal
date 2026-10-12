@@ -126,7 +126,7 @@ pub async fn rename_shapes(
         }
         let path = resource::repository_path(info, &project, None, &app.metadata.name)
             .map_err(ApiError::BadRequest)?;
-        let content = serde_yaml_ng::to_string(app)
+        let content = serde_norway::to_string(app)
             .map_err(|e| ApiError::Internal(format!("the App did not serialise: {e}")))?;
         files.push((path, content));
     }

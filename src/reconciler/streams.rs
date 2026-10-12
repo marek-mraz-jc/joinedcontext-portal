@@ -1158,7 +1158,10 @@ pub fn render_stream(
 
     processors.extend(batching());
 
-    let output = gateway_output(project, slug);
+    let mut output = gateway_output(project, slug);
+    if source.terminates() {
+        bound_in_flight(&mut output);
+    }
 
     // T-1125, PL-24: Bento reports its counters under the component's `label`, so an unlabelled
     // stream can only be read as one total. Labelling the input, the output and each processor
@@ -1204,7 +1207,7 @@ fn labelled(component: serde_json::Value, label: &str) -> serde_json::Value {
 /// platform's own a step may name (PL-16, T-3163).
 fn bento_processors(bento: &str, own: &[&str]) -> Result<Vec<Value>, RenderError> {
     let config: Value =
-        serde_yaml_ng::from_str(bento).map_err(|e| RenderError::Bento(e.to_string()))?;
+        serde_norway::from_str(bento).map_err(|e| RenderError::Bento(e.to_string()))?;
     if config.get("input").is_some() {
         return Err(RenderError::BentoInput);
     }
@@ -1451,7 +1454,9 @@ pub fn render_endpoint_stream(
 
     processors.extend(batching());
 
-    let output = gateway_output(project, target_slug);
+    // An Endpoint source polls on a clock (`generate`), whatever its trigger.
+    let mut output = gateway_output(project, target_slug);
+    bound_in_flight(&mut output);
 
     Ok(serde_json::json!({
         "input": input,
@@ -1819,6 +1824,13 @@ pub fn render_merged(
         );
     }
     processors.extend(batching());
+    let polled = sources.iter().all(|source| match source {
+        ResolvedSource::Data { spec, .. } => spec.terminates(),
+        ResolvedSource::Endpoint { .. } => true,
+    });
+    if polled {
+        bound_in_flight(&mut output);
+    }
 
     Ok(serde_json::json!({
         "input": labelled(input, "input"),
@@ -2144,6 +2156,30 @@ pub(crate) fn own_credential(value: &mut Value, project: &str) {
         Value::Object(map) => map
             .values_mut()
             .for_each(|item| own_credential(item, project)),
+        _ => {}
+    }
+}
+
+/// How many writes of a polled stream may wait on the gateway at once (T-4069). A poll's page
+/// is up to 1000 entities per request, and Bento's default of 64 in flight let every stream hold
+/// 64 pages while a slow gateway timed them out and they were retried, which grew the runner
+/// until it was OOMKilled. A polled source loses nothing by waiting: its input stops reading
+/// while the slots are full, and the next poll reads the newer state. A resident source (MQTT,
+/// WebSocket) keeps the default, since its messages arrive whether or not it reads them.
+/// ponytail: one bound for every polled stream; size it per stream when one needs more.
+const POLLED_IN_FLIGHT: u64 = 4;
+
+/// Sets [`POLLED_IN_FLIGHT`] on every gateway write below `output`, a fan-out's and a route's
+/// included.
+fn bound_in_flight(output: &mut Value) {
+    match output {
+        Value::Object(fields) => {
+            if let Some(Value::Object(client)) = fields.get_mut("http_client") {
+                client.insert("max_in_flight".to_owned(), POLLED_IN_FLIGHT.into());
+            }
+            fields.values_mut().for_each(bound_in_flight);
+        }
+        Value::Array(items) => items.iter_mut().for_each(bound_in_flight),
         _ => {}
     }
 }
@@ -2904,6 +2940,62 @@ output:
             assert_eq!(oauth2["client_key"], sidecar_client("zilina", "drepo"));
             assert_eq!(oauth2["token_url"], "${JC_PIPELINE_TOKEN_URL}");
         }
+    }
+
+    /// T-4069: a polled stream holds at most a few pages on a slow gateway; a resident one keeps
+    /// Bento's default, so a feed that arrives on its own (HSL's HFP) still drains.
+    #[test]
+    fn a_polled_stream_bounds_its_writes_in_flight_and_a_resident_one_does_not() {
+        let pipeline = helsinki_pipeline_spec();
+        let polled = render_stream(
+            &pipeline,
+            "citybikes-free",
+            "helsinki",
+            &helsinki_datasource_spec(),
+            "hsl-citybikes-free",
+            "abc123",
+            None,
+        )
+        .expect("polled");
+        assert_eq!(
+            polled["output"]["http_client"]["max_in_flight"],
+            POLLED_IN_FLIGHT
+        );
+
+        let mqtt: DataSourceSpec = serde_json::from_value(serde_json::json!({
+            "type": "mqtt",
+            "mqtt": { "urls": ["tcp://mqtt.hsl.fi:1883"], "topics": ["/hfp/v2/journey/ongoing/vp/#"] }
+        }))
+        .expect("mqtt");
+        let hfp: PipelineSpec = serde_json::from_value(serde_json::json!({
+            "class": "resident",
+            "source": { "dataSourceRef": { "kind": "DataSource", "name": "hfp" } },
+            "compute": { "kind": "bloblang", "bloblang": "root = this" },
+            "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:helsinki-all"
+        }))
+        .expect("resident pipeline");
+        let resident =
+            render_stream(&hfp, "hfp", "helsinki", &mqtt, "hfp", "abc123", None).expect("resident");
+        assert!(resident["output"]["http_client"]
+            .get("max_in_flight")
+            .is_none());
+
+        let spec = endpoint_pipeline_spec(Some("BikeHireDockingStation"), vec![], None, None);
+        let endpoint =
+            render_endpoint_stream(&spec, "helsinki", "helsinki/kpi", "src", true, "dst")
+                .expect("endpoint");
+        assert_eq!(
+            endpoint["output"]["http_client"]["max_in_flight"],
+            POLLED_IN_FLIGHT
+        );
+    }
+
+    #[test]
+    fn bound_in_flight_reaches_every_write_of_a_fan_out() {
+        let mut output = fan_out("helsinki", &["a".to_owned(), "b".to_owned()]).expect("fan out");
+        bound_in_flight(&mut output);
+        let text = output.to_string();
+        assert_eq!(text.matches("\"max_in_flight\":4").count(), 2, "{text}");
     }
 
     #[test]

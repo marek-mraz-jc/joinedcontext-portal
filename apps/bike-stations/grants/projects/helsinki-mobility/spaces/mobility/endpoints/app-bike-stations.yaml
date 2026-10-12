@@ -18,4 +18,5 @@ spec:
     name: mobility
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   slug: 335ub3brbavwl7sfpc3dph4zi4

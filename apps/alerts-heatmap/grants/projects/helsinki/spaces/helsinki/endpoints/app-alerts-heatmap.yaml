@@ -16,6 +16,7 @@ spec:
     name: helsinki
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   roles:
   - name: viewer
     subjects:

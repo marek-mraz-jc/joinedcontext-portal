@@ -42,7 +42,7 @@ fn every_reference_app_manifest_parses_as_the_kind_the_reconciler_reads() {
     let apps = reference_apps();
     assert!(!apps.is_empty(), "no apps/*/app.yaml found");
     for (name, yaml) in apps {
-        let app: App = serde_yaml_ng::from_str(&yaml)
+        let app: App = serde_norway::from_str(&yaml)
             .unwrap_or_else(|error| panic!("apps/{name}/app.yaml does not parse: {error}"));
         assert_eq!(app.metadata.name, name, "the folder names the app");
         assert!(
@@ -52,12 +52,27 @@ fn every_reference_app_manifest_parses_as_the_kind_the_reconciler_reads() {
     }
 }
 
+/// AP-124. A sample App is copied, so it spells its shape the current way: `static` and
+/// `fullstack` still parse, and a copy of one carried the old name into the seed (T-4076).
+#[test]
+fn no_sample_app_spells_its_shape_with_a_renamed_kind() {
+    for (name, yaml) in reference_apps() {
+        let manifest: serde_norway::Value = serde_norway::from_str(&yaml).expect("a manifest");
+        let kind = manifest["spec"]["kind"].as_str().unwrap_or_default();
+        assert_eq!(
+            jc_core::kinds::AppClass::renamed(kind),
+            None,
+            "apps/{name}/app.yaml says spec.kind {kind}"
+        );
+    }
+}
+
 /// AP-35. The annotations are an agent's attribution; hand-written source claiming them would
 /// make the provenance trail say something untrue.
 #[test]
 fn a_hand_written_app_claims_no_agent_attribution() {
     for (name, yaml) in reference_apps() {
-        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let app: App = serde_norway::from_str(&yaml).expect("a manifest");
         for annotation in [
             "joinedcontext.com/generated-by",
             "joinedcontext.com/prompt-digest",
@@ -91,7 +106,7 @@ fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
         "replaceAttrs",
     ];
     for (name, yaml) in reference_apps() {
-        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let app: App = serde_norway::from_str(&yaml).expect("a manifest");
         let writing: Vec<_> = app
             .spec
             .data_needs
@@ -238,7 +253,7 @@ fn every_static_app_is_excluded_from_the_cargo_workspace() {
     let manifest =
         std::fs::read_to_string(root.join("Cargo.toml")).expect("the workspace manifest");
     for (name, yaml) in reference_apps() {
-        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let app: App = serde_norway::from_str(&yaml).expect("a manifest");
         let has_crate = root.join("apps").join(&name).join("Cargo.toml").is_file();
         if has_crate {
             continue;
@@ -264,7 +279,7 @@ fn an_app_in_its_own_repository_names_it_and_keeps_the_shape_the_lane_builds() {
             continue;
         }
         seen += 1;
-        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let app: App = serde_norway::from_str(&yaml).expect("a manifest");
         let namespace = app.metadata.namespace.clone().unwrap_or_default();
         let git = app.spec.source.git.as_ref().unwrap_or_else(|| {
             panic!("apps/{name} sits at its repository's root but names no spec.source.git")
@@ -308,7 +323,7 @@ fn the_shipped_mark_is_on_exactly_the_bundles_the_image_builds() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let dockerfile = std::fs::read_to_string(root.join("Dockerfile")).expect("the Dockerfile");
     for (name, yaml) in reference_apps() {
-        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let app: App = serde_norway::from_str(&yaml).expect("a manifest");
         let marked = app
             .metadata
             .annotations
@@ -336,7 +351,7 @@ fn the_plain_html_example_is_its_own_bundle_and_a_valid_app() {
         Some(Ok(_)) => {}
         other => panic!("jcctl validate refuses sdk/examples/plain-html-events: {other:?}"),
     }
-    let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+    let app: App = serde_norway::from_str(&yaml).expect("a manifest");
     assert_eq!(app.spec.class, jc_core::AppClass::Ui);
     assert!(app.spec.build.0.is_empty(), "no build step (AP-83)");
     assert!(
@@ -372,7 +387,7 @@ fn the_functions_sample_has_two_roles_and_a_steward_gated_record_form() {
         Some(Ok(_)) => {}
         other => panic!("jcctl validate refuses apps/helsinki-alerts: {other:?}"),
     }
-    let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+    let app: App = serde_norway::from_str(&yaml).expect("a manifest");
     assert_eq!(app.spec.class, jc_core::AppClass::Ui);
     assert_eq!(app.spec.visibility, jc_core::kinds::AppVisibility::Roles);
     let roles: Vec<_> = app
@@ -431,7 +446,7 @@ fn every_reference_app_in_its_own_repository_carries_the_templates_workflow() {
     .expect("the WebAssembly example's workflow");
     let mut seen = 0;
     for (name, yaml) in reference_apps() {
-        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let app: App = serde_norway::from_str(&yaml).expect("a manifest");
         let workflow = root
             .join("apps")
             .join(&name)
@@ -481,7 +496,7 @@ fn the_fullstack_samples_build_from_their_own_repositories_with_their_visibility
             Some(Ok(_)) => {}
             other => panic!("jcctl validate refuses apps/{name}: {other:?}"),
         }
-        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let app: App = serde_norway::from_str(&yaml).expect("a manifest");
         assert_eq!(app.spec.class, jc_core::AppClass::UiRust, "{name}");
         assert_eq!(app.spec.visibility, visibility, "{name}");
         let source = serde_json::to_value(&app.spec.source).expect("a source");
@@ -498,7 +513,7 @@ fn the_fullstack_samples_build_from_their_own_repositories_with_their_visibility
         .into_iter()
         .find(|(found, _)| found == "air-quality")
         .expect("apps/air-quality/app.yaml");
-    let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+    let app: App = serde_norway::from_str(&yaml).expect("a manifest");
     let roles: Vec<_> = app
         .spec
         .roles
@@ -554,7 +569,7 @@ fn a_fullstack_samples_lock_names_only_crates_the_runners_store_carries() {
     assert!(store.len() > 100, "the workspace lock did not parse");
     let mut seen = 0;
     for (name, yaml) in reference_apps() {
-        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let app: App = serde_norway::from_str(&yaml).expect("a manifest");
         if app.spec.class != jc_core::kinds::AppClass::UiRust {
             continue;
         }
@@ -591,7 +606,7 @@ const SEED_ORG_DOMAIN: &str = "hel.fi";
 /// layout-1 tree (`projects/{project}/…`), with `slug` for its Endpoint. `None` for an app that
 /// runs nowhere (a draft or a retired one grants nothing).
 fn compiled_grants(yaml: &str, slug: &EndpointSlug) -> Option<Vec<(String, String)>> {
-    let manifest: RawManifest = serde_yaml_ng::from_str(yaml).expect("a manifest");
+    let manifest: RawManifest = serde_norway::from_str(yaml).expect("a manifest");
     let (endpoint, policies) = match grants(&manifest, slug, SEED_ORG_DOMAIN) {
         Ok(compiled) => compiled,
         Err(RenderError::NotDeployable { .. }) => return None,
@@ -618,7 +633,7 @@ fn compiled_grants(yaml: &str, slug: &EndpointSlug) -> Option<Vec<(String, Strin
                 let info = by_kind(&raw.kind).expect("a catalogued kind");
                 let path = repository_path(info, &project, Some(&space), &raw.metadata.name)
                     .expect("a repository path");
-                (path, serde_yaml_ng::to_string(&raw).expect("yaml"))
+                (path, serde_norway::to_string(&raw).expect("yaml"))
             })
             .collect(),
     )
@@ -663,7 +678,7 @@ fn pinned_slug(name: &str) -> Option<EndpointSlug> {
     files_below(&grants_dir(name))
         .into_iter()
         .find_map(|(_, text)| {
-            let raw: RawManifest = serde_yaml_ng::from_str(&text).ok()?;
+            let raw: RawManifest = serde_norway::from_str(&text).ok()?;
             (raw.kind == "Endpoint")
                 .then(|| {
                     raw.spec["slug"]
@@ -713,7 +728,7 @@ fn every_sample_app_carries_the_grants_the_reconciler_compiles_for_it() {
 #[test]
 fn no_sample_app_sets_a_rate_limit() {
     for (name, yaml) in reference_apps() {
-        let manifest: RawManifest = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let manifest: RawManifest = serde_norway::from_str(&yaml).expect("a manifest");
         assert!(
             manifest.spec.pointer("/limits/requestsPerMinute").is_none(),
             "apps/{name} sets spec.limits.requestsPerMinute: a seed sets no limit nobody chose"
@@ -755,7 +770,7 @@ fn write_sample_app_grants() {
 fn every_sample_app_role_goes_to_its_default_group() {
     use jc_core::kinds::{AppSpec, GroupSpec};
     for (name, yaml) in reference_apps() {
-        let manifest: RawManifest = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let manifest: RawManifest = serde_norway::from_str(&yaml).expect("a manifest");
         let project = manifest.metadata.namespace.clone().expect("a project");
         let spec: AppSpec = serde_json::from_value(manifest.spec.clone()).expect("an App");
         let mut expected: Vec<String> = spec
@@ -771,7 +786,7 @@ fn every_sample_app_role_goes_to_its_default_group() {
         let paths: Vec<&String> = groups.iter().map(|(path, _)| path).collect();
         assert_eq!(paths, expected.iter().collect::<Vec<_>>(), "apps/{name}");
         for (path, text) in &groups {
-            let group: RawManifest = serde_yaml_ng::from_str(text).expect("a Group");
+            let group: RawManifest = serde_norway::from_str(text).expect("a Group");
             assert_eq!(group.kind, "Group", "{path}");
             let annotations = &group.metadata.rest["annotations"];
             assert_eq!(
@@ -827,4 +842,28 @@ fn the_wasm_templates_lock_is_in_the_runners_store() {
         manifest.contains(r#"crate-type = ["cdylib", "rlib"]"#),
         "{manifest}"
     );
+}
+
+/// T-4073, T-4074, EP-104: every sample App's Endpoint serves OGC API Features beside its own
+/// representations, read only. WebSocket stays a need's own choice: a subscription is a write for
+/// an App (AP-09), so an App that follows live data subscribes on its space's public Endpoint.
+#[test]
+fn every_sample_app_endpoint_serves_ogc_features() {
+    for (name, _) in reference_apps() {
+        let endpoints: Vec<RawManifest> = held_grants(&name)
+            .into_iter()
+            .filter_map(|(_, text)| serde_norway::from_str::<RawManifest>(&text).ok())
+            .filter(|raw| raw.kind == "Endpoint")
+            .collect();
+        for endpoint in endpoints {
+            let representations = endpoint.spec["enabledRepresentations"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            assert!(
+                representations.contains(&serde_json::json!("ogc-features")),
+                "apps/{name}: its Endpoint serves no ogc-features"
+            );
+        }
+    }
 }

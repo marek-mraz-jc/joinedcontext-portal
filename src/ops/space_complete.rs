@@ -230,7 +230,7 @@ fn class_name_of(type_name: Option<&str>, sample_name: Option<&str>, space_name:
 /// The inferred LinkML source with `description` on `class`, when the source parses and the
 /// class carries none yet; the source unchanged otherwise.
 fn describe_class(source: &str, class: &str, description: &str) -> String {
-    let Ok(mut doc) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(source) else {
+    let Ok(mut doc) = serde_norway::from_str::<serde_norway::Value>(source) else {
         return source.to_owned();
     };
     let Some(entry) = doc
@@ -240,7 +240,7 @@ fn describe_class(source: &str, class: &str, description: &str) -> String {
         return source.to_owned();
     };
     if entry.is_null() {
-        *entry = serde_yaml_ng::Value::Mapping(serde_yaml_ng::Mapping::new());
+        *entry = serde_norway::Value::Mapping(serde_norway::Mapping::new());
     }
     let Some(mapping) = entry.as_mapping_mut() else {
         return source.to_owned();
@@ -249,7 +249,7 @@ fn describe_class(source: &str, class: &str, description: &str) -> String {
         return source.to_owned();
     }
     mapping.insert("description".into(), description.into());
-    serde_yaml_ng::to_string(&doc).unwrap_or_else(|_| source.to_owned())
+    serde_norway::to_string(&doc).unwrap_or_else(|_| source.to_owned())
 }
 
 /// `metadata.description` of a drafted manifest, in the same language map as its title, unless
@@ -419,7 +419,7 @@ pub async fn run(
                     linkml_source = Some(file.content.clone());
                     continue;
                 }
-                for doc in serde_yaml_ng::Deserializer::from_str(&file.content) {
+                for doc in serde_norway::Deserializer::from_str(&file.content) {
                     if let Ok(val) = Value::deserialize(doc) {
                         if let Some(kind) = val.get("kind").and_then(Value::as_str) {
                             found_kinds.push(kind.to_string());
@@ -1290,7 +1290,7 @@ pub async fn run(
             })?;
             let path = resource::repository_path(info, project, Some(&space_name), &d.name)
                 .map_err(ApiError::BadRequest)?;
-            let yaml_text = serde_yaml_ng::to_string(&committed)
+            let yaml_text = serde_norway::to_string(&committed)
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
             bundle_files.push((path, yaml_text));
             created.push(d.name.clone());
@@ -1698,7 +1698,7 @@ mod tests {
     fn a_description_lands_on_the_inferred_class_unless_it_has_one() {
         let source = "id: https://example.com/bikes\nclasses:\n  BikeStation:\n    slots: [name]\n";
         let described = describe_class(source, "BikeStation", "Docking stations of city bikes");
-        let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&described).unwrap();
+        let doc: serde_norway::Value = serde_norway::from_str(&described).unwrap();
         assert_eq!(
             doc["classes"]["BikeStation"]["description"].as_str(),
             Some("Docking stations of city bikes")

@@ -640,7 +640,7 @@ pub async fn delete_with_identity(
         })?;
         let namespace = envelope.metadata.namespace.as_deref().unwrap_or(project);
         let path = resolve_repo_path(envelope, info, namespace)?;
-        let yaml = serde_yaml_ng::to_string(envelope)
+        let yaml = serde_norway::to_string(envelope)
             .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
         uploads.push((path, yaml));
     }

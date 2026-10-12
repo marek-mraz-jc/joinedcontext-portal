@@ -474,7 +474,7 @@ fn repo_path(path: &Path) -> String {
 
 /// One manifest as the document that goes on the branch.
 fn yaml(manifest: &RawManifest) -> Result<String, RunError> {
-    serde_yaml_ng::to_string(manifest)
+    serde_norway::to_string(manifest)
         .map_err(|err| RunError::Task(format!("a synced manifest did not serialise: {err}")))
 }
 

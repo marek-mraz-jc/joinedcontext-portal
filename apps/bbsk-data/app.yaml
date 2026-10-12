@@ -37,4 +37,4 @@ spec:
       types: [Hospital, SocialService, Bridge, PublicOrganization, AdministrativeArea]
       attrs: [name, hospitalKind, operatorName, medicalSpecialties, address, legalId, serviceKind, serviceForm, targetGroup, capacity, providerKind, districtName, url, bridgeCode, roadClass, roadNumber, yearBuilt, spanCount, bridgedLength, structureMaterial, heritageStatus, managerName, alternateName, organizationCategory, areaCode, divisionLevel, surfaceArea]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld, csv, geojson]
+      representations: [ngsi-ld, csv, geojson, ogc-features]

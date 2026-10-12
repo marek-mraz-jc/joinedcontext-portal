@@ -155,8 +155,8 @@ fn conversations() -> BTreeMap<String, Conversation> {
             continue;
         }
         let text = std::fs::read_to_string(&path).expect("read");
-        let conversation: Conversation = serde_yaml_ng::from_str(&text)
-            .unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+        let conversation: Conversation =
+            serde_norway::from_str(&text).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
         let stem = path
             .file_stem()
             .and_then(|s| s.to_str())

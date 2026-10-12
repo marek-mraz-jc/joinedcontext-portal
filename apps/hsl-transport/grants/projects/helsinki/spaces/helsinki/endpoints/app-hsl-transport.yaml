@@ -17,6 +17,7 @@ spec:
   enabledRepresentations:
   - ngsi-ld
   - geojson
+  - ogc-features
   - websocket
   fileLimits:
     maxFileRows: 5000
