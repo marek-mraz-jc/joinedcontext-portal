@@ -1,4 +1,4 @@
-import { toRow } from "../ngsi";
+import { addressLine, toRow } from "../ngsi";
 import type { Row } from "../ngsi";
 
 export type CellKind = "property" | "relationship" | "geo" | "language" | "json" | "list" | "vocab";
@@ -194,7 +194,11 @@ function cellTextSingle(cell: RichCell): string {
   switch (cell.kind) {
     case "property":
       if (cell.value == null) return "";
-      return typeof cell.value === "object" ? JSON.stringify(cell.value) : String(cell.value);
+      if (typeof cell.value === "object") {
+        // A PostalAddress reads as its line (T-3949); any other object as its JSON.
+        return addressLine(cell.value as Record<string, unknown>) || JSON.stringify(cell.value);
+      }
+      return String(cell.value);
     case "relationship":
       if (Array.isArray(cell.object)) return cell.object.join(", ");
       return cell.object ?? String(cell.value ?? "");
