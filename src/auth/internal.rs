@@ -101,6 +101,20 @@ pub fn pipeline_clients(project: &str, pipeline: &str) -> [String; 2] {
     ]
 }
 
+/// The clients a pipeline test or probe of `project` presents on its capture route (PL-43): the
+/// project's `pipelines` account, and its harness principal `{project}-pl-pipeline-test` once the
+/// harness runs through the token service (T-4050).
+pub fn harness_clients(project: &str) -> [String; 2] {
+    use jc_core::kinds::{pipeline_identity, service_account::keycloak_client_id};
+    [
+        keycloak_client_id(project, crate::reconciler::streams::PIPELINE_ACCOUNT),
+        keycloak_client_id(
+            project,
+            &pipeline_identity::account_name(pipeline_identity::HARNESS),
+        ),
+    ]
+}
+
 /// The runner posting a record's outcome or rejection for `project`'s `pipeline` (T-3193): only a
 /// client of that project's pipeline is admitted, so a project's runner client never posts for
 /// another project. A refusal is logged with the client it saw, which is a name and not a secret.
@@ -126,8 +140,8 @@ pub async fn authenticate_pipeline_of(
 /// The project's pipeline runner, which posts back what a pipeline test produced. The test's id is
 /// 130 random bits and therefore a capability of its own, but a caller with no identity now gets
 /// the 401 it deserves instead of the 404 that says only "no such test". `project` is the running
-/// test's: its harness presents that project's `pipelines` client (T-3163), and the client the
-/// configuration names for the runner is admitted as before.
+/// test's: its harness presents that project's `pipelines` client (T-3163) or its harness principal
+/// (T-4050), and the client the configuration names for the runner is admitted as before.
 pub async fn authenticate_pipeline_runner(
     state: &AppState,
     headers: &HeaderMap,
@@ -140,13 +154,7 @@ pub async fn authenticate_pipeline_runner(
         .map(str::trim)
         .filter(|client| !client.is_empty());
     let client = verified_client(state, headers).await?;
-    let of_project = project.is_some_and(|project| {
-        client
-            == jc_core::kinds::service_account::keycloak_client_id(
-                project,
-                crate::reconciler::streams::PIPELINE_ACCOUNT,
-            )
-    });
+    let of_project = project.is_some_and(|project| harness_clients(project).contains(&client));
     if configured == Some(client.as_str()) || of_project {
         Ok(())
     } else {
@@ -157,6 +165,28 @@ pub async fn authenticate_pipeline_runner(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-4050: a pipeline test's capture route admits its project's `pipelines` account and its
+    /// harness principal, and no pipeline's own client and nothing of another project.
+    #[test]
+    fn a_test_is_known_by_its_projects_account_and_harness_principal() {
+        let clients = harness_clients("praha");
+        assert_eq!(
+            clients,
+            [
+                "praha-pipelines".to_owned(),
+                "praha-pl-pipeline-test".to_owned()
+            ]
+        );
+        for other in [
+            "helsinki-pl-pipeline-test",
+            "praha-pl-odpad",
+            "praha-pl-pipeline-tests",
+            "",
+        ] {
+            assert!(!clients.contains(&other.to_owned()), "{other}");
+        }
+    }
 
     /// T-3193: a pipeline's sinks are admitted as its project's `pipelines` account or as the
     /// pipeline's own federated client, and as nothing of another project or pipeline.

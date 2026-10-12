@@ -311,7 +311,8 @@ pub(crate) async fn run_harness(
     let _slot = Slot::take(project, &id, sender)?;
 
     let stream = format!("{runner}/streams/{STREAM_PREFIX}{id}");
-    let outcome = create_and_trace(project, &stream, &config, &mut receiver).await;
+    let identity = state.config.pipeline_identity;
+    let outcome = create_and_trace(project, &stream, &config, identity, &mut receiver).await;
 
     // Gone whatever happened: a runner that timed out or answered 5xx may still have created the
     // stream, and one it keeps answers 409 on the next test's create. A delete it refuses (anything
@@ -344,10 +345,10 @@ async fn create_and_trace(
     project: &str,
     stream: &str,
     config: &Value,
+    identity: bool,
     receiver: &mut mpsc::UnboundedReceiver<Captured>,
 ) -> Result<TestTrace, ApiError> {
-    let mut config = config.clone();
-    crate::reconciler::streams::own_credential(&mut config, project);
+    let config = credentialed(config, project, identity);
     let created = http().post(stream).json(&config).send().await.map_err(|err| {
         tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
         ApiError::Unavailable("the pipeline runner did not answer".into())
@@ -368,6 +369,22 @@ async fn create_and_trace(
             "the pipeline runner did not answer".into(),
         ))
     }
+}
+
+/// The harness as the runner gets it: the project's `pipelines` client, or with the pipelines'
+/// own identities on, the project's harness principal through the token service, which names no
+/// client secret for the runner's streams API to serve back (PL-43, T-4050).
+fn credentialed(config: &Value, project: &str, identity: bool) -> Value {
+    let mut config = config.clone();
+    crate::reconciler::streams::own_credential(&mut config, project);
+    if identity {
+        crate::reconciler::streams::with_pipeline_identity(
+            &mut config,
+            project,
+            jc_core::kinds::pipeline_identity::HARNESS,
+        );
+    }
+    config
 }
 
 /// The URL an `http` DataSource is probed at, or why it is not (MF-39): `None` for every other
