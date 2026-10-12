@@ -52,6 +52,21 @@ fn every_reference_app_manifest_parses_as_the_kind_the_reconciler_reads() {
     }
 }
 
+/// AP-124. A sample App is copied, so it spells its shape the current way: `static` and
+/// `fullstack` still parse, and a copy of one carried the old name into the seed (T-4076).
+#[test]
+fn no_sample_app_spells_its_shape_with_a_renamed_kind() {
+    for (name, yaml) in reference_apps() {
+        let manifest: serde_norway::Value = serde_norway::from_str(&yaml).expect("a manifest");
+        let kind = manifest["spec"]["kind"].as_str().unwrap_or_default();
+        assert_eq!(
+            jc_core::kinds::AppClass::renamed(kind),
+            None,
+            "apps/{name}/app.yaml says spec.kind {kind}"
+        );
+    }
+}
+
 /// AP-35. The annotations are an agent's attribution; hand-written source claiming them would
 /// make the provenance trail say something untrue.
 #[test]
