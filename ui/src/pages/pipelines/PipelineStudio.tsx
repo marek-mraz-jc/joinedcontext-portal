@@ -26,10 +26,14 @@ import {
   Textarea,
 } from "../../components/ui";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/spaceFacts";
-import type { PipelineForm } from "./PipelineEditor";
+import type { PipelineForm, RouteForm } from "./PipelineEditor";
 import { endpointUrn } from "./PipelineEditor";
 import {
   OutputBlock,
+  RouteBlock,
+  removeRoute,
+  removeRouteNode,
+  routeNodeOf,
   PipelineFlow,
   SourceBlock,
   StepBlock,
@@ -1124,6 +1128,41 @@ export function PipelineStudio({
                       setSelectedNode(null);
                     }}
                   />
+                ) : routeNodeOf(selectedNode) && draft?.routes?.[routeNodeOf(selectedNode)?.route ?? -1] ? (
+                  (() => {
+                    const inRoute = routeNodeOf(selectedNode) as { route: number; step?: number; output?: number };
+                    const route = draft.routes?.[inRoute.route] ?? {};
+                    const setRoute = (changed: RouteForm) =>
+                      onChange({ ...draft, routes: (draft.routes ?? []).map((was, at) => (at === inRoute.route ? changed : was)) });
+                    const step = route.steps?.[inRoute.step ?? -1];
+                    return step ? (
+                      <StepBlock
+                        key={selectedNode}
+                        entry={{ step }}
+                        onChange={(entry) =>
+                          setRoute({ ...route, steps: (route.steps ?? []).map((was, at) => (at === inRoute.step ? entry.step : was)) })
+                        }
+                        onRemove={() => {
+                          onChange(removeRouteNode(draft, selectedNode as FlowNodeId));
+                          setSelectedNode(null);
+                        }}
+                      />
+                    ) : (
+                      <RouteBlock
+                        key={selectedNode}
+                        project={project}
+                        route={route}
+                        output={inRoute.output}
+                        targets={endpoints.map((manifest) => ({ manifest, urn: endpointUrn(orgDomain, manifest) }))}
+                        locale={locale}
+                        onChange={setRoute}
+                        onRemove={() => {
+                          onChange(removeRoute(draft, inRoute.route));
+                          setSelectedNode(null);
+                        }}
+                      />
+                    );
+                  })()
                 ) : selectedNode === "source" || selectedNode === "output" ? (
                   <p className="text-caption text-fg-muted">
                     {t("pipelines.flow.selectedHint", {
