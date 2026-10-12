@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, Empty, Loading, Page, Problem, Split, currentTokens, format, useClient, useEntities, useEntitySelection } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
+import { FollowedCard, useFollows } from "../components/Follows";
 import { KeptWeeks } from "../components/KeptWeeks";
+import { NamesCard, useNames } from "../components/Names";
+import { useAccess } from "../access";
 import { formatDate, formatPercent, getLanguage, t } from "../i18n";
 import type { Lang } from "../i18n";
-import { useTopics } from "../topics";
+import { mergeNamed, topTerm, useTopics } from "../topics";
 import type { Topic, WeekShare } from "../topics";
 import { useServer } from "../server";
 
@@ -92,7 +95,17 @@ function sortArticles(articles: Row[]): Row[] {
   });
 }
 
-export function buildWeeklyChartOption(weeks: WeekShare[], topics: Topic[], lang: Lang): Record<string, unknown> | null {
+/** A topic as the page names it: a steward's name, else its number. */
+export function topicLabel(topic: Topic, lang: Lang, nameOf: (term: string) => string | undefined = () => undefined): string {
+  return nameOf(topTerm(topic)) ?? `${t("topicN", lang)} ${topic.id + 1}`;
+}
+
+export function buildWeeklyChartOption(
+  weeks: WeekShare[],
+  topics: Topic[],
+  lang: Lang,
+  labelOf: (topic: Topic) => string = (topic) => topicLabel(topic, lang),
+): Record<string, unknown> | null {
   if (weeks.length === 0 || topics.length === 0) return null;
   const palette = currentTokens().chart.palette;
   const categories = weeks.map((w) => w.week);
@@ -100,7 +113,7 @@ export function buildWeeklyChartOption(weeks: WeekShare[], topics: Topic[], lang
   const series = topics.map((topic, index) => {
     const color = palette[index % palette.length];
     const topKeywords = topic.keywords.slice(0, 3).map((k) => k.term).join(", ");
-    const name = `${t("topicN", lang)} ${topic.id + 1}${topKeywords ? `: ${topKeywords}` : ""}`;
+    const name = `${labelOf(topic)}${topKeywords ? `: ${topKeywords}` : ""}`;
     const data = weeks.map((w) => {
       const share = w.shares[topic.id] ?? 0;
       return Math.round(share * 1000) / 10;
@@ -155,6 +168,9 @@ export function Topics(): React.JSX.Element {
 
   const { rows, loading: entitiesLoading, error: entitiesError, reload } = useEntities(ENTITY_TYPE);
   const server = useServer(useClient().config.appName);
+  const { me } = useAccess();
+  const names = useNames(server);
+  const follows = useFollows(server);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -169,7 +185,11 @@ export function Topics(): React.JSX.Element {
     [rows, hashState.weeks, hashState.q],
   );
 
-  const { status: topicsStatus, result, error: topicsError } = useTopics(filteredRows, hashState.k);
+  const { status: topicsStatus, result: fitted, error: topicsError } = useTopics(filteredRows, hashState.k);
+  // Topics a steward gave one name show as one (T-3828).
+  const { nameOf } = names;
+  const result = useMemo(() => (fitted ? mergeNamed(fitted, nameOf) : null), [fitted, nameOf]);
+  const labelOf = (topic: Topic) => topicLabel(topic, lang, nameOf);
 
   const selectedTopic = useMemo(() => {
     if (!result || result.topics.length === 0) return null;
@@ -190,8 +210,8 @@ export function Topics(): React.JSX.Element {
   }, [selectedTopic, rows]);
 
   const chartOption = useMemo(
-    () => (result ? buildWeeklyChartOption(result.weeks, result.topics, lang) : null),
-    [result, lang],
+    () => (result ? buildWeeklyChartOption(result.weeks, result.topics, lang, (topic) => topicLabel(topic, lang, nameOf)) : null),
+    [result, lang, nameOf],
   );
 
   const handlePeriodChange = (nextWeeks: string) => {
@@ -270,6 +290,8 @@ export function Topics(): React.JSX.Element {
               <ul className="app-topics" aria-label={t("topicsTitle", lang)}>
                 {result.topics.map((item) => {
                   const isSelected = selectedTopic?.id === item.id;
+                  const term = topTerm(item);
+                  const following = follows.follows.some((follow) => follow.term === term);
                   return (
                     <li key={item.id}>
                       <button
@@ -278,12 +300,10 @@ export function Topics(): React.JSX.Element {
                         onClick={() => handleTopicClick(item.id)}
                         aria-pressed={isSelected}
                         aria-label={[`${t("topicN", lang)} ${item.id + 1}`, item.keywords.map((kw) => kw.term).join(", ")].filter(Boolean).join(": ")}
-                        aria-describedby={`topic-${item.id}-share topic-${item.id}-count`}
+                        aria-describedby={`topic-${item.id}-name topic-${item.id}-share topic-${item.id}-count`}
                       >
                         <span className="app-topic-head">
-                          <strong>
-                            {t("topicN", lang)} {item.id + 1}
-                          </strong>
+                          <strong id={`topic-${item.id}-name`}>{labelOf(item)}</strong>
                           <span className="app-topic-share" id={`topic-${item.id}-share`}>{formatPercent(item.share, lang)}</span>
                         </span>
                         <span className="app-topic-keywords">
@@ -298,6 +318,19 @@ export function Topics(): React.JSX.Element {
                           {item.articles.length} {t("articlesCount", lang)}
                         </span>
                       </button>
+                      {term && (
+                        <button
+                          type="button"
+                          className="jc-button app-follow"
+                          aria-pressed={following}
+                          aria-label={t("follow", lang, { name: term })}
+                          disabled={!me}
+                          title={me ? undefined : t("followSignIn", lang)}
+                          onClick={() => void follows.toggle(term, lang)}
+                        >
+                          {t(following ? "followingShort" : "followShort", lang)}
+                        </button>
+                      )}
                     </li>
                   );
                 })}
@@ -329,7 +362,7 @@ export function Topics(): React.JSX.Element {
                         <th scope="col">{t("week", lang)}</th>
                         {result.topics.map((tp) => (
                           <th key={tp.id} scope="col">
-                            {t("topicN", lang)} {tp.id + 1}
+                            {labelOf(tp)}
                           </th>
                         ))}
                       </tr>
@@ -353,7 +386,7 @@ export function Topics(): React.JSX.Element {
           </Split>
 
           <Card
-            title={`${t("articlesTitle", lang)}: ${t("topicN", lang)} ${(selectedTopic?.id ?? 0) + 1} (${selectedArticles.length})`}
+            title={`${t("articlesTitle", lang)}: ${selectedTopic ? labelOf(selectedTopic) : ""} (${selectedArticles.length})`}
           >
             {selectedArticles.length === 0 ? (
               <Empty>{t("empty", lang)}</Empty>
@@ -400,6 +433,10 @@ export function Topics(): React.JSX.Element {
       ) : (
         <Empty>{t("empty", lang)}</Empty>
       )}
+      <Split ratio="1:1">
+        <FollowedCard lang={lang} state={follows} present={(term) => (result?.topics ?? []).some((topic) => topic.keywords.some((kw) => kw.term === term))} />
+        <NamesCard lang={lang} state={names} selected={selectedTopic} topics={result?.topics ?? []} labelOf={labelOf} />
+      </Split>
       <KeptWeeks lang={lang} server={server} />
     </Page>
   );

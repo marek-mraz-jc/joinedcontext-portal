@@ -10,6 +10,7 @@ import type { Comparer } from "./compare";
 import type { CompareInput, CompareOutput, Measure } from "./districts";
 import { ENTITIES } from "./fixtures/districts";
 import { Problem as ServerProblem, ServerContext } from "./server";
+import { memory } from "./testing/server";
 import type { DayMetric, Server } from "./server";
 
 /** What MapLibre would call on a click of a drawn district, kept by the double below. */
@@ -256,6 +257,7 @@ const KEPT = [kept("2030-10-21", "101", "Kamppi", 3, 6.5), kept("2030-10-21", "1
 function fakeServer(fail: { history?: string; files?: string } = {}, stale = false): Server & { asked: string[][] } {
   const asked: string[][] = [];
   return {
+    ...memory(),
     asked,
     history: async (codes) => {
       asked.push(codes);

@@ -109,7 +109,7 @@
     "cs": "Čeština"
   },
   "form": {
-    "submit": "Odoslať",
+    "submit": "Uložiť",
     "cancel": "Zrušiť",
     "backToList": "Späť na zoznam",
     "opening": "Otvára sa formulár…",
@@ -121,7 +121,7 @@
     "useExample": "Použiť príklad",
     "noResults": "Žiadne výsledky",
     "entityPickerPending": "Najprv vyberte priestor a typ entity a tu sa zobrazia ich entity; identifikátor entity sem môžete aj vložiť.",
-    "listFailed": "Zoznam sa nepodarilo načítať: {reason}",
+    "listFailed": "Zoznam sa nepodarilo načítať, skúste znova: {reason}",
     "listRetry": "Skúsiť znova",
     "errors": "{count, plural, =0 {Bez chýb} one {# chyba} few {# chyby} other {# chýb}}",
     "type": "Nesprávny typ hodnoty",
@@ -138,7 +138,7 @@
       "yaml": "YAML"
     },
     "yamlHint": "Celý manifest tak, ako sa zapíše do Gitu. Prepnutie späť na formulár ho znova načíta; obe podoby kontroluje tá istá schéma.",
-    "yamlError": "YAML sa nedá načítať: {message}",
+    "yamlError": "Opravte YAML: {message}",
     "yamlNotManifest": "dokument nie je manifest",
     "schemaErrors": "Manifest nezodpovedá schéme:",
     "exclusive": "Vyplniť možno len jedno z týchto polí",
@@ -226,8 +226,8 @@
       "label": "CI na poslednom commite",
       "success": "Prešla",
       "pending": "Beží",
-      "failure": "Zlyhala",
-      "error": "Nedala sa spustiť"
+      "failure": "Kontroly zlyhali",
+      "error": "Nedala sa spustiť; požiadajte správcu projektu, nech skontroluje runner"
     },
     "outside": {
       "title": "{count, plural, one {# žiadosť o zlúčenie vo forge nie je zmenou} few {# žiadosti o zlúčenie vo forge nie sú zmenami} other {# žiadostí o zlúčenie vo forge nie je zmenami}}",
@@ -287,7 +287,8 @@
         "update": "{author} navrhol zmeniť {kind} {name}",
         "delete": "{author} navrhol odstrániť {kind} {name}"
       }
-    }
+    },
+    "reasonFirst": "Najprv napíšte, prečo zmenu zamietate."
   },
   "lane": {
     "green": "Zelená",
@@ -824,7 +825,10 @@
       "groupsOf": "Skupiny podľa {attr}",
       "allGroups": "Všetky",
       "groupsCut": "Spočítaných je prvých {shown} z {total} hodnôt.",
-      "toneLabel": "Označené: {when}"
+      "toneLabel": "Označené: {when}",
+      "titleFirst": "Dajte pohľadu názov s najviac 120 znakmi.",
+      "modeLocked": "Kto pohľad vidí, môže zmeniť len jeho vlastník alebo správca dát.",
+      "coloursFull": "Pohľad má najviac 20 pravidiel farieb; najprv jedno odstráňte."
     },
     "form": {
       "settings": "Polia formulára",
@@ -1124,7 +1128,8 @@
         "interval": "Interval zrkadlenia",
         "intervalHelp": "Ako často sa sem zrkadlí schéma zdroja, napríklad 6h alebo 1d; prázdne znamená raz denne."
       },
-      "browse": "Pozrieť, čo zverejňujú iné projekty"
+      "browse": "Pozrieť, čo zverejňujú iné projekty",
+      "noAddress": "Tento endpoint ešte nemá adresu; použiť ho môžete, keď bude zverejnený."
     },
     "audienceOption": {
       "project-list": "Vybrané projekty: iba projekty, ktoré označíte",
@@ -2186,7 +2191,7 @@
       "latest": "Posledná hodnota {property}: {value} ({count} meraní)",
       "chartLabel": "{property} entity {entity} v čase",
       "badGrid": "Túto tabuľku nebolo možné zobraziť: {reason}",
-      "historyFailed": "Túto históriu sa nepodarilo načítať: {reason}",
+      "historyFailed": "Túto históriu sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova.",
       "barTitle": "{property} typu {type}: entity podľa hodnoty",
       "histogramTitle": "{property} typu {type}: rozloženie",
       "rest": "ostatné hodnoty",
@@ -3151,7 +3156,7 @@
       "state": {
         "building": "Stavia sa",
         "needsYou": "Čaká na vás",
-        "failed": "Zlyhalo",
+        "failed": "Nevygenerované",
         "readyToPublish": "Pripravené na publikovanie",
         "waitingApproval": "Čaká na schválenie"
       },
@@ -3209,7 +3214,7 @@
         "none": "Zatiaľ neprebehlo žiadne zostavenie.",
         "building": "Zostavuje sa {commit}…",
         "succeeded": "Zostavené {commit}.",
-        "failed": "Zostavenie {commit} zlyhalo; posledný beh hovorí prečo.",
+        "failed": "Zostavenie {commit} zlyhalo; otvorte posledný beh a uvidíte prečo.",
         "cancelled": "Zostavenie {commit} bolo zrušené."
       },
       "state": {
@@ -3244,7 +3249,7 @@
       "preview": "Náhľad sa otvára z ponuky",
       "retired": "Táto aplikácia je vyradená",
       "building": "Zostavuje sa…",
-      "failed": "Zostavenie zlyhalo",
+      "failed": "Zostavenie zlyhalo. Opravte ho na karte Zostavenie a potom aplikáciu otvorte.",
       "notBuilt": "Zatiaľ sa neposkytuje žiadne zostavenie",
       "certificate": "Adresa aplikácie sa zabezpečuje, trvá to asi minútu",
       "host": "Adresu aplikácie sa nepodarilo pripraviť; dôvod vidí správca"
@@ -3260,7 +3265,7 @@
       "fullscreen": "Celá obrazovka",
       "fullscreenExit": "Opustiť celú obrazovku",
       "fullscreenUnavailable": "Tento prehliadač tu celú obrazovku neponúka.",
-      "fullscreenFailed": "Prehliadač neprepol na celú obrazovku: {reason}",
+      "fullscreenFailed": "Prehliadač neprepol na celú obrazovku: {reason}. Použite kláves prehliadača pre celú obrazovku (F11).",
       "signedOutTitle": "Vaše prihlásenie skončilo.",
       "signedOutBody": "Aplikácia vás v portáli nemôže prihlásiť. Prihláste sa znova a otvorí sa tu.",
       "signedOutDismiss": "Skryť túto správu"
@@ -3386,7 +3391,7 @@
       "notRun": "Ešte nebežala",
       "outcomes": {
         "succeeded": "Úspešná",
-        "failed": "Zlyhala",
+        "failed": "Skončila chybou",
         "timedOut": "Zastavená po časovom limite",
         "skipped": "Vynechaná, predošlý beh ešte bežal"
       },
@@ -3624,7 +3629,8 @@
     "displayNameLabel": "Zobrazovaný názov",
     "descriptionLabel": "Popis",
     "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt.",
-    "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno."
+    "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno.",
+    "planLocked": "Ak to chcete zmeniť, zatvorte okno a začnite znova; plán bol pripravený pre túto hodnotu."
   },
   "entities": {
     "type": "Typ entity",
@@ -3657,7 +3663,7 @@
     "next": "Nasledujúca",
     "page": "Strana",
     "showMetadata": "Zobraziť metadáta pre",
-    "error": "Chyba",
+    "error": "Nenačítané, skúste znova",
     "filter": "Filter",
     "ops": {
       "contains": "obsahuje",
@@ -3710,7 +3716,7 @@
     "relationSearch": "Hľadať",
     "relationNone": "Nič, čo môžete čítať, sa nezhoduje",
     "relationRemove": "Odstrániť",
-    "relationFailed": "Vyhľadávanie zlyhalo",
+    "relationFailed": "Vyhľadávanie zlyhalo; skúste znova",
     "relationMore": "a ďalšie",
     "map": {
       "panel": "Mapa",
@@ -3882,8 +3888,10 @@
       "save": "Uložiť na dashboard",
       "pickFirst": "Najprv vyberte atribút a graf.",
       "badName": "Názov dashboardu tvoria malé písmená, číslice a pomlčky, najviac 63, na začiatku a konci písmeno alebo číslica.",
-      "gone": "Ten dashboard už v projekte nie je; vyberte iný."
-    }
+      "gone": "Ten dashboard už v projekte nie je; vyberte iný.",
+      "pickEntity": "Vyberte entitu, ktorej priebeh sa má zobraziť."
+    },
+    "pickSpaceFirst": "Najprv vyberte priestor."
   },
   "agentRun": {
     "title": "Beh aplikácie",
@@ -3902,7 +3910,7 @@
       "previewing": "Náhľad je hotový",
       "awaiting_approval": "Čaká na schválenie",
       "published": "Publikované",
-      "failed": "Spustenie zlyhalo.",
+      "failed": "Spustenie zlyhalo. Otvorte jeho kroky a uvidíte kde.",
       "cancelled": "Spustenie bolo zastavené.",
       "expired": "Spustenie sa skončilo; náhľad zostáva tak, ako bol postavený."
     },
@@ -3918,7 +3926,7 @@
       "modelCall": "Volanie modelu",
       "modelCallOf": "Volanie modelu ({model})",
       "waitingStep": "Čaká sa na vašu odpoveď",
-      "failed": "zlyhalo",
+      "failed": "skončilo chybou",
       "slowest": "Najpomalší krok: {step}, {took}.",
       "caption": "Všetky merané kroky behu v poradí",
       "started": "Začiatok",
@@ -3960,7 +3968,8 @@
       "sendFailed": "Správa sa neodoslala: {reason}. To, čo ste napísali, je stále tu.",
       "tryAgain": "Skúsiť znova",
       "unanswered": "Vaša posledná správa nedostala odpoveď. Nič sa nezmenilo.",
-      "endedBecause": "Dôvod: {reason}."
+      "endedBecause": "Dôvod: {reason}.",
+      "writeFirst": "Najprv napíšte správu."
     },
     "line": {
       "status": "Teraz {status}.",
@@ -3982,8 +3991,8 @@
       "url": "Dáta sú na {url}",
       "testsRunning": "Testuje sa verzia {version}…",
       "testsPassed": "Verzia {version}: všetkých {passed} testov prechádza.",
-      "testsFailed": "Verzia {version}: {failed} testov zlyháva. {names}",
-      "testsError": "Testy verzie {version} nemohli prebehnúť: {reason}",
+      "testsFailed": "Verzia {version}: {failed} testov zlyháva. {names} Otvorte beh a uvidíte prečo.",
+      "testsError": "Testy verzie {version} nemohli prebehnúť: {reason}. Odstráňte príčinu a spustite ich znova.",
       "testsSkipped": "Verzia {version} tu nebola testovaná: {reason}"
     },
     "preview": {
@@ -4030,11 +4039,11 @@
         "readAll": "Prečítaných {count} ({type}) z {endpoint}"
       },
       "ok": "Úspešný",
-      "failed": "Zlyhal",
+      "failed": "Nedokončený",
       "duration": "{ms} ms",
       "input": "Vstup",
       "output": "Výstup",
-      "error": "Chyba",
+      "error": "Zastavený chybou",
       "refused": "Neaplikované",
       "refusedLine": "Neaplikované bloky ({count}): {reason}",
       "diff": "Zmena",
@@ -4075,7 +4084,7 @@
       "copyPolicy": "Kopírovať YAML politiky",
       "copied": "Skopírované",
       "review": "Skontrolovať a navrhnúť",
-      "failed": "Návrh sa nepodarilo vykresliť: {reason}",
+      "failed": "Návrh sa nepodarilo vykresliť: {reason}. Obnovte stránku a skúste to znova.",
       "projects": "zdieľané s {projects}"
     },
     "kpi": {
@@ -4102,7 +4111,8 @@
       "keepOnChangeMessage": "Priebežne aktualizuj ukazovateľ {name}: {over}, pri každej zmene, do priestoru {space}.",
       "overCount": "počet typu {type}",
       "overAgg": "{agg} atribútu {attribute} nad typom {type}",
-      "overWhere": "{over}, kde {filter}"
+      "overWhere": "{over}, kde {filter}",
+      "minutesUnused": "Minúty platia, keď sa ukazovateľ obnovuje každých pár minút, nie pri každej zmene."
     },
     "changeTest": {
       "title": "Test zmeny",
@@ -4178,7 +4188,8 @@
         "label": "Alebo adresa zdroja údajov",
         "use": "Použiť túto adresu",
         "invalid": "Zadajte celú adresu začínajúcu http:// alebo https://."
-      }
+      },
+      "enterAddress": "Najprv zadajte adresu."
     },
     "prose": {
       "copyId": "Kopírovať celý identifikátor",
@@ -4204,7 +4215,7 @@
         "done": "Hotovo",
         "working": "Prebieha",
         "waiting": "Čaká",
-        "failed": "Zlyhalo",
+        "failed": "Nedokončené",
         "later": "Zatiaľ nie"
       },
       "test": {
@@ -4212,7 +4223,7 @@
         "reading": "Číta sa niekoľko riadkov z {name} vaším menom…",
         "read": "{count, plural, one {Prečítaný # riadok} few {Prečítané # riadky} other {Prečítaných # riadkov}} z {total} {type} z {name}",
         "empty": "{name} je v prevádzke a zatiaľ nemá žiadne entity",
-        "failed": "Testovacie čítanie zlyhalo",
+        "failed": "Testovacie čítanie zlyhalo. Dôvod nájdete v kroku nižšie.",
         "again": "Čítať znova",
         "explore": "Otvoriť v Prieskumníkovi"
       }
@@ -4220,7 +4231,8 @@
     "testsHold": {
       "running": "Zverejnenie počká, kým prebehnú testy verzie {version}.",
       "failed": "Verzia {version} sa nezverejní, kým zlyháva {failed} jej testov: {names}. Požiadajte asistenta o opravu."
-    }
+    },
+    "cancelOver": "Beh skončil; nie je čo zrušiť."
   },
   "assistant": {
     "newConversation": "Začať novú konverzáciu",
@@ -4242,7 +4254,7 @@
       "lead": "Vyberte, čo chcete urobiť, alebo sa opýtajte vlastnými slovami.",
       "composer": "Opýtajte sa asistenta",
       "send": "Odoslať",
-      "failed": "Konverzácia sa nezačala:"
+      "failed": "Konverzácia sa nezačala; skúste znova:"
     },
     "data": {
       "title": "Dáta",
@@ -4431,11 +4443,11 @@
       "blockHint": "operations, kinds s read alebo propose, endpoints s read alebo write. Prázdny blok odstráni. Úprava je zmena, ktorú posúdi schvaľovateľ.",
       "propose": "Navrhnúť zmenu",
       "cancel": "Zrušiť",
-      "yamlError": "Neplatný YAML: {message}",
+      "yamlError": "Neplatný YAML, opravte ho: {message}",
       "showOperations": "Zobraziť jeho operácie ({count})"
     },
     "states": {
-      "failed": "Zlyhalo",
+      "failed": "Nedokončilo sa",
       "cancelled": "Zastavené",
       "expired": "Skončené"
     },
@@ -6125,7 +6137,7 @@
         "licence": "Vyberte licenciu.",
         "contactBoth": "Uveďte meno aj e-mail kontaktu, alebo ani jedno.",
         "email": "Zadajte e-mailovú adresu, napríklad opendata@example.org.",
-        "period": "Koniec obdobia nemôže byť pred jeho začiatkom."
+        "period": "Koniec obdobia nemôže byť pred jeho začiatkom. Vyberte dátum konca po začiatku."
       }
     },
     "licence": {
@@ -6275,10 +6287,10 @@
   "knowledge": {
     "title": "Zdroje znalostí",
     "intro": "Čo asistent znalostí prečítal z webov a katalógov tohto projektu a z čoho odpovedá.",
-    "failed": "Zdroje sa nepodarilo načítať: {reason}",
+    "failed": "Zdroje sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova.",
     "queued": "Prechádzanie zdroja {source} je vo fronte. Začne do minúty.",
     "empty": "Tento projekt nemá žiadny zdroj znalostí",
-    "emptyHint": "KnowledgeSource pomenúva web alebo katalóg, ktorý má asistent čítať. Navrhnite ho ako každý iný zdroj projektu.",
+    "emptyHint": "Zdroj znalostí pomenúva web alebo katalóg, ktorý má asistent čítať. Navrhnite ho ako každý iný zdroj projektu.",
     "sources": "Zdroje znalostí",
     "recrawl": "Prejsť teraz",
     "recrawlOf": "Prejsť zdroj {source} teraz",
@@ -6456,7 +6468,8 @@
       "noDomain": "Tento Portál nepozná svoju doménu, preto nevie napísať adresu stránky asistenta."
     },
     "everySpace": "každý priestor projektu",
-    "userGuide": "používateľská príručka platformy s odkazmi do tohto projektu"
+    "userGuide": "používateľská príručka platformy s odkazmi do tohto projektu",
+    "askFirst": "Najprv napíšte otázku."
   },
   "mcp": {
     "title": "MCP servery",
@@ -6596,12 +6609,12 @@
     "finished": {
       "appBuild": {
         "succeeded": "Zostavenie {name} sa dokončilo.",
-        "failed": "Zostavenie {name} zlyhalo.",
+        "failed": "Zostavenie {name} zlyhalo. Otvorte aplikáciu a pozrite prečo.",
         "cancelled": "Zostavenie {name} bolo zrušené."
       },
       "knowledgeCrawl": {
         "succeeded": "Prehľadávanie {name} sa dokončilo.",
-        "failed": "Prehľadávanie {name} zlyhalo.",
+        "failed": "Prehľadávanie {name} zlyhalo. Otvorte zdroj a pozrite prečo.",
         "cancelled": "Prehľadávanie {name} bolo zrušené."
       }
     }

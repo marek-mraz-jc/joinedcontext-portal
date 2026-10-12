@@ -30,4 +30,39 @@ describe("the App's server", () => {
     await expect(api.corpusUrl("x/../y")).rejects.toMatchObject({ status: 502, message: "HTTP 502" });
     expect(fetch.mock.calls.at(-1)?.[0]).toBe("/api/weeks/x%2F..%2Fy/corpus");
   });
+
+  it("asks who reads, follows and names topics and reads the history (T-3828)", async () => {
+    const calls: Array<[string, string, unknown]> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+        calls.push([method, url, body]);
+        if (method === "DELETE") return new Response(null, { status: 204 });
+        if (url.endsWith("/me")) return json(200, null);
+        if (method === "POST") return json(201, { id: 3, ownerName: "Sara", ...body });
+        return json(200, []);
+      }),
+    );
+    const api = server("/api");
+    expect(await api.me()).toBeNull();
+    expect(await api.follows()).toEqual([]);
+    expect(await api.follow("kirjasto")).toEqual({ id: 3, ownerName: "Sara", term: "kirjasto" });
+    expect(await api.unfollow(3)).toBeUndefined();
+    expect(await api.names()).toEqual([]);
+    expect(await api.name("kirjasto", "Libraries")).toMatchObject({ id: 3, term: "kirjasto", name: "Libraries" });
+    expect(await api.unname(3)).toBeUndefined();
+    expect(await api.changes()).toEqual([]);
+    expect(calls).toEqual([
+      ["GET", "/api/me", undefined],
+      ["GET", "/api/follows", undefined],
+      ["POST", "/api/follows", { term: "kirjasto" }],
+      ["DELETE", "/api/follows/3", undefined],
+      ["GET", "/api/names", undefined],
+      ["POST", "/api/names", { term: "kirjasto", name: "Libraries" }],
+      ["DELETE", "/api/names/3", undefined],
+      ["GET", "/api/history", undefined],
+    ]);
+  });
 });

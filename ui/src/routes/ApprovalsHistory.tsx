@@ -354,7 +354,7 @@ export function ApprovalsHistory({
         <div>
           <Button
             variant="secondary"
-            disabled={history.isFetchingNextPage}
+            disabled={history.isFetchingNextPage} disabledReason={t("app.busyReason")}
             onClick={() => {
               void history.fetchNextPage();
             }}

@@ -382,7 +382,7 @@ describe("the conversation panel", () => {
 
     await user.type(screen.getByLabelText(en.agentRun.conversation.placeholder), "   ");
 
-    expect(screen.getByRole("button", { name: en.agentRun.conversation.send })).toBeDisabled();
+    expect(screen.getByRole("button", { name: en.agentRun.conversation.send })).toHaveAttribute("aria-disabled", "true");
     expect(sent).not.toHaveBeenCalled();
   });
 

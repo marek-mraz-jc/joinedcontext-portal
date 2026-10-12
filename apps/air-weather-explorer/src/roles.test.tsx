@@ -16,6 +16,9 @@ import type { Place } from "./server";
 import { server, STEWARD, VIEWER } from "./testing/server";
 import { sweep } from "./testing/sweep";
 
+// A sweep presses every control: a slow CI runner takes several times a laptop's 4 s.
+const SWEEP = 30_000;
+
 vi.mock("maplibre-gl", () => import("./testing/maplibre"));
 vi.mock("echarts/core", () => ({ use: vi.fn(), init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() })) }));
 
@@ -262,7 +265,7 @@ describe("a steward", () => {
           await act(async () => new Promise((done) => setTimeout(done, 0)));
           await act(async () => sweep(container));
         }
-      });
+      }, SWEEP);
     }
   }
 });

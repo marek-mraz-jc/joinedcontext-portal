@@ -818,7 +818,12 @@ export function ResourceFormDialogBody<T>({
   }
 
   const checkButton = canCheck ? (
-    <Button size="sm" disabled={disabled || ownCheck.isPending} onClick={runCheck}>
+    <Button
+      size="sm"
+      disabled={disabled || ownCheck.isPending}
+      disabledReason={submitDisabledReason || t("app.busyReason")}
+      onClick={runCheck}
+    >
       {t("form.check")}
     </Button>
   ) : null;

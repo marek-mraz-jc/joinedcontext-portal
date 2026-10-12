@@ -73,7 +73,7 @@ export function ConfirmDialog({
             ref={cancel}
             variant="secondary"
             data-testid="confirm-cancel"
-            disabled={pending}
+            disabled={pending} disabledReason={t("app.busyReason")}
             onClick={() => onOpenChange(false)}
           >
             {t("app.cancel")}
@@ -81,7 +81,7 @@ export function ConfirmDialog({
           <Button
             variant={tone === "danger" ? "danger" : "primary"}
             data-testid="confirm-accept"
-            disabled={pending}
+            disabled={pending} disabledReason={t("app.busyReason")}
             onClick={onConfirm}
           >
             {pending ? t("app.loading") : confirmLabel}

@@ -150,7 +150,17 @@ export function ChartFromView({
         closeLabel={t("app.close")}
         footer={
           change ? undefined : (
-            <Button disabled={!widget || save.isPending || (kind === "temporal-chart" && !entity)} onClick={() => save.mutate()}>
+            <Button
+              disabled={!widget || save.isPending || (kind === "temporal-chart" && !entity)}
+              disabledReason={
+                save.isPending
+                  ? t("app.busyReason")
+                  : !widget
+                    ? t("explore.chart.pickAttribute")
+                    : t("explore.chart.pickEntity")
+              }
+              onClick={() => save.mutate()}
+            >
               {t("explore.chart.save")}
             </Button>
           )

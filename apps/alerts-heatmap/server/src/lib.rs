@@ -13,13 +13,30 @@
 //! | `GET /api/reports/{id}` | one report |
 //! | `POST /api/reports/{id}/snapshot` | a URL to upload the report's map snapshot to, once |
 //! | `GET /api/reports/{id}/snapshot` | a URL to download it from |
+//!
+//! Roles and edits (T-3828, API/07), decided from `identity::caller()` alone: a signed-in reader
+//! keeps filters of their own; a steward, the city's operator, acknowledges an alert with a
+//! comment, shown to everyone.
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `GET /api/filters` | signed in | the caller's filters, newest first |
+//! | `POST /api/filters` `{name, view}` | signed in | a filter kept |
+//! | `DELETE /api/filters/{id}` | owner | gone |
+//! | `GET /api/acks` | anyone | the acknowledged alerts, newest first |
+//! | `POST /api/acks` `{alert, comment}` | steward | an alert acknowledged |
+//! | `DELETE /api/acks/{id}` | steward | the acknowledgement taken back |
+//! | `GET /api/history` | signed in | the newest changes (a viewer: their own) |
 
 use std::collections::BTreeMap;
 
 use alerts_heatmap::{run, time, Alert, Filter, Input};
+use jc_app_sdk::access::Owned;
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as Json};
@@ -34,6 +51,13 @@ const KEPT_REPORTS: i64 = 200;
 /// Repeat places kept per week and per report.
 const TOP: usize = 10;
 const MS_PER_DAY: i64 = 86_400_000;
+const STEWARD: &str = "steward";
+const FILTERS: Owned = Owned::new("filters", "");
+const ACKS: Owned = Owned::new("acks", STEWARD);
+/// Filters a reader keeps at most, acknowledgements answered, and changes answered in History.
+const MOST_FILTERS: i64 = 20;
+const ACKS_SHOWN: i64 = 200;
+const HISTORY: i64 = 100;
 
 /// One repeat place as a report or a week keeps it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -88,6 +112,58 @@ pub fn checked(report: NewReport) -> Result<NewReport, String> {
         view,
         ..report
     })
+}
+
+/// A filter a reader keeps: a name and the page's address after `?`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewFilter {
+    pub name: String,
+    pub view: String,
+}
+
+/// One line of 1 to `most` characters, trimmed.
+pub fn line(text: &str, most: usize, what: &str) -> Result<String, String> {
+    let text = text.trim();
+    if text.is_empty() || text.chars().count() > most || text.chars().any(char::is_control) {
+        return Err(format!("{what} is one line of 1 to {most} characters"));
+    }
+    Ok(text.to_owned())
+}
+
+/// The filter's name and view as kept, by the rules of a report's.
+pub fn checked_filter(new: &NewFilter) -> Result<(String, String), String> {
+    let name = line(&new.name, 80, "a filter's name")?;
+    let view = checked(NewReport {
+        title: name.clone(),
+        view: new.view.clone(),
+        kept: 0,
+        places: Vec::new(),
+    })?
+    .view;
+    Ok((name, view))
+}
+
+/// An acknowledgement: the alert's id and the operator's comment.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewAck {
+    pub alert: String,
+    pub comment: String,
+}
+
+/// The alert's id, an `Alert` URN, and the comment, as kept.
+pub fn checked_ack(new: &NewAck) -> Result<(String, String), String> {
+    let alert = new.alert.trim();
+    if !alert.starts_with("urn:ngsi-ld:Alert:")
+        || alert.len() > 300
+        || alert
+            .chars()
+            .any(|c| c.is_whitespace() || matches!(c, ',' | '%' | '?' | '#'))
+    {
+        return Err("an alert is named by its id, urn:ngsi-ld:Alert:…".into());
+    }
+    Ok((alert.to_owned(), line(&new.comment, 300, "a comment")?))
 }
 
 /// Milliseconds since the epoch of an ISO 8601 date-time (`2026-10-08T07:30:00Z`,
@@ -436,8 +512,215 @@ fn download(_: &Request, params: &Params) -> Response {
     }
 }
 
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+fn bad(why: &str) -> Response {
+    Response::problem(400, "Bad Request", why)
+}
+
+fn filters(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, name, view from filters where owner_id = $1 order by id desc limit 50",
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn keep_filter(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewFilter = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let (name, view) = match checked_filter(&new) {
+        Ok(checked) => checked,
+        Err(why) => return bad(&why),
+    };
+    match sql::query(
+        "select count(*) from filters where owner_id = $1",
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => {
+            if let Some(Value::Int(n)) = rows.values.first().and_then(|row| row.first()) {
+                if *n >= MOST_FILTERS {
+                    return Response::problem(
+                        409,
+                        "Conflict",
+                        &format!("at most {MOST_FILTERS} filters are kept; delete one first"),
+                    );
+                }
+            }
+        }
+        Err(err) => return Response::from_sql(err),
+    }
+    match FILTERS.insert(
+        &caller,
+        &["name", "view"],
+        vec![Value::from(name.as_str()), Value::from(view.as_str())],
+        &format!("kept the filter {name}"),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &json!({"id": row.get("id"), "name": name, "view": view}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn forget_filter(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let Ok(id) = params["id"].parse() else {
+        return Response::problem(404, "Not Found", "no such filter");
+    };
+    match FILTERS.delete(&caller, id, "deleted a filter") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+const ACK: &str = r#"id, alert, comment, owner_name as "ownerName", to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as "at""#;
+
+fn acks(_: &Request, _: &Params) -> Response {
+    match sql::query(
+        &format!("select {ACK} from acks order by id desc limit $1"),
+        &[Value::Int(ACKS_SHOWN)],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+/// The end of an alert's id, for a history line.
+fn local(id: &str) -> &str {
+    id.rsplit(':').next().unwrap_or(id)
+}
+
+fn acknowledge(request: &Request, _: &Params) -> Response {
+    // The role is checked before the body is read, so nothing in the body stands in for it.
+    let caller = match Caller::require().and_then(|caller| {
+        caller.require_role(&[STEWARD])?;
+        Ok(caller)
+    }) {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewAck = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let (alert, comment) = match checked_ack(&new) {
+        Ok(checked) => checked,
+        Err(why) => return bad(&why),
+    };
+    match sql::query(
+        "select count(*) from acks where alert = $1",
+        &[Value::from(alert.as_str())],
+    ) {
+        Ok(rows) => {
+            if !matches!(
+                rows.values.first().and_then(|row| row.first()),
+                Some(Value::Int(0))
+            ) {
+                return Response::problem(
+                    409,
+                    "Conflict",
+                    "the alert is acknowledged already; take that back first",
+                );
+            }
+        }
+        Err(err) => return Response::from_sql(err),
+    }
+    match ACKS.insert(
+        &caller,
+        &["alert", "comment", "owner_name"],
+        vec![
+            Value::from(alert.as_str()),
+            Value::from(comment.as_str()),
+            Value::from(caller.name.as_str()),
+        ],
+        &format!("acknowledged {}: {comment}", local(&alert)),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &json!({"id": row.get("id"), "alert": alert, "comment": comment, "ownerName": caller.name}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn unacknowledge(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require().and_then(|caller| {
+        caller.require_role(&[STEWARD])?;
+        Ok(caller)
+    }) {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let Ok(id) = params["id"].parse() else {
+        return Response::problem(404, "Not Found", "no such acknowledgement");
+    };
+    match ACKS.delete(&caller, id, "took back an acknowledgement") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// The newest changes: a steward's every one, anyone else's their own.
+fn history(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 pub fn handle(request: Request) -> Response {
     Router::new()
+        .get("/api/me", me)
+        .get("/api/filters", filters)
+        .post("/api/filters", keep_filter)
+        .delete("/api/filters/{id}", forget_filter)
+        .get("/api/acks", acks)
+        .post("/api/acks", acknowledge)
+        .delete("/api/acks/{id}", unacknowledge)
+        .get("/api/history", history)
         .get("/api/weeks", weeks)
         .get("/api/reports", list)
         .post("/api/reports", save)
@@ -620,5 +903,53 @@ mod tests {
             ..Request::default()
         });
         assert_eq!(bad.status, 400);
+    }
+
+    #[test]
+    fn a_filter_is_a_name_and_the_page_s_address() {
+        let new = |name: &str, view: &str| NewFilter {
+            name: name.into(),
+            view: view.into(),
+        };
+        assert_eq!(
+            checked_filter(&new(" Mornings ", "?kind=ROAD_WORKS&day=1&hour=8")),
+            Ok(("Mornings".into(), "kind=ROAD_WORKS&day=1&hour=8".into()))
+        );
+        for bad in [
+            new("", "kind=A"),
+            new(&"x".repeat(81), "kind=A"),
+            new("a\nb", "kind=A"),
+            new("n", "kind=<script>"),
+            new("n", &"a".repeat(501)),
+        ] {
+            assert!(checked_filter(&bad).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn an_acknowledgement_names_an_alert_and_says_why() {
+        let new = |alert: &str, comment: &str| NewAck {
+            alert: alert.into(),
+            comment: comment.into(),
+        };
+        let id = "urn:ngsi-ld:Alert:hel.fi:helsinki:42";
+        assert_eq!(
+            checked_ack(&new(id, " crew on site ")),
+            Ok((id.into(), "crew on site".into()))
+        );
+        for bad in [
+            new("urn:ngsi-ld:Event:1", "c"),
+            new("42", "c"),
+            new("urn:ngsi-ld:Alert:a b", "c"),
+            new(id, ""),
+            new(id, &"c".repeat(301)),
+        ] {
+            assert!(checked_ack(&bad).is_err(), "{bad:?}");
+        }
+        assert!(
+            serde_json::from_str::<NewAck>(r#"{"alert":"a","comment":"c","owner_id":"u"}"#)
+                .is_err()
+        );
+        assert_eq!(local(id), "42");
     }
 }

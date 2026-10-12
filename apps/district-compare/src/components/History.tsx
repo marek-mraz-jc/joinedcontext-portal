@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, Empty } from "@joinedcontext/sdk";
 import type { Measure } from "../districts";
-import { measureTitle, number, t } from "../i18n";
+import { locale, measureTitle, number, t } from "../i18n";
 import type { Lang } from "../i18n";
 import type { DayMetric, History as Kept, Server } from "../server";
 
@@ -30,7 +30,7 @@ export function valueOf(metric: DayMetric, measure: Measure): number | null {
 
 /** Noon of a `YYYY-MM-DD` day, so the day is the same in every zone the page is read in. */
 function dayOf(lang: Lang, date: string): string {
-  return new Intl.DateTimeFormat(lang === "fi" ? "fi-FI" : "en-GB", { timeZone: "Europe/Helsinki", dateStyle: "medium" }).format(Date.parse(`${date}T12:00:00Z`));
+  return new Intl.DateTimeFormat(locale(lang), { timeZone: "Europe/Helsinki", dateStyle: "medium" }).format(Date.parse(`${date}T12:00:00Z`));
 }
 
 /**

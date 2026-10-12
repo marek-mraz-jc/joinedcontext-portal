@@ -22,6 +22,9 @@ import { sweep } from "./testing/sweep";
 import wasm from "../wasm/pkg/data_quality_inspector_bg.wasm?url&inline";
 import { initSync, inspect } from "../wasm/pkg/data_quality_inspector.js";
 
+// A sweep presses every control: a slow CI runner takes several times a laptop's 4 s.
+const SWEEP = 30_000;
+
 initSync({ module: Uint8Array.from(atob(wasm.slice(wasm.indexOf(",") + 1)), (c) => c.charCodeAt(0)) });
 const runInspector: Inspector = async (input) => parseAnswer(inspect(JSON.stringify(input)));
 
@@ -249,7 +252,7 @@ describe("a steward", () => {
         await act(async () => new Promise((done) => setTimeout(done, 0)));
         await act(async () => sweep(main()));
       }
-    });
+    }, SWEEP);
   }
 });
 

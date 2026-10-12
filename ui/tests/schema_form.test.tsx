@@ -99,7 +99,7 @@ describe("SchemaForm", () => {
     const nameInput = screen.getByLabelText(/name/i);
     await user.type(nameInput, "hello");
 
-    const submitBtn = screen.getByRole("button", { name: /submit/i });
+    const submitBtn = screen.getByRole("button", { name: en.form.submit });
     await user.click(submitBtn);
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -116,7 +116,7 @@ describe("SchemaForm", () => {
       </I18nextProvider>
     );
 
-    const submitBtn = screen.getByRole("button", { name: /submit/i });
+    const submitBtn = screen.getByRole("button", { name: en.form.submit });
     await user.click(submitBtn);
 
     expect(screen.getByText("This field is required")).toBeInTheDocument();

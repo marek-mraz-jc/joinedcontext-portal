@@ -620,6 +620,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
                 variant="primary"
                 size="sm"
                 disabled={composerMessage.trim() === ""}
+              disabledReason={t("agentRun.conversation.writeFirst")}
                 loading={isStarting}
               >
                 {t("assistant.empty.send")}

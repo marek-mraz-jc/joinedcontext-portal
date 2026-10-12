@@ -109,7 +109,7 @@
     "cs": "Čeština"
   },
   "form": {
-    "submit": "Submit",
+    "submit": "Save",
     "cancel": "Cancel",
     "backToList": "Back to the list",
     "opening": "Opening the form…",
@@ -121,7 +121,7 @@
     "useExample": "Use the example",
     "noResults": "No results",
     "entityPickerPending": "Choose the space and the entity type first, and this lists their entities; an entity id can also be pasted here.",
-    "listFailed": "The list could not be loaded: {reason}",
+    "listFailed": "The list could not be loaded, try again: {reason}",
     "listRetry": "Try again",
     "errors": "{count, plural, =0 {No errors} one {# error} other {# errors}}",
     "type": "Invalid type",
@@ -138,7 +138,7 @@
       "yaml": "YAML"
     },
     "yamlHint": "The whole manifest as it is written to Git. Switching back to the form reads it again; the same schema checks both.",
-    "yamlError": "The YAML does not parse: {message}",
+    "yamlError": "Correct the YAML: {message}",
     "yamlNotManifest": "the document is not a manifest",
     "schemaErrors": "The manifest does not match the schema:",
     "exclusive": "Only one of these fields may be set",
@@ -226,8 +226,8 @@
       "label": "CI on the latest commit",
       "success": "Passed",
       "pending": "Running",
-      "failure": "Failed",
-      "error": "Could not run"
+      "failure": "Checks failed",
+      "error": "Could not run; ask a project administrator to check the runner"
     },
     "outside": {
       "title": "{count, plural, one {# merge request in the forge is not a Change} other {# merge requests in the forge are not Changes}}",
@@ -287,7 +287,8 @@
         "update": "{author} proposed to change {kind} {name}",
         "delete": "{author} proposed to remove {kind} {name}"
       }
-    }
+    },
+    "reasonFirst": "Write why you reject the change first."
   },
   "lane": {
     "green": "Green",
@@ -824,7 +825,10 @@
       "groupsOf": "Groups by {attr}",
       "allGroups": "All",
       "groupsCut": "The first {shown} of {total} values are counted.",
-      "toneLabel": "Marked: {when}"
+      "toneLabel": "Marked: {when}",
+      "titleFirst": "Give the view a title of at most 120 characters.",
+      "modeLocked": "Only the view's owner or a steward can change who sees it.",
+      "coloursFull": "A view has at most 20 colour rules; remove one first."
     },
     "form": {
       "settings": "Fields of the form",
@@ -1124,7 +1128,8 @@
         "interval": "Mirror interval",
         "intervalHelp": "How often the source's schema is mirrored here, such as 6h or 1d; leave empty for once a day."
       },
-      "browse": "See what other projects publish"
+      "browse": "See what other projects publish",
+      "noAddress": "This endpoint has no address yet; you can use it once it is published."
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",
@@ -2186,7 +2191,7 @@
       "latest": "Latest {property}: {value} ({count} readings)",
       "chartLabel": "{property} of {entity} over time",
       "badGrid": "This grid could not be drawn: {reason}",
-      "historyFailed": "This history could not be read: {reason}",
+      "historyFailed": "This history could not be read: {reason}. Reload the page to try again.",
       "barTitle": "{property} of {type}: entities by value",
       "histogramTitle": "{property} of {type}: how it spreads",
       "rest": "other values",
@@ -3151,7 +3156,7 @@
       "state": {
         "building": "Building",
         "needsYou": "Needs you",
-        "failed": "Failed",
+        "failed": "Not generated",
         "readyToPublish": "Ready to publish",
         "waitingApproval": "Waiting for approval"
       },
@@ -3209,7 +3214,7 @@
         "none": "No build has run yet.",
         "building": "Building {commit}…",
         "succeeded": "Built {commit}.",
-        "failed": "The build of {commit} failed; the latest run says why.",
+        "failed": "The build of {commit} failed; open the latest run to see why.",
         "cancelled": "The build of {commit} was cancelled."
       },
       "state": {
@@ -3244,7 +3249,7 @@
       "preview": "A preview opens from the menu",
       "retired": "This application is retired",
       "building": "Building…",
-      "failed": "Build failed",
+      "failed": "The build failed. Fix it on the Build tab, then open the app.",
       "notBuilt": "No build is served yet",
       "certificate": "Its address is being secured, which takes a minute",
       "host": "Its address could not be set up; an administrator sees why"
@@ -3260,7 +3265,7 @@
       "fullscreen": "Full screen",
       "fullscreenExit": "Leave full screen",
       "fullscreenUnavailable": "This browser does not offer full screen here.",
-      "fullscreenFailed": "The browser did not switch to full screen: {reason}",
+      "fullscreenFailed": "The browser did not switch to full screen: {reason}. Use the browser's own full-screen key (F11).",
       "signedOutTitle": "Your sign-in has ended.",
       "signedOutBody": "The app cannot sign you in inside the Portal. Sign in again, and it opens here.",
       "signedOutDismiss": "Hide this message"
@@ -3386,7 +3391,7 @@
       "notRun": "Not run yet",
       "outcomes": {
         "succeeded": "Succeeded",
-        "failed": "Failed",
+        "failed": "Ended with an error",
         "timedOut": "Stopped at its time limit",
         "skipped": "Skipped, the run before was still going"
       },
@@ -3624,7 +3629,8 @@
     "displayNameLabel": "Display name",
     "descriptionLabel": "Description",
     "notAllowed": "This organization does not let you open a project.",
-    "nameNeeded": "A usable name is needed to open a project."
+    "nameNeeded": "A usable name is needed to open a project.",
+    "planLocked": "Close the dialog and start again to change this; the plan was made for it."
   },
   "entities": {
     "type": "Entity type",
@@ -3657,7 +3663,7 @@
     "next": "Next",
     "page": "Page",
     "showMetadata": "Show metadata for",
-    "error": "Error",
+    "error": "Not loaded, try again",
     "filter": "Filter",
     "ops": {
       "contains": "contains",
@@ -3710,7 +3716,7 @@
     "relationSearch": "Search",
     "relationNone": "Nothing you can read matches",
     "relationRemove": "Remove",
-    "relationFailed": "The search failed",
+    "relationFailed": "The search failed; try again",
     "relationMore": "and more",
     "map": {
       "panel": "Map",
@@ -3882,8 +3888,10 @@
       "save": "Save to the dashboard",
       "pickFirst": "Pick an attribute and a chart first.",
       "badName": "A dashboard name holds lowercase letters, digits and hyphens, at most 63, starting and ending with a letter or a digit.",
-      "gone": "That dashboard is no longer in the project; pick another."
-    }
+      "gone": "That dashboard is no longer in the project; pick another.",
+      "pickEntity": "Pick the entity to chart over time."
+    },
+    "pickSpaceFirst": "Pick a space first."
   },
   "agentRun": {
     "title": "Application run",
@@ -3902,7 +3910,7 @@
       "previewing": "Preview ready",
       "awaiting_approval": "Waiting for approval",
       "published": "Published",
-      "failed": "The run failed.",
+      "failed": "The run failed. Open its steps to see where.",
       "cancelled": "The run was stopped.",
       "expired": "The run has ended; the preview stays as it was built."
     },
@@ -3918,7 +3926,7 @@
       "modelCall": "Model call",
       "modelCallOf": "Model call ({model})",
       "waitingStep": "Waiting for your answer",
-      "failed": "failed",
+      "failed": "ended with an error",
       "slowest": "Slowest step: {step}, {took}.",
       "caption": "Every timed step of the run, in order",
       "started": "Started",
@@ -3960,7 +3968,8 @@
       "sendFailed": "The message was not sent: {reason}. What you typed is still here.",
       "tryAgain": "Try again",
       "unanswered": "Your last message was not answered. Nothing was changed.",
-      "endedBecause": "Why: {reason}."
+      "endedBecause": "Why: {reason}.",
+      "writeFirst": "Write a message first."
     },
     "line": {
       "status": "Now {status}.",
@@ -3982,8 +3991,8 @@
       "url": "The data is at {url}",
       "testsRunning": "Testing version {version}…",
       "testsPassed": "Version {version}: all {passed} tests pass.",
-      "testsFailed": "Version {version}: {failed} tests fail. {names}",
-      "testsError": "The tests of version {version} could not run: {reason}",
+      "testsFailed": "Version {version}: {failed} tests fail. {names} Open the run to see why.",
+      "testsError": "The tests of version {version} could not run: {reason}. Fix the cause and run them again.",
       "testsSkipped": "Version {version} was not tested here: {reason}"
     },
     "preview": {
@@ -4030,11 +4039,11 @@
         "readAll": "Read {count} {type} from {endpoint}"
       },
       "ok": "Succeeded",
-      "failed": "Failed",
+      "failed": "Did not finish",
       "duration": "{ms} ms",
       "input": "Input",
       "output": "Output",
-      "error": "Error",
+      "error": "Stopped by an error",
       "refused": "Not applied",
       "refusedLine": "{count} block(s) not applied: {reason}",
       "diff": "Change",
@@ -4075,7 +4084,7 @@
       "copyPolicy": "Copy policy YAML",
       "copied": "Copied",
       "review": "Review and propose",
-      "failed": "The proposal could not be rendered: {reason}",
+      "failed": "The proposal could not be rendered: {reason}. Reload the page to try again.",
       "projects": "shared with {projects}"
     },
     "kpi": {
@@ -4102,7 +4111,8 @@
       "keepOnChangeMessage": "Keep the indicator {name} updated: {over}, on every change, into the space {space}.",
       "overCount": "count of {type}",
       "overAgg": "{agg} of {attribute} over {type}",
-      "overWhere": "{over} where {filter}"
+      "overWhere": "{over} where {filter}",
+      "minutesUnused": "Minutes apply when the indicator is kept every few minutes, not on every change."
     },
     "changeTest": {
       "title": "The change's test",
@@ -4178,7 +4188,8 @@
         "label": "Or the address of a feed",
         "use": "Use this address",
         "invalid": "Give a full address starting with http:// or https://."
-      }
+      },
+      "enterAddress": "Enter the address first."
     },
     "prose": {
       "copyId": "Copy the whole id",
@@ -4204,7 +4215,7 @@
         "done": "Done",
         "working": "In progress",
         "waiting": "Waiting",
-        "failed": "Failed",
+        "failed": "Did not finish",
         "later": "Not yet"
       },
       "test": {
@@ -4212,7 +4223,7 @@
         "reading": "Reading a few rows of {name} as you…",
         "read": "{count, plural, one {Read # row} other {Read # rows}} of {total} {type} from {name}",
         "empty": "{name} is live and holds no entities yet",
-        "failed": "The test read failed",
+        "failed": "The test read failed. Check the step below for the reason.",
         "again": "Read again",
         "explore": "Open it in Explore"
       }
@@ -4220,7 +4231,8 @@
     "testsHold": {
       "running": "Publish waits until the tests of version {version} have run.",
       "failed": "Version {version} is not published while {failed} of its tests fail: {names}. Ask the assistant to fix them."
-    }
+    },
+    "cancelOver": "The run is over; there is nothing to cancel."
   },
   "assistant": {
     "newConversation": "Start a new conversation",
@@ -4242,7 +4254,7 @@
       "lead": "Pick what you want to do, or ask in your own words.",
       "composer": "Ask the assistant",
       "send": "Send",
-      "failed": "The conversation did not start:"
+      "failed": "The conversation did not start; try again:"
     },
     "data": {
       "title": "Data",
@@ -4431,11 +4443,11 @@
       "blockHint": "operations, kinds with read or propose, endpoints with read or write. Empty removes the block. The edit is a change an approver reviews.",
       "propose": "Propose change",
       "cancel": "Cancel",
-      "yamlError": "Not valid YAML: {message}",
+      "yamlError": "Not valid YAML, correct it: {message}",
       "showOperations": "Show its {count} operations"
     },
     "states": {
-      "failed": "Failed",
+      "failed": "Did not finish",
       "cancelled": "Stopped",
       "expired": "Ended"
     },
@@ -6125,7 +6137,7 @@
         "licence": "Choose a licence.",
         "contactBoth": "Give the contact's name and e-mail together, or neither.",
         "email": "Enter an e-mail address such as opendata@example.org.",
-        "period": "The end of the period cannot be before its start."
+        "period": "The end of the period cannot be before its start. Pick an end date after the start."
       }
     },
     "licence": {
@@ -6275,10 +6287,10 @@
   "knowledge": {
     "title": "Knowledge sources",
     "intro": "What the knowledge assistant has read of this project's websites and catalogues, and what it answers from.",
-    "failed": "The sources could not be read: {reason}",
+    "failed": "The sources could not be read: {reason}. Reload the page to try again.",
     "queued": "A crawl of {source} is queued. It starts within a minute.",
     "empty": "This project has no knowledge source",
-    "emptyHint": "A KnowledgeSource names a website or a catalogue for the assistant to read. Propose one like any other resource of the project.",
+    "emptyHint": "A knowledge source names a website or a catalogue for the assistant to read. Propose one like any other resource of the project.",
     "sources": "Knowledge sources",
     "recrawl": "Crawl now",
     "recrawlOf": "Crawl {source} now",
@@ -6456,7 +6468,8 @@
       "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page."
     },
     "everySpace": "every space of the project",
-    "userGuide": "the platform's User Guide, with links into this project"
+    "userGuide": "the platform's User Guide, with links into this project",
+    "askFirst": "Type a question first."
   },
   "mcp": {
     "title": "MCP servers",
@@ -6596,12 +6609,12 @@
     "finished": {
       "appBuild": {
         "succeeded": "The build of {name} finished.",
-        "failed": "The build of {name} failed.",
+        "failed": "The build of {name} failed. Open the App to see why.",
         "cancelled": "The build of {name} was cancelled."
       },
       "knowledgeCrawl": {
         "succeeded": "The crawl of {name} finished.",
-        "failed": "The crawl of {name} failed.",
+        "failed": "The crawl of {name} failed. Open the source to see why.",
         "cancelled": "The crawl of {name} was cancelled."
       }
     }
