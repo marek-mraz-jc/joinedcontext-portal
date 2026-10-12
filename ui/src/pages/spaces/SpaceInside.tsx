@@ -433,7 +433,17 @@ function SpaceData({
   }, [space, type]);
 
   if (types.length === 0) {
-    return <p className="text-body text-fg-muted">{t("spaces.inside.dataNoTypes")}</p>;
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-body text-fg-muted">{t("spaces.inside.dataNoTypes")}</p>
+        {/* A space with no type yet takes its first rows from a CSV (DM-81). */}
+        <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+          <Link to="/projects/$project/spaces/upload" params={{ project }} search={{ space }} className="focus-ring w-fit text-body text-primary-soft-fg underline-offset-2 hover:underline">
+            {t("spaces.upload.open")}
+          </Link>
+        </PermissionGuard>
+      </div>
+    );
   }
   return (
     <div className="flex flex-col gap-3">
@@ -636,7 +646,9 @@ function SpaceData({
           />
         </div>
       ) : null}
+      {/* The grid is a view like the others: its tab names this panel (axe aria-valid-attr-value, T-3851). */}
       {probe.isSuccess && config && view === "grid" ? (
+        <div {...tabPanelProps("space-data-view", view)}>
         <PortalEntityGrid
           // A new key after an import, or a view applied, reads the type again: nothing typed under
           // the last one carries over.
@@ -660,6 +672,7 @@ function SpaceData({
           query={groupQuery}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
+        </div>
       ) : null}
     </div>
   );
@@ -995,7 +1008,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           </Link>
           <PageHeader
             title={localized(manifest.metadata.title, locale, manifest.metadata.name)}
-            description={<span className="font-mono">{manifest.metadata.name}</span>}
+            description={
+              <>
+                {/* What the space is for comes first; its name is the identifier beside it (T-3851). */}
+                {localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")}{" "}
+                <span className="font-mono">{manifest.metadata.name}</span>
+              </>
+            }
           />
         </div>
         <div className="flex items-center gap-2">

@@ -272,7 +272,7 @@ export function CkanAccessPanel({
           submit();
         }}
       >
-        <Field id={`${ids}-kind`} label={t("ckan.access.kind")}>
+        <Field id={`${ids}-kind`} label={t("ckan.access.kind")} help={t("ckan.access.kindHelp")}>
           <Select
             id={`${ids}-kind`}
             value={kind}
@@ -287,7 +287,7 @@ export function CkanAccessPanel({
           </Select>
         </Field>
         {kind === "group" ? (
-          <Field id={`${ids}-who`} label={t("ckan.access.whichGroup")}>
+          <Field id={`${ids}-who`} label={t("ckan.access.whichGroup")} help={t("ckan.access.whichGroupHelp")}>
             <Select id={`${ids}-who`} value={who} onChange={(event) => setWho(event.target.value)}>
               <option value="">{t("ckan.access.pickGroup")}</option>
               {asManifests(groups.data?.items ?? []).map((group) => (
@@ -298,7 +298,7 @@ export function CkanAccessPanel({
             </Select>
           </Field>
         ) : (
-          <Field id={`${ids}-who`} label={t("ckan.access.email")}>
+          <Field id={`${ids}-who`} label={t("ckan.access.email")} help={t("ckan.access.emailHelp")}>
             <Input
               id={`${ids}-who`}
               type="email"

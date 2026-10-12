@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useId, useMemo, useState, useRef } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -53,6 +53,7 @@ export function ModelPicker({
   handed,
 }: ModelPickerProps): JSX.Element {
   const { t } = useTranslation();
+  const hintId = useId();
   const [isDetached, setIsDetached] = useState(false);
 
   const modelsQuery = useQuery({
@@ -299,11 +300,16 @@ export function ModelPicker({
     <div className="flex flex-col gap-3 rounded border border-border bg-surface-subtle p-3">
       <div>
         <FormHeading sub className="text-body font-semibold text-fg">{t("endpoints.picker.title")}</FormHeading>
-        <p className="text-caption text-fg-muted">{t("endpoints.picker.hint")}</p>
+        <p id={hintId} className="text-caption text-fg-muted">{t("endpoints.picker.hint")}</p>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <Field id="projection-reuse" label={t("endpoints.picker.reuse")} className="min-w-48">
+        <Field
+          id="projection-reuse"
+          label={t("endpoints.picker.reuse")}
+          help={t("endpoints.picker.reuseHelp")}
+          className="min-w-48"
+        >
           <Select
             id="projection-reuse"
             disabled={disabled}
@@ -337,6 +343,7 @@ export function ModelPicker({
           <Field
             id="projection-name"
             label={t("endpoints.picker.projectionName")}
+            help={t("endpoints.picker.projectionNameHelp")}
             className="min-w-48 flex-1"
           >
             <Input
@@ -381,7 +388,9 @@ export function ModelPicker({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 divide-y divide-border">
+      {/* Every box below is one choice of the panel's hint (T-3852, field-hint). */}
+      <fieldset aria-describedby={hintId} className="flex flex-col gap-3 divide-y divide-border">
+        <legend className="sr-only">{t("endpoints.picker.title")}</legend>
         {(parsedModel?.classes ?? []).map((cls) => {
           const cfg = value.classes[cls.name];
           const isTicked = Boolean(cfg?.ticked);
@@ -512,7 +521,7 @@ export function ModelPicker({
             </div>
           );
         })}
-      </div>
+      </fieldset>
     </div>
   );
 }

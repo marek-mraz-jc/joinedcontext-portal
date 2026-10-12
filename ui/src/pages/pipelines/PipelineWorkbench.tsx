@@ -753,8 +753,9 @@ export function PipelineWorkbench({
                         const line = `root.${slot.name} = { "type": "${slot.kind}", "${slot.kind === "Relationship" ? "object" : "value"}": ${exampleOf(slot, values[0])}${unit && slot.kind === "Property" ? `, "unitCode": "${unit}"` : ""} }`;
                         return (
                           <div className="flex flex-wrap items-start gap-2">
-                            <p className="min-w-0 flex-1 font-mono text-fg-subtle [overflow-wrap:anywhere]">
-                              {t("pipelines.workbench.mapping.example", { example: line })}
+                            {/* The line is code the person adds to the mapping; the label is words (T-3851). */}
+                            <p className="min-w-0 flex-1 text-fg-subtle [overflow-wrap:anywhere]">
+                              {t("pipelines.workbench.mapping.example")} <code className="font-mono">{line}</code>
                             </p>
                             <Button size="xs" variant="secondary" onClick={() => addLine(line)} aria-label={t("pipelines.workbench.mapping.addLineOf", { slot: slot.name })}>
                               {t("pipelines.workbench.mapping.addLine")}

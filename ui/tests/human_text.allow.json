@@ -165,6 +165,12 @@
       ],
       "reason": "WebSocket is the protocol's own name; the option lists the kinds of source by protocol"
     },
+    "endpoints.representationOption.websocket": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "WebSocket is the protocol's own name; the option lists the standards an Endpoint serves"
+    },
     "endpoints.representationOption.sta": {
       "rules": [
         "kind"
@@ -335,10 +341,6 @@
     "src/components/forms/theme.tsx": {
       "count": 1,
       "reason": "the button is hidden and out of the tab order whenever it is disabled"
-    },
-    "src/components/forms/widgets/CronSchedule.tsx": {
-      "count": 5,
-      "reason": "follows the form's own disabled or read-only state, which the form says"
     },
     "src/components/pickers/Combobox.tsx": {
       "count": 1,

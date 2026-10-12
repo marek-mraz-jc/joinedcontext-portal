@@ -75,7 +75,12 @@ const CHANGE = {
   status: { lane: "red", phase: "PendingApproval", plan: { create: 1, update: 0, delete: 0 } },
 };
 
-const ADMIN = [{ rule: { kinds: ["RoleBinding"], verbs: ["propose", "approve", "delete"] } }];
+const ADMIN = [
+  { rule: { kinds: ["RoleBinding"], verbs: ["propose", "approve", "delete"] } },
+  { rule: { kinds: ["Role", "ContextSpace"], verbs: ["read"] } },
+];
+/** Reads who holds what and changes nothing: the lists are asked for, every change is refused. */
+const READER = [{ rule: { kinds: ["RoleBinding", "Role", "ContextSpace"], verbs: ["read"] } }];
 
 function renderAccess(options: { grants: unknown[]; refusal?: string }) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -155,13 +160,22 @@ describe("people and roles", () => {
   });
 
   it("keeps every change a viewer may not make where it is, disabled with the reason", async () => {
-    renderAccess({ grants: [] });
+    renderAccess({ grants: READER });
 
     expect(await screen.findByText("demo.steward@hel.fi")).toBeInTheDocument();
     expectDenied(screen.getByRole("button", { name: en.access.roles.grant }), /RoleBinding/);
     for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Remove)\b/ })) {
       expectDenied(button);
     }
+  });
+
+  it("asks a role that does not read the bindings for none of them and says who can grant it", async () => {
+    // demo.viewer on the walk (T-3852): the 404 of the unasked-for list was a red failure box.
+    const fetchMock = renderAccess({ grants: [] });
+
+    expect(await screen.findByText(en.access.roles.hidden)).toBeInTheDocument();
+    const asked = fetchMock.mock.calls.map(([input]) => new URL((input as Request).url).pathname);
+    expect(asked.filter((path) => /\/(rolebindings|roles|spaces)$/.test(path))).toEqual([]);
   });
 
   it("proposes the binding the form shows to the organization's route and shows the red change", async () => {

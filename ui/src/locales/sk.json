@@ -517,7 +517,8 @@
       "modelEmptyLead": "Dátový model pomenúva typy entít priestoru a ich atribúty. Vytvorte ho alebo importujte Smart Data Model pre tento priestor.",
       "modelCreate": "Vytvoriť dátový model",
       "modelImport": "Importovať Smart Data Model",
-      "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz)."
+      "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz).",
+      "lead": "Jeho dátový model, entity, kto ich číta a čo sa s ním stalo."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -966,6 +967,27 @@
       "removeOne": "Odstrániť váš komentár z {when}",
       "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}",
       "writeFirst": "Najprv napíšte komentár."
+    },
+    "upload": {
+      "open": "Nahrať CSV",
+      "title": "Nahrať CSV",
+      "lead": "Vyberte CSV do 50 MB. Porovná sa s typmi Smart Data Models; model, priestor, jeho Endpoint a vaše právo zapisovať riadky sa navrhnú ako jedna zmena a keď je zmena nasadená, riadky sa zapíšu cez bránu pod vaším menom.",
+      "choose": "Vybrať súbor CSV",
+      "type": "Čo riadky sú",
+      "noMatch": "Žiadny typ Smart Data Models nepomenúva dosť týchto stĺpcov: súbor dostane vlastný model.",
+      "match": "{name} ({score} % stĺpcov)",
+      "own": "Vlastný model",
+      "ownType": "Názov typu",
+      "ownTypeHint": "Jedno slovo s veľkým začiatočným písmenom, napríklad Garage.",
+      "space": "Názov priestoru",
+      "notReady": "Najprv vyberte súbor, typ a priestor.",
+      "propose": "Navrhnúť zmenu",
+      "proposing": "Navrhuje sa…",
+      "afterApproval": "Keď je zmena schválená a nasadená, zapíšte riadky do {space} ako {type}. Opätovný zápis toho istého súboru aktualizuje tie isté entity.",
+      "noSlots": "Navrhnutý model nedeklaruje pre tento typ žiadne polia: nie je čo zapísať.",
+      "write": "{count, plural, =0 {Nie je čo zapísať} one {Zapísať # riadok} few {Zapísať # riadky} other {Zapísať # riadkov}}",
+      "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}",
+      "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD"
     }
   },
   "endpoints": {
@@ -999,7 +1021,9 @@
       "projectionName": "Názov projekcie",
       "preview": "Vytvorené manifesty",
       "identityAlways": "Každý záznam má id a typ, preto je toto vždy zverejnené.",
-      "readOnly": "Táto projekcia je zdieľaná. Ak ju chcete zmeniť tu, oddeľte ju a skopírujte."
+      "readOnly": "Táto projekcia je zdieľaná. Ak ju chcete zmeniť tu, oddeľte ju a skopírujte.",
+      "reuseHelp": "Použite projekciu, ktorú už publikuje iný endpoint, alebo nakreslite novú pre tento endpoint.",
+      "projectionNameHelp": "Názov, pod ktorým sa nová projekcia uloží; malé písmená, číslice a pomlčky."
     },
     "audience": {
       "project-list": "Vybrané projekty",
@@ -1089,6 +1113,7 @@
       "title": "Zverejnené atribúty",
       "hint": "Endpoint môže to, čo povoľuje politika, iba zúžiť, nikdy rozšíriť. Skrytý atribút chýba v každej reprezentácii aj v zverejnenej schéme.",
       "formalism": "Formalizmus schémy",
+      "formalismHelp": "Jazyk schémy, v ktorom je zverejnená schéma; adresa nižšie ju poskytuje.",
       "hide": "Skryť",
       "unhide": "Znova zobraziť",
       "effective": "Zverejnené tu",
@@ -1154,6 +1179,8 @@
       "xlsx": "Excel (xlsx)",
       "zip": "ZIP na stiahnutie",
       "ogc-features": "OGC API Features",
+      "odata": "OData v4",
+      "websocket": "Notifikácie cez WebSocket",
       "sta": "SensorThings API",
       "mcp": "MCP pre AI asistentov"
     },
@@ -1308,6 +1335,7 @@
     "filterEditor": {
       "label": "Filter tohto endpointu",
       "types": "Typy entít, ktoré obsluhuje",
+      "typesHelp": "Zaškrtnite typy, ktoré tu volajúci číta; nezaškrtnutý typ sa vôbec neposkytuje.",
       "noType": "Ponechajte aspoň jeden typ: endpoint bez typu neobsluhuje nič.",
       "hidden": "Skryté atribúty",
       "hiddenHelp": "Zaškrtnutý atribút sa nikdy neposkytne v žiadnom formáte. Názov sa skryje v každom type, ktorý ho má.",
@@ -1393,6 +1421,7 @@
       "title": "Zdieľať s projektom",
       "project": "Projekt",
       "types": "Čo číta",
+      "typesHelp": "Zaškrtnite typy, ktoré bude druhý projekt čítať; nič iné z tohto endpointu sa nezdieľa.",
       "until": "Do",
       "untilHint": "Nepovinné. Po tomto dni cez neho projekt nič neprečíta; prázdne ponechá zdieľanie, kým ho nezastavíte.",
       "preview": "Čo uvidí {project}",
@@ -1948,7 +1977,7 @@
         "required": "povinné",
         "many": "viac hodnôt",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
-        "example": "Príklad: {example}",
+        "example": "Príklad:",
         "measuredIn": "Meria sa v {symbol} ({code}); ak záznam unitCode nemá, brána ho doplní.",
         "sourceUnit": "Zdroj v inej jednotke?",
         "sourceUnitOf": "Jednotka zdroja pre {slot}",
@@ -2281,7 +2310,8 @@
       "discardConfirm": "To, čo ste napísali, sa stratí a nič sa nenavrhne. Už pridelené roly sa nemenia.",
       "discard": "Zahodiť pridelenie",
       "grants": "Táto rola smie: {rights}.",
-      "grantsNothing": "Táto rola zatiaľ nič neudeľuje: nemá pravidlá."
+      "grantsNothing": "Táto rola zatiaľ nič neudeľuje: nemá pravidlá.",
+      "hidden": "Vaša rola neukazuje, kto tu má akú rolu. Môže vám ju prideliť ten, kto spravuje projekt."
     },
     "projectRoles": {
       "title": "Role",
@@ -2303,7 +2333,8 @@
       },
       "beyondRights": "Rola nesmie udeliť viac, než tu držíte sami: chýba {missing}.",
       "propose": "Navrhnúť zmenu",
-      "emptyHint": "Rola je množina činností nad množinou druhov — podať endpoint, schváliť zmenu, čítať priestor. Roly platformy fungujú všade; rola deklarovaná tu funguje v tomto projekte."
+      "emptyHint": "Rola je množina činností nad množinou druhov — podať endpoint, schváliť zmenu, čítať priestor. Roly platformy fungujú všade; rola deklarovaná tu funguje v tomto projekte.",
+      "hidden": "Vaša rola neukazuje roly, ktoré sú tu napísané. Môže vám ju prideliť ten, kto spravuje projekt."
     },
     "accounts": {
       "title": "Servisné účty",
@@ -3551,7 +3582,10 @@
         "absent": "Katalóg {instance} nespravujú cez jeho rolu.",
         "badEmail": "Napíšte celú e-mailovú adresu, napríklad jana@example.org."
       },
-      "hidden": "Kto spravuje tento katalóg, vidia administrátori organizácie."
+      "hidden": "Kto spravuje tento katalóg, vidia administrátori organizácie.",
+      "kindHelp": "Celá skupina, alebo jedna osoba podľa e-mailu.",
+      "whichGroupHelp": "Každý v skupine spravuje tento katalóg, kým je v nej.",
+      "emailHelp": "E-mail, ktorým sa osoba prihlasuje, napríklad jana@example.org."
     }
   },
   "mappings": {
@@ -4551,6 +4585,7 @@
     "more": "Zobraziť staršie",
     "panelTitle": "Nedávna aktivita",
     "panelEmpty": "S týmto sa zatiaľ nič nestalo.",
+    "panelEmptyHint": "Zmena, import alebo chyba tu sa v tomto zozname zobrazí hneď, ako nastane.",
     "announce": "{count, plural, one {# nová chyba} few {# nové chyby} other {# nových chýb}}",
     "lastHour": "Čo sa stalo za poslednú hodinu",
     "bucket": {
@@ -5873,7 +5908,10 @@
       "read": "Čítať",
       "propose": "Navrhovať zmeny",
       "approve": "Schvaľovať zmeny",
-      "delete": "Mazať"
+      "delete": "Mazať",
+      "create": "Vytvárať",
+      "update": "Meniť",
+      "disable": "Vypínať"
     },
     "notificationFormat": {
       "normalized": "Úplné NGSI-LD",

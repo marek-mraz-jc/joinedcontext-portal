@@ -22,6 +22,7 @@ import { RowActions } from "../../components/ui/RowActions";
 import type { RowAction } from "../../components/ui/RowActions";
 import { usePermissions } from "../../api/permissions";
 import {
+  CopyUrlButton,
   ENDPOINT_LINKS,
   EndpointLink,
   REPRESENTATION_PATHS,
@@ -35,7 +36,6 @@ import { spaceOf } from "../../components/endpoints/sharing";
 import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
 import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
-import { CopyUrlButton } from "../../routes/EndpointsPage";
 import { CatalogSection } from "./CatalogSection";
 import { FilterProof, classesWithSlots } from "./FilterProof";
 import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
@@ -790,8 +790,9 @@ function FilterForm({
             {failure}
           </Alert>
         ) : null}
-        <fieldset className="space-y-2">
+        <fieldset className="space-y-2" aria-describedby="filter-types-help">
           <legend className="text-caption font-medium">{t("endpoints.filterEditor.types")}</legend>
+          <p id="filter-types-help" className="text-caption text-fg-muted">{t("endpoints.filterEditor.typesHelp")}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {storedClasses.map((klass) => (
               <Checkbox
@@ -815,7 +816,7 @@ function FilterForm({
             </InlineError>
           ) : null}
         </fieldset>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {FILTER_KEYS.map((key) => (
             <Field
               key={key}
@@ -843,9 +844,9 @@ function FilterForm({
             setDraft({ ...draft, q: andQ(draft.q, term) ?? "" })
           }
         />
-        <fieldset className="space-y-2">
+        <fieldset className="space-y-2" aria-describedby="filter-hidden-help">
           <legend className="text-caption font-medium">{t("endpoints.filterEditor.hidden")}</legend>
-          <p className="text-caption text-fg-muted">{t("endpoints.filterEditor.hiddenHelp")}</p>
+          <p id="filter-hidden-help" className="text-caption text-fg-muted">{t("endpoints.filterEditor.hiddenHelp")}</p>
           {classes.map((klass) => (
             <div key={klass.name} className="space-y-1">
               <p className="text-caption font-medium text-fg-muted">{klass.name}</p>
@@ -1177,6 +1178,7 @@ function AreaFromBox({ onSet }: { onSet: (geoQ: string) => void }): JSX.Element 
           <Field key={corner} id={`area-${corner}`} label={t(`endpoints.area.${corner}`)} className="w-28">
             <Input
               id={`area-${corner}`}
+              aria-describedby="area-hint"
               inputMode="decimal"
               value={box[corner] ?? ""}
               aria-invalid={shown && fault ? true : undefined}
@@ -1187,6 +1189,7 @@ function AreaFromBox({ onSet }: { onSet: (geoQ: string) => void }): JSX.Element 
         <Field id="area-property" label={t("endpoints.area.property")} className="w-40">
           <Input
             id="area-property"
+            aria-describedby="area-hint"
             value={property}
             onChange={(event) => setProperty(event.target.value)}
           />
@@ -1200,7 +1203,7 @@ function AreaFromBox({ onSet }: { onSet: (geoQ: string) => void }): JSX.Element 
           {t(`endpoints.area.fault.${fault}`)}
         </InlineError>
       ) : null}
-      <p className="text-caption text-fg-muted">{t("endpoints.area.hint")}</p>
+      <p id="area-hint" className="text-caption text-fg-muted">{t("endpoints.area.hint")}</p>
     </div>
   );
 }
@@ -1293,6 +1296,7 @@ function ConditionBuilder({
         <Field id="condition-attr" label={t("endpoints.condition.attribute")} className="min-w-40">
           <Select
             id="condition-attr"
+            aria-describedby="condition-hint"
             value={attr}
             onChange={(event) => {
               setAttr(event.target.value);
@@ -1311,6 +1315,7 @@ function ConditionBuilder({
         <Field id="condition-op" label={t("endpoints.condition.operator")} className="min-w-36">
           <Select
             id="condition-op"
+            aria-describedby="condition-hint"
             value={op}
             onChange={(event) => setOp(event.target.value as FilterOp)}
           >
@@ -1324,7 +1329,7 @@ function ConditionBuilder({
         {needsValue ? (
           <Field id="condition-value" label={t("endpoints.condition.value")} className="min-w-40">
             {enums[attr] && (op === "equals" || op === "notEquals") ? (
-              <Select id="condition-value" value={value} onChange={(event) => setValue(event.target.value)}>
+              <Select id="condition-value" aria-describedby="condition-hint" value={value} onChange={(event) => setValue(event.target.value)}>
                 <option value="">{t("form.choose")}</option>
                 {enums[attr].map((permitted) => (
                   <option key={permitted} value={permitted}>
@@ -1335,6 +1340,7 @@ function ConditionBuilder({
             ) : (
               <Input
                 id="condition-value"
+                aria-describedby="condition-hint"
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
               />
@@ -1350,7 +1356,7 @@ function ConditionBuilder({
           {invalid}
         </InlineError>
       ) : null}
-      <p className="text-caption text-fg-muted">{t("endpoints.condition.hint")}</p>
+      <p id="condition-hint" className="text-caption text-fg-muted">{t("endpoints.condition.hint")}</p>
     </div>
   );
 }
@@ -1363,6 +1369,7 @@ interface EndpointSpec {
   allowedProjects?: string[];
   policyRef?: string;
   enabledRepresentations?: string[];
+  disabledRepresentations?: string[];
   rateLimits?: { requestsPerMinute?: number; burst?: number };
   fileLimits?: { maxFileRows?: number; maxFileBytes?: number };
   caching?: { maxAgeSeconds?: number };
@@ -1564,7 +1571,7 @@ function Grant({ name }: { name: string }): JSX.Element {
 }
 
 function Facts({ children }: { children: ReactNode }): JSX.Element {
-  return <dl className="grid gap-3 sm:grid-cols-2">{children}</dl>;
+  return <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</dl>;
 }
 
 function Fact({ label, children }: { label: ReactNode; children: ReactNode }): JSX.Element {

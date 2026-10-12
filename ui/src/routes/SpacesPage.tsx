@@ -324,7 +324,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
         title={t("spaces.title")}
         description={t("spaces.lead")}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <PermissionGuard project={project} kind="ContextSpace" verb="propose">
               <Link
                 to="/projects/$project/spaces/complete"
@@ -332,6 +332,11 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
                 className={buttonClass("secondary", "md")}
               >
                 {t("spaces.complete.title")}
+              </Link>
+            </PermissionGuard>
+            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+              <Link to="/projects/$project/spaces/upload" params={{ project }} className={buttonClass("secondary", "md")}>
+                {t("spaces.upload.open")}
               </Link>
             </PermissionGuard>
             {addButton}

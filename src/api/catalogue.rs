@@ -858,18 +858,31 @@ fn endpoint_url(base: &Url, slug: &str) -> String {
     format!("{origin}/api/endpoint/{slug}/")
 }
 
-/// What an Endpoint spec serves: the listed representations, then `ngsi-ld` and `geojson`,
-/// which every Endpoint serves (EP-10, T-2939), and `mcp` unless `spec.mcp` is `false` (EP-24).
-/// The gateway reads the same rule from jc-core's `EndpointSpec::served_representations`, so
-/// the page and the instance agree.
+/// What an Endpoint spec serves: the listed representations or, with no list, every one but
+/// `sta` less `disabledRepresentations` (EP-104); then `ngsi-ld` and `geojson`, which every
+/// Endpoint serves (EP-10, T-2939), and `mcp` unless `spec.mcp` is `false` (EP-24). The gateway
+/// reads the same rule from jc-core's `EndpointSpec::served_representations`, and the default
+/// set is jc-core's `Representation::ALL`, so the page and the instance agree.
 pub(crate) fn served_representations(spec: &Value) -> Vec<String> {
-    let mut served: Vec<String> = spec["enabledRepresentations"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|r| r.as_str().map(str::to_owned))
-        .collect();
-    let mcp = (spec["mcp"] != Value::Bool(false)).then_some("mcp");
+    let names = |field: &str| -> Option<Vec<String>> {
+        spec[field].as_array().map(|list| {
+            list.iter()
+                .filter_map(|r| r.as_str().map(str::to_owned))
+                .collect()
+        })
+    };
+    let mcp_off = spec["mcp"] == Value::Bool(false);
+    let mut served: Vec<String> = names("enabledRepresentations").unwrap_or_else(|| {
+        let disabled = names("disabledRepresentations").unwrap_or_default();
+        jc_core::kinds::endpoint::Representation::ALL
+            .iter()
+            .map(|r| r.as_str())
+            .filter(|r| *r != "sta" && !(mcp_off && *r == "mcp"))
+            .filter(|r| !disabled.iter().any(|d| d == r))
+            .map(str::to_owned)
+            .collect()
+    });
+    let mcp = (!mcp_off).then_some("mcp");
     for always in ["ngsi-ld", "geojson"].into_iter().chain(mcp) {
         if !served.iter().any(|r| r == always) {
             served.push(always.to_owned());
@@ -1390,14 +1403,57 @@ classes:
             served(json!({ "enabledRepresentations": ["csv"], "mcp": false })),
             ["csv", "ngsi-ld", "geojson"]
         );
-        assert_eq!(
-            served(json!({ "mcp": true })),
-            ["ngsi-ld", "geojson", "mcp"]
-        );
+        let every_but_sta = [
+            "ngsi-ld",
+            "mcp",
+            "geojson",
+            "csv",
+            "xlsx",
+            "json",
+            "zip",
+            "ogc-features",
+            "odata",
+            "websocket",
+        ];
         assert_eq!(
             served(json!({})),
-            ["ngsi-ld", "geojson", "mcp"],
-            "a spec with no list still serves the uniform surface"
+            every_but_sta,
+            "a spec with no list serves every standard but sta (EP-104)"
+        );
+        assert_eq!(served(json!({ "mcp": true })), every_but_sta);
+        assert_eq!(
+            served(json!({ "disabledRepresentations": ["odata", "csv", "ngsi-ld"] })),
+            [
+                "mcp",
+                "geojson",
+                "xlsx",
+                "json",
+                "zip",
+                "ogc-features",
+                "websocket",
+                "ngsi-ld"
+            ],
+            "disabled ones are off, the uniform surface stays"
+        );
+        assert_eq!(
+            served(json!({ "mcp": false, "disabledRepresentations": ["websocket"] })),
+            [
+                "ngsi-ld",
+                "geojson",
+                "csv",
+                "xlsx",
+                "json",
+                "zip",
+                "ogc-features",
+                "odata"
+            ]
+        );
+        assert_eq!(
+            served(
+                json!({ "enabledRepresentations": ["sta"], "disabledRepresentations": ["csv"] })
+            ),
+            ["sta", "ngsi-ld", "geojson", "mcp"],
+            "a list wins; sta is served only where listed"
         );
     }
 }

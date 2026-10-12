@@ -128,10 +128,18 @@ spec:
     enabledRepresentations:
       widget: checkboxes
       help:
-        en: Output formats callers can request, such as JSON-LD, GeoJSON, CSV or spreadsheets.
-        sk: Výstupné formáty, ktoré môžu volajúci žiadať, napríklad JSON-LD, GeoJSON, CSV alebo tabuľky.
-        cs: Výstupní formáty, které mohou volající žádat, například JSON-LD, GeoJSON, CSV nebo tabulky.
-        de: Ausgabeformate, die Aufrufer anfordern können, wie JSON-LD, GeoJSON, CSV oder Tabellen.
+        en: >-
+          The standards callers can read it through. Every one but SensorThings is on until you
+          uncheck it; NGSI-LD, GeoJSON and MCP are always on.
+        sk: >-
+          Štandardy, cez ktoré ho volajúci môžu čítať. Všetky okrem SensorThings sú zapnuté, kým
+          ich neodškrtnete; NGSI-LD, GeoJSON a MCP sú zapnuté vždy.
+        cs: >-
+          Standardy, přes které jej volající mohou číst. Všechny kromě SensorThings jsou zapnuté,
+          dokud je neodškrtnete; NGSI-LD, GeoJSON a MCP jsou zapnuté vždy.
+        de: >-
+          Die Standards, über die Aufrufer lesen können. Alle außer SensorThings sind an, bis Sie
+          sie abwählen; NGSI-LD, GeoJSON und MCP sind immer an.
     allowedProjects:
       help:
         en: Other projects in the organization permitted to read this endpoint when audience is restricted.
