@@ -2,7 +2,7 @@
 # and air quality, read live from the praha-mesto space (T-2785, T-2907). Hand written, so no
 # generated-by annotation.
 #
-# It reads and never writes, so it is `static`: a bundle the Portal static host serves under
+# It reads and never writes, so it is `ui`: a bundle the Portal static host serves under
 # /apps/praha-mesto/, calling its endpoint with the reader's own token (AP-07).
 apiVersion: joinedcontext.com/v1alpha1
 kind: App
@@ -20,7 +20,7 @@ metadata:
     cs: "Sdílená kola nextbike, parkoviště P+R a kvalita ovzduší z otevřených dat Prahy, živě z prostoru praha-mesto."
     en: "nextbike shared bikes, park-and-ride car parks and air quality from Prague's open data, live from the praha-mesto space."
 spec:
-  kind: static
+  kind: ui
   source:
     path: ./apps/praha-mesto
   build:
