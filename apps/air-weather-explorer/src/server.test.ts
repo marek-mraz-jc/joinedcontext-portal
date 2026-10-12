@@ -45,6 +45,34 @@ describe("airApi", () => {
     await expect(api.open("abc123def456")).rejects.toMatchObject({ status: 0 });
   });
 
+  // T-3827: who calls, their places, a steward's marks and the history, each at its route.
+  it("calls each route of the roles with its method and body, and reads a 204 as nothing", async () => {
+    const fetch = vi.fn(async (_url: string, init?: RequestInit) => (init?.method === "PUT" || init?.method === "DELETE" ? new Response(null, { status: 204 }) : answer(200, [])));
+    vi.stubGlobal("fetch", fetch);
+    const api = airApi("/a");
+    await api.me();
+    await api.places();
+    await api.addPlace({ station: "s", name: "Koti", attr: "pm25", threshold: 10 });
+    await expect(api.changePlace(3, "Koti", 12)).resolves.toBeUndefined();
+    await api.removePlace(3);
+    await api.faults("urn:ngsi-ld:AirQualityObserved:a&b");
+    await api.markFault({ station: "s", from: 1, to: 2, note: "x" });
+    await api.unmarkFault(4);
+    await api.history();
+    expect(fetch.mock.calls.map(([url, init]) => `${init?.method} ${url}`)).toEqual([
+      "GET /a/me",
+      "GET /a/places",
+      "POST /a/places",
+      "PUT /a/places/3",
+      "DELETE /a/places/3",
+      "GET /a/faults?station=urn%3Angsi-ld%3AAirQualityObserved%3Aa%26b",
+      "POST /a/faults",
+      "DELETE /a/faults/4",
+      "GET /a/history",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[3][1]?.body as string)).toEqual({ name: "Koti", threshold: 12 });
+  });
+
   it("takes only a code the server could have made, and links the page with it alone", () => {
     expect(isCode("abc123def456")).toBe(true);
     for (const wrong of ["", "abc", "ABC123DEF456", "abc123def45/"]) expect(isCode(wrong)).toBe(false);

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
-import { BASE, serve } from "./serve";
+import { BASE, STEWARD, VIEWER, serve } from "./serve";
 
 // T-3330, UI-84, SDK-12: the comparison at a phone, a tablet, a laptop and a wall, light and dark,
 // with the WebAssembly statistics run in their worker under the static host's policy: no sideways
@@ -51,6 +51,52 @@ for (const scheme of ["light", "dark"] as const) {
       await panel.getByRole("button", { name: "Close" }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
       expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+
+// T-3827: a viewer keeps a place and finds it in their history; a steward marks a station's
+// readings faulty and the comparison leaves those hours out. At a phone and a laptop, light and dark.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a viewer keeps a place, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, VIEWER);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await expect(page.getByLabel("Your role: Viewer")).toBeVisible();
+      await expect(page.getByText("Only a steward marks readings faulty.")).toBeVisible();
+      await page.getByRole("button", { name: "My places" }).click();
+      const add = page.getByRole("form", { name: "Add the place" });
+      await expect(add.getByRole("textbox", { name: "Name" })).toHaveValue("Kallio 2");
+      await add.getByRole("button", { name: "Add the place" }).click();
+      await expect(page.getByRole("status")).toHaveText("Place added: Kallio 2.");
+      await expect(page.getByRole("link", { name: "Open in the comparison: Kallio 2" })).toBeVisible();
+      await testInfo.attach(`places-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "History" }).click();
+      await expect(page.getByText(/kept the place Kallio 2/)).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+
+    test(`${scheme} at ${width} px: a steward marks readings faulty, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, STEWARD);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE);
+      await expect(page.getByLabel("Your role: Steward")).toBeVisible();
+      const form = page.getByRole("form", { name: "Mark faulty" });
+      await form.getByLabel("Reason").fill("sensor cleaned");
+      await form.getByRole("button", { name: "Mark faulty" }).click();
+      await expect(page.getByText("Marked faulty.")).toBeVisible();
+      await expect(page.getByText("6 hours left out as faulty.")).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Take the mark back: / })).toBeVisible();
+      await testInfo.attach(`faults-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "History" }).click();
+      await expect(page.getByText(/marked faulty: sensor cleaned/)).toBeVisible();
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
     });
   }
 }

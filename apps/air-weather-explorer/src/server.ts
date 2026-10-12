@@ -28,6 +28,47 @@ export interface Comparison {
   variable: Variable | null;
 }
 
+/** The signed-in person as the App's server knows them, `null` when signed out. */
+export interface Me {
+  id: string;
+  name: string;
+  roles: string[];
+}
+
+/** A place a reader keeps: an air quality station, a pollutant, the level that alerts them. */
+export interface NewPlace {
+  station: string;
+  name: string;
+  attr: "pm10" | "pm25" | "airQualityIndex";
+  threshold: number;
+}
+
+/** A kept place, with the latest hourly mean the server holds for it (`null` before any). */
+export interface Place extends NewPlace {
+  id: number;
+  latest: number | null;
+  latestHour: number | null;
+}
+
+/** A period of a station's readings a steward marked faulty, in epoch milliseconds. */
+export interface Fault {
+  id: number;
+  station: string;
+  from: number;
+  to: number;
+  note: string;
+}
+
+/** One change as the history keeps it. */
+export interface HistoryRow {
+  id: number;
+  at: string;
+  actorName: string;
+  action: "insert" | "update" | "delete" | "edit";
+  target: string;
+  summary: string;
+}
+
 /** Where the server answers: `/apps/{appName}/api`, the App's name from `#jc-config`. */
 export function apiBase(doc: Document = document): string {
   const text = doc.getElementById("jc-config")?.textContent ?? "";
@@ -61,7 +102,7 @@ async function call<T>(base: string, method: string, path: string, body?: unknow
     const problem = (await answer.json().catch(() => ({}))) as { detail?: unknown };
     throw new ServerProblem(answer.status, typeof problem.detail === "string" ? problem.detail : "");
   }
-  return (await answer.json()) as T;
+  return (answer.status === 204 ? undefined : await answer.json()) as T;
 }
 
 export function airApi(base: string) {
@@ -71,6 +112,15 @@ export function airApi(base: string) {
     save: (comparison: Comparison) => call<{ code: string; name: string | null }>(base, "POST", "/comparisons", comparison),
     open: (code: string) => call<Comparison & { code: string }>(base, "GET", `/comparisons/${encodeURIComponent(code)}`),
     exportUrl: async (air: string, weather: string, days: number) => (await call<{ url: string }>(base, "POST", "/exports", { air, weather, days })).url,
+    me: () => call<Me | null>(base, "GET", "/me"),
+    places: () => call<Place[]>(base, "GET", "/places"),
+    addPlace: (place: NewPlace) => call<Place>(base, "POST", "/places", place),
+    changePlace: (id: number, name: string, threshold: number) => call<void>(base, "PUT", `/places/${id}`, { name, threshold }),
+    removePlace: (id: number) => call<void>(base, "DELETE", `/places/${id}`),
+    faults: (station: string) => call<Fault[]>(base, "GET", `/faults?${new URLSearchParams({ station }).toString()}`),
+    markFault: (fault: Omit<Fault, "id">) => call<Fault>(base, "POST", "/faults", fault),
+    unmarkFault: (id: number) => call<void>(base, "DELETE", `/faults/${id}`),
+    history: () => call<HistoryRow[]>(base, "GET", "/history"),
   };
 }
 
