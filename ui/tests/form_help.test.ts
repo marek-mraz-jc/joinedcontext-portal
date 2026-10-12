@@ -28,6 +28,7 @@ import { modelProjectionSchema } from "../src/schemas/modelprojection";
 import { assistantDeploymentSchema, knowledgeSourceSchema } from "../src/schemas/knowledge";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
+import { mqttBrokerSchema } from "../src/schemas/mqttbroker";
 
 const LOCALES = ["en", "sk", "cs", "de"] as const;
 
@@ -53,7 +54,7 @@ const FORMS: Record<string, JsonSchema[]> = {
   ContextSpace: [kinds.contextSpaceSchema(t)],
   Endpoint: [kinds.endpointSchema(t, ["helsinki"], ["helsinki"])],
   DataSource: kinds.DATA_SOURCE_TYPES.map((type) =>
-    kinds.dataSourceSchema(t, type, ["hsl-api-token"]),
+    kinds.dataSourceSchema(t, type, ["hsl-api-token"], [{ name: "cameras", publish: ["cameras/+/frames"] }]),
   ),
   SyncSource: kinds.SYNC_ORIGINS.map((origin) =>
     kinds.syncSourceSchema(t, origin, ["forge-token"]),
@@ -76,6 +77,7 @@ const FORMS: Record<string, JsonSchema[]> = {
   // A role form offers the kinds its author holds and free text when the permissions document has
   // not arrived, so both branches are arranged by the one manifest (T-2400).
   Role: [kinds.roleSchema(t), kinds.roleSchema(t, ["Pipeline", "DataSource"], ["propose"])],
+  MqttBroker: [mqttBrokerSchema(t)],
   Group: [kinds.groupSchema(t)],
   Subscription: [kinds.subscriptionSchema(t, ["ovzdusie"], ["dispecing-hook"])],
   ServiceAccount: [kinds.serviceAccountSchema(t, ["ovzdusie"])],
