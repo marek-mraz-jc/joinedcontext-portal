@@ -15,6 +15,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/activity", "the runner's OTLP ingest: a workload writes what happened, nobody calls it"),
 ("GET", "/apps/{name}/", "a published application, served as files"),
 ("GET", "/apps/{name}/{*path}", "a published application, served as files"),
+("GET", "/docs/{chapter}/{page}", "the public API and User Guide pages as HTML for anyone, no data (T-4063, API/00 §1)"),
 ("GET", "/templates/{name}", "an App template's demo on its fixtures, served as files, no data (AP-141)"),
 ("GET", "/templates/{name}/", "an App template's demo on its fixtures, served as files, no data (AP-141)"),
 ("GET", "/templates/assets/{file}", "the App templates' demo bundle, served as files (AP-141)"),

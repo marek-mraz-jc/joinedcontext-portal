@@ -231,10 +231,10 @@ async fn a_project_is_duplicated_into_a_repository_of_its_own() {
         ".jc/layout is left as it is"
     );
     assert_eq!(written["CODEOWNERS"], "* @test-owner/doprava-writers\n");
-    let project: Value = serde_yaml_ng::from_str(&written["project.yaml"]).expect("yaml");
+    let project: Value = serde_norway::from_str(&written["project.yaml"]).expect("yaml");
     assert_eq!(project["metadata"]["name"], "doprava");
     let endpoint: Value =
-        serde_yaml_ng::from_str(&written["spaces/ovzdusie/endpoints/air.yaml"]).expect("yaml");
+        serde_norway::from_str(&written["spaces/ovzdusie/endpoints/air.yaml"]).expect("yaml");
     assert_eq!(endpoint["metadata"]["namespace"], "doprava");
     let slug = endpoint["spec"]["slug"].as_str().unwrap_or_default();
     assert_ne!(slug, SLUG, "the copy does not answer at the origin's URL");
@@ -263,7 +263,7 @@ async fn a_project_is_duplicated_into_a_repository_of_its_own() {
     .unwrap_or_default();
     let entry = jc_core::kinds::Project::from_yaml(&yaml).unwrap_or_else(|e| panic!("{e}: {yaml}"));
     assert!(entry.spec.is_registry_entry());
-    let entry: Value = serde_yaml_ng::from_str(&yaml).expect("yaml");
+    let entry: Value = serde_norway::from_str(&yaml).expect("yaml");
     assert_eq!(entry["spec"]["repository"]["name"], "doprava");
     assert_eq!(entry["spec"]["parameters"]["audience"], "organization");
 

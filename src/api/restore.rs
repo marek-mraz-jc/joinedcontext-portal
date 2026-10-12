@@ -115,7 +115,7 @@ pub async fn restore_change_for(
         // Every file answers to a kind: a manifest to its own, a native file (a LinkML source, a
         // bento.yaml) to the kind its directory names, the way an approval reads it (T-1400). A
         // file of no kind is restored by nobody, as it is approved by nobody.
-        let manifest = serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content).ok();
+        let manifest = serde_norway::from_str::<ResourceEnvelope>(&file.content).ok();
         let kind = match &manifest {
             Some(envelope) => envelope.kind.clone(),
             None => crate::api::import::native_kind(path)
@@ -280,7 +280,7 @@ pub async fn undo_change_for(
                 "'{path}' is not in the commit change {id} was cut from; it cannot be undone"
             ))
         })?;
-        let manifest = serde_yaml_ng::from_str::<ResourceEnvelope>(&before.content).ok();
+        let manifest = serde_norway::from_str::<ResourceEnvelope>(&before.content).ok();
         let kind = match &manifest {
             Some(envelope) => envelope.kind.clone(),
             None => crate::api::import::native_kind(path)
@@ -424,7 +424,7 @@ pub async fn change_manifests_for(
             continue;
         };
         // A native file (a LinkML source, a bento.yaml) is no manifest and is left out.
-        let Ok(envelope) = serde_yaml_ng::from_str::<ResourceEnvelope>(&read.content) else {
+        let Ok(envelope) = serde_norway::from_str::<ResourceEnvelope>(&read.content) else {
             continue;
         };
         if effective.may_read(&envelope.kind) {

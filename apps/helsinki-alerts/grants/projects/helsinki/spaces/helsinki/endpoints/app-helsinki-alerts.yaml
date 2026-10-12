@@ -19,6 +19,7 @@ spec:
   enabledRepresentations:
   - ngsi-ld
   - geojson
+  - ogc-features
   roles:
   - name: viewer
     subjects:

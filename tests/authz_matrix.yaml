@@ -166,6 +166,10 @@ routes:
   - route: GET /metrics
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /docs/{chapter}/{page}
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+    note: "the public API and User Guide pages, signed in or not (T-4063)"
   - route: GET /openapi.json
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]

@@ -201,7 +201,7 @@ impl Branding {
                 return Self::default();
             }
         };
-        match serde_yaml_ng::from_str::<Self>(&text) {
+        match serde_norway::from_str::<Self>(&text) {
             Ok(branding) => branding.sanitised(),
             Err(err) => {
                 tracing::warn!(%path, error = %err, "branding file is not valid YAML, serving defaults");
@@ -823,7 +823,7 @@ languages:
     fn a_documentation_url_that_is_not_an_absolute_web_address_is_dropped() {
         // An installation that says nothing serves no guide.
         assert_eq!(Branding::default().documentation_base_url, "");
-        let quiet: Branding = serde_yaml_ng::from_str("instanceName: \"Test\"\n").unwrap();
+        let quiet: Branding = serde_norway::from_str("instanceName: \"Test\"\n").unwrap();
         assert_eq!(quiet.sanitised().documentation_base_url, "");
 
         for value in [
@@ -880,11 +880,11 @@ languages:
         assert_eq!(Branding::default().validation, Validation::Strict);
 
         let yaml = "instanceName: \"Test\"\nvalidation: lax\n";
-        let branding: Branding = serde_yaml_ng::from_str(yaml).unwrap();
+        let branding: Branding = serde_norway::from_str(yaml).unwrap();
         assert_eq!(branding.validation, Validation::Lax);
 
         let yaml_strict = "instanceName: \"Test\"\nvalidation: strict\n";
-        let branding_strict: Branding = serde_yaml_ng::from_str(yaml_strict).unwrap();
+        let branding_strict: Branding = serde_norway::from_str(yaml_strict).unwrap();
         assert_eq!(branding_strict.validation, Validation::Strict);
     }
 }

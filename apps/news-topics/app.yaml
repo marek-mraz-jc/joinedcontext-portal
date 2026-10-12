@@ -58,4 +58,4 @@ spec:
       types: [NewsArticle]
       attrs: [name, description, url, datePublished, source]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

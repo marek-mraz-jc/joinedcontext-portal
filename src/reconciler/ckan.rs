@@ -30,9 +30,9 @@ use jcctl::commands::publish_ckan::{self as publisher, Target};
 use jcctl::loader::{RawManifest, RawMetadata, Repository, ResourceId};
 use jcctl::publish::ckan::{CkanApi, Measurements, Outcome, Settings};
 use jcctl::publish::ckan_http::HttpCkan;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// What one run did with one Endpoint's publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +94,9 @@ pub struct CkanSync {
         Arc<crate::quality::Store>,
         Arc<crate::quality_checks::Readings>,
     )>,
+    /// What the log last said of each `(project, endpoint)`, so an outcome is logged when it
+    /// changes and not once a sync (T-4065).
+    said: Arc<Mutex<HashMap<(String, String), String>>>,
 }
 
 impl CkanSync {
@@ -103,6 +106,7 @@ impl CkanSync {
             settings: Settings::new(host),
             age_key_file: None,
             quality: None,
+            said: Arc::default(),
         }
     }
 
@@ -200,7 +204,51 @@ impl CkanSync {
             let measured = Measurements::default();
             reports.push(self.one(&target, true, repository, measured).await);
         }
+        self.log(&reports);
         reports
+    }
+
+    /// One log line per Endpoint whose outcome changed since the last run, and one per write:
+    /// the catalogue's state was told only to the activity feed, so a dataset that failed every
+    /// sync for hours said so nowhere an operator reads (T-4065). A reason is the publisher's
+    /// own sentence, which never carries the token (EP-67).
+    /// Returns the lines it logged.
+    pub fn log(&self, reports: &[Report]) -> Vec<String> {
+        let mut logged = Vec::new();
+        let Ok(mut said) = self.said.lock() else {
+            return logged;
+        };
+        for report in reports {
+            let (line, wrote) = match &report.publication {
+                Publication::Published { outcome, rows, .. } => (
+                    match rows {
+                        Some(rows) => format!("{} (sheet of {rows} rows)", outcome_word(*outcome)),
+                        None => outcome_word(*outcome).to_owned(),
+                    },
+                    matches!(outcome, Outcome::Created | Outcome::Updated),
+                ),
+                Publication::Withdrawn { .. } => ("withdrawn".to_owned(), true),
+                Publication::Failed(reason) => (format!("failed: {reason}"), false),
+            };
+            let key = (report.project.clone(), report.endpoint.clone());
+            if !wrote && said.get(&key) == Some(&line) {
+                continue;
+            }
+            let dataset = match &report.publication {
+                Publication::Published { dataset, .. } | Publication::Withdrawn { dataset } => {
+                    dataset.as_str()
+                }
+                Publication::Failed(_) => "",
+            };
+            if matches!(report.publication, Publication::Failed(_)) {
+                tracing::warn!(project = %report.project, endpoint = %report.endpoint, outcome = %line, "catalogue");
+            } else {
+                tracing::info!(project = %report.project, endpoint = %report.endpoint, %dataset, outcome = %line, "catalogue");
+            }
+            logged.push(format!("{}/{}: {line}", report.project, report.endpoint));
+            said.insert(key, line);
+        }
+        logged
     }
 
     /// One Endpoint: resolve the token, then publish or withdraw on a blocking thread.
@@ -265,8 +313,43 @@ pub fn publish_one(
 ) -> Result<Publication, String> {
     let record = publisher::record(target, settings).map_err(|err| err.to_string())?;
     let record = jcctl::publish::ckan::measured(&record, measured);
-    let rows = publisher::rows(target, settings).map_err(|err| err.to_string())?;
-    publish_with(api, target, &record, rows.as_ref(), settings)
+    match publisher::rows(target, settings) {
+        Ok(rows) => publish_with(api, target, &record, rows.as_ref(), settings),
+        Err(err) => publish_without_rows(api, target, &record, &err.to_string(), settings),
+    }
+}
+
+/// The dataset brought to its record when the sheet's rows did not read, and a failure that
+/// says so: the rows were read first and their failure skipped the dataset too, so
+/// helsinki-transport kept the resources of 05:28 while its Endpoint gained `/ws` (T-4065).
+/// The sheet keeps what it holds until a run reads the rows again.
+pub fn publish_without_rows(
+    api: &mut impl CkanApi,
+    target: &Target,
+    record: &serde_json::Value,
+    unread: &str,
+    settings: &Settings,
+) -> Result<Publication, String> {
+    let mut dataset_only = target.clone();
+    dataset_only.publication.datastore = None;
+    let outcome = match publish_with(api, &dataset_only, record, None, settings)? {
+        Publication::Published { outcome, .. } => outcome_word(outcome),
+        _ => "not published",
+    };
+    Err(format!(
+        "the dataset is {outcome}, its sheet was not refreshed: {unread}"
+    ))
+}
+
+/// The word a log line and a failure say for what happened to a dataset.
+fn outcome_word(outcome: Outcome) -> &'static str {
+    match outcome {
+        Outcome::Created => "created",
+        Outcome::Updated => "updated",
+        Outcome::Unchanged => "unchanged",
+        Outcome::NotPublished => "not published",
+        Outcome::Withdrawn => "withdrawn",
+    }
 }
 
 /// The catalogue half of a publication: the dataset and the sheet, from a record already read.

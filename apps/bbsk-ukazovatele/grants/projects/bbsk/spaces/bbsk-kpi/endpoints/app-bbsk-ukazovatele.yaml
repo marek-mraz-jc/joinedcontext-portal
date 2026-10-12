@@ -18,4 +18,5 @@ spec:
     name: bbsk-kpi
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   slug: lzeplkk2ymndc6s5ktxa5doe6z

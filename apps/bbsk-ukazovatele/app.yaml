@@ -43,7 +43,7 @@ spec:
       # PF-54 fixes the attribute set; the app reads all of it and writes none of it.
       attrs: [name, currentValue, calculationPeriod, calculationFormula, derivedFrom, computedBy, updatedAt]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]
     # The further space (AP-04, T-2933): the district outlines of the region's register, read only
     # through that space's public Endpoint `bbsk-registre`. Compiled into no grant: that endpoint
     # already answers anyone, and the map draws each district in the colour of its indicator.

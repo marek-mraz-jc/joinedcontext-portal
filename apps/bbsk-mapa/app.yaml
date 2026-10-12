@@ -37,4 +37,4 @@ spec:
       types: [Hospital, SocialService, PublicOrganization]
       attrs: [name, location, address, districtName, url, hospitalKind, serviceForm, organizationCategory, operatorName, medicalSpecialties, serviceKind, targetGroup, capacity, providerKind]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

@@ -53,7 +53,7 @@ spec:
       operations: [queryEntity, retrieveEntity, queryTemporal, retrieveTemporal]
       temporalQ:
         window: P7D
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]
     - contextSpaceRef:
         kind: ContextSpace
         name: helsinki

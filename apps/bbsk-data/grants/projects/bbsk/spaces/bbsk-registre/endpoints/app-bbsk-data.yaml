@@ -18,4 +18,5 @@ spec:
   - ngsi-ld
   - geojson
   - csv
+  - ogc-features
   slug: tw3jx6pcam2qzk7nre5bdv4yfh

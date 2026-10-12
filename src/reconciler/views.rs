@@ -424,7 +424,7 @@ fn model_source(repo: &Repository, project: &str, name: &str) -> Result<ModelSou
     let mut todo = vec![(project.to_owned(), source.clone())];
     while let Some((importer, text)) = todo.pop() {
         // A source that does not parse is Model Tools' message to give.
-        let Ok(document) = serde_yaml_ng::from_str::<Value>(&text) else {
+        let Ok(document) = serde_norway::from_str::<Value>(&text) else {
             continue;
         };
         for import in ModelImport::all_in(&document).map_err(|err| err.to_string())? {
@@ -868,12 +868,12 @@ fn granted(
 
 /// The space model's documents, its own source and every import, as YAML; one that does not
 /// parse is left out, as Model Tools would refuse it.
-fn parsed(model: &ModelSource) -> Vec<serde_yaml_ng::Value> {
+fn parsed(model: &ModelSource) -> Vec<serde_norway::Value> {
     std::iter::once(&model.source)
         .chain(model.imports.values())
         .map(String::as_str)
         .chain([NGSI_LD_CORE])
-        .filter_map(|text| serde_yaml_ng::from_str(text).ok())
+        .filter_map(|text| serde_norway::from_str(text).ok())
         .collect()
 }
 
@@ -884,23 +884,23 @@ const NGSI_LD_CORE: &str = "classes:\n  Entity: {slots: [location]}\n";
 /// The Attributes of `class` in the model: its `slots` and inline `attributes` and those of
 /// every class it reaches through `is_a` and `mixins`, without the identifier slots (the
 /// Entity's `id` and `type` are no Attribute). `None` when the model has no such class.
-fn class_slots(model: &[serde_yaml_ng::Value], class: &str) -> Option<BTreeSet<String>> {
+fn class_slots(model: &[serde_norway::Value], class: &str) -> Option<BTreeSet<String>> {
     let find = |section: &str, name: &str| {
         model
             .iter()
             .find_map(|doc| doc.get(section).and_then(|entries| entries.get(name)))
     };
-    let names = |value: Option<&serde_yaml_ng::Value>| -> Vec<String> {
+    let names = |value: Option<&serde_norway::Value>| -> Vec<String> {
         match value {
-            Some(serde_yaml_ng::Value::Sequence(items)) => items
+            Some(serde_norway::Value::Sequence(items)) => items
                 .iter()
                 .filter_map(|item| item.as_str().map(str::to_owned))
                 .collect(),
-            Some(serde_yaml_ng::Value::Mapping(entries)) => entries
+            Some(serde_norway::Value::Mapping(entries)) => entries
                 .keys()
                 .filter_map(|key| key.as_str().map(str::to_owned))
                 .collect(),
-            Some(serde_yaml_ng::Value::String(one)) => vec![one.clone()],
+            Some(serde_norway::Value::String(one)) => vec![one.clone()],
             _ => Vec::new(),
         }
     };
@@ -923,7 +923,7 @@ fn class_slots(model: &[serde_yaml_ng::Value], class: &str) -> Option<BTreeSet<S
     slots.retain(|slot| {
         let identifier = find("slots", slot)
             .and_then(|definition| definition.get("identifier"))
-            .and_then(serde_yaml_ng::Value::as_bool)
+            .and_then(serde_norway::Value::as_bool)
             .unwrap_or(false);
         !identifier && slot != "id" && slot != "type"
     });
@@ -935,7 +935,7 @@ fn class_slots(model: &[serde_yaml_ng::Value], class: &str) -> Option<BTreeSet<S
 /// rule 11). A type shown whole with no class in the model is refused, never written empty.
 fn listed(
     shown: BTreeMap<String, Option<BTreeSet<String>>>,
-    model: Option<&[serde_yaml_ng::Value]>,
+    model: Option<&[serde_norway::Value]>,
 ) -> Result<BTreeMap<String, BTreeSet<String>>, String> {
     shown
         .into_iter()

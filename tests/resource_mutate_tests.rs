@@ -1859,7 +1859,7 @@ async fn participant_forge(branches: u64, on_main: Option<&serde_json::Value>) -
     let file = match on_main {
         Some(manifest) => ResponseTemplate::new(200).set_body_json(json!({
             "sha": "sha-participant",
-            "content": STANDARD.encode(serde_yaml_ng::to_string(manifest).expect("yaml")),
+            "content": STANDARD.encode(serde_norway::to_string(manifest).expect("yaml")),
         })),
         None => ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })),
     };

@@ -129,7 +129,7 @@ fn archive_carrying(
     edit(&mut files);
     files.push((
         "bundle.yaml".into(),
-        serde_yaml_ng::to_string(&index).expect("yaml").into_bytes(),
+        serde_norway::to_string(&index).expect("yaml").into_bytes(),
     ));
     let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     for (path, bytes) in &files {
@@ -428,7 +428,7 @@ async fn an_export_imports_as_a_new_project() {
             )
         })
         .collect();
-    let app: Value = serde_yaml_ng::from_str(&written["apps/air-map/app.yaml"]).expect("yaml");
+    let app: Value = serde_norway::from_str(&written["apps/air-map/app.yaml"]).expect("yaml");
     assert_eq!(app["metadata"]["namespace"], "doprava");
     assert!(
         app["spec"]["source"]["git"]["url"]
@@ -465,7 +465,7 @@ async fn an_export_imports_as_a_new_project() {
             .unwrap_or_default(),
     )
     .unwrap_or_default();
-    let entry: Value = serde_yaml_ng::from_str(&yaml).expect("yaml");
+    let entry: Value = serde_norway::from_str(&yaml).expect("yaml");
     assert_eq!(entry["spec"]["repository"]["name"], "doprava");
     assert_eq!(entry["spec"]["parameters"]["audience"], "organization");
     assert!(sent(&server, "DELETE", NEW).await.is_empty());
@@ -766,7 +766,7 @@ async fn a_carried_model_that_differs_lands_in_the_project() {
         })
         .collect();
     let manifest: Value =
-        serde_yaml_ng::from_str(&written["datamodels/stations/stations.yaml"]).expect("manifest");
+        serde_norway::from_str(&written["datamodels/stations/stations.yaml"]).expect("manifest");
     assert_eq!(manifest["metadata"]["namespace"], "doprava");
     assert_eq!(manifest["spec"]["version"], "1.3.0");
     assert_eq!(manifest["spec"]["origin"]["project"], "ovzdusie");

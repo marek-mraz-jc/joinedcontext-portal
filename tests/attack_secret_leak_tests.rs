@@ -131,7 +131,7 @@ async fn forge_with_change() -> MockServer {
             "metadata": { "name": "mobility", "namespace": "ovzdusie" },
             "spec": { "isSandbox": age == "new", "auth": Value::Object(auth) },
         });
-        let yaml = serde_yaml_ng::to_string(&manifest).expect("yaml");
+        let yaml = serde_norway::to_string(&manifest).expect("yaml");
         Mock::given(method("GET"))
             .and(path(format!(
                 "{}/contents/projects/ovzdusie/spaces/mobility/space.yaml",

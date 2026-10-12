@@ -218,7 +218,7 @@ async fn a_project_member_proposes_a_red_change_that_copies_the_source_byte_for_
         "the source changed on its way"
     );
     let manifest: Value =
-        serde_yaml_ng::from_str(file(&files, "datamodels/air/air.yaml")).expect("yaml");
+        serde_norway::from_str(file(&files, "datamodels/air/air.yaml")).expect("yaml");
     assert_eq!(manifest["metadata"]["namespace"], ORG_NAMESPACE);
     assert!(
         manifest["spec"].get("contextSpaceRef").is_none(),
@@ -339,7 +339,7 @@ async fn a_second_share_from_the_same_origin_proposes_the_next_version() {
     assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
     let files = written(&gitea).await;
     let manifest: Value =
-        serde_yaml_ng::from_str(file(&files, "datamodels/air/air.yaml")).expect("yaml");
+        serde_norway::from_str(file(&files, "datamodels/air/air.yaml")).expect("yaml");
     assert_eq!(manifest["spec"]["version"], "1.1.0", "{manifest}");
     assert_eq!(manifest["spec"]["origin"]["version"], "1.2.0");
     assert_eq!(file(&files, ORG_SOURCE_PATH), SOURCE);
@@ -357,7 +357,7 @@ async fn a_second_share_from_the_same_origin_proposes_the_next_version() {
     assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
     let files = written(&gitea).await;
     let manifest: Value =
-        serde_yaml_ng::from_str(file(&files, "datamodels/air/air.yaml")).expect("yaml");
+        serde_norway::from_str(file(&files, "datamodels/air/air.yaml")).expect("yaml");
     assert_eq!(manifest["spec"]["version"], "2.0.0", "{manifest}");
     file(&files, "datamodels/air/json-schema/air.v2.json");
 
@@ -425,7 +425,7 @@ async fn share_pull(gitea: &MockServer) {
         .and(query_param("ref", branch))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "sha": "sha-share",
-            "content": encode(&serde_yaml_ng::to_string(&manifest).expect("yaml"))
+            "content": encode(&serde_norway::to_string(&manifest).expect("yaml"))
         })))
         .with_priority(1)
         .mount(gitea)

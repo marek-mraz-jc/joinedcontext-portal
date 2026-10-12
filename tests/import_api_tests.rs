@@ -279,7 +279,7 @@ fn state_with(
     );
     let mirror = Arc::new(Mirror::new());
     for yaml in existing {
-        let mut envelope: ResourceEnvelope = serde_yaml_ng::from_str(yaml).expect("manifest");
+        let mut envelope: ResourceEnvelope = serde_norway::from_str(yaml).expect("manifest");
         envelope.metadata.namespace = Some(PROJECT.to_string());
         mirror.upsert(envelope);
     }
@@ -701,7 +701,7 @@ async fn the_readme_and_schemas_of_a_complete_export_are_never_written_into_the_
 async fn a_manifest_posted_as_json_is_imported_too() {
     let server = forge().await;
     let (state, cookie) = state(&server, vec![]);
-    let manifest: Value = serde_yaml_ng::from_str(SPACE).expect("the space parses");
+    let manifest: Value = serde_norway::from_str(SPACE).expect("the space parses");
     let body = json!({ "manifests": { "apiVersion": "joinedcontext.com/v1alpha1",
                                       "kind": "List", "items": [manifest] } });
     let (status, answer) = post(
@@ -725,7 +725,7 @@ async fn a_manifest_posted_as_json_is_imported_too() {
 async fn a_dry_run_asked_for_in_the_query_writes_nothing_either() {
     let server = forge().await;
     let (state, cookie) = state(&server, vec![]);
-    let manifest: Value = serde_yaml_ng::from_str(SPACE).expect("the space parses");
+    let manifest: Value = serde_norway::from_str(SPACE).expect("the space parses");
     let body = json!({ "manifests": { "apiVersion": "joinedcontext.com/v1alpha1",
                                       "kind": "List", "items": [manifest] } });
     let app = server::app(state);
@@ -1311,8 +1311,8 @@ fn sha256(bytes: &[u8]) -> String {
 /// A manifest as the exporter writes it: parsed and serialised back by the platform's own type,
 /// which is the form both sides hash.
 fn exported(manifest: &str) -> String {
-    let envelope: ResourceEnvelope = serde_yaml_ng::from_str(manifest).expect("the fixture parses");
-    serde_yaml_ng::to_string(&envelope).expect("serialises")
+    let envelope: ResourceEnvelope = serde_norway::from_str(manifest).expect("the fixture parses");
+    serde_norway::to_string(&envelope).expect("serialises")
 }
 
 /// The index of `bundle_archive()` with a checksum per file, as the current exporter writes it.
@@ -1666,15 +1666,15 @@ spec:
 "#;
 
 fn endpoint_only(mapping: Value) -> Vec<u8> {
-    let endpoint: Value = serde_yaml_ng::from_str(ENDPOINT).expect("the endpoint parses");
+    let endpoint: Value = serde_norway::from_str(ENDPOINT).expect("the endpoint parses");
     serde_json::to_vec(&json!({ "manifests": [endpoint], "spaceMapping": mapping })).expect("body")
 }
 
 /// The endpoint with the Policy that selects its entities, which is where the URNs a mapping has
 /// to move actually live (R6).
 fn endpoint_and_policy(mapping: Value) -> Vec<u8> {
-    let endpoint: Value = serde_yaml_ng::from_str(ENDPOINT).expect("the endpoint parses");
-    let policy: Value = serde_yaml_ng::from_str(POLICY).expect("the policy parses");
+    let endpoint: Value = serde_norway::from_str(ENDPOINT).expect("the endpoint parses");
+    let policy: Value = serde_norway::from_str(POLICY).expect("the policy parses");
     serde_json::to_vec(&json!({ "manifests": [endpoint, policy], "spaceMapping": mapping }))
         .expect("body")
 }
@@ -1912,7 +1912,7 @@ async fn post_padded_space(upload_megabytes: u32) -> (StatusCode, Value, MockSer
             },
         })],
     );
-    let manifest: Value = serde_yaml_ng::from_str(SPACE).expect("the space parses");
+    let manifest: Value = serde_norway::from_str(SPACE).expect("the space parses");
     let mut body = serde_json::to_vec(&json!({ "manifests": { "apiVersion": API_VERSION,
                                       "kind": "List", "items": [manifest] } }))
     .expect("body");

@@ -57,4 +57,4 @@ spec:
       # reads: the counts, the capacity, whether the station is in service and where it is.
       attrs: [name, location, availableBikeNumber, freeSlotNumber, totalSlotNumber, status, dateModified]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

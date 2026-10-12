@@ -248,5 +248,12 @@ describe("a steward", () => {
     expect(await said("Ändringarna kunde inte läsas: store down")).toBeInTheDocument();
     await page("Störningar");
     expect(await screen.findByText("Mina filter")).toBeInTheDocument();
+    // The SDK shell's own controls speak Swedish too (T-4008): the panel's close and the language.
+    fireEvent.click((await screen.findAllByRole("button", { name: /^Detaljer: / }))[0]);
+    const panel = await screen.findByRole("dialog");
+    fireEvent.click(within(panel).getByRole("button", { name: "Stäng" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.change(screen.getByRole("combobox", { name: "Språk" }), { target: { value: "en" } });
+    expect(new URLSearchParams(window.location.search).get("lang")).toBe("en");
   }, SWEEP);
 });

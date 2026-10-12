@@ -233,7 +233,7 @@ async fn waiting_change(awaited_state: &str, merged: bool) -> (MockServer, AppSt
         "metadata": { "name": "air", "namespace": PROJECT },
         "spec": { "dataModelRef": "air" }
     });
-    let manifest = serde_yaml_ng::to_string(&space).expect("yaml");
+    let manifest = serde_norway::to_string(&space).expect("yaml");
     Mock::given(method("GET"))
         .and(path(format!(
             "{REPO}/contents/projects/{PROJECT}/spaces/air/space.yaml"
