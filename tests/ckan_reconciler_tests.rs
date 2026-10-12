@@ -14,7 +14,7 @@ use jcctl::commands::publish_ckan::{Rows, Target};
 use jcctl::loader::{RawManifest, RawMetadata, ResourceId};
 use jcctl::publish::ckan::{InMemoryCkan, Outcome, Settings};
 use joinedcontext_portal::reconciler::ckan::{
-    publish_with, withdrawn, CkanSync, Publication, Report,
+    publish_with, publish_without_rows, withdrawn, CkanSync, Publication, Report,
 };
 use joinedcontext_portal::resource::ResourceEnvelope;
 use joinedcontext_portal::store::Mirror;
@@ -564,4 +564,138 @@ fn a_datasets_measurements_are_read_by_its_spaces_segment() {
     let repo = jcctl::loader::Repository::load(&repository).expect("an empty repository");
     let measured = sync.measured(&repo, &target("helsinki-bikes", "public", dataset_only()));
     assert_eq!(measured.pass_rate, Some(0.75));
+}
+
+/// T-4065: an Endpoint that starts serving its WebSocket brings the dataset a resource for it,
+/// whose URL ends `/ws` and whose description links the guide.
+#[test]
+fn an_endpoint_gaining_websocket_updates_its_dataset_with_the_ws_resource() {
+    let mut api = InMemoryCkan::new()
+        .with_organization("hel-fi")
+        .with_token(TOKEN);
+    let settings = settings().documented_at("https://docs.example.fi");
+    let before = target("helsinki-transport", "public", dataset_only());
+    publish_with(&mut api, &before, &record(), None, &settings).expect("the first run");
+
+    let mut after = before.clone();
+    after.manifest.spec["enabledRepresentations"] = json!(["ngsi-ld", "csv", "websocket"]);
+    let published =
+        publish_with(&mut api, &after, &record(), None, &settings).expect("it publishes");
+    assert!(
+        matches!(
+            published,
+            Publication::Published {
+                outcome: Outcome::Updated,
+                ..
+            }
+        ),
+        "{published:?}"
+    );
+    assert_eq!(api.actions().last(), Some(&"package_update"));
+    let package = api.package("helsinki-transport").expect("the dataset");
+    let ws = package["resources"]
+        .as_array()
+        .expect("resources")
+        .iter()
+        .find(|resource| {
+            resource["url"]
+                .as_str()
+                .is_some_and(|url| url.ends_with("/ws"))
+        })
+        .expect("a WebSocket resource");
+    assert_eq!(ws["format"], "WebSocket");
+    let description = ws["description"].as_str().unwrap_or_default();
+    assert!(
+        description.contains("https://docs.example.fi/API/07-websocket"),
+        "{description}"
+    );
+}
+
+/// T-4065: rows that do not read (the gateway timing out on a whole Endpoint's CSV) no longer
+/// keep the dataset at its old resources: it is updated, the sheet keeps what it holds, and the
+/// run fails naming the reason and never the token.
+#[test]
+fn rows_that_do_not_read_still_bring_the_dataset_to_its_record() {
+    let mut api = InMemoryCkan::new()
+        .with_organization("hel-fi")
+        .with_token(TOKEN);
+    let mut target = target("helsinki-transport", "public", with_sheet());
+    publish_with(
+        &mut api,
+        &target,
+        &record(),
+        Some(&answer(ROWS)),
+        &settings(),
+    )
+    .expect("first run");
+    let sheet = api.package("helsinki-transport").expect("the dataset")["resources"]
+        .as_array()
+        .expect("resources")
+        .iter()
+        .filter(|resource| resource["url_type"] == "datastore")
+        .count();
+    assert!(sheet > 0, "the first run made a sheet");
+
+    target.manifest.spec["enabledRepresentations"] = json!(["ngsi-ld", "csv", "websocket"]);
+    let unread = "the gateway did not answer file.csv: operation timed out";
+    let failed = publish_without_rows(&mut api, &target, &record(), unread, &settings())
+        .expect_err("the sheet was not refreshed");
+    assert_eq!(
+        failed,
+        format!("the dataset is updated, its sheet was not refreshed: {unread}")
+    );
+    let package = api.package("helsinki-transport").expect("the dataset");
+    let resources = package["resources"].as_array().expect("resources");
+    assert!(resources
+        .iter()
+        .any(|r| r["url"].as_str().is_some_and(|url| url.ends_with("/ws"))));
+    assert_eq!(
+        resources
+            .iter()
+            .filter(|r| r["url_type"] == "datastore")
+            .count(),
+        sheet,
+        "the sheet is kept"
+    );
+    assert!(!failed.contains(TOKEN));
+}
+
+/// T-4065: the log says each Endpoint's outcome when it changes, every write, and a failure
+/// again only when its reason changes.
+#[test]
+fn the_log_says_an_outcome_once_per_change_and_every_write() {
+    let sync = CkanSync::new(HOST);
+    let report = |publication: Publication| Report {
+        project: PROJECT.to_owned(),
+        endpoint: "helsinki-transport".to_owned(),
+        publication,
+    };
+    let published = |outcome| {
+        report(Publication::Published {
+            dataset: "helsinki-transport".to_owned(),
+            outcome,
+            rows: None,
+            no_linkml: false,
+        })
+    };
+    let failed = report(Publication::Failed("the gateway answered 429".to_owned()));
+    assert_eq!(
+        sync.log(std::slice::from_ref(&failed)),
+        ["helsinki/helsinki-transport: failed: the gateway answered 429"]
+    );
+    assert!(
+        sync.log(&[failed]).is_empty(),
+        "the same failure is said once"
+    );
+    assert_eq!(sync.log(&[published(Outcome::Updated)]).len(), 1);
+    assert_eq!(
+        sync.log(&[published(Outcome::Updated)]).len(),
+        1,
+        "every write is said"
+    );
+    assert_eq!(
+        sync.log(&[published(Outcome::Unchanged)]),
+        ["helsinki/helsinki-transport: unchanged"]
+    );
+    assert!(sync.log(&[published(Outcome::Unchanged)]).is_empty());
 }
