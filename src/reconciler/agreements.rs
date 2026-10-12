@@ -8,7 +8,9 @@
 //!
 //! | dimension | rule |
 //! |---|---|
-//! | operations, types, attributes | the offer's, copied; the agreement names none of its own |
+//! | assignee | only the offered Endpoints' public Policies are copied; a ServiceAccount's, role's or group's grant stays theirs |
+//! | operations | the Policy's, cut to the offer's ODRL permission actions; an action outside CIM 009 and `odrl:read` is refused |
+//! | types, attributes | the offer's, copied; the agreement names none of its own |
 //! | `q`, `scopeQ` | conjunction of both: a filter the agreement did not repeat stays in force |
 //! | `geoQ`, `temporalQ` | the offer's, or the agreement's where the offer names none; two different ones are refused |
 //! | validity | the overlap of the agreement's period and the Policy's own |
@@ -23,9 +25,10 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use jc_core::kinds::{
-    AgreementRole, AgreementState, DataAgreementSpec, DataOfferSpec, PolicySpec, Principal,
-    PrincipalKind, Validity,
+    AgreementRole, AgreementState, DataAgreementSpec, DataOfferSpec, Operation, OperationGroup,
+    OperationRef, PolicySpec, Principal, PrincipalKind, Validity,
 };
+use serde_json::Value;
 
 /// Why an agreement compiles into nothing.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -47,6 +50,9 @@ pub enum CompileError {
         dimension: &'static str,
         asked: String,
     },
+    /// The offer's ODRL names an action that is no CIM 009 operation (R8, R26).
+    #[error("the offer's action {0:?} is not a CIM 009 operation or odrl:read (R8)")]
+    UnknownAction(String),
     /// The agreement's period and the offer's do not overlap.
     #[error("the agreement's period and the offered Policy's do not overlap (DS-10)")]
     NoOverlap,
@@ -54,11 +60,13 @@ pub enum CompileError {
 
 /// The Policies one agreement becomes, each under a name of its own in the offer's space.
 ///
-/// `offered` is every Policy bound to an Endpoint of the offer, by manifest name: the ceiling.
-/// A consumer-side agreement grants nothing here: its data is the other participant's.
+/// `offered` is every Policy bound to an Endpoint of the offer, by manifest name, and `actions`
+/// the offer's ODRL permission actions ([`offer_actions`]): together the ceiling. A
+/// consumer-side agreement grants nothing here: its data is the other participant's.
 pub fn compile(
     name: &str,
     agreement: &DataAgreementSpec,
+    actions: &[Operation],
     offered: &[(String, PolicySpec)],
 ) -> Result<Vec<(String, PolicySpec)>, CompileError> {
     if agreement.role != AgreementRole::Provider {
@@ -70,9 +78,6 @@ pub fn compile(
     ) {
         return Err(CompileError::NotAccepted(agreement.state.as_str()));
     }
-    if !offered.iter().any(|(_, p)| !p.effect.is_prohibition()) {
-        return Err(CompileError::GrantsNothing);
-    }
     let did = Principal {
         kind: PrincipalKind::Did,
         id: agreement.remote_participant.as_str().to_owned(),
@@ -83,6 +88,16 @@ pub fn compile(
         let mut granted = policy.clone();
         granted.assignee = did.clone();
         if !policy.effect.is_prohibition() {
+            if !is_public(&policy.assignee) {
+                continue;
+            }
+            granted.operations = expand(&policy.operations)
+                .filter(|op| actions.contains(op))
+                .map(OperationRef::Single)
+                .collect();
+            if granted.operations.is_empty() {
+                continue;
+            }
             granted.q = conjunction(policy.q.as_deref(), wanted.q.as_deref());
             granted.scope_q = conjunction(policy.scope_q.as_deref(), wanted.scope_q.as_deref());
             granted.geo_q = fence("geoQ", policy.geo_q.as_deref(), wanted.geo_q.as_deref())?;
@@ -95,7 +110,59 @@ pub fn compile(
         }
         compiled.push((format!("agreement-{name}-{policy_name}"), granted));
     }
+    if !compiled.iter().any(|(_, p)| !p.effect.is_prohibition()) {
+        return Err(CompileError::GrantsNothing);
+    }
     Ok(compiled)
+}
+
+/// What anyone may read: the only grant an offer exposes to a participant (DS-03).
+fn is_public(assignee: &Principal) -> bool {
+    assignee.kind == PrincipalKind::Role && assignee.id == "public"
+}
+
+/// The single operations of a list of operations and groups.
+fn expand(refs: &[OperationRef]) -> impl Iterator<Item = Operation> + '_ {
+    refs.iter()
+        .flat_map(|r| match r {
+            OperationRef::Single(op) => std::slice::from_ref(op),
+            OperationRef::Group(group) => group.operations(),
+        })
+        .copied()
+}
+
+/// The operations the offer's ODRL `permission` actions name (DS-07, R26): CIM 009 operations
+/// and groups, `ngsi-ld:` prefixed or not, and `odrl:read` as `retrieveOps`. Anything else is
+/// refused: an action the mapping does not know cannot be held to.
+pub fn offer_actions(policy: &Value) -> Result<Vec<Operation>, CompileError> {
+    let mut names = Vec::new();
+    for rule in policy
+        .get("permission")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        match rule.get("action") {
+            Some(Value::Array(actions)) => names.extend(actions.iter().cloned()),
+            Some(action) => names.push(action.clone()),
+            None => {}
+        }
+    }
+    let mut operations = Vec::new();
+    for action in names {
+        let name = match &action {
+            Value::String(name) => name.as_str(),
+            other => other.get("@id").and_then(Value::as_str).unwrap_or_default(),
+        };
+        let bare = name.strip_prefix("ngsi-ld:").unwrap_or(name);
+        let parsed = match bare {
+            "odrl:read" | "read" => Ok(OperationRef::Group(OperationGroup::RetrieveOps)),
+            _ => serde_json::from_value::<OperationRef>(Value::String(bare.to_owned())),
+        };
+        let parsed = parsed.map_err(|_| CompileError::UnknownAction(action.to_string()))?;
+        operations.extend(expand(std::slice::from_ref(&parsed)));
+    }
+    Ok(operations)
 }
 
 /// Both filters at once (NGSI-LD `;` is AND), the offer's alone when the agreement adds none.
@@ -171,7 +238,8 @@ pub fn compile_all(
                         }
                     }
                 }
-                compile(name, agreement, &offered)
+                offer_actions(&offer.policy)
+                    .and_then(|actions| compile(name, agreement, &actions, &offered))
                     .map(|policies| (offer.context_space_ref.clone(), policies))
             }
         };
@@ -197,6 +265,16 @@ mod tests {
     use serde_json::json;
 
     const DID: &str = "did:web:partner.example";
+
+    /// `compile` under an offer whose ODRL permits `odrl:read`.
+    fn compile_read(
+        name: &str,
+        agreement: &DataAgreementSpec,
+        offered: &[(String, PolicySpec)],
+    ) -> Result<Vec<(String, PolicySpec)>, CompileError> {
+        let read = offer_actions(&json!({"permission": [{"action": "odrl:read"}]})).unwrap();
+        compile(name, agreement, &read, offered)
+    }
 
     fn offered() -> Vec<(String, PolicySpec)> {
         let permit: PolicySpec = serde_json::from_value(json!({
@@ -228,7 +306,7 @@ mod tests {
 
     #[test]
     fn an_accepted_agreement_grants_the_offer_to_its_did_narrowed_and_in_its_period() {
-        let compiled = compile(
+        let compiled = compile_read(
             "partner",
             &agreement(
                 "accepted",
@@ -265,7 +343,7 @@ mod tests {
     fn nothing_is_granted_before_acceptance_or_after_termination() {
         for state in ["requested", "offered", "terminated"] {
             assert!(matches!(
-                compile("p", &agreement(state, json!({})), &offered()),
+                compile_read("p", &agreement(state, json!({})), &offered()),
                 Err(CompileError::NotAccepted(_))
             ));
         }
@@ -283,25 +361,25 @@ mod tests {
                 json!({"temporalQ": "timerel=after;timeAt=2020-01-01T00:00:00Z"}),
             ),
         ] {
-            match compile("p", &agreement("finalized", constraints), &fenced) {
+            match compile_read("p", &agreement("finalized", constraints), &fenced) {
                 Err(CompileError::Widens { dimension: d, .. }) => assert_eq!(d, dimension),
                 other => panic!("{dimension}: {other:?}"),
             }
         }
         // The same fence repeated is not a widening.
         let same = json!({"geoQ": "georel=within;geometry=Polygon"});
-        assert!(compile("p", &agreement("finalized", same), &fenced).is_ok());
+        assert!(compile_read("p", &agreement("finalized", same), &fenced).is_ok());
     }
 
     #[test]
     fn an_offer_that_permits_nothing_grants_nothing() {
         let only_prohibition = vec![offered().remove(1)];
         assert_eq!(
-            compile("p", &agreement("accepted", json!({})), &only_prohibition),
+            compile_read("p", &agreement("accepted", json!({})), &only_prohibition),
             Err(CompileError::GrantsNothing)
         );
         assert_eq!(
-            compile("p", &agreement("accepted", json!({})), &[]),
+            compile_read("p", &agreement("accepted", json!({})), &[]),
             Err(CompileError::GrantsNothing)
         );
     }
@@ -312,7 +390,7 @@ mod tests {
         ended[0].1.validity =
             Some(serde_json::from_value(json!({"to": "2026-09-01T00:00:00Z"})).unwrap());
         assert_eq!(
-            compile("p", &agreement("accepted", json!({})), &ended),
+            compile_read("p", &agreement("accepted", json!({})), &ended),
             Err(CompileError::NoOverlap)
         );
     }
@@ -321,7 +399,7 @@ mod tests {
     fn a_consumer_agreement_and_a_missing_offer_grant_nothing() {
         let mut consumer = agreement("accepted", json!({}));
         consumer.role = AgreementRole::Consumer;
-        assert_eq!(compile("p", &consumer, &offered()), Ok(Vec::new()));
+        assert_eq!(compile_read("p", &consumer, &offered()), Ok(Vec::new()));
         let none = compile_all(
             &[(
                 "helsinki".into(),
@@ -332,5 +410,69 @@ mod tests {
             |_, _| offered(),
         );
         assert!(none.is_empty());
+    }
+
+    /// The integrator's case: an offered Endpoint carrying a public read Policy and a
+    /// ServiceAccount's write Policy gives the DID the read alone, under the offer's actions.
+    #[test]
+    fn only_the_public_grant_is_offered_and_only_within_the_offers_actions() {
+        let mut both = offered();
+        let pipeline: PolicySpec = serde_json::from_value(json!({
+            "contextSpaceRef": "air", "assigner": "did:web:hel.fi",
+            "assignee": {"kind": "serviceAccount", "id": "air-pipeline"},
+            "operations": ["updateOps", "createEntity", "queryEntity"],
+            "information": [{"entities": [{"type": "AirQualityObserved"}]}]
+        }))
+        .expect("a write Policy");
+        both.push(("pipeline-writes".into(), pipeline));
+        both[0].1.operations = vec![
+            OperationRef::Group(OperationGroup::RetrieveOps),
+            OperationRef::Single(Operation::CreateEntity),
+        ];
+        let compiled =
+            compile_read("p", &agreement("accepted", json!({})), &both).expect("compiles");
+        let names: Vec<&str> = compiled.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["agreement-p-open", "agreement-p-no-people"]);
+        let (_, permit) = &compiled[0];
+        assert!(!permit.operations.is_empty());
+        assert!(
+            permit.operations.iter().all(|op| !op.is_write()),
+            "{:?}",
+            permit.operations
+        );
+
+        // An offer that permits queryEntity alone narrows the group to it.
+        let query = offer_actions(&json!({"permission": [{"action": ["ngsi-ld:queryEntity"]}]}))
+            .expect("a CIM 009 action");
+        let narrowed = compile("p", &agreement("accepted", json!({})), &query, &both).unwrap();
+        assert_eq!(
+            narrowed[0].1.operations,
+            [OperationRef::Single(Operation::QueryEntity)]
+        );
+        // An offer whose actions meet none of the public grant's operations grants nothing.
+        let write = offer_actions(&json!({"permission": [{"action": "updateOps"}]})).unwrap();
+        let mut read_only = offered();
+        read_only.truncate(1);
+        assert_eq!(
+            compile("p", &agreement("accepted", json!({})), &write, &read_only),
+            Err(CompileError::GrantsNothing)
+        );
+    }
+
+    #[test]
+    fn an_offer_action_outside_cim_009_is_refused() {
+        for action in [json!("odrl:use"), json!("ngsi-ld:launchMissiles"), json!(7)] {
+            assert!(
+                matches!(
+                    offer_actions(&json!({"permission": [{"action": action.clone()}]})),
+                    Err(CompileError::UnknownAction(_))
+                ),
+                "{action}"
+            );
+        }
+        assert_eq!(
+            offer_actions(&json!({"permission": [{"action": {"@id": "ngsi-ld:retrieveEntity"}}]})),
+            Ok(vec![Operation::RetrieveEntity])
+        );
     }
 }
