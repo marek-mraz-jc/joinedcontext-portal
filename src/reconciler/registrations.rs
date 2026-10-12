@@ -52,6 +52,9 @@ pub struct RegistrationSync {
     broker: String,
     /// Every other broker's address, `{broker}` replaced by its name (PF-111).
     template: Option<String>,
+    /// The Context Gateway as this Portal reaches it, without a trailing slash: where a
+    /// caller-identity registration names its member Endpoint (T-3999, PF-113).
+    gateway: Option<String>,
 }
 
 impl RegistrationSync {
@@ -64,7 +67,16 @@ impl RegistrationSync {
                 .unwrap_or_default(),
             broker: broker.into().trim_end_matches('/').to_owned(),
             template: None,
+            gateway: None,
         }
+    }
+
+    /// Names each member Endpoint on the gateway at `gateway` (`JC_PORTAL_GATEWAY_URL`), so a
+    /// `federation.identity: caller` registration can render; without it such a registration is
+    /// refused as unresolved (T-4022).
+    pub fn with_gateway(mut self, gateway: Option<String>) -> Self {
+        self.gateway = gateway.map(|g| g.trim_end_matches('/').to_owned());
+        self
     }
 
     /// Reaches a space on a broker other than `main` at `template` (`JC_PORTAL_BROKER_URL_TEMPLATE`).
@@ -155,7 +167,7 @@ impl RegistrationSync {
     /// space is. A member of another project resolves to nothing, which is PF-48's boundary
     /// again after the manifest's own validation (`validate_scope`).
     fn members_of(&self, mirror: &Mirror, project: &str) -> impl Fn(&str) -> Option<MemberSource> {
-        let spaces: BTreeMap<String, (String, String)> = mirror
+        let spaces: BTreeMap<String, MemberSource> = mirror
             .list(project, "Endpoint", &crate::store::ListOptions::default())
             .items
             .into_iter()
@@ -165,23 +177,23 @@ impl RegistrationSync {
                     .get("contextSpaceRef")
                     .and_then(crate::resource::reference_name)?
                     .to_owned();
+                let gateway = envelope
+                    .spec
+                    .get("slug")
+                    .and_then(Value::as_str)
+                    .zip(self.gateway.as_deref())
+                    .map(|(slug, base)| format!("{base}/api/endpoint/{slug}"));
                 Some((
                     envelope.metadata.name,
-                    (
-                        self.ngsi_ld(mirror, project, &space)?,
-                        crate::spaces::segment(mirror, project, &space),
-                    ),
+                    MemberSource {
+                        endpoint: self.ngsi_ld(mirror, project, &space)?,
+                        tenant: crate::spaces::segment(mirror, project, &space),
+                        gateway,
+                    },
                 ))
             })
             .collect();
-        move |name: &str| {
-            spaces.get(name).map(|(endpoint, space)| MemberSource {
-                endpoint: endpoint.clone(),
-                tenant: space.clone(),
-                // T-4022 passes the member Endpoint's gateway URL; until it lands, unknown.
-                gateway: None,
-            })
-        }
+        move |name: &str| spaces.get(name).cloned()
     }
 
     /// Creates the registration, or patches the one that is already there.
@@ -436,6 +448,78 @@ mod tests {
         for member in ["Authorization", TENANT_HEADER] {
             assert!(!text.contains(member), "{member} is in the body: {text}");
         }
+    }
+
+    /// T-4022 (PF-113): read as the caller, the member is its Endpoint on the gateway with the
+    /// request's own `Authorization` passed on, and no tenant; read as a ServiceAccount it is
+    /// still the broker's tenant. Without the gateway's address a caller registration does not
+    /// render.
+    #[test]
+    fn a_caller_registration_names_the_member_endpoint_on_the_gateway() {
+        let caller = |name: &str| {
+            let mut manifest = csr(
+                name,
+                json!({ "kind": "Endpoint", "name": "transport-read" }),
+            );
+            manifest.spec["federation"] = json!({ "identity": "caller" });
+            manifest
+        };
+        let mirror = mirror_with(vec![
+            caller("as-caller"),
+            csr(
+                "as-account",
+                json!({ "kind": "Endpoint", "name": "transport-read" }),
+            ),
+            envelope(
+                "Endpoint",
+                "transport-read",
+                json!({ "contextSpaceRef": "transport", "slug": "k7m2qz4tv6xh3n5jb2ryd3wcfa" }),
+            ),
+            envelope("ContextSpace", "hub", json!({ "urnSegment": "hub" })),
+        ]);
+        let (declared, _) = declared(&mirror);
+        let manifest = |name: &str| {
+            declared
+                .iter()
+                .find(|d| d.1 == name)
+                .map(|d| d.4.clone())
+                .expect("declared")
+        };
+        let sync = RegistrationSync::new("http://context-broker:8080").with_gateway(Some(
+            "http://context-gateway.platform.svc.cluster.local:8080/".into(),
+        ));
+        let members = sync.members_of(&mirror, "helsinki");
+
+        let body = registration(&manifest("as-caller"), &members).expect("renders");
+        assert_eq!(
+            body["endpoint"],
+            json!("http://context-gateway.platform.svc.cluster.local:8080/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa")
+        );
+        assert_eq!(
+            body["contextSourceInfo"],
+            json!([{ "key": "Authorization", "value": "urn:ngsi-ld:request" }])
+        );
+        assert!(body.get("tenant").is_none(), "{body}");
+        // the marker only: no token and no account in what the broker stores
+        let text = body.to_string();
+        assert!(
+            !text.contains("Bearer") && !text.contains("hub-reader"),
+            "{text}"
+        );
+
+        let body = registration(&manifest("as-account"), &members).expect("renders");
+        assert_eq!(
+            body["endpoint"],
+            json!("http://context-broker:8080/ngsi-ld/v1")
+        );
+        assert_eq!(body["tenant"], json!("helsinki-transport"));
+        assert!(body.get("contextSourceInfo").is_none(), "{body}");
+
+        let without = RegistrationSync::new("http://context-broker:8080");
+        assert!(matches!(
+            registration(&manifest("as-caller"), &without.members_of(&mirror, "helsinki")),
+            Err(jcctl::csr::CsrError::UnresolvedEndpoint(name)) if name == "transport-read"
+        ));
     }
 
     /// PF-111: a member on broker `canary` is read at the canary's address; one whose space
