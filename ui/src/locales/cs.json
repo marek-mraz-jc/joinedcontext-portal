@@ -3085,7 +3085,7 @@
       "noBuilder": "Toto nasazení nemá agenta pro stavbu aplikací, takže zde aplikaci vygenerovat nelze. Agent Runner je volitelný doplněk; požádejte správce o jeho instalaci.",
       "examplesHint": "Dvě aplikace dodávané s platformou jsou hotové příklady stejného tvaru:",
       "examples": {
-        "hsl-transport": "Autobusy živě: 30 vozidel na mapě, veřejné a jen ke čtení",
+        "hsl-transport": "HSL živě: až 90 vozidel všech druhů dopravy na mapě, odjezdy a dopravní hlášení, veřejné a jen ke čtení",
         "air-quality": "Kvalita ovzduší: stanice, denní historie a poznámka správce"
       },
       "needs": {

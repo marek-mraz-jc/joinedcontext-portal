@@ -3085,7 +3085,7 @@
       "noBuilder": "Diese Installation hat keinen Bau-Agenten, hier lässt sich also keine Anwendung erzeugen. Der Agent Runner ist ein optionales Zusatzmodul; bitten Sie Ihre Administration darum.",
       "examplesHint": "Die beiden mitgelieferten Anwendungen sind ausgearbeitete Beispiele derselben Form:",
       "examples": {
-        "hsl-transport": "Busse live: 30 Fahrzeuge auf einer Karte, öffentlich und nur lesend",
+        "hsl-transport": "HSL live: bis zu 90 Fahrzeuge aller Verkehrsmittel auf einer Karte, Abfahrten und Störungsmeldungen, öffentlich und nur lesend",
         "air-quality": "Luftqualität: Stationen, ein Tag Verlauf und eine Notiz der Betreuung"
       },
       "needs": {
