@@ -10043,6 +10043,251 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelinetemplates": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List Pipeline Templates",
+        "description": "The pipelines this project saved to start from, newest first (T-3976).",
+        "operationId": "list_pipeline_templates",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No project whose pipelines the caller reads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Save a Pipeline Template",
+        "description": "Keeps a Pipeline manifest's spec without its secretRefs, its source and target references and its space, as a template of the project. A credential written out is refused (T-3976).",
+        "operationId": "create_pipeline_template",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplate"
+              },
+              "example": {
+                "manifest": {
+                  "apiVersion": "joinedcontext.com/v1alpha2",
+                  "kind": "Pipeline",
+                  "metadata": {
+                    "name": "aq-mqtt-ingest",
+                    "namespace": "banskabystrica"
+                  },
+                  "spec": {
+                    "class": "resident",
+                    "outputs": [
+                      {
+                        "mode": "upsert",
+                        "targetEndpoint": "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:air",
+                        "type": "AirQualityObserved"
+                      }
+                    ],
+                    "secretRefs": [
+                      {
+                        "envVar": "MQTT_PASSWORD",
+                        "key": "password",
+                        "name": "mqtt-credentials"
+                      }
+                    ],
+                    "sources": [
+                      {
+                        "dataSourceRef": {
+                          "kind": "DataSource",
+                          "name": "aq-mqtt"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "title": "MQTT sensor feed"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The saved template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineTemplate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Pipeline, a credential written out, no title or too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No `propose` on Pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No project whose pipelines the caller reads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The project holds the most templates it may",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/pipelinetemplates/{id}": {
+      "delete": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Delete a Pipeline Template",
+        "description": "Removes one template of the project; pipelines made from it are not touched (T-3976).",
+        "operationId": "delete_pipeline_template",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The template's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No `propose` on Pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such template in a project the caller reads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/registry": {
       "get": {
         "tags": [
@@ -17253,6 +17498,24 @@
         },
         "additionalProperties": false
       },
+      "CreateTemplate": {
+        "type": "object",
+        "required": [
+          "title",
+          "manifest"
+        ],
+        "properties": {
+          "manifest": {
+            "type": "object",
+            "description": "A Pipeline manifest; only its `spec` is kept, without what belongs to the project."
+          },
+          "title": {
+            "type": "string",
+            "description": "What the gallery shows, 1 to 120 characters."
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateView": {
         "type": "object",
         "required": [
@@ -20156,6 +20419,35 @@
           }
         }
       },
+      "PipelineTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "spec",
+          "createdBy",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "object",
+            "description": "The pipeline's spec without `secretRefs`, source and target references or a space."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "PipelineTestSample": {
         "type": "object",
         "description": "The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).\njcctl's `Sample` carries no schema; this is its shape, turned into it by `From` below, so a\nfield jcctl gains or loses fails to compile here instead of drifting from the document.",
@@ -22351,6 +22643,21 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "TemplateList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineTemplate"
+            },
+            "description": "The project's templates, newest first."
           }
         }
       },

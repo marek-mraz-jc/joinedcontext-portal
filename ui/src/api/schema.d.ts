@@ -2401,6 +2401,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelinetemplates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pipeline Templates
+         * @description The pipelines this project saved to start from, newest first (T-3976).
+         */
+        get: operations["list_pipeline_templates"];
+        put?: never;
+        /**
+         * Save a Pipeline Template
+         * @description Keeps a Pipeline manifest's spec without its secretRefs, its source and target references and its space, as a template of the project. A credential written out is refused (T-3976).
+         */
+        post: operations["create_pipeline_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelinetemplates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a Pipeline Template
+         * @description Removes one template of the project; pipelines made from it are not touched (T-3976).
+         */
+        delete: operations["delete_pipeline_template"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/registry": {
         parameters: {
             query?: never;
@@ -4236,6 +4280,12 @@ export interface components {
             /** @description Who may reach the published application. `public` is refused (AP-42). */
             visibility?: string;
         };
+        CreateTemplate: {
+            /** @description A Pipeline manifest; only its `spec` is kept, without what belongs to the project. */
+            manifest: Record<string, never>;
+            /** @description What the gallery shows, 1 to 120 characters. */
+            title: string;
+        };
         CreateView: {
             config?: components["schemas"]["ViewConfig"];
             kind: string;
@@ -5261,6 +5311,15 @@ export interface components {
             /** @description The run with the latest line first, at most 200. */
             items: components["schemas"]["PipelineRun"][];
         };
+        PipelineTemplate: {
+            /** Format: date-time */
+            createdAt: string;
+            createdBy: string;
+            id: string;
+            /** @description The pipeline's spec without `secretRefs`, source and target references or a space. */
+            spec: Record<string, never>;
+            title: string;
+        };
         /**
          * @description The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).
          *     jcctl's `Sample` carries no schema; this is its shape, turned into it by `From` below, so a
@@ -6059,6 +6118,10 @@ export interface components {
             name: string;
             purpose: string;
             title: string;
+        };
+        TemplateList: {
+            /** @description The project's templates, newest first. */
+            items: components["schemas"]["PipelineTemplate"][];
         };
         /** @description The request of API/01 §7a. */
         TestRequest: {
@@ -13844,6 +13907,207 @@ export interface operations {
             };
             /** @description The log could not be read */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_pipeline_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The project's templates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No project whose pipelines the caller reads */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_pipeline_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "manifest": {
+                 *         "apiVersion": "joinedcontext.com/v1alpha2",
+                 *         "kind": "Pipeline",
+                 *         "metadata": {
+                 *           "name": "aq-mqtt-ingest",
+                 *           "namespace": "banskabystrica"
+                 *         },
+                 *         "spec": {
+                 *           "class": "resident",
+                 *           "outputs": [
+                 *             {
+                 *               "mode": "upsert",
+                 *               "targetEndpoint": "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:air",
+                 *               "type": "AirQualityObserved"
+                 *             }
+                 *           ],
+                 *           "secretRefs": [
+                 *             {
+                 *               "envVar": "MQTT_PASSWORD",
+                 *               "key": "password",
+                 *               "name": "mqtt-credentials"
+                 *             }
+                 *           ],
+                 *           "sources": [
+                 *             {
+                 *               "dataSourceRef": {
+                 *                 "kind": "DataSource",
+                 *                 "name": "aq-mqtt"
+                 *               }
+                 *             }
+                 *           ]
+                 *         }
+                 *       },
+                 *       "title": "MQTT sensor feed"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateTemplate"];
+            };
+        };
+        responses: {
+            /** @description The saved template */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineTemplate"];
+                };
+            };
+            /** @description Not a Pipeline, a credential written out, no title or too large */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No `propose` on Pipeline */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No project whose pipelines the caller reads */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project holds the most templates it may */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_pipeline_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The template's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No `propose` on Pipeline */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such template in a project the caller reads */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
