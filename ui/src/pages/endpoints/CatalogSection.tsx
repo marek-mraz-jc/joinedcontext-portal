@@ -93,7 +93,7 @@ export function CatalogSection({
 
   return (
     <div className="space-y-3">
-      <dl className="grid gap-3 sm:grid-cols-2">
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Fact label={t("endpoints.page.catalog.publisher")}>
           {publisher ? (
             catalog.publisher?.uri ? <External href={catalog.publisher.uri}>{publisher}</External> : publisher

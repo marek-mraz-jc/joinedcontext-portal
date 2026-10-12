@@ -1,8 +1,8 @@
 import { useId, useRef, useState } from "react";
 import type { JSX } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { ApiError, queryKeys } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, localized, ORG_NAMESPACE } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
@@ -33,6 +33,7 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { useReadableList } from "../../api/permissions";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { usePeopleChoices } from "../organization/People";
 
@@ -137,19 +138,6 @@ function reasonOf(error: unknown, fallback: string): string {
   return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
 }
 
-function useList(project: string, plural: string, enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.list(project, plural),
-    enabled,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project, plural } },
-        }),
-      ),
-  });
-}
-
 /**
  * Giving people or a group a role (AG-77, PF-52): who, which role, where and until when, proposed
  * as a red change. The Portal refuses a grant of anything its proposer does not hold there, and
@@ -186,11 +174,11 @@ export function GrantRoleDialog({
   const [discarding, setDiscarding] = useState(false);
   const subjectRef = useRef<HTMLInputElement | null>(null);
   const roleRef = useRef<HTMLSelectElement | null>(null);
-  const roles = useList(ORG_NAMESPACE, "roles");
+  const roles = useReadableList(ORG_NAMESPACE, "roles", "Role");
   // A binding in a project may name that project's own role as well as an organization one
   // (PF-69); the organization page binds organization roles only.
-  const projectRoles = useList(project, "roles", scope !== "organization" && project !== ORG_NAMESPACE);
-  const spaces = useList(project, "spaces", scope !== "organization");
+  const projectRoles = useReadableList(project, "roles", "Role", scope !== "organization" && project !== ORG_NAMESPACE);
+  const spaces = useReadableList(project, "spaces", "ContextSpace", scope !== "organization");
 
   const propose = useMutation({
     mutationFn: async () =>
@@ -298,9 +286,11 @@ export function GrantRoleDialog({
             <Button variant="secondary" onClick={() => close(false)}>
               {t("form.cancel")}
             </Button>
-            <Button variant="primary" loading={propose.isPending} onClick={submit}>
-              {t("access.roles.propose")}
-            </Button>
+            <PermissionGuard project={ORG_NAMESPACE} kind="RoleBinding" verb="propose">
+              <Button variant="primary" loading={propose.isPending} onClick={submit}>
+                {t("access.roles.propose")}
+              </Button>
+            </PermissionGuard>
           </>
         )
       }
@@ -475,8 +465,8 @@ export function RoleBindings({
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
-  const bindings = useList(ORG_NAMESPACE, "rolebindings");
-  const spaces = useList(project, "spaces", scope !== "organization");
+  const bindings = useReadableList(ORG_NAMESPACE, "rolebindings", "RoleBinding");
+  const spaces = useReadableList(project, "spaces", "ContextSpace", scope !== "organization");
   const [prefill] = useState(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("grant")
       ? takePrefill(window.location.pathname)
@@ -549,7 +539,9 @@ export function RoleBindings({
         </PageFailed>
       ) : null}
 
-      {bindings.isError ? (
+      {bindings.hidden ? (
+        <Alert tone="info">{t("access.roles.hidden")}</Alert>
+      ) : bindings.isError ? (
         <PageFailed
           error={bindings.error}
           onRetry={() => {

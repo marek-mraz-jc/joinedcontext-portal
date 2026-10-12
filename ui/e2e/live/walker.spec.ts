@@ -1,5 +1,6 @@
 /**
- * T-2730 — every page and every form of the Portal on dev, at 1440 and 2560 px, as the steward
+ * T-2730 — every page and every form of the Portal on dev, at 1440 and 2560 px (or `WALK_WIDTHS`,
+ * in `WALK_LANGS`), as the steward
  * and as the viewer (UI-01, UI-15, UI-16, UI-44, UI-84).
  *
  * The walker opens every route of the router with one real item for each name in it, and every
@@ -31,10 +32,13 @@ const allow = JSON.parse(readFileSync(join(here, "walker.allow.json"), "utf8")) 
 
 const PROJECT = "helsinki";
 const P = `/projects/${PROJECT}`;
-const WIDTHS = [
-  { width: 1440, height: 900 },
-  { width: 2560, height: 1300 },
-];
+/** `WALK_WIDTHS=375,1440` and `WALK_LANGS=en,sk` narrow or widen the walk (T-3848: phone and Slovak). */
+const WIDTHS = (process.env.WALK_WIDTHS ?? "1440,2560")
+  .split(",")
+  .map(Number)
+  .filter((width) => width > 0)
+  .map((width) => ({ width, height: width < 768 ? 812 : width <= 1440 ? 900 : 1300 }));
+const LANGS = (process.env.WALK_LANGS ?? "en").split(",").filter(Boolean);
 /** The sections that open a create and an edit form at their own address (`NEW_FORMS`). */
 const FORMS = ["spaces", "endpoints", "pipelines", "policies", "subscriptions", "csrs", "datasources", "syncsources"];
 const SECTIONS = ["flows", "spaces", "endpoints", "subscriptions", "datasources", "pipelines", "dashboards", "apps", "syncsources", "policies", "csrs"];
@@ -151,16 +155,24 @@ function expected(who: string, response: Response): boolean {
   const status = response.status();
   if (status === 403 && who === "viewer") return true;
   if (status === 404 && /\/cs\/[^/]+\/ngsi-ld\/v1\/entities\?/.test(response.url())) return true;
+  // An edit form asks for the person's draft of the item first; none yet is the 404 (T-3852).
+  if (status === 404 && response.request().method() === "GET" && /\/drafts\/[A-Za-z]+\/[^/?]+$/.test(new URL(response.url()).pathname))
+    return true;
   return status === 410 || (status === 404 && /\/agent-runs\/[^/]+\/(preview|events)/.test(response.url()));
 }
 
-/** A write control the viewer can press, or one refused without a reason (UI-44). */
+/**
+ * A write control the viewer can press, or one refused without a reason (UI-44). A tab is a place
+ * to go, and a control that only edits the draft in hand — a term added to the filter being tried,
+ * a colour rule of one's own view, a line of a mapping whose Propose is refused — writes nothing.
+ */
 async function viewerWrites(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const found: string[] = [];
-    for (const button of document.querySelectorAll("main button, main a[role='button']")) {
+    const draftOnly = /^(Add to the query|Add a colour rule|Add the line for .+ to the mapping)$/;
+    for (const button of document.querySelectorAll("main button:not([role='tab']), main a[role='button']")) {
       const name = (button.getAttribute("aria-label") ?? button.textContent ?? "").replace(/\s+/g, " ").trim();
-      if (!/^(New|Edit|Remove|Delete|Propose|Add|Create|Publish|Approve)\b/.test(name)) continue;
+      if (!/^(New|Edit|Remove|Delete|Propose|Add|Create|Publish|Approve)\b/.test(name) || draftOnly.test(name)) continue;
       if (button.getClientRects().length === 0 || button.closest("[hidden], [inert]")) continue;
       const refused = button.getAttribute("aria-disabled") === "true" || (button as HTMLButtonElement).disabled;
       const reason = (button.getAttribute("aria-describedby") ?? "")
@@ -177,10 +189,10 @@ for (const [who, person] of [
   ["steward", STEWARD],
   ["viewer", VIEWER],
 ] as const) {
-  test(`every page and form, at 1440 and 2560 px, for the ${who}`, async ({ browser }) => {
+  test(`every page and form, at ${WIDTHS.map((size) => size.width).join(" and ")} px in ${LANGS.join(", ")}, for the ${who}`, async ({ browser }) => {
     test.setTimeout(2_400_000);
     const { context, page } = await signIn(browser, person, `${P}/spaces?lang=en`);
-    const report: { route: string; address: string; width: number; findings: string[]; screenshot: string }[] = [];
+    const report: { route: string; address: string; width: number; lang: string; findings: string[]; screenshot: string }[] = [];
     let current: string[] = [];
     let refused: string[] = [];
     page.on("console", (message) => {
@@ -199,11 +211,11 @@ for (const [who, person] of [
       // A section the installation hides is no page to walk (T-2874).
       const hidden = await hiddenSections(page.request);
       const all = (await visits(page, who)).filter((visit) => !inHiddenSection(visit.address, hidden));
-      for (const size of WIDTHS) {
+      for (const lang of LANGS) for (const size of WIDTHS) {
         await page.setViewportSize(size);
         for (const visit of all) {
           current = [];
-          await page.goto(`${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=en`, { waitUntil: "load" });
+          await page.goto(`${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, { waitUntil: "load" });
           await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
           // The lists and forms read after the first paint; judge the page a person looks at.
           await page.waitForTimeout(1500);
@@ -215,9 +227,9 @@ for (const [who, person] of [
               .map((violation) => `axe: ${violation.slice(0, 200)}`),
             ...(who === "viewer" ? await viewerWrites(page) : []),
           ];
-          const screenshot = test.info().outputPath(`${who}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
+          const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
           await page.screenshot({ path: screenshot, fullPage: true });
-          report.push({ ...visit, width: size.width, findings: unexcused(visit.route, findings, allow.excused), screenshot });
+          report.push({ ...visit, width: size.width, lang, findings: unexcused(visit.route, findings, allow.excused), screenshot });
         }
       }
       if (who === "viewer") refused = await endpointsRefused(page);
@@ -227,6 +239,8 @@ for (const [who, person] of [
     }
     expect(refused, "the cross-project Endpoints reach no one but an administrator").toEqual([]);
     expect(report.length, "the walker opened the pages").toBeGreaterThan(40);
-    expect(report.filter((entry) => entry.findings.length > 0).map(({ address, width, findings }) => ({ address, width, findings }))).toEqual([]);
+    expect(
+      report.filter((entry) => entry.findings.length > 0).map(({ address, width, lang, findings }) => ({ address, width, lang, findings })),
+    ).toEqual([]);
   });
 }

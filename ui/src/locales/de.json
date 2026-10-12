@@ -517,7 +517,8 @@
       "modelEmptyLead": "Ein Datenmodell benennt die Entitätstypen des Raums und ihre Attribute. Legen Sie eines an oder importieren Sie ein Smart Data Model für diesen Raum.",
       "modelCreate": "Datenmodell anlegen",
       "modelImport": "Smart Data Model importieren",
-      "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal)."
+      "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal).",
+      "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1089,6 +1090,7 @@
       "title": "Veröffentlichte Attribute",
       "hint": "Ein Endpunkt kann das, was die Richtlinie gewährt, nur einschränken, niemals erweitern. Ein verborgenes Attribut fehlt in jeder Repräsentation und im veröffentlichten Schema.",
       "formalism": "Schema-Formalismus",
+      "formalismHelp": "Die Schemasprache, in der das veröffentlichte Schema geschrieben ist; die Adresse darunter liefert es aus.",
       "hide": "Verbergen",
       "unhide": "Wieder anzeigen",
       "effective": "Hier veröffentlicht",
@@ -1156,7 +1158,9 @@
       "projectionName": "Name der Projektion",
       "preview": "Erzeugte Manifeste",
       "identityAlways": "Jede Entität hat eine id und einen type, daher wird dies immer veröffentlicht.",
-      "readOnly": "Diese Projektion ist geteilt. Lösen und kopieren Sie sie, um sie hier zu ändern."
+      "readOnly": "Diese Projektion ist geteilt. Lösen und kopieren Sie sie, um sie hier zu ändern.",
+      "reuseHelp": "Eine Projektion wiederverwenden, die ein anderer Endpoint schon veröffentlicht, oder eine neue für diesen Endpoint zeichnen.",
+      "projectionNameHelp": "Der Name, unter dem die neue Projektion gespeichert wird; Kleinbuchstaben, Ziffern und Bindestriche."
     },
     "audienceOption": {
       "project-list": "Ausgewählte Projekte: nur die Projekte, die Sie ankreuzen",
@@ -1331,6 +1335,7 @@
     "filterEditor": {
       "label": "Filter dieses Endpunkts",
       "types": "Entitätstypen, die er bedient",
+      "typesHelp": "Kreuzen Sie die Typen an, die ein Aufrufer hier liest; ein nicht angekreuzter Typ wird gar nicht ausgeliefert.",
       "noType": "Behalten Sie mindestens einen Typ: ein Endpunkt ohne Typ liefert nichts.",
       "hidden": "Verborgene Attribute",
       "hiddenHelp": "Ein angehaktes Attribut wird in keinem Format geliefert. Ein Name wird in jedem Typ verborgen, der ihn hat.",
@@ -1416,6 +1421,7 @@
       "title": "Mit einem Projekt teilen",
       "project": "Projekt",
       "types": "Was es liest",
+      "typesHelp": "Kreuzen Sie die Typen an, die das andere Projekt liest; sonst wird nichts von diesem Endpunkt geteilt.",
       "until": "Bis",
       "untilHint": "Optional. Nach diesem Tag liest das Projekt darüber nichts mehr; leer lässt die Freigabe bestehen, bis sie beendet wird.",
       "preview": "Was {project} sehen wird",
@@ -1967,7 +1973,7 @@
         "required": "erforderlich",
         "many": "mehrere Werte",
         "values": "{count, plural, =0 {Werte: {values}} other {Werte: {values} und # weitere}}",
-        "example": "Beispiel: {example}",
+        "example": "Beispiel:",
         "measuredIn": "Gemessen in {symbol} ({code}); fehlt der unitCode in einem Datensatz, ergänzt ihn das Gateway.",
         "sourceUnit": "Quelle in einer anderen Einheit?",
         "sourceUnitOf": "Quelleinheit von {slot}",
@@ -2300,7 +2306,8 @@
       "discardConfirm": "Was Sie eingegeben haben, geht verloren und es wird nichts vorgeschlagen. Bereits vergebene Rollen bleiben unberührt.",
       "discard": "Vergabe verwerfen",
       "grants": "Diese Rolle darf: {rights}.",
-      "grantsNothing": "Diese Rolle gewährt noch nichts: sie hat keine Regeln."
+      "grantsNothing": "Diese Rolle gewährt noch nichts: sie hat keine Regeln.",
+      "hidden": "Ihre Rolle zeigt nicht, wer hier welche Rolle hat. Wer das Projekt verwaltet, kann sie Ihnen geben."
     },
     "projectRoles": {
       "title": "Rollen",
@@ -2322,7 +2329,8 @@
       },
       "beyondRights": "Eine Rolle gewährt nicht mehr, als Sie hier selbst halten: fehlt {missing}.",
       "propose": "Änderung vorschlagen",
-      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt."
+      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt.",
+      "hidden": "Ihre Rolle zeigt die hier geschriebenen Rollen nicht. Wer das Projekt verwaltet, kann sie Ihnen geben."
     },
     "accounts": {
       "title": "Dienstkonten",
@@ -3570,7 +3578,10 @@
         "absent": "Sie verwalten {instance} nicht über die Rolle dieses Katalogs.",
         "badEmail": "Geben Sie eine vollständige E-Mail-Adresse ein, etwa jana@example.org."
       },
-      "hidden": "Wer diesen Katalog verwaltet, sehen die Administratoren der Organisation."
+      "hidden": "Wer diesen Katalog verwaltet, sehen die Administratoren der Organisation.",
+      "kindHelp": "Eine ganze Gruppe oder eine Person über ihre E-Mail.",
+      "whichGroupHelp": "Alle in der Gruppe verwalten diesen Katalog, solange sie darin sind.",
+      "emailHelp": "Die E-Mail, mit der sich die Person anmeldet, etwa jana@example.org."
     }
   },
   "mappings": {
@@ -4570,6 +4581,7 @@
     "more": "Ältere anzeigen",
     "panelTitle": "Letzte Aktivität",
     "panelEmpty": "Hiermit ist noch nichts passiert.",
+    "panelEmptyHint": "Eine Änderung, ein Import oder ein Fehler hier erscheint in dieser Liste, sobald er geschieht.",
     "announce": "{count, plural, one {# neuer Fehler} other {# neue Fehler}}",
     "lastHour": "Was in der letzten Stunde geschah",
     "bucket": {
@@ -5892,7 +5904,10 @@
       "read": "Lesen",
       "propose": "Änderungen vorschlagen",
       "approve": "Änderungen genehmigen",
-      "delete": "Löschen"
+      "delete": "Löschen",
+      "create": "Anlegen",
+      "update": "Ändern",
+      "disable": "Abschalten"
     },
     "notificationFormat": {
       "normalized": "Vollständiges NGSI-LD",
