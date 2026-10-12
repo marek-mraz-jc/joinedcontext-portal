@@ -262,6 +262,12 @@ impl StreamDeployer {
         );
         *output = crate::pipeline_log::with_outcomes(output.take(), &url);
         crate::pipeline_log::with_passes(stream, &url);
+        // What last crossed each node, for the studio's drawer (T-3974).
+        let samples = format!(
+            "{}/internal/pipelines/{project}/{pipeline}/samples",
+            internal.trim_end_matches('/')
+        );
+        crate::pipeline_samples::with_taps(stream, &samples, &stream_id(project, pipeline));
     }
 
     /// The runner's Prometheus text for one project, or `None` when it does not answer.

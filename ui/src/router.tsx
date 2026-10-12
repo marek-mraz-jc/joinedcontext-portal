@@ -48,6 +48,7 @@ const ImportPage = lazy(() => import("./pages/import/ImportPage").then((module) 
 // A page that carries a map, a grid or an editor loads with its route, not with the Portal: the
 // entry every visit downloads first was 1.7 MB gzipped while these sat in it (T-3280).
 const SpaceInside = lazy(() => import("./pages/spaces/SpaceInside").then((module) => ({ default: module.SpaceInside })));
+const UploadCsv = lazy(() => import("./pages/spaces/UploadCsv").then((module) => ({ default: module.UploadCsv })));
 const AppPage = lazy(() => import("./pages/apps/AppPage").then((module) => ({ default: module.AppPage })));
 const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) => ({ default: module.AppOpenPage })));
 const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
@@ -897,9 +898,8 @@ const spaceCompleteRoute = createRoute({
   },
 });
 
-import { UploadCsv } from "./pages/spaces/UploadCsv";
-
-/** Upload a CSV into a space (DM-81, T-3840); static like `/spaces/complete`. */
+/** Upload a CSV into a space (DM-81, T-3840); it loads with its page, the entry budget is
+ * every visit's (T-3280). */
 const spaceUploadRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/spaces/upload",
