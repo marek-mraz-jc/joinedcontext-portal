@@ -37,10 +37,45 @@ const WEEKS = {
   stale: false,
 };
 
-function appServer() {
+/** Who reads (T-3828): a viewer keeps filters, a steward also acknowledges alerts. */
+export const VIEWER = { id: "u-viewer", name: "Vera Viewer", roles: ["viewer"] };
+export const STEWARD = { id: "u-steward", name: "Sara Steward", roles: ["viewer", "steward"] };
+type Me = typeof VIEWER;
+
+function appServer(me: Me) {
   const reports: Array<Record<string, unknown>> = [];
   const pictures = new Set<string>();
+  const filters: Array<Record<string, unknown>> = [];
+  const acks: Array<Record<string, unknown>> = [];
+  const history: Array<Record<string, unknown>> = [];
+  let next = 1;
+  const log = (action: string, summary: string) =>
+    history.unshift({ id: next++, at: "2030-10-21T09:00:00Z", actorName: me.name, action, target: "", summary });
   return (method: string, path: string, body: unknown): { status: number; body: unknown } => {
+    if (method === "GET" && path === "/me") return { status: 200, body: me };
+    if (method === "GET" && path === "/history") return { status: 200, body: history };
+    if (method === "GET" && path === "/filters") return { status: 200, body: filters };
+    if (method === "POST" && path === "/filters") {
+      const filter = { ...(body as object), id: next++ };
+      filters.unshift(filter);
+      log("insert", `kept the filter ${filter.name as string}`);
+      return { status: 201, body: filter };
+    }
+    if (method === "GET" && path === "/acks") return { status: 200, body: acks };
+    if (method === "POST" && path === "/acks") {
+      if (!me.roles.includes("steward")) return { status: 403, body: { title: "Forbidden", detail: "a steward acknowledges alerts" } };
+      const ack = { ...(body as object), id: next++, ownerName: me.name };
+      acks.unshift({ ...ack, at: "2030-10-21T09:00:00Z" });
+      log("insert", `acknowledged ${ack.comment as string}`);
+      return { status: 201, body: ack };
+    }
+    const gone = /^\/(filters|acks)\/(\d+)$/.exec(path);
+    if (method === "DELETE" && gone) {
+      const list = gone[1] === "filters" ? filters : acks;
+      list.splice(list.findIndex((one) => one.id === Number(gone[2])), 1);
+      log("delete", `deleted ${gone[1]} ${gone[2]}`);
+      return { status: 204, body: null };
+    }
     if (method === "GET" && path === "/weeks") return { status: 200, body: WEEKS };
     if (method === "GET" && path === "/reports") return { status: 200, body: [...reports].reverse() };
     if (method === "POST" && path === "/reports") {
@@ -61,13 +96,13 @@ function appServer() {
 }
 
 /** Serves the built bundle at the root of the App's own host, with the SDK's stub answering its endpoint. */
-export async function serve(page: Page, entities = ALERTS): Promise<Served> {
+export async function serve(page: Page, entities = ALERTS, me: Me = VIEWER): Promise<Served> {
   const transport = stubTransport({
     entities,
     access: { permissions: [{ resource: { type: "Alert" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] },
   });
   const served: Served = { outside: [], missing: [], problems: [] };
-  const api = appServer();
+  const api = appServer(me);
   page.on("pageerror", (error) => served.problems.push(error.message));
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -83,6 +118,7 @@ export async function serve(page: Page, entities = ALERTS): Promise<Served> {
     if (url.pathname.startsWith("/apps/alerts-heatmap/api/")) {
       const body = route.request().postData();
       const answer = api(route.request().method(), url.pathname.slice("/apps/alerts-heatmap/api".length), body ? JSON.parse(body) : undefined);
+      if (answer.status === 204) return route.fulfill({ status: 204, body: "" });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body) });
     }
     // The store's presigned URLs: a picture goes there from the browser, never through the server.

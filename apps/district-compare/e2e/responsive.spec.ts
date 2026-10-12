@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
-import { BASE, serve } from "./serve";
+import { BASE, STEWARD, VIEWER, serve } from "./serve";
 
 for (const scheme of ["light", "dark"] as const) {
-  for (const lang of ["fi", "en"] as const) {
+  for (const lang of ["fi", "en", "sv"] as const) {
     for (const size of WIDTHS) {
       test(`${scheme} ${lang} at ${size.width} px: answers on arrival, table with two districts, map canvas, axe clean`, async ({ page }, testInfo) => {
         await page.emulateMedia({ colorScheme: scheme });
@@ -20,7 +20,7 @@ for (const scheme of ["light", "dark"] as const) {
         await expect(rankedList.locator("li")).toHaveCount(3);
 
         // The table has two district columns (plus 1 measure column = 3 headers)
-        await expect(page.getByRole("table", { name: lang === "en" ? "Selected districts compared" : "Valitut kaupunginosat rinnakkain" }).locator("thead th")).toHaveCount(3);
+        await expect(page.getByRole("table", { name: { en: "Selected districts compared", fi: "Valitut kaupunginosat rinnakkain", sv: "Valda stadsdelar sida vid sida" }[lang] }).locator("thead th")).toHaveCount(3);
 
         // The chart canvas is drawn
         await expect(page.locator(".jc-chart-canvas")).toHaveCount(1);
@@ -112,6 +112,50 @@ for (const scheme of ["light", "dark"] as const) {
       expect(await layoutProblems(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+
+// T-3828: a viewer keeps the comparison on screen and gets its link to share; a steward pins one
+// for everyone and finds it in Changes. At a phone and a laptop, light and dark.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a viewer keeps a comparison and gets its link, pinning closed with the reason, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, undefined, VIEWER);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en`);
+      await expect(page.getByLabel("Role: Viewer")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Pin this comparison for everyone" })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Pin this comparison for everyone" })).toHaveAttribute("title", "Only a steward pins a comparison for everyone.");
+      await page.getByLabel("Name of the comparison").fill("My two");
+      await page.getByRole("button", { name: "Keep this comparison" }).click();
+      await expect(page.getByText("Kept: My two")).toBeVisible();
+      const link = page.getByRole("link", { name: "Link to share: My two" });
+      await expect(link).toHaveAttribute("href", new RegExp(`\\?comparison=${"1".padStart(64, "0")}&lang=en$`));
+      await link.scrollIntoViewIfNeeded();
+      await testInfo.attach(`viewer-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+
+    test(`${scheme} at ${width} px: a steward pins a comparison for everyone and finds it in Changes, in Swedish, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, undefined, STEWARD);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=sv`);
+      await expect(page.getByLabel("Roll: Förvaltare")).toBeVisible();
+      await page.getByLabel("Jämförelsens namn").fill("För alla");
+      await page.getByRole("button", { name: "Fäst den här jämförelsen för alla" }).click();
+      await expect(page.getByText("Fäst: För alla")).toBeVisible();
+      await expect(page.getByTestId("pinned")).toContainText("För alla, fäst av Sami Steward.");
+      await page.getByTestId("pinned").scrollIntoViewIfNeeded();
+      await testInfo.attach(`steward-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "Ändringar" }).click();
+      await expect(page.getByRole("table", { name: "Ändringar" })).toContainText("pinned För alla for everyone");
+      expect(await layoutProblems(page)).toEqual([]);
       expect(served).toEqual({ outside: [], missing: [], problems: [] });
     });
   }

@@ -6,7 +6,7 @@ What the City of Helsinki's news talks about: topics, how their share changes we
 - a stacked bar chart of topic share per ISO week (ECharts via ChartCard), with an accessible table alternative for screen readers;
 - the articles behind the selected topic, with links to original sources; an article's title opens it in the SDK shell's entity panel, with a link to it in the Portal (the App writes nothing, so the panel offers no Edit);
 - filters in the URL hash query (`#topics?weeks=8&topic=2&q=…`): period (4, 8, 12 weeks, or all), number of topics k (3–8, default 5), and title text search;
-- bilingual interface in English and Finnish (`?lang=fi|en`).
+- interface in English, Finnish and Swedish (`?lang=fi|en|sv`), switched in the header.
 
 Text analysis and clustering run client-side in WebAssembly (`news-topics-wasm` via Web Worker):
 - language detection and tokenisation (English and Finnish stop words, simple stemming);
@@ -32,6 +32,23 @@ Building the WebAssembly module requires the Rust `wasm32-unknown-unknown` targe
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129
 ```
+
+## Roles and history
+
+A signed-in reader follows topics of their own (T-3828), each by its top keyword, so a followed topic is found again in any period, at most 30; the topic list marks the followed ones and the Followed topics card says which are among the period's topics. A steward names a topic by its top keyword, renames it, and merges topics by giving them one name (the other topic's name, else its keywords); the page shows topics with one name as one, their shares summed. Everyone, signed in or not, reads the names. A viewer's naming controls stay closed with the reason as their tooltip. Every change shows at once and is taken back when the server refuses; the server records each in `app_audit`, and the Changes page lists a viewer's own and a steward's every one. Roles come from the caller's token through `identity::caller()`, never from the page.
+
+| Route | Who | What it does |
+|---|---|---|
+| `GET /apps/news-topics/api/me` | anyone | the caller's name and roles, `null` when signed out |
+| `GET /apps/news-topics/api/follows` | signed in | the caller's followed keywords, newest first |
+| `POST /apps/news-topics/api/follows` `{term}` | signed in | a keyword followed; 409 when followed already or past 30 |
+| `DELETE /apps/news-topics/api/follows/{id}` | owner | no longer followed |
+| `GET /apps/news-topics/api/names` | anyone | every topic name a steward gave |
+| `POST /apps/news-topics/api/names` `{term, name}` | steward | the topic of that top keyword named, or renamed |
+| `DELETE /apps/news-topics/api/names/{id}` | steward | the name taken back |
+| `GET /apps/news-topics/api/history` | signed in | the newest 100 changes (a viewer: their own) |
+
+The groups `news-topics-viewer` and `news-topics-steward` (`grants/users/groups/`) hold the demo viewer and steward. The App writes no context data, so its Endpoint's Policy stays read-only.
 
 ## Run the tests
 

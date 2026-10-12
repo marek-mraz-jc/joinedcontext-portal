@@ -41,6 +41,18 @@ spec:
   # The alerts endpoint of Helsinki is public (GW22): an anonymous reader gets what the public role
   # is granted and nothing more.
   visibility: public
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Keeps filters of their own (a name and the page's filters) and deletes their own; reads every acknowledgement."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "The city's operator: what a viewer does, and acknowledges an alert with a comment, shown to everyone, or takes that back. Reads the whole history."
+  access:
+    - role: viewer
+      subjects: [{ group: alerts-heatmap-viewer }]
+    - role: steward
+      subjects: [{ group: alerts-heatmap-steward }]
   lifecycle: published
   dataNeeds:
     - contextSpaceRef:

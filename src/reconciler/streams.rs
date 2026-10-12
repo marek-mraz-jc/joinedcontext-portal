@@ -1707,47 +1707,36 @@ pub fn render_merged(
     // the compute step `compute`, which are the studio's own node names.
     let mut processor_steps = 0usize;
     for step in pipeline.steps() {
-        match step {
-            Step::Processor(step) => {
-                processors.push(labelled(
-                    serde_json::to_value(&step.processor)?,
-                    &format!("step_{processor_steps}"),
-                ));
+        let label = match &step {
+            Step::Processor(_) => {
                 processor_steps += 1;
+                format!("step_{}", processor_steps - 1)
             }
-            Step::Compute(compute) => {
-                if compute.kind != ComputeKind::Bloblang {
-                    return Err(RenderError::MissingCompute);
-                }
-                if let Some(bloblang) = compute.bloblang.filter(|b| !b.trim().is_empty()) {
-                    processors.push(labelled(
-                        serde_json::json!({ "mapping": bloblang }),
-                        COMPUTE_LABEL,
-                    ));
-                }
-            }
+            Step::Compute(_) => COMPUTE_LABEL.to_owned(),
+        };
+        if let Some(processor) = step_processor(step)? {
+            processors.push(labelled(processor, &label));
         }
     }
-    processors.extend(batching());
 
-    let mut outputs: Vec<Value> = target_slugs
-        .iter()
-        .map(|slug| gateway_output(project, slug))
-        .collect();
-    let output = match outputs.len() {
-        0 => {
-            return Err(RenderError::Custom(
-                "a pipeline writes through at least one output".to_owned(),
-            ))
-        }
-        1 => outputs.remove(0),
-        // Fail fast (PL-53, T-2983): a write that fails after its own retries is nacked back to
-        // the input, which replays it to every output, each an idempotent upsert. Plain
-        // `fan_out` retries it inside the broker without heeding a stop.
-        _ => {
-            serde_json::json!({ "broker": { "pattern": "fan_out_fail_fast", "outputs": outputs } })
-        }
-    };
+    // `outputs()` is the default lane's, then each route's in order (PL-73).
+    let lane = pipeline.lane_outputs().len().min(target_slugs.len());
+    let mut output = fan_out(project, &target_slugs[..lane])?;
+    if !pipeline.routes.is_empty() {
+        let (routing, cases) = routes(pipeline, project, &target_slugs[lane..])?;
+        processors.extend(routing);
+        let mut cases = cases;
+        cases.push(serde_json::json!({ "output": labelled(output, "output") }));
+        output = labelled(
+            serde_json::json!({ "switch": {
+                "strict_mode": true,
+                "retry_until_success": false,
+                "cases": cases,
+            }}),
+            ROUTES_LABEL,
+        );
+    }
+    processors.extend(batching());
 
     Ok(serde_json::json!({
         "input": labelled(input, "input"),
@@ -1760,6 +1749,105 @@ pub fn render_merged(
         },
         "output": labelled(output, "output")
     }))
+}
+
+/// The label of the output that routes by condition (PL-73). A route's own components are
+/// labelled by its place, `route_{i}` its output and `route_{i}_{j}` its `j`-th step, because a
+/// Bento label takes no hyphen and a route's name may hold one.
+pub const ROUTES_LABEL: &str = "routes";
+
+/// One step as its Bento processor (PL-52): a runner processor verbatim, a `bloblang` step as its
+/// `mapping`, nothing for a `bloblang` step whose mapping lives in `bento.yaml`.
+fn step_processor(step: Step) -> Result<Option<Value>, RenderError> {
+    match step {
+        Step::Processor(step) => Ok(Some(serde_json::to_value(&step.processor)?)),
+        Step::Compute(compute) if compute.kind != ComputeKind::Bloblang => {
+            Err(RenderError::MissingCompute)
+        }
+        Step::Compute(compute) => Ok(compute
+            .bloblang
+            .filter(|b| !b.trim().is_empty())
+            .map(|bloblang| serde_json::json!({ "mapping": bloblang }))),
+    }
+}
+
+/// The writes through `slugs`: one output, or a broker fanning out to every one.
+fn fan_out(project: &str, slugs: &[String]) -> Result<Value, RenderError> {
+    let mut outputs: Vec<Value> = slugs
+        .iter()
+        .map(|slug| gateway_output(project, slug))
+        .collect();
+    match outputs.len() {
+        0 => Err(RenderError::Custom(
+            "a pipeline writes through at least one output".to_owned(),
+        )),
+        1 => Ok(outputs.remove(0)),
+        // Fail fast (PL-53, T-2983): a write that fails after its own retries is nacked back to
+        // the input, which replays it to every output, each an idempotent upsert. Plain
+        // `fan_out` retries it inside the broker without heeding a stop.
+        _ => Ok(
+            serde_json::json!({ "broker": { "pattern": "fan_out_fail_fast", "outputs": outputs } }),
+        ),
+    }
+}
+
+/// Routes by condition (PL-73): the processors that pick each record's route and run its steps,
+/// and the output cases that write each route's records through its own outputs; `slugs` are
+/// the routes' outputs in order.
+///
+/// The batching archives records into arrays before the output, so the route is picked per
+/// record before it: the records are split one per message, `meta jc_route` names the first
+/// route whose `when` holds (empty for the default lane), a `switch` processor runs each route's
+/// steps, and `group_by_value` keeps every batch to one route, whose `archive` keeps the
+/// metadata the output `switch` reads.
+fn routes(
+    pipeline: &PipelineSpec,
+    project: &str,
+    slugs: &[String],
+) -> Result<(Vec<Value>, Vec<Value>), RenderError> {
+    let mut processors: Vec<Value> = batching().into_iter().take(2).collect();
+    let mut pick = String::from("meta jc_route = ");
+    let mut steps = Vec::new();
+    let mut cases = Vec::new();
+    let mut rest = slugs;
+    for (index, route) in pipeline.routes.iter().enumerate() {
+        // The condition on lines of its own, so a comment in it ends with its line.
+        pick.push_str(&format!(
+            "if (\n{}\n) {{ \"{}\" }} else ",
+            route.when.trim(),
+            route.name
+        ));
+        let check = format!("meta(\"jc_route\") == \"{}\"", route.name);
+        let mut own = Vec::new();
+        for (at, step) in route.steps.iter().cloned().enumerate() {
+            if let Some(processor) = step_processor(step)? {
+                own.push(labelled(processor, &format!("route_{index}_{at}")));
+            }
+        }
+        if !own.is_empty() {
+            steps.push(serde_json::json!({ "check": check, "processors": own }));
+        }
+        let (written, tail) = rest.split_at(route.outputs.len().min(rest.len()));
+        rest = tail;
+        cases.push(serde_json::json!({
+            "check": check,
+            "output": labelled(fan_out(project, written)?, &format!("route_{index}")),
+        }));
+    }
+    pick.push_str("{ \"\" }");
+    processors.push(labelled(
+        serde_json::json!({ "mutation": pick }),
+        "route_pick",
+    ));
+    if !steps.is_empty() {
+        processors.push(labelled(
+            serde_json::json!({ "switch": steps }),
+            "route_steps",
+        ));
+    }
+    processors
+        .push(serde_json::json!({ "group_by_value": { "value": "${! meta(\"jc_route\") }" } }));
+    Ok((processors, cases))
 }
 
 /// A Bento input with the processors that belong to it alone, as every Bento input carries them.
@@ -1807,8 +1895,9 @@ pub fn eligible(spec: &PipelineSpec) -> bool {
     if !spec.enabled {
         return false;
     }
-    let steps = spec.steps();
-    // A stream runs Bloblang and runner processors; `mapping`, `wasm` and `container` compute
+    let mut steps = spec.steps();
+    steps.extend(spec.routes.iter().flat_map(|route| route.steps.clone()));
+    // A stream runs Bloblang and runner processors, a route's steps too (PL-73); `mapping`, `wasm` and `container` compute
     // run elsewhere (PL-33).
     if !steps.iter().all(|step| match step {
         Step::Processor(_) => true,
@@ -3929,6 +4018,55 @@ output:
         );
     }
 
+    /// T-3952, PL-72: an `http` DataSource with an archive reads its directory by range, then
+    /// each named member, after the clock's poll and before the author's steps.
+    #[test]
+    fn an_archive_datasource_reads_its_directory_then_its_members() {
+        let ds: DataSourceSpec = serde_json::from_value(serde_json::json!({
+            "type": "http",
+            "http": {
+                "url": "https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip",
+                "archive": { "format": "zip", "members": ["stops.txt"], "maxBytes": 4194304 }
+            }
+        }))
+        .expect("valid archive DataSourceSpec");
+        let rendered = render_stream(
+            &helsinki_pipeline_spec(),
+            "stops",
+            "helsinki",
+            &ds,
+            "hsl-gtfs",
+            "abc123456789",
+            None,
+        )
+        .expect("renders an archive stream");
+        let processors = rendered["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        assert!(rendered["input"]["generate"].is_object());
+        assert_eq!(
+            processors[0]["try"][0]["http"]["headers"]["Range"],
+            "bytes=-65557"
+        );
+        assert_eq!(
+            processors[1]["mutation"],
+            "root = if errored() { deleted() }"
+        );
+        let read: Vec<&str> = processors[2]["try"]
+            .as_array()
+            .expect("the member read")
+            .iter()
+            .filter_map(|step| step.as_object()?.keys().next().map(String::as_str))
+            .collect();
+        assert_eq!(read, ["mapping", "unarchive", "mapping", "http", "mapping"]);
+        assert_eq!(
+            processors[2]["try"][3]["http"]["headers"]["Range"],
+            "${! @range }"
+        );
+        assert!(processors[3]["catch"].is_array());
+        assert_eq!(processors[4]["label"], COMPUTE_LABEL);
+    }
+
     #[test]
     fn runner_nats_source_renders_verbatim_and_refuses_scheduled_class() {
         let mut pipe = helsinki_pipeline_spec();
@@ -4072,6 +4210,150 @@ output:
             .expect("serializes")
         };
         assert_eq!(render(&first), render(&second));
+    }
+
+    fn routed() -> PipelineSpec {
+        second_shape(serde_json::json!({
+            "class": "resident",
+            "period": "30s",
+            "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "gbfs" } }],
+            "steps": [{ "kind": "bloblang", "bloblang": "root = this" }],
+            "routes": [
+                { "name": "hot", "when": "this.t > 30",
+                  "steps": [{ "kind": "bloblang", "bloblang": "root = this.merge({\"alert\": true})" }],
+                  "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:alerts:hot" }] },
+                { "name": "frost-warning", "when": "this.t < 0 # below zero",
+                  "outputs": [
+                      { "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:alerts:cold" },
+                      { "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:kpi:cold-kpi" }
+                  ] }
+            ],
+            "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:ops" }]
+        }))
+    }
+
+    fn render_routed(spec: &PipelineSpec) -> Value {
+        let sources = vec![ResolvedSource::Data {
+            spec: Box::new(helsinki_datasource_spec()),
+            name: "gbfs".to_owned(),
+        }];
+        let slugs: Vec<String> = ["opsslug", "hotslug", "coldslug", "coldkpislug"]
+            .map(str::to_owned)
+            .into();
+        render_merged(spec, "air-routed", "helsinki", &sources, &slugs).expect("renders")
+    }
+
+    /// Every label of a rendered stream, at any depth.
+    fn labels(value: &Value, into: &mut Vec<String>) {
+        match value {
+            Value::Object(fields) => {
+                if let Some(label) = fields.get("label").and_then(Value::as_str) {
+                    into.push(label.to_owned());
+                }
+                fields.values().for_each(|field| labels(field, into));
+            }
+            Value::Array(items) => items.iter().for_each(|item| labels(item, into)),
+            _ => {}
+        }
+    }
+
+    /// PL-73: each record takes the first route whose `when` holds, runs that route's steps, and
+    /// is written through that route's outputs; the rest go through the default lane.
+    #[test]
+    fn routes_pick_a_route_per_record_and_write_through_its_own_outputs() {
+        let spec = routed();
+        assert!(is_merged(&spec) && eligible(&spec));
+        let stream = render_routed(&spec);
+        let processors = stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        let at = |label: &str| {
+            processors
+                .iter()
+                .position(|p| p["label"] == label)
+                .unwrap_or_else(|| panic!("no {label} in {processors:#?}"))
+        };
+        let pick = processors[at("route_pick")]["mutation"]
+            .as_str()
+            .expect("the pick");
+        assert!(pick.starts_with("meta jc_route = if (\nthis.t > 30\n) { \"hot\" } else if ("));
+        assert!(pick.contains("this.t < 0 # below zero\n) { \"frost-warning\" }"));
+        assert!(pick.ends_with("{ \"\" }"));
+        let steps = processors[at("route_steps")]["switch"]
+            .as_array()
+            .expect("the route steps");
+        assert_eq!(steps.len(), 1, "a route without steps has no case");
+        assert_eq!(steps[0]["check"], "meta(\"jc_route\") == \"hot\"");
+        assert_eq!(steps[0]["processors"][0]["label"], "route_0_0");
+        // One record per message before the pick, one route per batch before the split.
+        assert!(processors[at("route_pick") - 1].get("unarchive").is_some());
+        let group = at("route_steps") + 1;
+        assert!(processors[group].get("group_by_value").is_some());
+        let split = processors
+            .iter()
+            .rposition(|p| p.get("split").is_some())
+            .expect("the batch split");
+        assert!(group < split);
+
+        let routes = &stream["output"];
+        assert_eq!(routes["label"], ROUTES_LABEL);
+        assert_eq!(routes["switch"]["strict_mode"], true);
+        assert_eq!(routes["switch"]["retry_until_success"], false);
+        let cases = routes["switch"]["cases"].as_array().expect("cases");
+        assert_eq!(cases.len(), 3);
+        assert_eq!(cases[0]["output"]["label"], "route_0");
+        assert!(cases[0]["output"]["http_client"]["url"]
+            .as_str()
+            .is_some_and(|url| url.contains("/hotslug/")));
+        assert_eq!(cases[1]["check"], "meta(\"jc_route\") == \"frost-warning\"");
+        assert_eq!(cases[1]["output"]["label"], "route_1");
+        assert_eq!(cases[1]["output"]["broker"]["pattern"], "fan_out_fail_fast");
+        assert_eq!(
+            cases[1]["output"]["broker"]["outputs"]
+                .as_array()
+                .map(Vec::len),
+            Some(2)
+        );
+        assert!(
+            cases[2].get("check").is_none(),
+            "the default lane takes the rest"
+        );
+        assert_eq!(cases[2]["output"]["label"], "output");
+        assert!(cases[2]["output"]["http_client"]["url"]
+            .as_str()
+            .is_some_and(|url| url.contains("/opsslug/")));
+
+        // Bento refuses a repeated label and one outside [a-z0-9_].
+        let mut all = Vec::new();
+        labels(&stream, &mut all);
+        let unique: std::collections::BTreeSet<&String> = all.iter().collect();
+        assert_eq!(unique.len(), all.len(), "{all:?}");
+        assert!(all.iter().all(|label| label
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')));
+    }
+
+    #[test]
+    fn a_pipeline_without_routes_renders_as_before_and_a_route_step_of_wasm_is_not_a_stream() {
+        let mut spec = routed();
+        spec.routes.clear();
+        let stream = render_routed(&spec);
+        assert!(stream["output"]["switch"].is_null());
+        assert!(!stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors")
+            .iter()
+            .any(|p| p.get("group_by_value").is_some()));
+
+        let mut wasm = routed();
+        wasm.routes[0].steps = vec![Step::Compute(jc_core::kinds::Compute {
+            kind: ComputeKind::Wasm,
+            module: Some("m".to_owned()),
+            function: None,
+            mapping_ref: None,
+            bloblang: None,
+        })];
+        assert!(!eligible(&wasm));
     }
 
     #[test]

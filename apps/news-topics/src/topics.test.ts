@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Row } from "@joinedcontext/sdk";
-import { toInput, useTopics } from "./topics";
+import { mergeNamed, toInput, topTerm, useTopics } from "./topics";
 import type { AnalysisOutput } from "./topics";
 
 describe("toInput", () => {
@@ -216,5 +216,50 @@ describe("useTopics", () => {
     );
     const view = renderHook(() => useTopics([{ id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:2", type: "NewsArticle" }]));
     expect(view.result.current.error?.message).toBe("refused");
+  });
+});
+
+describe("mergeNamed", () => {
+  const topic = (id: number, terms: string[], share: number, articles: string[]) => ({
+    id,
+    keywords: terms.map((term, i) => ({ term, weight: 1 - i / 10 })),
+    articles,
+    share,
+  });
+  const result = {
+    topics: [topic(0, ["kirjasto", "laina"], 0.5, ["a"]), topic(1, ["raitiotie"], 0.3, ["b"]), topic(2, ["lukusali", "kirjasto"], 0.2, ["c"])],
+    weeks: [
+      { week: "2026-W40", shares: [0.4, 0.4, 0.2] },
+      { week: "2026-W41", shares: [0.6] },
+    ],
+    unassigned: ["z"],
+  };
+
+  it("joins the topics a steward gave one name, and leaves the others as they are", () => {
+    const names: Record<string, string> = { kirjasto: "Libraries", lukusali: "Libraries", raitiotie: "Trams" };
+    const merged = mergeNamed(result, (term) => names[term]);
+    expect(merged.topics).toHaveLength(2);
+    expect(merged.topics[0]).toEqual({
+      id: 0,
+      keywords: [
+        { term: "kirjasto", weight: 1 },
+        { term: "laina", weight: 0.9 },
+        { term: "lukusali", weight: 1 },
+      ],
+      articles: ["a", "c"],
+      share: 0.7,
+    });
+    expect(merged.topics[1]).toBe(result.topics[1]);
+    expect(merged.weeks[0].shares[0]).toBeCloseTo(0.6);
+    // A week that held none of a merged topic's articles counts it as nothing.
+    expect(merged.weeks[1].shares[0]).toBeCloseTo(0.6);
+    expect(merged.unassigned).toEqual(["z"]);
+  });
+
+  it("changes nothing when no topic has a name, and a topic with no keyword has no top keyword", () => {
+    const merged = mergeNamed(result, () => undefined);
+    expect(merged.topics).toEqual(result.topics);
+    expect(merged.weeks).toEqual(result.weeks);
+    expect(topTerm(topic(3, [], 0, []))).toBe("");
   });
 });

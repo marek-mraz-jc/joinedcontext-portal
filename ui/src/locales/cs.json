@@ -1730,7 +1730,9 @@
         "source": "Zdroj",
         "compute": "Výpočet",
         "output": "Výstup",
-        "step": "Krok"
+        "step": "Krok",
+        "routeStep": "Krok větve {name}",
+        "routeOutput": "Větev {name}"
       },
       "passThrough": "Bez výpočtu",
       "eventsIn": "dovnitř",
@@ -1797,7 +1799,8 @@
         "self": "Uzel nemůže napájet sám sebe.",
         "middleIntoOutput": "Výstupy napájí jen poslední krok. Přesuňte tento krok na konec, nebo před výstup dejte krok branch či switch, který pošle část zpráv jinam.",
         "moved": "Krok přesunut: drát určil pořadí, v jakém kroky běží.",
-        "already": "Tyto dva uzly už jsou propojené."
+        "already": "Tyto dva uzly už jsou propojené.",
+        "route": "Kroky a výstupy větve jdou za její podmínkou; upravte je ve větvi."
       },
       "state": {
         "configured": "Nastaven",
@@ -1806,14 +1809,23 @@
           "output": "Chybí endpoint",
           "mapping": "Chybí mapování",
           "mappingRef": "Chybí název mapování",
-          "module": "Chybí modul"
+          "module": "Chybí modul",
+          "condition": "Chybí podmínka"
         }
       },
       "nothingToUndo": "Zatím není co vrátit.",
       "nothingToRedo": "Není co zopakovat.",
       "zoomClosed": "Přiblížení funguje v zobrazení plátna, od 50 % do 200 %.",
       "atTop": "Už je to první krok.",
-      "atBottom": "Už je to poslední krok."
+      "atBottom": "Už je to poslední krok.",
+      "addRoute": "+ Větev",
+      "removeRoute": "Odstranit větev",
+      "routeName": "Název větve",
+      "routeNameHint": "Malá písmena, číslice a pomlčky, jedinečný v této pipeline.",
+      "routeWhen": "Bere záznamy, kde",
+      "routeWhenHint": "Podmínka v Bloblangu, například this.temperature.value > 30. Záznam jde do první větve, jejíž podmínka platí; ostatní jdou do výstupů hlavní linky.",
+      "routeAddOutput": "+ Výstup této větve",
+      "routeNoCondition": "zatím bez podmínky"
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",

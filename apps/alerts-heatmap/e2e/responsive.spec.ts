@@ -1,19 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
-import { BASE, serve } from "./serve";
+import { BASE, STEWARD, serve } from "./serve";
 
-// T-3333: the page at a phone, a tablet, a laptop and a wall, light and dark, in Finnish and English: the answer on
+// T-3333: the page at a phone, a tablet, a laptop and a wall, light and dark, in Finnish, English and Swedish: the answer on
 // arrival (computed by the WebAssembly module under the static host's CSP), the map, the hours of
 // the week, the repeat places; no sideways scroll, no overlap, nothing axe finds.
 for (const scheme of ["light", "dark"] as const) {
-for (const lang of ["fi", "en"] as const) {
+for (const lang of ["fi", "en", "sv"] as const) {
   for (const size of WIDTHS) {
     test(`${scheme} ${lang} at ${size.width} px: answers on arrival, no sideways scroll, no overlap, axe clean`, async ({ page }, testInfo) => {
       await page.emulateMedia({ colorScheme: scheme });
       const { outside, missing, problems } = await serve(page);
       await page.setViewportSize(size);
       await page.goto(`${BASE}?lang=${lang}`);
-      const summary = lang === "fi" ? /^8 tiedotetta 7\.10\.2030–21\.10\.2030\./ : /^8 alerts from 7 Oct 2030 to 21 Oct 2030\./;
+      const summary = { fi: /^8 tiedotetta 7\.10\.2030–21\.10\.2030\./, en: /^8 alerts from 7 Oct 2030 to 21 Oct 2030\./, sv: /^8 meddelanden från / }[lang];
       await expect(page.locator(".app-summary")).toHaveText(summary);
       await expect(page.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
       // One chart; ECharts draws a heat map on more than one canvas layer.
@@ -83,6 +83,54 @@ for (const scheme of ["light", "dark"] as const) {
       expect(await layoutProblems(page)).toEqual([]);
       await panel.getByRole("button", { name: "Close" }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+
+// T-3828: a viewer keeps the filters on screen and applies them again; a steward acknowledges an
+// alert in Swedish and takes it back; both see the history, at a phone and a laptop, light and dark.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a viewer keeps a filter and applies it again; acknowledging stays a steward's`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { outside, missing, problems } = await serve(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en&kind=ROAD_WORK`);
+      await expect(page.getByLabel("Role: Viewer")).toBeVisible();
+      await expect(page.locator(".app-summary")).toHaveText(/ alerts /);
+      await page.getByLabel("Name of the filter").fill("Road works");
+      await page.getByRole("button", { name: "Keep these filters" }).click();
+      await expect(page.getByText("Kept: Road works")).toBeVisible();
+      await page.getByRole("button", { name: "Clear filters" }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBeNull();
+      await page.getByRole("button", { name: "Apply Road works" }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("ROAD_WORK");
+      const acknowledge = page.getByRole("button", { name: /^Acknowledge Kehä I/ });
+      await expect(acknowledge).toBeDisabled();
+      await expect(acknowledge).toHaveAttribute("title", "Only a steward acknowledges alerts.");
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: "Changes" }).first().click();
+      await expect(page.getByText("kept the filter Road works")).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
+    });
+
+    test(`${scheme} at ${width} px: a steward acknowledges an alert in Swedish and takes it back`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const { outside, missing, problems } = await serve(page, undefined, STEWARD);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=sv`);
+      await expect(page.getByLabel("Roll: Förvaltare")).toBeVisible();
+      await page.getByLabel(/^Kommentar om Kehä I/).fill("Polisen informerad");
+      await page.getByRole("button", { name: /^Kvittera Kehä I/ }).click();
+      await expect(page.getByText(/^Kvitterat: Polisen informerad \(Sara Steward, /)).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      await page.getByRole("button", { name: /^Ångra kvitteringen av Kehä I/ }).click();
+      await expect(page.getByRole("button", { name: /^Kvittera Kehä I/ })).toBeVisible();
+      await page.getByRole("button", { name: "Ändringar" }).first().click();
+      await expect(page.getByText("Allas ändringar, nyaste först.")).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
       expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
     });
   }
