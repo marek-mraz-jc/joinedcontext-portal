@@ -16214,7 +16214,8 @@
               "number",
               "null"
             ],
-            "format": "double"
+            "format": "double",
+            "description": "The largest value a number may have."
           },
           "minimum": {
             "type": [
@@ -16222,7 +16223,7 @@
               "null"
             ],
             "format": "double",
-            "description": "The smallest and the largest value a number may have."
+            "description": "The smallest value a number may have."
           },
           "name": {
             "type": "string",
@@ -17871,7 +17872,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "What the class means, in the model's words."
           },
           "model": {
             "type": "string",
@@ -17882,7 +17884,8 @@
             "description": "The class, which is the entity type."
           },
           "version": {
-            "type": "string"
+            "type": "string",
+            "description": "The version the space pins."
           }
         }
       },
@@ -22490,10 +22493,12 @@
         ],
         "properties": {
           "many": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether it holds several targets."
           },
           "target": {
-            "type": "string"
+            "type": "string",
+            "description": "The entity type it points at."
           }
         }
       },
@@ -23941,13 +23946,15 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The UN/CEFACT code."
           },
           "ucum": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The UCUM spelling."
           }
         }
       },

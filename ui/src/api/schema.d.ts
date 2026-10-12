@@ -3734,11 +3734,14 @@ export interface components {
             format?: string | null;
             /** @description `Property`, `Relationship`, `GeoProperty`, `LanguageProperty` or `VocabProperty`. */
             kind: string;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description The largest value a number may have.
+             */
             maximum?: number | null;
             /**
              * Format: double
-             * @description The smallest and the largest value a number may have.
+             * @description The smallest value a number may have.
              */
             minimum?: number | null;
             /** @description The attribute's name. */
@@ -4328,11 +4331,13 @@ export interface components {
              *     listed.
              */
             attributes: components["schemas"]["Attribute"][];
+            /** @description What the class means, in the model's words. */
             description?: string | null;
             /** @description The model's manifest name and the version the space pins. */
             model: string;
             /** @description The class, which is the entity type. */
             type: string;
+            /** @description The version the space pins. */
             version: string;
         };
         ColourRule: {
@@ -6011,7 +6016,9 @@ export interface components {
         };
         /** @description The type a relationship points at. */
         RelationshipTarget: {
+            /** @description Whether it holds several targets. */
             many: boolean;
+            /** @description The entity type it points at. */
             target: string;
         };
         /** @description What the proxy relays on behalf of a workspace it has already authenticated. */
@@ -6523,7 +6530,9 @@ export interface components {
         };
         /** @description A quantity's unit: the UN/CEFACT code NGSI-LD's `unitCode` carries, and its UCUM spelling. */
         Unit: {
+            /** @description The UN/CEFACT code. */
             code?: string | null;
+            /** @description The UCUM spelling. */
             ucum?: string | null;
         };
         /** @description What updating from main did (CC-80). */
