@@ -9430,6 +9430,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "What an MQTT Broker Measures",
+        "description": "Connected clients per ServiceAccount and messages per second, read from the broker's own HTTP API (API/01 §44, ADR-N-048 §2.8). Whoever may read the project's MqttBrokers.",
+        "operationId": "get_measured",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the broker measures, or why it is not measured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Measured"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops": {
       "get": {
         "tags": [
@@ -15297,6 +15359,32 @@
           }
         }
       },
+      "AccountSeen": {
+        "type": "object",
+        "description": "One ServiceAccount of the broker's roles and its connected clients.",
+        "required": [
+          "serviceAccount",
+          "connected"
+        ],
+        "properties": {
+          "connected": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "serviceAccount": {
+            "type": "string"
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The newest `connected_at` of its connected clients; `null` when none is connected."
+          }
+        }
+      },
       "ActivityEvent": {
         "type": "object",
         "required": [
@@ -19918,6 +20006,55 @@
           }
         ],
         "description": "Who is signed in and through which front, so the UI knows whose logout to call."
+      },
+      "Measured": {
+        "type": "object",
+        "description": "What one broker measures now.",
+        "required": [
+          "measured",
+          "observedAt",
+          "accounts"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountSeen"
+            },
+            "description": "Every ServiceAccount the broker's roles name, in name order."
+          },
+          "measured": {
+            "type": "boolean",
+            "description": "`false` when the broker did not answer; `reason` says why and no number is given."
+          },
+          "messagesPerSecond": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`messages.publish` of the two newest samples, per second; `null` with fewer than two."
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Connected clients of the accounts whose roles may publish.",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "MessageRequest": {
         "type": "object",
