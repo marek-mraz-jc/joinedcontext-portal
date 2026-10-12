@@ -50,6 +50,11 @@ export interface PipelineForm {
    * The runner fans the messages out to all of them, every write one must succeed.
    */
   moreOutputs?: OutputForm[];
+  /**
+   * Routes by condition (PL-73): after the lane, a record takes the first route whose `when`
+   * holds, runs its steps and is written through its outputs; the rest go to the outputs above.
+   */
+  routes?: RouteForm[];
   allowFeedback?: boolean;
   /** Stale-entity expiry: off unless both are given (PL-64). */
   expiry?: { after?: string; types?: string[] };
@@ -62,6 +67,14 @@ export interface OutputForm {
   targetEndpoint?: string;
   type?: string;
   mode?: string;
+}
+
+/** One route (PL-73), as the manifest holds it: its steps are the manifest's own, kept whole. */
+export interface RouteForm {
+  name?: string;
+  when?: string;
+  steps?: Record<string, unknown>[];
+  outputs?: OutputForm[];
 }
 
 /** One source a pipeline reads: a DataSource, or an Endpoint with a query or a trigger (PL-52). */
@@ -138,6 +151,7 @@ const OWNED_SPEC = [
   "sources",
   "steps",
   "outputs",
+  "routes",
 ];
 
 /** The version a Pipeline is written at whenever it has a source (PL-54, ADR-N-023). */
@@ -160,6 +174,7 @@ function secondShape(
   processors?: StepForm[],
   moreSources?: SourceForm[],
   moreOutputs?: OutputForm[],
+  routes?: RouteForm[],
 ): Spec {
   const { source, compute, targetEndpoint, output, ...others } = spec;
   const baseSteps = listOf(base.steps);
@@ -187,6 +202,9 @@ function secondShape(
       { targetEndpoint, ...((output as Spec | undefined) ?? {}) },
       ...(moreOutputs ? moreOutputs.map((more) => prune({ ...more }) as Spec) : listOf(base.outputs).slice(1)),
     ],
+    // A form that carries routes owns them, an emptied list included; one that does not keeps
+    // the edited manifest's.
+    routes: (routes ?? (listOf(base.routes) as RouteForm[])).map((route) => prune({ ...route }) as Spec),
   }) as Spec;
 }
 
@@ -245,6 +263,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     source,
     moreSources,
     moreOutputs,
+    routes,
     compute,
     allowFeedback,
     expiry,
@@ -280,7 +299,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
       ...(title?.trim() ? { title } : {}),
     },
     spec: second
-      ? secondShape(spec, (base?.spec ?? {}) as Spec, processors, sourcesFor(moreSources), moreOutputs)
+      ? secondShape(spec, (base?.spec ?? {}) as Spec, processors, sourcesFor(moreSources), moreOutputs, routes)
       : spec,
   };
   return { ...overlay(base, next, OWNED_SPEC), apiVersion: next.apiVersion };
