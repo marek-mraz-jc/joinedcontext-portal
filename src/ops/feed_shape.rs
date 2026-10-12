@@ -329,8 +329,8 @@ fn slot_name(field: &str) -> String {
 }
 
 /// The class's slots in the inferred LinkML: `(slot, its definition)` in the class's order.
-fn class_slots(linkml: &str, class: &str) -> Vec<(String, serde_yaml_ng::Value)> {
-    let Ok(model) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(linkml) else {
+fn class_slots(linkml: &str, class: &str) -> Vec<(String, serde_norway::Value)> {
+    let Ok(model) = serde_norway::from_str::<serde_norway::Value>(linkml) else {
         return Vec::new();
     };
     model["classes"][class]["slots"]

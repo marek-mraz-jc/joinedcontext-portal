@@ -2262,18 +2262,18 @@ fn is_encrypted_secrets_file(path: &str) -> bool {
 /// claim one identity and which path a kind belongs at.
 ///
 /// `Ok(None)` means the file held nothing to load.
-fn stageable(content: &str) -> Result<Option<String>, serde_yaml_ng::Error> {
+fn stageable(content: &str) -> Result<Option<String>, serde_norway::Error> {
     let mut kept: Vec<String> = Vec::new();
 
-    for document in serde_yaml_ng::Deserializer::from_str(content) {
-        let mut value = serde_yaml_ng::Value::deserialize(document)?;
+    for document in serde_norway::Deserializer::from_str(content) {
+        let mut value = serde_norway::Value::deserialize(document)?;
         let Some(mapping) = value.as_mapping_mut() else {
             continue;
         };
         // Dropping `status.build` too left every published App without a build to serve
         // (T-2633), and dropping `status.shard` left every wasm App on no shard (T-3603).
         if let Some(mut committed) = mapping.remove("status") {
-            let mut status = serde_yaml_ng::Mapping::new();
+            let mut status = serde_norway::Mapping::new();
             if let Some(committed) = committed.as_mapping_mut() {
                 for member in ["build", "shard"] {
                     if let Some(value) = committed.remove(member) {
@@ -2287,7 +2287,7 @@ fn stageable(content: &str) -> Result<Option<String>, serde_yaml_ng::Error> {
         }
         // A document without a `kind` is not a manifest (a LinkML source beside its DataModel,
         // a note): nothing for an operator to act on. A kind the catalogue lacks is (OPS-27).
-        let Some(kind) = mapping.get("kind").and_then(serde_yaml_ng::Value::as_str) else {
+        let Some(kind) = mapping.get("kind").and_then(serde_norway::Value::as_str) else {
             tracing::debug!("a document without a kind, skipped");
             continue;
         };
@@ -2295,7 +2295,7 @@ fn stageable(content: &str) -> Result<Option<String>, serde_yaml_ng::Error> {
             tracing::warn!(kind = %kind, "manifest of an unknown kind, skipped");
             continue;
         }
-        kept.push(serde_yaml_ng::to_string(&value)?);
+        kept.push(serde_norway::to_string(&value)?);
     }
 
     if kept.is_empty() {
@@ -2865,13 +2865,13 @@ output_error{stream="kpi"} 6
     fn staging_keeps_status_build_and_shard_and_drops_the_rest_of_status() {
         let app = "apiVersion: joinedcontext.com/v1alpha1\nkind: App\nmetadata:\n  name: a\nspec: {}\nstatus:\n  phase: Pending\n  build:\n    commit: abc\n  shard: 0\n";
         let staged = stageable(app).expect("YAML").expect("an App");
-        let value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&staged).expect("YAML");
+        let value: serde_norway::Value = serde_norway::from_str(&staged).expect("YAML");
         assert_eq!(value["status"]["build"]["commit"].as_str(), Some("abc"));
         assert_eq!(value["status"]["shard"].as_u64(), Some(0));
         assert!(value["status"].get("phase").is_none());
         let shard_only = stageable(&app.replace("  build:\n    commit: abc\n", "")).expect("YAML");
-        let value: serde_yaml_ng::Value =
-            serde_yaml_ng::from_str(&shard_only.expect("an App")).expect("YAML");
+        let value: serde_norway::Value =
+            serde_norway::from_str(&shard_only.expect("an App")).expect("YAML");
         assert_eq!(value["status"]["shard"].as_u64(), Some(0));
         assert!(value["status"].get("build").is_none());
         let bare =

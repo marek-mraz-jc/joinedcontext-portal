@@ -570,7 +570,7 @@ fn parse_text(text: &str, path: Option<&str>) -> Result<Vec<Incoming>, ApiError>
             .map_err(|err| ApiError::BadRequest(format!("the JSON did not parse: {err}")))?;
         documents.push(value.0);
     } else {
-        for document in serde_yaml_ng::Deserializer::from_str(text) {
+        for document in serde_norway::Deserializer::from_str(text) {
             let value = Unique::deserialize(document)
                 .map_err(|err| ApiError::BadRequest(format!("the YAML did not parse: {err}")))?;
             documents.push(value.0);
@@ -633,7 +633,7 @@ fn as_incoming(document: &Value, path: Option<&str>) -> Result<Incoming, ApiErro
         return Ok(Incoming {
             path: path.map(str::to_owned),
             envelope: None,
-            content: serde_yaml_ng::to_string(document)
+            content: serde_norway::to_string(document)
                 .map_err(|e| ApiError::Internal(format!("document did not serialise: {e}")))?,
         });
     }
@@ -1606,7 +1606,7 @@ fn verify(incoming: &[Incoming]) -> Result<Vec<Verified>, ApiError> {
         };
         let bytes = match &item.envelope {
             Some(envelope) if envelope.kind == BUNDLE_KIND => continue,
-            Some(envelope) => serde_yaml_ng::to_string(envelope)
+            Some(envelope) => serde_norway::to_string(envelope)
                 .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?,
             // A native file travels byte for byte, so the bytes that arrived are the bytes
             // that will be written.
@@ -1915,7 +1915,7 @@ fn plan_import(
         let mut committed = envelope.clone();
         committed.strip_status();
         annotate(&mut committed, report.source.as_deref());
-        let content = serde_yaml_ng::to_string(&committed)
+        let content = serde_norway::to_string(&committed)
             .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
         files.push((path, content));
     }
@@ -1929,7 +1929,7 @@ fn plan_import(
             &envelope.metadata.name,
         )
         .map_err(ApiError::BadRequest)?;
-        let content = serde_yaml_ng::to_string(&envelope)
+        let content = serde_norway::to_string(&envelope)
             .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
         report.created.push(envelope.metadata.name);
         files.push((path, content));

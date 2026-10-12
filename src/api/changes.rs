@@ -650,7 +650,7 @@ async fn bundle_headline(
         let Some(content) = gitea.get_file(&file.path, git_ref).await? else {
             continue;
         };
-        let Ok(envelope) = serde_yaml_ng::from_str::<ResourceEnvelope>(&content.content) else {
+        let Ok(envelope) = serde_norway::from_str::<ResourceEnvelope>(&content.content) else {
             continue;
         };
         let (operation, base_envelope, head_envelope) = if file.deleted {
@@ -661,7 +661,7 @@ async fn bundle_headline(
             let base = gitea
                 .get_file(&file.path, pr.base_ref())
                 .await?
-                .and_then(|base| serde_yaml_ng::from_str::<ResourceEnvelope>(&base.content).ok());
+                .and_then(|base| serde_norway::from_str::<ResourceEnvelope>(&base.content).ok());
             (Operation::Update, base, Some(envelope.clone()))
         };
         return Ok(Some(ManifestData {
@@ -737,7 +737,7 @@ async fn load_manifest_data(
                     ))
                 })?;
 
-            let env: ResourceEnvelope = serde_yaml_ng::from_str(&base_file.content)
+            let env: ResourceEnvelope = serde_norway::from_str(&base_file.content)
                 .map_err(|e| ApiError::Internal(format!("failed to parse base manifest: {e}")))?;
 
             (Some(env), None)
@@ -793,12 +793,12 @@ async fn load_manifest_data(
                     ))
                 })?;
 
-            let head_env: ResourceEnvelope = serde_yaml_ng::from_str(&head_file.content)
+            let head_env: ResourceEnvelope = serde_norway::from_str(&head_file.content)
                 .map_err(|e| ApiError::Internal(format!("failed to parse head manifest: {e}")))?;
 
             let base_env = if branch_info.operation == Operation::Update {
                 if let Ok(Some(base_file)) = gitea.get_file(&repo_path, pr.base_ref()).await {
-                    serde_yaml_ng::from_str::<ResourceEnvelope>(&base_file.content).ok()
+                    serde_norway::from_str::<ResourceEnvelope>(&base_file.content).ok()
                 } else {
                     None
                 }
@@ -1165,7 +1165,7 @@ async fn closed_headline(
                 .get_file(&file.path, pr.head_ref())
                 .await?
                 .and_then(|content| {
-                    serde_yaml_ng::from_str::<ResourceEnvelope>(&content.content).ok()
+                    serde_norway::from_str::<ResourceEnvelope>(&content.content).ok()
                 })
                 .map(|envelope| (envelope.kind, envelope.metadata.name))
         };
@@ -1569,7 +1569,7 @@ async fn changed_files(gitea: &GiteaClient, pr: &PullRequest) -> Result<Vec<Chan
         let parse = |content: &Option<String>| {
             content
                 .as_deref()
-                .and_then(|content| serde_yaml_ng::from_str::<ResourceEnvelope>(content).ok())
+                .and_then(|content| serde_norway::from_str::<ResourceEnvelope>(content).ok())
         };
         let (head_envelope, base_envelope) = (parse(&head), parse(&base));
         let fields = (head_envelope.is_some() || base_envelope.is_some())
@@ -1649,7 +1649,7 @@ async fn approve_every_file(
                 ))
             })?
             .content;
-        let Ok(envelope) = serde_yaml_ng::from_str::<ResourceEnvelope>(&content) else {
+        let Ok(envelope) = serde_norway::from_str::<ResourceEnvelope>(&content) else {
             let kind = crate::api::import::native_kind(&file.path).ok_or_else(|| {
                 ApiError::Denied(format!(
                     "'{}' belongs to no kind this platform serves, so no role grants approving \

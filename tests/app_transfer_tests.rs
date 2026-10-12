@@ -365,7 +365,7 @@ async fn an_app_exports_as_its_bundle_beside_its_stripped_manifest() {
         String::from_utf8_lossy(&files["air-map.tags"]),
         format!("{TAGGED} refs/tags/v1.0.0\n")
     );
-    let app: Value = serde_yaml_ng::from_slice(&files["app.yaml"]).expect("yaml");
+    let app: Value = serde_norway::from_slice(&files["app.yaml"]).expect("yaml");
     assert!(app.get("status").is_none(), "{app}");
     assert!(
         app["metadata"]["annotations"]
@@ -376,7 +376,7 @@ async fn an_app_exports_as_its_bundle_beside_its_stripped_manifest() {
     assert_eq!(app["metadata"]["annotations"]["owner"], "jana");
 
     let index: jc_core::kinds::Bundle =
-        serde_yaml_ng::from_slice(&files["bundle.yaml"]).expect("the platform's Bundle");
+        serde_norway::from_slice(&files["bundle.yaml"]).expect("the platform's Bundle");
     index.validate().expect("a valid index");
     assert_eq!(index.spec.repositories.len(), 1);
     assert_eq!(index.spec.repositories[0].head, APP_HEAD);
@@ -518,7 +518,7 @@ async fn an_exported_app_imports_into_another_project_under_a_new_name() {
         .find(|(route, _)| route.ends_with("/app.yaml") || route.ends_with("mapa.yaml"))
         .unwrap_or_else(|| panic!("the App manifest is proposed: {written:?}"));
     assert!(route.contains("mapa"), "{route}");
-    let app: Value = serde_yaml_ng::from_str(text).expect("yaml");
+    let app: Value = serde_norway::from_str(text).expect("yaml");
     assert_eq!(app["metadata"]["name"], "mapa");
     assert_eq!(app["metadata"]["namespace"], "doprava");
     assert!(

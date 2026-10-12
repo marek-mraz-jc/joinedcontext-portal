@@ -218,7 +218,7 @@ async fn a_grant_above_the_proposers_rights_is_refused_inside_an_import() {
         "POST",
         &format!("/api/v1/projects/{PROJECT}/import?dryRun=All"),
         // The shape `jcctl import` sends: the manifest as the whole body.
-        Some(serde_yaml_ng::from_str(&escalating_binding()).expect("the binding as JSON")),
+        Some(serde_norway::from_str(&escalating_binding()).expect("the binding as JSON")),
     )
     .await;
     assert_eq!(

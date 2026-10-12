@@ -165,7 +165,7 @@ async fn pull(gitea: &MockServer, number: u64, branch: &str, file: &str, manifes
         ])))
         .mount(gitea)
         .await;
-    let yaml = serde_yaml_ng::to_string(manifest).expect("yaml");
+    let yaml = serde_norway::to_string(manifest).expect("yaml");
     Mock::given(method("GET"))
         .and(path(format!("{REPO}/contents/{file}")))
         .and(query_param("ref", git_ref))

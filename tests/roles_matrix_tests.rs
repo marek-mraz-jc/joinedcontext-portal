@@ -207,7 +207,7 @@ async fn forge() -> MockServer {
 
     // Every existing resource has its file; a new one has none.
     for family in &FAMILIES {
-        let file = serde_yaml_ng::to_string(&manifest(family, &existing(family))).expect("yaml");
+        let file = serde_norway::to_string(&manifest(family, &existing(family))).expect("yaml");
         Mock::given(method("GET"))
             .and(path_regex(format!(
                 "^{REPO}/contents/.*/{}(/[a-z-]+)?\\.yaml$",
@@ -254,7 +254,7 @@ async fn forge() -> MockServer {
                 }])))
                 .mount(&gitea)
                 .await;
-            let file = serde_yaml_ng::to_string(&manifest(family, "proposed")).expect("yaml");
+            let file = serde_norway::to_string(&manifest(family, "proposed")).expect("yaml");
             Mock::given(method("GET"))
                 .and(path_regex(format!("^{REPO}/contents/.*")))
                 .and(query_param("ref", head.as_str()))

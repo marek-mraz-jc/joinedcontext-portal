@@ -105,7 +105,7 @@ fn accept_rendered(
     template: &str,
     project: &str,
 ) -> Result<(ResourceEnvelope, &'static resource::KindInfo), ApiError> {
-    let body: serde_json::Value = serde_yaml_ng::from_str(yaml).map_err(|e| {
+    let body: serde_json::Value = serde_norway::from_str(yaml).map_err(|e| {
         ApiError::Internal(format!("template `{template}` rendered invalid yaml: {e}"))
     })?;
     let mut envelope: ResourceEnvelope = serde_json::from_value(body.clone()).map_err(|e| {
@@ -521,7 +521,7 @@ pub(crate) fn plan_flow(
 
         let repo_path = resolve_repo_path(&manifest, kind_info, project)?;
         manifest.strip_status();
-        let yaml = serde_yaml_ng::to_string(&manifest)
+        let yaml = serde_norway::to_string(&manifest)
             .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
         files.push((repo_path, yaml));
     }
@@ -648,7 +648,7 @@ spec:
         let rendered = jcctl::blueprints::expand(&blueprint(), &filled).expect("expands");
         let slug = filled["endpointSlug"].as_str().expect("a slug");
         let mut manifest: serde_json::Value =
-            serde_yaml_ng::from_str(&rendered[0].manifest).expect("a manifest");
+            serde_norway::from_str(&rendered[0].manifest).expect("a manifest");
         assert_eq!(manifest["spec"]["slug"], slug);
         let recorded: serde_json::Value = serde_json::from_str(
             manifest["metadata"]["annotations"][jcctl::blueprints::ANNOTATION_PARAMETERS]
@@ -658,7 +658,7 @@ spec:
         .expect("recorded as JSON");
         assert_eq!(recorded["endpointSlug"], slug);
         manifest["metadata"]["namespace"] = json!("helsinki");
-        let yaml = serde_yaml_ng::to_string(&manifest).expect("serialises");
+        let yaml = serde_norway::to_string(&manifest).expect("serialises");
         assert!(
             matches!(
                 jc_core::registry::validate_yaml("Endpoint", &yaml),

@@ -871,7 +871,7 @@ mod tests {
     use super::*;
 
     fn bikes() -> Value {
-        serde_yaml_ng::from_str(
+        serde_norway::from_str(
             "classes:\n  Entity:\n    abstract: true\n  BikeHireDockingStation:\n    is_a: Entity\n    slots: [name, availableBikeNumber, status]\n  Vehicle:\n    is_a: Entity\n    slots: [name, station]\nslots:\n  name:\n    range: string\n  availableBikeNumber:\n    range: integer\n  status:\n    range: string\n  station:\n    range: BikeHireDockingStation\n",
         )
         .expect("yaml")
@@ -1100,7 +1100,7 @@ mod tests {
     }
 
     fn school() -> Value {
-        serde_yaml_ng::from_str(
+        serde_norway::from_str(
             "name: learning\nid: https://example.org/learning\nclasses:\n  School:\n    slots: [name]\n  User:\n    slots: [name]\n  Course:\n    slots: []\n  Profile:\n    slots: []\n  Person:\n    slots: []\nslots:\n  name:\n    range: string\n",
         )
         .expect("a model")

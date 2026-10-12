@@ -1002,7 +1002,7 @@ async fn document(
     let Some(file) = gitea.get_file(path, git_ref).await? else {
         return Ok(None);
     };
-    Ok(serde_yaml_ng::from_str::<Value>(&file.content).ok())
+    Ok(serde_norway::from_str::<Value>(&file.content).ok())
 }
 
 fn envelope(doc: Option<&Value>) -> Option<crate::resource::ResourceEnvelope> {
@@ -1237,7 +1237,7 @@ pub async fn update_from_main(
             let theirs_doc = theirs_text
                 .as_deref()
                 .filter(|_| is_manifest(path))
-                .and_then(|text| serde_yaml_ng::from_str::<Value>(text).ok());
+                .and_then(|text| serde_norway::from_str::<Value>(text).ok());
             match (ours_doc, theirs_doc) {
                 (Some(ours), Some(theirs)) => {
                     let base_doc = document(gitea, path, &workspace.base_revision).await?;
@@ -1246,7 +1246,7 @@ pub async fn update_from_main(
                     }) {
                         Ok(doc) => {
                             recheck(identity, state, project, path, &doc, Op::Update).await?;
-                            let text = serde_yaml_ng::to_string(&doc)
+                            let text = serde_norway::to_string(&doc)
                                 .map_err(|e| ApiError::Internal(e.to_string()))?;
                             uploads.push((path.clone(), text));
                             merged.push(path.clone());
