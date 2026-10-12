@@ -1045,6 +1045,18 @@ async fn propose_engine(
         )?;
     }
 
+    // 4e-retention. Retention deletes data: only the space's owner sets or changes it (DM-85).
+    if operation != Operation::Delete {
+        crate::spaces::check_retention(
+            state,
+            identity,
+            project,
+            kind_info.kind,
+            &envelope.metadata.name,
+            &envelope.spec,
+        )?;
+    }
+
     // 4e-broker. An Endpoint serves only what its space's broker serves (PF-110), and a space
     //       holding entities changes broker only by the move job (PF-115, ADR-N-047).
     if operation != Operation::Delete {

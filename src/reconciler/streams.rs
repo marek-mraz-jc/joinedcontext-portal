@@ -4130,6 +4130,7 @@ output:
             .iter()
             .filter_map(|step| step.as_object()?.keys().next().map(String::as_str))
             .collect();
+        // A deflated member is inflated by the runner's bounded module (T-3953, PL-72).
         assert_eq!(
             read,
             [
@@ -4141,6 +4142,10 @@ output:
                 "wasm",
                 "mapping"
             ]
+        );
+        assert_eq!(
+            processors[2]["try"][5]["wasm"]["module_path"],
+            "/streams/inflate.wasm"
         );
         assert_eq!(
             processors[2]["try"][3]["http"]["headers"]["Range"],

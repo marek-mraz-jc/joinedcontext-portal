@@ -162,6 +162,7 @@
     "src/pages/spaces/SpaceComplete.tsx": null,
     "src/pages/spaces/SpaceDrift.tsx": null,
     "src/pages/spaces/SpaceInside.tsx": null,
+    "src/pages/spaces/SpaceRetention.tsx": null,
     "src/pages/spaces/TypeApi.tsx": null,
     "src/pages/spaces/UploadCsv.tsx": null,
     "src/pages/sync/SyncSourcesPage.tsx": null,

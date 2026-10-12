@@ -597,6 +597,17 @@
         "stale": "Veraltet",
         "empty": "Leer",
         "untargeted": "Ohne Ziel"
+      },
+      "checks": {
+        "caption": "Prüfungen beim Schreiben nach Regel",
+        "unknown": "Prüfungen beim Schreiben unbekannt: Die Zähler des Gateways wurden noch nicht gelesen.",
+        "noRules": "Der Bereich legt keine Qualitätsregeln fest.",
+        "passDay": "Bestanden, 24 h",
+        "passWeek": "Bestanden, 7 Tage",
+        "rejected": "Abgelehnt, 7 Tage",
+        "quarantined": "In Quarantäne, 7 Tage",
+        "lastRejected": "Zuletzt abgelehnt",
+        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage)."
       }
     },
     "fields": {
@@ -969,6 +980,44 @@
       "removeOne": "Ihren Kommentar vom {when} entfernen",
       "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}",
       "writeFirst": "Schreiben Sie zuerst einen Kommentar."
+    },
+    "retention": {
+      "title": "Aufbewahrung",
+      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ ohne Regel wird für immer aufbewahrt; eine kürzere Regel löscht Daten endgültig.",
+      "noTypes": "Das Modell des Raums nennt noch keine Typen.",
+      "caption": "Wie lange die Daten jedes Typs aufbewahrt werden",
+      "type": "Typ",
+      "current": "Aktuelle Werte",
+      "history": "Verlauf",
+      "deleted": "Bisher gelöscht",
+      "deletedUnknown": "Unbekannt: der Broker hat nicht geantwortet",
+      "forever": "Für immer behalten",
+      "amount": {
+        "minutes": "{count, plural, one {# Minute} other {# Minuten}}",
+        "hours": "{count, plural, one {# Stunde} other {# Stunden}}",
+        "days": "{count, plural, one {# Tag} other {# Tage}}"
+      },
+      "unit": {
+        "minutes": "Minuten",
+        "hours": "Stunden",
+        "days": "Tage"
+      },
+      "amountOf": "{what} von {type}: wie viele",
+      "unitOf": "{what} von {type}: Einheit",
+      "removed": "{current} Werte, {history} Verlaufseinträge",
+      "edit": "Aufbewahrung ändern",
+      "save": "Vorschlagen",
+      "cancel": "Abbrechen",
+      "invalid": "Jede Dauer ist eine ganze Zahl von einer Minute bis 3650 Tage.",
+      "proposed": "Als Änderung vorgeschlagen: sie gilt nach der Freigabe.",
+      "confirmTitle": "Daten von {space} endgültig löschen?",
+      "confirmLead": "Die kürzeren Regeln löschen jetzt so viel und den Rest, sobald er altert. Nichts bringt ihn zurück.",
+      "confirm": "Vorschlagen und löschen",
+      "nothingNow": "Jetzt ist nichts alt genug; Daten gehen, sobald sie die neuen Regeln überschreiten.",
+      "wouldDelete": {
+        "entity": "{type}: {count, plural, one {# aktueller Wert} other {# aktuelle Werte}}",
+        "history": "{type}: {count, plural, one {# Verlaufseintrag} other {# Verlaufseinträge}}"
+      }
     },
     "upload": {
       "open": "CSV hochladen",

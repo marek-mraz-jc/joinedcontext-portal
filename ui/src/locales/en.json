@@ -597,6 +597,17 @@
         "stale": "Stale",
         "empty": "Empty",
         "untargeted": "No target"
+      },
+      "checks": {
+        "caption": "Checks on write by rule",
+        "unknown": "Checks on write unknown: the gateway's counters were not read yet.",
+        "noRules": "The space declares no quality rules.",
+        "passDay": "Passed, 24 h",
+        "passWeek": "Passed, 7 days",
+        "rejected": "Rejected, 7 days",
+        "quarantined": "Quarantined, 7 days",
+        "lastRejected": "Last rejected",
+        "since": "Counted from {day} (24 h) and from {week} (7 days)."
       }
     },
     "fields": {
@@ -969,6 +980,44 @@
       "removeOne": "Remove your comment of {when}",
       "unknown": "Not notified, because they may not read this space: {names}",
       "writeFirst": "Write a comment first."
+    },
+    "retention": {
+      "title": "Retention",
+      "lead": "How long this space keeps each type's data. A type without a rule is kept forever; a shorter rule deletes data for good.",
+      "noTypes": "The space's model names no types yet.",
+      "caption": "How long each type's data is kept",
+      "type": "Type",
+      "current": "Current values",
+      "history": "History",
+      "deleted": "Deleted so far",
+      "deletedUnknown": "Not known: the broker did not answer",
+      "forever": "Keep forever",
+      "amount": {
+        "minutes": "{count, plural, one {# minute} other {# minutes}}",
+        "hours": "{count, plural, one {# hour} other {# hours}}",
+        "days": "{count, plural, one {# day} other {# days}}"
+      },
+      "unit": {
+        "minutes": "minutes",
+        "hours": "hours",
+        "days": "days"
+      },
+      "amountOf": "{what} of {type}: how many",
+      "unitOf": "{what} of {type}: unit",
+      "removed": "{current} values, {history} history records",
+      "edit": "Change retention",
+      "save": "Propose",
+      "cancel": "Cancel",
+      "invalid": "Each duration is a whole number from one minute to 3650 days.",
+      "proposed": "Proposed as a change: it applies once it is approved.",
+      "confirmTitle": "Delete data of {space} for good?",
+      "confirmLead": "The shorter rules delete this much now, and the rest as it ages. Nothing brings it back.",
+      "confirm": "Propose and delete",
+      "nothingNow": "Nothing is old enough to go now; data goes as it ages past the new rules.",
+      "wouldDelete": {
+        "entity": "{type}: {count, plural, one {# current value} other {# current values}}",
+        "history": "{type}: {count, plural, one {# history record} other {# history records}}"
+      }
     },
     "upload": {
       "open": "Upload CSV",

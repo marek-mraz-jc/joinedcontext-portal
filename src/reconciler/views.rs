@@ -25,7 +25,7 @@ use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
     ContextSpaceSpec, DataAgreementSpec, DataModelLifecycle, DataModelRef, DataModelSpec,
     DataOfferSpec, EndpointSpec, MappingSpec, ModelProjectionSpec, Operation, OperationRef,
-    PolicySpec, PrincipalKind, ProjectedClass, Projection, ProjectionFilter,
+    PolicySpec, PrincipalKind, ProjectedClass, Projection, ProjectionFilter, RetentionRule,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
@@ -162,9 +162,15 @@ pub struct Sources {
     /// names and every platform model that imports, or why they do not read. A space without
     /// `dataModelRef` has none, and its tenant no schema.
     pub models: BTreeMap<(String, String), Result<ModelSource, String>>,
+    /// Each Context Space's retention rules by `(project, space)`, empty for keep-forever
+    /// (DM-82).
+    pub retention: BTreeMap<(String, String), Vec<RetentionRule>>,
     /// The broker each tenant lives on (PF-111, ADR-N-047); `""` for a space whose `brokerRef`
     /// names no broker, which nothing is written for.
     pub brokers: BTreeMap<String, String>,
+    /// The Context Spaces with a quality rule that quarantines (DM-90): their permits, but the
+    /// owner's and the steward's, exclude a quarantined entity.
+    pub quarantines: BTreeSet<(String, String)>,
 }
 
 /// One Mapping as a view of another model needs it (G18).
@@ -220,7 +226,18 @@ impl Sources {
                         .map(str::to_owned)
                         .unwrap_or_default();
                     sources.brokers.insert(tenant, broker);
-                    if let Some(model) = parsed.and_then(|spec| spec.data_model_ref) {
+                    let model = parsed.as_ref().and_then(|spec| spec.data_model_ref.clone());
+                    if let Some(spec) = parsed {
+                        if spec.quality.iter().any(quarantines) {
+                            sources
+                                .quarantines
+                                .insert((project.clone(), id.name.clone()));
+                        }
+                        sources
+                            .retention
+                            .insert((project.clone(), id.name.clone()), spec.retention);
+                    }
+                    if let Some(model) = model {
                         sources.models.insert(
                             (project.clone(), id.name.clone()),
                             model_source(repo, &project, model.name()),
@@ -540,6 +557,8 @@ pub struct Desired {
     pub documents: BTreeMap<String, (Owner, Value)>,
     /// Each tenant's data model, which becomes its schema.
     pub schemas: BTreeMap<String, (Owner, ModelSource)>,
+    /// Each tenant's retention rules, empty to remove its document (DM-82).
+    pub retention: BTreeMap<String, (Owner, Vec<RetentionRule>)>,
     /// The objects the writer refused, and why.
     pub refused: Vec<(Owner, String)>,
 }
@@ -599,6 +618,12 @@ pub fn desired(sources: &Sources) -> Desired {
             )),
             None => {}
         }
+        let rules = sources
+            .retention
+            .get(&(project.clone(), name.clone()))
+            .cloned()
+            .unwrap_or_default();
+        out.retention.insert(tenant.clone(), (owner.clone(), rules));
         out.documents.insert(
             tenant.clone(),
             (owner, with_gateway(rule_document(sources, project, name))),
@@ -1064,10 +1089,45 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
         }
         views.insert(slug, json!(ids));
     }
+    if sources
+        .quarantines
+        .contains(&(project.to_owned(), space.to_owned()))
+    {
+        policies.iter_mut().for_each(hide_quarantined);
+    }
     if views.is_empty() {
         return json!({ "policies": policies });
     }
     json!({ "policies": policies, "views": views })
+}
+
+/// Whether a quality rule can quarantine: its own outcome, or a `maxAge` the sweep applies
+/// (DM-87, DM-90).
+fn quarantines(rule: &jc_core::kinds::QualityRule) -> bool {
+    use jc_core::kinds::QualityOutcome::Quarantine;
+    rule.write_outcome() == Quarantine
+        || (rule.max_age.is_some() && rule.sweep_outcome() == Quarantine)
+}
+
+/// The roles that still see a quarantined entity, to act on it (DM-90).
+const SEE_QUARANTINE: &[&str] = &["owner", "steward"];
+
+/// Narrows one permit to entities that are not quarantined (DM-90): `!quarantinedAt` AND-ed
+/// before its own `q`. A prohibition, and a permit of the owner or steward role, stay as they
+/// are; quarantine never widens anything.
+fn hide_quarantined(policy: &mut Value) {
+    let role = policy["assignee"]["kind"] == "role"
+        && policy["assignee"]["id"]
+            .as_str()
+            .is_some_and(|id| SEE_QUARANTINE.contains(&id));
+    if policy["effect"] != "permit" || role {
+        return;
+    }
+    let q = match policy["q"].as_str() {
+        Some(own) if !own.trim().is_empty() => format!("!quarantinedAt;({own})"),
+        _ => "!quarantinedAt".to_owned(),
+    };
+    policy["q"] = json!(q);
 }
 
 /// One end of a `temporalQ` window as the engine reads it (Antares
@@ -1278,6 +1338,9 @@ pub enum ViewOutcome {
     Failed(String),
 }
 
+/// A model as Model Tools compiled it: the source, its `brokerSchema` and its JSON-LD `context`.
+type Compiled = (ModelSource, Value, Option<Value>);
+
 /// One HTTP client, the broker's address and where its admin token is mounted.
 pub struct ViewSync {
     http: reqwest::Client,
@@ -1299,7 +1362,7 @@ pub struct ViewSync {
     /// The last schema compiled per tenant and the model it came from: an unchanged model is
     /// not compiled again on every run.
     // ponytail: a Model Tools upgrade reaches an unchanged model when the Portal restarts.
-    compiled: Mutex<BTreeMap<String, (ModelSource, Value)>>,
+    compiled: Mutex<BTreeMap<String, Compiled>>,
     /// What the last run read, which a preview compiles its draft against (T-3802): the
     /// leader's converge and every follower's sync record it, so any replica previews (T-3820).
     last: Mutex<Option<Arc<Sources>>>,
@@ -1543,6 +1606,13 @@ impl ViewSync {
                 .schemas
                 .insert(tenant.clone(), entry.clone());
         }
+        for (tenant, entry) in &desired.retention {
+            parts
+                .entry(broker_of(tenant))
+                .or_default()
+                .retention
+                .insert(tenant.clone(), entry.clone());
+        }
         let mut passes: BTreeMap<String, Desired> = BTreeMap::new();
         for (broker, part) in parts {
             let Some(base) = self.address(&broker) else {
@@ -1558,7 +1628,12 @@ impl ViewSync {
                 for (owner, _) in part.views.values().chain(part.documents.values()) {
                     note(owner, ViewOutcome::Failed(reason.clone()));
                 }
-                for (owner, _) in part.schemas.values() {
+                for owner in part
+                    .schemas
+                    .values()
+                    .map(|(owner, _)| owner)
+                    .chain(part.retention.values().map(|(owner, _)| owner))
+                {
                     note(owner, ViewOutcome::Failed(reason.clone()));
                 }
                 continue;
@@ -1648,6 +1723,23 @@ impl ViewSync {
             }
         }
 
+        for (tenant, (owner, rules)) in &part.retention {
+            let path = format!("/q/retention/{tenant}");
+            let outcome = if rules.is_empty() {
+                match self.delete(base, token, &path).await {
+                    Ok(()) => ViewOutcome::Written,
+                    Err(reason) => ViewOutcome::Failed(reason),
+                }
+            } else {
+                let context = lock(&self.compiled)
+                    .get(tenant)
+                    .and_then(|(_, _, context)| context.clone());
+                let document = retention_document(rules, context.as_ref());
+                self.put_if_changed(base, token, &path, &document).await
+            };
+            note(owner, outcome);
+        }
+
         // No engine that reads rule documents: `/q/policy` answers 404 and the views stand
         // under whatever engine the broker runs.
         match self.get(base, token, "/q/policy").await {
@@ -1704,7 +1796,7 @@ impl ViewSync {
     /// The `brokerSchema` Model Tools compiles from a space's data model, or what the space's
     /// condition says instead: a model that does not compile is refused with its messages.
     async fn broker_schema(&self, tenant: &str, model: &ModelSource) -> Result<Value, ViewOutcome> {
-        if let Some((held, schema)) = lock(&self.compiled).get(tenant) {
+        if let Some((held, schema, _)) = lock(&self.compiled).get(tenant) {
             if held == model {
                 return Ok(schema.clone());
             }
@@ -1743,7 +1835,10 @@ impl ViewSync {
             })?;
         match artifacts.broker_schema {
             Some(schema) => {
-                lock(&self.compiled).insert(tenant.to_owned(), (model.clone(), schema.clone()));
+                lock(&self.compiled).insert(
+                    tenant.to_owned(),
+                    (model.clone(), schema.clone(), artifacts.context),
+                );
                 Ok(schema)
             }
             None if !artifacts.errors.is_empty() => Err(ViewOutcome::Refused(format!(
@@ -1793,6 +1888,82 @@ impl ViewSync {
             .map_err(|err| format!("GET {path} did not answer JSON: {err}"))
     }
 
+    /// Per class and kind what `rules` of the space whose broker tenant is `tenant` would delete
+    /// now, as the broker counts the document the reconciler would write (DM-85); with `None`,
+    /// what this broker's sweeps deleted of the space's `held` rules since it started.
+    pub async fn retention_counts(
+        &self,
+        tenant: &str,
+        rules: Option<&[RetentionRule]>,
+        held: &[RetentionRule],
+    ) -> Result<Vec<RetentionCount>, String> {
+        let token = std::fs::read_to_string(&self.token_file)
+            .ok()
+            .map(|token| token.trim().to_owned())
+            .filter(|token| !token.is_empty())
+            .ok_or("the broker's admin token is not readable")?;
+        let context = lock(&self.compiled)
+            .get(tenant)
+            .and_then(|(_, _, context)| context.clone());
+        let broker = lock(&self.last)
+            .as_ref()
+            .and_then(|sources| sources.brokers.get(tenant).cloned())
+            .unwrap_or_else(|| jc_core::kinds::IMPLICIT_BROKER.to_owned());
+        let base = self
+            .address(&broker)
+            .ok_or_else(|| format!("the space's broker '{broker}' has no address"))?;
+        let request = match rules {
+            Some(rules) => self
+                .http
+                .post(format!("{base}/q/retention/{tenant}/preview"))
+                .json(&retention_document(rules, context.as_ref())),
+            None => self
+                .http
+                .get(format!("{base}/q/retention/{tenant}/deleted")),
+        };
+        let response = request
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|err| format!("the broker did not answer: {}", err.without_url()))?;
+        if !response.status().is_success() {
+            return Err(refusal("the broker refused the retention count", response).await);
+        }
+        let answer: Value = response
+            .json()
+            .await
+            .map_err(|err| format!("the broker answered no JSON: {err}"))?;
+        let classes: BTreeMap<String, &str> = rules
+            .unwrap_or(held)
+            .iter()
+            .chain(held)
+            .flat_map(|rule| {
+                type_iris(&rule.entity_type, context.as_ref())
+                    .into_iter()
+                    .map(|iri| (iri, rule.entity_type.as_str()))
+            })
+            .collect();
+        let mut out: BTreeMap<(String, String), u64> = BTreeMap::new();
+        for row in answer["counts"].as_array().into_iter().flatten() {
+            let iri = row["type"].as_str().unwrap_or_default();
+            let class = classes.get(iri).map_or_else(
+                || iri.rsplit(['/', '#']).next().unwrap_or(iri).to_owned(),
+                |class| (*class).to_owned(),
+            );
+            let kind = row["kind"].as_str().unwrap_or_default().to_owned();
+            let total = out.entry((class, kind)).or_default();
+            *total = total.saturating_add(row["count"].as_u64().unwrap_or_default());
+        }
+        Ok(out
+            .into_iter()
+            .map(|((entity_type, kind), count)| RetentionCount {
+                entity_type,
+                kind,
+                count,
+            })
+            .collect())
+    }
+
     async fn put(&self, base: &str, token: &str, path: &str, doc: &Value) -> ViewOutcome {
         let sent = self
             .http
@@ -1824,6 +1995,85 @@ impl ViewSync {
             false => Err(refusal(&format!("DELETE {path}"), response).await),
         }
     }
+}
+
+/// How many rows of one class retention deletes, or would (DM-85).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RetentionCount {
+    /// The class of the space's model.
+    pub entity_type: String,
+    /// `entity` for current state, `history` for temporal instances.
+    pub kind: String,
+    /// How many.
+    pub count: u64,
+}
+
+/// The broker's retention document of one space (DM-82, ADR-N-046): each rule under every IRI
+/// its type is written as, the NGSI-LD core context's and the space's model's, once.
+fn retention_document(rules: &[RetentionRule], context: Option<&Value>) -> Value {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for rule in rules {
+        for iri in type_iris(&rule.entity_type, context) {
+            if seen.insert(iri.clone()) {
+                let mut one = json!({ "type": iri });
+                if let Some(current) = &rule.current {
+                    one["current"] = json!(current);
+                }
+                if let Some(history) = &rule.history {
+                    one["history"] = json!(history);
+                }
+                out.push(one);
+            }
+        }
+    }
+    json!({ "rules": out })
+}
+
+/// The IRIs a class name is written as: under the NGSI-LD core context, and under the model's
+/// JSON-LD `@context` (its term, a CURIE expanded by the context's prefix, else `@vocab`).
+fn type_iris(name: &str, context: Option<&Value>) -> Vec<String> {
+    let absolute = |iri: &str| iri.contains("://") || iri.starts_with("urn:");
+    let mut out = vec![format!(
+        "https://uri.etsi.org/ngsi-ld/default-context/{name}"
+    )];
+    let inner = context.map(|c| c.get("@context").unwrap_or(c));
+    let objects: Vec<&Map<String, Value>> = match inner {
+        Some(Value::Object(one)) => vec![one],
+        Some(Value::Array(many)) => many.iter().filter_map(Value::as_object).collect(),
+        _ => Vec::new(),
+    };
+    let id = |definition: &Value| -> Option<String> {
+        definition
+            .as_str()
+            .or_else(|| definition.get("@id").and_then(Value::as_str))
+            .map(str::to_owned)
+    };
+    for terms in objects {
+        let defined = terms
+            .get(name)
+            .and_then(id)
+            .and_then(|iri| match iri.split_once(':') {
+                _ if absolute(&iri) => Some(iri),
+                Some((prefix, local)) => terms
+                    .get(prefix)
+                    .and_then(id)
+                    .filter(|base| absolute(base))
+                    .map(|base| format!("{base}{local}")),
+                None => None,
+            });
+        let vocab = terms
+            .get("@vocab")
+            .and_then(Value::as_str)
+            .filter(|v| absolute(v));
+        match (defined, vocab) {
+            (Some(iri), _) => out.push(iri),
+            (None, Some(vocab)) if !terms.contains_key(name) => out.push(format!("{vocab}{name}")),
+            _ => {}
+        }
+    }
+    out
 }
 
 /// A lock a panicked holder left poisoned still holds a whole set.
@@ -3656,6 +3906,182 @@ mod tests {
         assert!(lock(&sync.written_schemas).is_empty());
     }
 
+    /// DM-82: a space's retention rules reach the broker under the core context's IRI and the
+    /// model's; a space whose rules are gone has its document removed, which keeps forever.
+    #[tokio::test]
+    async fn a_spaces_retention_is_written_and_removed_with_its_rules() {
+        let mut s = with_model(sources(vec![("cars", cars())]));
+        s.retention.insert(
+            ("city".into(), "air".into()),
+            vec![RetentionRule {
+                entity_type: "Vehicle".into(),
+                current: Some("PT5M".into()),
+                history: None,
+            }],
+        );
+        let context = json!({"@context": {"sdm": "https://smartdatamodels.org/",
+                                          "Vehicle": {"@id": "sdm:Vehicle"}}});
+        let tools = model_tools(
+            json!({"brokerSchema": {"classes": {}}, "context": context, "errors": []}),
+            1,
+        )
+        .await;
+        let server = broker_with_the_space_view(&s).await;
+        Mock::given(method("PUT"))
+            .and(path("/q/schemas/city-air"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&server)
+            .await;
+        let document = json!({"rules": [
+            {"type": "https://uri.etsi.org/ngsi-ld/default-context/Vehicle", "current": "PT5M"},
+            {"type": "https://smartdatamodels.org/Vehicle", "current": "PT5M"}]});
+        Mock::given(method("PUT"))
+            .and(path("/q/retention/city-air"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(&document))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/q/retention/city-air"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file).with_model_tools(tools.uri());
+        let first = sync.apply(desired(&s)).await;
+        s.retention
+            .insert(("city".into(), "air".into()), Vec::new());
+        let second = sync.apply(desired(&s)).await;
+        let _ = std::fs::remove_file(&file);
+        for outcomes in [&first, &second] {
+            assert!(
+                matches!(&outcomes[..], [(owner, ViewOutcome::Written)] if owner.name == "air"),
+                "{outcomes:?}"
+            );
+        }
+    }
+
+    /// DM-85: the broker counts the document the reconciler would write, and its IRIs come back
+    /// as the classes the rules name, both IRIs of one class summed; a type no rule names keeps
+    /// its last segment. A broker refusal is the caller's error, with its detail.
+    #[tokio::test]
+    async fn retention_counts_fold_the_brokers_iris_back_into_classes() {
+        let server = broker().await;
+        let core = "https://uri.etsi.org/ngsi-ld/default-context/Bus";
+        let rules = [RetentionRule {
+            entity_type: "Bus".into(),
+            current: None,
+            history: Some("PT8H".into()),
+        }];
+        Mock::given(method("POST"))
+            .and(path("/q/retention/city-air/preview"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(
+                json!({"rules": [{"type": core, "history": "PT8H"}, {"type": "https://e.org/Bus", "history": "PT8H"}]}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"counts": [
+                {"type": core, "kind": "history", "count": 3}]})))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/q/retention/city-air/deleted"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"counts": [
+                {"type": core, "kind": "history", "count": 2},
+                {"type": "https://e.org/Bus", "kind": "history", "count": 5},
+                {"type": "https://e.org/v#Stop", "kind": "entity", "count": 1}]})))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/q/retention/refused/preview"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({"detail": "type twice"})))
+            .mount(&server)
+            .await;
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file);
+        lock(&sync.compiled).insert(
+            "city-air".into(),
+            (
+                air_model(),
+                json!({}),
+                Some(json!({"@context": {"Bus": "https://e.org/Bus"}})),
+            ),
+        );
+        let count = |entity_type: &str, kind: &str, count: u64| RetentionCount {
+            entity_type: entity_type.into(),
+            kind: kind.into(),
+            count,
+        };
+        let preview = sync.retention_counts("city-air", Some(&rules), &[]).await;
+        let deleted = sync.retention_counts("city-air", None, &rules).await;
+        let refused = sync.retention_counts("refused", Some(&rules), &[]).await;
+        let _ = std::fs::remove_file(&file);
+        let unreadable = ViewSync::new(server.uri(), "/nonexistent/token")
+            .retention_counts("city-air", None, &rules)
+            .await;
+        assert_eq!(preview, Ok(vec![count("Bus", "history", 3)]));
+        assert_eq!(
+            deleted,
+            Ok(vec![count("Bus", "history", 7), count("Stop", "entity", 1)])
+        );
+        assert!(
+            refused.as_ref().is_err_and(|e| e.contains("type twice")),
+            "{refused:?}"
+        );
+        assert!(unreadable.is_err());
+    }
+
+    #[test]
+    fn a_class_is_named_by_the_core_context_and_by_the_models() {
+        let core = "https://uri.etsi.org/ngsi-ld/default-context/Bus";
+        assert_eq!(type_iris("Bus", None), [core]);
+        for (context, model) in [
+            (
+                json!({"@context": {"Bus": "https://e.org/Bus"}}),
+                Some("https://e.org/Bus"),
+            ),
+            (
+                json!({"@context": {"x": {"@id": "https://e.org/x/", "@prefix": true},
+                                 "Bus": {"@id": "x:Bus"}}}),
+                Some("https://e.org/x/Bus"),
+            ),
+            (
+                json!({"@context": [core, {"@vocab": "https://e.org/v/"}]}),
+                Some("https://e.org/v/Bus"),
+            ),
+            (
+                json!({"@context": {"Bus": {"@id": "nope:Bus"}, "@vocab": "https://e.org/v/"}}),
+                None,
+            ),
+            (json!({"@context": {"Bus": {"@id": "Bus"}}}), None),
+            (json!({"@context": "https://e.org/ctx.jsonld"}), None),
+        ] {
+            let mut want = vec![core.to_owned()];
+            want.extend(model.map(str::to_owned));
+            assert_eq!(type_iris("Bus", Some(&context)), want, "{context}");
+        }
+        let rules = [
+            RetentionRule {
+                entity_type: "Bus".into(),
+                current: None,
+                history: Some("PT8H".into()),
+            },
+            RetentionRule {
+                entity_type: "Bus".into(),
+                current: Some("PT1M".into()),
+                history: None,
+            },
+        ];
+        assert_eq!(
+            retention_document(&rules, None),
+            json!({"rules": [{"type": core, "history": "PT8H"}]}),
+            "one rule per IRI, the first wins"
+        );
+    }
+
     /// What keeps a schema out of the broker is the space's condition: a model that does not
     /// compile (nothing sent), a broker with no schema bound (its 503 and detail), no Model
     /// Tools configured.
@@ -3931,5 +4357,70 @@ mod tests {
         );
         assert_eq!(get("/q/policy/city-air").await.0, 404);
         assert_eq!(get("/q/schemas/city-air").await.0, 404);
+    }
+
+    /// DM-90: a space that can quarantine narrows every permit but the owner's and the
+    /// steward's to entities without `quarantinedAt`, its own `q` kept; a prohibition and a
+    /// space without such a rule are left as they were.
+    #[test]
+    fn a_quarantining_space_hides_quarantined_entities_from_all_but_owner_and_steward() {
+        let steward = policy(json!({"assignee": {"kind": "role", "id": "steward"}}));
+        let narrowed = policy(json!({"q": "speed>3|speed<1"}));
+        let deny = policy(json!({"effect": "prohibition"}));
+        let mut s = sources(vec![
+            ("public", policy(json!({}))),
+            ("narrowed", narrowed),
+            ("stewards", steward),
+            ("deny", deny),
+        ]);
+        let before = rule_document(&s, "city", "air");
+        assert!(
+            !before.to_string().contains("quarantinedAt"),
+            "no rule, no narrowing"
+        );
+        s.quarantines.insert(("city".into(), "air".into()));
+        let doc = rule_document(&s, "city", "air");
+        let q = |id: &str| {
+            doc["policies"]
+                .as_array()
+                .and_then(|all| all.iter().find(|p| p["id"] == id))
+                .map(|p| p["q"].clone())
+                .expect(id)
+        };
+        assert_eq!(q("city/public"), json!("!quarantinedAt"));
+        assert_eq!(
+            q("city/narrowed"),
+            json!("!quarantinedAt;(speed>3|speed<1)")
+        );
+        assert_eq!(q("city/stewards"), Value::Null, "the steward acts on it");
+        assert_eq!(q("city/deny"), Value::Null, "a prohibition never narrows");
+        let gateway = with_gateway(doc.clone());
+        assert!(gateway["policies"].as_array().is_some_and(|all| all
+            .iter()
+            .any(|p| p["id"] == "@context-gateway" && p.get("q").is_none())));
+    }
+
+    #[test]
+    fn a_rule_quarantines_by_its_outcome_or_its_max_age() {
+        let rule = |extra: Value| -> jc_core::kinds::QualityRule {
+            let mut base = json!({"name": "r", "entityType": "Vehicle", "attribute": "speed"});
+            if let (Some(b), Some(e)) = (base.as_object_mut(), extra.as_object()) {
+                b.extend(e.clone());
+            }
+            serde_json::from_value(base).expect("rule")
+        };
+        assert!(!quarantines(&rule(json!({"kind": "range", "max": 1}))));
+        assert!(quarantines(&rule(
+            json!({"kind": "range", "max": 1, "outcome": "quarantine"})
+        )));
+        assert!(quarantines(&rule(
+            json!({"kind": "freshness", "maxAge": "PT5M"})
+        )));
+        assert!(!quarantines(&rule(
+            json!({"kind": "freshness", "maxAge": "PT5M", "outcome": "flag"})
+        )));
+        assert!(!quarantines(&rule(
+            json!({"kind": "freshness", "maxAhead": "PT30S"})
+        )));
     }
 }

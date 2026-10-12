@@ -597,6 +597,17 @@
         "stale": "Neaktuálne",
         "empty": "Prázdne",
         "untargeted": "Bez cieľa"
+      },
+      "checks": {
+        "caption": "Kontroly pri zápise podľa pravidla",
+        "unknown": "Kontroly pri zápise nie sú známe: počítadlá brány ešte neboli prečítané.",
+        "noRules": "Priestor nedeklaruje žiadne pravidlá kvality.",
+        "passDay": "Prešlo, 24 h",
+        "passWeek": "Prešlo, 7 dní",
+        "rejected": "Odmietnuté, 7 dní",
+        "quarantined": "V karanténe, 7 dní",
+        "lastRejected": "Naposledy odmietnuté",
+        "since": "Počítané od {day} (24 h) a od {week} (7 dní)."
       }
     },
     "fields": {
@@ -969,6 +980,44 @@
       "removeOne": "Odstrániť váš komentár z {when}",
       "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}",
       "writeFirst": "Najprv napíšte komentár."
+    },
+    "retention": {
+      "title": "Uchovávanie",
+      "lead": "Ako dlho tento priestor uchováva údaje každého typu. Typ bez pravidla sa uchováva navždy; kratšie pravidlo údaje natrvalo vymaže.",
+      "noTypes": "Model priestoru zatiaľ nemenuje žiadne typy.",
+      "caption": "Ako dlho sa uchovávajú údaje každého typu",
+      "type": "Typ",
+      "current": "Aktuálne hodnoty",
+      "history": "História",
+      "deleted": "Doteraz vymazané",
+      "deletedUnknown": "Neznáme: broker neodpovedal",
+      "forever": "Uchovávať navždy",
+      "amount": {
+        "minutes": "{count, plural, one {# minúta} few {# minúty} other {# minút}}",
+        "hours": "{count, plural, one {# hodina} few {# hodiny} other {# hodín}}",
+        "days": "{count, plural, one {# deň} few {# dni} other {# dní}}"
+      },
+      "unit": {
+        "minutes": "minúty",
+        "hours": "hodiny",
+        "days": "dni"
+      },
+      "amountOf": "{what} pre {type}: koľko",
+      "unitOf": "{what} pre {type}: jednotka",
+      "removed": "{current} hodnôt, {history} záznamov histórie",
+      "edit": "Zmeniť uchovávanie",
+      "save": "Navrhnúť",
+      "cancel": "Zrušiť",
+      "invalid": "Každé trvanie je celé číslo od jednej minúty do 3650 dní.",
+      "proposed": "Navrhnuté ako zmena: platí po schválení.",
+      "confirmTitle": "Natrvalo vymazať údaje priestoru {space}?",
+      "confirmLead": "Kratšie pravidlá teraz vymažú toľkoto a zvyšok, keď zostarne. Nič ich nevráti.",
+      "confirm": "Navrhnúť a vymazať",
+      "nothingNow": "Teraz nie je nič dosť staré; údaje odídu, keď prekročia nové pravidlá.",
+      "wouldDelete": {
+        "entity": "{type}: {count, plural, one {# aktuálna hodnota} few {# aktuálne hodnoty} other {# aktuálnych hodnôt}}",
+        "history": "{type}: {count, plural, one {# záznam histórie} few {# záznamy histórie} other {# záznamov histórie}}"
+      }
     },
     "upload": {
       "open": "Nahrať CSV",

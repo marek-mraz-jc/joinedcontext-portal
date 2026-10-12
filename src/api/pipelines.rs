@@ -54,13 +54,13 @@ pub struct PipelineMetrics {
 }
 
 /// One sample line of the Prometheus text exposition format.
-struct Sample<'a> {
-    name: &'a str,
-    labels: &'a str,
-    value: f64,
+pub(crate) struct Sample<'a> {
+    pub name: &'a str,
+    pub labels: &'a str,
+    pub value: f64,
 }
 
-fn parse_line(line: &str) -> Option<Sample<'_>> {
+pub(crate) fn parse_line(line: &str) -> Option<Sample<'_>> {
     let line = line.trim();
     if line.is_empty() || line.starts_with('#') {
         return None;
@@ -86,7 +86,7 @@ fn parse_line(line: &str) -> Option<Sample<'_>> {
 /// Reads one label. Bento's label values are stream names, metric paths and quantiles, so the
 /// escaping rules of the exposition format never come up; a value with an escaped quote in it
 /// would simply not match.
-fn label<'a>(labels: &'a str, key: &str) -> Option<&'a str> {
+pub(crate) fn label<'a>(labels: &'a str, key: &str) -> Option<&'a str> {
     labels.split(',').find_map(|pair| {
         let (k, v) = pair.split_once('=')?;
         (k.trim() == key).then(|| v.trim().trim_matches('"'))

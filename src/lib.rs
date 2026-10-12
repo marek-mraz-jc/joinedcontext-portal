@@ -45,6 +45,7 @@ pub mod pipeline_status;
 pub mod pipeline_validation;
 pub mod plan;
 pub mod quality;
+pub mod quality_checks;
 pub mod quotas;
 pub mod reconciler;
 pub mod references;
