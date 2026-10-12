@@ -265,6 +265,43 @@ fn runner_error(error: Option<&str>) -> String {
     crate::pipeline_outcomes::mask_text(&text)
 }
 
+/// What a tap posts (T-3974): the node it sits after and the message, or its text.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Tapped {
+    pub node: String,
+    pub record: Value,
+}
+
+/// `POST /internal/pipelines/{project}/{name}/samples`: one message a tap sampled, kept among the
+/// newest of its node.
+pub async fn sampled(
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> StatusCode {
+    if crate::auth::internal::authenticate_pipeline_of(&state, &headers, &project, &name)
+        .await
+        .is_err()
+    {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let Ok(tapped) = serde_json::from_slice::<Tapped>(&body) else {
+        return StatusCode::BAD_REQUEST;
+    };
+    if !crate::pipeline_samples::is_node(&tapped.node) {
+        return StatusCode::BAD_REQUEST;
+    }
+    if state.mirror.get(&project, "Pipeline", &name).is_none() {
+        return StatusCode::NOT_FOUND;
+    }
+    state
+        .pipeline_samples
+        .push(&project, &name, &tapped.node, tapped.record);
+    StatusCode::NO_CONTENT
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -274,6 +311,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/internal/pipelines/{project}/{name}/outcomes",
             post(outcomes),
+        )
+        .route(
+            "/internal/pipelines/{project}/{name}/samples",
+            post(sampled),
         )
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
 }
