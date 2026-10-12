@@ -73,9 +73,9 @@ test("anyone opens hsl-transport without a login and the buses move", async ({ b
   try {
     const page = await anonymous.newPage();
     await page.goto(`${APPS_URL}/apps/hsl-transport/`, { waitUntil: "load" });
-    await expect(page.getByRole("heading", { level: 1, name: "Buses live" })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "HSL live" })).toBeVisible({ timeout: 60_000 });
     await expect(page.locator("#username"), "no login stands in front of a public app").toHaveCount(0);
-    await expect(page.getByRole("status")).toHaveText(/^\d+ buses/, { timeout: 120_000 });
+    await expect(page.getByRole("status")).toHaveText(/^\d+ vehicles/, { timeout: 120_000 });
 
     type Vehicle = { id: string; coordinates: [number, number] };
     const read = async () => {

@@ -135,7 +135,8 @@
     "uischemaProblems": "Das Anordnungsmanifest dieses Formulars verlangt etwas, das das Formular nicht kann",
     "view": {
       "form": "Formular",
-      "yaml": "YAML"
+      "yaml": "YAML",
+      "history": "Verlauf"
     },
     "yamlHint": "Das ganze Manifest, wie es nach Git geschrieben wird. Zurück zum Formular liest es wieder ein; dasselbe Schema prüft beides.",
     "yamlError": "Korrigieren Sie das YAML: {message}",
@@ -2150,6 +2151,19 @@
     "canvasLoss": {
       "noSource": "Die Pipeline hat keine erste Quelle: Wähle zuerst, woraus sie liest, sonst können ihre weiteren Quellen, Schritte und Ausgaben nicht geschrieben werden.",
       "noTarget": "Die Pipeline hat keinen Ziel-Endpunkt: Wähle zuerst, wohin sie schreibt, sonst können ihre weiteren Ausgaben nicht geschrieben werden."
+    },
+    "templates": {
+      "title": "In diesem Projekt gespeichert",
+      "by": "Gespeichert von {name}",
+      "use": "Verwenden",
+      "delete": "Löschen",
+      "deleteOf": "Vorlage {title} löschen",
+      "save": "Als Vorlage speichern",
+      "saveIt": "Vorlage speichern",
+      "titleField": "Titel der Vorlage",
+      "titleHelp": "Was die Galerie zeigt. Die Vorlage behält die Schritte und das Mapping; Zugangsdaten, Quelle und Ziel bleiben weg.",
+      "titleNeeded": "Geben Sie der Vorlage zuerst einen Titel.",
+      "saved": "Als Vorlage „{title}“ gespeichert."
     }
   },
   "dashboards": {
@@ -2510,6 +2524,42 @@
       "ckanInstance": "{project} / {name}",
       "ckanVia": "über die Rolle {role}",
       "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen."
+    },
+    "explorer": {
+      "title": "Sehen, worauf jemand zugreifen kann",
+      "lead": "Wählen Sie eine Person, eine Gruppe, eine Rolle, ein Dienstkonto oder die Öffentlichkeit. Jeder Endpoint dieses Projekts, den sie erreichen, wird mit dem aufgeführt, was sie dort lesen und tun dürfen, entschieden vom Gateway. Nicht erreichbare Endpoints erscheinen nicht.",
+      "kind": "Wer",
+      "search": "Personen suchen",
+      "show": "Zugriff anzeigen",
+      "failed": "Der Zugriff konnte nicht angezeigt werden. Versuchen Sie es in einer Minute erneut; der Grund steht unten.",
+      "nothing": "Erreicht nichts",
+      "nothingLead": "Kein Endpoint dieses Projekts lässt sie zu oder gewährt ihnen etwas. Gewähren Sie Zugriff mit einer Policy, einer Gruppe oder einer Rollenbindung.",
+      "space": "Bereich {space}",
+      "through": "Gewährt durch",
+      "openEndpoint": "Endpoint öffnen",
+      "may": "Darf",
+      "mayNot": "Darf nicht",
+      "attributes": "Attribute:",
+      "allAttributes": "alle",
+      "only": "Nur wo",
+      "copy": "{surface}-URL kopieren",
+      "geoQ": "Gebiet der Einschränkung: {shape}",
+      "mcp": "Ein MCP-Connector für alles",
+      "mcpLead": "Der Hub deckt alle Endpoints oben mit einem Connector ab; der Endpoint wird bei jedem Aufruf genannt.",
+      "connectAll": "Alle verbinden (Hub-URL kopieren)",
+      "consents": "Verbundene Clients",
+      "noConsents": "Keine verbundenen Clients.",
+      "lastUsed": "zuletzt genutzt {when}",
+      "revoke": "Widerrufen",
+      "revokeTitle": "Zustimmung für {client} widerrufen?",
+      "revokeLead": "Der Client verliert seine Verbindung und Offline-Sitzungen und muss erneut fragen. Keine Berechtigung ändert sich.",
+      "revokeFailed": "Die Zustimmung konnte nicht widerrufen werden. Versuchen Sie es erneut; der Grund steht unten.",
+      "endpoints": "{count, plural, one {# Endpoint erreicht} other {# Endpoints erreicht}}",
+      "pickFirst": "Wählen Sie zuerst, wen Sie nachschlagen.",
+      "kindHelp": "Eine Person, eine Gruppe, eine Rolle oder ein Dienstkonto: wessen Zugriff die Seite auflistet.",
+      "personHelp": "Die Personen der Organisation, nach E-Mail; die Suche darüber grenzt die Liste ein.",
+      "accountHelp": "Die Dienstkonten des Projekts, die Programme, die Endpoints aufrufen.",
+      "nameHelp": "Der Name genau so, wie er in Keycloak geschrieben ist."
     }
   },
   "flows": {
@@ -3086,7 +3136,7 @@
       "noBuilder": "Diese Installation hat keinen Bau-Agenten, hier lässt sich also keine Anwendung erzeugen. Der Agent Runner ist ein optionales Zusatzmodul; bitten Sie Ihre Administration darum.",
       "examplesHint": "Die beiden mitgelieferten Anwendungen sind ausgearbeitete Beispiele derselben Form:",
       "examples": {
-        "hsl-transport": "Busse live: 30 Fahrzeuge auf einer Karte, öffentlich und nur lesend",
+        "hsl-transport": "HSL live: bis zu 90 Fahrzeuge aller Verkehrsmittel auf einer Karte, Abfahrten und Störungsmeldungen, öffentlich und nur lesend",
         "air-quality": "Luftqualität: Stationen, ein Tag Verlauf und eine Notiz der Betreuung"
       },
       "needs": {
@@ -4527,7 +4577,8 @@
       },
       "access": {
         "denied": "Zugriff verweigert",
-        "simulated": "Richtlinie an einer Person ausprobiert"
+        "simulated": "Richtlinie an einer Person ausprobiert",
+        "explored": "Zugriff angesehen"
       },
       "mcp": {
         "tool": "Werkzeugaufruf des Assistenten"
@@ -5638,7 +5689,8 @@
       "roles": "Rollen",
       "service-accounts": "Dienstkonten",
       "access": "Ihr Zugriff",
-      "danger": "Löschen oder übergeben"
+      "danger": "Löschen oder übergeben",
+      "explorer": "Zugriffs-Explorer"
     },
     "field": {
       "title": "Titel",
@@ -7109,5 +7161,13 @@
         "hint": "Antworten der Modelle der Organisation"
       }
     }
+  },
+  "resourceHistory": {
+    "restore": "Diese Version wiederherstellen",
+    "empty": "Noch keine abgeschlossene Änderung betraf {kind} {name}.",
+    "noneOnPage": "Keine dieser Änderungen betraf diese Ressource. Ältere vielleicht.",
+    "when": "{at} · Spur {lane} · {id}",
+    "notWritten": "Diese Änderung schrieb kein {kind} {name}, es gibt also keine Version davon zum Wiederherstellen.",
+    "loaded": "Die Version, die Änderung {id} schrieb, steht im Formular. Prüfen und vorschlagen, um sie wiederherzustellen; bis zur Genehmigung ändert sich nichts."
   }
 }

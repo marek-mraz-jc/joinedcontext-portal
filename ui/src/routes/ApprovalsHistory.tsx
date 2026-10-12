@@ -1,12 +1,12 @@
 import { useId, useState } from "react";
 import type { FormEvent, JSX } from "react";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { ChangeNotice } from "../components/ChangeNotice";
-import { changeSentence, fieldSentence } from "./changeWords";
-import type { PlannedField } from "./changeWords";
+import { changeSentence } from "./changeWords";
+import { ChangedFields } from "../components/ResourceHistory";
 import { ResourceList } from "../components/ResourceList";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
@@ -33,27 +33,6 @@ interface Filter {
 }
 
 const NO_FILTER: Filter = { kind: "", name: "", author: "", since: "", until: "" };
-
-/** What one closed change touched, each field a sentence, read when the person asks (T-3274). */
-function ChangedFields({ project, id }: { project: string; id: string }): JSX.Element {
-  const { t } = useTranslation();
-  const detail = useQuery({
-    queryKey: queryKeys.change(project, id),
-    queryFn: async () => unwrap(await api.GET("/api/v1/projects/{project}/changes/{id}", { params: { path: { project, id } } })),
-  });
-  if (detail.isPending) return <p className="text-caption text-fg-muted">{t("app.loading")}</p>;
-  const fields = (detail.data?.planFields ?? []) as PlannedField[];
-  if (detail.isError || fields.length === 0) {
-    return <p className="text-caption text-fg-muted">{t("approvals.history.noFields")}</p>;
-  }
-  return (
-    <ul className="mt-1 list-disc pl-5 text-caption text-fg">
-      {fields.map((field) => (
-        <li key={field.path}>{fieldSentence(field, t)}</li>
-      ))}
-    </ul>
-  );
-}
 
 /**
  * The closed changes of a project (T-3292): what was merged or rejected, by whom and when,

@@ -284,7 +284,7 @@ pub fn access(mode: &str, owner: bool, steward: bool) -> Access {
 }
 
 /// A random version-4 UUID: what a view is addressed by.
-fn new_id() -> String {
+pub(crate) fn new_id() -> String {
     let mut bytes = [0u8; 16];
     OsRng.fill_bytes(&mut bytes);
     bytes[6] = (bytes[6] & 0x0f) | 0x40;

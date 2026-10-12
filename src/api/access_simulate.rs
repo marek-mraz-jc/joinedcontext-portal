@@ -61,6 +61,18 @@ pub struct Resolved {
     pub service_account: Option<String>,
 }
 
+impl Resolved {
+    /// Whom a record names: the person, the ServiceAccount, a group or role member, or the public.
+    pub(crate) fn label(&self) -> String {
+        self.user
+            .clone()
+            .or_else(|| self.service_account.clone())
+            .or_else(|| self.groups.first().map(|g| format!("a member of {g}")))
+            .or_else(|| self.roles.first().map(|r| format!("a holder of {r}")))
+            .unwrap_or_else(|| "the public".to_owned())
+    }
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Simulated {
     pub decision: bool,
@@ -137,7 +149,11 @@ pub async fn simulate_access(
         .and_then(|endpoint| endpoint.spec["slug"].as_str().map(str::to_owned))
         .ok_or_else(|| ApiError::NotFound(format!("no Endpoint {name} in project {project}")))?;
     let subject = resolve(&state, &project, &request.subject).await?;
-    let answer = ask_gateway(&state, &slug, &subject, &request).await?;
+    let mut question = json!({ "subject": subject, "action": { "name": request.action } });
+    if let Some(entity_type) = &request.entity_type {
+        question["resource"] = json!({ "type": entity_type.trim() });
+    }
+    let answer = ask_gateway(&state, &slug, &question).await?;
     let context = &answer["context"];
     let simulated = Simulated {
         decision: answer["decision"] == json!(true),
@@ -162,7 +178,11 @@ fn named<'a>(what: &str, value: &'a str) -> Result<&'a str, ApiError> {
 }
 
 /// The subject the gateway is asked about, as a token of theirs would carry it.
-async fn resolve(state: &AppState, project: &str, who: &Who) -> Result<Resolved, ApiError> {
+pub(crate) async fn resolve(
+    state: &AppState,
+    project: &str,
+    who: &Who,
+) -> Result<Resolved, ApiError> {
     Ok(match who {
         Who::Person { id } => {
             let people = state.people.as_ref().ok_or_else(|| {
@@ -207,11 +227,10 @@ async fn resolve(state: &AppState, project: &str, who: &Who) -> Result<Resolved,
 
 /// The gateway's `access/simulate`, with the Portal's own token: never the administrator's, whose
 /// token would decide as them.
-async fn ask_gateway(
+pub(crate) async fn ask_gateway(
     state: &AppState,
     slug: &str,
-    subject: &Resolved,
-    request: &SimulateRequest,
+    body: &Value,
 ) -> Result<Value, ApiError> {
     let base = state.config.gateway_url.as_deref().ok_or_else(|| {
         ApiError::Unavailable("this Portal has no gateway address (JC_PORTAL_GATEWAY_URL)".into())
@@ -220,15 +239,11 @@ async fn ask_gateway(
         ApiError::Unavailable("this Portal has no Keycloak client to ask the gateway with".into())
     })?;
     let token = oidc.service_token().await?;
-    let mut body = json!({ "subject": subject, "action": { "name": request.action } });
-    if let Some(entity_type) = &request.entity_type {
-        body["resource"] = json!({ "type": entity_type.trim() });
-    }
     let answer = crate::api::pipelines::http()
         .post(format!("{base}/api/endpoint/{slug}/access/simulate"))
         .bearer_auth(token)
         .timeout(Duration::from_secs(10))
-        .json(&body)
+        .json(body)
         .send()
         .await
         .map_err(|err| {
@@ -272,13 +287,7 @@ async fn record(
     simulated: &Simulated,
 ) {
     let subject = &simulated.subject;
-    let named = subject
-        .user
-        .clone()
-        .or_else(|| subject.service_account.clone())
-        .or_else(|| subject.groups.first().map(|g| format!("a member of {g}")))
-        .or_else(|| subject.roles.first().map(|r| format!("a holder of {r}")))
-        .unwrap_or_else(|| "the public".to_owned());
+    let named = subject.label();
     let event = crate::activity::ActivityEvent {
         time: chrono::Utc::now(),
         project: project.to_owned(),
