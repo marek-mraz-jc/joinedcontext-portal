@@ -537,7 +537,7 @@ async fn the_index_carries_the_checksum_of_every_file_in_the_archive() {
         zip::ZipArchive::new(std::io::Cursor::new(answer.body.clone())).expect("a readable zip");
 
     let index: serde_json::Value =
-        serde_yaml_ng::from_str(&entry(&mut archive, "bundle.yaml")).expect("the index parses");
+        serde_norway::from_str(&entry(&mut archive, "bundle.yaml")).expect("the index parses");
     let files = index["spec"]["files"].as_array().expect("files");
 
     // Every file of the project, and nothing that only describes the bundle.
@@ -703,7 +703,7 @@ async fn the_yaml_and_json_exports_carry_the_schemas_in_their_index() {
     let yaml = get("/api/v1/projects/banskabystrica/export", true)
         .await
         .text();
-    let documents: Vec<Value> = serde_yaml_ng::Deserializer::from_str(&yaml)
+    let documents: Vec<Value> = serde_norway::Deserializer::from_str(&yaml)
         .map(|document| {
             use serde::Deserialize;
             Value::deserialize(document).expect("a YAML document")

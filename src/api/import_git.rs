@@ -189,7 +189,7 @@ fn check(bytes: &[u8]) -> Result<Checked, ApiError> {
                 .into(),
         )
     })?;
-    let index: Bundle = serde_yaml_ng::from_slice(index)
+    let index: Bundle = serde_norway::from_slice(index)
         .map_err(|err| ApiError::BadRequest(format!("bundle.yaml is not a Bundle: {err}")))?;
     index
         .validate()
@@ -226,7 +226,7 @@ fn check(bytes: &[u8]) -> Result<Checked, ApiError> {
     let own = String::from_utf8_lossy(own);
     // MF-47: this release reads its own apiVersion; an older export goes through `jcctl
     // migrate`, which needs git the Portal does not hold, and a newer one is refused.
-    let api_version = serde_yaml_ng::from_str::<Value>(&own)
+    let api_version = serde_norway::from_str::<Value>(&own)
         .ok()
         .and_then(|value| {
             value

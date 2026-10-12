@@ -204,7 +204,7 @@ pub async fn archive(
             "ref": "main",
         },
     });
-    let entry = serde_yaml_ng::to_string(&entry)
+    let entry = serde_norway::to_string(&entry)
         .map_err(|e| ApiError::Internal(format!("the registry entry did not serialise: {e}")))?;
     entries.push((format!("projects/{project}.yaml"), entry.into_bytes()));
 
@@ -252,7 +252,7 @@ pub async fn archive(
         // Two repositories under one name (an App named like its project) cannot be told apart
         // at the target.
         .map_err(|e| ApiError::Conflict(format!("the project cannot be exported as git: {e}")))?;
-    let index = serde_yaml_ng::to_string(&index)
+    let index = serde_norway::to_string(&index)
         .map_err(|e| ApiError::Internal(format!("the bundle index did not serialise: {e}")))?;
     entries.push(("bundle.yaml".to_owned(), index.into_bytes()));
 

@@ -48,14 +48,14 @@ async fn manifest(
             "the App '{name}' is not in the project's repository"
         ))
     })?;
-    let mut envelope: ResourceEnvelope = serde_yaml_ng::from_str(&file.content)
+    let mut envelope: ResourceEnvelope = serde_norway::from_str(&file.content)
         .map_err(|err| ApiError::Conflict(format!("{path} is not a manifest: {err}")))?;
     envelope.strip_status();
     for key in crate::apps::converge::BUILT_ANNOTATIONS {
         envelope.metadata.annotations.remove(key);
     }
     crate::api::export::strip_secret_values(&mut envelope.spec);
-    let text = serde_yaml_ng::to_string(&envelope)
+    let text = serde_norway::to_string(&envelope)
         .map_err(|err| ApiError::Internal(format!("the App did not serialise: {err}")))?;
     Ok((envelope, text))
 }
@@ -157,7 +157,7 @@ pub async fn export_app(
     index
         .validate()
         .map_err(|err| ApiError::Internal(format!("the App's bundle index: {err}")))?;
-    let index = serde_yaml_ng::to_string(&index)
+    let index = serde_norway::to_string(&index)
         .map_err(|err| ApiError::Internal(format!("the bundle index did not serialise: {err}")))?;
     entries.push(("bundle.yaml".to_owned(), index.into_bytes()));
 
@@ -193,7 +193,7 @@ fn check(bytes: &[u8]) -> Result<Checked, ApiError> {
             "the archive has no bundle.yaml; import the archive of an App export (UI-87)".into(),
         )
     })?;
-    let index: Bundle = serde_yaml_ng::from_slice(index)
+    let index: Bundle = serde_norway::from_slice(index)
         .map_err(|err| ApiError::BadRequest(format!("bundle.yaml is not a Bundle: {err}")))?;
     index
         .validate()
@@ -222,7 +222,7 @@ fn check(bytes: &[u8]) -> Result<Checked, ApiError> {
         ApiError::BadRequest("the archive has no app.yaml beside its bundle".into())
     })?;
     let text = String::from_utf8_lossy(text);
-    let app: ResourceEnvelope = serde_yaml_ng::from_str(&text)
+    let app: ResourceEnvelope = serde_norway::from_str(&text)
         .map_err(|err| ApiError::BadRequest(format!("app.yaml is not a manifest: {err}")))?;
     if app.api_version != jc_core::API_VERSION || app.kind != "App" {
         return Err(ApiError::BadRequest(format!(
@@ -432,7 +432,7 @@ async fn land(
     let info = resource::by_kind("App")
         .ok_or_else(|| ApiError::Internal("the App kind is not registered".into()))?;
     let path = info.repo_path(project, "", name);
-    let text = serde_yaml_ng::to_string(&app)
+    let text = serde_norway::to_string(&app)
         .map_err(|err| ApiError::Internal(format!("the App did not serialise: {err}")))?;
 
     let report = ImportReport {

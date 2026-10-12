@@ -144,7 +144,7 @@ fn state(
     );
     let mirror = Arc::new(Mirror::new());
     for yaml in apps {
-        let envelope: ResourceEnvelope = serde_yaml_ng::from_str(yaml).expect("manifest");
+        let envelope: ResourceEnvelope = serde_norway::from_str(yaml).expect("manifest");
         mirror.upsert(envelope);
     }
     for manifest in [
@@ -230,8 +230,8 @@ async fn one_click_proposes_one_change_renaming_every_old_shape_and_nothing_else
             .map(|(_, c)| c.clone())
             .expect(name)
     };
-    let air: Value = serde_yaml_ng::from_str(&by_app("air-map")).expect("yaml");
-    let bus: Value = serde_yaml_ng::from_str(&by_app("bus-desk")).expect("yaml");
+    let air: Value = serde_norway::from_str(&by_app("air-map")).expect("yaml");
+    let bus: Value = serde_norway::from_str(&by_app("bus-desk")).expect("yaml");
     assert_eq!(air["spec"]["kind"], "ui");
     assert_eq!(bus["spec"]["kind"], "ui-rust");
     for file in [&air, &bus] {

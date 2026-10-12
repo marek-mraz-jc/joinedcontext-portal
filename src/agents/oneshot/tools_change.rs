@@ -655,7 +655,7 @@ impl Driver {
             .await
             .map_err(|err| err.to_string())
             .and_then(|source| {
-                serde_yaml_ng::from_str::<Value>(&source).map_err(|err| err.to_string())
+                serde_norway::from_str::<Value>(&source).map_err(|err| err.to_string())
             }) {
             Ok(model) => model,
             Err(reason) => {
@@ -683,7 +683,7 @@ impl Driver {
                 .await;
         }
         let checked = match model_change::apply(&model, operations) {
-            Ok(changed) => match serde_yaml_ng::to_string(&changed) {
+            Ok(changed) => match serde_norway::to_string(&changed) {
                 Ok(source) => crate::api::datamodels::check_source(
                     &self.state,
                     &self.identity,

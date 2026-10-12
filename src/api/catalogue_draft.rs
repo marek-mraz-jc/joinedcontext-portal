@@ -118,7 +118,7 @@ pub fn themes(linkml: &str) -> Vec<String> {
 }
 
 /// A LinkML title in `language`: the entry of a map, a plain string, else nothing.
-fn title_in(node: &serde_yaml_ng::Value, language: &str) -> Option<String> {
+fn title_in(node: &serde_norway::Value, language: &str) -> Option<String> {
     node.as_str()
         .or_else(|| node[language].as_str())
         .map(str::trim)
@@ -145,7 +145,7 @@ fn words(name: &str) -> String {
 /// Keywords from the model's classes and their slots, in the space's language: a slot's or a
 /// class's title in that language where the model gives one, else its name in words.
 pub fn keywords(linkml: &str, classes: &[String], language: &str) -> Vec<String> {
-    let model = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(linkml).unwrap_or_default();
+    let model = serde_norway::from_str::<serde_norway::Value>(linkml).unwrap_or_default();
     let mut out: Vec<String> = Vec::new();
     let mut push = |word: String| {
         let word = word.to_lowercase();

@@ -182,7 +182,7 @@ async fn committed(metadata: Value) -> Value {
     let yaml = base64::engine::general_purpose::STANDARD
         .decode(body["content"].as_str().expect("content"))
         .expect("base64");
-    serde_yaml_ng::from_slice(&yaml).expect("yaml")
+    serde_norway::from_slice(&yaml).expect("yaml")
 }
 
 #[tokio::test]

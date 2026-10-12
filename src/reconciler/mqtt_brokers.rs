@@ -168,7 +168,7 @@ pub fn render(
     let hash = hex(&Sha256::digest(filled.as_bytes()));
     let filled = filled.replace("__CONFIG_HASH__", &hash);
     let mut objects = Vec::new();
-    for document in serde_yaml_ng::Deserializer::from_str(&filled) {
+    for document in serde_norway::Deserializer::from_str(&filled) {
         let object: Value = serde::Deserialize::deserialize(document)
             .map_err(|err| format!("{TEMPLATE} does not read: {err}"))?;
         if object.is_null() {
@@ -193,7 +193,7 @@ pub fn render(
 
 /// The kinds a release is made of, read from the template itself: what a retired broker left.
 fn template_kinds(template: &str) -> BTreeSet<(String, String)> {
-    serde_yaml_ng::Deserializer::from_str(template)
+    serde_norway::Deserializer::from_str(template)
         .filter_map(|document| serde::Deserialize::deserialize(document).ok())
         .filter_map(|object: Value| {
             Some((

@@ -119,7 +119,7 @@ fn parse_body_to_value(headers: &HeaderMap, bytes: &[u8]) -> Result<Value, ApiEr
         serde_json::from_slice(bytes)
             .map_err(|e| ApiError::BadRequest(format!("invalid json body: {e}")))
     } else if mime == "application/yaml" || mime == "application/x-yaml" || mime == "text/yaml" {
-        serde_yaml_ng::from_slice(bytes)
+        serde_norway::from_slice(bytes)
             .map_err(|e| ApiError::BadRequest(format!("invalid yaml body: {e}")))
     } else {
         Err(ApiError::UnsupportedMediaType(format!(
@@ -139,7 +139,7 @@ fn parse_patch_to_value(headers: &HeaderMap, bytes: &[u8]) -> Result<Value, ApiE
         serde_json::from_slice(bytes)
             .map_err(|e| ApiError::BadRequest(format!("invalid json patch: {e}")))
     } else if mime == "application/apply-patch+yaml" {
-        serde_yaml_ng::from_slice(bytes)
+        serde_norway::from_slice(bytes)
             .map_err(|e| ApiError::BadRequest(format!("invalid yaml patch: {e}")))
     } else {
         Err(ApiError::UnsupportedMediaType(format!(
@@ -232,7 +232,7 @@ fn moved_on_main(
 ) -> bool {
     let (Some(judged), Some(Ok(main))) = (
         judged,
-        on_main.map(|file| serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content)),
+        on_main.map(|file| serde_norway::from_str::<ResourceEnvelope>(&file.content)),
     ) else {
         return false;
     };
@@ -1262,7 +1262,7 @@ async fn propose_engine(
         // replacement the approver reads as a create (T-2855).
         if operation == Operation::Create && filed_once {
             if let Some(file) = &on_main {
-                let held = serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content)
+                let held = serde_norway::from_str::<ResourceEnvelope>(&file.content)
                     .map(|held| held.metadata.name)
                     .unwrap_or_default();
                 return Err(path_taken(
@@ -1358,7 +1358,7 @@ async fn propose_engine(
     if !build_write {
         envelope_to_commit.strip_status();
     }
-    let yaml_content = serde_yaml_ng::to_string(&envelope_to_commit)
+    let yaml_content = serde_norway::to_string(&envelope_to_commit)
         .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
 
     // Gitea wants the blob sha of the file being replaced, which only `get_file` knows;
@@ -1575,7 +1575,7 @@ fn app_grants(
             .ok_or_else(|| ApiError::Internal(format!("no catalogue entry for {}", raw.kind)))?;
         let path = resolve_repo_path(&env, info, project)?;
         kept.insert((raw.kind.clone(), env.metadata.name.clone()));
-        let yaml = serde_yaml_ng::to_string(&env)
+        let yaml = serde_norway::to_string(&env)
             .map_err(|e| ApiError::Internal(format!("serialize {}: {e}", raw.kind)))?;
         out.uploads.push((path, yaml));
     }
@@ -1606,7 +1606,7 @@ fn group_files(
     let info = resource::by_kind("Group")
         .ok_or_else(|| ApiError::Internal("no catalogue entry for Group".into()))?;
     for group in &groups.written {
-        let yaml = serde_yaml_ng::to_string(group)
+        let yaml = serde_norway::to_string(group)
             .map_err(|e| ApiError::Internal(format!("serialize Group: {e}")))?;
         grants
             .uploads
@@ -1941,7 +1941,7 @@ fn space_model(
          \x20 - ngsi-ld-core\n\
          classes: {{}}\n"
     );
-    let manifest = serde_yaml_ng::to_string(&manifest).unwrap_or_default();
+    let manifest = serde_norway::to_string(&manifest).unwrap_or_default();
     vec![
         (format!("datamodels/{space}.yaml"), manifest),
         (format!("datamodels/{space}.linkml.yaml"), source),

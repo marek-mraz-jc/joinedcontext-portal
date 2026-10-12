@@ -95,7 +95,7 @@ impl StallWatch {
 /// the last processor counts: a filter midway that drops everything is the stall this watch
 /// exists for (T-2961).
 pub fn writes_through_processors(bento: &str) -> bool {
-    serde_yaml_ng::from_str::<serde_json::Value>(bento)
+    serde_norway::from_str::<serde_json::Value>(bento)
         .ok()
         .and_then(|config| {
             let last = config.pointer("/pipeline/processors")?.as_array()?.last()?;

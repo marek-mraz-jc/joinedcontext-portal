@@ -1245,7 +1245,7 @@ pub async fn delete_person(
     };
     let mut uploads = Vec::new();
     for envelope in &removal.edited {
-        let yaml = serde_yaml_ng::to_string(envelope)
+        let yaml = serde_norway::to_string(envelope)
             .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
         uploads.push((path_of(envelope)?, yaml));
     }

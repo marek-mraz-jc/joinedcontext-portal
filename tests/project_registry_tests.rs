@@ -159,7 +159,7 @@ async fn written_entries(server: &MockServer) -> Vec<(String, Value)> {
                 .decode(body["content"].as_str().unwrap_or_default())
                 .expect("base64");
             let manifest: Value =
-                serde_yaml_ng::from_slice(&content).expect("the written entry is yaml");
+                serde_norway::from_slice(&content).expect("the written entry is yaml");
             (
                 body["branch"].as_str().unwrap_or_default().to_owned(),
                 manifest,
@@ -203,7 +203,7 @@ async fn a_tag_is_pinned_by_one_red_lane_organization_change() {
     assert_eq!(written.len(), 1, "{written:?}");
     let (branch, manifest) = &written[0];
     assert_eq!(branch, BRANCH);
-    let mut expected: Value = serde_yaml_ng::from_str(ENTRY_YAML).expect("entry");
+    let mut expected: Value = serde_norway::from_str(ENTRY_YAML).expect("entry");
     expected["spec"]["ref"] = json!("v0.2.0");
     assert_eq!(manifest, &expected, "only spec.ref changes");
     assert!(

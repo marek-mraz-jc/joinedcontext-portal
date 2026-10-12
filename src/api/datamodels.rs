@@ -230,7 +230,7 @@ pub(crate) async fn resolve_imports(
                 )));
             }
             let text = read_source(state, home, &import.name).await?;
-            let parsed: Value = serde_yaml_ng::from_str(&text)
+            let parsed: Value = serde_norway::from_str(&text)
                 .map_err(|err| refused(format!("its source does not read: {err}")))?;
             todo.push((home.to_owned(), parsed));
             resolved.insert(key, text);
@@ -251,7 +251,7 @@ fn invalid(detail: String) -> ApiError {
 fn imported_classes(imports: &BTreeMap<String, String>) -> Vec<String> {
     imports
         .values()
-        .filter_map(|text| serde_yaml_ng::from_str::<Value>(text).ok())
+        .filter_map(|text| serde_norway::from_str::<Value>(text).ok())
         .filter_map(|source| source.get("classes").and_then(Value::as_object).cloned())
         .flat_map(|classes| classes.into_iter().map(|(name, _)| name))
         .collect()
@@ -278,7 +278,7 @@ pub(crate) async fn importers_of(state: &AppState, name: &str) -> Vec<String> {
             let Ok(text) = read_source(state, &namespace, model).await else {
                 continue;
             };
-            let imports = serde_yaml_ng::from_str::<Value>(&text)
+            let imports = serde_norway::from_str::<Value>(&text)
                 .ok()
                 .and_then(|source| ModelImport::all_in(&source).ok())
                 .unwrap_or_default();
@@ -617,7 +617,7 @@ pub(crate) async fn check_source(
     source: &str,
     version: Option<&str>,
 ) -> Result<(SourceDryRunResult, Value, BTreeMap<String, String>), ApiError> {
-    let next_val: Value = serde_yaml_ng::from_str(source)
+    let next_val: Value = serde_norway::from_str(source)
         .map_err(|e| ApiError::BadRequest(format!("invalid yaml body: {e}")))?;
     // The source is committed as typed, so a pasted credential would land in Git (MF-24).
     if let Some(key) = crate::api::mutate::find_literal_secret(&next_val) {
@@ -629,7 +629,7 @@ pub(crate) async fn check_source(
     let published_source = read_source(state, project, name).await.ok();
     let prev_val: Value = published_source
         .as_deref()
-        .and_then(|s| serde_yaml_ng::from_str(s).ok())
+        .and_then(|s| serde_norway::from_str(s).ok())
         .unwrap_or(Value::Null);
 
     let changes = classify_linkml_changes(&prev_val, &next_val);
@@ -1133,7 +1133,7 @@ pub(crate) async fn propose_model(
     updated_envelope.spec = new_spec;
     updated_envelope.strip_status();
 
-    let manifest_yaml = serde_yaml_ng::to_string(&updated_envelope)
+    let manifest_yaml = serde_norway::to_string(&updated_envelope)
         .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
 
     let gitea = state

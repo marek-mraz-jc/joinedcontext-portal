@@ -156,7 +156,7 @@ async fn a_project_opens_into_a_repository_of_its_own() {
         })
         .and_then(|bytes| String::from_utf8(bytes).ok())
         .expect("the workflow");
-    let parsed: Value = serde_yaml_ng::from_str(&workflow).expect("the workflow is YAML");
+    let parsed: Value = serde_norway::from_str(&workflow).expect("the workflow is YAML");
     assert_eq!(parsed["jobs"]["validate"]["runs-on"], "node-22");
     assert!(
         workflow.contains("jcctl validate --project . --slug"),
