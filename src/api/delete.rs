@@ -327,7 +327,10 @@ async fn goes_with(
     match kind {
         "ContextSpace" => match state
             .space_usage
-            .usage(&crate::spaces::segment(&state.mirror, project, name))
+            .usage(
+                &crate::spaces::broker(&state.mirror, project, name),
+                &crate::spaces::segment(&state.mirror, project, name),
+            )
             .await
         {
             Ok(usage) if usage.entities > 0 => {

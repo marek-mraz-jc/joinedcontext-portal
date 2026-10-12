@@ -338,6 +338,8 @@ mod tests {
                 // Arrived with jc-core-v0.7.21 (T-0865): a named set of people a RoleBinding
                 // may name instead of one user (PF-62).
                 "Group",
+                // One broker instance a space lives on (PF-110, ADR-N-046).
+                "ContextBroker",
                 // Arrived with jc-core-v0.7.24 (T-0882): the environment overlay the loader
                 // merges before validation, one file per environment (CC-73).
                 "Environment",
