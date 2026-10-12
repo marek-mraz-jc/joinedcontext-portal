@@ -188,7 +188,7 @@ const WALKS: Walk[] = [
     mapping:
       'root.id = "urn:ngsi-ld:Vehicle:" + this.VP.veh.string()\nroot.type = "Vehicle"\nroot.speed = this.VP.spd',
     sample: {
-      name: "Vehicle.json",
+      name: "hfp.json",
       mimeType: "application/json",
       body: JSON.stringify([
         { VP: { veh: 1234, spd: 8.4, lat: 60.17, long: 24.94 } },
@@ -203,7 +203,7 @@ const WALKS: Walk[] = [
     mapping:
       'root = if this.pm10 == null { deleted() } else { {"id": "urn:ngsi-ld:AirQualityObserved:" + this.station, "type": "AirQualityObserved", "pm10": this.pm10} }',
     sample: {
-      name: "AirQualityObserved.json",
+      name: "air.json",
       mimeType: "application/json",
       body: JSON.stringify([
         { station: "kallio", pm10: 12 },
@@ -222,7 +222,7 @@ const WALKS: Walk[] = [
     mapping:
       'root.id = "urn:ngsi-ld:ParkingZone:" + this.zone\nroot.type = "ParkingZone"\nroot.fee = this.fee.number()',
     sample: {
-      name: "ParkingZone.csv",
+      name: "zones.csv",
       mimeType: "text/csv",
       body: "zone,fee\n1,4.0\n2,3.0\n",
     },
@@ -252,17 +252,12 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
       await canvas.scrollIntoViewIfNeeded();
       await shot(page, `${walk.name}-1-empty-canvas`);
 
-      // The source: a DataSource of the project. The first source is edited in the studio's
-      // source section, not on its node; "+ Source" adds a second one, and with the first empty
-      // the manifest drops the rest of the lane (see the comparison page).
+      // The source: a DataSource of the project, picked on the source node itself (T-3978).
       await page.getByTestId("flow-node-source").dblclick();
-      await dialog.getByLabel(/^Read from/).selectOption({
-        label: "A data source of this project (external feed)",
-      });
-      await dialog
-        .getByTestId("pipeline-studio")
-        .getByLabel(/^Data source/)
-        .selectOption(walk.source);
+      await page
+        .getByTestId("flow-node-editor-source")
+        .getByTestId("flow-source-ref")
+        .selectOption(`DataSource:${walk.source}`);
       await shot(page, `${walk.name}-2-source`);
 
       // A processor found by search, dragged onto the canvas, and the compute step.
@@ -273,6 +268,9 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
       await expect(page.getByTestId("flow-node-step-0")).toBeVisible();
       await page.getByTestId("palette-bloblang").dragTo(canvas);
       await expect(page.getByTestId("flow-node-compute")).toBeVisible();
+      // The mapping is typed before the sample lands, and the sample keeps it: the type comes
+      // from the mapping's own literal, not from the file's name (T-3971).
+      await page.getByTestId("flow-bloblang").fill(walk.mapping);
       await dialog
         .getByTestId("pipeline-studio")
         .locator('input[type="file"]')
@@ -281,14 +279,16 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
           mimeType: walk.sample.mimeType,
           buffer: Buffer.from(walk.sample.body),
         });
-      await page.getByTestId("flow-bloblang").fill(walk.mapping);
+      await expect(page.getByTestId("flow-bloblang")).toHaveValue(walk.mapping);
+      await expect(dialog.getByTestId("replace-drafted")).toBeVisible();
       await canvas.scrollIntoViewIfNeeded();
       await shot(page, `${walk.name}-3-steps`);
 
-      // The output: the project's Endpoint, the pipeline's first output. The canvas palette's
-      // "Add output" adds a further one; the first is the target the form asks for.
-      await dialog
-        .getByLabel(/^Target endpoint/)
+      // The output: the project's Endpoint, picked on the output node itself (T-3978).
+      await page.getByTestId("flow-node-output").dblclick();
+      await page
+        .getByTestId("flow-node-editor-output")
+        .getByTestId("flow-output-target")
         .selectOption({ label: "transport" });
       await shot(page, `${walk.name}-4-output`);
 
@@ -351,8 +351,8 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
     await expect(page.getByTestId("flow-port-in-source")).toHaveCount(0);
   });
 
-  // A required field left empty proposes nothing: the check is not sent and the form counts
-  // what is missing. (Gap on the comparison page: the field is not brought into view.)
+  // A required field left empty proposes nothing: the check is not sent, the form counts what is
+  // missing, and the Check names the field and brings its control into view (T-3970).
   test("proposes nothing while the target endpoint is empty", async ({
     page,
   }) => {
@@ -365,9 +365,43 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
     await expect(dialog.getByTestId("required-count")).toHaveText(
       "2 of 3 required fields filled",
     );
+    await expect(dialog.getByTestId("check-stopped")).toHaveText(
+      "Target endpoint is required",
+    );
+    await expect(dialog.locator('[data-field="targetEndpoint"]')).toBeFocused();
     await expect(dialog.getByTestId("draft-verdict")).toHaveText(
       "Not checked yet",
     );
+    await expect(
+      dialog.getByRole("button", { name: "Propose change" }),
+    ).toBeDisabled();
+    expect(writes).toEqual([]);
+  });
+
+  // A step drawn on the canvas with no first source cannot be written (v1alpha2 needs one), so
+  // Check and Propose stop and say so rather than propose the pipeline without it (T-3969).
+  test("refuses a step drawn with no first source rather than drop it", async ({
+    page,
+  }) => {
+    const { writes } = await stubApi(page, {});
+    await page.goto("/projects/helsinki/pipelines?lang=en");
+    await page.getByRole("button", { name: "New pipeline" }).first().click();
+    const dialog = page.getByTestId("form-page");
+    await dialog.getByLabel(/^Name/).fill("no-source");
+    await dialog.getByText("More options").click();
+    await dialog.getByText("Advanced editor").click();
+    const canvas = page.getByTestId("flow-canvas");
+    await page.getByLabel("Find a processor").fill("log");
+    const found = page.getByTestId("palette-found-log");
+    await found.scrollIntoViewIfNeeded();
+    await found.dragTo(canvas);
+    await expect(page.getByTestId("flow-node-step-0")).toBeVisible();
+    await dialog.getByLabel(/^Target endpoint/).selectOption({ label: "transport" });
+    await dialog.getByRole("button", { name: "Check", exact: true }).click();
+    await expect(dialog.getByTestId("check-stopped")).toContainText(
+      "The pipeline has no first source",
+    );
+    await expect(dialog.locator('[data-field="source"]')).toBeFocused();
     await expect(
       dialog.getByRole("button", { name: "Propose change" }),
     ).toBeDisabled();

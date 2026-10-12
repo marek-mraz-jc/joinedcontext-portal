@@ -30,7 +30,7 @@ function MockEditor({ value, onChange }: { value: string; onChange?: (value: str
 vi.mock("../src/pages/models/MonacoSourceView", () => ({ default: MockEditor }));
 
 const { App } = await import("../src/App");
-const { completeOutput, endpointUrn, expiryWindow, firstShape, fromManifest, toEnvelope, toForm } = await import(
+const { canvasLoss, completeOutput, endpointUrn, expiryWindow, firstShape, fromManifest, toEnvelope, toForm } = await import(
   "../src/pages/pipelines/PipelineEditor"
 );
 const { aggregateBloblang, attributesOf, sourceKindOf } = await import(
@@ -582,6 +582,32 @@ describe("pipeline editor", () => {
       { processor: { log: { message: "in" } } },
       { processor: { dedupe: { cache: "c" } } },
     ]);
+  });
+
+  it("names what the canvas holds that a pipeline without a first source or target cannot carry (T-3969)", () => {
+    const target = "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:public-air";
+    const step = { step: { processor: { log: { message: "in" } } } };
+    const extraSource = { dataSourceRef: "second-feed" } as NonNullable<PipelineForm["moreSources"]>[number];
+    const extraOutput = { targetEndpoint: target } as NonNullable<PipelineForm["moreOutputs"]>[number];
+    // An extra source, a processor step, an extra output: none fits v1alpha1, so each is named.
+    for (const drawn of [{ moreSources: [extraSource] }, { processors: [step] }, { moreOutputs: [extraOutput] }]) {
+      const form = { class: "auto", targetEndpoint: target, ...drawn } as PipelineForm;
+      expect(canvasLoss(form)).toEqual({ key: "noSource", field: "source" });
+      expect(toEnvelope("banskabystrica", form).apiVersion).toBe("joinedcontext.com/v1alpha1");
+    }
+    const sourced = { class: "auto", source: { dataSourceRef: "mqtt-mesto" } } as PipelineForm;
+    expect(canvasLoss({ ...sourced, moreOutputs: [extraOutput] })).toEqual({ key: "noTarget", field: "targetEndpoint" });
+    expect(canvasLoss({ ...sourced, processors: [step] })).toEqual({ key: "noTarget", field: "targetEndpoint" });
+    // With both, everything drawn reaches the manifest, and nothing is refused.
+    const whole = { ...sourced, targetEndpoint: target, processors: [step], moreSources: [extraSource], moreOutputs: [extraOutput] };
+    expect(canvasLoss(whole)).toBeUndefined();
+    const spec = toEnvelope("banskabystrica", whole).spec as Record<string, unknown[]>;
+    expect(spec.sources).toHaveLength(2);
+    expect(spec.steps).toEqual([{ processor: { log: { message: "in" } } }]);
+    expect(spec.outputs).toHaveLength(2);
+    // A pipeline whose input lives in bento.yaml draws nothing more, and stays as it is.
+    expect(canvasLoss({ class: "auto", targetEndpoint: target } as PipelineForm)).toBeUndefined();
+    expect(canvasLoss(undefined)).toBeUndefined();
   });
 
   it("keeps a pipeline whose input lives in bento.yaml at v1alpha1, which has a place for it", () => {

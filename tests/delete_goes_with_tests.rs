@@ -19,8 +19,26 @@ use joinedcontext_portal::state::AppState;
 
 const PROJECT: &str = "ovzdusie";
 
+/// The broker's admin token, mounted as the deployment mounts it (T-3983).
+fn token_file() -> std::path::PathBuf {
+    let file = std::env::temp_dir().join(format!("goes-with-token-{}", std::process::id()));
+    std::fs::write(&file, "admin-token\n").expect("write the token file");
+    file
+}
+
+/// The broker's count of one tenant (`GET /q/tenants/{tenant}`, T-3983).
+fn tenant_count(tenant: &str, entities: u64) -> Mock {
+    Mock::given(method("GET"))
+        .and(path(format!("/q/tenants/{tenant}")))
+        .and(header("authorization", "Bearer admin-token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "tenant": tenant, "counts": { "entities": entities } })),
+        )
+}
+
 /// `remover` reads and deletes spaces, pipelines and endpoints of `ovzdusie`, against a forge and
-/// a broker whose `air` tenant holds 1 234 entities.
+/// a broker whose `ovzdusie-air` tenant holds 1 234 entities.
 async fn world(gitea: &MockServer, broker: &MockServer) -> AppState {
     let client = GiteaClient::new(
         gitea.uri().parse().expect("a url"),
@@ -32,6 +50,7 @@ async fn world(gitea: &MockServer, broker: &MockServer) -> AppState {
     let state = AppState::new(
         Config {
             broker_url: Some(broker.uri()),
+            broker_admin_token_file: Some(token_file()),
             ..Config::for_tests()
         },
         None,
@@ -67,16 +86,7 @@ async fn world(gitea: &MockServer, broker: &MockServer) -> AppState {
         ORG_NAMESPACE,
         json!({ "subjects": [{ "user": "remover@hel.fi" }], "role": "remover", "scope": { "project": PROJECT } }),
     ));
-    Mock::given(method("GET"))
-        .and(path("/ngsi-ld/v1/entities"))
-        .and(header("NGSILD-Tenant", "air"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .insert_header("NGSILD-Results-Count", "1234")
-                .set_body_json(json!([])),
-        )
-        .mount(broker)
-        .await;
+    tenant_count("ovzdusie-air", 1234).mount(broker).await;
     state
 }
 
@@ -101,16 +111,7 @@ async fn a_space_names_the_entities_it_holds() {
     let state = world(&gitea, &broker).await;
     // `air` is still named by its pipeline and endpoint, which the dry run refuses as the removal
     // would (MF-07); `lonely` is a space nothing references.
-    Mock::given(method("GET"))
-        .and(path("/ngsi-ld/v1/entities"))
-        .and(header("NGSILD-Tenant", "lonely"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .insert_header("NGSILD-Results-Count", "1234")
-                .set_body_json(json!([])),
-        )
-        .mount(&broker)
-        .await;
+    tenant_count("ovzdusie-lonely", 1234).mount(&broker).await;
     state.mirror.upsert(envelope(
         "ContextSpace",
         "lonely",
@@ -210,8 +211,7 @@ async fn a_count_the_broker_cannot_give_is_left_out_and_the_dry_run_still_answer
         json!({ "isSandbox": false }),
     ));
     Mock::given(method("GET"))
-        .and(path("/ngsi-ld/v1/entities"))
-        .and(header("NGSILD-Tenant", "silent"))
+        .and(path("/q/tenants/ovzdusie-silent"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&broker)
         .await;

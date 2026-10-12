@@ -1,6 +1,6 @@
-//! T-2889, T-2996, API/01 §29: a space's size is the broker's NGSI-LD count of its tenant's own
-//! entities, read with the same rights as the space, kept for five minutes, and a broker that
-//! cannot answer is a reason, never a zero.
+//! T-2889, T-2996, T-3983, API/01 §29: a space's size is the broker's entity count of its tenant
+//! (`GET /q/tenants/{tenant}` with the admin token), read with the same rights as the space, kept
+//! for five minutes, and a broker that cannot answer is a reason, never a zero.
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
@@ -8,7 +8,7 @@ use axum_extra::extract::cookie::PrivateCookieJar;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tower::ServiceExt;
-use wiremock::matchers::{header as has_header, method, path, query_param};
+use wiremock::matchers::{header as has_header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use joinedcontext_portal::auth::session::{self, Identity, Session};
@@ -69,20 +69,39 @@ fn cookie(config: &Config, email: &str) -> String {
         .join("; ")
 }
 
-/// Two spaces of helsinki and a reader bound to `air` alone, against a broker at `broker`.
+const TOKEN: &str = "admin-token-of-the-broker-0123456789abcdef";
+
+/// The broker's admin token, mounted as the deployment mounts it.
+fn token_file() -> std::path::PathBuf {
+    let file = std::env::temp_dir().join(format!("space-usage-token-{}", std::process::id()));
+    std::fs::write(&file, format!("{TOKEN}\n")).expect("write the token file");
+    file
+}
+
+/// Two spaces of helsinki, `air` pinned to its own name and `mobility` unpinned, and a reader
+/// bound to `air` alone, against a broker at `broker`.
 fn world(broker: Option<String>) -> AppState {
+    world_with(broker, Some(token_file()))
+}
+
+fn world_with(broker: Option<String>, token: Option<std::path::PathBuf>) -> AppState {
     let state = AppState::new(
         Config {
             broker_url: broker,
+            broker_admin_token_file: token,
             ..Config::for_tests()
         },
         None,
     );
-    for space in ["air", "mobility"] {
-        state
-            .mirror
-            .upsert(envelope("ContextSpace", space, PROJECT, json!({})));
-    }
+    state.mirror.upsert(envelope(
+        "ContextSpace",
+        "air",
+        PROJECT,
+        json!({ "urnSegment": "air" }),
+    ));
+    state
+        .mirror
+        .upsert(envelope("ContextSpace", "mobility", PROJECT, json!({})));
     state.mirror.upsert(envelope(
         "Role",
         "space-reader",
@@ -124,22 +143,33 @@ async fn get(state: &AppState, email: &str, uri: &str) -> (StatusCode, Value) {
 
 const AIR: &str = "/api/v1/projects/helsinki/spaces/air/usage";
 
-/// The broker's count query for the tenant `air`: every type, its own entities only, no body.
+/// The broker's admin read of the tenant `air`, with its admin token.
 fn count_query() -> wiremock::MockBuilder {
+    tenant_read("air")
+}
+
+fn tenant_read(tenant: &str) -> wiremock::MockBuilder {
     Mock::given(method("GET"))
-        .and(path("/ngsi-ld/v1/entities"))
-        .and(query_param("local", "true"))
-        .and(query_param("count", "true"))
-        .and(query_param("limit", "0"))
-        .and(has_header("NGSILD-Tenant", "air"))
+        .and(path(format!("/q/tenants/{tenant}")))
+        .and(has_header(
+            "authorization",
+            format!("Bearer {TOKEN}").as_str(),
+        ))
+}
+
+fn counts(entities: Value) -> ResponseTemplate {
+    ResponseTemplate::new(200).set_body_json(json!({
+        "tenant": "air",
+        "counts": { "entities": entities, "subscriptions": 0, "registrations": 0 }
+    }))
 }
 
 fn nonexistent_tenant() -> ResponseTemplate {
     ResponseTemplate::new(404).set_body_json(json!({
-        "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant",
-        "title": "NonexistentTenant",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+        "title": "ResourceNotFound",
         "status": 404,
-        "detail": "tenant air does not exist"
+        "detail": "tenant air"
     }))
 }
 
@@ -147,11 +177,7 @@ fn nonexistent_tenant() -> ResponseTemplate {
 async fn a_reader_gets_the_brokers_count_and_a_second_read_is_kept() {
     let broker = MockServer::start().await;
     count_query()
-        .respond_with(
-            ResponseTemplate::new(200)
-                .insert_header("NGSILD-Results-Count", "14232")
-                .set_body_json(json!([])),
-        )
+        .respond_with(counts(json!(14232)))
         .expect(1)
         .mount(&broker)
         .await;
@@ -181,7 +207,7 @@ async fn a_space_the_broker_has_no_tenant_for_holds_nothing() {
 
 #[tokio::test]
 async fn a_404_that_is_not_the_brokers_missing_tenant_is_a_reason_and_never_a_zero() {
-    // A proxy or a wrong address answers 404 too; only the broker's NonexistentTenant is empty.
+    // A proxy or a wrong address answers 404 too; only the broker's own problem is empty.
     let broker = MockServer::start().await;
     count_query()
         .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
@@ -194,14 +220,12 @@ async fn a_404_that_is_not_the_brokers_missing_tenant_is_a_reason_and_never_a_ze
 
 #[tokio::test]
 async fn an_answer_without_a_readable_count_is_a_reason_and_never_a_zero() {
-    for count in [None, Some("many"), Some("-1")] {
+    for count in [Value::Null, json!("many"), json!(-1)] {
         let broker = MockServer::start().await;
-        let answer = ResponseTemplate::new(200).set_body_json(json!([]));
-        let answer = match count {
-            Some(count) => answer.insert_header("NGSILD-Results-Count", count),
-            None => answer,
-        };
-        count_query().respond_with(answer).mount(&broker).await;
+        count_query()
+            .respond_with(counts(count.clone()))
+            .mount(&broker)
+            .await;
         let (status, body) = get(&world(Some(broker.uri())), READER, AIR).await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{count:?}: {body}");
         assert!(body.to_string().contains("count"), "{count:?}: {body}");
@@ -241,4 +265,78 @@ async fn a_broker_that_cannot_answer_is_a_reason_and_never_a_zero() {
     let (status, body) = get(&world(None), READER, AIR).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
     assert!(body.to_string().contains("JC_PORTAL_BROKER_URL"), "{body}");
+}
+
+#[tokio::test]
+async fn the_count_is_read_where_the_policy_engine_does_not_refuse_it() {
+    // T-3983: on dev the broker's `joinedcontext` policy engine answered the NGSI-LD count query
+    // of a caller without subject headers 403 for every space, and the page showed 503. The
+    // count is read from the admin route; the query route is never asked.
+    let broker = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/ngsi-ld/v1/entities"))
+        .respond_with(ResponseTemplate::new(403).set_body_json(json!({
+            "type": "https://uri.etsi.org/ngsi-ld/errors/NotAuthorized",
+            "title": "NotAuthorized", "status": 403
+        })))
+        .expect(0)
+        .mount(&broker)
+        .await;
+    count_query()
+        .respond_with(counts(json!(812)))
+        .expect(1)
+        .mount(&broker)
+        .await;
+    let (status, body) = get(&world(Some(broker.uri())), READER, AIR).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["entities"], json!(812));
+}
+
+#[tokio::test]
+async fn an_unpinned_space_is_counted_in_its_rendered_tenant() {
+    // PF-84: `mobility` of helsinki pins nothing, so its tenant is `helsinki-mobility`.
+    let broker = MockServer::start().await;
+    tenant_read("helsinki-mobility")
+        .respond_with(counts(json!(3)))
+        .expect(1)
+        .mount(&broker)
+        .await;
+    let state = world(Some(broker.uri()));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "mobility-readers",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": READER }], "role": "space-reader",
+                "scope": { "contextSpace": "mobility" } }),
+    ));
+    let (status, body) = get(
+        &state,
+        READER,
+        "/api/v1/projects/helsinki/spaces/mobility/usage",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["entities"], json!(3));
+}
+
+#[tokio::test]
+async fn without_the_admin_token_or_with_a_refused_one_the_reason_is_answered() {
+    let broker = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&broker)
+        .await;
+    let (status, body) = get(&world_with(Some(broker.uri()), None), READER, AIR).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    assert!(
+        body.to_string()
+            .contains("JC_PORTAL_BROKER_ADMIN_TOKEN_FILE"),
+        "{body}"
+    );
+    assert!(!body.to_string().contains(TOKEN), "{body}");
+
+    let (status, body) = get(&world(Some(broker.uri())), READER, AIR).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    assert!(body.to_string().contains("401"), "{body}");
+    assert!(!body.to_string().contains(TOKEN), "{body}");
 }

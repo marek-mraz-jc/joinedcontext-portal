@@ -1,6 +1,9 @@
 //! The `hsl-transport` reference app (AP-34, AP-37, AP-38, AP-41).
 //!
-//! It shows the 30 buses of one Context Space on a map and keeps them moving. Everything it
+//! It shows the vehicles of one Context Space on a map and keeps them moving: the HFP fleet of
+//! four bus trunk lines and every tram, metro, train and ferry, capped per mode upstream
+//! (T-3893), with the departures of the curated stops and HSL's service alerts beside it
+//! ([`board`], T-3895). Everything it
 //! serves comes from a single Endpoint whose URL it is handed at run time; it opens no other
 //! connection, holds no credential and contains no authorization logic. The Endpoint it is
 //! bound to is public, so the app never sees a user and asks nobody to sign in (AP-28).
@@ -26,11 +29,16 @@ use serde_json::{json, Value};
 use tokio_stream::{Stream, StreamExt};
 
 pub mod assets;
+pub mod board;
 
 /// The entity type this app was built for; it is also what the grant names.
 const TYPE: &str = "Vehicle";
-/// The fleet the demo runs, and the cap the Endpoint is asked for (AP-38).
-const FLEET: usize = 30;
+/// The fleet the demo runs, and the cap the Endpoint is asked for (AP-38): the sum of the
+/// pipeline's per-mode caps, 30 buses, 30 trams, 10 metros, 15 trains and 5 ferries (T-3893).
+const FLEET: usize = 90;
+/// The headsigns are read again after this many board reads (an hour at 30 s): lines change
+/// with the timetable, not by the minute.
+const HEADSIGN_READS: u64 = 120;
 /// How often the poll loop asks the Endpoint. The manifest allows 1200 requests a minute, so
 /// two seconds leaves the budget almost untouched however many browsers are watching.
 const POLL_SECONDS: u64 = 2;
@@ -113,6 +121,9 @@ pub struct Vehicle {
     pub speed: Option<f64>,
     #[serde(rename = "refLine", skip_serializing_if = "Option::is_none")]
     pub ref_line: Option<String>,
+    /// bus, tram, metro, train or ferry (`transportMode`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
 }
 
 /// The application state: its configuration, the one client it makes requests with, the last
@@ -122,6 +133,8 @@ pub struct App {
     http: reqwest::Client,
     fleet: RwLock<BTreeMap<String, Vehicle>>,
     changes: tokio::sync::broadcast::Sender<Vec<Vehicle>>,
+    board: RwLock<Option<board::Board>>,
+    headsigns: tokio::sync::Mutex<(u64, board::Headsigns)>,
 }
 
 impl App {
@@ -131,7 +144,29 @@ impl App {
             http: reqwest::Client::new(),
             fleet: RwLock::new(BTreeMap::new()),
             changes: tokio::sync::broadcast::channel(BROADCAST_DEPTH).0,
+            board: RwLock::new(None),
+            headsigns: tokio::sync::Mutex::new((0, BTreeMap::new())),
         }
+    }
+
+    /// The departures and alerts as the last board read left them; `None` before the first.
+    pub fn board(&self) -> Option<board::Board> {
+        self.board.read().ok().and_then(|board| board.clone())
+    }
+
+    /// One read of the departures and alerts. A failed read keeps the last board.
+    pub async fn poll_board(&self) -> Result<board::Board, PollError> {
+        let mut headsigns = self.headsigns.lock().await;
+        let (reads, cache) = &mut *headsigns;
+        if reads.is_multiple_of(HEADSIGN_READS) {
+            cache.clear();
+        }
+        *reads += 1;
+        let read = board::read(&self.http, &self.config.endpoint_url, cache).await?;
+        if let Ok(mut board) = self.board.write() {
+            *board = Some(read.clone());
+        }
+        Ok(read)
     }
 
     /// The fleet as it stands, ordered by id so two viewers see the same list.
@@ -168,7 +203,15 @@ impl App {
     /// The poll loop, for the process. Nothing else in the app makes an outbound call.
     pub async fn run(self: Arc<Self>) {
         let interval = Duration::from_secs(self.config.poll_seconds);
+        let every = (board::BOARD_SECONDS / self.config.poll_seconds).max(1);
+        let mut tick: u64 = 0;
         loop {
+            if tick.is_multiple_of(every) {
+                if let Err(error) = self.poll_board().await {
+                    tracing::warn!(%error, "board read failed, keeping the last departures and alerts");
+                }
+            }
+            tick += 1;
             if let Err(error) = self.poll_once().await {
                 // A poll that fails leaves the last known fleet on every open map, which is
                 // the honest thing to show: the buses stop moving rather than disappearing.
@@ -267,6 +310,7 @@ fn vehicle(feature: &Value) -> Option<Vehicle> {
         bearing: number("heading"),
         speed: number("speed"),
         ref_line: text("route"),
+        mode: text("transportMode"),
     })
 }
 
@@ -293,6 +337,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/healthz", get(|| async { "ok" }))
         .route(&at("/api/vehicles"), get(fleet))
         .route(&at("/api/stream"), get(stream))
+        .route(&at("/api/departures"), get(departures))
+        .route(&at("/api/alerts"), get(alerts))
         // Both spellings of the front page: the edge routes the prefix, and a person who
         // types it without the slash is not a different visitor.
         .route(&at("/"), get(assets::static_handler))
@@ -305,6 +351,38 @@ pub fn router(app: Arc<App>) -> Router {
         router
             .route(&base, get(assets::static_handler))
             .with_state(app)
+    }
+}
+
+/// The answer before the first read: not the same as nothing to show.
+fn not_yet(what: &str) -> Response {
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        [(axum::http::header::CONTENT_TYPE, "application/problem+json")],
+        json!({
+            "type": "https://joinedcontext.com/errors/app",
+            "title": "Service Unavailable",
+            "status": 503,
+            "detail": format!("the first read of the endpoint has not produced {what} yet"),
+        })
+        .to_string(),
+    )
+        .into_response()
+}
+
+/// The stops with departures, by name, each with its next departures.
+async fn departures(State(app): State<Arc<App>>) -> Response {
+    match app.board() {
+        Some(board) => Json(board.departures).into_response(),
+        None => not_yet("departures"),
+    }
+}
+
+/// HSL's service alerts, most severe first.
+async fn alerts(State(app): State<Arc<App>>) -> Response {
+    match app.board() {
+        Some(board) => Json(board.alerts).into_response(),
+        None => not_yet("alerts"),
     }
 }
 

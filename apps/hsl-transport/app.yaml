@@ -5,11 +5,11 @@ metadata:
   name: hsl-transport
   namespace: helsinki
   title:
-    fi: "Bussit livenä"
-    en: "Buses live"
+    fi: "HSL livenä"
+    en: "HSL live"
   description:
-    fi: "30 bussin sijainti kartalla, päivittyy jatkuvasti."
-    en: "The position of 30 buses on a map, updated as they move."
+    fi: "Bussit, raitiovaunut, metrot, junat ja lautat kartalla, pysäkkien lähdöt ja HSL:n häiriötiedotteet."
+    en: "Buses, trams, metros, trains and ferries on a map, the departures of a stop and HSL's service alerts."
 spec:
   kind: ui-rust
   source:
@@ -28,14 +28,36 @@ spec:
   # The Portal frames it in the apps catalogue, which is what `embeddable` is for (AP-12).
   embeddable: true
   dataNeeds:
-    # One space, one type, read only. No write anywhere in this app. The attributes are the
-    # `Vehicle` slots of the `helsinki` model that the HFP pipeline fills.
+    # One space, read only. No write anywhere in this app. The `Vehicle` slots the HFP pipeline
+    # fills, and for the departures and alerts beside the map (T-3895): the stops that carry
+    # departures, the headsign of each line and direction, and HSL's service alerts.
     - contextSpaceRef:
         kind: ContextSpace
         name: helsinki
       types: [Vehicle]
-      attrs: [location, heading, speed, route]
+      attrs: [location, heading, speed, route, transportMode]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, geojson]
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [GtfsStop]
+      attrs: [name, location, departures]
+      operations: [queryEntity]
+      representations: [ngsi-ld]
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [TransitRoute]
+      attrs: [route, directionId, headsign]
+      operations: [queryEntity]
+      representations: [ngsi-ld]
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [Alert]
+      attrs: [name, description, severity, validFrom, validTo, refRoute, refStop, unknownReference, source]
+      operations: [queryEntity]
+      representations: [ngsi-ld]
   limits:
     maxFileRows: 5000

@@ -145,6 +145,29 @@ export function withHelp(ui: UiSchema, secretHelp: string): UiSchema {
   return walk(ui as Ui) as UiSchema;
 }
 
+/**
+ * The schema with the pipeline's own variables offered on every secret field, as `${VAR}`
+ * (T-3972, PL-15): a credential is named, never typed, and these are the names the runner
+ * injects for this pipeline.
+ */
+export function withVariables(schema: JsonSchema, ui: UiSchema, variables: string[]): JsonSchema {
+  if (variables.length === 0) return schema;
+  const offered = variables.map((name) => `\${${name}}`);
+  const walk = (node: unknown, uiNode: Ui): unknown => {
+    if (!isRecord(node)) return node;
+    if (optionsOf(uiNode).secret && node.type === "string") return { ...node, examples: offered };
+    const out: Record<string, unknown> = { ...node };
+    if (isRecord(node.properties)) {
+      out.properties = Object.fromEntries(
+        Object.entries(node.properties).map(([key, child]) => [key, walk(child, isRecord(uiNode?.[key]) ? (uiNode?.[key] as Ui) : undefined)]),
+      );
+    }
+    if (isRecord(node.items)) out.items = walk(node.items, isRecord(uiNode?.items) ? (uiNode?.items as Ui) : undefined);
+    return out;
+  };
+  return walk(schema, ui as Ui) as JsonSchema;
+}
+
 /** An rjsf error schema carrying `message` at the dotted `path` that `fromFormData` names. */
 export function errorAt(path: string, message: string): ErrorSchema {
   const root: Record<string, unknown> = {};
