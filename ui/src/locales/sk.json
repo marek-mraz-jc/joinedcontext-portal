@@ -2150,6 +2150,19 @@
     "canvasLoss": {
       "noSource": "Pipeline nemá prvý zdroj: najprv zvoľte, odkiaľ číta, inak nemožno zapísať jej ďalšie zdroje, kroky ani výstupy.",
       "noTarget": "Pipeline nemá cieľový endpoint: najprv zvoľte, kam zapisuje, inak nemožno zapísať jej ďalšie výstupy."
+    },
+    "templates": {
+      "title": "Uložené v tomto projekte",
+      "by": "Uložil(a) {name}",
+      "use": "Použiť",
+      "delete": "Zmazať",
+      "deleteOf": "Zmazať šablónu {title}",
+      "save": "Uložiť ako šablónu",
+      "saveIt": "Uložiť šablónu",
+      "titleField": "Názov šablóny",
+      "titleHelp": "Čo ukazuje galéria. Šablóna si ponechá kroky a mapovanie; prístupové údaje, zdroj a cieľ vynechá.",
+      "titleNeeded": "Najprv šablóne dajte názov.",
+      "saved": "Uložené ako šablóna „{title}“."
     }
   },
   "dashboards": {

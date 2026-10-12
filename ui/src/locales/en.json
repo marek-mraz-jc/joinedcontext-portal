@@ -2150,6 +2150,19 @@
     "canvasLoss": {
       "noSource": "The pipeline has no first source: choose where it reads from before its extra sources, steps or outputs can be written.",
       "noTarget": "The pipeline has no target endpoint: choose where it writes before its extra outputs can be written."
+    },
+    "templates": {
+      "title": "Saved in this project",
+      "by": "Saved by {name}",
+      "use": "Use",
+      "delete": "Delete",
+      "deleteOf": "Delete the template {title}",
+      "save": "Save as template",
+      "saveIt": "Save template",
+      "titleField": "Template title",
+      "titleHelp": "What the gallery shows. The template keeps the steps and the mapping; credentials, the source and the target are left out.",
+      "titleNeeded": "Give the template a title first.",
+      "saved": "Saved as template \"{title}\"."
     }
   },
   "dashboards": {

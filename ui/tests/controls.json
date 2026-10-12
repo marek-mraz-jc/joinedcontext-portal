@@ -1443,6 +1443,14 @@
         "pipeline_studio_functions.test.ts"
       ]
     },
+    "src/pages/pipelines/PipelineTemplates.tsx": {
+      "controls": {
+        "Button": 5
+      },
+      "tests": [
+        "pipeline_templates.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineTest.tsx": {
       "controls": {
         "Button": 4,
