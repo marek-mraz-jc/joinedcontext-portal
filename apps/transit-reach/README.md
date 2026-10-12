@@ -13,8 +13,8 @@ waiting, riding, changing on foot and walking on.
 - the starting point and the hours of vehicle history (1, 3 or 6) in the address, so a view is a
   link (`?at=24.95000,60.20000&hours=6&lang=en`).
 
-Finnish or English (`?lang=fi|en`, else the browser's language). Light and dark follow the
-reader's system. Times are Helsinki's.
+Finnish, English or Swedish (`?lang=fi|en|sv`, else the browser's language), chosen in the
+shell's language menu. Light and dark follow the reader's system. Times are Helsinki's.
 
 ## What the answer rests on
 
@@ -73,6 +73,38 @@ The App's server is a WebAssembly component on the platform's shared host (`serv
 | `GET /api/network` | the kept network's version, sizes, and whether it is due to be read again |
 | `POST /api/network` | HSL's registers read again; a new version when they changed |
 | `GET /api/reach?stop=` | the areas from a stop in each band; a URL their GeoJSON downloads from |
+
+## Origins, roles and history
+
+The server decides from the signed-in person the platform names (`identity::caller()`, API/07),
+never from anything the page sends:
+
+- anyone, signed in or not, sees the **published origins** on the **Origins** page;
+- a **viewer** keeps the point the view starts from under a name (**Keep this origin**), with
+  the area the browser reached from it in each band. The Origins page sets the kept origins side
+  by side: the area in 10, 20 and 30 minutes and the stops within 30. A viewer renames and
+  deletes their own; someone else's answers as if it did not exist;
+- a **steward** sees and changes every origin and **publishes** one into the shared set every
+  visitor sees, or withdraws it.
+
+A control the reader's role cannot use stays on screen, disabled, with the reason as its tooltip.
+A rename, a deletion and a publication show at once and go back when the server refuses. Every
+change writes a row into the App's `app_audit` table in the same statement, so a refused or failed
+change leaves none. The **History** page reads that table: a viewer their own rows, a steward
+everyone's.
+
+| Route | Who | What it does |
+|---|---|---|
+| `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+| `GET /api/origins` | anyone | the published origins, the caller's own, a steward's every one |
+| `POST /api/origins` `{name, lon, lat, source, bands}` | signed in | an origin kept, at most 50 a person |
+| `PUT /api/origins/{id}` `{name}` | owner, steward | renamed |
+| `DELETE /api/origins/{id}` | owner, steward | gone |
+| `PUT /api/origins/{id}/published` `{published}` | steward | in or out of the shared set |
+| `GET /api/history` | signed in | the newest 100 changes (a viewer: their own) |
+
+`server/host-test.json` plays every route on the real host as an anonymous visitor, a viewer,
+another viewer and a steward, and counts the rows after each refused write.
 
 ## Run the tests
 

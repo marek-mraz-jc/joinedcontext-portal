@@ -4,11 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider, ProblemError } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
+import { reachApi } from "./server";
+import type { ReachApi } from "./server";
 import { AnalyserContext } from "./analysis";
 import type { AnalysisInput } from "./analysis";
+import { memory, STEWARD, VIEWER } from "./fixtures/memory";
 import { NETWORK_ROWS } from "./fixtures/network";
 import { HISTORY } from "./fixtures/vehicles";
 import { inProcess } from "./test-analyser";
+import { sweep } from "./testing/sweep";
 import { Map as FakeMap } from "./testing/maplibre";
 
 vi.mock("maplibre-gl", () => import("./testing/maplibre"));
@@ -24,11 +28,11 @@ function client(temporal: unknown[] = HISTORY, entities: NonNullable<Parameters<
   );
 }
 
-function show(c = client()) {
+function show(c = client(), server: ReachApi = memory(null)) {
   render(
     <JcProvider client={c}>
       <AnalyserContext.Provider value={inProcess}>
-        <App />
+        <App server={server} />
       </AnalyserContext.Provider>
     </JcProvider>,
   );
@@ -133,7 +137,7 @@ describe("transit-reach", () => {
   it("switches to English and keeps the language in the address", async () => {
     show();
     await screen.findByText(FI_SUMMARY);
-    await userEvent.setup().click(screen.getByRole("button", { name: "In English" }));
+    await userEvent.setup().selectOptions(screen.getByRole("combobox", { name: "Kieli" }), "en");
     expect(screen.getByRole("heading", { level: 1, name: "How far can I get by transit" })).toBeInTheDocument();
     expect(await screen.findByText(/^Reachable from this point: 10 min \d+\.\d km², /)).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
@@ -158,14 +162,14 @@ describe("transit-reach", () => {
   // T-3349: from an HSL stop, the areas the App's server keeps, through its own API.
   it("keeps the start stop's areas on the server and downloads them, a stop of HSL's network only", async () => {
     const fetch = vi.fn(async (url: string, _init?: RequestInit) =>
-      new Response(
+      new Response(url.endsWith("/me") ? "null" :
         JSON.stringify({ version: "v1", stop: decodeURIComponent(url.split("stop=")[1] ?? ""), bands: [{ minutes: 10, areaKm2: 0.5, stops: 1 }], cached: false, stale: false, url: "https://store.example/t.geojson" }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
     vi.stubGlobal("fetch", fetch);
     try {
-      show(client(HISTORY, NETWORK_ROWS));
+      show(client(HISTORY, NETWORK_ROWS), reachApi("/apps/transit-reach/api"));
       const user = userEvent.setup();
       const keep = await screen.findByRole("button", { name: "Lataa alueet lähtöpysäkiltä (GeoJSON)" });
       expect(keep).toBeDisabled();
@@ -174,7 +178,7 @@ describe("transit-reach", () => {
       expect(await screen.findByText(/^Lähtöpysäkki: Kaisaniemi \(H0012\)/)).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Lataa alueet lähtöpysäkiltä (GeoJSON)" }));
       expect(await screen.findByText("GeoJSON-tiedosto ladataan.")).toBeInTheDocument();
-      expect(fetch.mock.calls[0][0]).toMatch(/^\/apps\/transit-reach\/api\/reach\?stop=urn%3Angsi-ld%3AGtfsStop%3A/);
+      expect(fetch.mock.calls.map(([url]) => url).find((url) => url.includes("/reach?"))).toMatch(/^\/apps\/transit-reach\/api\/reach\?stop=urn%3Angsi-ld%3AGtfsStop%3A/);
       expect(went.at(-1)).toBe("https://store.example/t.geojson");
     } finally {
       vi.unstubAllGlobals();
@@ -251,8 +255,9 @@ describe("transit-reach", () => {
     const user = userEvent.setup();
     await user.selectOptions(screen.getByRole("combobox", { name: "Ajoneuvojen historia" }), "1");
     expect(c.transport.calls.filter((call) => call.path.includes("/temporal/entities"))).toHaveLength(2);
-    await user.click(screen.getByRole("button", { name: "In English" }));
-    await user.click(await screen.findByRole("button", { name: "Suomeksi" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kieli" }), "sv");
+    expect(await screen.findByRole("heading", { level: 1, name: "Hur långt kommer jag med kollektivtrafik" })).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Language" }), "fi");
     expect(document.documentElement.lang).toBe("fi");
     expect(window.location.search).toContain("lang=fi");
   });
@@ -266,7 +271,7 @@ describe("transit-reach", () => {
     vi.spyOn(window.history, "replaceState").mockImplementation(() => {
       throw new DOMException("sandboxed", "SecurityError");
     });
-    await userEvent.setup().click(screen.getByRole("button", { name: "Suomeksi" }));
+    await userEvent.setup().selectOptions(screen.getByRole("combobox", { name: "Language" }), "fi");
     expect(screen.getByRole("heading", { level: 1, name: "Kuinka pitkälle pääsen joukkoliikenteellä" })).toBeInTheDocument();
   });
 
@@ -290,5 +295,67 @@ describe("transit-reach", () => {
     failing = false;
     for (const retry of screen.getAllByRole("button", { name: "Yritä uudelleen" })) await user.click(retry);
     expect(await screen.findByText(/^Pysäkit ja linjat HSL:n rekistereistä/)).toBeInTheDocument();
+  });
+
+  // T-3826: who reads the page stands beside their name; Origins and History are a page each.
+  it("names the reader's role and opens the origins and the history in every language", async () => {
+    window.history.replaceState(null, "", "/?lang=en");
+    show(client(), memory(STEWARD));
+    expect(await screen.findByLabelText("Your role: Steward")).toBeInTheDocument();
+    expect(screen.getByText("Sami Steward")).toBeInTheDocument();
+    const user = userEvent.setup();
+    for (const [language, pages] of [
+      ["en", ["Reach", "Origins", "History"]],
+      ["fi", ["Saavutettavuus", "Lähtöpisteet", "Historia"]],
+      ["sv", ["Räckvidd", "Startpunkter", "Historik"]],
+    ] as const) {
+      await user.selectOptions(screen.getByRole("combobox", { name: /^(Language|Kieli)$/ }), language);
+      // Every control of the map page (an origin kept from it), then of the origins, in this language.
+      for (const page of pages) {
+        await user.click(await screen.findByRole("button", { name: page }));
+        expect(screen.getByRole("button", { name: page })).toHaveAttribute("aria-current", "page");
+        if (page === pages[0]) await screen.findByRole("list", { name: /^(Stops within|Pysäkit|Hållplatser inom) 30/ });
+        if (page === pages[1]) await screen.findByRole("table");
+        if (page !== pages[2]) await sweep(screen.getByRole("region", { name: page }));
+        else await user.click(await screen.findByRole("button", { name: /^(Refresh|Päivitä|Uppdatera)$/ }));
+      }
+    }
+  });
+
+  it("says a viewer is a viewer, and a signed-out reader that they are not signed in", async () => {
+    window.history.replaceState(null, "", "/?lang=sv");
+    show(client(), memory(VIEWER));
+    expect(await screen.findByLabelText("Din roll: Läsare")).toBeInTheDocument();
+  });
+
+  it("reads a server that cannot say who is signed in as nobody", async () => {
+    window.history.replaceState(null, "", "/?lang=en");
+    const server = memory(VIEWER);
+    server.me = vi.fn(async () => {
+      throw new Error("offline");
+    });
+    show(client(), server);
+    expect(await screen.findByLabelText("Your role: Not signed in")).toBeInTheDocument();
+    expect(await screen.findByText("Sign in to keep origins.")).toBeInTheDocument();
+  });
+
+  it("keeps the point it starts from, with the areas worked out in the browser", async () => {
+    window.history.replaceState(null, "", "/?lang=en");
+    const server = memory(VIEWER);
+    show(client(HISTORY, NETWORK_ROWS), server);
+    const user = userEvent.setup();
+    const reached = await screen.findByRole("list", { name: "Stops within 30 minutes" });
+    await user.click(within(reached).getAllByRole("button", { name: /: start from here$/ })[1]);
+    expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("Kaisaniemi");
+    await user.click(screen.getByRole("button", { name: "Keep" }));
+    expect(await screen.findByText("Kept: Kaisaniemi. Compare it on the Origins page.")).toBeInTheDocument();
+    const kept = vi.mocked(server.keep).mock.calls[0][0];
+    expect(kept.source).toBe("network");
+    expect(kept.bands.map((band) => band.minutes)).toEqual([10, 20, 30]);
+    await sweep(screen.getByRole("region", { name: "Reach" }));
+    // The last stop's details stay open in the entity panel: its controls too.
+    const panel = await screen.findByRole("dialog");
+    await user.click(within(panel).getByRole("link", { name: "Open in the Portal" }));
+    await sweep(panel);
   });
 });

@@ -31,6 +31,18 @@ spec:
     blob:
       quotaMiB: 1024
   visibility: public
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Reads every station's model, its inputs and its kept history; sees their own changes in History."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "Tunes a station's model inputs: a weather station instead of the nearest, how far the nearest may be, and how many days it trains on; today's model is trained again on them. Reads the whole history."
+  access:
+    - role: viewer
+      subjects: [{ group: bike-weather-demand-viewer }]
+    - role: steward
+      subjects: [{ group: bike-weather-demand-steward }]
   lifecycle: published
   dataNeeds:
     - contextSpaceRef:

@@ -38,13 +38,19 @@ export interface Served {
   problems: string[];
 }
 
+/** Who the App's server says is signed in (T-3826): a viewer unless a test names a steward. */
+export const VIEWER = { id: "u-1", name: "Operaattori", roles: ["viewer"] };
+export const STEWARD = { id: "u-2", name: "Ylläpitäjä", roles: ["viewer", "steward"] };
+
 /** Serves the built bundle at the root of the App's own host, with the SDK's stub answering its endpoint. */
-export async function serve(page: Page): Promise<Served> {
+export async function serve(page: Page, me: { id: string; name: string; roles: string[] } = VIEWER): Promise<Served> {
   const transport = stubTransport({
     entities: STATIONS,
     access: { permissions: [{ resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] },
   });
   const served: Served = { outside: [], missing: [], problems: [] };
+  let levels = { low: 0.15, high: 0.85, target: 0.5 };
+  const history: unknown[] = [];
   page.on("pageerror", (error) => served.problems.push(error.message));
   await page.clock.setFixedTime(new Date("2030-10-20T06:00:00Z"));
 
@@ -60,10 +66,21 @@ export async function serve(page: Page): Promise<Served> {
       const answer = await transport({ method: route.request().method() as "GET", path, body: body ? JSON.parse(body) : undefined });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
     }
-    // The App's own server (T-3346): an operator with no plan saved yet; any other call is missing.
-    if (url.pathname === `/apps/${CONFIG.appName}/api/plans` && route.request().method() === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    // The App's own server (T-3346, T-3826): an operator with no plan saved yet, the levels, and
+    // the history, deciding by `me` as the real one does; any other call is missing.
+    const api = `/apps/${CONFIG.appName}/api`;
+    const method = route.request().method();
+    const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (url.pathname === `${api}/plans` && method === "GET") return json(200, []);
+    if (url.pathname === `${api}/me` && method === "GET") return json(200, me);
+    if (url.pathname === `${api}/levels` && method === "GET") return json(200, levels);
+    if (url.pathname === `${api}/levels` && method === "PUT") {
+      if (!me.roles.includes("steward")) return json(403, { detail: "this needs the role steward" });
+      levels = JSON.parse(route.request().postData() ?? "{}");
+      history.unshift({ id: history.length + 1, at: "2030-10-20T06:00:00Z", actorName: me.name, action: "update", target: "levels/1", summary: "levels changed" });
+      return json(200, levels);
     }
+    if (url.pathname === `${api}/history` && method === "GET") return json(200, history);
     const file = normalize(url.pathname.slice(1) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) {
       served.missing.push(url.pathname);

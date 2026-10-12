@@ -36,4 +36,36 @@ describe("shareApi", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
     await expect(shareApi("/a").get("abc123def456")).rejects.toMatchObject({ status: 0 });
   });
+
+  it("reads a config it cannot parse as the App's own name", () => {
+    document.body.innerHTML = `<script id="jc-config" type="application/json">{not json</script>`;
+    expect(apiBase()).toBe("/apps/event-day-planner/api");
+  });
+
+  // T-3826: who is signed in, their kept days, the featured events and the history.
+  it("calls each of the server's paths with its method and body, and reads a 204 as nothing", async () => {
+    const fetch = vi.fn(async (_url: string, init?: RequestInit) => (init?.method === "PUT" || init?.method === "DELETE" ? new Response(null, { status: 204 }) : answer(200, null)));
+    vi.stubGlobal("fetch", fetch);
+    const api = shareApi("/a");
+    expect(await api.me()).toBeNull();
+    await api.days();
+    expect(await api.forgetDay(3)).toBeUndefined();
+    await api.featured();
+    await api.feature("urn:ngsi-ld:Event:x:1", "Free entry");
+    await api.changeNote(4, "Bring a coat");
+    await api.unfeature(4);
+    await api.history();
+    expect(fetch.mock.calls.map(([url, init]) => `${init?.method} ${url} ${init?.body ?? ""}`)).toEqual([
+      "GET /a/me ",
+      "GET /a/days ",
+      "DELETE /a/days/3 ",
+      "GET /a/featured ",
+      'POST /a/featured {"eventId":"urn:ngsi-ld:Event:x:1","note":"Free entry"}',
+      'PUT /a/featured/4 {"note":"Bring a coat"}',
+      "DELETE /a/featured/4 ",
+      "GET /a/history ",
+    ]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>", { status: 403 })));
+    await expect(api.unfeature(4)).rejects.toMatchObject({ status: 403, message: "" });
+  });
 });

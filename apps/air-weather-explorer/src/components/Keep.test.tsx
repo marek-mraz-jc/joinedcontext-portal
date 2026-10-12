@@ -63,7 +63,7 @@ describe("Keep", () => {
   it("maps every refusal to words a person can act on", () => {
     expect(problemText("en", new ServerProblem(0, ""), "saveFailed")).toMatch(/could not be reached/);
     expect(problemText("en", new ServerProblem(401, ""), "saveFailed")).toMatch(/Sign in again/);
-    expect(problemText("en", new ServerProblem(403, ""), "saveFailed")).toMatch(/may not read/);
+    expect(problemText("en", new ServerProblem(403, ""), "saveFailed")).toMatch(/may not do this/);
     expect(problemText("en", new ServerProblem(404, ""), "openFailed")).toMatch(/No comparison is saved/);
     expect(problemText("en", new ServerProblem(507, ""), "saveFailed")).toMatch(/storage is full/);
     expect(problemText("en", new ServerProblem(502, ""), "exportFailed")).toMatch(/did not answer/);

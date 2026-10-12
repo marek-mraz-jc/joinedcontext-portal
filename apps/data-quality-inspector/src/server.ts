@@ -1,7 +1,9 @@
 /**
  * The App's server on the shared WASM host, `/apps/{name}/api` (T-3354): every quality run it has
  * kept with its scores, a run now, and a URL for a run's full per-entity report in the App's own
- * storage. A test hands the page its own server (`ServerContext`).
+ * storage; who calls, the findings stewards resolved, a steward's correction of an attribute
+ * through the App's Endpoint, and the history (T-3827). A test hands the page its own server
+ * (`ServerContext`).
  */
 import { createContext, useContext, useMemo } from "react";
 
@@ -41,7 +43,41 @@ export class Problem extends Error {
   }
 }
 
+/** Who is signed in, as the server names them; `null` when signed out. */
+export interface Me {
+  id: string;
+  name: string;
+  roles: string[];
+}
+
+/** A finding a steward resolved: marked, or corrected through the Endpoint. */
+export interface Resolution {
+  id: number;
+  entity: string;
+  attribute: string;
+  note: string;
+  corrected: boolean;
+  resolverName: string;
+  resolvedAt: string;
+}
+
+export interface HistoryRow {
+  id: number;
+  at: string;
+  actorName: string;
+  action: "insert" | "update" | "delete" | "edit";
+  target: string;
+  summary: string;
+}
+
 export interface Server {
+  me(): Promise<Me | null>;
+  resolutions(): Promise<Resolution[]>;
+  resolve(entity: string, attribute: string, note: string): Promise<Resolution>;
+  reopen(id: number): Promise<void>;
+  /** The attribute written through the Endpoint; the new resolution, or `null` when one stood. */
+  correct(entity: string, attribute: string, value: string | number | boolean, note: string): Promise<Resolution | null>;
+  history(): Promise<HistoryRow[]>;
   runs(): Promise<Runs>;
   /** A run now; the server refuses one within ten minutes of the last. */
   runNow(): Promise<number>;
@@ -54,13 +90,23 @@ export function apiBase(appName: string | undefined): string {
   return appName && /^[a-z0-9-]+$/.test(appName) ? `/apps/${appName}/api` : "/api";
 }
 
-async function call<T>(url: string, method = "GET"): Promise<T> {
-  const answer = await fetch(url, { method, credentials: "same-origin", headers: { Accept: "application/json" } });
+async function call<T>(url: string, method = "GET", body?: unknown): Promise<T> {
+  let answer: Response;
+  try {
+    answer = await fetch(url, {
+      method,
+      credentials: "same-origin",
+      headers: body === undefined ? { Accept: "application/json" } : { Accept: "application/json", "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new Problem(0, "the server could not be reached");
+  }
   if (!answer.ok) {
     const problem = (await answer.json().catch(() => ({}))) as { detail?: unknown };
     throw new Problem(answer.status, typeof problem.detail === "string" ? problem.detail : `HTTP ${answer.status}`);
   }
-  return (await answer.json()) as T;
+  return (answer.status === 204 ? undefined : await answer.json()) as T;
 }
 
 export function server(base: string): Server {
@@ -68,6 +114,15 @@ export function server(base: string): Server {
     runs: () => call<Runs>(`${base}/runs`),
     runNow: async () => (await call<{ id: number }>(`${base}/runs`, "POST")).id,
     reportUrl: async (id) => (await call<{ url: string }>(`${base}/runs/${id}/report`)).url,
+    me: () => call<Me | null>(`${base}/me`),
+    resolutions: () => call<Resolution[]>(`${base}/resolutions`),
+    resolve: (entity, attribute, note) => call<Resolution>(`${base}/resolutions`, "POST", { entity, attribute, note }),
+    reopen: (id) => call<void>(`${base}/resolutions/${id}`, "DELETE"),
+    correct: async (entity, attribute, value, note) => {
+      const answer = await call<Resolution | { corrected: true; id?: undefined }>(`${base}/corrections`, "POST", { entity, attribute, value, note });
+      return answer.id === undefined ? null : answer;
+    },
+    history: () => call<HistoryRow[]>(`${base}/history`),
   };
 }
 

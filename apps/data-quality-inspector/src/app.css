@@ -179,3 +179,65 @@ body {
   gap: var(--jc-space-2, 0.5rem);
   margin-bottom: var(--jc-space-3, 0.75rem);
 }
+
+/* Roles (T-3827): the role in the header, a finding's state and a steward's answer to it, the history. */
+.app-role {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: 999px;
+  font-size: var(--jc-font-size-sm, 0.75rem);
+}
+.app-error {
+  color: var(--jc-color-danger, #b91c1c);
+}
+.app-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.app-state,
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jc-space-2, 0.5rem);
+  overflow-wrap: anywhere;
+}
+.app-action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jc-space-3, 0.75rem);
+}
+.app-action label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jc-space-1, 0.25rem);
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  color: var(--jc-color-muted, #64748b);
+  min-width: 0;
+}
+.app-action input,
+.app-action select {
+  font: inherit;
+  font-size: var(--jc-font-size-md, 0.875rem);
+  padding: var(--jc-space-2, 0.5rem);
+  border: 1px solid var(--jc-color-line, #e2e8f0);
+  border-radius: var(--jc-radius-md, 6px);
+  background: var(--jc-color-card, #fff);
+  color: var(--jc-color-ink, #0f172a);
+  max-width: 100%;
+}
+.app-history {
+  width: 100%;
+  border-collapse: collapse;
+}
+.app-history th,
+.app-history td {
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--jc-color-line, #e2e8f0);
+  overflow-wrap: anywhere;
+}

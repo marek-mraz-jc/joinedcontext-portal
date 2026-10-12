@@ -16,4 +16,11 @@ spec:
     name: helsinki
   enabledRepresentations:
   - ngsi-ld
+  roles:
+  - name: viewer
+    subjects:
+    - group: transit-reach-viewer
+  - name: steward
+    subjects:
+    - group: transit-reach-steward
   slug: oymmo5juex3inoe3ccvtp5bwue

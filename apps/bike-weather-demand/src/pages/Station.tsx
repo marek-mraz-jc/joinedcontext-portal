@@ -4,13 +4,15 @@ import type { Row, TemporalPoint } from "@joinedcontext/sdk";
 import { ChartCard } from "../components/ChartCard";
 import { StationMap } from "../components/StationMap";
 import { ModelHistory } from "../components/ModelHistory";
+import { ModelInputs } from "../components/ModelInputs";
 import { useServer } from "../server";
+import type { Inputs } from "../server";
 import type { WeatherHistoryPoint } from "../bikes";
 import {
   defaultStationId,
   nearestWeatherStation,
+  daysAgoIso,
   readHash,
-  sevenDaysAgoIso,
   stationBikes,
   stationFreeSlots,
   stationName,
@@ -154,6 +156,11 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
   const [weatherFailed, setWeatherFailed] = useState(false);
   // Retry reads the history again: picking the same station would change nothing to re-run on.
   const [attempt, setAttempt] = useState(0);
+  // The station's model inputs, a steward's or the defaults (T-3827); the page reads with them too.
+  const [inputs, setInputs] = useState<Inputs | null>(null);
+  const [inputsFailed, setInputsFailed] = useState<string | null>(null);
+  // A new version reads the kept models again, after a steward changed the inputs.
+  const [version, setVersion] = useState(0);
 
   const stations = stationsRes.rows;
   const weatherStations = weatherRes.rows;
@@ -198,10 +205,35 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
     return stations.find((s) => s.id === selectedId);
   }, [stations, selectedId]);
 
+  useEffect(() => {
+    setInputs(null);
+    setInputsFailed(null);
+    if (!selectedId) return;
+    let current = true;
+    server.inputs(selectedId).then(
+      (kept) => current && setInputs(kept),
+      (error: unknown) => current && setInputsFailed(error instanceof Error ? error.message : String(error)),
+    );
+    return () => {
+      current = false;
+    };
+  }, [server, selectedId]);
+
+  // Inputs that could not be read leave the defaults, as the server trains without any.
+  const used = inputs?.station === selectedId ? inputs : null;
+  const inputsKnown = used !== null || inputsFailed !== null;
+  const radiusKm = used?.radiusKm ?? 10;
+  const days = used?.days ?? 7;
+  const chosenWeather = used?.weatherStation ?? null;
+
   const nearestWeather = useMemo(() => {
     if (!chosenStation || weatherStations.length === 0) return null;
-    return nearestWeatherStation(chosenStation, weatherStations, 10);
-  }, [chosenStation, weatherStations]);
+    if (chosenWeather) {
+      const chosen = weatherStations.filter((w) => w.id === chosenWeather);
+      return nearestWeatherStation(chosenStation, chosen, Number.POSITIVE_INFINITY);
+    }
+    return nearestWeatherStation(chosenStation, weatherStations, radiusKm);
+  }, [chosenStation, weatherStations, chosenWeather, radiusKm]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -209,13 +241,14 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
       setWeatherHistory([]);
       return;
     }
+    if (!inputsKnown) return;
 
     let active = true;
     setHistoryLoading(true);
     setHistoryError(null);
     setWeatherFailed(false);
 
-    const now7DaysAgo = sevenDaysAgoIso();
+    const now7DaysAgo = daysAgoIso(days);
 
     const fetchHistories = async () => {
       let bPoints: TemporalPoint[] = [];
@@ -281,7 +314,7 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
     return () => {
       active = false;
     };
-  }, [client, selectedId, nearestWeather, attempt]);
+  }, [client, selectedId, nearestWeather, attempt, inputsKnown, days]);
 
   const estimateInput = useMemo(() => {
     if (!chosenStation || bikeHistory.length === 0) return null;
@@ -377,7 +410,7 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
 
             {nearestWeather && (
               <span className="app-note">
-                {t(lang, "nearestWeather", {
+                {t(lang, chosenWeather ? "chosenWeather" : "nearestWeather", {
                   name: stationName(nearestWeather.station),
                   dist: number(lang, nearestWeather.distanceKm, 1),
                 })}
@@ -460,7 +493,7 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
 
             {output && !output.enough && <p className="app-note">{t(lang, "tooLittleHistory")}</p>}
             {output && output.enough && !output.weather && !nearestWeather && (
-              <p className="app-note">{t(lang, "noWeatherTerms")}</p>
+              <p className="app-note">{t(lang, "noWeatherTerms", { km: number(lang, radiusKm, 1) })}</p>
             )}
           </Card>
 
@@ -507,7 +540,20 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
             )}
           </Card>
 
-          {selectedId && <ModelHistory lang={lang} server={server} station={selectedId} />}
+          {selectedId && (
+            <ModelInputs
+              lang={lang}
+              server={server}
+              station={selectedId}
+              weatherStations={weatherStations}
+              inputs={used}
+              failed={inputsFailed}
+              onInputs={setInputs}
+              onSaved={() => setVersion((n) => n + 1)}
+            />
+          )}
+
+          {selectedId && <ModelHistory lang={lang} server={server} station={selectedId} version={version} />}
         </>
       )}
     </Page>

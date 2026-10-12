@@ -10,6 +10,7 @@ import type { Run, Server } from "./server";
 import { completenessBarOption } from "./pages/Quality";
 import { InspectorContext, parseAnswer, type Inspector } from "./inspect";
 import { ENTITIES, NOW, SCHEMA_WITH_VEHICLE } from "./fixtures/quality";
+import { roles } from "./testing/roles";
 import wasm from "../wasm/pkg/data_quality_inspector_bg.wasm?url&inline";
 import { initSync, inspect } from "../wasm/pkg/data_quality_inspector.js";
 
@@ -51,6 +52,7 @@ const STUB_SCHEMA = SCHEMA_WITH_VEHICLE as unknown as Schema;
 function fakeServer(start: Run[] = [], fail: { runs?: string; runNow?: string; report?: string } = {}, stale = false): Server & { kept: Run[] } {
   const kept = [...start];
   return {
+    ...roles(),
     kept,
     runs: async () => {
       if (fail.runs) throw new ServerProblem(502, fail.runs);
@@ -335,10 +337,12 @@ describe("data-quality-inspector", () => {
     for (const type of ["BikeHireDockingStation", "CityDistrict", "Event"]) {
     fireEvent.click(await screen.findByRole("button", { name: type }));
     const failing = await screen.findByRole("table", { name: "Failing entities" });
-    const ids = within(failing).getAllByRole("button");
+    // The ids open the panel; the state column's buttons are the steward's (T-3827).
+    const idButtons = () => [...failing.querySelectorAll<HTMLButtonElement>("button.app-open")];
+    const ids = idButtons();
     expect(ids.length).toBeGreaterThan(0);
     for (const id of new Set(ids.map((one) => one.textContent))) {
-      fireEvent.click(within(failing).getAllByRole("button").find((one) => one.textContent === id)!);
+      fireEvent.click(idButtons().find((one) => one.textContent === id)!);
       const panel = await screen.findByRole("dialog");
       expect(within(panel).getByText(type)).toBeInTheDocument();
       const link = await within(panel).findByRole("link", { name: "Open in the Portal" });
@@ -403,7 +407,7 @@ describe("data-quality-inspector", () => {
   it("ignores a language it does not speak", async () => {
     show();
     const language = await screen.findByRole("combobox", { name: "Language" });
-    fireEvent.change(language, { target: { value: "sv" } });
+    fireEvent.change(language, { target: { value: "de" } });
     expect(new URLSearchParams(window.location.search).get("lang")).toBe("en");
   });
 

@@ -4,19 +4,32 @@
 //! with the caller's own rights, so what is kept is what the city's data said and not what a
 //! browser sent.
 //!
-//! | Route | What it does |
-//! |---|---|
-//! | `GET /api/plans?operator=` | the latest plans, of one operator when named |
-//! | `POST /api/plans` `{operator, vanCapacity, start, include, exclude}` | a plan made and kept |
-//! | `GET /api/plans/{id}` | the plan, its stops and its drives |
-//! | `DELETE /api/plans/{id}` | the plan, its drives and its sheet gone |
-//! | `POST /api/plans/{id}/drives` `{stops, km, note}` | a drive of the plan recorded |
-//! | `GET /api/plans/{id}/sheet` | a URL the route sheet (CSV) downloads from |
+//! Roles (T-3826, API/07), from `identity::caller()` alone: a viewer saves plans, records drives
+//! and reads the history of their own; a steward reads and changes every plan, hands a plan to
+//! another van or crew, sets the planner's levels for everyone and reads the whole history. A plan
+//! that is not the caller's answers `404`, as if it did not exist. Every write leaves a row in
+//! `app_audit` in the same statement.
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `GET /api/levels` | anyone | the planner's levels `{low, high, target}` |
+//! | `PUT /api/levels` `{low, high, target}` | steward | the levels changed for every plan after |
+//! | `GET /api/plans?operator=` | signed in | the latest plans (a steward: everyone's), of one operator when named |
+//! | `POST /api/plans` `{operator, vanCapacity, start, include, exclude}` | signed in | a plan made and kept |
+//! | `GET /api/plans/{id}` | owner, steward | the plan, its stops and its drives |
+//! | `DELETE /api/plans/{id}` | owner, steward | the plan, its drives and its sheet gone |
+//! | `PUT /api/plans/{id}/operator` `{operator}` | steward | the plan handed to another van or crew |
+//! | `POST /api/plans/{id}/drives` `{stops, km, note}` | owner, steward | a drive of the plan recorded |
+//! | `GET /api/plans/{id}/sheet` | owner, steward | a URL the route sheet (CSV) downloads from |
+//! | `GET /api/history` | signed in | the newest changes (a viewer: their own) |
 
 use bike_rebalancing::{run, Input, Settings, Station, Stop};
+use jc_app_sdk::access::Owned;
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
 use serde::Deserialize;
 use serde_json::Value as Json;
@@ -31,6 +44,34 @@ const MOST: usize = 5000;
 const URL_SECONDS: u32 = 120;
 /// Ids of stations a plan may name in `include` or `exclude`, and stops a drive may list.
 const MOST_IDS: usize = 200;
+/// The App role that reads and changes every plan and sets the levels.
+const STEWARD: &str = "steward";
+const PLANS: Owned = Owned::new("plans", STEWARD);
+const DRIVES: Owned = Owned::new("drives", STEWARD);
+/// One row, id 1, owned by nobody: the steward role alone changes it.
+const LEVELS: Owned = Owned::new("levels", STEWARD);
+/// History rows one read answers.
+const HISTORY: u32 = 100;
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Levels {
+    pub low: f64,
+    pub high: f64,
+    pub target: f64,
+}
+
+/// Levels a planner can work with: shares with `0 <= low < target < high <= 1`.
+pub fn levels(levels: &Levels) -> Result<(), String> {
+    let Levels { low, high, target } = *levels;
+    if ![low, high, target].iter().all(|v| v.is_finite()) {
+        return Err("the levels are numbers between 0 and 1".into());
+    }
+    if !(0.0 <= low && low < target && target < high && high <= 1.0) {
+        return Err("the levels need 0 ≤ empty below < bring back to < full above ≤ 1".into());
+    }
+    Ok(())
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -247,33 +288,126 @@ fn bad(why: &str) -> Response {
     Response::problem(400, "Bad Request", why)
 }
 
+/// The signed-in caller and the plan id of the address.
+fn caller_and_id(params: &Params) -> Result<(Caller, i64), Response> {
+    let caller = Caller::require()?;
+    Ok((caller, id(params)?))
+}
+
+/// The caller, or `null` when signed out: what the page shows and which controls it offers. The
+/// server decides again on every write, whatever the page offered.
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &serde_json::json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+/// The levels as kept, or the planner's defaults when the row is missing.
+fn kept_levels() -> Result<Levels, Response> {
+    let rows = sql::query("select low, high, target from levels where id = 1", &[])
+        .map_err(Response::from_sql)?;
+    let row = sql::objects(&rows).into_iter().next();
+    let read = |name: &str, default: f64| {
+        row.as_ref()
+            .and_then(|r| r.get(name))
+            .and_then(Json::as_f64)
+            .unwrap_or(default)
+    };
+    let fallback = Settings::default();
+    Ok(Levels {
+        low: read("low", fallback.low),
+        high: read("high", fallback.high),
+        target: read("target", fallback.target),
+    })
+}
+
+fn show_levels(_: &Request, _: &Params) -> Response {
+    match kept_levels() {
+        Ok(Levels { low, high, target }) => Response::json(
+            200,
+            &serde_json::json!({"low": low, "high": high, "target": target}),
+        ),
+        Err(answer) => answer,
+    }
+}
+
+/// The role is checked before the body is read, so nothing in the body stands in for it.
+fn change_levels(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require().and_then(|c| c.require_role(&[STEWARD]).map(|()| c)) {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let wanted: Levels = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    if let Err(why) = levels(&wanted) {
+        return bad(&why);
+    }
+    let summary = format!(
+        "levels: empty below {:.2}, bring back to {:.2}, full above {:.2}",
+        wanted.low, wanted.target, wanted.high
+    );
+    match LEVELS.update(
+        &caller,
+        1,
+        &["low", "high", "target"],
+        vec![
+            Value::from(wanted.low),
+            Value::from(wanted.high),
+            Value::from(wanted.target),
+        ],
+        &summary,
+    ) {
+        Ok(()) => show_levels(request, &Params::new()),
+        Err(answer) => answer,
+    }
+}
+
 fn list(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
     let columns = "p.id, p.operator, p.van_capacity as \"vanCapacity\", p.km, p.moved, \
         jsonb_array_length(p.stops) as \"stopCount\", p.created_at as \"createdAt\", \
+        (p.owner_id = $1) as mine, \
         (select count(*) from drives d where d.plan_id = p.id) as drives";
-    let rows = match request
+    let mut params = vec![
+        Value::from(caller.id.as_str()),
+        Value::Boolean(caller.has_role(STEWARD)),
+    ];
+    let operator = request
         .param("operator")
         .map(str::trim)
-        .filter(|o| !o.is_empty())
-    {
-        Some(name) => sql::query(
-            &format!(
-                "select {columns} from plans p where p.operator = $1 order by p.id desc limit 50"
-            ),
-            &[Value::from(name)],
-        ),
-        None => sql::query(
-            &format!("select {columns} from plans p order by p.id desc limit 50"),
-            &[],
-        ),
+        .filter(|o| !o.is_empty());
+    let only = if let Some(name) = operator {
+        params.push(Value::from(name));
+        " and p.operator = $3"
+    } else {
+        ""
     };
-    match rows {
+    match sql::query(
+        &format!(
+            "select {columns} from plans p where (p.owner_id = $1 or $2::boolean){only} \
+             order by p.id desc limit 50"
+        ),
+        &params,
+    ) {
         Ok(rows) => Response::json(200, &sql::objects(&rows)),
         Err(err) => Response::from_sql(err),
     }
 }
 
 fn create(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
     let wanted: NewPlan = match request.json() {
         Ok(wanted) => wanted,
         Err(answer) => return answer,
@@ -291,6 +425,10 @@ fn create(request: &Request, _: &Params) -> Response {
     ) {
         (Ok(i), Ok(e)) => (i, e),
         (Err(why), _) | (_, Err(why)) => return bad(&why),
+    };
+    let kept = match kept_levels() {
+        Ok(kept) => kept,
+        Err(answer) => return answer,
     };
     let stations = match stations() {
         Ok(stations) => stations,
@@ -322,19 +460,30 @@ fn create(request: &Request, _: &Params) -> Response {
     let output = run(&Input {
         stations,
         settings: Settings {
+            low: kept.low,
+            high: kept.high,
+            target: kept.target,
             van_capacity: wanted.van_capacity,
             start: start.as_ref().map(|s| s.1),
             include: include.clone(),
             exclude: exclude.clone(),
-            ..Settings::default()
         },
     });
     let route = output.route;
     let stops = serde_json::to_string(&route.stops).unwrap_or_else(|_| "[]".into());
-    let saved = sql::query(
-        "insert into plans (operator, van_capacity, start_station, include, exclude, stops, km, moved) \
-         values ($1, $2, $3, $4, $5, $6, $7, $8) returning id, created_at as \"createdAt\"",
+    let saved = PLANS.insert(
+        &caller,
         &[
+            "operator",
+            "van_capacity",
+            "start_station",
+            "include",
+            "exclude",
+            "stops",
+            "km",
+            "moved",
+        ],
+        vec![
             Value::from(operator.clone()),
             Value::from(i64::from(wanted.van_capacity)),
             Value::from(start.map(|s| s.0)),
@@ -344,10 +493,11 @@ fn create(request: &Request, _: &Params) -> Response {
             Value::from(route.km),
             Value::from(i64::from(route.moved)),
         ],
+        &format!("saved a plan for {operator}"),
     );
     let row = match saved {
         Ok(rows) => sql::objects(&rows).into_iter().next().unwrap_or_default(),
-        Err(err) => return Response::from_sql(err),
+        Err(answer) => return answer,
     };
     let Some(plan_id) = row.get("id").and_then(Json::as_i64) else {
         return Response::problem(500, "Internal Server Error", "the plan was not saved");
@@ -367,8 +517,9 @@ fn create(request: &Request, _: &Params) -> Response {
         .map_err(|err| blob::Error::Unavailable(format!("{err:?}")))
     });
     if let Err(err) = sheet_saved {
-        // The plan without its sheet is no plan to drive: both go, and the caller hears why.
-        let _ = sql::execute("delete from plans where id = $1", &[Value::from(plan_id)]);
+        // The plan without its sheet is no plan to drive: both go, the history says so, and the
+        // caller hears why.
+        let _ = PLANS.delete(&caller, plan_id, "the route sheet could not be saved");
         let _ = blob::delete(&key);
         return Response::from_blob(err);
     }
@@ -381,18 +532,24 @@ fn create(request: &Request, _: &Params) -> Response {
             "km": route.km,
             "moved": route.moved,
             "stops": route.stops,
-            "createdAt": row.get("createdAt"),
+            "createdAt": row.get("created_at"),
+            "mine": true,
             "drives": [],
         }),
     )
 }
 
-/// The plan's row as JSON, or the 404.
-fn plan_row(id: i64) -> Result<serde_json::Map<String, Json>, Response> {
+/// The plan's row as JSON when the caller owns it or is a steward, else the 404.
+fn plan_row(caller: &Caller, id: i64) -> Result<serde_json::Map<String, Json>, Response> {
     let rows = sql::query(
         "select id, operator, van_capacity as \"vanCapacity\", start_station as \"start\", include, exclude, \
-         stops, km, moved, sheet, created_at as \"createdAt\" from plans where id = $1",
-        &[Value::from(id)],
+         stops, km, moved, sheet, created_at as \"createdAt\", (owner_id = $2) as mine from plans \
+         where id = $1 and (owner_id = $2 or $3::boolean)",
+        &[
+            Value::from(id),
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+        ],
     )
     .map_err(Response::from_sql)?;
     sql::objects(&rows)
@@ -402,11 +559,11 @@ fn plan_row(id: i64) -> Result<serde_json::Map<String, Json>, Response> {
 }
 
 fn show(_: &Request, params: &Params) -> Response {
-    let id = match id(params) {
-        Ok(id) => id,
+    let (caller, id) = match caller_and_id(params) {
+        Ok(found) => found,
         Err(answer) => return answer,
     };
-    let mut plan = match plan_row(id) {
+    let mut plan = match plan_row(&caller, id) {
         Ok(plan) => plan,
         Err(answer) => return answer,
     };
@@ -424,11 +581,11 @@ fn show(_: &Request, params: &Params) -> Response {
 }
 
 fn remove(_: &Request, params: &Params) -> Response {
-    let id = match id(params) {
-        Ok(id) => id,
+    let (caller, id) = match caller_and_id(params) {
+        Ok(found) => found,
         Err(answer) => return answer,
     };
-    let plan = match plan_row(id) {
+    let plan = match plan_row(&caller, id) {
         Ok(plan) => plan,
         Err(answer) => return answer,
     };
@@ -438,22 +595,59 @@ fn remove(_: &Request, params: &Params) -> Response {
             Err(err) => return Response::from_blob(err),
         }
     }
-    match sql::execute("delete from plans where id = $1", &[Value::from(id)]) {
-        Ok(_) => Response::no_content(),
-        Err(err) => Response::from_sql(err),
+    let operator = plan
+        .get("operator")
+        .and_then(Json::as_str)
+        .unwrap_or_default();
+    match PLANS.delete(&caller, id, &format!("removed the plan for {operator}")) {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Handover {
+    operator: String,
+}
+
+fn hand_over(request: &Request, params: &Params) -> Response {
+    let (caller, id) = match caller_and_id(params)
+        .and_then(|(c, id)| c.require_role(&[STEWARD]).map(|()| (c, id)))
+    {
+        Ok(found) => found,
+        Err(answer) => return answer,
+    };
+    let wanted: Handover = match request.json() {
+        Ok(wanted) => wanted,
+        Err(answer) => return answer,
+    };
+    let operator = match operator(&wanted.operator) {
+        Ok(name) => name,
+        Err(why) => return bad(&why),
+    };
+    match PLANS.update(
+        &caller,
+        id,
+        &["operator"],
+        vec![Value::from(operator.clone())],
+        &format!("handed the plan to {operator}"),
+    ) {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
     }
 }
 
 fn record(request: &Request, params: &Params) -> Response {
-    let id = match id(params) {
-        Ok(id) => id,
+    let (caller, id) = match caller_and_id(params) {
+        Ok(found) => found,
         Err(answer) => return answer,
     };
     let wanted: Drive = match request.json() {
         Ok(wanted) => wanted,
         Err(answer) => return answer,
     };
-    let plan = match plan_row(id) {
+    let plan = match plan_row(&caller, id) {
         Ok(plan) => plan,
         Err(answer) => return answer,
     };
@@ -471,27 +665,41 @@ fn record(request: &Request, params: &Params) -> Response {
         Ok(drive) => drive,
         Err(why) => return bad(&why),
     };
-    match sql::query(
-        "insert into drives (plan_id, stops, km, note) values ($1, $2, $3, $4) \
-         returning id, stops, km, note, driven_at as \"drivenAt\"",
-        &[
+    let summary = format!("recorded a drive of {} stops on plan {id}", stops.len());
+    match DRIVES.insert(
+        &caller,
+        &["plan_id", "stops", "km", "note"],
+        vec![
             Value::from(id),
             Value::Json(serde_json::to_string(&stops).unwrap_or_else(|_| "[]".into())),
             Value::from(km),
             Value::from(note),
         ],
+        &summary,
     ) {
-        Ok(rows) => Response::json(201, &sql::objects(&rows).into_iter().next()),
-        Err(err) => Response::from_sql(err),
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &serde_json::json!({
+                    "id": row.get("id"),
+                    "stops": row.get("stops"),
+                    "km": row.get("km"),
+                    "note": row.get("note"),
+                    "drivenAt": row.get("driven_at"),
+                }),
+            )
+        }
+        Err(answer) => answer,
     }
 }
 
 fn download(_: &Request, params: &Params) -> Response {
-    let id = match id(params) {
-        Ok(id) => id,
+    let (caller, id) = match caller_and_id(params) {
+        Ok(found) => found,
         Err(answer) => return answer,
     };
-    let plan = match plan_row(id) {
+    let plan = match plan_row(&caller, id) {
         Ok(plan) => plan,
         Err(answer) => return answer,
     };
@@ -507,14 +715,39 @@ fn download(_: &Request, params: &Params) -> Response {
     }
 }
 
+/// The newest changes: a steward's every one, a viewer's their own.
+fn history(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(i64::from(HISTORY)),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 pub fn handle(request: Request) -> Response {
     Router::new()
+        .get("/api/me", me)
+        .get("/api/levels", show_levels)
+        .put("/api/levels", change_levels)
         .get("/api/plans", list)
         .post("/api/plans", create)
         .get("/api/plans/{id}", show)
         .delete("/api/plans/{id}", remove)
+        .put("/api/plans/{id}/operator", hand_over)
         .post("/api/plans/{id}/drives", record)
         .get("/api/plans/{id}/sheet", download)
+        .get("/api/history", history)
         .handle(&request)
 }
 
@@ -524,6 +757,42 @@ jc_app_sdk::app!(handle);
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn levels_keep_their_order_between_zero_and_one() {
+        let ok = Levels {
+            low: 0.15,
+            high: 0.85,
+            target: 0.5,
+        };
+        assert_eq!(levels(&ok), Ok(()));
+        assert_eq!(
+            levels(&Levels {
+                low: 0.0,
+                high: 1.0,
+                target: 0.5
+            }),
+            Ok(())
+        );
+        for (low, target, high) in [
+            (0.5, 0.5, 0.9),
+            (0.1, 0.9, 0.9),
+            (-0.1, 0.5, 0.9),
+            (0.1, 0.5, 1.1),
+            (0.6, 0.5, 0.9),
+            (f64::NAN, 0.5, 0.9),
+            (0.1, f64::INFINITY, 0.9),
+        ] {
+            assert!(
+                levels(&Levels { low, high, target }).is_err(),
+                "{low} {target} {high}"
+            );
+        }
+        assert!(serde_json::from_value::<Levels>(
+            json!({"low": 0.1, "high": 0.9, "target": 0.5, "roles": ["steward"]})
+        )
+        .is_err());
+    }
 
     #[test]
     fn an_operator_is_one_short_line() {

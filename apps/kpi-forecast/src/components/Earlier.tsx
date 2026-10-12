@@ -12,7 +12,8 @@ export function problemText(lang: Lang, error: unknown): string {
   const words: Partial<Record<number, Word>> = { 0: "serverOffline", 401: "signInAgain", 403: "noRight", 507: "storageFull" };
   const word = words[error.status];
   if (word) return t(lang, word);
-  if (error.status === 400) return t(lang, "serverRefused", { why: error.message });
+  if (error.status === 400 || error.status === 409) return t(lang, "serverRefused", { why: error.message });
+  if (error.status === 404) return t(lang, "gone");
   return t(lang, "serverDown");
 }
 

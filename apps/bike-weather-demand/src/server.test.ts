@@ -29,4 +29,26 @@ describe("the App's server", () => {
     expect(refused).toMatchObject({ status: 404, message: "no such model" });
     await expect(api.snapshotUrl(5)).rejects.toMatchObject({ status: 502, message: "HTTP 502" });
   });
+
+  it("reads who is signed in, sets a station's inputs as JSON, resets them, and reads the history", async () => {
+    const station = "urn:ngsi-ld:B:1";
+    const at = `/api/inputs?station=${encodeURIComponent(station)}`;
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/me") return json(200, null);
+      if (url === at && init?.method === "PUT") return json(200, { ...JSON.parse(String(init.body)), station, custom: true });
+      if (url === at && init?.method === "DELETE") return new Response(null, { status: 204 });
+      if (url === at) return json(200, { station, custom: false });
+      if (url === "/api/history") return json(403, { detail: "this needs the role steward" });
+      return new Response("<html>", { status: 502 });
+    });
+    vi.stubGlobal("fetch", fetch);
+    const api = server("/api");
+    expect(await api.me()).toBeNull();
+    expect(await api.inputs(station)).toEqual({ station, custom: false });
+    const set = { weatherStation: null, radiusKm: 5, days: 3, note: "n" };
+    expect(await api.setInputs(station, set)).toMatchObject({ ...set, custom: true });
+    expect(fetch.mock.calls[2]?.[1]).toMatchObject({ method: "PUT", headers: { "Content-Type": "application/json" } });
+    expect(await api.resetInputs(station)).toBeUndefined();
+    await expect(api.history()).rejects.toMatchObject({ status: 403, message: "this needs the role steward" });
+  });
 });

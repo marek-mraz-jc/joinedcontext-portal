@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App, { chooseLanguage } from "./App";
+import { memory, STEWARD, VIEWER } from "./fixtures/memory";
+import type { Me } from "./plans";
 import { STATIONS } from "./fixtures/stations";
 
 /** What MapLibre would call on a click of a drawn station, kept by the double below. */
@@ -40,22 +42,22 @@ const READ = {
 };
 
 /** The App as a signed-in operator of the project sees it: reading only (README). */
-function show(language = "en") {
+function show(language = "en", me?: Me | null) {
   const client = stubClient(
     { entities: STATIONS, access: READ },
     { appName: "bike-rebalancing", language, user: { id: "u-1", name: "Operaattori" }, portal: "https://portal.hel.fi/projects/helsinki" },
   );
   render(
     <JcProvider client={client}>
-      <App />
+      <App plans={me === undefined ? undefined : memory(me)} />
     </JcProvider>,
   );
   return client;
 }
 
 const WORDS = {
-  en: { route: "Route", close: "Close", portal: "Open in the Portal", edit: "Edit", reset: "Reset choices", start: "Start at", van: "Van capacity (bikes)" },
-  fi: { route: "Reitti", close: "Sulje", portal: "Avaa portaalissa", edit: "Muokkaa", reset: "Palauta valinnat", start: "Lähtöpaikka", van: "Auton kapasiteetti (pyörää)" },
+  en: { pages: ["Levels", "History", "Rebalancing"], route: "Route", close: "Close", portal: "Open in the Portal", edit: "Edit", reset: "Reset choices", start: "Start at", van: "Van capacity (bikes)" },
+  fi: { pages: ["Tasot", "Historia", "Tasaus"], route: "Reitti", close: "Sulje", portal: "Avaa portaalissa", edit: "Muokkaa", reset: "Palauta valinnat", start: "Lähtöpaikka", van: "Auton kapasiteetti (pyörää)" },
 } as const;
 
 beforeEach(() => window.history.replaceState(null, "", "/"));
@@ -92,10 +94,13 @@ describe("the App in the SDK's shell", () => {
   it("switches the language through the address and reloads, and ignores a language it does not speak", () => {
     const reload = vi.fn();
     chooseLanguage("en", "en", reload);
-    chooseLanguage("sv", "fi", reload);
+    chooseLanguage("de", "fi", reload);
     expect(reload).not.toHaveBeenCalled();
-    chooseLanguage("en", "fi", reload);
+    chooseLanguage("sv", "fi", reload);
     expect(reload).toHaveBeenCalledTimes(1);
+    expect(new URLSearchParams(window.location.search).get("lang")).toBe("sv");
+    chooseLanguage("en", "fi", reload);
+    expect(reload).toHaveBeenCalledTimes(2);
     expect(new URLSearchParams(window.location.search).get("lang")).toBe("en");
   });
 
@@ -160,6 +165,9 @@ describe("the App in the SDK's shell", () => {
     fireEvent.click(screen.getByRole("button", { name: words.reset }));
 
     expect(window.location.search).toBe("");
+    // The other pages, and back: signed out, their controls are closed.
+    for (const page of words.pages) fireEvent.click(screen.getByRole("button", { name: page }));
+    await screen.findByRole("list", { name: words.route });
     // The language switch reloads the page; jsdom cannot, so its location is stood in for.
     const other = language === "en" ? "fi" : "en";
     const reload = vi.fn();
@@ -172,4 +180,30 @@ describe("the App in the SDK's shell", () => {
       Object.defineProperty(window, "location", { configurable: true, value: original });
     }
   }, 30_000);
+
+  it("names the reader's role beside their name, and walks a steward through the levels and the history", async () => {
+    show("en", STEWARD);
+    expect(await screen.findByLabelText("Your role: Steward")).toBeInTheDocument();
+    expect(screen.getByText("Sami Steward")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Levels" }));
+    const low = await screen.findByRole("spinbutton", { name: "About to run empty below (%)" });
+    await waitFor(() => expect(low).toBeEnabled());
+    fireEvent.change(low, { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save the levels" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("The levels are saved."));
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(await screen.findByText("changed: levels changed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Rebalancing" }));
+    expect(await screen.findByRole("list", { name: "Route" })).toBeInTheDocument();
+  });
+
+  it("tells a viewer their role and a signed-out reader that they are not signed in", async () => {
+    show("en", VIEWER);
+    expect(await screen.findByLabelText("Your role: Viewer")).toBeInTheDocument();
+  });
+
+  it("says when nobody is signed in", async () => {
+    show("en", null);
+    expect(await screen.findByLabelText("Your role: Not signed in")).toBeInTheDocument();
+  });
 });

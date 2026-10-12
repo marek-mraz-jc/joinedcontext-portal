@@ -198,3 +198,44 @@ body {
   color: var(--jc-color-danger, #b91c1c);
   font-weight: 600;
 }
+
+/* Roles and edits (T-3826): the reader's role beside their name, the levels form, the history. */
+.app-role {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--jc-color-border, #cbd5e1);
+  border-radius: 999px;
+  font-size: var(--jc-font-size-sm, 0.75rem);
+}
+
+.app-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.app-levels label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.app-levels input {
+  width: 6rem;
+}
+
+.app-history {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.app-history th,
+.app-history td {
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--jc-color-border, #e2e8f0);
+  overflow-wrap: anywhere;
+}

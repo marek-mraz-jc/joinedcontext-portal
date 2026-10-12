@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ModelHistory } from "./ModelHistory";
 import { Problem } from "../server";
+import { memory } from "../testing/server";
 import type { Model, Models, Server } from "../server";
 
 const STATION = "urn:ngsi-ld:BikeHireDockingStation:hel.fi:helsinki:001";
@@ -22,6 +23,7 @@ const model = (id: number, day: string, per: number | null, rain: number | null,
 function serverOf(kept: Models | Error, snapshot: string | Error = "https://store.test/training/2030-10-21/ab.json"): Server & { asked: string[] } {
   const asked: string[] = [];
   return {
+    ...memory(),
     asked,
     models: async (station) => {
       asked.push(station);
@@ -39,16 +41,19 @@ describe("the station's model over time", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("lists the kept models, the newest first, says they are as last kept, and opens a day's training data", async () => {
-    const server = serverOf({ models: [model(2, "2030-10-21", 0.42, -1.5, 2.25), model(1, "2030-10-20", null, null, null)], stale: true });
+    const server = serverOf({ models: [{ ...model(2, "2030-10-21", 0.42, -1.5, 2.25), days: 3 }, model(1, "2030-10-20", null, null, null)], stale: true });
     const open = vi.spyOn(window, "open").mockReturnValue(null);
-    render(<ModelHistory lang="en" server={server} station={STATION} />);
+    const { rerender } = render(<ModelHistory lang="en" server={server} station={STATION} />);
     const table = await screen.findByRole("table", { name: "The station's model over time: kept by the server" });
     expect(within(table).getAllByRole("row").map((row) => row.textContent)).toEqual([
-      "Trained onHoursBikes per °CRainSpread (σ)Training data",
-      "21 Oct 2030160+0.42-1.52.25Training data",
-      "20 Oct 2030160–––Training data",
+      "Trained onDaysHoursBikes per °CRainSpread (σ)Training data",
+      "21 Oct 20303160+0.42-1.52.25Training data",
+      "20 Oct 20307160–––Training data",
     ]);
     expect(server.asked).toEqual([STATION]);
+    // A steward's change of the inputs reads the models again.
+    rerender(<ModelHistory lang="en" server={server} station={STATION} version={1} />);
+    await waitFor(() => expect(server.asked).toEqual([STATION, STATION]));
     expect(screen.getByText("The data could not be read just now: these are the models as kept.")).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Download the training data of 21 Oct 2030" }));

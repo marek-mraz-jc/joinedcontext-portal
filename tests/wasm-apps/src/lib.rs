@@ -2,7 +2,9 @@
 //! `apps/<name>/server` for wasm32-wasip2, placed twice on one shard of a fresh database (so a
 //! test can show the second App sees nothing of the first), its migrations run as the reconciler
 //! runs them, as the App's owner and never as the App, and each run twice to show a re-run changes
-//! nothing. Its files go to RustFS under the shard's own key; the gateway is a mock.
+//! nothing. Its files go to RustFS under the shard's own key; the gateway is a mock, and so is the
+//! Portal the host asks who a token's person is and which of the App's roles they hold
+//! ([`token`], T-3826).
 //!
 //! ```text
 //! JC_WASM_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/postgres   # a superuser
@@ -137,6 +139,71 @@ pub fn migrations(app: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// The roles `app.yaml` declares, in its order (`spec.roles[].name`).
+pub fn roles(app: &str) -> Vec<String> {
+    let manifest = std::fs::read_to_string(app_dir(app).join("app.yaml")).expect("app.yaml");
+    let mut roles = Vec::new();
+    let mut inside = false;
+    for line in manifest.lines() {
+        if line == "  roles:" {
+            inside = true;
+        } else if inside && line.starts_with("  ") && !line.starts_with("   ") {
+            break;
+        } else if let Some(name) = line.strip_prefix("    - name:").filter(|_| inside) {
+            roles.push(name.trim().trim_matches('"').to_owned());
+        }
+    }
+    roles
+}
+
+/// The token of a caller as a scenario names it: `anonymous` has none; `steward`,
+/// `steward+viewer` or `viewer@u-2` is person `u-<first role>` (or the one after `@`) holding
+/// those roles. The stand-in Portal reads the token back, so no test shares a table of people.
+pub fn token(caller: &str) -> Option<String> {
+    if caller == "anonymous" {
+        return None;
+    }
+    let (roles, person) = caller.split_once('@').unwrap_or((caller, ""));
+    let first = roles.split('+').next().unwrap_or_default();
+    let person = if person.is_empty() {
+        format!("u-{first}")
+    } else {
+        person.to_owned()
+    };
+    Some(format!("tok-{person}~{}", roles.replace('+', ",")))
+}
+
+/// The Portal's `GET /api/v1/projects/{project}/apps/{name}/me` for every token of [`token`]:
+/// the person and roles it names, `401` for any other.
+async fn portal() -> MockServer {
+    let portal = MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path_regex(
+            r"^/api/v1/projects/helsinki/apps/[a-z0-9-]+/me$",
+        ))
+        .respond_with(|request: &wiremock::Request| {
+            let named = request
+                .headers
+                .get("authorization")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("Bearer tok-"))
+                .and_then(|v| v.split_once('~'));
+            match named {
+                Some((person, roles)) => {
+                    wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "id": person,
+                        "name": format!("Person {person}"),
+                        "roles": roles.split(',').filter(|r| !r.is_empty()).collect::<Vec<_>>(),
+                    }))
+                }
+                None => wiremock::ResponseTemplate::new(401),
+            }
+        })
+        .mount(&portal)
+        .await;
+    portal
+}
+
 /// The App, twice, on one shard, with its own schema and files, and the gateway it reads.
 pub struct Harness {
     pub host: Arc<Host>,
@@ -145,6 +212,8 @@ pub struct Harness {
     pub first: Placed,
     pub second: Placed,
     pub gateway: MockServer,
+    /// Who each token is, for the host's `identity::caller()`.
+    pub portal: MockServer,
     database: String,
 }
 
@@ -227,11 +296,13 @@ impl Harness {
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(dir.join(format!("sha256-{}.wasm", &digest[7..])), &bytes)
             .expect("component");
+        let portal = portal().await;
         let host = Host::new(
             Limits::default(),
             Source::Dir(dir),
             Arc::new(stores),
             Some(&gateway.uri()),
+            Some(&portal.uri()),
         )
         .expect("host");
         let slug = slug(app);
@@ -249,6 +320,7 @@ impl Harness {
             first: placed(&ids[0]),
             second: placed(&ids[1]),
             gateway,
+            portal,
             database: url,
         }
     }

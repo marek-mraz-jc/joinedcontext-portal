@@ -63,6 +63,40 @@ shown. A station's hours older than eight days are dropped.
 | `GET /api/comparisons/{code}` | the comparison's choices |
 | `POST /api/exports` | the hours as CSV; a URL it downloads from |
 
+## Roles and history
+
+The server decides from the signed-in person the platform names (`identity::caller()`, API/07),
+never from anything the page sends:
+
+- anyone, signed in or not, compares stations and sees the periods marked faulty;
+- a **viewer** keeps up to 20 **places** of their own under **My places**: a station, a pollutant
+  and a level. The page shows whether the latest hourly mean is above it and opens the station in
+  the comparison. They change and delete their own places; a place of someone else's answers as if
+  it did not exist;
+- a **steward** marks a period of a station's readings **faulty** with a reason (at most 31 days)
+  and takes a mark back. The comparison leaves every hour a mark covers out of the analysis, for
+  everyone, and says how many hours went.
+
+A change, a deleted place and a mark taken back show at once and go back when the server refuses.
+Every change writes a row into the App's `app_audit` table in the same statement, so a refused or
+failed change leaves none; the **History** page reads it: a viewer their own rows, a steward
+everyone's.
+
+| Route | Who | What it does |
+|---|---|---|
+| `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+| `GET /api/places` | signed in | the caller's places, each with the latest hourly mean |
+| `POST /api/places` `{station, name, attr, threshold}` | signed in | a place kept, at most 20 |
+| `PUT /api/places/{id}` `{name, threshold}` | the owner | its name and level changed |
+| `DELETE /api/places/{id}` | the owner | the place gone |
+| `GET /api/faults?station=` | anyone | the station's faulty marks |
+| `POST /api/faults` `{station, from, to, note}` | steward | a period marked faulty |
+| `DELETE /api/faults/{id}` | steward | the mark taken back |
+| `GET /api/history` | signed in | the newest 100 changes (a viewer: their own) |
+
+`server/host-test.json` plays every route on the real host as an anonymous visitor, a viewer,
+another viewer and a steward, and counts the rows after each refused write.
+
 ## Data
 
 Two data needs on the Context Space `helsinki`, each with a week of history (`retrieveTemporal`,
