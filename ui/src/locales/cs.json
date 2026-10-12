@@ -1143,6 +1143,8 @@
       "xlsx": "Excel (xlsx)",
       "zip": "ZIP ke stažení",
       "ogc-features": "OGC API Features",
+      "odata": "OData v4",
+      "websocket": "Oznámení přes WebSocket",
       "sta": "SensorThings API",
       "mcp": "MCP pro AI asistenty"
     },

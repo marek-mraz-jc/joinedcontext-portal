@@ -407,10 +407,45 @@ describe("endpoints view", () => {
 
     await waitFor(() => expect(proposals(fetchMock)).toHaveLength(1));
     const body = (await proposals(fetchMock)[0].clone().json()) as {
-      spec: { audience: string; enabledRepresentations: string[] };
+      spec: { audience: string; enabledRepresentations?: string[] };
     };
     expect(body.spec.audience).toBe("public");
-    expect(body.spec.enabledRepresentations).toEqual(["ngsi-ld"]);
+    // Every standard but SensorThings, with no representation field typed (EP-104).
+    expect(body.spec).not.toHaveProperty("enabledRepresentations");
+    expect(body.spec).not.toHaveProperty("disabledRepresentations");
+  });
+
+  it("checks every standard but sta on a new endpoint; an unchecked one is disabledRepresentations (EP-104)", async () => {
+    const fetchMock = renderEndpoints();
+    await screen.findByText("public-air");
+    await userEvent.click(screen.getByRole("button", { name: en.endpoints.add }));
+    const dialog = await findFormPage();
+
+    const box = (rep: keyof typeof en.endpoints.representationOption) =>
+      within(dialog).getByRole("checkbox", { name: en.endpoints.representationOption[rep] });
+    for (const rep of ["csv", "json", "xlsx", "zip", "ogc-features", "odata", "websocket"] as const) {
+      expect(box(rep)).toBeChecked();
+      expect(box(rep)).toBeEnabled();
+    }
+    expect(box("sta")).not.toBeChecked();
+    // Served by every Endpoint: shown, checked and locked (EP-10, EP-24).
+    for (const rep of ["ngsi-ld", "geojson", "mcp"] as const) {
+      expect(box(rep)).toBeChecked();
+      expect(box(rep)).toBeDisabled();
+    }
+
+    await userEvent.type(dialog.querySelector("#root_name") as HTMLElement, "air-no-odata");
+    await userEvent.click(box("odata"));
+    await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
+    await waitFor(() =>
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
+
+    await waitFor(() => expect(proposals(fetchMock)).toHaveLength(1));
+    const body = (await proposals(fetchMock)[0].clone().json()) as { spec: Record<string, unknown> };
+    expect(body.spec.disabledRepresentations).toEqual(["odata"]);
+    expect(body.spec).not.toHaveProperty("enabledRepresentations");
   });
 
   it("runs the check as a dry run of the envelope that names the held draft (PF-57, AG-61)", async () => {

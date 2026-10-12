@@ -766,11 +766,13 @@ impl AppState {
                     .to_owned();
                 let mut catalogue =
                     crate::reconciler::ckan::CkanSync::new(host).with_age_key_file(age_key_file);
-                let organisation =
-                    crate::branding::Branding::load(state.config.branding_file.as_deref())
-                        .organisation;
-                if !organisation.trim().is_empty() {
-                    catalogue = catalogue.titled(organisation);
+                let branding =
+                    crate::branding::Branding::load(state.config.branding_file.as_deref());
+                if !branding.organisation.trim().is_empty() {
+                    catalogue = catalogue.titled(branding.organisation);
+                }
+                if !branding.documentation_base_url.is_empty() {
+                    catalogue = catalogue.documented_at(branding.documentation_base_url);
                 }
                 syncer = syncer.with_ckan(Arc::new(catalogue));
             }

@@ -292,6 +292,12 @@
       ],
       "reason": "WebSocket is the protocol's own name; the option lists the kinds of source by protocol"
     },
+    "endpoints.representationOption.websocket": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "WebSocket is the protocol's own name; the option lists the standards an Endpoint serves"
+    },
     "endpoints.representationOption.sta": {
       "rules": [
         "kind"

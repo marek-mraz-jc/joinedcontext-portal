@@ -1452,7 +1452,7 @@ fn datasource_input(
         (input_json, Vec::new())
     };
 
-    for p in jcctl::bento::prepended_processors(source) {
+    for p in jcctl::bento::prepended_processors(source, &context) {
         processors.push(serde_json::to_value(&p)?);
     }
     Ok((input, processors))

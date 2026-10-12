@@ -1363,6 +1363,7 @@ interface EndpointSpec {
   allowedProjects?: string[];
   policyRef?: string;
   enabledRepresentations?: string[];
+  disabledRepresentations?: string[];
   rateLimits?: { requestsPerMinute?: number; burst?: number };
   fileLimits?: { maxFileRows?: number; maxFileBytes?: number };
   caching?: { maxAgeSeconds?: number };

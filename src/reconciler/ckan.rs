@@ -44,6 +44,9 @@ pub enum Publication {
         outcome: Outcome,
         /// Rows written into the sheet, `None` when the Endpoint declares none.
         rows: Option<usize>,
+        /// The record lists a model without its LinkML artifact, so the dataset links the
+        /// schema index for it (EP-68).
+        no_linkml: bool,
     },
     /// The Endpoint stopped declaring a publication, or is gone, and the dataset went with it.
     Withdrawn {
@@ -105,6 +108,12 @@ impl CkanSync {
     /// The title an organization this run creates is given, from the installation's branding.
     pub fn titled(mut self, title: impl Into<String>) -> Self {
         self.settings = self.settings.clone().titled(title);
+        self
+    }
+
+    /// Where the installation's documentation lives, so a usage text links its page (EP-108).
+    pub fn documented_at(mut self, base: impl Into<String>) -> Self {
+        self.settings = self.settings.clone().documented_at(base);
         self
     }
 
@@ -228,6 +237,7 @@ pub fn publish_with(
         dataset: line.dataset,
         outcome: line.outcome,
         rows: line.mirror.map(|mirror| mirror.rows),
+        no_linkml: line.no_linkml,
     })
 }
 

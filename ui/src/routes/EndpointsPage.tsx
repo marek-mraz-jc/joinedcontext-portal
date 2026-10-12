@@ -33,6 +33,7 @@ import {
   endpointUrl,
   REPRESENTATION_PATHS,
   representationUrl,
+  alwaysServed,
   servedRepresentations,
   hubUrl,
 } from "../components/endpoints/links";
@@ -46,7 +47,7 @@ import {
   SPACE_LABEL,
   spaceOf,
 } from "../components/endpoints/sharing";
-import { endpointSchema, endpointUiSchema, generateSlug } from "../schemas/kinds";
+import { endpointSchema, endpointUiSchema, generateSlug, REPRESENTATIONS } from "../schemas/kinds";
 import type { JsonSchema } from "../components/forms/types";
 import { ModelPicker } from "../pages/endpoints/ModelPicker";
 import { FilterProof, classesWithSlots } from "../pages/endpoints/FilterProof";
@@ -153,6 +154,46 @@ function publishForm(spec: {
   };
 }
 
+/**
+ * The form's checked standards for a spec: what it serves (EP-104), in the form's order, the
+ * always-on ones included so they show checked.
+ */
+export function checkedRepresentations(spec: {
+  enabledRepresentations?: unknown;
+  disabledRepresentations?: unknown;
+  mcp?: unknown;
+}): string[] {
+  const served = servedRepresentations(spec);
+  return REPRESENTATIONS.filter((rep) => served.includes(rep));
+}
+
+/**
+ * What the checked standards write (EP-104). An Endpoint that lists its set keeps a list, in
+ * the order it had, so saving never widens it and a reviewer reads one changed line; so does
+ * one that serves `sta`, which only a list turns on. Every other Endpoint lists nothing and
+ * names the unchecked ones in `disabledRepresentations`, so a standard added later reaches it.
+ * The always-on ones are never written as disabled: jc-core refuses that (EP-10, EP-24).
+ */
+export function representationSpec(
+  checked: string[],
+  stored: { enabledRepresentations?: unknown; mcp?: unknown } = {},
+): { enabledRepresentations?: string[]; disabledRepresentations?: string[] } {
+  const always = alwaysServed(stored);
+  const chosen = checked.filter((rep) => !always.includes(rep));
+  const listed = Array.isArray(stored.enabledRepresentations)
+    ? stored.enabledRepresentations.filter((rep): rep is string => typeof rep === "string")
+    : undefined;
+  if (listed || chosen.includes("sta")) {
+    const kept = (listed ?? []).filter((rep) => always.includes(rep) || chosen.includes(rep));
+    const list = [...kept, ...chosen.filter((rep) => !kept.includes(rep))];
+    return { enabledRepresentations: list.length > 0 ? list : ["ngsi-ld"] };
+  }
+  const disabled = REPRESENTATIONS.filter(
+    (rep) => rep !== "sta" && rep !== "mcp" && !always.includes(rep) && !chosen.includes(rep),
+  );
+  return disabled.length > 0 ? { disabledRepresentations: disabled } : {};
+}
+
 function toSpec(
   form: EndpointForm,
   slug: string,
@@ -160,14 +201,24 @@ function toSpec(
   projectionRefName?: string,
   storedCatalog?: CatalogManifest,
   language = "en",
+  stored: { enabledRepresentations?: unknown; mcp?: unknown } = {},
 ) {
-  const { allowedProjects, rateLimits, caching, publish, catalog: catalogValues, ...rest } = form;
+  const {
+    allowedProjects,
+    rateLimits,
+    caching,
+    publish,
+    catalog: catalogValues,
+    enabledRepresentations: checked,
+    ...rest
+  } = form;
   void publish;
   const catalog = catalogOf(catalogValues, storedCatalog, language);
   delete (rest as Partial<EndpointForm>).name;
   delete (rest as Partial<EndpointForm>).title;
   return {
     ...rest,
+    ...representationSpec(checked ?? [], stored),
     slug,
     ...publishOf(form),
     ...(catalog ? { catalog } : {}),
@@ -198,6 +249,7 @@ const OWNED_SPEC = [
   "slug",
   "audience",
   "enabledRepresentations",
+  "disabledRepresentations",
   "allowedProjects",
   "rateLimits",
   "caching",
@@ -217,8 +269,20 @@ export function toEnvelope(
   language = "en",
 ): Manifest {
   const { name, title } = form;
-  const stored = (base?.spec as { catalog?: CatalogManifest } | undefined)?.catalog;
-  const spec = toSpec(form, slug, hiddenAttributes, projectionRefName, stored, language);
+  const baseSpec = (base?.spec ?? {}) as {
+    catalog?: CatalogManifest;
+    enabledRepresentations?: unknown;
+    mcp?: unknown;
+  };
+  const spec = toSpec(
+    form,
+    slug,
+    hiddenAttributes,
+    projectionRefName,
+    baseSpec.catalog,
+    language,
+    baseSpec,
+  );
   const next: Manifest = {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Endpoint",
@@ -239,6 +303,8 @@ export function toForm(endpoint: Manifest): EndpointForm {
     slug?: string;
     audience?: string;
     enabledRepresentations?: string[];
+    disabledRepresentations?: string[];
+    mcp?: boolean;
     allowedProjects?: string[];
     rateLimits?: { requestsPerMinute?: number; burst?: number };
     caching?: { maxAgeSeconds?: number };
@@ -259,7 +325,7 @@ export function toForm(endpoint: Manifest): EndpointForm {
     contextSpaceRef: refName(spec.contextSpaceRef),
     slug: spec.slug ?? "",
     audience: spec.audience ?? "project-list",
-    enabledRepresentations: spec.enabledRepresentations ?? [],
+    enabledRepresentations: checkedRepresentations(spec),
     allowedProjects: spec.allowedProjects ?? [],
     rateLimits: spec.rateLimits,
     caching: spec.caching,
@@ -491,7 +557,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       name: "",
       contextSpaceRef: "",
       audience: "project-list",
-      enabledRepresentations: ["ngsi-ld"],
+      enabledRepresentations: checkedRepresentations({}),
       allowedProjects: [],
       ...form,
       ...(urlDraftName ? { name: urlDraftName } : {}),
@@ -1008,7 +1074,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       name: "",
       contextSpaceRef: firstSpace,
       audience: "project-list",
-      enabledRepresentations: ["ngsi-ld"],
+      enabledRepresentations: checkedRepresentations({}),
       allowedProjects: [],
       ...(catalog ? { catalog } : {}),
     });
