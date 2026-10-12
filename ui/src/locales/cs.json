@@ -960,6 +960,26 @@
       "removeOne": "Odstranit váš komentář z {when}",
       "unknown": "Bez upozornění, protože nemohou číst tento prostor: {names}",
       "writeFirst": "Nejprve napište komentář."
+    },
+    "upload": {
+      "open": "Nahrát CSV",
+      "title": "Nahrát CSV",
+      "lead": "Vyberte CSV do 50 MB. Porovná se s typy Smart Data Models; model, prostor, jeho Endpoint a vaše právo zapisovat řádky se navrhnou jako jedna změna a když je změna nasazená, řádky se zapíší přes bránu pod vaším jménem.",
+      "choose": "Vybrat soubor CSV",
+      "type": "Co řádky jsou",
+      "noMatch": "Žádný typ Smart Data Models nepojmenovává dost těchto sloupců: soubor dostane vlastní model.",
+      "match": "{name} ({score} % sloupců)",
+      "own": "Vlastní model",
+      "ownType": "Název typu",
+      "ownTypeHint": "Jedno slovo s velkým počátečním písmenem, například ParkingGarage.",
+      "space": "Název prostoru",
+      "notReady": "Nejprve vyberte soubor, typ a prostor.",
+      "propose": "Navrhnout změnu",
+      "proposing": "Navrhuje se…",
+      "afterApproval": "Když je změna schválená a nasazená, zapište řádky do {space} jako {type}. Opakovaný zápis stejného souboru aktualizuje tytéž entity.",
+      "noSlots": "Navržený model pro tento typ nedeklaruje žádná pole: není co zapsat.",
+      "write": "{count, plural, =0 {Není co zapsat} one {Zapsat # řádek} few {Zapsat # řádky} other {Zapsat # řádků}}",
+      "done": "{written, plural, =0 {Nezapsal se žádný řádek} one {Zapsán # řádek} few {Zapsány # řádky} other {Zapsáno # řádků}}, {refused, plural, =0 {žádný odmítnutý.} other {odmítnutých: #.}}"
     }
   },
   "endpoints": {

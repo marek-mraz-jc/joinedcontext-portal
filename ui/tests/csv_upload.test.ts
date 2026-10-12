@@ -5,7 +5,7 @@
  * rows download as CSV no spreadsheet runs as a formula.
  */
 import { describe, expect, it, vi } from "vitest";
-import { MIN_SCORE, modelsOf, rankModels } from "../src/pages/spaces/csvUpload";
+import { MIN_SCORE, modelsOf, rankModels, sampleOf, uploadInput } from "../src/pages/spaces/csvUpload";
 import type { CatalogueModel } from "../src/pages/spaces/csvUpload";
 import {
   createInBatches,
@@ -132,5 +132,29 @@ describe("rows of an uploaded CSV", () => {
       { row: 4, id: "ok", reason: "plain" },
     ]);
     expect(csv.split("\r\n")).toEqual(["row,id,reason", "2,\"'=HYPERLINK(\"\"http://x\"\")\",'+1", "3,'-2,'@SUM(A1)", "4,ok,plain"]);
+  });
+});
+
+describe("what the upload proposes", () => {
+  it("cuts the sample after a whole line, and keeps a short file whole", () => {
+    expect(sampleOf("a,b\n1,2\n", 100)).toBe("a,b\n1,2\n");
+    expect(sampleOf("a,b\n1,2\n3,4\n", 9)).toBe("a,b\n1,2\n");
+    // a cut inside a multi-byte letter still ends on a line
+    expect(sampleOf("name\nŽilina\nŽilina\n", 14)).toBe("name\nŽilina\n");
+    expect(sampleOf("one long line", 4)).toBe("");
+  });
+
+  it("sends the Smart Data Models LinkML beside the sample, and asks for the upload grant", () => {
+    expect(uploadInput({ space: "parking", fileName: "p.csv", sample: "a\n", typeName: "OffStreetParking", linkml: "id: x" })).toEqual({
+      space: "parking",
+      files: [
+        { name: "p.csv", content: "a\n" },
+        { name: "OffStreetParking.linkml.yaml", content: "id: x" },
+      ],
+      typeName: "OffStreetParking",
+      upload: true,
+      propose: true,
+    });
+    expect(uploadInput({ space: "s", fileName: "p.csv", sample: "a\n", typeName: "Garage" }).files).toHaveLength(1);
   });
 });

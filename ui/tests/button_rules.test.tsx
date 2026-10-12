@@ -68,6 +68,7 @@ const PAGES = [
   `/projects/${PROJECT}/import`,
   `/projects/${PROJECT}/federation`,
   `/projects/${PROJECT}/spaces/complete`,
+  `/projects/${PROJECT}/spaces/upload`,
   `/projects/${PROJECT}/spaces/ovzdusie`,
   `/projects/${PROJECT}/endpoints/air-quality`,
   `/projects/${PROJECT}/apps/mapa`,

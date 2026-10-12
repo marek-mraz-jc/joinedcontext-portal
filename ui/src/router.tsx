@@ -897,6 +897,25 @@ const spaceCompleteRoute = createRoute({
   },
 });
 
+import { UploadCsv } from "./pages/spaces/UploadCsv";
+
+/** Upload a CSV into a space (DM-81, T-3840); static like `/spaces/complete`. */
+const spaceUploadRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/spaces/upload",
+  validateSearch: (search: Record<string, unknown>): { space?: string } =>
+    typeof search.space === "string" ? { space: search.space } : {},
+  component: function SpaceUploadRoute() {
+    const { project } = spaceUploadRoute.useParams();
+    const { space } = spaceUploadRoute.useSearch();
+    return (
+      <Shell project={project}>
+        <UploadCsv project={project} space={space} />
+      </Shell>
+    );
+  },
+});
+
 /** The assistant workbench (UI-54). */
 const assistantRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -1139,6 +1158,7 @@ export const routeTree = rootRoute.addChildren([
     importRoute,
     federationRoute,
     spaceCompleteRoute,
+    spaceUploadRoute,
     assistantRoute,
     sharedRedirectRoute,
     workspacesRoute,

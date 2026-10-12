@@ -96,3 +96,32 @@ export function rankModels(columns: string[], models: CatalogueModel[]): SdmMatc
 export function modelsOf(catalogue: { subjects?: { models?: CatalogueModel[] }[] } | undefined): CatalogueModel[] {
   return (catalogue?.subjects ?? []).flatMap((subject) => subject.models ?? []);
 }
+
+/** The op's files total at most 10 MiB (DM-55): the sample keeps room for the model beside it. */
+export const SAMPLE_BYTES = 8 * 1024 * 1024;
+
+/** The head of a CSV no longer than `max` UTF-8 bytes, cut after a whole line. */
+export function sampleOf(text: string, max = SAMPLE_BYTES): string {
+  const bytes = new TextEncoder().encode(text);
+  if (bytes.length <= max) return text;
+  const head = new TextDecoder().decode(bytes.subarray(0, max));
+  const end = head.lastIndexOf("\n");
+  return end < 0 ? "" : head.slice(0, end + 1);
+}
+
+/**
+ * The `jc_space_complete` input of an upload (DM-81): the sample, the Smart Data Models type's
+ * LinkML when one was chosen, the type, and `upload` so the space gets its Endpoint and the
+ * person the grant to write the rows.
+ */
+export function uploadInput(input: {
+  space: string;
+  fileName: string;
+  sample: string;
+  typeName: string;
+  linkml?: string;
+}): Record<string, unknown> {
+  const files = [{ name: input.fileName, content: input.sample }];
+  if (input.linkml) files.push({ name: `${input.typeName}.linkml.yaml`, content: input.linkml });
+  return { space: input.space, files, typeName: input.typeName, upload: true, propose: true };
+}
