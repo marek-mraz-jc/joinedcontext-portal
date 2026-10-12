@@ -511,7 +511,8 @@
       "modelEmptyLead": "Dátový model pomenúva typy entít priestoru a ich atribúty. Vytvorte ho alebo importujte Smart Data Model pre tento priestor.",
       "modelCreate": "Vytvoriť dátový model",
       "modelImport": "Importovať Smart Data Model",
-      "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz)."
+      "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz).",
+      "lead": "Jeho dátový model, entity, kto ich číta a čo sa s ním stalo."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -993,7 +994,9 @@
       "projectionName": "Názov projekcie",
       "preview": "Vytvorené manifesty",
       "identityAlways": "Každý záznam má id a typ, preto je toto vždy zverejnené.",
-      "readOnly": "Táto projekcia je zdieľaná. Ak ju chcete zmeniť tu, oddeľte ju a skopírujte."
+      "readOnly": "Táto projekcia je zdieľaná. Ak ju chcete zmeniť tu, oddeľte ju a skopírujte.",
+      "reuseHelp": "Použite projekciu, ktorú už publikuje iný endpoint, alebo nakreslite novú pre tento endpoint.",
+      "projectionNameHelp": "Názov, pod ktorým sa nová projekcia uloží; malé písmená, číslice a pomlčky."
     },
     "audience": {
       "project-list": "Vybrané projekty",
@@ -1925,7 +1928,7 @@
         "required": "povinné",
         "many": "viac hodnôt",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
-        "example": "Príklad: {example}",
+        "example": "Príklad:",
         "measuredIn": "Meria sa v {symbol} ({code}); ak záznam unitCode nemá, brána ho doplní.",
         "sourceUnit": "Zdroj v inej jednotke?",
         "sourceUnitOf": "Jednotka zdroja pre {slot}",
@@ -3477,7 +3480,10 @@
         "absent": "Katalóg {instance} nespravujú cez jeho rolu.",
         "badEmail": "Napíšte celú e-mailovú adresu, napríklad jana@example.org."
       },
-      "hidden": "Kto spravuje tento katalóg, vidia administrátori organizácie."
+      "hidden": "Kto spravuje tento katalóg, vidia administrátori organizácie.",
+      "kindHelp": "Celá skupina, alebo jedna osoba podľa e-mailu.",
+      "whichGroupHelp": "Každý v skupine spravuje tento katalóg, kým je v nej.",
+      "emailHelp": "E-mail, ktorým sa osoba prihlasuje, napríklad jana@example.org."
     }
   },
   "mappings": {
@@ -4477,6 +4483,7 @@
     "more": "Zobraziť staršie",
     "panelTitle": "Nedávna aktivita",
     "panelEmpty": "S týmto sa zatiaľ nič nestalo.",
+    "panelEmptyHint": "Zmena, import alebo chyba tu sa v tomto zozname zobrazí hneď, ako nastane.",
     "announce": "{count, plural, one {# nová chyba} few {# nové chyby} other {# nových chýb}}",
     "lastHour": "Čo sa stalo za poslednú hodinu",
     "bucket": {

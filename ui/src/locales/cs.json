@@ -511,7 +511,8 @@
       "modelEmptyLead": "Datový model pojmenovává typy entit prostoru a jejich atributy. Vytvořte ho nebo importujte Smart Data Model pro tento prostor.",
       "modelCreate": "Vytvořit datový model",
       "modelImport": "Importovat Smart Data Model",
-      "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou)."
+      "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou).",
+      "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -993,7 +994,9 @@
       "projectionName": "Název projekce",
       "preview": "Vytvořené manifesty",
       "identityAlways": "Každý záznam má id a typ, proto je toto vždy zveřejněno.",
-      "readOnly": "Tato projekce je sdílená. Chcete-li ji změnit zde, oddělte ji a zkopírujte."
+      "readOnly": "Tato projekce je sdílená. Chcete-li ji změnit zde, oddělte ji a zkopírujte.",
+      "reuseHelp": "Použijte projekci, kterou už publikuje jiný endpoint, nebo nakreslete novou pro tento endpoint.",
+      "projectionNameHelp": "Název, pod kterým se nová projekce uloží; malá písmena, číslice a pomlčky."
     },
     "audience": {
       "project-list": "Vybrané projekty",
@@ -1925,7 +1928,7 @@
         "required": "povinné",
         "many": "více hodnot",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a další (#)}}",
-        "example": "Příklad: {example}",
+        "example": "Příklad:",
         "measuredIn": "Měří se v {symbol} ({code}); pokud záznam unitCode nemá, brána ho doplní.",
         "sourceUnit": "Zdroj v jiné jednotce?",
         "sourceUnitOf": "Jednotka zdroje pro {slot}",
@@ -3477,7 +3480,10 @@
         "absent": "Katalog {instance} nespravují přes jeho roli.",
         "badEmail": "Napište celou e-mailovou adresu, například jana@example.org."
       },
-      "hidden": "Kdo spravuje tento katalog, vidí administrátoři organizace."
+      "hidden": "Kdo spravuje tento katalog, vidí administrátoři organizace.",
+      "kindHelp": "Celá skupina, nebo jedna osoba podle e-mailu.",
+      "whichGroupHelp": "Každý ve skupině spravuje tento katalog, dokud je v ní.",
+      "emailHelp": "E-mail, kterým se osoba přihlašuje, například jana@example.org."
     }
   },
   "mappings": {
@@ -4477,6 +4483,7 @@
     "more": "Zobrazit starší",
     "panelTitle": "Nedávná aktivita",
     "panelEmpty": "S tímto se zatím nic nestalo.",
+    "panelEmptyHint": "Změna, import nebo chyba zde se v tomto seznamu objeví hned, jak nastane.",
     "announce": "{count, plural, one {# nová chyba} few {# nové chyby} other {# nových chyb}}",
     "lastHour": "Co se stalo za poslední hodinu",
     "bucket": {

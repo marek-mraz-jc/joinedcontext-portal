@@ -118,7 +118,8 @@ export function pageFindings(options: PageCheckOptions): string[] {
   // a column header, a tab or a field label names a thing in words).
   for (const label of root.querySelectorAll("h1, h2, h3, button, a, th, label, legend, [role='tab'], dt")) {
     const value = text(label);
-    if (/^urn:ngsi-ld:\S+$/.test(value) && shown(label) && !label.closest(code)) say("bare-urn", value);
+    if (/^urn:ngsi-ld:\S+$/.test(value) && shown(label) && !label.closest(code) && !label.closest("td, [role='gridcell']"))
+      say("bare-urn", value);
   }
 
   // Every record of a list opens on a click (T-2875): each row of a table of records

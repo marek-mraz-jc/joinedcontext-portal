@@ -29,3 +29,18 @@ describe("the walkers' field-hint check", () => {
     expect(findings()).toEqual(["field-hint: Area"]);
   });
 });
+
+// T-3851: a grid's id column shows the id it opens; a URN is bare where a label belongs.
+describe("the walkers' bare-urn check", () => {
+  const findings = () => pageFindings({ namespaces: [], layout: false }).filter((finding) => finding.startsWith("bare-urn"));
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("lets a cell show the id it opens and flags one as a heading", () => {
+    document.body.innerHTML = `<main><h1>Helsinki city context</h1><p>What this space holds.</p>
+      <table><tbody><tr><td><button>urn:ngsi-ld:Event:1</button></td></tr></tbody></table>
+      <h2>urn:ngsi-ld:Event:2</h2></main>`;
+    expect(findings()).toEqual(["bare-urn: urn:ngsi-ld:Event:2"]);
+  });
+});

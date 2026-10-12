@@ -511,7 +511,8 @@
       "modelEmptyLead": "A data model names the space's entity types and their attributes. Create one or import a Smart Data Model for this space.",
       "modelCreate": "Create a data model",
       "modelImport": "Import a Smart Data Model",
-      "tooMany": "The endpoint is busy (too many reads at once)."
+      "tooMany": "The endpoint is busy (too many reads at once).",
+      "lead": "Its data model, its entities, who reads them and what happened to it."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -993,7 +994,9 @@
       "projectionName": "Projection name",
       "preview": "Generated manifests",
       "identityAlways": "Every entity has an id and a type, so this is always exposed.",
-      "readOnly": "This projection is shared. Detach and copy it to change it here."
+      "readOnly": "This projection is shared. Detach and copy it to change it here.",
+      "reuseHelp": "Reuse a projection another endpoint already publishes, or draw a new one for this endpoint.",
+      "projectionNameHelp": "The name the new projection is saved under; lowercase letters, digits and hyphens."
     },
     "audience": {
       "project-list": "Selected projects",
@@ -1925,7 +1928,7 @@
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
-        "example": "Example: {example}",
+        "example": "Example:",
         "measuredIn": "Measured in {symbol} ({code}); the gateway writes this unitCode when a record leaves it out.",
         "sourceUnit": "Source in another unit?",
         "sourceUnitOf": "Source unit of {slot}",
@@ -3477,7 +3480,10 @@
         "absent": "They do not manage {instance} through this catalogue's role.",
         "badEmail": "Type a whole e-mail address, such as jana@example.org."
       },
-      "hidden": "Who manages this catalogue is visible to the organization's administrators."
+      "hidden": "Who manages this catalogue is visible to the organization's administrators.",
+      "kindHelp": "A whole group, or one person by their e-mail.",
+      "whichGroupHelp": "Everyone in the group manages this catalogue while they are in it.",
+      "emailHelp": "The e-mail the person signs in with, such as jana@example.org."
     }
   },
   "mappings": {
@@ -4477,6 +4483,7 @@
     "more": "Show older",
     "panelTitle": "Recent activity",
     "panelEmpty": "Nothing has happened to this one yet.",
+    "panelEmptyHint": "A change, an import or an error here appears in this list as it happens.",
     "announce": "{count, plural, one {# new error} other {# new errors}}",
     "lastHour": "What happened in the last hour",
     "bucket": {
