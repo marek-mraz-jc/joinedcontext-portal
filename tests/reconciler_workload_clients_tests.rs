@@ -312,6 +312,51 @@ async fn an_account_holding_a_portal_role_gets_the_portal_audience() {
     assert_eq!(audiences, vec![json!(SLUG), json!("portal-api")]);
 }
 
+/// T-4038: the project's `pipelines` account is the identity its streams report outcomes,
+/// rejections and samples with, so its token is for the Portal's internal listener as well; the
+/// listener still admits it only for its own project's pipelines (T-3193).
+#[tokio::test]
+async fn a_projects_pipelines_account_gets_the_internal_listeners_audience() {
+    let keycloak = realm(json!([])).await;
+    client_lookup(
+        &keycloak,
+        "zilina-pipelines",
+        json!([managed_client(
+            "uuid-pl",
+            "zilina",
+            "pipelines",
+            "pipeline-runner",
+            "pipelines"
+        )]),
+    )
+    .await;
+    mappers(&keycloak, "uuid-pl", json!([])).await;
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![
+            account(
+                "zilina",
+                "pipelines",
+                Some(("pipeline-runner", "pipelines")),
+                "space-writer",
+            ),
+            endpoint("zilina", "air-all", "air", SLUG),
+        ]))
+        .await;
+
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let audiences: Vec<Value> = bodies(
+        &keycloak,
+        "POST",
+        &format!("{REALM}/clients/uuid-pl/protocol-mappers/models"),
+    )
+    .await
+    .into_iter()
+    .map(|m| m["config"]["included.custom.audience"].clone())
+    .collect();
+    assert_eq!(audiences, vec![json!(SLUG), json!("portal-internal")]);
+}
+
 /// PF-47: an account with no workload is not this wave's; nothing is written for it.
 #[tokio::test]
 async fn an_account_without_a_workload_gets_no_client() {
@@ -601,13 +646,20 @@ async fn a_pipeline_gets_its_own_federated_client_only_when_the_namespace_is_set
         created["attributes"]["jwt.credential.sub"],
         format!("system:serviceaccount:{PIPELINES}:pl-zilina-drepo")
     );
-    let mapper = &bodies(
+    // Its Endpoint, and the Portal's internal listener its stream reports outcomes to (T-4038).
+    let mut audiences: Vec<Value> = bodies(
         &keycloak,
         "POST",
         &format!("{REALM}/clients/uuid-pl/protocol-mappers/models"),
     )
-    .await[0];
-    assert_eq!(mapper["config"]["included.custom.audience"], SLUG);
+    .await
+    .into_iter()
+    .map(|m| m["config"]["included.custom.audience"].clone())
+    .collect();
+    audiences.sort_by_key(Value::to_string);
+    let mut want = vec![json!(SLUG), json!("portal-internal")];
+    want.sort_by_key(Value::to_string);
+    assert_eq!(audiences, want);
 }
 
 /// PL-19 (T-1508): each Pipeline's Kubernetes ServiceAccount is applied in the pipelines'

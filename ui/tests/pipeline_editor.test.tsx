@@ -747,8 +747,6 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     );
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
-    // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     const propose = within(dialog).getByRole("button", { name: en.pipelines.propose });
     await waitFor(() => expect(propose).toBeEnabled());
     await userEvent.click(propose);

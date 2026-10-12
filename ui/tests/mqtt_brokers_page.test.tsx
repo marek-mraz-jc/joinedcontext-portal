@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { MqttBrokersPage, brokerAddress } from "../src/pages/mqttbrokers/MqttBrokersPage";
-import { connectionsOf, urnParts } from "../src/pages/mqttbrokers/connections";
+import { connectionsOf, urnName } from "../src/pages/mqttbrokers/connections";
 import type { Resources } from "../src/pages/mqttbrokers/connections";
 import { fromMqttBrokerManifest, mqttBrokerSchema, toMqttBrokerManifest } from "../src/schemas/mqttbroker";
 import { json, list, renderPage } from "./page_contract";
@@ -88,7 +88,7 @@ describe("the connections around a project's brokers", () => {
     expect(connectionsOf(green).some((edge) => edge.kind === "policy")).toBe(false);
   });
 
-  it("says a broker in error, and leaves an Endpoint of another project alone", () => {
+  it("says a broker in error, and an Endpoint the project does not hold whatever its URN reads", () => {
     const failing = world();
     failing.brokers = [{ ...CAMERAS, status: { phase: "Error" } } as never];
     failing.pipelines[1] = item("Pipeline", "elsewhere", {
@@ -99,14 +99,15 @@ describe("the connections around a project's brokers", () => {
     expect(edges.find((edge) => edge.kind === "broker" && edge.to === "frames")?.problem?.key).toBe(
       "mqttbrokers.connections.brokerError",
     );
-    expect(edges.find((edge) => edge.to === "shared")?.problem).toBeUndefined();
+    expect(edges.find((edge) => edge.to === "shared")?.problem?.key).toBe("mqttbrokers.connections.noEndpoint");
   });
 
-  it("reads an Endpoint URN by its last two segments and refuses what is not one", () => {
-    expect(urnParts("urn:ngsi-ld:Endpoint:espoo.fi:espoo:cams-in")).toEqual({ project: "espoo", name: "cams-in" });
-    expect(urnParts("urn:ngsi-ld:Endpoint:cams-in")).toEqual({ project: undefined, name: "cams-in" });
-    expect(urnParts("https://example.org")).toBeUndefined();
-    expect(urnParts(undefined)).toBeUndefined();
+  it("reads an Endpoint URN for its name alone and refuses what is not one (ADR-N-041)", () => {
+    expect(urnName("urn:ngsi-ld:Endpoint:espoo.fi:espoo:cams-in")).toBe("cams-in");
+    expect(urnName("urn:ngsi-ld:Endpoint:cams-in")).toBe("cams-in");
+    expect(urnName("urn:ngsi-ld:Endpoint:a:")).toBeUndefined();
+    expect(urnName("https://example.org")).toBeUndefined();
+    expect(urnName(undefined)).toBeUndefined();
   });
 });
 
@@ -116,7 +117,7 @@ describe("the broker form", () => {
       PROJECT,
       {
         name: "cameras",
-        roles: [{ name: "cams", serviceAccounts: [" cam-1 ", ""], publish: ["cameras/${clientid}/frames"], subscribe: [] }],
+        roles: [{ name: "cams", serviceAccounts: [" cam-1 ", "", undefined as never], publish: ["cameras/${clientid}/frames"], subscribe: [] }],
         limits: { messagesPerSecond: 20 },
       },
       { metadata: { name: "cameras", labels: { team: "a" } } },
