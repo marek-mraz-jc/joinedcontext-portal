@@ -207,7 +207,7 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
           <p className="text-caption text-fg-muted" role="status">
             {t("endpoints.playground.answered", { status: answer.status })}
           </p>
-          <pre className="max-h-80 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="playground-answer">
+          <pre tabIndex={0} className="focus-ring max-h-80 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="playground-answer">
             {answer.text}
           </pre>
         </div>
@@ -221,7 +221,7 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
             value={language}
             onChange={setLanguage}
           />
-          <pre {...tabPanelProps(`${id}-code`, language)} className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+          <pre {...tabPanelProps(`${id}-code`, language)} tabIndex={0} className="focus-ring overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
             {snippets[language]}
           </pre>
           {!open ? <p className="text-caption text-fg-muted">{t("endpoints.page.firstCallToken")}</p> : null}
