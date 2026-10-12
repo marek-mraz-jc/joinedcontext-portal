@@ -10,7 +10,7 @@ import { QUOTA_DIMENSIONS } from "../../schemas/kinds";
 
 export interface Setting {
   /** The tab of `/projects/{project}/settings/{tab}` that holds it. */
-  tab: "general" | "members" | "roles" | "service-accounts" | "access" | "danger";
+  tab: "general" | "members" | "roles" | "service-accounts" | "access" | "explorer" | "danger";
   key: string;
   label: string;
   /** What changing it changes, in the person's language. */
@@ -45,6 +45,7 @@ export function settingsIndex(t: T, language: string): Setting[] {
     { tab: "roles", key: "roles", label: t("projectSettings.tab.roles"), about: t("projectSettings.about.roles") },
     { tab: "service-accounts", key: "service-accounts", label: t("projectSettings.tab.service-accounts"), about: t("projectSettings.about.serviceAccounts") },
     { tab: "access", key: "access", label: t("projectSettings.access.title"), about: t("projectSettings.access.lead") },
+    { tab: "explorer", key: "explorer", label: t("access.explorer.title"), about: t("access.explorer.lead") },
     { tab: "danger", key: "handover", label: t("projectSettings.danger.handoverTitle"), about: t("projectSettings.danger.handoverLead") },
     { tab: "danger", key: "delete", label: t("projectSettings.danger.title"), about: t("projectSettings.danger.lead") },
   ];

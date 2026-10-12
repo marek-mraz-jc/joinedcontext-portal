@@ -12,12 +12,13 @@ use axum::{Json, Router};
 use jc_core::kinds::Verb;
 
 use crate::api::changes::{change_meta, parse_change_id, resolve_change};
+use crate::api::resources::{ListMeta, ResourceList};
 use crate::auth::session::Identity;
 use crate::auth::CurrentUser;
 use crate::change::{self, Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::gitea::Author;
-use crate::resource::ResourceEnvelope;
+use crate::resource::{ResourceEnvelope, API_VERSION};
 use crate::state::AppState;
 
 #[utoipa::path(
@@ -350,6 +351,97 @@ pub async fn undo_change_for(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/changes/{id}/manifests",
+    summary = "Read the Manifests a Change Wrote",
+    description = "The manifests a merged change wrote, each read at the change's own last commit: the version a resource's editor offers to restore through a new, checked Change. A kind the caller does not read, a native file and a deleted file are left out (T-3975).",
+    tag = "changes",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("id" = String, Path, description = "The merged change: chg- + 8 hex digits"),
+    ),
+    responses(
+        (status = 200, description = "The manifests it wrote", body = ResourceList),
+        (status = 400, description = "Not a change id", body = ProblemDetails),
+        (status = 401, description = "Not signed in", body = ProblemDetails),
+        (status = 404, description = "No such change the caller may read", body = ProblemDetails),
+        (status = 409, description = "Not merged", body = ProblemDetails),
+        (status = 503, description = "Git forge unavailable", body = ProblemDetails),
+    )
+)]
+pub async fn change_manifests(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, id)): Path<(String, String)>,
+) -> Result<Json<ResourceList>, ApiError> {
+    change_manifests_for(&state, &user.0.identity, &project, &id)
+        .await
+        .map(Json)
+}
+
+/// What the merged change `id` wrote, as `identity` may read it (T-3975). Nothing is written:
+/// the editor loads a version into its form and proposes it like any edit.
+pub async fn change_manifests_for(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    id: &str,
+) -> Result<ResourceList, ApiError> {
+    let missing = || ApiError::NotFound(format!("change '{id}' not found in project '{project}'"));
+    let effective = crate::permissions::for_request(state, identity, project);
+    if !effective.may_read_project() {
+        return Err(missing());
+    }
+    parse_change_id(id)?;
+    let (gitea, number) = resolve_change(state, project, id)?;
+    let gitea: &crate::git::GiteaClient = &gitea;
+    let pr = gitea.pull_request(number).await?;
+    let branch = pr
+        .head_branch
+        .strip_prefix("refs/heads/")
+        .unwrap_or(&pr.head_branch);
+    if !branch.starts_with("portal/") && !branch.starts_with("workspace/") {
+        return Err(missing());
+    }
+    if !pr.merged {
+        return Err(ApiError::Conflict(format!(
+            "change {id} is not merged, so what it proposed never was a version"
+        )));
+    }
+    if pr.head_sha.is_empty() {
+        return Err(ApiError::Unavailable(format!(
+            "the forge did not say which commit change {id} ended on; try again"
+        )));
+    }
+    let home = format!("projects/{project}/");
+    let mut items = Vec::new();
+    for file in gitea.pull_request_files(number).await? {
+        if file.deleted || !file.path.starts_with(&home) {
+            continue;
+        }
+        let Some(read) = gitea.get_file(&file.path, &pr.head_sha).await? else {
+            continue;
+        };
+        // A native file (a LinkML source, a bento.yaml) is no manifest and is left out.
+        let Ok(envelope) = serde_yaml_ng::from_str::<ResourceEnvelope>(&read.content) else {
+            continue;
+        };
+        if effective.may_read(&envelope.kind) {
+            items.push(envelope);
+        }
+    }
+    Ok(ResourceList {
+        api_version: API_VERSION.to_owned(),
+        kind: "List".to_owned(),
+        metadata: ListMeta {
+            continue_token: None,
+            remaining_item_count: None,
+        },
+        items,
+    })
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -359,5 +451,9 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/changes/{id}/undo",
             axum::routing::post(undo_change),
+        )
+        .route(
+            "/projects/{project}/changes/{id}/manifests",
+            axum::routing::get(change_manifests),
         )
 }
