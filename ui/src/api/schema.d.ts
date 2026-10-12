@@ -15062,7 +15062,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No broker is configured, or it did not answer */
+            /** @description No broker or admin token is configured, or the broker did not answer or refused */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -153,7 +153,10 @@ impl AppState {
             .map(|o| Arc::new(BearerVerifier::new(&o.issuer, &o.client_id)));
         let draft_events = DraftHub::new();
         let drafts = DraftStore::new(None).with_hub(draft_events.clone());
-        let space_usage = Arc::new(crate::space_usage::Counter::new(config.broker_url.clone()));
+        let space_usage = Arc::new(crate::space_usage::Counter::new(
+            config.broker_url.clone(),
+            config.broker_admin_token_file.clone(),
+        ));
         let activity_events = crate::activity::ActivityHub::new();
         let activity = crate::activity::ActivityStore::new(None).with_hub(activity_events.clone());
         Self {

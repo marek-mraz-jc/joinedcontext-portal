@@ -199,40 +199,9 @@ export function endpointOf(spec: Record<string, unknown>): string {
   return "";
 }
 
-/**
- * The secret names this project already references, so the picker offers what exists instead
- * of inviting a typo (CC-06).
- *
- * The Portal never lists the secret store itself: a name is not a value, and a name nobody uses
- * yet is typed in full and read by an approver with the merge request.
- */
-export function knownSecretNames(manifests: Manifest[]): string[] {
-  const names = new Set<string>();
-  const walk = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      value.forEach(walk);
-      return;
-    }
-    if (!value || typeof value !== "object") {
-      return;
-    }
-    for (const [key, member] of Object.entries(value)) {
-      if (key.endsWith("Ref") || key === "secretRefs" || key === "secrets") {
-        for (const entry of Array.isArray(member) ? member : [member]) {
-          const named = (entry ?? {}) as { name?: unknown };
-          if (typeof named.name === "string") {
-            names.add(named.name);
-          }
-        }
-      }
-      walk(member);
-    }
-  };
-  manifests.forEach((manifest) => {
-    walk(manifest.spec);
-  });
-  return [...names].sort();
-}
+// Moved to the manifest helpers so the pipeline editor offers the same names (T-3972).
+import { knownSecretNames } from "../../api/manifest";
+export { knownSecretNames };
 
 /** The words of a runner input's name that are written in capitals: protocols, products, clouds. */
 const ACRONYMS = new Set([

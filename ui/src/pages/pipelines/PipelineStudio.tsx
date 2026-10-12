@@ -1093,6 +1093,7 @@ export function PipelineStudio({
                   />
                 ) : selectedStep ? (
                   <StepBlock
+                    variables={(draft?.secretRefs ?? []).flatMap((ref) => (ref.envVar ? [ref.envVar] : []))}
                     key={selectedNode}
                     entry={selectedStep}
                     onChange={(entry) =>

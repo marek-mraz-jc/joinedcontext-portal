@@ -25,7 +25,7 @@ use crate::state::AppState;
         (status = 200, description = "The space's usage", body = crate::space_usage::SpaceUsage),
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
         (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
-        (status = 503, description = "No broker is configured, or it did not answer", body = crate::error::ProblemDetails),
+        (status = 503, description = "No broker or admin token is configured, or the broker did not answer or refused", body = crate::error::ProblemDetails),
     )
 )]
 pub async fn get_usage(
@@ -46,7 +46,7 @@ pub async fn get_usage(
     }
     state
         .space_usage
-        .usage(&space)
+        .usage(&crate::spaces::segment(&state.mirror, &project, &space))
         .await
         .map(Json)
         .map_err(ApiError::Unavailable)

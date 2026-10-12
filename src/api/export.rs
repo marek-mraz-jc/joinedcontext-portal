@@ -77,7 +77,13 @@ pub(crate) fn strip_secret_values(value: &mut Value) {
     match value {
         Value::Object(map) => {
             for (key, child) in map.iter_mut() {
-                let scalar = child.is_string() || child.is_number() || child.is_boolean();
+                // A whole `${VAR}` is a reference, which a bundle keeps like a `secretRef` (T-3972).
+                let scalar = (child.is_string()
+                    && !child
+                        .as_str()
+                        .is_some_and(crate::api::mutate::is_variable_reference))
+                    || child.is_number()
+                    || child.is_boolean();
                 if SECRET_KEYS.contains(&key.as_str()) && scalar {
                     *child = Value::String(String::new());
                 } else {
@@ -1201,6 +1207,11 @@ mod tests {
             "a reference to a secret is not a secret and must survive the export"
         );
         assert_eq!(spec["url"], "mqtt://broker");
+        // T-3972: a step's `${VAR}` names the secret and stays; a value around it does not.
+        let mut step = serde_json::json!({ "basic_auth": { "password": "${FEED_PW}" }, "token": "t${FEED_PW}" });
+        strip_secret_values(&mut step);
+        assert_eq!(step["basic_auth"]["password"], "${FEED_PW}");
+        assert_eq!(step["token"], "");
     }
 
     #[test]
