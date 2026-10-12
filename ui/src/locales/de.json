@@ -1813,7 +1813,10 @@
       "nothingToRedo": "Nichts zu wiederholen.",
       "zoomClosed": "Zoom funktioniert in der Leinwandansicht, von 50 % bis 200 %.",
       "atTop": "Bereits der erste Schritt.",
-      "atBottom": "Bereits der letzte Schritt."
+      "atBottom": "Bereits der letzte Schritt.",
+      "queueShort": "{count} wartend",
+      "queue": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe",
+      "queueHigh": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe, mehr als {limit}: die Ausgabe kommt nicht nach"
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",

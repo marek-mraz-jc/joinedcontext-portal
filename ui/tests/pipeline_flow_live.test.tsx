@@ -11,7 +11,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { NodeCounters } from "../src/pages/pipelines/PipelineFlow";
-import { PipelineFlow, paintOfCounters, toFlow } from "../src/pages/pipelines/PipelineFlow";
+import { PipelineFlow, QUEUE_WARN, paintOfCounters, queueOf, toFlow } from "../src/pages/pipelines/PipelineFlow";
 import type { Trace } from "../src/pages/pipelines/PipelineTest";
 
 const form: PipelineForm = {
@@ -54,7 +54,7 @@ describe("paintOfCounters", () => {
   });
 });
 
-function renderFlow(props: { trace?: Trace | null; live?: NodeCounters }) {
+function renderFlow(props: { trace?: Trace | null; live?: NodeCounters; bufferDepth?: number | null }) {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <I18nextProvider i18n={i18n}>
@@ -63,6 +63,7 @@ function renderFlow(props: { trace?: Trace | null; live?: NodeCounters }) {
           onChange={() => undefined}
           trace={props.trace ?? null}
           live={props.live}
+          bufferDepth={props.bufferDepth}
           selected={null}
           onSelect={() => undefined}
           dataSources={[]}
@@ -97,5 +98,41 @@ describe("the live flow", () => {
     renderFlow({ live: {} });
     expect(screen.queryByTestId("flow-live")).toBeNull();
     expect(screen.getByTestId("flow-node-step-0")).toHaveAttribute("data-state", "idle");
+  });
+});
+
+describe("the queue before the output (T-3973)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("reads no depth as nothing, zero as an empty queue, and past the limit as high", () => {
+    expect(queueOf(undefined)).toBeUndefined();
+    expect(queueOf(null)).toBeUndefined();
+    expect(queueOf(-1)).toBeUndefined();
+    expect(queueOf(0)).toEqual({ depth: 0, high: false });
+    expect(queueOf(QUEUE_WARN)).toEqual({ depth: QUEUE_WARN, high: false });
+    expect(queueOf(QUEUE_WARN + 1)).toEqual({ depth: QUEUE_WARN + 1, high: true });
+  });
+
+  it("draws nothing on the wire while the runner reports no depth", () => {
+    renderFlow({ live: counters });
+    expect(screen.queryByTestId("flow-queue")).toBeNull();
+  });
+
+  it("draws an empty queue quietly, with the sentence for a screen reader", () => {
+    renderFlow({ live: counters, bufferDepth: 0 });
+    const queue = screen.getByTestId("flow-queue");
+    expect(queue).toHaveTextContent("0 queued");
+    expect(queue).not.toHaveAttribute("data-high");
+    expect(queue.querySelector("title")?.textContent).toBe("0 messages wait in the buffer before the output");
+  });
+
+  it("marks a queue past the limit and says the output is not keeping up", () => {
+    renderFlow({ bufferDepth: 250 });
+    const queue = screen.getByTestId("flow-queue");
+    expect(queue).toHaveAttribute("data-high", "true");
+    expect(queue).toHaveClass("fill-warning");
+    expect(queue.querySelector("title")?.textContent).toContain("more than 100: the output is not keeping up");
   });
 });

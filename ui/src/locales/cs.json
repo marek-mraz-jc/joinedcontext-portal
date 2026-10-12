@@ -1813,7 +1813,10 @@
       "nothingToRedo": "Není co zopakovat.",
       "zoomClosed": "Přiblížení funguje v zobrazení plátna, od 50 % do 200 %.",
       "atTop": "Už je to první krok.",
-      "atBottom": "Už je to poslední krok."
+      "atBottom": "Už je to poslední krok.",
+      "queueShort": "{count} ve frontě",
+      "queue": "{count, plural, one {# zpráva čeká} few {# zprávy čekají} other {# zpráv čeká}} v bufferu před výstupem",
+      "queueHigh": "{count, plural, one {# zpráva čeká} few {# zprávy čekají} other {# zpráv čeká}} v bufferu před výstupem, víc než {limit}: výstup nestíhá"
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",

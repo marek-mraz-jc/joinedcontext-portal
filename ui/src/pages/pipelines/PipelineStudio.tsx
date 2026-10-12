@@ -938,6 +938,7 @@ export function PipelineStudio({
                   onChange={onChange}
                   trace={flowTrace}
                   live={liveCounters.data?.nodes}
+                  bufferDepth={liveCounters.data?.bufferDepth}
                   selected={selectedNode}
                   onSelect={setSelectedNode}
                   onOpen={(id) => {

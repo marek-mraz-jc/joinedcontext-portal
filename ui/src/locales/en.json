@@ -1813,7 +1813,10 @@
       "nothingToRedo": "Nothing to redo.",
       "zoomClosed": "Zoom works on the canvas view, from 50 % to 200 %.",
       "atTop": "Already the first step.",
-      "atBottom": "Already the last step."
+      "atBottom": "Already the last step.",
+      "queueShort": "{count} queued",
+      "queue": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output",
+      "queueHigh": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output, more than {limit}: the output is not keeping up"
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",

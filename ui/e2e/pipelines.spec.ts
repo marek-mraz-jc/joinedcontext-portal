@@ -72,10 +72,14 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
         received,
         sent: received - 3,
         errors: 3,
+        bufferDepth: 340,
       });
     }
     if (path.endsWith("/pipelines")) {
       return json(PIPELINES);
+    }
+    if (path.endsWith("/pipelines/aq-mqtt-ingest")) {
+      return json(PIPELINES.items[0]);
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
@@ -95,6 +99,20 @@ test.describe("pipelines", () => {
     // The next poll is five seconds out; the number has to change on its own.
     await expect(row.getByText("128,450")).toBeVisible({ timeout: 15_000 });
     await expect(row.getByText("mqtt-credentials/password → $MQTT_PASSWORD")).toBeVisible();
+  });
+
+  // The buffer depth the metrics route answers is the queue on the wire into the output, amber
+  // past the limit, as NiFi shows a connection's queue (T-3973).
+  test("the canvas shows the queue before the output", async ({ page }) => {
+    await stubApi(page);
+
+    await page.goto("/projects/banskabystrica/pipelines/aq-mqtt-ingest/edit?lang=en");
+    const dialog = page.getByTestId("form-page");
+    await dialog.getByText("More options").click();
+    await dialog.getByText("Advanced editor").click();
+    const queue = page.getByTestId("flow-queue");
+    await expect(queue).toContainText("340 queued");
+    await expect(queue).toHaveAttribute("data-high", "true");
   });
 
   test("pausing a pipeline proposes a change", async ({ page }) => {

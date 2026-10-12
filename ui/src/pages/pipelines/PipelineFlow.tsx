@@ -488,12 +488,25 @@ export function paintOfCounters(
   );
 }
 
+/**
+ * The messages a running stream holds before its output, amber once past this many (T-3973).
+ * ponytail: one default for every pipeline; a per-pipeline threshold when a manifest declares one.
+ */
+export const QUEUE_WARN = 100;
+
+/** The buffer depth the metrics route answers, as the wire into the output shows it (T-3973). */
+export function queueOf(depth: number | null | undefined): { depth: number; high: boolean } | undefined {
+  return typeof depth === "number" && depth >= 0 ? { depth, high: depth > QUEUE_WARN } : undefined;
+}
+
 export interface PipelineFlowProps {
   form: PipelineForm | undefined;
   onChange: (f: PipelineForm) => void;
   trace: Trace | null;
   /** The running stream's counters per node; painted whenever no test result is on screen. */
   live?: NodeCounters;
+  /** The running stream's buffer depth (`bufferDepth`), drawn on the wire into the output. */
+  bufferDepth?: number | null;
   selected: FlowNodeId | null;
   onSelect: (id: FlowNodeId | null) => void;
   /** Opens a node's form: a double-click or Enter on the node, Open in the list (PL-68). */
@@ -510,6 +523,7 @@ export function PipelineFlow({
   onChange,
   trace,
   live,
+  bufferDepth,
   selected,
   onSelect,
   onOpen,
@@ -519,6 +533,7 @@ export function PipelineFlow({
   const { t } = useTranslation();
   const { nodes, edges } = toFlow(form);
   const open = onOpen ?? onSelect;
+  const queue = queueOf(bufferDepth);
   // Undo and redo of the graph's own edits (PL-68). An edit made elsewhere (a node's form, the
   // YAML view) is not the graph's to take back, so it ends the history instead of being undone.
   const [history, setHistory] = useState<{ past: PipelineForm[]; future: PipelineForm[]; at: string }>({
@@ -987,6 +1002,20 @@ export function PipelineFlow({
                     className="pointer-events-none select-none fill-fg font-mono text-caption"
                   >
                     {count}
+                  </text>
+                ) : null}
+                {queue && edge.to === "output" ? (
+                  // The queue NiFi shows on a connection: what waits before the output, live.
+                  <text
+                    x={mx}
+                    y={my - 20}
+                    textAnchor="middle"
+                    data-testid="flow-queue"
+                    data-high={queue.high ? "true" : undefined}
+                    className={`pointer-events-none select-none font-mono text-caption ${queue.high ? "fill-warning" : "fill-fg-muted"}`}
+                  >
+                    <title>{t(queue.high ? "pipelines.flow.queueHigh" : "pipelines.flow.queue", { count: queue.depth, limit: QUEUE_WARN })}</title>
+                    {t("pipelines.flow.queueShort", { count: queue.depth })}
                   </text>
                 ) : null}
                 {tapped ? (
