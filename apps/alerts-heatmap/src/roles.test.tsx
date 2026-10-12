@@ -109,7 +109,7 @@ describe("a viewer", () => {
     const server = show(VIEWER);
     expect(await screen.findByLabelText("Role: Viewer")).toBeInTheDocument();
     expect(await said("You have not kept a filter yet.")).toBeInTheDocument();
-    const kind = await screen.findByRole("checkbox", { name: /^Traffic announcement/ });
+    const kind = await screen.findByRole("checkbox", { name: /^Accident/ });
     fireEvent.click(kind);
     const name = screen.getByRole("textbox", { name: "Name of the filter" });
     fireEvent.click(screen.getByRole("button", { name: "Keep these filters" }));
@@ -117,12 +117,12 @@ describe("a viewer", () => {
     fireEvent.change(name, { target: { value: "  Announcements  " } });
     fireEvent.click(screen.getByRole("button", { name: "Keep these filters" }));
     expect(await said("Kept: Announcements")).toBeInTheDocument();
-    expect(server.kept).toMatchObject([{ name: "Announcements", view: "lang=en&kind=TRAFFIC_ANNOUNCEMENT", owner: "u-viewer" }]);
+    expect(server.kept).toMatchObject([{ name: "Announcements", view: "lang=en&kind=carAccident", owner: "u-viewer" }]);
 
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     await waitFor(() => expect(kind).not.toBeChecked());
     fireEvent.click(screen.getByRole("button", { name: "Apply Announcements" }));
-    await waitFor(() => expect(screen.getByRole("checkbox", { name: /^Traffic announcement/ })).toBeChecked());
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: /^Accident/ })).toBeChecked());
 
     const ack = screen.getByRole("button", { name: /^Acknowledge Kehä I/ });
     expect(ack).toBeDisabled();

@@ -183,13 +183,25 @@
     },
     "src/components/ResourceFormDialogBody.tsx": {
       "controls": {
-        "Button": 5,
-        "Checkbox": 1
+        "Button": 6,
+        "Checkbox": 1,
+        "FilePicker": 1
       },
       "tests": [
         "draft_form.test.tsx",
         "form_asks_the_assistant.test.tsx",
-        "form_empty_check_marks_the_field.test.tsx"
+        "form_check_names_the_missing_field.test.tsx",
+        "form_empty_check_marks_the_field.test.tsx",
+        "form_yaml_file.test.tsx",
+        "resource_history.test.tsx"
+      ]
+    },
+    "src/components/ResourceHistory.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "resource_history.test.tsx"
       ]
     },
     "src/components/SaveAsDialog.tsx": {
@@ -235,6 +247,16 @@
       },
       "tests": [
         "drift_modal.test.tsx"
+      ]
+    },
+    "src/components/endpoints/links.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "browser_security.test.tsx",
+        "endpoint_reads_name_a_type.test.tsx",
+        "part_endpoint_links.test.tsx"
       ]
     },
     "src/components/entities/AddFieldDialog.tsx": {
@@ -635,6 +657,14 @@
       },
       "tests": [
         "navigation_ease.test.tsx"
+      ]
+    },
+    "src/pages/access/AccessExplorer.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "access_explorer.test.tsx"
       ]
     },
     "src/pages/access/GroupPage.tsx": {
@@ -1414,6 +1444,7 @@
       "tests": [
         "pipeline_editor.test.tsx",
         "pipeline_flow.test.tsx",
+        "pipeline_flow_first_nodes.test.tsx",
         "pipeline_flow_outputs.test.tsx",
         "pipeline_flow_routes.test.tsx",
         "pipeline_flow_steps.test.tsx",
@@ -1422,9 +1453,17 @@
         "pipeline_studio_functions.test.ts"
       ]
     },
+    "src/pages/pipelines/PipelineTemplates.tsx": {
+      "controls": {
+        "Button": 5
+      },
+      "tests": [
+        "pipeline_templates.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineTest.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 4,
         "Checkbox": 1,
         "FilePicker": 1
       },
@@ -1647,7 +1686,7 @@
     },
     "src/routes/EndpointsPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 3
       },
       "tests": [
         "edit_prefill.test.tsx",

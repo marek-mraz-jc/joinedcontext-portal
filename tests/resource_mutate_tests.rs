@@ -2001,3 +2001,72 @@ async fn the_participant_there_is_still_updated() {
     let (status, body) = detail_of(response).await;
     assert_eq!(status, StatusCode::ACCEPTED, "{body}");
 }
+
+/// T-3972, PL-15: a credential field of a runner step names the pipeline's own secret as
+/// `${VAR}` and passes the literal-secret door; a name the pipeline does not declare is refused
+/// by the kind, naming it, and a literal is still refused as one.
+#[tokio::test]
+async fn a_step_names_its_own_secret_as_a_variable_and_nothing_else() {
+    let config = Config::for_tests();
+    let post = |password: &str| {
+        let body = json!({
+            "apiVersion": "joinedcontext.com/v1alpha2",
+            "kind": "Pipeline",
+            "metadata": { "name": "feed", "namespace": "ovzdusie" },
+            "spec": {
+                "class": "resident",
+                "period": "5m",
+                "secretRefs": [{ "name": "feed", "key": "pw", "envVar": "FEED_PW" }],
+                "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "mqtt-mesto" } }],
+                "steps": [{ "processor": { "http": {
+                    "url": "https://example.org/extra",
+                    "verb": "GET",
+                    "basic_auth": { "enabled": true, "username": "u", "password": password }
+                } } }],
+                "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:public-air" }]
+            }
+        });
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/projects/ovzdusie/pipelines")
+            .header(header::COOKIE, session_and_csrf_cookies(&config))
+            .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("json")))
+            .expect("request")
+    };
+    async fn answer(config: &Config, request: Request<Body>) -> (StatusCode, String) {
+        let app = server::app(AppState::new(config.clone(), None));
+        let response = app.oneshot(request).await.expect("response");
+        let status = response.status();
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let detail = serde_json::from_slice::<serde_json::Value>(&bytes)
+            .ok()
+            .and_then(|problem| problem["detail"].as_str().map(str::to_owned))
+            .unwrap_or_default();
+        (status, detail)
+    }
+
+    // Past the literal-secret door and the kind's checks, the write stops only at the next one:
+    // the DataSource this test never proposed.
+    let (status, detail) = answer(&config, post("${FEED_PW}")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{detail}");
+    assert!(
+        detail.contains("DataSource 'mqtt-mesto'") && !detail.contains("secret"),
+        "the pipeline's own variable is refused: {detail}"
+    );
+    let (status, detail) = answer(&config, post("${PORTAL_DB_PASSWORD}")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{detail}");
+    assert!(detail.contains("${PORTAL_DB_PASSWORD}"), "{detail}");
+    let (status, detail) = answer(&config, post("hunter2")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{detail}");
+    assert!(
+        detail.contains("literal secret in field 'password'") && !detail.contains("hunter2"),
+        "{detail}"
+    );
+}

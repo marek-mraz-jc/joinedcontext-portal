@@ -1,4 +1,5 @@
 import { FormHeading, useFormRoute } from "../components/forms/FormRoute";
+import { CopyUrlButton } from "../components/endpoints/links";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -343,27 +344,6 @@ function hiddenOf(endpoint: Manifest): string[] {
 /** Whether the gateway serves this endpoint yet: only a Live one answers a read (T-1433). */
 function isLive(endpoint: Manifest | null): boolean {
   return (endpoint?.status?.phase ?? "").toLowerCase() === "live";
-}
-
-export function CopyUrlButton({ url, label }: { url: string; label?: string }): JSX.Element {
-  const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <Button
-      size="sm"
-      title={url}
-      icon={<Icon name={copied ? "check" : "copy"} className="size-4" />}
-      onClick={() => {
-        void navigator.clipboard
-          ?.writeText(url)
-          .then(() => setCopied(true))
-          .catch(() => setCopied(false));
-      }}
-    >
-      {copied ? t("endpoints.copied") : (label ?? t("endpoints.copyUrl"))}
-    </Button>
-  );
 }
 
 const COLUMNS = 5;

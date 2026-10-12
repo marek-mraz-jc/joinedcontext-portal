@@ -1044,6 +1044,7 @@ export function pipelineSchema(
   t: (key: string) => string,
   dataSources: string[],
   endpoints: EndpointOption[],
+  secrets: string[] = [],
 ): JsonSchema {
   const entityType = (title: string): JsonSchema => ({
     type: "string",
@@ -1258,7 +1259,13 @@ export function pipelineSchema(
           type: "object",
           required: ["name"],
           properties: {
-            name: { type: "string", title: t("pipelines.field.secretName"), pattern: DNS1123 },
+            // The names this project already references, offered as the DataSource form does (T-3972).
+            name: {
+              type: "string",
+              title: t("pipelines.field.secretName"),
+              pattern: DNS1123,
+              ...(secrets.length > 0 ? { examples: secrets } : {}),
+            },
             key: { type: "string", title: t("pipelines.field.secretKey") },
             envVar: { type: "string", title: t("pipelines.field.envVar"), pattern: "^[A-Z_][A-Z0-9_]*$" },
           },
