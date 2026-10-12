@@ -2441,6 +2441,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Pipeline Rates
+         * @description What each node of the pipeline received, sent and failed over the last 1, 5 and 15 minutes, from the runner's counters read at most every two seconds and kept 15 minutes (PL-68).
+         */
+        get: operations["get_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelinetemplates": {
         parameters: {
             query?: never;
@@ -5068,6 +5088,12 @@ export interface components {
          * @enum {string}
          */
         NodeHealth: "ok" | "degraded" | "unknown";
+        /** @description What one node counted in each window. */
+        NodeWindows: {
+            "15m": components["schemas"]["NodeCounters"];
+            "1m": components["schemas"]["NodeCounters"];
+            "5m": components["schemas"]["NodeCounters"];
+        };
         /** @description One notification of a mention. */
         Notification: {
             author: string;
@@ -5373,6 +5399,20 @@ export interface components {
         PipelineRunList: {
             /** @description The run with the latest line first, at most 200. */
             items: components["schemas"]["PipelineRun"][];
+        };
+        PipelineStats: {
+            /**
+             * Format: int64
+             * @description The age of the oldest reading kept, at most 900: a window longer than this holds what
+             *     was seen so far, not the whole window.
+             */
+            coveredSeconds: number;
+            nodes: {
+                [key: string]: components["schemas"]["NodeWindows"];
+            };
+            pipeline: string;
+            /** @description When the newest reading was taken, RFC 3339. */
+            scrapedAt: string;
         };
         PipelineTemplate: {
             /** Format: date-time */
@@ -14117,6 +14157,58 @@ export interface operations {
                 };
             };
             /** @description The log could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counts per node and window */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineStats"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No runner configured, or it did not answer */
             503: {
                 headers: {
                     [name: string]: unknown;

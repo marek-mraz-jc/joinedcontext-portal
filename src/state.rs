@@ -89,6 +89,8 @@ pub struct AppState {
     pub alerts: Arc<crate::alerts::AlertStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
     pub live: Arc<crate::live::LiveHub>,
+    /// The runner readings behind each pipeline's stats, kept 15 minutes (PL-68).
+    pub pipeline_stats: Arc<crate::pipeline_stats::Samples>,
     /// Each pipeline's runs and their log (PL-62), durable with a database.
     pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
@@ -192,6 +194,7 @@ impl AppState {
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
+            pipeline_stats: Arc::default(),
             drift_watch: None,
             views: None,
             foreign_names: Arc::default(),
