@@ -467,6 +467,9 @@ pub async fn delete_with_identity(
         });
     }
 
+    // 2-broker. A broker a space lives on stays; the refusal lists the spaces (PF-115).
+    crate::brokers::check_delete(&mirror, kind_info.kind, name)?;
+
     // 2a. An organization model a model imports stays; retiring it is the way out (DM-76, DM-26).
     if kind_info.kind == "DataModel" && project == crate::permissions::ORG_NAMESPACE {
         let importers = crate::api::datamodels::importers_of(state, name).await;
