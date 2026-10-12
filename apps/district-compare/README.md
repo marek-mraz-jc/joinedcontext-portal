@@ -29,14 +29,15 @@ A `wasm` App (AP-142, AP-148): React on the joinedcontext App SDK for the page, 
 
 ## Roles and history
 
-A signed-in reader keeps comparisons of their own (T-3828): a name, up to six districts and a measure, at most 20. They open, update or delete their own, and share one by its link (`?comparison=<id>`), which any signed-in reader of the project opens read-only with its owner named. A steward pins the comparison on screen for everyone: the page opens on the newest pin unless its address names districts or a shared comparison; taking a pin back returns to the one before. Every change shows at once and is taken back when the server refuses; the server records each in `app_audit`, and the Changes page lists a viewer's own and a steward's every one. Roles come from the caller's token through `identity::caller()`, never from the page.
+A signed-in reader keeps comparisons of their own (T-3828): a name, up to six districts and a measure, at most 20. They open, update or delete their own, and share one by its link (`?comparison=<share token>`), which any signed-in reader of the project opens read-only with its owner named. The token is 64 hex characters the database draws for each comparison (`migrations/0003_share_tokens.sql`); by its id, which anyone could count through, a comparison answers its owner only. A steward pins the comparison on screen for everyone: the page opens on the newest pin unless its address names districts or a shared comparison; taking a pin back returns to the one before. Every change shows at once and is taken back when the server refuses; the server records each in `app_audit`, and the Changes page lists a viewer's own and a steward's every one. Roles come from the caller's token through `identity::caller()`, never from the page.
 
 | Route | Who | What it does |
 |---|---|---|
 | `GET /apps/district-compare/api/me` | anyone | the caller's name and roles, `null` when signed out |
 | `GET /apps/district-compare/api/comparisons` | signed in | the caller's comparisons, newest first |
 | `POST /apps/district-compare/api/comparisons` `{name, codes, measure}` | signed in | a comparison kept |
-| `GET /apps/district-compare/api/comparisons/{id}` | signed in | any comparison, read-only, with its owner's name |
+| `GET /apps/district-compare/api/comparisons/{id}` | owner | the caller's own comparison |
+| `GET /apps/district-compare/api/shared/{share}` | signed in | the comparison a link's token names, read-only, with its owner's name |
 | `PUT /apps/district-compare/api/comparisons/{id}` | owner | changed |
 | `DELETE /apps/district-compare/api/comparisons/{id}` | owner | gone |
 | `GET /apps/district-compare/api/default` | anyone | the pinned comparison, `null` when none |

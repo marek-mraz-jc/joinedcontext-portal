@@ -16,7 +16,7 @@ import { ComparerContext, parseAnswer } from "./compare";
 import type { Comparer } from "./compare";
 import { ENTITIES } from "./fixtures/districts";
 import { ServerContext } from "./server";
-import { memory, STEWARD, VIEWER } from "./testing/server";
+import { memory, STEWARD, token, VIEWER } from "./testing/server";
 import type { Memory } from "./testing/server";
 import { sweep } from "./testing/sweep";
 
@@ -93,9 +93,9 @@ describe("a signed-out reader", () => {
   });
 
   it("is asked to sign in to open a shared comparison", async () => {
-    show("en", "&comparison=5");
+    show("en", `&comparison=${token(5)}`);
     expect(await screen.findByText("Sign in to open a shared comparison.")).toBeInTheDocument();
-    expect(server.comparison).not.toHaveBeenCalled();
+    expect(server.shared).not.toHaveBeenCalled();
   });
 });
 
@@ -121,7 +121,7 @@ describe("a viewer", () => {
     expect(await screen.findByText("Kept: My two")).toBeInTheDocument();
     expect(server.keep).toHaveBeenCalledWith({ name: "My two", codes: expect.any(Array), measure: "events" });
     const link = within(list).getByRole("link", { name: "Link to share: My two" });
-    expect(link.getAttribute("href")).toMatch(/\?comparison=100&lang=en$/);
+    expect(link.getAttribute("href")).toMatch(new RegExp(`\\?comparison=${token(100)}&lang=en$`));
     // Following it opens the page anew; jsdom does not navigate, so the click is only seen to reach it.
     const followed = vi.fn((event: Event) => event.preventDefault());
     link.addEventListener("click", followed);
@@ -189,19 +189,27 @@ describe("a viewer", () => {
   });
 
   it("opens a comparison another reader shared, read-only", async () => {
-    server.kept.push({ id: 5, name: "Kallio only", codes: ["102"], measure: "alerts", ownerName: "Olli Other", owner: "u-other" });
-    show("en", "&comparison=5");
+    server.kept.push({ id: 5, share: token(5), name: "Kallio only", codes: ["102"], measure: "alerts", ownerName: "Olli Other", owner: "u-other" });
+    show("en", `&comparison=${token(5)}`);
     expect(await screen.findByText("Shared comparison Kallio only, by Olli Other: read-only.")).toBeInTheDocument();
     await waitFor(async () => expect(await compared()).toEqual(["Kallio"]));
     expect(measure()).toHaveValue("alerts");
     expect(screen.queryByRole("button", { name: "Delete Kallio only" })).toBeNull();
   });
 
+  it("never opens a comparison by its id: a link naming one is no shared link", async () => {
+    server.kept.push({ id: 5, share: token(5), name: "Kallio only", codes: ["102"], measure: "alerts", ownerName: "Olli Other", owner: "u-other" });
+    show("en", "&comparison=5");
+    expect(await screen.findByLabelText("Role: Viewer")).toBeInTheDocument();
+    expect(server.shared).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Shared comparison/)).toBeNull();
+  });
+
   it("says when a shared comparison is gone, and when the own ones cannot be read", async () => {
     server.comparisons = vi.fn(async () => {
       throw new Error("the database gave no answer");
     });
-    show("en", "&comparison=99");
+    show("en", `&comparison=${token(99)}`);
     expect(await screen.findByText("The shared comparison could not be opened: no such comparison")).toBeInTheDocument();
     expect(await screen.findByText("The comparisons could not be read: the database gave no answer")).toBeInTheDocument();
   });
@@ -292,8 +300,8 @@ describe("a steward", () => {
 
 describe("a shared link", () => {
   it("names the comparison and keeps the language, nothing else", () => {
-    expect(shareLink(4, "https://h.test/apps/x/?lang=sv&foo=1#/compare?codes=101")).toBe("https://h.test/apps/x/?comparison=4&lang=sv");
-    expect(shareLink(4, "https://h.test/apps/x/")).toBe("https://h.test/apps/x/?comparison=4");
+    expect(shareLink(token(4), "https://h.test/apps/x/?lang=sv&foo=1#/compare?codes=101")).toBe(`https://h.test/apps/x/?comparison=${token(4)}&lang=sv`);
+    expect(shareLink(token(4), "https://h.test/apps/x/")).toBe(`https://h.test/apps/x/?comparison=${token(4)}`);
   });
 });
 

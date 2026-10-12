@@ -35,7 +35,7 @@ describe("the App's server", () => {
       if (url === "/api/me") return json(200, null);
       if (url === "/api/comparisons" && method === "GET") return json(200, []);
       if (url === "/api/comparisons" && method === "POST") return json(201, { ...JSON.parse(String(init?.body)), id: 3, ownerName: "V" });
-      if (url === "/api/comparisons/3" && method === "GET") return json(200, { ...c, id: 3, ownerName: "V", mine: true });
+      if (url === `/api/shared/${"ab".repeat(32)}`) return json(200, { ...c, id: 3, ownerName: "V", mine: true });
       if (url === "/api/comparisons/3") return new Response(null, { status: 204 });
       if (url === "/api/default" && method === "GET") return json(200, null);
       if (url === "/api/default" && method === "PUT") return json(200, { ...c, id: 1, ownerName: "S" });
@@ -49,7 +49,7 @@ describe("the App's server", () => {
     expect(await api.comparisons()).toEqual([]);
     expect(await api.keep(c)).toMatchObject({ ...c, id: 3 });
     expect(fetch.mock.calls[2]?.[1]).toMatchObject({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) });
-    expect(await api.comparison(3)).toMatchObject({ mine: true });
+    expect(await api.shared("ab".repeat(32))).toMatchObject({ mine: true });
     expect(await api.change(3, c)).toBeUndefined();
     expect(await api.forget(3)).toBeUndefined();
     expect(await api.pinned()).toBeNull();

@@ -13,14 +13,17 @@
 //!
 //! Roles and edits (T-3828, API/07), decided from `identity::caller()` alone: a signed-in reader
 //! keeps comparisons of their own and shares one by its link, which any signed-in reader of the
-//! project opens read-only; a steward pins the comparison everyone opens first.
+//! project opens read-only; a steward pins the comparison everyone opens first. The link carries
+//! the comparison's share token (64 hex characters the database draws), never its id: an id is a
+//! bigserial anyone could count through, so by id a comparison answers its owner only.
 //!
 //! | Route | Who | What it does |
 //! |---|---|---|
 //! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
 //! | `GET /api/comparisons` | signed in | the caller's comparisons, newest first |
 //! | `POST /api/comparisons` `{name, codes, measure}` | signed in | a comparison kept |
-//! | `GET /api/comparisons/{id}` | signed in | any comparison, read-only, with its owner's name |
+//! | `GET /api/comparisons/{id}` | owner | the caller's own comparison |
+//! | `GET /api/shared/{share}` | signed in | the comparison a link's token names, read-only, with its owner's name |
 //! | `PUT /api/comparisons/{id}` `{name, codes, measure}` | owner | changed |
 //! | `DELETE /api/comparisons/{id}` | owner | gone |
 //! | `GET /api/default` | anyone | the pinned comparison, `null` when none |
@@ -399,13 +402,23 @@ fn comparison_of(mut row: serde_json::Map<String, Json>) -> Json {
 const COLUMNS: &str = "id, name, codes, measure, owner_name as \"ownerName\", \
     to_char(created_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as \"createdAt\"";
 
+/// A share token as `migrations/0003_share_tokens.sql` draws it: 64 lowercase hex characters.
+fn is_share(token: &str) -> bool {
+    token.len() == 64
+        && token
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
 fn comparisons(_: &Request, _: &Params) -> Response {
     let caller = match Caller::require() {
         Ok(caller) => caller,
         Err(answer) => return answer,
     };
     match sql::query(
-        &format!("select {COLUMNS} from comparisons where owner_id = $1 order by id desc limit 50"),
+        &format!(
+            "select {COLUMNS}, share from comparisons where owner_id = $1 order by id desc limit 50"
+        ),
         &[Value::from(caller.id.as_str())],
     ) {
         Ok(rows) => Response::json(
@@ -466,15 +479,15 @@ fn keep(request: &Request, _: &Params) -> Response {
             let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
             Response::json(
                 201,
-                &json!({"id": row.get("id"), "name": name, "codes": new.codes, "measure": new.measure, "ownerName": caller.name}),
+                &json!({"id": row.get("id"), "share": row.get("share"), "name": name, "codes": new.codes, "measure": new.measure, "ownerName": caller.name}),
             )
         }
         Err(answer) => answer,
     }
 }
 
-/// Any comparison, for a link shared inside the project: read-only, its owner named.
-fn shared(_: &Request, params: &Params) -> Response {
+/// The caller's own comparison by its id; anyone else's is as absent as a missing one.
+fn own(_: &Request, params: &Params) -> Response {
     let caller = match Caller::require() {
         Ok(caller) => caller,
         Err(answer) => return answer,
@@ -483,10 +496,34 @@ fn shared(_: &Request, params: &Params) -> Response {
         Ok(id) => id,
         Err(answer) => return answer,
     };
-    match sql::query(
-        &format!("select {COLUMNS}, owner_id = $2 as mine from comparisons where id = $1"),
+    one(sql::query(
+        &format!(
+            "select {COLUMNS}, share, true as mine from comparisons where id = $1 and owner_id = $2"
+        ),
         &[Value::Int(id), Value::from(caller.id.as_str())],
-    ) {
+    ))
+}
+
+/// The comparison a shared link names by its token: read-only, its owner named. A token that is
+/// not one is answered as a missing one, before the database is asked.
+fn shared(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let token = &params["share"];
+    if !is_share(token) {
+        return Response::problem(404, "Not Found", "no such comparison");
+    }
+    one(sql::query(
+        &format!("select {COLUMNS}, owner_id = $2 as mine from comparisons where share = $1"),
+        &[Value::from(token.as_str()), Value::from(caller.id.as_str())],
+    ))
+}
+
+/// The one comparison a read found, or 404.
+fn one(read: Result<sql::Rows, sql::Error>) -> Response {
+    match read {
         Ok(rows) => match sql::objects(&rows).into_iter().next() {
             Some(row) => Response::json(200, &comparison_of(row)),
             None => Response::problem(404, "Not Found", "no such comparison"),
@@ -641,7 +678,8 @@ pub fn handle(request: Request) -> Response {
         .get("/api/me", me)
         .get("/api/comparisons", comparisons)
         .post("/api/comparisons", keep)
-        .get("/api/comparisons/{id}", shared)
+        .get("/api/comparisons/{id}", own)
+        .get("/api/shared/{share}", shared)
         .put("/api/comparisons/{id}", change)
         .delete("/api/comparisons/{id}", forget)
         .get("/api/default", pinned)
@@ -804,6 +842,22 @@ mod tests {
             r#"{"name":"n","codes":["101"],"measure":"events","owner_id":"u-1"}"#
         )
         .is_err());
+    }
+
+    #[test]
+    fn a_share_token_is_64_lowercase_hex_characters() {
+        assert!(is_share(&"0a".repeat(32)));
+        for bad in [
+            String::new(),
+            "1".into(),
+            "0a".repeat(31),
+            "0a".repeat(33),
+            "0A".repeat(32),
+            format!("{}g", "0".repeat(63)),
+            format!("{}%", "0".repeat(63)),
+        ] {
+            assert!(!is_share(&bad), "{bad}");
+        }
     }
 
     #[test]

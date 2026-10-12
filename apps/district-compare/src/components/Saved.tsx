@@ -8,13 +8,14 @@ import type { Comparison, NewComparison, Server } from "../server";
 
 const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-/** The address that opens comparison `id` for another reader of the project, in the same language. */
-export function shareLink(id: number, href = window.location.href): string {
+/** The address that opens the comparison whose share token is `share` for another reader of the
+ * project, in the same language. */
+export function shareLink(share: string, href = window.location.href): string {
   const url = new URL(href);
   const lang = url.searchParams.get("lang");
   url.search = "";
   url.hash = "";
-  url.searchParams.set("comparison", String(id));
+  url.searchParams.set("comparison", share);
   if (lang) url.searchParams.set("lang", lang);
   return url.toString();
 }
@@ -247,7 +248,7 @@ export function Saved({
               {/* A comparison still being kept has nothing to act on yet. */}
               {c.id > 0 && (
               <span className="app-actions">
-                <a href={shareLink(c.id)}>{t(lang, "shareComparison", { name: c.name })}</a>
+                {c.share && <a href={shareLink(c.share)}>{t(lang, "shareComparison", { name: c.name })}</a>}
                 <button type="button" className="jc-button" onClick={() => onOpen(c)}>
                   {t(lang, "openComparison", { name: c.name })}
                 </button>

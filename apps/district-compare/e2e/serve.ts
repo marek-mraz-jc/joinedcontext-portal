@@ -96,7 +96,8 @@ export async function serve(page: Page, entities = ENTITIES, me: { id: string; n
     if (url.pathname === `${api}/history`) return json(200, changes);
     if (url.pathname === `${api}/comparisons` && method === "GET") return json(200, kept);
     if (url.pathname === `${api}/comparisons` && method === "POST") {
-      const made = { ...JSON.parse(route.request().postData() ?? "{}"), id: next++, ownerName: me.name };
+      const id = next++;
+      const made = { ...JSON.parse(route.request().postData() ?? "{}"), id, share: String(id).padStart(64, "0"), ownerName: me.name };
       kept.unshift(made);
       log("insert", `kept the comparison ${made.name}`);
       return json(201, made);

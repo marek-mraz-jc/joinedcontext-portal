@@ -132,11 +132,11 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
   // choice is never overridden once made.
   const touched = useRef(false);
   const written = useRef<string | null>(null);
-  const [sharedId] = useState<number | null>(() => {
-    const id = Number(new URLSearchParams(window.location.search).get("comparison"));
-    return Number.isInteger(id) && id > 0 ? id : null;
+  const [sharedToken] = useState<string | null>(() => {
+    const token = new URLSearchParams(window.location.search).get("comparison");
+    return token && /^[0-9a-f]{64}$/.test(token) ? token : null;
   });
-  const fromAddress = useRef(selectedCodes.length > 0 || sharedId !== null);
+  const fromAddress = useRef(selectedCodes.length > 0 || sharedToken !== null);
   const [shared, setShared] = useState<Comparison | null>(null);
   const [sharedProblem, setSharedProblem] = useState<string | null>(null);
   const [pinned, setPinned] = useState<Comparison | null>(null);
@@ -259,13 +259,13 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
   }, [server]);
 
   useEffect(() => {
-    if (sharedId === null || me === undefined) return;
+    if (sharedToken === null || me === undefined) return;
     if (me === null) {
       setSharedProblem(t(lang, "sharedSignIn"));
       return;
     }
     let current = true;
-    server.comparison(sharedId).then(
+    server.shared(sharedToken).then(
       (found) => {
         if (!current) return;
         setShared(found);
@@ -276,7 +276,7 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
     return () => {
       current = false;
     };
-  }, [server, sharedId, me]);
+  }, [server, sharedToken, me]);
 
   const names = useMemo(() => new Map((output?.districts ?? []).map((d) => [d.code, d.name])), [output]);
 

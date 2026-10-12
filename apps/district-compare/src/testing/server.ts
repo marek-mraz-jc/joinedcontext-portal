@@ -1,7 +1,8 @@
 /**
  * The App's server in memory, for the page's tests (T-3828): nothing kept until a test keeps it.
  * Who calls is `who` (signed out unless a test names someone), and it decides as the real server
- * does: a reader keeps, changes and deletes their own comparisons and opens anyone's by its id; a
+ * does: a reader keeps, changes and deletes their own comparisons and opens anyone's by its share
+ * token (the id's digits, padded to 64); a
  * steward pins one for everyone; the history shows a viewer their own rows and a steward everyone's.
  */
 import { vi } from "vitest";
@@ -17,6 +18,9 @@ export type Memory = Server & {
   pins: Comparison[];
   log: (Change & { owner: string })[];
 };
+
+/** The share token the memory server gives comparison `id`. */
+export const token = (id: number) => String(id).padStart(64, "0");
 
 export function memory(): Memory {
   let next = 100;
@@ -45,14 +49,15 @@ export function memory(): Memory {
   m.comparisons = vi.fn(async () => m.kept.filter((c) => c.owner === signedIn().id).map(plain));
   m.keep = vi.fn(async (c: NewComparison) => {
     const caller = signedIn();
-    const made = { ...c, id: next++, ownerName: caller.name, owner: caller.id };
+    const id = next++;
+    const made = { ...c, id, share: token(id), ownerName: caller.name, owner: caller.id };
     m.kept.unshift(made);
     write("insert", `comparisons/${made.id}`, `kept the comparison ${c.name}`);
     return plain(made);
   });
-  m.comparison = vi.fn(async (id: number) => {
+  m.shared = vi.fn(async (share: string) => {
     const caller = signedIn();
-    const found = m.kept.find((c) => c.id === id);
+    const found = m.kept.find((c) => c.share === share);
     if (!found) throw new Problem(404, "no such comparison");
     return { ...plain(found), mine: found.owner === caller.id };
   });

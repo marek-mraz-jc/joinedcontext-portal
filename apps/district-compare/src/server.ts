@@ -54,6 +54,8 @@ export interface Comparison extends NewComparison {
   createdAt?: string;
   /** On a shared comparison: whether the reader owns it. */
   mine?: boolean;
+  /** The owner's own comparison: the token its shared link carries (64 hex characters). */
+  share?: string;
 }
 
 /** One change, from the App's `app_audit` table. */
@@ -86,8 +88,8 @@ export interface Server {
   /** The reader's own comparisons, newest first. */
   comparisons(): Promise<Comparison[]>;
   keep(comparison: NewComparison): Promise<Comparison>;
-  /** Any comparison, read-only, by the id a shared link carries. */
-  comparison(id: number): Promise<Comparison>;
+  /** Any comparison, read-only, by the token a shared link carries; never by its id. */
+  shared(token: string): Promise<Comparison>;
   change(id: number, comparison: NewComparison): Promise<void>;
   forget(id: number): Promise<void>;
   /** The comparison a steward pinned for everyone; `null` when none. */
@@ -123,7 +125,7 @@ export function server(base: string): Server {
     me: () => get<Me | null>(`${base}/me`),
     comparisons: () => get<Comparison[]>(`${base}/comparisons`),
     keep: (comparison) => get<Comparison>(`${base}/comparisons`, "POST", comparison),
-    comparison: (id) => get<Comparison>(`${base}/comparisons/${id}`),
+    shared: (token) => get<Comparison>(`${base}/shared/${encodeURIComponent(token)}`),
     change: (id, comparison) => get<void>(`${base}/comparisons/${id}`, "PUT", comparison),
     forget: (id) => get<void>(`${base}/comparisons/${id}`, "DELETE"),
     pinned: () => get<Comparison | null>(`${base}/default`),

@@ -133,7 +133,7 @@ for (const scheme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Keep this comparison" }).click();
       await expect(page.getByText("Kept: My two")).toBeVisible();
       const link = page.getByRole("link", { name: "Link to share: My two" });
-      await expect(link).toHaveAttribute("href", /\?comparison=1&lang=en$/);
+      await expect(link).toHaveAttribute("href", new RegExp(`\\?comparison=${"1".padStart(64, "0")}&lang=en$`));
       await link.scrollIntoViewIfNeeded();
       await testInfo.attach(`viewer-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
       expect(await layoutProblems(page)).toEqual([]);

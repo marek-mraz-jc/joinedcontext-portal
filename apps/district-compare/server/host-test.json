@@ -182,7 +182,8 @@
         "/ownerName": "Person u-viewer"
       },
       "save": {
-        "mine": "/id"
+        "mine": "/id",
+        "token": "/share"
       },
       "rows": {
         "comparisons": 1,
@@ -212,12 +213,32 @@
     {
       "call": "GET /api/comparisons/{mine}",
       "caller": "viewer@u-2",
+      "status": 404
+    },
+    {
+      "call": "GET /api/shared/{token}",
+      "caller": "viewer@u-2",
       "status": 200,
       "expect": {
         "/name": "Centre",
         "/mine": false,
         "/ownerName": "Person u-viewer"
       }
+    },
+    {
+      "call": "GET /api/shared/{token}",
+      "caller": "anonymous",
+      "status": 401
+    },
+    {
+      "call": "GET /api/shared/0000000000000000000000000000000000000000000000000000000000000000",
+      "caller": "viewer@u-2",
+      "status": 404
+    },
+    {
+      "call": "GET /api/shared/{mine}",
+      "caller": "viewer@u-2",
+      "status": 404
     },
     {
       "call": "GET /api/comparisons/{mine}",
