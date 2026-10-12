@@ -966,6 +966,27 @@
       "removeOne": "Ihren Kommentar vom {when} entfernen",
       "unknown": "Nicht benachrichtigt, weil sie diesen Raum nicht lesen dürfen: {names}",
       "writeFirst": "Schreiben Sie zuerst einen Kommentar."
+    },
+    "upload": {
+      "open": "CSV hochladen",
+      "title": "CSV hochladen",
+      "lead": "Wählen Sie eine CSV-Datei bis 50 MB. Sie wird mit den Smart-Data-Models-Typen abgeglichen; Modell, Space, sein Endpoint und Ihr Recht, die Zeilen zu schreiben, werden als eine Änderung vorgeschlagen, und sobald die Änderung live ist, werden die Zeilen in Ihrem Namen über das Gateway geschrieben.",
+      "choose": "CSV-Datei wählen",
+      "type": "Was die Zeilen sind",
+      "noMatch": "Kein Smart-Data-Models-Typ benennt genug dieser Spalten: Die Datei bekommt ein eigenes Modell.",
+      "match": "{name} ({score} % der Spalten)",
+      "own": "Eigenes Modell",
+      "ownType": "Typname",
+      "ownTypeHint": "Ein Wort mit großem Anfangsbuchstaben, etwa Garage.",
+      "space": "Name des Raums",
+      "notReady": "Wählen Sie zuerst eine Datei, einen Typ und einen Space.",
+      "propose": "Änderung vorschlagen",
+      "proposing": "Wird vorgeschlagen…",
+      "afterApproval": "Sobald die Änderung genehmigt und live ist, schreiben Sie die Zeilen als {type} in {space}. Dieselbe Datei erneut zu schreiben aktualisiert dieselben Entitäten.",
+      "noSlots": "Das vorgeschlagene Modell deklariert für diesen Typ keine Felder: Es gibt nichts zu schreiben.",
+      "write": "{count, plural, =0 {Nichts zu schreiben} one {# Zeile schreiben} other {# Zeilen schreiben}}",
+      "done": "{written, plural, =0 {Keine Zeile geschrieben} one {# Zeile geschrieben} other {# Zeilen geschrieben}}, {refused, plural, =0 {keine abgelehnt.} other {# abgelehnt.}}",
+      "preview": "Vorschau der ersten {count, plural, one {# Entität} other {# Entitäten}} als NGSI-LD"
     }
   },
   "endpoints": {

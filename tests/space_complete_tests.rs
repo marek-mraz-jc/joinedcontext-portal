@@ -1141,3 +1141,62 @@ async fn a_linkml_file_alone_drafts_the_model_the_space_and_its_grants() {
         "nothing proposed without the person"
     );
 }
+
+/// DM-81, T-3840: a CSV the person uploads, with the Smart Data Models type's LinkML beside it,
+/// drafts the model, the space, its Endpoint with the grants a fed space gets, and the person's
+/// own grant to write the type by batch; the same call without `upload` grants the person nothing.
+#[tokio::test]
+async fn an_uploaded_csv_drafts_the_endpoint_and_the_persons_write_grant() {
+    let files = json!([
+        { "name": "room-bookings.linkml.yaml", "content": BOOKING_LINKML },
+        { "name": "bookings.csv", "content": "id,room\n1,A\n" }
+    ]);
+    let (status, body) = complete_as_steward(json!({
+        "space": "room-bookings", "typeName": "Booking", "files": files, "upload": true,
+    }))
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let drafts = body["drafts"].as_array().expect("drafts");
+    let named = |name: &str| {
+        drafts
+            .iter()
+            .find(|d| d["name"] == name)
+            .unwrap_or_else(|| panic!("no {name} in {body}"))
+    };
+    let endpoint = &named("room-bookings-all")["manifest"]["spec"];
+    assert_eq!(endpoint["audience"], "organization", "{endpoint}");
+    assert_eq!(endpoint["projection"]["classes"], json!(["Booking"]));
+    named("room-bookings-all-read");
+    let grant = &named("room-bookings-upload")["manifest"]["spec"];
+    assert_eq!(
+        grant["assignee"],
+        json!({ "kind": "user", "id": "steward.user" })
+    );
+    assert_eq!(
+        grant["operations"],
+        json!(["upsertBatch", "createBatch", "queryBatch"])
+    );
+    assert_eq!(
+        grant["information"],
+        json!([{ "entities": [{ "type": "Booking" }] }])
+    );
+    assert_eq!(
+        body["change"],
+        Value::Null,
+        "nothing proposed without the person"
+    );
+
+    let (status, body) = complete_as_steward(json!({
+        "space": "room-bookings", "typeName": "Booking", "files": files,
+    }))
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        !body["drafts"]
+            .as_array()
+            .expect("drafts")
+            .iter()
+            .any(|d| d["name"] == "room-bookings-upload"),
+        "no upload, no grant for the person: {body}"
+    );
+}
