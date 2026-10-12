@@ -182,6 +182,24 @@ async fn send(state: &AppState, who: &str, uri: &str, body: &Value) -> (StatusCo
 
 /// The runner's side: waits for the harness to arrive, answers for it on the capture route.
 async fn play_runner(runner: &MockServer, state: &AppState, messages: &[Value]) -> Value {
+    play_runner_as(
+        runner,
+        state,
+        messages,
+        &runner_bearer(),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+/// `play_runner` presenting `bearer` on the capture route, which answers `expect` to each message.
+async fn play_runner_as(
+    runner: &MockServer,
+    state: &AppState,
+    messages: &[Value],
+    bearer: &str,
+    expect: StatusCode,
+) -> Value {
     for _ in 0..100 {
         let received = runner.received_requests().await.unwrap_or_default();
         if let Some(create) = received.iter().find(|r| r.method == "POST") {
@@ -196,14 +214,14 @@ async fn play_runner(runner: &MockServer, state: &AppState, messages: &[Value]) 
                         Request::builder()
                             .method("POST")
                             .uri(path)
-                            .header(axum::http::header::AUTHORIZATION, runner_bearer())
+                            .header(axum::http::header::AUTHORIZATION, bearer)
                             .body(Body::from(message.to_string()))
                             .expect("request"),
                     )
                     .await
                     .expect("response")
                     .status();
-                assert_eq!(status, StatusCode::NO_CONTENT);
+                assert_eq!(status, expect);
             }
             return harness;
         }
@@ -269,6 +287,109 @@ async fn the_trace_is_what_the_harness_posted_back_and_the_stream_is_deleted() {
     );
     assert!(!text.contains("secretRef") && !text.contains("resources"));
     runner.verify().await;
+}
+
+/// T-4050: with the pipelines' own identities on, the harness runs as the project's harness
+/// principal through the token service: the stream the runner gets names no client secret, and
+/// the capture route admits that principal of the test's own project.
+#[tokio::test]
+async fn with_pipeline_identity_a_test_runs_as_the_harness_principal_without_a_secret() {
+    let runner = MockServer::start().await;
+    let (create, delete) = runner_mocks(ResponseTemplate::new(200));
+    create.mount(&runner).await;
+    delete.mount(&runner).await;
+    let state = identified(&runner, "kerava");
+    let (one, bearer) = (one(), harness_bearer("kerava"));
+    let body = request("root = this");
+    let (answer, harness) = tokio::join!(
+        post(&state, "dev@hel.fi", "kerava", &body),
+        play_runner_as(&runner, &state, &one, &bearer, StatusCode::NO_CONTENT),
+    );
+    assert_eq!(answer.0, StatusCode::OK, "{}", answer.1);
+    assert_eq!(answer.1["input"]["events"], 1, "{}", answer.1);
+    let oauth2 = &harness["output"]["http_client"]["oauth2"];
+    assert_eq!(oauth2["client_key"], "kerava/pipeline-test", "{harness}");
+    assert_eq!(oauth2["token_url"], "${JC_PIPELINE_TOKEN_URL}");
+    assert!(!harness.to_string().contains("client_secret"), "{harness}");
+    runner.verify().await;
+}
+
+/// T-4050: a DataSource probe is a harness too, and runs as the same principal.
+#[tokio::test]
+async fn with_pipeline_identity_a_probe_runs_as_the_harness_principal_without_a_secret() {
+    let runner = MockServer::start().await;
+    let (create, delete) = runner_mocks(ResponseTemplate::new(200));
+    create.mount(&runner).await;
+    delete.mount(&runner).await;
+    let state = identified(&runner, "vantaa");
+    let (one, bearer) = (one(), harness_bearer("vantaa"));
+    let source = json!({
+        "apiVersion": "joinedcontext.com/v1alpha1",
+        "kind": "DataSource",
+        "metadata": { "name": "bikes" },
+        "spec": { "type": "http", "http": { "url": "https://feeds.example/bikes.json" } }
+    });
+    let (answer, probe) = tokio::join!(
+        send(
+            &state,
+            "dev@hel.fi",
+            "/api/v1/projects/vantaa/datasources?dryRun=All",
+            &source
+        ),
+        play_runner_as(&runner, &state, &one, &bearer, StatusCode::NO_CONTENT),
+    );
+    assert_eq!(answer.0, StatusCode::OK, "{}", answer.1);
+    assert_eq!(answer.1["probe"]["records"], 1, "{}", answer.1);
+    assert_eq!(
+        probe["output"]["http_client"]["oauth2"]["client_key"],
+        "vantaa/pipeline-test"
+    );
+    assert!(!probe.to_string().contains("client_secret"), "{probe}");
+    runner.verify().await;
+}
+
+/// One captured message.
+fn one() -> [Value; 1] {
+    [json!({ "input": "{\"a\":1}", "output": { "a": 1 }, "error": null })]
+}
+
+/// A Portal whose streams run as their pipelines' own identities.
+fn identified(runner: &MockServer, project: &str) -> AppState {
+    let mut config = config(Some(runner));
+    config.pipeline_identity = true;
+    AppState::new(config, None).with_mirror(mirror(project))
+}
+
+/// The bearer of `project`'s harness principal.
+fn harness_bearer(project: &str) -> String {
+    format!(
+        "Bearer {}",
+        common::REALM.workload(&format!("{project}-pl-pipeline-test"))
+    )
+}
+
+/// T-4050: another project's harness principal, or a pipeline's own client, is no harness of
+/// this test: the capture route refuses it and the trace stays empty.
+#[tokio::test]
+async fn the_capture_refuses_another_projects_harness_principal() {
+    for stranger in ["helsinki-pl-pipeline-test", "lahti-pl-odpad"] {
+        let runner = MockServer::start().await;
+        let (create, delete) = runner_mocks(ResponseTemplate::new(200));
+        create.mount(&runner).await;
+        delete.mount(&runner).await;
+        let mut config = config(Some(&runner));
+        config.pipeline_identity = true;
+        let state = AppState::new(config, None).with_mirror(mirror("lahti"));
+        let bearer = format!("Bearer {}", common::REALM.workload(stranger));
+        let message = [json!({ "input": "{}", "output": {}, "error": null })];
+        let body = request("root = this");
+        let (answer, _) = tokio::join!(
+            post(&state, "dev@hel.fi", "lahti", &body),
+            play_runner_as(&runner, &state, &message, &bearer, StatusCode::UNAUTHORIZED),
+        );
+        assert_eq!(answer.0, StatusCode::OK, "{}", answer.1);
+        assert_eq!(answer.1["input"]["events"], 0, "{stranger}: {}", answer.1);
+    }
 }
 
 /// A DataSource Check fetches the feed once on the runner (MF-39); a fetch that fails reaches
