@@ -2461,6 +2461,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Last Messages per Step
+         * @description The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked. When a target hides attributes only the mapped output node is served, and `withheld` says so (T-3974).
+         */
+        get: operations["get_samples"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelines/{name}/stats": {
         parameters: {
             query?: never;
@@ -5446,6 +5466,19 @@ export interface components {
             /** @description The run with the latest line first, at most 200. */
             items: components["schemas"]["PipelineRun"][];
         };
+        /** @description What last crossed each node of a running stream (T-3974, API/01 §7b). */
+        PipelineSamples: {
+            /** @description The newest samples per node label (`input`, `step_{j}`, `compute`, `output`), newest first. */
+            nodes: {
+                [key: string]: components["schemas"]["Sample"][];
+            };
+            pipeline: string;
+            /**
+             * @description True when a target Endpoint hides attributes (or cannot be read): the nodes before the
+             *     mapping carry the source's own field names, so only `output` is served.
+             */
+            withheld: boolean;
+        };
         PipelineStats: {
             /**
              * Format: int64
@@ -6049,6 +6082,11 @@ export interface components {
         /** @description One page of runs, newest first. */
         RunList: {
             items: components["schemas"]["AgentRun"][];
+        };
+        Sample: {
+            /** Format: date-time */
+            at: string;
+            record: Record<string, never>;
         };
         /**
          * @description What a workspace covers (CC-76, API/01 §22): the whole project, one space and what it
@@ -14244,6 +14282,49 @@ export interface operations {
             };
             /** @description The log could not be read */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_samples: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The samples per node; empty before the stream ran */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineSamples"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
