@@ -336,10 +336,6 @@
       "count": 1,
       "reason": "the button is hidden and out of the tab order whenever it is disabled"
     },
-    "src/components/forms/widgets/CronSchedule.tsx": {
-      "count": 5,
-      "reason": "follows the form's own disabled or read-only state, which the form says"
-    },
     "src/components/pickers/Combobox.tsx": {
       "count": 1,
       "reason": "passes the caller's disabled state; the caller says why"

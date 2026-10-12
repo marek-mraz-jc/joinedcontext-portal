@@ -189,8 +189,10 @@ describe("Project settings", () => {
   it.each([0, 1, 500])("draws %i rows without changing how the page reads", async (rows) => {
     const { container } = renderSettings({ rows });
     const table = await screen.findByRole("table", { name: MEMBERS_CAPTION });
+    // The skeleton says it is busy without the word: the rows come after the permissions do.
     await waitFor(() => {
       expect(within(table).queryByText(en.app.loading)).not.toBeInTheDocument();
+      expect(table).not.toHaveAttribute("aria-busy", "true");
     });
     const body = table.querySelector("tbody");
     expect(body?.querySelectorAll("tr")).toHaveLength(Math.max(rows, 1));
