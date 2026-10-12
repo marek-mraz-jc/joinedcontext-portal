@@ -165,3 +165,59 @@ body {
   font: inherit;
   max-width: 100%;
 }
+
+/* T-3895: the mode filter above the map, the departures and the service alerts beside it. */
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.modes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2.75rem;
+}
+
+.departures,
+.alerts {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.departure {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.departure.off {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.departure-line {
+  font-weight: 600;
+}
+
+.departure-to {
+  overflow-wrap: anywhere;
+}
+
+.alert {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.alert p {
+  margin: 0.25rem 0 0;
+}

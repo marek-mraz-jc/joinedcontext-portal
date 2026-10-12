@@ -2,10 +2,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { AppShell, Card, NO_BASEMAP, Page, Split, styleFor, useEntitySelection } from "@joinedcontext/sdk";
+import { AppShell, Card, currentTokens, NO_BASEMAP, Page, Split, styleFor, useEntitySelection } from "@joinedcontext/sdk";
 import {
+  alertPlaces,
+  alertsFor,
   featureCollection,
+  getAlerts,
+  getDepartures,
   getVehicles,
+  MODES,
+  ofModes,
+  when,
+  type AlertView,
+  type StopBoard,
   inView,
   lineColor,
   panelSource,
@@ -19,6 +28,9 @@ import {
 } from "./api";
 
 const SOURCE = "vehicles";
+const ALERTS = "alerts";
+/** The departures and alerts are read again this often; the backend reads them every 30 s. */
+const BOARD_MS = 30_000;
 const ARROW = "heading-arrow";
 const ARROW_SIZE = 24;
 const HELSINKI: [number, number] = [24.94, 60.17];
@@ -113,14 +125,43 @@ export function useVehicles(): { vehicles: Vehicle[]; live: boolean } {
   return { vehicles: [...byId.values()], live };
 }
 
+/**
+ * The departures and alerts, read when the page opens and every half minute after; what was read
+ * last stays on the page when a read fails.
+ */
+export function useBoard(): { stops: StopBoard[]; alerts: AlertView[] } {
+  const [stops, setStops] = useState<StopBoard[]>([]);
+  const [alerts, setAlerts] = useState<AlertView[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const read = () => {
+      void getDepartures().then((next) => !cancelled && next.length > 0 && setStops(next));
+      void getAlerts().then((next) => !cancelled && setAlerts(next));
+    };
+    read();
+    const timer = setInterval(read, BOARD_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+  return { stops, alerts };
+}
+
+type AlertCollection = ReturnType<typeof alertPlaces>;
+const NO_ALERTS: AlertCollection = alertPlaces([]);
+
 /** The map, and the one source every update writes to. */
 export function VehicleMap({
   collection,
+  alerts = NO_ALERTS,
   onView,
   onPick,
   basemap,
 }: {
   collection: VehicleCollection;
+  /** The stops HSL's alerts name, marked on the map. */
+  alerts?: AlertCollection;
   /** The basemap's style URL; the SDK's plain background without one. */
   basemap?: string;
   /** Where the map looks, once it has loaded and after every pan or zoom. */
@@ -150,6 +191,19 @@ export function VehicleMap({
     });
     map.current = instance;
     instance.on("load", () => {
+      // The alerts' stops under the vehicles: a ring in the tokens' danger colour.
+      instance.addSource(ALERTS, { type: "geojson", data: alerts });
+      instance.addLayer({
+        id: "alert-stops",
+        type: "circle",
+        source: ALERTS,
+        paint: {
+          "circle-radius": 7,
+          "circle-color": "#ffffff",
+          "circle-stroke-width": 3,
+          "circle-stroke-color": currentTokens().color.danger,
+        },
+      });
       instance.addSource(SOURCE, { type: "geojson", data: collection });
       instance.addLayer({
         id: "vehicle-dots",
@@ -213,9 +267,17 @@ export function VehicleMap({
     source?.setData(collection);
   }, [collection, ready]);
 
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    const source = map.current?.getSource(ALERTS) as GeoJSONSource | undefined;
+    source?.setData(alerts);
+  }, [alerts, ready]);
+
   return (
     <>
-      <div className="map" ref={container} data-testid="map" role="application" aria-label="Bus map" />
+      <div className="map" ref={container} data-testid="map" role="application" aria-label="Vehicle map" />
       {!basemap && <p className="note">{NO_BASEMAP}</p>}
     </>
   );
@@ -230,7 +292,7 @@ export function BarChart({ title, bars, note }: { title: string; bars: Bar[]; no
   return (
     <Card title={title}>
       {bars.every((bar) => bar.value === 0) ? (
-        <p className="empty">No buses in view.</p>
+        <p className="empty">No vehicles in view.</p>
       ) : (
         <ol className="bars" aria-label={title}>
           {bars.map((bar) => (
@@ -259,11 +321,123 @@ export function BarChart({ title, bars, note }: { title: string; bars: Bar[]; no
  */
 export function App() {
   const source = useMemo(() => panelSource(portalOf()), []);
-  return <AppShell title="Buses live" pages={[{ id: "buses", label: "Buses live", render: () => <BusesLive /> }]} source={source} language="en" />;
+  return <AppShell title="HSL live" pages={[{ id: "buses", label: "HSL live", render: () => <BusesLive /> }]} source={source} language="en" />;
+}
+
+/** The modes to draw: every one at first; a person ticks off what they do not want to see. */
+export function ModeFilter({ vehicles, modes, onChange }: { vehicles: Vehicle[]; modes: ReadonlySet<string>; onChange: (modes: Set<string>) => void }) {
+  const count = (mode: string) => vehicles.filter((vehicle) => (vehicle.mode ?? "bus") === mode).length;
+  return (
+    <fieldset className="modes">
+      <legend>Show</legend>
+      {MODES.map((mode) => (
+        <label key={mode}>
+          <input
+            type="checkbox"
+            checked={modes.has(mode)}
+            onChange={(event) => {
+              const next = new Set(modes);
+              if (event.target.checked) next.add(mode);
+              else next.delete(mode);
+              onChange(next);
+            }}
+          />
+          {`${mode} (${count(mode)})`}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+/** The next departures from one stop, chosen from the stops that have them. */
+export function Departures({ stops, now = Date.now() }: { stops: StopBoard[]; now?: number }) {
+  const [chosen, setChosen] = useState("");
+  const stop = stops.find((candidate) => candidate.id === chosen) ?? stops[0];
+  return (
+    <Card title="Departures">
+      {stops.length === 0 ? (
+        <p className="empty">No departures yet.</p>
+      ) : (
+        <>
+          <label className="pick">
+            <span>Stop</span>
+            <select value={stop?.id ?? ""} onChange={(event) => setChosen(event.target.value)}>
+              {stops.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ol className="departures" aria-label={`Departures from ${stop.name}`}>
+            {stop.departures.map((departure, index) => (
+              <li key={`${departure.line}-${departure.expected}-${index}`} className={departure.status === "scheduled" ? "departure" : "departure off"}>
+                <span className="departure-line">{departure.line}</span>
+                <span className="departure-to">{departure.headsign ?? ""}</span>
+                <span className="departure-when">
+                  {departure.status === "canceled" ? "cancelled" : departure.status === "skipped" ? "skips this stop" : when(departure.expected, now)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/** HSL's service alerts, all or those on one line; the text is HSL's and rendered as text. */
+export function Alerts({ alerts }: { alerts: AlertView[] }) {
+  const [line, setLine] = useState("");
+  const lines = useMemo(
+    () => [...new Set(alerts.flatMap((alert) => alert.lines))].sort((a, b) => a.localeCompare(b, "en", { numeric: true })),
+    [alerts],
+  );
+  const shown = alertsFor(alerts, line || undefined);
+  return (
+    <Card title="Service alerts">
+      {alerts.length === 0 ? (
+        <p className="empty">No service alerts.</p>
+      ) : (
+        <>
+          {lines.length > 0 && (
+            <label className="pick">
+              <span>Line</span>
+              <select value={line} onChange={(event) => setLine(event.target.value)}>
+                <option value="">All lines</option>
+                {lines.map((candidate) => (
+                  <option key={candidate} value={candidate}>
+                    {candidate}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {shown.length === 0 ? (
+            <p className="empty">{`No alerts on line ${line}.`}</p>
+          ) : (
+            <ul className="alerts" aria-label="Service alerts">
+              {shown.map((alert) => (
+                <li key={alert.id} className={`alert ${alert.severity ?? ""}`}>
+                  <strong>{alert.title}</strong>
+                  {alert.body && <p>{alert.body}</p>}
+                  {alert.lines.length > 0 && <p className="note">{`Lines ${alert.lines.join(", ")}`}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </Card>
+  );
 }
 
 function BusesLive() {
-  const { vehicles, live } = useVehicles();
+  const { vehicles: fleet, live } = useVehicles();
+  const { stops, alerts } = useBoard();
+  const [modes, setModes] = useState<Set<string>>(() => new Set(MODES));
+  const vehicles = useMemo(() => ofModes(fleet, modes), [fleet, modes]);
+  const places = useMemo(() => alertPlaces(alerts), [alerts]);
   const { selected, select } = useEntitySelection();
   const [bounds, setBounds] = useState<Bounds | undefined>(undefined);
   const [basemap] = useState(() => basemapOf());
@@ -284,15 +458,18 @@ function BusesLive() {
       <Page width="full">
         <p className="status" role="status">
           {vehicles.length === 0
-            ? "Waiting for the first positions"
-            : `${vehicles.length} buses${live ? ", updating live" : ""}${bounds && shown.length !== vehicles.length ? `, ${shown.length} in view` : ""}`}
+            ? fleet.length === 0
+              ? "Waiting for the first positions"
+              : "No vehicles of the chosen modes"
+            : `${vehicles.length} vehicles${live ? ", updating live" : ""}${bounds && shown.length !== vehicles.length ? `, ${shown.length} in view` : ""}`}
         </p>
         <Split ratio="2:1">
           <div className="map-pane">
-            <VehicleMap collection={collection} onView={setBounds} onPick={(id) => select({ id, type: "Vehicle" })} basemap={basemap} />
+            <ModeFilter vehicles={fleet} modes={modes} onChange={setModes} />
+            <VehicleMap collection={collection} alerts={places} onView={setBounds} onPick={(id) => select({ id, type: "Vehicle" })} basemap={basemap} />
             {shown.length > 0 && (
               <label className="pick">
-                <span>Open a bus</span>
+                <span>Open a vehicle</span>
                 <select value={selected?.id ?? ""} onChange={(event) => event.target.value && select({ id: event.target.value, type: "Vehicle" })}>
                   <option value="">—</option>
                   {[...shown]
@@ -317,7 +494,9 @@ function BusesLive() {
             )}
           </div>
           <div className="charts">
-            <BarChart title="Buses per line" bars={lines} />
+            <Departures stops={stops} />
+            <Alerts alerts={alerts} />
+            <BarChart title="Vehicles per line" bars={lines} />
             <BarChart
               title="Speed"
               bars={speeds.bars}

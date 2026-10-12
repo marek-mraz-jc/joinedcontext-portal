@@ -3135,7 +3135,7 @@
       "noBuilder": "This deployment has no builder agent, so an app cannot be generated here. The Agent Runner is an optional addon; ask your administrator to install it.",
       "examplesHint": "The two apps that ship with the platform are worked examples of the same shape:",
       "examples": {
-        "hsl-transport": "Buses live: 30 vehicles on a map, public and read-only",
+        "hsl-transport": "HSL live: up to 90 vehicles of every mode on a map, departures and service alerts, public and read-only",
         "air-quality": "Air quality: stations, a day of history and a steward note"
       },
       "needs": {
