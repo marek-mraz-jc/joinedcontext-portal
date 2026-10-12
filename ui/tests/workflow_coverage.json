@@ -626,6 +626,17 @@
         },
         "assistant": "jc_pipeline_metrics"
       },
+      "template": {
+        "live": {
+          "spec": "pipeline-templates.spec.ts",
+          "test": "a pipeline saved as a template starts the next one and keeps no credential"
+        },
+        "personOnly": "a person keeps a pipeline's shape in the project's gallery to start the next one from; an agent writes each pipeline with `jc_pipeline_propose` and keeps no gallery (T-3976)",
+        "routes": [
+          "POST /api/v1/projects/{project}/pipelinetemplates",
+          "DELETE /api/v1/projects/{project}/pipelinetemplates/{id}"
+        ]
+      },
       "retry-rejected": {
         "live": {
           "spec": "pipeline-workbench.spec.ts",

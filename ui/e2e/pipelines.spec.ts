@@ -69,6 +69,7 @@ const EARLIER_MANIFEST = {
 
 async function stubApi(page: Page): Promise<{ writes: string[] }> {
   const writes: string[] = [];
+  const templates: unknown[] = [];
   let received = 128_400;
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -83,6 +84,18 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
     // uses: a `PUT …?dryRun=All` is not a write (PF-57, T-2264).
     if (isCheck(request.method(), request.url())) {
       return json(greenVerdict(request.postData()));
+    }
+    // The project's templates live in the Portal's own store (T-3976).
+    if (path.endsWith("/pipelinetemplates")) {
+      if (request.method() === "POST") {
+        const body = JSON.parse(request.postData() ?? "{}") as { title: string; manifest: { spec: Record<string, unknown> } };
+        writes.push(`POST ${path} ${request.postData() ?? ""}`);
+        const { secretRefs: _refs, ...spec } = body.manifest.spec;
+        void _refs;
+        templates.unshift({ id: "3c0f6f0e-8a1b-4c2d-9e4f-5a6b7c8d9e0f", title: body.title, spec, createdBy: IDENTITY.name, createdAt: new Date().toISOString() });
+        return json(templates[0], 201);
+      }
+      return json({ items: templates });
     }
     if (request.method() !== "GET") {
       writes.push(`${request.method()} ${path} ${request.postData() ?? ""}`);
@@ -212,6 +225,29 @@ test.describe("pipelines", () => {
     const proposed = writes.find((write) => write.includes("/pipelines/aq-mqtt-ingest"));
     expect(proposed, writes.join("\n")).toContain("root = this.earlier");
     expect(proposed).toContain("urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:air");
+  });
+
+  // A pipeline saved as a template of the project starts the next one (T-3976).
+  test("builds a second pipeline from a template saved from the first", async ({ page }) => {
+    const { writes } = await stubApi(page);
+
+    await page.goto("/projects/banskabystrica/pipelines/aq-mqtt-ingest/edit?lang=en");
+    const dialog = page.getByTestId("form-page");
+    await dialog.getByRole("button", { name: "Save as template" }).click();
+    await dialog.getByLabel(/^Template title/).fill("MQTT sensor feed");
+    await dialog.getByRole("button", { name: "Save template" }).click();
+    await expect(dialog.getByRole("status").filter({ hasText: "Saved as template" })).toContainText("MQTT sensor feed");
+    const saved = JSON.parse(writes.find((w) => w.includes("/pipelinetemplates"))!.split(" ").slice(2).join(" ")) as {
+      manifest: { metadata: { name: string } };
+    };
+    expect(saved.manifest.metadata.name).toBe("aq-mqtt-ingest");
+
+    await page.goto("/projects/banskabystrica/pipelines?lang=en");
+    await page.getByRole("button", { name: "New pipeline" }).first().click();
+    const offered = page.getByTestId("pipeline-template").filter({ hasText: "MQTT sensor feed" });
+    await expect(offered).toBeVisible();
+    await offered.getByRole("button", { name: "Use" }).click();
+    await expect(page.getByTestId("form-page")).toBeVisible();
   });
 
   test("pausing a pipeline proposes a change", async ({ page }) => {
