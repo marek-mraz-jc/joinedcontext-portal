@@ -25,6 +25,7 @@ export const REPRESENTATION_PATHS: Record<string, string> = {
   zip: "/file.zip",
   "ogc-features": "/ogc/features",
   sta: "/sta/v1.1",
+  websocket: "/ws",
 };
 
 /** Every representation an Endpoint may serve, in jc-core's `Representation::ALL` order. */
@@ -115,12 +116,13 @@ export function mcpOrigin(domain: string | undefined): string {
 }
 
 /**
- * Where one representation of an endpoint answers: `mcp` on the platform host an MCP client
- * connects to, every other one on this origin, where the edge turns the session into the bearer.
+ * Where one representation of an endpoint answers: `mcp` and `websocket` on the platform host
+ * their clients connect to (a WebSocket client copies the one address API/07 and the catalogue
+ * name, T-4132), every other one on this origin, where the edge turns the session into the bearer.
  */
 export function representationUrl(slug: string, representation: string, domain: string | undefined): string {
   const path = REPRESENTATION_PATHS[representation] ?? "/";
-  return representation === "mcp"
+  return representation === "mcp" || representation === "websocket"
     ? `${mcpOrigin(domain)}/api/endpoint/${encodeURIComponent(slug)}${path}`
     : endpointUrl(slug, path);
 }
