@@ -9,7 +9,8 @@
 //!
 //! The client grants `client_credentials` only. Its audience mappers name the slug of every
 //! Endpoint of the project on a space one of the account's roles scopes, and the Portal's own
-//! audience when one of its roles names a `Role` (Architecture/12 §2a), so the token opens the
+//! audience when one of its roles names a `Role` (Architecture/12 §2a), and the client
+//! `mqtt-{project}-{broker}` of every `MqttBroker` whose roles name it (ADR-N-048 §2.7), so the token opens the
 //! doors the roles are for and no other. An App's job principal `appjob-{app}` (AP-159) is bound
 //! the same way to `appjob-{project}-{app}` in the identities namespace, and its one audience is
 //! the App's own Endpoint.
@@ -513,7 +514,18 @@ impl WorkloadClientSync {
                 continue;
             }
             let audiences = match &account.reach {
-                Reach::Roles(spec) => audiences(mirror, &account.project, spec, &self.portal),
+                Reach::Roles(spec) => {
+                    // And every MQTT broker whose roles name the account (ADR-N-048 §2.7).
+                    let mut found = audiences(mirror, &account.project, spec, &self.portal);
+                    found.extend(super::mqtt_brokers::audiences_of(
+                        mirror,
+                        &account.project,
+                        &account.name,
+                    ));
+                    found.sort();
+                    found.dedup();
+                    found
+                }
                 Reach::Endpoint(slug) => vec![slug.clone()],
             };
             outcomes.push(self.converge_one(&token, account, &audiences).await);

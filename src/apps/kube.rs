@@ -65,6 +65,29 @@ const KINDS: [(&str, &str, &str); 11] = [
 /// version into its test sandbox (SDK-38), where the Portal's Role grants `create` and `delete`.
 const CREATED_ONLY: (&str, &str, &str) = ("v1", "ConfigMap", "configmaps");
 
+/// What one MQTT edge broker's release is made of (ADR-N-048 §2.6, T-3994), reachable only through
+/// the `*_mqtt` methods: in the brokers' namespace, by a name that starts `mqtt-`, so a template
+/// that asked for anything else is refused before a request is made.
+const MQTT_KINDS: [(&str, &str, &str); 9] = [
+    ("v1", "ServiceAccount", "serviceaccounts"),
+    ("v1", "ConfigMap", "configmaps"),
+    ("v1", "Service", "services"),
+    ("apps/v1", "Deployment", "deployments"),
+    ("cert-manager.io/v1", "Certificate", "certificates"),
+    ("traefik.io/v1alpha1", "IngressRouteTCP", "ingressroutetcps"),
+    ("policy.linkerd.io/v1beta3", "Server", "servers"),
+    (
+        "policy.linkerd.io/v1alpha1",
+        "MeshTLSAuthentication",
+        "meshtlsauthentications",
+    ),
+    (
+        "policy.linkerd.io/v1alpha1",
+        "AuthorizationPolicy",
+        "authorizationpolicies",
+    ),
+];
+
 /// The one kind of [`KINDS`] that lives outside every namespace.
 const CLUSTER_SCOPED: &str = "namespaces";
 
@@ -498,6 +521,83 @@ impl KubeClient {
         self.checked(response, path).await.map(Some)
     }
 
+    /// Applies one object of an MQTT broker's release (T-3994): one of [`MQTT_KINDS`], in
+    /// `namespace`, named `mqtt-…`; anything else is refused before a request is made.
+    pub async fn apply_mqtt(&self, namespace: &str, object: &Value) -> Result<(), KubeError> {
+        let field = |name: &str| object.get(name).and_then(Value::as_str).unwrap_or_default();
+        let plural = mqtt_plural(field("apiVersion"), field("kind"))?;
+        let name = mqtt_name(name_of(object)?)?;
+        let in_namespace = namespace_of(object)?;
+        if in_namespace != namespace {
+            return Err(KubeError::NotAName {
+                field: "metadata.namespace",
+                value: in_namespace.to_owned(),
+            });
+        }
+        let path = path_of(plural, namespace, name)?;
+        let url = self.url(&format!("{path}?fieldManager={FIELD_MANAGER}&force=true"))?;
+        let response = self
+            .http
+            .patch(url)
+            .headers(self.headers(APPLY_PATCH)?)
+            .body(object.to_string())
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        self.checked(response, path).await.map(|_| ())
+    }
+
+    /// The objects of one of [`MQTT_KINDS`] in `namespace` that carry `label_selector`.
+    pub async fn list_mqtt(
+        &self,
+        api_version: &str,
+        kind: &str,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Value>, KubeError> {
+        let path = path_of(mqtt_plural(api_version, kind)?, namespace, "list")?
+            .trim_end_matches("/list")
+            .to_owned();
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("labelSelector", label_selector);
+        let response = self
+            .http
+            .get(url)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        let body = self.checked(response, path).await?;
+        Ok(body
+            .get("items")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    /// Removes one object of an MQTT broker's release; one that is not there is removed already.
+    pub async fn delete_mqtt(
+        &self,
+        api_version: &str,
+        kind: &str,
+        namespace: &str,
+        name: &str,
+    ) -> Result<(), KubeError> {
+        let path = path_of(mqtt_plural(api_version, kind)?, namespace, mqtt_name(name)?)?;
+        let response = self
+            .http
+            .delete(self.url(&path)?)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(());
+        }
+        self.checked(response, path).await.map(|_| ())
+    }
+
     /// Replaces one object that exists, as read with [`KubeClient::get`]: its
     /// `metadata.resourceVersion` makes a write that raced another one fail with `409` instead
     /// of overwriting it. For an object whose RBAC grants `update` and not `patch`.
@@ -631,6 +731,30 @@ fn plural_of(api_version: &str, kind: &str) -> Result<&'static str, KubeError> {
         })
 }
 
+/// The path segment of one of [`MQTT_KINDS`], and the proof that a broker's release may hold it.
+fn mqtt_plural(api_version: &str, kind: &str) -> Result<&'static str, KubeError> {
+    MQTT_KINDS
+        .iter()
+        .find(|(group, name, _)| *group == api_version && *name == kind)
+        .map(|(_, _, plural)| *plural)
+        .ok_or_else(|| KubeError::UnsupportedKind {
+            api_version: api_version.to_owned(),
+            kind: kind.to_owned(),
+        })
+}
+
+/// A broker's objects are all named `mqtt-…` (`jc_core::kinds::mqtt_broker::release_name`).
+fn mqtt_name(name: &str) -> Result<&str, KubeError> {
+    if name.starts_with("mqtt-") {
+        Ok(name)
+    } else {
+        Err(KubeError::NotAName {
+            field: "metadata.name",
+            value: name.to_owned(),
+        })
+    }
+}
+
 fn namespace_of(object: &Value) -> Result<&str, KubeError> {
     object
         .get("metadata")
@@ -674,6 +798,7 @@ fn path_of(plural: &str, namespace: &str, name: &str) -> Result<String, KubeErro
     }
     let group = KINDS
         .iter()
+        .chain(MQTT_KINDS.iter())
         .find(|(_, _, candidate)| *candidate == plural)
         .map(|(group, _, _)| *group)
         .unwrap_or("v1");
@@ -704,6 +829,35 @@ mod tests {
         let role =
             serde_json::json!({ "apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role" });
         assert!(created_or_applied(object_kind(&role), &role).is_err());
+    }
+
+    /// T-3994: a broker's release reaches its nine kinds by an `mqtt-` name and nothing else,
+    /// and none of the five it adds becomes reachable by `apply`.
+    #[test]
+    fn a_brokers_kinds_are_its_own_and_named_mqtt() {
+        assert_eq!(
+            path_of(
+                mqtt_plural("traefik.io/v1alpha1", "IngressRouteTCP").expect("allowed"),
+                "jc-mqtt",
+                "mqtt-helsinki-cameras"
+            )
+            .expect("a path"),
+            "/apis/traefik.io/v1alpha1/namespaces/jc-mqtt/ingressroutetcps/mqtt-helsinki-cameras"
+        );
+        assert_eq!(
+            path_of("configmaps", "jc-mqtt", "mqtt-a").expect("a path"),
+            "/api/v1/namespaces/jc-mqtt/configmaps/mqtt-a"
+        );
+        assert!(mqtt_plural("rbac.authorization.k8s.io/v1", "Role").is_err());
+        assert!(mqtt_plural("v1", "Secret").is_err());
+        assert!(mqtt_name("mqtt-helsinki-cameras").is_ok());
+        assert!(mqtt_name("portal").is_err());
+        let route =
+            serde_json::json!({ "apiVersion": "traefik.io/v1alpha1", "kind": "IngressRouteTCP" });
+        assert!(matches!(
+            object_kind(&route),
+            Err(KubeError::UnsupportedKind { .. })
+        ));
     }
 
     /// T-2521, CC-06: the bearer is a sensitive header, so a trace of the request or a debug
