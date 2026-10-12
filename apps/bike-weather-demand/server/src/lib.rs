@@ -9,18 +9,37 @@
 //! |---|---|
 //! | `GET /api/models?station=<urn>` | the station's kept models, newest first; today's trained first when missing |
 //! | `GET /api/models/{id}/snapshot` | a URL to download the data a model was trained on |
+//!
+//! Roles and edits (T-3827, API/07), decided from `identity::caller()` alone: a steward tunes a
+//! station's model inputs, and today's model of that station is trained again on them; everyone
+//! reads them.
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `GET /api/inputs?station=` | anyone | the station's model inputs, the defaults when none are set |
+//! | `PUT /api/inputs?station=` `{weatherStation, radiusKm, days, note}` | steward | inputs set; today's model trained again |
+//! | `DELETE /api/inputs?station=` | steward | back to the defaults; today's model trained again |
+//! | `GET /api/history` | signed in | the newest changes (a viewer: their own) |
 
 use bike_weather_demand::{run_estimate, BikePointInput, Input, WeatherPointInput};
+use jc_app_sdk::access;
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
+use serde::Deserialize;
 use serde_json::{json, Value as Json};
 
 /// How long a presigned URL lives; the host allows at most 300 seconds.
 const URL_SECONDS: u32 = 120;
-/// How far the nearest weather station may be, as the browser's own rule.
+/// How far the nearest weather station may be, as the browser's own rule, unless a steward set it.
 const WEATHER_KM: f64 = 10.0;
+/// Days of history a model trains on unless a steward set it: what the Endpoint may read.
+const DAYS: i64 = 7;
+const STEWARD: &str = "steward";
+const HISTORY: i64 = 100;
 /// Weather stations read at most.
 const MOST_WEATHER: usize = 500;
 /// Models answered at most per station.
@@ -41,6 +60,67 @@ pub fn station_id(raw: Option<&str>) -> Result<String, String> {
         );
     }
     Ok(id.to_owned())
+}
+
+/// What a steward sets for a station's model: a weather station to use instead of the nearest, how
+/// far the nearest may be, and how many days of history it trains on.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NewInputs {
+    pub weather_station: Option<String>,
+    pub radius_km: f64,
+    pub days: i64,
+    #[serde(default)]
+    pub note: String,
+}
+
+/// A station's inputs as the server trains with them.
+#[derive(Debug, PartialEq)]
+pub struct Inputs {
+    pub weather_station: Option<String>,
+    pub radius_km: f64,
+    pub days: i64,
+}
+
+impl Default for Inputs {
+    fn default() -> Self {
+        Self {
+            weather_station: None,
+            radius_km: WEATHER_KM,
+            days: DAYS,
+        }
+    }
+}
+
+/// The inputs and the note as they may be kept, or why not.
+pub fn checked_inputs(new: &NewInputs) -> Result<(Inputs, String), String> {
+    let weather_station = match new.weather_station.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(id) => Some(
+            station_id(Some(id))
+                .ok()
+                .filter(|id| id.starts_with("urn:ngsi-ld:WeatherObserved:"))
+                .ok_or("the weather station is a WeatherObserved id, or none for the nearest")?,
+        ),
+    };
+    if !(new.radius_km.is_finite() && (1.0..=25.0).contains(&new.radius_km)) {
+        return Err("the radius is 1 to 25 km".into());
+    }
+    if !(1..=DAYS).contains(&new.days) {
+        return Err(format!("a model trains on 1 to {DAYS} days"));
+    }
+    let note = new.note.trim();
+    if note.chars().count() > 200 || note.chars().any(char::is_control) {
+        return Err("the note is one line of at most 200 characters".into());
+    }
+    Ok((
+        Inputs {
+            weather_station,
+            radius_km: new.radius_km,
+            days: new.days,
+        },
+        note.to_owned(),
+    ))
 }
 
 /// A storage key for a station's training data on a day, from a hash of its id: an id may hold
@@ -76,15 +156,15 @@ pub fn point_of(value: Option<&Json>) -> Option<(f64, f64)> {
     Some((pair.first()?.as_f64()?, pair.get(1)?.as_f64()?))
 }
 
-/// The weather station nearest to `at` within [`WEATHER_KM`], as the browser picks it.
-pub fn nearest_weather(at: (f64, f64), stations: &[Json]) -> Option<String> {
+/// The weather station nearest to `at` within `km`, as the browser picks it.
+pub fn nearest_weather(at: (f64, f64), stations: &[Json], km: f64) -> Option<String> {
     stations
         .iter()
         .filter_map(|s| {
             let (lon, lat) = point_of(s.get("location"))?;
             let distance = haversine_km(at.0, at.1, lon, lat);
             let id = s["id"].as_str()?.to_owned();
-            (distance <= WEATHER_KM).then_some((distance, id))
+            (distance <= km).then_some((distance, id))
         })
         .min_by(|a, b| a.0.total_cmp(&b.0))
         .map(|(_, id)| id)
@@ -168,8 +248,30 @@ fn scalar(statement: &str) -> Result<String, Response> {
     }
 }
 
-/// Trains today's model of `station` on its last seven days and keeps it with its training data.
+/// The inputs a steward set for `station`, else the defaults.
+fn inputs_of(station: &str) -> Result<Inputs, Response> {
+    let rows = sql::query(
+        "select weather_station, radius_km, days from station_inputs where station = $1",
+        &[Value::from(station)],
+    )
+    .map_err(Response::from_sql)?;
+    Ok(match rows.values.first().map(Vec::as_slice) {
+        Some([weather, Value::Float(radius_km), Value::Int(days)]) => Inputs {
+            weather_station: match weather {
+                Value::Text(id) => Some(id.clone()),
+                _ => None,
+            },
+            radius_km: *radius_km,
+            days: *days,
+        },
+        _ => Inputs::default(),
+    })
+}
+
+/// Trains today's model of `station` on its last days, as its inputs say, and keeps it with its
+/// training data.
 fn train(station: &str) -> Result<(), Response> {
+    let inputs = inputs_of(station)?;
     let id = gateway::encode(station);
     let found = read(&format!(
         "/ngsi-ld/v1/entities?type=BikeHireDockingStation&id={id}&options=keyValues&attrs=location,totalSlotNumber"
@@ -186,9 +288,10 @@ fn train(station: &str) -> Result<(), Response> {
         .and_then(number_of)
         .unwrap_or(0.0)
         .max(0.0) as usize;
-    let since = scalar(
-        r#"select to_char((now() - interval '7 days') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')"#,
-    )?;
+    let since = scalar(&format!(
+        r#"select to_char((now() - interval '{} days') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')"#,
+        inputs.days
+    ))?;
     let now: i64 = scalar("select extract(epoch from now())::bigint")?
         .parse()
         .unwrap_or_default();
@@ -206,14 +309,14 @@ fn train(station: &str) -> Result<(), Response> {
         .map(|(value, at)| BikePointInput { at, value })
         .collect();
     // A weather station that cannot be read leaves the model without its weather terms, as the
-    // browser's estimate does.
-    let weather_station = point_of(entity.get("location")).and_then(|at| {
+    // browser's estimate does. A steward's choice wins over the nearest.
+    let weather_station = inputs.weather_station.clone().or_else(|| point_of(entity.get("location")).and_then(|at| {
         let stations = read(&format!(
             "/ngsi-ld/v1/entities?type=WeatherObserved&options=keyValues&attrs=location&limit={MOST_WEATHER}"
         ))
         .ok()?;
-        nearest_weather(at, &stations)
-    });
+        nearest_weather(at, &stations, inputs.radius_km)
+    }));
     let weather: Vec<WeatherPointInput> = match &weather_station {
         Some(w) => read(&format!(
             "/ngsi-ld/v1/temporal/entities?type=WeatherObserved&options=temporalValues&timerel=after&timeAt={}&id={}&attrs=temperature,precipitation",
@@ -227,7 +330,7 @@ fn train(station: &str) -> Result<(), Response> {
         None => Vec::new(),
     };
     let snapshot = json!({
-        "station": station, "weatherStation": weather_station, "trainedOn": day, "since": since, "totalSlots": total_slots,
+        "station": station, "weatherStation": weather_station, "trainedOn": day, "days": inputs.days, "radiusKm": inputs.radius_km, "since": since, "totalSlots": total_slots,
         "bikes": bikes.iter().map(|b| json!({"at": b.at, "value": b.value})).collect::<Vec<_>>(),
         "weather": weather.iter().map(|w| json!({"at": w.at, "temperature": w.temperature, "precipitation": w.precipitation})).collect::<Vec<_>>(),
     });
@@ -245,8 +348,8 @@ fn train(station: &str) -> Result<(), Response> {
     )
     .map_err(Response::from_blob)?;
     sql::execute(
-        "insert into station_models (station, trained_on, hours, enough, per_degree, rain, sigma, weather_station, profile, snapshot) \
-         values ($1, $2::date, $3, $4, $5::float8, $6::float8, $7::float8, $8::text, $9::jsonb, $10) on conflict (station, trained_on) do nothing",
+        "insert into station_models (station, trained_on, hours, enough, per_degree, rain, sigma, weather_station, profile, snapshot, days) \
+         values ($1, $2::date, $3, $4, $5::float8, $6::float8, $7::float8, $8::text, $9::jsonb, $10, $11) on conflict (station, trained_on) do nothing",
         &[
             Value::from(station),
             Value::from(day),
@@ -258,6 +361,7 @@ fn train(station: &str) -> Result<(), Response> {
             Value::from(weather_station),
             Value::Json(serde_json::to_string(&output.profile).unwrap_or_else(|_| "[]".into())),
             Value::from(key),
+            Value::from(inputs.days),
         ],
     )
     .map(drop)
@@ -284,7 +388,7 @@ fn models(request: &Request, _: &Params) -> Response {
     }
     match sql::query(
         r#"select id, trained_on::text as trained_on, to_char(trained_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as trained_at,
-                  hours, enough, per_degree, rain, sigma, weather_station
+                  hours, enough, per_degree, rain, sigma, weather_station, days
            from station_models where station = $1 order by trained_on desc limit $2"#,
         &[Value::from(station.as_str()), Value::from(MODELS)],
     ) {
@@ -318,10 +422,172 @@ fn download(_: &Request, params: &Params) -> Response {
     }
 }
 
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+fn inputs(request: &Request, _: &Params) -> Response {
+    let station = match station_id(request.param("station")) {
+        Ok(station) => station,
+        Err(why) => return Response::problem(400, "Bad Request", &why),
+    };
+    match sql::query(
+        r#"select weather_station as "weatherStation", radius_km as "radiusKm", days, note,
+                  updated_by_name as "updatedBy", to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as "updatedAt"
+           from station_inputs where station = $1"#,
+        &[Value::from(station.as_str())],
+    ) {
+        Ok(rows) => {
+            let kept = sql::objects(&rows).into_iter().next();
+            let mut answer = kept.clone().map_or_else(
+                || json!({"weatherStation": null, "radiusKm": WEATHER_KM, "days": DAYS, "note": "", "updatedBy": null, "updatedAt": null}),
+                Json::Object,
+            );
+            answer["station"] = json!(station);
+            answer["custom"] = json!(kept.is_some());
+            Response::json(200, &answer)
+        }
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+/// A steward and the station named, checked before the body is read, so nothing in the body
+/// stands in for the role.
+fn steward(request: &Request) -> Result<(Caller, String), Response> {
+    let caller = Caller::require()?;
+    caller.require_role(&[STEWARD])?;
+    let station = station_id(request.param("station"))
+        .map_err(|why| Response::problem(400, "Bad Request", &why))?;
+    Ok((caller, station))
+}
+
+/// The end of a station's id, for a history line.
+fn local(id: &str) -> &str {
+    id.rsplit(':').next().unwrap_or(id)
+}
+
+/// Today's model of `station` goes, so the next read trains it again on the inputs now set.
+fn retrain(station: &str) -> Result<(), Response> {
+    sql::execute(
+        "delete from station_models where station = $1 and trained_on = (now() at time zone 'Europe/Helsinki')::date",
+        &[Value::from(station)],
+    )
+    .map(drop)
+    .map_err(Response::from_sql)
+}
+
+fn set_inputs(request: &Request, params: &Params) -> Response {
+    let (caller, station) = match steward(request) {
+        Ok(pair) => pair,
+        Err(answer) => return answer,
+    };
+    let new: NewInputs = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let (set, note) = match checked_inputs(&new) {
+        Ok(checked) => checked,
+        Err(why) => return Response::problem(400, "Bad Request", &why),
+    };
+    let saved = sql::execute(
+        "insert into station_inputs (station, weather_station, radius_km, days, note, updated_by, updated_by_name) \
+         values ($1, $2::text, $3::float8, $4, $5, $6, $7) on conflict (station) do update set \
+         weather_station = excluded.weather_station, radius_km = excluded.radius_km, days = excluded.days, \
+         note = excluded.note, updated_by = excluded.updated_by, updated_by_name = excluded.updated_by_name, updated_at = now()",
+        &[
+            Value::from(station.as_str()),
+            Value::from(set.weather_station.clone()),
+            Value::Float(set.radius_km),
+            Value::Int(set.days),
+            Value::from(note.as_str()),
+            Value::from(caller.id.as_str()),
+            Value::from(caller.name.as_str()),
+        ],
+    )
+    .map(drop)
+    .map_err(Response::from_sql)
+    .and_then(|()| retrain(&station))
+    .and_then(|()| {
+        let weather = set.weather_station.as_deref().map_or_else(
+            || format!("nearest within {} km", set.radius_km),
+            |id| local(id).to_owned(),
+        );
+        access::record(
+            &caller,
+            "update",
+            &format!("inputs/{}", local(&station)),
+            &format!("{} days, weather {weather}{}", set.days, if note.is_empty() { String::new() } else { format!(": {note}") }),
+        )
+    });
+    match saved {
+        Ok(()) => inputs(request, params),
+        Err(answer) => answer,
+    }
+}
+
+fn reset_inputs(request: &Request, _: &Params) -> Response {
+    let (caller, station) = match steward(request) {
+        Ok(pair) => pair,
+        Err(answer) => return answer,
+    };
+    let gone = match sql::execute(
+        "delete from station_inputs where station = $1",
+        &[Value::from(station.as_str())],
+    ) {
+        Ok(n) => n,
+        Err(err) => return Response::from_sql(err),
+    };
+    if gone == 0 {
+        return Response::problem(404, "Not Found", "the station has the defaults already");
+    }
+    match retrain(&station).and_then(|()| {
+        access::record(
+            &caller,
+            "delete",
+            &format!("inputs/{}", local(&station)),
+            "back to the defaults",
+        )
+    }) {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// The newest changes: a steward's every one, anyone else's their own.
+fn history(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 pub fn handle(request: Request) -> Response {
     Router::new()
         .get("/api/models", models)
         .get("/api/models/{id}/snapshot", download)
+        .get("/api/me", me)
+        .get("/api/inputs", inputs)
+        .put("/api/inputs", set_inputs)
+        .delete("/api/inputs", reset_inputs)
+        .get("/api/history", history)
         .handle(&request)
 }
 
@@ -372,10 +638,15 @@ mod tests {
             json!({"id": "nowhere"}),
         ];
         assert_eq!(
-            nearest_weather((24.941, 60.171), &stations).as_deref(),
+            nearest_weather((24.941, 60.171), &stations, WEATHER_KM).as_deref(),
             Some("near")
         );
-        assert_eq!(nearest_weather((26.0, 61.0), &stations), None);
+        assert_eq!(nearest_weather((26.0, 61.0), &stations, WEATHER_KM), None);
+        assert_eq!(
+            nearest_weather((25.40, 60.37), &stations, 25.0).as_deref(),
+            Some("too far")
+        );
+        assert_eq!(nearest_weather((25.40, 60.37), &stations, 1.0), None);
         assert!((haversine_km(24.94, 60.17, 24.94, 60.27) - 11.12).abs() < 0.05);
     }
 
@@ -418,5 +689,59 @@ mod tests {
         assert!(String::from_utf8_lossy(&bare.body)
             .contains("?station=urn:ngsi-ld:BikeHireDockingStation"));
         assert_eq!(get("/api/models/x/snapshot").status, 404);
+        // The station is named before the database is asked; who may write, the host scenario shows.
+        assert_eq!(get("/api/inputs").status, 400);
+        assert_eq!(local("urn:ngsi-ld:BikeHireDockingStation:s1"), "s1");
+    }
+
+    fn new(weather: Option<&str>, radius_km: f64, days: i64, note: &str) -> NewInputs {
+        NewInputs {
+            weather_station: weather.map(str::to_owned),
+            radius_km,
+            days,
+            note: note.into(),
+        }
+    }
+
+    #[test]
+    fn inputs_are_a_weather_station_or_the_nearest_a_radius_and_days() {
+        let w = "urn:ngsi-ld:WeatherObserved:fmi:kaisaniemi";
+        assert_eq!(
+            checked_inputs(&new(Some(&format!(" {w} ")), 5.0, 3, " windy ")),
+            Ok((
+                Inputs {
+                    weather_station: Some(w.into()),
+                    radius_km: 5.0,
+                    days: 3
+                },
+                "windy".into()
+            ))
+        );
+        assert_eq!(
+            checked_inputs(&new(Some(""), 1.0, 7, "")).map(|(i, _)| i.weather_station),
+            Ok(None)
+        );
+        assert_eq!(
+            checked_inputs(&new(None, 25.0, 1, "")).map(|(i, _)| i.radius_km),
+            Ok(25.0)
+        );
+        for bad in [
+            new(Some("urn:ngsi-ld:BikeHireDockingStation:s1"), 5.0, 3, ""),
+            new(Some("kaisaniemi"), 5.0, 3, ""),
+            new(None, 0.5, 3, ""),
+            new(None, 26.0, 3, ""),
+            new(None, f64::NAN, 3, ""),
+            new(None, 5.0, 0, ""),
+            new(None, 5.0, 8, ""),
+            new(None, 5.0, 3, &"x".repeat(201)),
+            new(None, 5.0, 3, "two\nlines"),
+        ] {
+            assert!(checked_inputs(&bad).is_err(), "{bad:?}");
+        }
+        assert!(serde_json::from_str::<NewInputs>(
+            r#"{"weatherStation":null,"radiusKm":5,"days":3,"role":"steward"}"#
+        )
+        .is_err());
+        assert_eq!(Inputs::default().days, 7);
     }
 }
