@@ -16,12 +16,13 @@ import { PORTAL_WIDGET_NAMES } from "./forms/widgetNames";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, forPeople, queryKeys, unwrap } from "../api/client";
 import type { ResourceProposal } from "../api/manifest";
-import { Alert, Badge, Button, Checkbox, ExternalLink, Tabs, tabPanelProps, PageLoading } from "./ui";
+import { Alert, Badge, Button, Checkbox, ExternalLink, FilePicker, Tabs, tabPanelProps, PageLoading } from "./ui";
 import { FormFrame } from "./forms/FormRoute";
 import type { BadgeTone, DialogSize } from "./ui";
 import { ago } from "../pages/apps/CatalogCards";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
+import { pastedSecrets } from "../api/pastedSecrets";
 import { askAbout, standingIn } from "../assistant/state";
 import type { Effective } from "../api/permissions";
 import { proposeStanding } from "../api/approval";
@@ -658,6 +659,53 @@ export function ResourceFormDialogBody<T>({
     setView("form");
   }
 
+  /** The manifest the YAML view holds, saved as a file (T-3977): references, never values. */
+  function downloadYaml() {
+    const url = URL.createObjectURL(new Blob([text], { type: "application/yaml" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${extractName(formData) ?? kind?.toLowerCase() ?? "manifest"}.yaml`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * A manifest file read into the YAML view and the form (T-3977). A literal secret is refused
+   * before anything is shown; a manifest of another project is moved into this one, said on
+   * screen. The form then holds a document no verdict covers, so it is proposed only once
+   * Check is green again.
+   */
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  async function uploadYaml(file: File) {
+    const read = await file.text();
+    setUploadNote(null);
+    const secrets = pastedSecrets(read);
+    if (secrets.length > 0) {
+      setYamlError(t("form.yamlUploadSecret", { keys: secrets.join(", ") }));
+      return;
+    }
+    let document: unknown;
+    try {
+      document = parseYaml(read);
+    } catch (err) {
+      setYamlError(t("form.yamlError", { message: err instanceof Error ? err.message : String(err) }));
+      return;
+    }
+    if (!document || typeof document !== "object" || !source) {
+      setYamlError(t("form.yamlError", { message: t("form.yamlNotManifest") }));
+      return;
+    }
+    const metadata = (document as { metadata?: { namespace?: unknown } }).metadata;
+    if (project && metadata && typeof metadata.namespace === "string" && metadata.namespace !== project) {
+      setUploadNote(t("form.yamlUploadMoved", { from: metadata.namespace, to: project }));
+      metadata.namespace = project;
+    }
+    setText(stringifyYaml(document));
+    setYamlError(null);
+    setIssues([]);
+    onChange?.(source.fromManifest(document));
+  }
+
   /**
    * The draft a proposal names, holding what the form shows: a proposal takes the draft's own
    * manifest, so the save the debounce has not sent yet goes first (T-0769, AG-61).
@@ -1198,7 +1246,29 @@ export function ResourceFormDialogBody<T>({
           </div>
         ) : (
           <div {...tabPanelProps(viewsId, "yaml")} className="flex flex-col gap-3">
-            <p className="text-caption text-fg-muted">{t("form.yamlHint")}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-caption text-fg-muted">{t("form.yamlHint")}</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" data-testid="yaml-download" onClick={downloadYaml}>
+                  {t("form.yamlDownload")}
+                </Button>
+                {disabled ? null : (
+                  <FilePicker
+                    label={t("form.yamlUpload")}
+                    accept=".yaml,.yml,application/yaml,text/yaml"
+                    onFile={(file) => void uploadYaml(file)}
+                    className="text-body"
+                  >
+                    <span className="rounded-md border border-border px-3 py-1 text-caption">{t("form.yamlUpload")}</span>
+                  </FilePicker>
+                )}
+              </div>
+            </div>
+            {uploadNote ? (
+              <p role="status" data-testid="yaml-upload-note" className="text-caption text-fg-muted">
+                {uploadNote}
+              </p>
+            ) : null}
             <div className="overflow-hidden rounded-md border border-border">
               <Suspense
                 fallback={
