@@ -212,6 +212,7 @@ use crate::tools::model_tools::{
         crate::api::feedback::list_feedback,
         crate::api::feedback::feedback_screenshot,
         crate::api::restore::undo_change,
+        crate::api::restore::change_manifests,
         crate::api::ckan::get_status,
         crate::api::catalogue::get_catalogue,
         crate::api::catalogue::get_dataset,
