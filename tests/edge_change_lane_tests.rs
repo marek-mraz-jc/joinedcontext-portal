@@ -30,7 +30,7 @@ const RED_WHATEVER_THEY_HOLD: &[&str] = &[
     "Role",
     "RoleBinding",
     "Group",
-    "ContextBroker", // PF-110, ADR-N-046
+    "ContextBroker", // PF-110, ADR-N-047
     "Environment",
     "Policy",
     "ScopeDefinition",
