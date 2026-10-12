@@ -194,6 +194,7 @@ pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMe
         if label(sample.labels, "label").is_some_and(|node| {
             node == crate::pipeline_log::SINK_LABEL
                 || crate::pipeline_log::PASS_LABELS.contains(&node)
+                || node.starts_with(crate::pipeline_samples::TAP_PREFIX)
         }) {
             continue;
         }
@@ -266,6 +267,87 @@ pub(crate) fn http() -> &'static reqwest::Client {
             .build()
             .unwrap_or_default()
     })
+}
+
+/// What last crossed each node of a running stream (T-3974, API/01 §7b).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PipelineSamples {
+    pub pipeline: String,
+    /// The newest samples per node label (`input`, `step_{j}`, `compute`, `output`), newest first.
+    pub nodes: std::collections::BTreeMap<String, Vec<crate::pipeline_samples::Sample>>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/pipelines/{name}/samples",
+    summary = "Read the Last Messages per Step",
+    description = "The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked (T-3974).",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+    ),
+    responses(
+        (status = 200, description = "The samples per node; empty before the stream ran", body = PipelineSamples),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+    )
+)]
+pub async fn get_samples(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<Json<PipelineSamples>, ApiError> {
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    let pipeline = state.mirror.get(&project, "Pipeline", &name);
+    let Some(pipeline) =
+        pipeline.filter(|_| effective.may_read_project() && effective.may_read("Pipeline"))
+    else {
+        return Err(ApiError::NotFound(format!(
+            "pipeline '{name}' not found in project '{project}'"
+        )));
+    };
+    // A sample shows no more than the pipeline's targets serve: what any of them hides is out.
+    let hidden: Vec<String> =
+        serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(pipeline.spec.clone())
+            .map(|spec| {
+                spec.outputs()
+                    .into_iter()
+                    .filter_map(|output| {
+                        state
+                            .mirror
+                            .get(&project, "Endpoint", output.target_endpoint.local_id())
+                    })
+                    .flat_map(|endpoint| {
+                        endpoint.spec["projection"]["hiddenAttributes"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|name| name.as_str().map(str::to_owned))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+    let nodes = state
+        .pipeline_samples
+        .read(&project, &name, chrono::Utc::now())
+        .into_iter()
+        .map(|(node, samples)| {
+            let samples = samples
+                .into_iter()
+                .map(|sample| crate::pipeline_samples::Sample {
+                    at: sample.at,
+                    record: crate::pipeline_samples::redacted(sample.record, &hidden),
+                })
+                .collect();
+            (node, samples)
+        })
+        .collect();
+    Ok(Json(PipelineSamples {
+        pipeline: name,
+        nodes,
+    }))
 }
 
 #[utoipa::path(
@@ -801,6 +883,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/pipelines/{name}/metrics",
             get(get_metrics),
+        )
+        .route(
+            "/projects/{project}/pipelines/{name}/samples",
+            get(get_samples),
         )
         .route(
             "/projects/{project}/pipelines/{name}/rejected",

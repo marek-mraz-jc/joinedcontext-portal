@@ -91,6 +91,8 @@ pub struct AppState {
     pub live: Arc<crate::live::LiveHub>,
     /// Each pipeline's runs and their log (PL-62), durable with a database.
     pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
+    /// The last messages through each node of a running stream, in memory (T-3974).
+    pub pipeline_samples: Arc<crate::pipeline_samples::SampleStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
@@ -192,6 +194,7 @@ impl AppState {
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
+            pipeline_samples: Arc::default(),
             drift_watch: None,
             views: None,
             foreign_names: Arc::default(),

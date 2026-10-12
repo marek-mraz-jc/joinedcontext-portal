@@ -123,6 +123,9 @@ routes:
   - route: POST /internal/pipelines/{project}/{name}/outcomes
     rule: "workload:pipeline-runner"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/pipelines/{project}/{name}/samples
+    rule: "workload:pipeline-runner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: POST /internal/pipelines/{project}/{name}/rejected
     rule: "workload:pipeline-runner"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
@@ -639,6 +642,9 @@ routes:
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
     body: {"pipeline": {"apiVersion": "joinedcontext.com/v1alpha1", "kind": "Pipeline", "metadata": {"name": "existing"}, "spec": {"class": "auto", "source": {"endpointRef": "existing"}, "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:existing"}}, "sample": {}}
   - route: GET /projects/{project}/pipelines/{name}/metrics
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/pipelines/{name}/samples
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/pipelines/{name}/rejected

@@ -10043,6 +10043,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/samples": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read the Last Messages per Step",
+        "description": "The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked (T-3974).",
+        "operationId": "get_samples",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The samples per node; empty before the stream ran",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineSamples"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/pipelinetemplates": {
       "get": {
         "tags": [
@@ -20419,6 +20481,32 @@
           }
         }
       },
+      "PipelineSamples": {
+        "type": "object",
+        "description": "What last crossed each node of a running stream (T-3974, API/01 §7b).",
+        "required": [
+          "pipeline",
+          "nodes"
+        ],
+        "properties": {
+          "nodes": {
+            "type": "object",
+            "description": "The newest samples per node label (`input`, `step_{j}`, `compute`, `output`), newest first.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Sample"
+              }
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "pipeline": {
+            "type": "string"
+          }
+        }
+      },
       "PipelineTemplate": {
         "type": "object",
         "required": [
@@ -21970,6 +22058,22 @@
             "items": {
               "$ref": "#/components/schemas/AgentRun"
             }
+          }
+        }
+      },
+      "Sample": {
+        "type": "object",
+        "required": [
+          "at",
+          "record"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "record": {
+            "type": "object"
           }
         }
       },
